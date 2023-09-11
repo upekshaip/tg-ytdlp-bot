@@ -1,4 +1,4 @@
-# cookiebot - magic
+# cookiebot - tg-ytdlp-bot
 
 download private youtube/ videos using cookie file
 
@@ -67,10 +67,10 @@ download private youtube/ videos using cookie file
 
 - added Config obj for configurations
 - can add custom name for playlist. 1st video will start "bla bla - Part 1" and so on.
-  It must give a range if you need the custom name like -> (https://blabla.blaa\*1\*3*name)
+  It must give a range if you need the custom name like -> (https://blabla.blaa*1*3*name)
 - no need to give a range for videos for only one. simply give the url (https://blabla.blaa)
 - if you give only a playlist url, bot will download the first video of that playlist.
-- if you want to download a range of videos, give a specific rang like -> (https://blabla.blaa\*1\*3)
+- if you want to download a range of videos, give a specific rang like -> (https://blabla.blaa*1*3)
 
 ### User commands
 
@@ -105,11 +105,11 @@ https://blabla.blaa
 - download video with real name
 - download only the 1st video of the playlist
 
-https://blabla.blaa\*1\*3
+https://blabla.blaa*1*3
 
 - download the given range of playlist with real name
 
-https://blabla.blaa\*1\*3\*name
+https://blabla.blaa*1*3*name
 
 - download the given range of playlist with coustom name
 - video names are like this ->
@@ -118,11 +118,11 @@ https://blabla.blaa\*1\*3\*name
 
 ## Added new
 
-- db per user
+- Added cookie download feature for each user
 - added db per user
 
 ## TODO:
 
-- need to add custom formatter selector for download.
+- Need to add custom formatter selector for download
 - Need to add mp3 support
-- Need to add Google drive support for store
+- Need to add Google drive support to store files
