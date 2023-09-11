@@ -11,3 +11,4 @@ users.txt
 benv
 config.py
 .vscode
+__pycache__
