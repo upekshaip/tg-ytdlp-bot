@@ -1,0 +1,8 @@
+pyrogram
+yt-dlp
+requests
+TgCrypto
+moviepy
+ffmpeg
+ffmpeg-python
+Pyrebase4
