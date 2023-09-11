@@ -152,7 +152,6 @@ def url_distractor(app, message):
         send_to_all(message, f"{IndexError}\n{Config.INDEX_ERROR}")
     except:
         send_to_all(message, "Some error occurred 😕")
-        remove_media(message)
 
     else:
         print(user_id, f"No system errors found on above activity")
@@ -268,48 +267,53 @@ def get_user_log(app, message):
         if Config.GET_USER_LOGS_COMMAND in message.text:
             user_id = message.text.split(Config.GET_USER_LOGS_COMMAND + " ")[1]
 
-    db_data = db.child(f"{Config.BOT_DB_PATH}/logs/{user_id}").get().each()
-    lst = [user.val() for user in db_data]
-    data = []
-    data_tg = []
-    least_10 = []
-    topics = ["TS", "ID", "Name", "Video Title", "URL"]
+    try:
+        db_data = db.child(f"{Config.BOT_DB_PATH}/logs/{user_id}").get().each()
+        lst = [user.val() for user in db_data]
+        data = []
+        data_tg = []
+        least_10 = []
+        topics = ["TS", "ID", "Name", "Video Title", "URL"]
 
-    for l in lst:
-        ts = datetime.fromtimestamp(int(l["timestamp"]))
-        row = f"""{ts} | {l["ID"]} | {l["name"]} | {l["title"]} | {l["urls"]}"""
-        row_2 = f"""**{ts}** | `{l["ID"]}` | **{l["name"]}** | {l["title"]} | {l["urls"]}"""
-        data.append(row)
-        data_tg.append(row_2)
-    total = len(data_tg)
-    if total > 10:
-        for i in range(10):
-            info = data_tg[(total - 10) + i]
-            least_10.append(info)
-        least_10.sort(key=str.lower)
-        format = '\n \n'.join(least_10)
-    else:
-        data_tg.sort(key=str.lower)
-        format = '\n \n'.join(data_tg)
-    data.sort(key=str.lower)
-    now = datetime.fromtimestamp(math.floor(time.time()))
-    txt_format = f"Logs of {Config.BOT_NAME_FOR_USERS}\nUser: {user_id}\nTotal logs: {total}\nCurrent time: {now}\n \n" + \
-        '\n'.join(data)
+        for l in lst:
+            ts = datetime.fromtimestamp(int(l["timestamp"]))
+            row = f"""{ts} | {l["ID"]} | {l["name"]} | {l["title"]} | {l["urls"]}"""
+            row_2 = f"""**{ts}** | `{l["ID"]}` | **{l["name"]}** | {l["title"]} | {l["urls"]}"""
+            data.append(row)
+            data_tg.append(row_2)
+        total = len(data_tg)
+        if total > 10:
+            for i in range(10):
+                info = data_tg[(total - 10) + i]
+                least_10.append(info)
+            least_10.sort(key=str.lower)
+            format = '\n \n'.join(least_10)
+        else:
+            data_tg.sort(key=str.lower)
+            format = '\n \n'.join(data_tg)
+        data.sort(key=str.lower)
+        now = datetime.fromtimestamp(math.floor(time.time()))
+        txt_format = f"Logs of {Config.BOT_NAME_FOR_USERS}\nUser: {user_id}\nTotal logs: {total}\nCurrent time: {now}\n \n" + \
+            '\n'.join(data)
 
-    create_directory(str(message.chat.id))
-    log_path = f"./users/{str(message.chat.id)}/logs.txt"
-    with open(log_path, 'w', encoding="utf-8") as f:
-        f.write(str(txt_format))
+        create_directory(str(message.chat.id))
+        log_path = f"./users/{str(message.chat.id)}/logs.txt"
+        with open(log_path, 'w', encoding="utf-8") as f:
+            f.write(str(txt_format))
 
-    send_to_all(
-        message, f"Total: **{total}**\n**{user_id}** - logs (Last 10):\n \n \n{format}")
-    app.send_document(message.chat.id, log_path,
-                      caption=f"{user_id} - all logs")
-    app.send_document(Config.LOGS_ID, log_path,
-                      caption=f"{user_id} - all logs")
-
+        send_to_all(
+            message, f"Total: **{total}**\n**{user_id}** - logs (Last 10):\n \n \n{format}")
+        app.send_document(message.chat.id, log_path,
+                          caption=f"{user_id} - all logs")
+        app.send_document(Config.LOGS_ID, log_path,
+                          caption=f"{user_id} - all logs")
+    except:
+        send_to_all(
+            message, "**User did not download any content yet...** Not exist in logs")
 
 # Get all kinds of users (users/ blocked/ unblocked)
+
+
 def get_user_details(app, message):
     command = message.text.split(Config.GET_USER_DETAILS_COMMAND)[1]
     if command == "_blocked":

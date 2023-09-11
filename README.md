@@ -40,7 +40,7 @@ download private youtube/ videos using cookie file
   git clone https://github.com/upekshaip/tg-ytdlp-bot.git
   ```
 - ```sh
-  cd tg-yt-dlp-bot
+  cd tg-ytdlp-bot
   ```
 - ```sh
   sudo mv _config.py config.py
