@@ -2,7 +2,7 @@
 
 download private youtube/ videos using cookie file
 
-## Full documentation avilible on - https://upekshaip.me/projects
+## Full documentation available on - https://upekshaip.me/projects
 
 ## Deploy on VM
 
