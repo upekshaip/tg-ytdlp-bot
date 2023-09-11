@@ -6,8 +6,9 @@ download private youtube/ videos using cookie file
 
 ## Deploy on VM
 
+- First, You need to add your bot to the **logging channel** and **subscription channel**. Both are required.
 - Give me a strar and fork this repository. Then change the **\_congif.py** file to **config.py**
-- Add your configuration for the config file.
+- Add your configuration for the **config.py** file.
 
 #### Setup debian/any for docker
 
@@ -33,17 +34,25 @@ download private youtube/ videos using cookie file
   docker -v
   ```
 
-#### Install Dockerfile
+#### Setting the config.py file
 
 - ```sh
-  sudo apt-get install pip git -y
+  git clone https://github.com/upekshaip/tg-ytdlp-bot.git
   ```
 - ```sh
-  git clone https://upekshaip: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@github.com/upekshaip/updated-tg-bot.git
+  cd tg-yt-dlp-bot
   ```
 - ```sh
-  cd updated-tg-bot
+  sudo mv _config.py config.py
   ```
+- ```sh
+  nano config.py
+  ```
+- Now you can edit your config before the deployment
+- After your edit process please follow as below
+
+#### Install Dockerfile
+
 - ```sh
   sudo docker build . -t tg-public-bot
   ```
