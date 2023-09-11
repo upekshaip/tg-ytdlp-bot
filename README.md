@@ -7,7 +7,7 @@ download private youtube/ videos using cookie file
 ## Deploy on VM
 
 - First, You need to add your bot to the **logging channel** and **subscription channel**. Both are required.
-- Give me a strar and fork this repository. Then change the **\_congif.py** file to **config.py**
+- Give me a strar and fork this repository. Then change the **\_config.py** file to **config.py**
 - Add your configuration for the **config.py** file.
 
 #### Setup debian/any for docker
