@@ -112,12 +112,12 @@ def url_distractor(app, message):
             if Config.CHECK_COOKIE_COMMAND == message.text:
                 checking_cookie_file(app, message)
 
-        # Admin commands
-        if int(message.chat.id) in Config.ADMIN:
-
             # calling update the cookie file function
             if Config.SAVE_AS_COOKIE_COMMAND in message.text:
                 save_as_cookie_file(app, message)
+
+        # Admin commands
+        if int(message.chat.id) in Config.ADMIN:
 
             # Broadcast messages to users
             if message.reply_to_message and message.text == Config.BROADCAST_MESSAGE:
@@ -492,8 +492,9 @@ def save_as_cookie_file(app, message):
     cookie_with_command_list = message.text.split(
         f"{Config.SAVE_AS_COOKIE_COMMAND} ")
     new_cookie = cookie_with_command_list[1]
-    if len(new_cookie) > 10:
+    if len(new_cookie) > 0:
         send_to_all(message, f"**user gave a new cookie file.**")
+        create_directory(str(user_id))
         cookie = open(f"./users/{user_id}/{Config.COOKIE_FILE_PATH}", "w")
         cookie.write(new_cookie)
         cookie.close()
