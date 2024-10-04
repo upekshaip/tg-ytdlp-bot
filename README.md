@@ -4,7 +4,7 @@ support me on https://buymeacoffee.com/upekshaip
 
 download private youtube/ videos using cookie file
 
-## Full documentation available on - https://upekshaip.me/projects
+## Full documentation available on - https://upekshaip.com/projects
 
 ## Deploy on VM
 
