@@ -1,4 +1,5 @@
 import pyrebase
+import re
 import os
 from pyrogram import Client, filters
 from pyrogram import enums
@@ -85,17 +86,28 @@ def check_user(message):
 
 
 # checking actions
-@ app.on_message(filters.text & filters.private)
+# Text message handler
+@app.on_message(filters.text & filters.private)
 def url_distractor(app, message):
     user_id = message.chat.id
     try:
         if is_user_in_channel(app, message):
-            # download video function
+            # If the message starts with the cookie save command, process it and exit
+            if message.text.startswith(Config.SAVE_AS_COOKIE_COMMAND):
+                save_as_cookie_file(app, message)
+                return
+
+            # If the message is the cookie check command, call the check function and exit
+            if message.text.strip() == Config.CHECK_COOKIE_COMMAND:
+                checking_cookie_file(app, message)
+                return
+
+            # Then, if the message contains a URL, launch the video download function
             if ("https://" in message.text) or ("http://" in message.text):
                 if not is_user_blocked(message):
                     video_url_extractor(app, message)
 
-            # calling caption_editor function for videos
+            # If the message is a reply to a video, call the caption editor
             if message.reply_to_message:
                 if not is_user_blocked(message):
                     if message.reply_to_message.video:
@@ -108,53 +120,13 @@ def url_distractor(app, message):
             if Config.USAGE_COMMAND in message.text:
                 get_user_log(app, message)
 
-            # calling check cookie function
-            if Config.CHECK_COOKIE_COMMAND == message.text:
-                checking_cookie_file(app, message)
-
-            # calling update the cookie file function
-            if Config.SAVE_AS_COOKIE_COMMAND in message.text:
-                save_as_cookie_file(app, message)
-
-        # Admin commands
-        if int(message.chat.id) in Config.ADMIN:
-
-            # Broadcast messages to users
-            if message.reply_to_message and message.text == Config.BROADCAST_MESSAGE:
-                send_promo_message(app, message)
-                # send_to_user(message, message.reply_to_message)
-
-            # download cookiefile
-            if Config.DOWNLOAD_COOKIE_COMMAND == message.text:
-                download_cookie(app, message)
-
-            # Block user
-            if Config.BLOCK_USER_COMMAND in message.text:
-                block_user(app, message)
-
-            # Unblock user
-            if Config.UNBLOCK_USER_COMMAND in message.text:
-                unblock_user(app, message)
-
-            # Check running time
-            if Config.RUN_TIME in message.text:
-                check_runtime(message)
-
-            # get all users deatial list
-            if Config.GET_USER_DETAILS_COMMAND in message.text:
-                get_user_details(app, message)
-
-            # Getting logs of specific user
-            if Config.GET_USER_LOGS_COMMAND in message.text:
-                get_user_log(app, message)
-
     except IndexError:
         send_to_all(message, f"{IndexError}\n{Config.INDEX_ERROR}")
-    except:
-        send_to_all(message, "Some error occurred 😕")
-
+    except Exception as e:
+        send_to_all(message, f"Some error occurred 😕\n{e}")
     else:
-        print(user_id, f"No system errors found on above activity")
+        print(user_id, "No system errors found on above activity")
+
 
 
 # Check the usage of the bot
@@ -486,23 +458,45 @@ def checking_cookie_file(app, message):
 
 
 # updating the cookie file.
-@app.on_message(filters.text & filters.private)
+# Function to save cookie file supporting code block
 def save_as_cookie_file(app, message):
     user_id = message.chat.id
-    cookie_with_command_list = message.text.split(
-        f"{Config.SAVE_AS_COOKIE_COMMAND} ")
-    new_cookie = cookie_with_command_list[1]
-    if len(new_cookie) > 0:
-        send_to_all(message, f"**user gave a new cookie file.**")
-        create_directory(str(user_id))
-        cookie = open(f"./users/{user_id}/{Config.COOKIE_FILE_PATH}", "w")
-        cookie.write(new_cookie)
-        cookie.close()
-        send_to_all(
-            message, f"**User successfully added a cookie ->>>>>>>**\n`{new_cookie}`")
-        return
+    # Get all the content after the command
+    content = message.text[len(Config.SAVE_AS_COOKIE_COMMAND):].strip()
+    new_cookie = ""
+    # If the content starts with a code block
+    if content.startswith("```"):
+        lines = content.splitlines()
+        # Remove the first line (e.g. "```cookie")
+        if lines[0].startswith("```"):
+            # If the last line is the closing block, remove it
+            if lines[-1].strip() == "```":
+                lines = lines[1:-1]
+            else:
+                lines = lines[1:]
+            new_cookie = "\n".join(lines).strip()
+        else:
+            new_cookie = content
     else:
-        send_to_all(message, f"**not a valid** __cookie.__")
+        new_cookie = content
+
+    # For each line, check for the presence of a tab character.
+    # If it's not present, replace sequences of two or more spaces with "\t"
+    processed_lines = []
+    for line in new_cookie.splitlines():
+        if "\t" not in line:
+            line = re.sub(r' {2,}', '\t', line)
+        processed_lines.append(line)
+    final_cookie = "\n".join(processed_lines)
+
+    if final_cookie:
+        send_to_all(message, "**User provided a new cookie file.**")
+        create_directory(str(user_id))
+        with open(f"./users/{user_id}/{Config.COOKIE_FILE_PATH}", "w", encoding="utf-8") as f:
+            f.write(final_cookie)
+        send_to_all(message, f"**Cookie successfully updated:**\n`{final_cookie}`")
+    else:
+        send_to_all(message, "**Not a valid cookie.**")
 
 
 # url extractor
