@@ -120,6 +120,46 @@ def url_distractor(app, message):
             if Config.USAGE_COMMAND in message.text:
                 get_user_log(app, message)
 
+            # calling check cookie function
+            if Config.CHECK_COOKIE_COMMAND == message.text:
+                checking_cookie_file(app, message)
+
+            # calling update the cookie file function
+            if Config.SAVE_AS_COOKIE_COMMAND in message.text:
+                save_as_cookie_file(app, message)
+
+        # Admin commands
+        if int(message.chat.id) in Config.ADMIN:
+
+            # Broadcast messages to users
+            if message.reply_to_message and message.text == Config.BROADCAST_MESSAGE:
+                send_promo_message(app, message)
+                # send_to_user(message, message.reply_to_message)
+
+            # download cookiefile
+            if Config.DOWNLOAD_COOKIE_COMMAND == message.text:
+                download_cookie(app, message)
+
+            # Block user
+            if Config.BLOCK_USER_COMMAND in message.text:
+                block_user(app, message)
+
+            # Unblock user
+            if Config.UNBLOCK_USER_COMMAND in message.text:
+                unblock_user(app, message)
+
+            # Check running time
+            if Config.RUN_TIME in message.text:
+                check_runtime(message)
+
+            # get all users deatial list
+            if Config.GET_USER_DETAILS_COMMAND in message.text:
+                get_user_details(app, message)
+
+            # Getting logs of specific user
+            if Config.GET_USER_LOGS_COMMAND in message.text:
+                get_user_log(app, message)
+        
     except IndexError:
         send_to_all(message, f"{IndexError}\n{Config.INDEX_ERROR}")
     except Exception as e:
