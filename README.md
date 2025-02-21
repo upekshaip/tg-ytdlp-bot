@@ -1,15 +1,16 @@
 # cookiebot - tg-ytdlp-bot
 
-support me on https://buymeacoffee.com/upekshaip
+Support me on [BuyMeACoffee](https://buymeacoffee.com/upekshaip)
 
-download private youtube/ videos using cookie file
+Download private YouTube/videos using a cookie file.
 
-## Full documentation available on - https://upekshaip.com/projects/-O0t36gRpfJR1p8KB7vU
+## Full documentation available on  
+[https://upekshaip.com/projects/-O0t36gRpfJR1p8KB7vU](https://upekshaip.com/projects/-O0t36gRpfJR1p8KB7vU)
 
 ## Deploy on VM
 
-- First, You need to add your bot to the **logging channel** and **subscription channel**. Both are required.
-- Give me a strar and fork this repository. Then change the **\_config.py** file to **config.py**
+- First, you need to add your bot to the **logging channel** and **subscription channel**. Both are required.
+- Give me a star and fork this repository. Then change the **_config.py** file to **config.py**.
 - Add your configuration for the **config.py** file.
 
 #### Setup debian/any for docker
@@ -36,6 +37,49 @@ download private youtube/ videos using cookie file
   docker -v
   ```
 
+#### Installing ffmpeg in the System
+
+It is essential to have **ffmpeg** installed on your system because **yt-dlp** relies on it for merging streams (and in some cases, for transcoding or extracting thumbnails). To install ffmpeg on a Debian-based system, run:
+
+- ```sh
+  sudo apt-get update
+  ```
+- ```sh
+  sudo apt-get install -y ffmpeg
+  ```
+- Verify installation:
+- ```sh
+  ffmpeg -version
+  ```
+
+#### Making ffmpeg Available in Docker
+
+If you are deploying via Docker, ensure that ffmpeg is included in your Docker image. One simple way is to modify the Dockerfile to install ffmpeg during the build process. For example, add the following lines in your Dockerfile before copying the bot’s files:
+
+```dockerfile
+FROM python:3.9-slim
+
+# Install dependencies including ffmpeg
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set work directory
+WORKDIR /app
+
+# Copy requirements.txt and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the application
+COPY . .
+
+# Command to run the bot
+CMD ["python", "your_bot_file.py"]
+```
+
+This way, the built Docker image will include ffmpeg and your bot will be able to use it.
+
 #### Setting the config.py file
 
 - ```sh
@@ -50,8 +94,8 @@ download private youtube/ videos using cookie file
 - ```sh
   nano config.py
   ```
-- Now you can edit your config before the deployment
-- After your edit process please follow as below
+- Now you can edit your config before the deployment.
+- After your edit process, please follow the steps below.
 
 #### Install Dockerfile
 
@@ -65,66 +109,66 @@ download private youtube/ videos using cookie file
   sudo docker run tg-public-bot
   ```
 
-### additions
+### Additions
 
-- added Config obj for configurations
-- can add custom name for playlist. 1st video will start "bla bla - Part 1" and so on.
-  It must give a range if you need the custom name like -> (https://blabla.blaa*1*3*name)
-- no need to give a range for videos for only one. simply give the url (https://blabla.blaa)
-- if you give only a playlist url, bot will download the first video of that playlist.
-- if you want to download a range of videos, give a specific rang like -> (https://blabla.blaa*1*3)
+- Added a Config object for configurations.
+- Can add a custom name for a playlist. The 1st video will start as "bla bla - Part 1" and so on.  
+  You can specify a range if you need a custom name like -> (https://blabla.blaa*1*3*name)
+- No need to specify a range if there is only one video. Simply provide the URL (https://blabla.blaa).
+- If you provide only a playlist URL, the bot will download the first video of that playlist.
+- If you want to download a range of videos, specify a range like -> (https://blabla.blaa*1*3)
 
-### User commands
+### User Commands
 
-- /check_cookie - Check cookie file
-- /help - Help message
-- /start - start the bot
-- /clean - clean your working directory
-- /usage - See your usage
+- `/check_cookie` - Check cookie file
+- `/help` - Help message
+- `/start` - Start the bot
+- `/clean` - Clean your working directory
+- `/usage` - See your usage
 
-### Admin commands
+### Admin Commands
 
-- start - Start the bot
-- help - Send help text
-- run_time - Show bot runtime
-- log - Get user logs (ex: /log 10101010)
-- broadcast - Send message to all users (You needs to reply any message with this command. then that message will be broadcasteds)
-- clean - clean your working directory
-- usage - Get all logs
-- check_cookie - Check cookie file
-- save_as_cookie - Save txt as cookie (save text as cookie)
-- download_cookie - Download the cookie file
-- block_user - Block user (ex: /block_user 10101010)
-- unblock_user - Unblock user (ex: /unblock_user 10101010)
-- all_users - Get all users
-- all_blocked - Get all blocked users
-- all_unblocked - Get all unblocked users
+- `start` - Start the bot
+- `help` - Send help text
+- `run_time` - Show bot runtime
+- `log` - Get user logs (e.g., `/log 10101010`)
+- `broadcast` - Send a message to all users (reply to any message with this command to broadcast it)
+- `clean` - Clean your working directory
+- `usage` - Get all logs
+- `check_cookie` - Check cookie file
+- `save_as_cookie` - Save text as cookie (save text as cookie)
+- `download_cookie` - Download the cookie file
+- `block_user` - Block a user (e.g., `/block_user 10101010`)
+- `unblock_user` - Unblock a user (e.g., `/unblock_user 10101010`)
+- `all_users` - Get all users
+- `all_blocked` - Get all blocked users
+- `all_unblocked` - Get all unblocked users
 
-#### Link command pattern spec (Just send the link)
+#### Link Command Pattern Spec (Just send the link)
 
 https://blabla.blaa
 
-- download video with real name
-- download only the 1st video of the playlist
+- Download video with the real name.
+- Download only the 1st video of the playlist.
 
 https://blabla.blaa*1*3
 
-- download the given range of playlist with real name
+- Download the given range of the playlist with the real name.
 
 https://blabla.blaa*1*3*name
 
-- download the given range of playlist with coustom name
-- video names are like this ->
+- Download the given range of the playlist with a custom name.  
+  Video names will be like:
   - "name - Part 1"
   - "name - Part 2"
 
-## Added new
+## Added New Features
 
-- Added cookie download feature for each user
-- added db per user
+- Added cookie download feature for each user.
+- Added per-user database.
 
 ## TODO:
 
-- Need to add custom formatter selector for download
-- Need to add mp3 support
-- Need to add Google drive support to store files
+- Need to add a custom formatter selector for download.
+- Need to add mp3 support.
+- Need to add Google Drive support to store files.
