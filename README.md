@@ -138,6 +138,7 @@ This way, the built Docker image will include ffmpeg and your bot will be able t
 - `check_cookie` - Check cookie file
 - `save_as_cookie` - Save text as cookie (save text as cookie)
 - `download_cookie` - Download the cookie file
+- `format` - Choose media format options
 - `block_user` - Block a user (e.g., `/block_user 10101010`)
 - `unblock_user` - Unblock a user (e.g., `/unblock_user 10101010`)
 - `all_users` - Get all users
