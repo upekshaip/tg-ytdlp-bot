@@ -58,6 +58,67 @@ def command2(app, message):
     send_to_logger(message, f"Send help txt to user")
 
 
+# Command /format handler
+@app.on_message(filters.command("format") & filters.private)
+def set_format(app, message):
+    user_id = message.chat.id
+    user_dir = f"./users/{user_id}"
+    create_directory(str(user_id))  # Ensure user folder exists
+
+    # If additional text is provided, save it as custom format
+    if len(message.command) > 1:
+        custom_format = message.text.split(" ", 1)[1].strip()
+        with open(f"{user_dir}/format.txt", "w", encoding="utf-8") as f:
+            f.write(custom_format)
+        app.send_message(user_id, f"Format updated to:\n{custom_format}")
+    else:
+        # Otherwise, show a menu with predefined options, including a "custom" option
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("bv*[vcodec*=avc1][height<=2160]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best", callback_data="format_option|bv")],
+            [InlineKeyboardButton("bestvideo+bestaudio/best", callback_data="format_option|bestvideo")],
+            [InlineKeyboardButton("best", callback_data="format_option|best")],
+            [InlineKeyboardButton("custom", callback_data="format_option|custom")]
+        ])
+        app.send_message(
+            user_id,
+            "Select a format option or send a custom one using `/format <format_string>`:",
+            reply_markup=keyboard
+        )
+
+# CallbackQuery handler for /format menu selection
+@app.on_callback_query(filters.regex(r"^format_option\|"))
+def format_option_callback(app, callback_query):
+    user_id = callback_query.from_user.id
+    data = callback_query.data.split("|")[1]
+    
+    if data == "custom":
+        # Send a tip message with an example on how to use /format with custom parameters
+        app.send_message(
+            user_id,
+            "To use a custom format, send a command in the following format:\n\n`/format bestvideo+bestaudio/best`\n\nReplace `bestvideo+bestaudio/best` with your desired format string."
+        )
+        callback_query.answer("Custom tip sent.")
+        return
+
+    # Map the short identifier to full format string
+    if data == "bv":
+        chosen_format = "bv*[vcodec*=avc1][height<=2160]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+    elif data == "bestvideo":
+        chosen_format = "bestvideo+bestaudio/best"
+    elif data == "best":
+        chosen_format = "best"
+    else:
+        chosen_format = data
+
+    user_dir = f"./users/{user_id}"
+    create_directory(str(user_id))
+    with open(f"{user_dir}/format.txt", "w", encoding="utf-8") as f:
+        f.write(chosen_format)
+    app.send_message(user_id, f"Format updated to:\n{chosen_format}")
+    callback_query.answer("Format saved.")
+
+
+
 #####################################################################################
 
 # checking user is blocked or not
@@ -768,6 +829,45 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
     create_directory(str(user_id))
     user_dir_name = os.path.abspath("./users/" + str(user_id))
 
+    # If user has custom format saved, use it; otherwise use the default fallback cascade
+    custom_format_path = f"{user_dir_name}/format.txt"
+    if os.path.exists(custom_format_path):
+        with open(custom_format_path, "r", encoding="utf-8") as f:
+            custom_format = f.read().strip()
+        # If user selected "best", then use prefer_ffmpeg False; otherwise True with merge_output_format mp4.
+        if custom_format.lower() == "best":
+            attempts = [{
+                'format': custom_format,
+                'prefer_ffmpeg': False
+            }]
+        else:
+            attempts = [{
+                'format': custom_format,
+                'prefer_ffmpeg': True,
+                'merge_output_format': 'mp4'
+            }]
+    else:
+        # Default fallback cascade (if /format not set)
+        attempts = [
+            # 1) Attempt: select H.264 (avc1) up to 4K + AAC without transcoding
+            {
+                'format': 'bv*[vcodec*=avc1][height<=2160]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
+                'prefer_ffmpeg': True,
+                'merge_output_format': 'mp4'
+            },
+            # 2) Attempt: bestvideo+bestaudio/best with merge_output_format (without transcoding)
+            {
+                'format': 'bestvideo+bestaudio/best',
+                'prefer_ffmpeg': True,
+                'merge_output_format': 'mp4'
+            },
+            # 3) Fallback to the original option
+            {
+                'format': 'best',
+                'prefer_ffmpeg': False
+            }
+        ]
+
     # Wrapper function for logging and attempting the download
     def try_download(url, attempt_opts, total_info_text):
         common_opts = {
@@ -781,7 +881,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             # First, extract video info (without downloading) for logging purposes
             with YoutubeDL(ytdl_opts) as ydl:
                 info_dict = ydl.extract_info(url, download=False)
-                # Optionally update info_text here (e.g., add format details)
             app.edit_message_text(user_id, plus_one, f"{total_info_text}\n \n__Downloading using format: {ytdl_opts['format']}...__ 📥")
             with YoutubeDL(ytdl_opts) as ydl:
                 ydl.download([url])
@@ -789,27 +888,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
         except Exception as e:
             print(f"Attempt with format {ytdl_opts['format']} failed: {e}")
             return None
-
-    # List of download attempt options (fallback cascade)
-    attempts = [
-        # 1) Attempt: select H.264 (avc1) up to 4K + AAC without transcoding
-        {
-            'format': 'bv*[vcodec*=avc1][height<=2160]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
-            'prefer_ffmpeg': True,
-            'merge_output_format': 'mp4'
-        },
-        # 2) Attempt: bestvideo+bestaudio/best with merge_output_format (without transcoding)
-        {
-            'format': 'bestvideo+bestaudio/best',
-            'prefer_ffmpeg': True,
-            'merge_output_format': 'mp4'
-        },
-        # 3) Fallback to the original option
-        {
-            'format': 'best',
-            'prefer_ffmpeg': False
-        }
-    ]
 
     # Process each video in the loop
     for x in range(video_count):
