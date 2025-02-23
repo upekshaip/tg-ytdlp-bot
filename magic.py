@@ -65,18 +65,19 @@ def set_format(app, message):
     user_dir = f"./users/{user_id}"
     create_directory(str(user_id))  # Ensure user folder exists
 
-    # If additional text is provided, save it as custom format
+    # If additional text is passed, save it as a custom format
     if len(message.command) > 1:
         custom_format = message.text.split(" ", 1)[1].strip()
         with open(f"{user_dir}/format.txt", "w", encoding="utf-8") as f:
             f.write(custom_format)
         app.send_message(user_id, f"Format updated to:\n{custom_format}")
     else:
-        # Otherwise, show a menu with predefined options, including a "custom" option
+        # Otherwise display a menu with preset options
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("bv*[vcodec*=avc1][height<=2160]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best", callback_data="format_option|bv")],
-            [InlineKeyboardButton("bestvideo+bestaudio/best", callback_data="format_option|bestvideo")],
-            [InlineKeyboardButton("best", callback_data="format_option|best")],
+            [InlineKeyboardButton("<=4k (best for desktop TG app)", callback_data="format_option|bv2160")],
+            [InlineKeyboardButton("<=FullHD (best for mobile TG app)", callback_data="format_option|bv1080")],
+            [InlineKeyboardButton("bestvideo+bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
+            [InlineKeyboardButton("best (no ffmpeg)", callback_data="format_option|best")],
             [InlineKeyboardButton("custom", callback_data="format_option|custom")]
         ])
         app.send_message(
@@ -85,6 +86,7 @@ def set_format(app, message):
             reply_markup=keyboard
         )
 
+
 # CallbackQuery handler for /format menu selection
 @app.on_callback_query(filters.regex(r"^format_option\|"))
 def format_option_callback(app, callback_query):
@@ -92,17 +94,19 @@ def format_option_callback(app, callback_query):
     data = callback_query.data.split("|")[1]
     
     if data == "custom":
-        # Send a tip message with an example on how to use /format with custom parameters
+        # Sending a hint on how to use the custom format
         app.send_message(
             user_id,
-            "To use a custom format, send a command in the following format:\n\n`/format bestvideo+bestaudio/best`\n\nReplace `bestvideo+bestaudio/best` with your desired format string."
+            "To use a custom format, send the command in the following form:\n\n`/format bestvideo+bestaudio/best`\n\nReplace `bestvideo+bestaudio/best` with the desired format string."
         )
-        callback_query.answer("Custom tip sent.")
+        callback_query.answer("Hint sent.")
         return
 
-    # Map the short identifier to full format string
-    if data == "bv":
+    # Mapping a short identifier to a full format string
+    if data == "bv2160":
         chosen_format = "bv*[vcodec*=avc1][height<=2160]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+    elif data == "bv1080":
+        chosen_format = "bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
     elif data == "bestvideo":
         chosen_format = "bestvideo+bestaudio/best"
     elif data == "best":
@@ -849,9 +853,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
     else:
         # Default fallback cascade (if /format not set)
         attempts = [
-            # 1) Attempt: select H.264 (avc1) up to 4K + AAC without transcoding
+            # 1) Attempt: select H.264 (avc1) up to 1080p + AAC without transcoding
             {
-                'format': 'bv*[vcodec*=avc1][height<=2160]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
+                'format': 'bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
                 'prefer_ffmpeg': True,
                 'merge_output_format': 'mp4'
             },
