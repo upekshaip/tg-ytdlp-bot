@@ -925,7 +925,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 # Video downloaded successfully
                 break
         if info_dict is None:
-            send_to_all(message, "Failed to download video using all available options.")
+            send_to_all(message, "Failed to download video using all available options.\nUpdate your cookie via /save_as_cookie or /download_cookie commands and try again.")
             continue  # move to the next video if available
 
         # After download, continue with standard processing:
