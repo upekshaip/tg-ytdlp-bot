@@ -572,16 +572,18 @@ def checking_cookie_file(app, message):
 # updating the cookie file.
 # Function to save cookie file supporting code block
 def save_as_cookie_file(app, message):
-    user_id = message.chat.id
-    # Get all the content after the command
+    # Convert the user's id to a string for proper path handling
+    user_id = str(message.chat.id)
+    # Extract the cookie content from the message text after the command
     content = message.text[len(Config.SAVE_AS_COOKIE_COMMAND):].strip()
     new_cookie = ""
-    # If the content starts with a code block
+    
+    # Check if the content starts with a code block
     if content.startswith("```"):
         lines = content.splitlines()
-        # Remove the first line (e.g. "```cookie")
+        # Remove the first line (e.g., "```cookie")
         if lines[0].startswith("```"):
-            # If the last line is the closing block, remove it
+            # If the last line is a closing code block, remove it as well
             if lines[-1].strip() == "```":
                 lines = lines[1:-1]
             else:
@@ -592,8 +594,7 @@ def save_as_cookie_file(app, message):
     else:
         new_cookie = content
 
-    # For each line, check for the presence of a tab character.
-    # If it's not present, replace sequences of two or more spaces with "\t"
+    # Replace multiple spaces with a tab if no tab exists in the line
     processed_lines = []
     for line in new_cookie.splitlines():
         if "\t" not in line:
@@ -603,12 +604,17 @@ def save_as_cookie_file(app, message):
 
     if final_cookie:
         send_to_all(message, "**User provided a new cookie file.**")
-        create_directory(str(user_id))
-        with open(f"./users/{user_id}/{Config.COOKIE_FILE_PATH}", "w", encoding="utf-8") as f:
+        create_directory(user_id)
+        # Extract only the filename from the full cookie file path in the config
+        cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
+        # Construct the path to save the cookie file inside the user's folder
+        file_path = os.path.join("users", user_id, cookie_filename)
+        with open(file_path, "w", encoding="utf-8") as f:
             f.write(final_cookie)
         send_to_all(message, f"**Cookie successfully updated:**\n`{final_cookie}`")
     else:
         send_to_all(message, "**Not a valid cookie.**")
+
 
 
 # url extractor
@@ -882,7 +888,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
     # Wrapper function for logging and attempting the download
     def try_download(url, attempt_opts, total_info_text):
         common_opts = {
-            'cookiefile': f"./users/{user_id}/{Config.COOKIE_FILE_PATH}",
+            'cookiefile': os.path.join("users", str(user_id), os.path.basename(Config.COOKIE_FILE_PATH)),
             'progress_hooks': [my_hook],
             'playlist_items': str(current_index + video_start_with),
             'outtmpl': user_dir_name + "/%(title)s.%(ext)s"
