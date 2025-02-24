@@ -518,15 +518,18 @@ def save_my_cookie(app, message):
     send_to_user(message, f"Cookie file saved")
 
 
-# Downloading the cookie file.
 def download_cookie(app, message):
-    user_id = message.chat.id
+    # Приводим id пользователя к строке, чтобы избежать ошибки конкатенации
+    user_id = str(message.chat.id)
     response = requests.get(Config.COOKIE_URL)
     if response.status_code == 200:
-        create_directory(user_id)
-        cf = open(f"./users/{user_id}/{Config.COOKIE_FILE_PATH}", "wb")
-        cf.write(response.content)
-        cf.close()
+        create_directory(user_id)  # Предполагаем, что эта функция создаёт директорию ./users/<user_id>/
+        # Получаем имя файла из абсолютного пути, заданного в конфиге
+        cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
+        # Формируем путь для сохранения cookie файла
+        file_path = os.path.join("./users", user_id, cookie_filename)
+        with open(file_path, "wb") as cf:
+            cf.write(response.content)
         send_to_all(message, "**cookie file downloaded.**")
     else:
         send_to_all(message, "Cookie URL is not available!")
