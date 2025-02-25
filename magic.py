@@ -57,6 +57,54 @@ def command2(app, message):
                      parse_mode=enums.ParseMode.MARKDOWN)
     send_to_logger(message, f"Send help txt to user")
 
+# Command to set browser cookies
+@app.on_message(filters.command("cookies_from_browser") & filters.private)
+def cookies_from_browser(app, message):
+    user_id = message.chat.id
+    user_dir = f"./users/{user_id}"
+    create_directory(str(user_id))  # Ensure user folder exists
+
+    # Define buttons for browser selection
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("Brave", callback_data="browser_choice|brave")],
+        [InlineKeyboardButton("Chrome", callback_data="browser_choice|chrome")],
+        [InlineKeyboardButton("Chromium", callback_data="browser_choice|chromium")],
+        [InlineKeyboardButton("Edge", callback_data="browser_choice|edge")],
+        [InlineKeyboardButton("Firefox", callback_data="browser_choice|firefox")],
+        [InlineKeyboardButton("Opera", callback_data="browser_choice|opera")],
+        [InlineKeyboardButton("Safari", callback_data="browser_choice|safari")],
+        [InlineKeyboardButton("Vivaldi", callback_data="browser_choice|vivaldi")],
+        [InlineKeyboardButton("Whale", callback_data="browser_choice|whale")],
+        [InlineKeyboardButton("No Browser (Remove)", callback_data="browser_choice|no_browser")]
+    ])
+
+    app.send_message(
+        user_id,
+        "Choose your browser or remove browser cookies:",
+        reply_markup=keyboard
+    )
+
+# Callback handler for browser selection
+@app.on_callback_query(filters.regex(r"^browser_choice\|"))
+def browser_choice_callback(app, callback_query):
+    user_id = callback_query.from_user.id
+    data = callback_query.data.split("|")[1]
+    
+    user_dir = f"./users/{user_id}"
+    create_directory(str(user_id))
+
+    if data == "no_browser":
+        cookie_browser_path = f"{user_dir}/cookies_from_browser.txt"
+        if os.path.exists(cookie_browser_path):
+            os.remove(cookie_browser_path)
+        app.send_message(user_id, "No browser selected. Browser cookies have been removed.")
+    else:
+        with open(f"{user_dir}/cookies_from_browser.txt", "w", encoding="utf-8") as f:
+            f.write(data)
+        app.send_message(user_id, f"Browser selected: {data}. Using cookies from this browser for downloads.")
+
+    callback_query.answer("Browser choice updated.")
+
 
 # Command /format handler
 @app.on_message(filters.command("format") & filters.private)
@@ -844,58 +892,73 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
     check_user(message)
 
     create_directory(str(user_id))
-    user_dir_name = os.path.abspath("./users/" + str(user_id))
+    user_dir_name = os.path.abspath(f"./users/{user_id}")
 
-    # If user has custom format saved, use it; otherwise use the default fallback cascade
-    custom_format_path = f"{user_dir_name}/format.txt"
-    if os.path.exists(custom_format_path):
-        with open(custom_format_path, "r", encoding="utf-8") as f:
-            custom_format = f.read().strip()
-        # If user selected "best", then use prefer_ffmpeg False; otherwise True with merge_output_format mp4.
-        if custom_format.lower() == "best":
-            attempts = [{
-                'format': custom_format,
-                'prefer_ffmpeg': False
-            }]
-        else:
-            attempts = [{
-                'format': custom_format,
-                'prefer_ffmpeg': True,
-                'merge_output_format': 'mp4'
-            }]
+    # Define the my_hook function to track download progress and handle errors
+    def my_hook(d):
+        if d.get('status') == 'error':
+            print('Some error occurred during download.')
+            send_to_all(message, "Sorry... Some error occurred during download.")
+
+    # Check if there's a saved browser choice in cookies_from_browser.txt
+    cookie_browser_path = f"{user_dir_name}/cookies_from_browser.txt"
+    yt_dlp_opts = {}
+
+    if os.path.exists(cookie_browser_path):
+        with open(cookie_browser_path, "r", encoding="utf-8") as f:
+            selected_browser = f.read().strip()
+        # Use the cookies from the selected browser
+        yt_dlp_opts = {
+            'format': 'best',
+            'prefer_ffmpeg': True,
+            'merge_output_format': 'mp4',
+            'cookies_from_browser': selected_browser,  # Use cookies from the selected browser
+            'progress_hooks': [my_hook],
+            'playlist_items': str(video_start_with),
+            'outtmpl': user_dir_name + "/%(title)s.%(ext)s"
+        }
     else:
-        # Default fallback cascade (if /format not set)
-        attempts = [
-            # 1) Attempt: select H.264 (avc1) up to 1080p + AAC without transcoding
-            {
-                'format': 'bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
-                'prefer_ffmpeg': True,
-                'merge_output_format': 'mp4'
-            },
-            # 2) Attempt: bestvideo+bestaudio/best with merge_output_format (without transcoding)
-            {
-                'format': 'bestvideo+bestaudio/best',
-                'prefer_ffmpeg': True,
-                'merge_output_format': 'mp4'
-            },
-            # 3) Fallback to the original option
-            {
-                'format': 'best',
-                'prefer_ffmpeg': False
-            }
-        ]
+        # Fallback cascade if no cookies file is set
+        yt_dlp_opts = {
+            'format': 'best',
+            'prefer_ffmpeg': True,
+            'merge_output_format': 'mp4',
+            'progress_hooks': [my_hook],
+            'playlist_items': str(video_start_with),
+            'outtmpl': user_dir_name + "/%(title)s.%(ext)s"
+        }
+
+    # Define the download attempts cascade
+    attempts = [
+        # 1) Try H.264 (avc1) up to 4K + AAC without transcoding
+        {
+            'format': 'bv*[vcodec*=avc1][height<=2160]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
+            'prefer_ffmpeg': True,
+            'merge_output_format': 'mp4'
+        },
+        # 2) Try bestvideo+bestaudio/best without transcoding
+        {
+            'format': 'bestvideo+bestaudio/best',
+            'prefer_ffmpeg': True,
+            'merge_output_format': 'mp4'
+        },
+        # 3) Fallback to original best format
+        {
+            'format': 'best',
+            'prefer_ffmpeg': False
+        }
+    ]
 
     # Wrapper function for logging and attempting the download
     def try_download(url, attempt_opts, total_info_text):
         common_opts = {
             'cookiefile': os.path.join("users", str(user_id), os.path.basename(Config.COOKIE_FILE_PATH)),
             'progress_hooks': [my_hook],
-            'playlist_items': str(current_index + video_start_with),
+            'playlist_items': str(video_start_with),
             'outtmpl': user_dir_name + "/%(title)s.%(ext)s"
         }
         ytdl_opts = {**common_opts, **attempt_opts}
         try:
-            # First, extract video info (without downloading) for logging purposes
             with YoutubeDL(ytdl_opts) as ydl:
                 info_dict = ydl.extract_info(url, download=False)
             app.edit_message_text(user_id, plus_one, f"{total_info_text}\n \n__Downloading using format: {ytdl_opts['format']}...__ 📥")
@@ -923,12 +986,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             rename_name = playlist_name + " - Part " + str(x + video_start_with)
         else:
             rename_name = defalt_name
-
-        # Local function for progress hook (in case an error occurs during download)
-        def my_hook(d):
-            if d.get('status') == 'error':
-                print('some error occurred.')
-                send_to_all(message, "Sorry... Some error occurred during download.")
 
         info_dict = None
         # Try each download option until one succeeds
@@ -1023,6 +1080,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
         success_msg = f"**Upload complete** - {video_count} files uploaded.\n \n__Developed by__ @upekshaip"
         app.edit_message_text(user_id, (msg_id + 1), success_msg)
         app.send_message(user_id, success_msg)
+
+
 
 
 #####################################################################################
