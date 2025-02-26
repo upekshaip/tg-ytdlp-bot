@@ -62,27 +62,47 @@ def command2(app, message):
 def cookies_from_browser(app, message):
     user_id = message.chat.id
     user_dir = f"./users/{user_id}"
-    create_directory(str(user_id))  # Ensure user folder exists
+    create_directory(str(user_id))  # Ensure the user's folder exists
 
-    # Define buttons for browser selection
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("Brave", callback_data="browser_choice|brave")],
-        [InlineKeyboardButton("Chrome", callback_data="browser_choice|chrome")],
-        [InlineKeyboardButton("Chromium", callback_data="browser_choice|chromium")],
-        [InlineKeyboardButton("Edge", callback_data="browser_choice|edge")],
-        [InlineKeyboardButton("Firefox", callback_data="browser_choice|firefox")],
-        [InlineKeyboardButton("Opera", callback_data="browser_choice|opera")],
-        [InlineKeyboardButton("Safari", callback_data="browser_choice|safari")],
-        [InlineKeyboardButton("Vivaldi", callback_data="browser_choice|vivaldi")],
-        [InlineKeyboardButton("Whale", callback_data="browser_choice|whale")],
-        [InlineKeyboardButton("No Browser (Remove)", callback_data="browser_choice|no_browser")]
-    ])
+    # Dictionary with browsers and their root paths
+    browsers = {
+        "brave": "~/.config/BraveSoftware/Brave-Browser/",
+        "chrome": "~/.config/google-chrome/",
+        "chromium": "~/.config/chromium/",
+        "edge": "~/.config/microsoft-edge/",
+        "firefox": "~/.mozilla/firefox/",
+        "opera": "~/.config/opera/",
+        "safari": None,  # Not natively supported on Linux
+        "vivaldi": "~/.config/vivaldi/",
+        "whale": ["~/.config/Whale/", "~/.config/naver-whale/"]  # Check both options
+    }
+
+    buttons = []
+    # Iterate through each browser to create buttons
+    for browser, path in browsers.items():
+        if browser == "safari":
+            exists = False
+        elif isinstance(path, list):
+            exists = any(os.path.exists(os.path.expanduser(p)) for p in path)
+        else:
+            exists = os.path.exists(os.path.expanduser(path))
+        emoji = "✅" if exists else "❌"
+        display_name = browser.capitalize()  # Capitalize the first letter
+        button = InlineKeyboardButton(f"{emoji} {display_name}", callback_data=f"browser_choice|{browser}")
+        buttons.append([button])  # Each button in a separate row
+
+    # Add a button for removing browser settings
+    buttons.append([InlineKeyboardButton("No Browser (Remove)", callback_data="browser_choice|no_browser")])
+
+    keyboard = InlineKeyboardMarkup(buttons)
 
     app.send_message(
         user_id,
-        "Choose your browser or remove browser cookies:",
+        "Select a browser or remove browser cookies:",
         reply_markup=keyboard
     )
+
+
 
 # Callback handler for browser selection
 @app.on_callback_query(filters.regex(r"^browser_choice\|"))
