@@ -930,9 +930,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
 
     # Define the download attempts cascade
     attempts = [
-        # 1) Try H.264 (avc1) up to 4K + AAC without transcoding
+        # 1) Try H.264 (avc1) up to 1080p + AAC without transcoding
         {
-            'format': 'bv*[vcodec*=avc1][height<=2160]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
+            'format': 'bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
             'prefer_ffmpeg': True,
             'merge_output_format': 'mp4'
         },
