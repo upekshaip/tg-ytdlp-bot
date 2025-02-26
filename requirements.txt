@@ -2,7 +2,7 @@ pyrogram
 yt-dlp
 requests
 TgCrypto
-moviepy
+moviepy==1.0.3
 ffmpeg
 ffmpeg-python
 Pyrebase4
