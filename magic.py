@@ -108,22 +108,30 @@ def cookies_from_browser(app, message):
 @app.on_callback_query(filters.regex(r"^browser_choice\|"))
 def browser_choice_callback(app, callback_query):
     user_id = callback_query.from_user.id
-    data = callback_query.data.split("|")[1]
-    
+    data = callback_query.data.split("|")[1]  # e.g. "chromium" or "firefox"
     user_dir = f"./users/{user_id}"
     create_directory(str(user_id))
 
     if data == "no_browser":
-        cookie_browser_path = f"{user_dir}/cookies_from_browser.txt"
-        if os.path.exists(cookie_browser_path):
-            os.remove(cookie_browser_path)
+        # ... [remains unchanged: remove the cookies_from_browser.txt if exists]
+        if os.path.exists(f"{user_dir}/cookies_from_browser.txt"):
+            os.remove(f"{user_dir}/cookies_from_browser.txt")
         app.send_message(user_id, "No browser selected. Browser cookies have been removed.")
     else:
+        # If a Chromium-based browser is selected, use the Default profile
+        browser_profile = data
+        if data in ["brave", "chrome", "chromium", "edge", "opera", "vivaldi", "whale"]:
+            browser_profile = f"{data}:Default"
+        # Save the selected browser (with profile) to a file for later use
         with open(f"{user_dir}/cookies_from_browser.txt", "w", encoding="utf-8") as f:
-            f.write(data)
-        app.send_message(user_id, f"Browser selected: {data}. Using cookies from this browser for downloads.")
+            f.write(browser_profile)
+        app.send_message(
+            user_id, 
+            f"Browser selected: {browser_profile}. Using cookies from this browser for downloads."
+        )
 
     callback_query.answer("Browser choice updated.")
+
 
 
 # Command /format handler
@@ -905,93 +913,85 @@ def write_logs(message, video_url, video_title):
 
 
 def down_and_up(app, message, url, playlist_name, video_count, video_start_with):
+    import os, time, math
+    from yt_dlp import YoutubeDL
+
     user_id = message.chat.id
     msg_id = message.id
     plus_one = msg_id + 1
     app.send_message(user_id, "Processing... ♻️")
     check_user(message)
 
+    # Ensure user directory exists
     create_directory(str(user_id))
     user_dir_name = os.path.abspath(f"./users/{user_id}")
 
-    # Define the my_hook function to track download progress and handle errors
+    # Hook to catch errors during download
     def my_hook(d):
         if d.get('status') == 'error':
             print('Some error occurred during download.')
             send_to_all(message, "Sorry... Some error occurred during download.")
 
-    # Check if there's a saved browser choice in cookies_from_browser.txt
-    cookie_browser_path = f"{user_dir_name}/cookies_from_browser.txt"
-    yt_dlp_opts = {}
-
+    # Determine cookie options: use browser cookies if selected, else fallback to cookiefile
+    cookie_browser_path = os.path.join(user_dir_name, "cookies_from_browser.txt")
+    selected_browser = None
     if os.path.exists(cookie_browser_path):
         with open(cookie_browser_path, "r", encoding="utf-8") as f:
             selected_browser = f.read().strip()
-        # Use the cookies from the selected browser
-        yt_dlp_opts = {
-            'format': 'best',
-            'prefer_ffmpeg': True,
-            'merge_output_format': 'mp4',
-            'cookies_from_browser': selected_browser,  # Use cookies from the selected browser
-            'progress_hooks': [my_hook],
-            'playlist_items': str(video_start_with),
-            'outtmpl': user_dir_name + "/%(title)s.%(ext)s"
-        }
+        # Ensure Default profile is specified for Chromium-based browsers
+        if selected_browser and ":" not in selected_browser:
+            if selected_browser in ["brave", "chrome", "chromium", "edge", "opera", "vivaldi", "whale"]:
+                selected_browser += ":Default"
+        print(f"Using browser cookies: {selected_browser}")
+    # Build common yt-dlp options
+    common_opts = {
+        'progress_hooks': [my_hook],
+        'playlist_items': str(video_start_with),
+        'outtmpl': os.path.join(user_dir_name, "%(title)s.%(ext)s")
+    }
+    if selected_browser:
+        common_opts['cookies_from_browser'] = selected_browser
     else:
-        # Fallback cascade if no cookies file is set
-        yt_dlp_opts = {
-            'format': 'best',
-            'prefer_ffmpeg': True,
-            'merge_output_format': 'mp4',
-            'progress_hooks': [my_hook],
-            'playlist_items': str(video_start_with),
-            'outtmpl': user_dir_name + "/%(title)s.%(ext)s"
-        }
+        cookie_file_path = os.path.join(user_dir_name, os.path.basename(Config.COOKIE_FILE_PATH))
+        if os.path.exists(cookie_file_path):
+            common_opts['cookiefile'] = cookie_file_path
 
-    # Define the download attempts cascade
+    # Define format attempts cascade
     attempts = [
-        # 1) Try H.264 (avc1) up to 1080p + AAC without transcoding
-        {
+        {   # 1) Try H.264 up to 1080p + AAC without transcoding
             'format': 'bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
             'prefer_ffmpeg': True,
             'merge_output_format': 'mp4'
         },
-        # 2) Try bestvideo+bestaudio/best without transcoding
-        {
+        {   # 2) Try bestvideo+bestaudio/best without transcoding
             'format': 'bestvideo+bestaudio/best',
             'prefer_ffmpeg': True,
             'merge_output_format': 'mp4'
         },
-        # 3) Fallback to original best format
-        {
+        {   # 3) Fallback to original best format
             'format': 'best',
             'prefer_ffmpeg': False
         }
     ]
 
-    # Wrapper function for logging and attempting the download
-    def try_download(url, attempt_opts, total_info_text):
-        common_opts = {
-            'cookiefile': os.path.join("users", str(user_id), os.path.basename(Config.COOKIE_FILE_PATH)),
-            'progress_hooks': [my_hook],
-            'playlist_items': str(video_start_with),
-            'outtmpl': user_dir_name + "/%(title)s.%(ext)s"
-        }
+    # Wrapper function: merge common options with attempt options and try to download
+    def try_download(url, attempt_opts, info_text):
         ytdl_opts = {**common_opts, **attempt_opts}
         try:
             with YoutubeDL(ytdl_opts) as ydl:
-                info_dict = ydl.extract_info(url, download=False)
-            app.edit_message_text(user_id, plus_one, f"{total_info_text}\n \n__Downloading using format: {ytdl_opts['format']}...__ 📥")
+                info = ydl.extract_info(url, download=False)
+            app.edit_message_text(user_id, msg_id + 1,
+                f"{info_text}\n\n__Downloading using format: {ytdl_opts['format']}...__ 📥")
             with YoutubeDL(ytdl_opts) as ydl:
                 ydl.download([url])
-            return info_dict  # return the video information
+            return info  # Successful download: return video info
         except Exception as e:
-            print(f"Attempt with format {ytdl_opts['format']} failed: {e}")
+            print(f"Attempt with format {ytdl_opts.get('format')} failed: {e}")
             return None
 
-    # Process each video in the loop
+    # Process each video in the playlist (or single video)
     for x in range(video_count):
-        current_index = x  # used in playlist_items
+        # Construct progress text (пример; можно дополнительно форматировать)
         j = ((x + 1) / video_count * 100)
         j_bar = f"{'🟩' * math.floor(j / 10)}{'⬜️' * (10 - math.floor(j / 10))}"
         total_process = f"""
@@ -1003,7 +1003,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             {j_bar}   __{math.floor(j)}%__"""
         defalt_name = "Defalt name will apply"
         if playlist_name and video_count > 1:
-            rename_name = playlist_name + " - Part " + str(x + video_start_with)
+            rename_name = f"{playlist_name} - Part {x + video_start_with}"
         else:
             rename_name = defalt_name
 
@@ -1011,18 +1011,28 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
         # Try each download option until one succeeds
         for attempt in attempts:
             info_dict = try_download(url, attempt, total_process)
-            if info_dict is not None:
-                # Video downloaded successfully
+            if info_dict:
                 break
-        if info_dict is None:
-            send_to_all(message, "Failed to download video using all available options.\nUpdate your cookie via /save_as_cookie or /download_cookie commands and try again.")
-            continue  # move to the next video if available
 
-        # After download, continue with standard processing:
+        if info_dict is None:
+            # All attempts failed – send appropriate message and continue to next video
+            if selected_browser:
+                send_to_all(message,
+                    "Failed to download using browser cookies.\n"
+                    "Please ensure your browser’s cookies are accessible (e.g., install SecretStorage and unlock your keyring, or close the browser) and try again. "
+                    "Alternatively, you can send a cookies file with /save_as_cookie and try again."
+                )
+            else:
+                send_to_all(message,
+                    "Failed to download video using all available options.\n"
+                    "Update your cookie via /save_as_cookie or /download_cookie and try again."
+                )
+            continue
+
+        # After successful download, process the video file
         video_id = info_dict.get("id", None)
-        video_title = info_dict.get('title', None)
-        # Determine the expected filename
-        expected_video_name = str(video_title) + ".mp4"
+        video_title = info_dict.get("title", None)
+        expected_video_name = f"{video_title}.mp4"
         info_text = f"""
 {total_process}
 
@@ -1033,13 +1043,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
 **Caption Name:** __{rename_name}__
 **Video id:** {video_id}"""
 
-        app.edit_message_text(user_id, plus_one, f"{info_text}\n \n__Downloaded video. Processing for upload...__ ♻️")
+        app.edit_message_text(user_id, plus_one,
+            f"{info_text}\n \n__Downloaded video. Processing for upload...__ ♻️")
 
-        ###############################################################################################################################
-        # Uploading part: locate the downloaded file
-        dir_path = "./users/" + str(user_id)
+        # Locate the downloaded file
+        dir_path = os.path.join(".", "users", str(user_id))
         allfiles = os.listdir(dir_path)
-        # Look for files with .mp4 or .mkv extensions
         files = [fname for fname in allfiles if fname.endswith(('.mp4', '.mkv'))]
         files.sort()
         if not files:
@@ -1049,16 +1058,17 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
         downloaded_file = files[0]
         write_logs(message, url, downloaded_file)
 
-        # If the filename does not match the expected name and a different name is provided, rename the file
+        # Rename file if needed
         if rename_name == defalt_name:
             caption_name = downloaded_file.split(".mp4")[0]
             final_name = downloaded_file
         else:
-            final_name = rename_name + ".mp4"
+            final_name = f"{rename_name}.mp4"
             caption_name = rename_name
-            os.rename(dir_path + "/" + downloaded_file, dir_path + "/" + final_name)
+            os.rename(os.path.join(dir_path, downloaded_file),
+                      os.path.join(dir_path, final_name))
 
-        user_vid_path = dir_path + "/" + final_name
+        user_vid_path = os.path.join(dir_path, final_name)
         after_rename_abs_path = os.path.abspath(user_vid_path)
 
         duration, thumb_dir = get_duration_thumb(message, dir_path, user_vid_path, caption_name)
@@ -1067,7 +1077,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
 
         max_size = 1850000000
         if int(video_size_in_bytes) > max_size:
-            app.edit_message_text(user_id, plus_one, f"{info_text}\n \n__Your video size ({video_size}) is too large.__\n__Splitting file...__ ✂️")
+            app.edit_message_text(user_id, plus_one,
+                f"{info_text}\n \n__Your video size ({video_size}) is too large.__\n__Splitting file...__ ✂️")
             returned = split_video_2(dir_path, caption_name, after_rename_abs_path,
                                      int(video_size_in_bytes), max_size, duration)
             caption_lst = returned.get("video")
@@ -1075,7 +1086,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             for p in range(len(caption_lst)):
                 part_duration, splited_thumb_dir = get_duration_thumb(message, dir_path, path_lst[p], caption_lst[p])
                 send_videos(message, path_lst[p], caption_lst[p], part_duration, splited_thumb_dir, info_text, msg_id)
-                app.edit_message_text(user_id, plus_one, f"{info_text}\n \n__Splitted part {p + 1} file uploaded__")
+                app.edit_message_text(user_id, plus_one,
+                    f"{info_text}\n \n__Splitted part {p + 1} file uploaded__")
                 app.forward_messages(Config.LOGS_ID, user_id, (msg_id + 2 + p))
                 time.sleep(2)
                 os.remove(splited_thumb_dir)
@@ -1084,13 +1096,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             os.remove(user_vid_path)
             success_msg = f"**Upload complete** - {video_count} files uploaded.\n \n__Developed by__ @upekshaip"
             app.edit_message_text(user_id, (msg_id + 1), success_msg)
-            break
+            break  # Выходим из цикла, если обработка плейлиста завершена
         else:
             if final_name:
                 send_videos(message, after_rename_abs_path, caption_name,
                             duration, thumb_dir, info_text, msg_id)
                 app.forward_messages(Config.LOGS_ID, user_id, (msg_id + 2 + x))
-                app.edit_message_text(user_id, (msg_id + 1), f"{info_text}\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n \n{x + 1} file uploaded.")
+                app.edit_message_text(user_id, (msg_id + 1),
+                    f"{info_text}\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n \n{x + 1} file uploaded.")
                 os.remove(after_rename_abs_path)
                 os.remove(thumb_dir)
                 time.sleep(2)
@@ -1100,6 +1113,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
         success_msg = f"**Upload complete** - {video_count} files uploaded.\n \n__Developed by__ @upekshaip"
         app.edit_message_text(user_id, (msg_id + 1), success_msg)
         app.send_message(user_id, success_msg)
+
+
 
 
 
