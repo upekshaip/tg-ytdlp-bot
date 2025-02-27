@@ -47,7 +47,7 @@ def command1(app, message):
     else:
         check_user(message)
         app.send_message(
-            message.chat.id, f"Hello {message.chat.first_name},\n \n__This bot🤖 can download any videos into telegram directly.😊 For more information press **/help**__ 👈\n \n __Developed by__ @upekshaip")
+            message.chat.id, f"Hello {message.chat.first_name},\n \n__This bot🤖 can download any videos into telegram directly.😊 For more information press **/help**__ 👈\n \n __Managed by__ @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl")
         send_to_logger(message, f"{message.chat.id} - user started the bot")
 
 
@@ -320,7 +320,7 @@ def is_user_in_channel(app, message):
 
     except:
 
-        text = "__To use this bot you needs to subscribe @upekshaip's Telegram channel.__\nAfter you join the channel, **send your link** ❤️\n \n \n__Developed by @upekshaip__"
+        text = "__To use this bot you needs to subscribe @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl's Telegram channel.__\nAfter you join the channel, **send your link** ❤️\n \n \n__Managed by @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl__"
         button = InlineKeyboardButton(
             "Join Channel", url=Config.SUBSCRIBE_CHANNEL_URL)
         keyboard = InlineKeyboardMarkup([[button]])
@@ -1094,7 +1094,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 os.remove(path_lst[p])
             os.remove(thumb_dir)
             os.remove(user_vid_path)
-            success_msg = f"**Upload complete** - {video_count} files uploaded.\n \n__Developed by__ @upekshaip"
+            success_msg = f"**Upload complete** - {video_count} files uploaded.\n \n__Managed by__ @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl"
             app.edit_message_text(user_id, (msg_id + 1), success_msg)
             break  # Выходим из цикла, если обработка плейлиста завершена
         else:
@@ -1110,12 +1110,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             else:
                 send_to_all(message, "Some error occurred during processing. 😢")
     else:
-        success_msg = f"**Upload complete** - {video_count} files uploaded.\n \n__Developed by__ @upekshaip"
+        success_msg = f"**Upload complete** - {video_count} files uploaded.\n \n__Managed by__ @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl"
         app.edit_message_text(user_id, (msg_id + 1), success_msg)
         app.send_message(user_id, success_msg)
-
-
-
 
 
 
