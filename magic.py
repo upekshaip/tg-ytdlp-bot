@@ -62,7 +62,7 @@ def command2(app, message):
 def cookies_from_browser(app, message):
     user_id = message.chat.id
     user_dir = f"./users/{user_id}"
-    create_directory(str(user_id))  # Ensure the user's folder exists
+    create_directory(str(user_dir))  # Ensure the user's folder exists
 
     # Dictionary with browsers and their root paths
     browsers = {
@@ -78,6 +78,7 @@ def cookies_from_browser(app, message):
     }
 
     buttons = []
+    # Iterate through each browser to create buttons
     for browser, path in browsers.items():
         if browser == "safari":
             exists = False
@@ -86,15 +87,18 @@ def cookies_from_browser(app, message):
         else:
             exists = os.path.exists(os.path.expanduser(path))
         emoji = "✅" if exists else "❌"
-        display_name = browser.capitalize()
+        display_name = browser.capitalize()  # Capitalize the first letter
         button = InlineKeyboardButton(f"{emoji} {display_name}", callback_data=f"browser_choice|{browser}")
         buttons.append([button])
-    buttons.append([InlineKeyboardButton("No Browser (Remove)", callback_data="browser_choice|no_browser")])
+
+    # Add a Cancel button
+    buttons.append([InlineKeyboardButton("Cancel", callback_data="browser_choice|cancel")])
+
     keyboard = InlineKeyboardMarkup(buttons)
 
     app.send_message(
         user_id,
-        "Select a browser or remove browser cookies:",
+        "Select a browser to download cookies from:",
         reply_markup=keyboard
     )
 
@@ -105,26 +109,27 @@ def browser_choice_callback(app, callback_query):
     import os
 
     user_id = callback_query.from_user.id
-    data = callback_query.data.split("|")[1]  # e.g. "chromium" or "firefox"
+    data = callback_query.data.split("|")[1]  # e.g. "chromium", "firefox", or "cancel"
     user_dir = f"./users/{user_id}"
     create_directory(str(user_dir))
     cookie_file = os.path.join(user_dir, "cookie.txt")
 
-    if data == "no_browser":
-        if os.path.exists(cookie_file):
-            os.remove(cookie_file)
-        app.send_message(user_id, "No browser selected. Browser cookies have been removed.")
+    if data == "cancel":
+        app.send_message(user_id, "Browser selection canceled.")
     else:
-        # Use the selected browser name directly (for example, "chromium")
-        browser_option = data  
-        # Build the command: yt-dlp --cookies cookie.txt --cookies-from-browser <browser_option>
+        # Use the selected browser option directly
+        browser_option = data
+        # Build the command similar to:
+        # yt-dlp --cookies cookie.txt --cookies-from-browser <browser_option>
         cmd = f"yt-dlp --cookies \"{cookie_file}\" --cookies-from-browser {browser_option}"
         try:
             subprocess.run(cmd, shell=True, check=True)
             app.send_message(user_id, f"Cookie file saved as {cookie_file} using browser: {browser_option}")
         except subprocess.CalledProcessError as e:
             app.send_message(user_id, f"Failed to save cookie file: {e}")
+
     callback_query.answer("Browser choice updated.")
+
 
 
 # Command /format handler
