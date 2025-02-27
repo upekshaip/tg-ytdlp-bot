@@ -56,13 +56,18 @@ def command2(app, message):
     app.send_message(message.chat.id, (Config.HELP_MSG),
                      parse_mode=enums.ParseMode.MARKDOWN)
     send_to_logger(message, f"Send help txt to user")
+def create_directory(path):
+    # Create the directory (and intermediate directories) if it does not exist.
+    if not os.path.exists(path):
+        os.makedirs(path, exist_ok=True)
 
 # Command to set browser cookies
 @app.on_message(filters.command("cookies_from_browser") & filters.private)
 def cookies_from_browser(app, message):
     user_id = message.chat.id
-    user_dir = f"./users/{user_id}"
-    create_directory(str(user_dir))  # Ensure the user's folder exists
+    # Construct the user directory path, e.g. "./users/7360853"
+    user_dir = os.path.join(".", "users", str(user_id))
+    create_directory(user_dir)  # Ensure the user's folder exists
 
     # Dictionary with browsers and their root paths
     browsers = {
@@ -78,7 +83,6 @@ def cookies_from_browser(app, message):
     }
 
     buttons = []
-    # Iterate through each browser to create buttons
     for browser, path in browsers.items():
         if browser == "safari":
             exists = False
@@ -90,10 +94,9 @@ def cookies_from_browser(app, message):
         display_name = browser.capitalize()  # Capitalize the first letter
         button = InlineKeyboardButton(f"{emoji} {display_name}", callback_data=f"browser_choice|{browser}")
         buttons.append([button])
-
-    # Add a Cancel button
+    
+    # Add a Cancel button that just cancels the selection
     buttons.append([InlineKeyboardButton("Cancel", callback_data="browser_choice|cancel")])
-
     keyboard = InlineKeyboardMarkup(buttons)
 
     app.send_message(
@@ -110,17 +113,17 @@ def browser_choice_callback(app, callback_query):
 
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]  # e.g. "chromium", "firefox", or "cancel"
-    user_dir = f"./users/{user_id}"
-    create_directory(str(user_dir))
+    # Construct the user directory path, e.g. "./users/7360853"
+    user_dir = os.path.join(".", "users", str(user_id))
+    create_directory(user_dir)
     cookie_file = os.path.join(user_dir, "cookie.txt")
 
     if data == "cancel":
         app.send_message(user_id, "Browser selection canceled.")
     else:
-        # Use the selected browser option directly
+        # Use the selected browser option directly (e.g., "chromium")
         browser_option = data
-        # Build the command similar to:
-        # yt-dlp --cookies cookie.txt --cookies-from-browser <browser_option>
+        # Build the command: yt-dlp --cookies cookie.txt --cookies-from-browser <browser_option>
         cmd = f"yt-dlp --cookies \"{cookie_file}\" --cookies-from-browser {browser_option}"
         try:
             subprocess.run(cmd, shell=True, check=True)
@@ -129,8 +132,6 @@ def browser_choice_callback(app, callback_query):
             app.send_message(user_id, f"Failed to save cookie file: {e}")
 
     callback_query.answer("Browser choice updated.")
-
-
 
 # Command /format handler
 @app.on_message(filters.command("format") & filters.private)
