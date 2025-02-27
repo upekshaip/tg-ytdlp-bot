@@ -56,8 +56,9 @@ def command2(app, message):
     app.send_message(message.chat.id, (Config.HELP_MSG),
                      parse_mode=enums.ParseMode.MARKDOWN)
     send_to_logger(message, f"Send help txt to user")
+
 def create_directory(path):
-    # Create the directory (and intermediate directories) if it does not exist.
+    # Create the directory (and all intermediate directories) if it does not exist.
     if not os.path.exists(path):
         os.makedirs(path, exist_ok=True)
 
@@ -65,11 +66,11 @@ def create_directory(path):
 @app.on_message(filters.command("cookies_from_browser") & filters.private)
 def cookies_from_browser(app, message):
     user_id = message.chat.id
-    # Construct the user directory path, e.g. "./users/7360853"
+    # Path to the user's directory, e.g. "./users/7360853"
     user_dir = os.path.join(".", "users", str(user_id))
     create_directory(user_dir)  # Ensure the user's folder exists
 
-    # Dictionary with browsers and their root paths
+    # Dictionary with browsers and their paths
     browsers = {
         "brave": "~/.config/BraveSoftware/Brave-Browser/",
         "chrome": "~/.config/google-chrome/",
@@ -77,9 +78,9 @@ def cookies_from_browser(app, message):
         "edge": "~/.config/microsoft-edge/",
         "firefox": "~/.mozilla/firefox/",
         "opera": "~/.config/opera/",
-        "safari": None,  # Not natively supported on Linux
+        "safari": None,  # Not supported on Linux
         "vivaldi": "~/.config/vivaldi/",
-        "whale": ["~/.config/Whale/", "~/.config/naver-whale/"]  # Check both options
+        "whale": ["~/.config/Whale/", "~/.config/naver-whale/"]
     }
 
     buttons = []
@@ -95,7 +96,7 @@ def cookies_from_browser(app, message):
         button = InlineKeyboardButton(f"{emoji} {display_name}", callback_data=f"browser_choice|{browser}")
         buttons.append([button])
     
-    # Add a Cancel button that just cancels the selection
+    # Add a Cancel button to cancel the selection
     buttons.append([InlineKeyboardButton("Cancel", callback_data="browser_choice|cancel")])
     keyboard = InlineKeyboardMarkup(buttons)
 
@@ -109,29 +110,58 @@ def cookies_from_browser(app, message):
 @app.on_callback_query(filters.regex(r"^browser_choice\|"))
 def browser_choice_callback(app, callback_query):
     import subprocess
-    import os
 
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]  # e.g. "chromium", "firefox", or "cancel"
-    # Construct the user directory path, e.g. "./users/7360853"
+    # Path to the user's directory, e.g. "./users/7360853"
     user_dir = os.path.join(".", "users", str(user_id))
     create_directory(user_dir)
     cookie_file = os.path.join(user_dir, "cookie.txt")
 
     if data == "cancel":
         app.send_message(user_id, "Browser selection canceled.")
+        callback_query.answer("Browser choice updated.")
+        return
+
+    browser_option = data
+
+    # Dictionary with browsers and their paths (same as above)
+    browsers = {
+        "brave": "~/.config/BraveSoftware/Brave-Browser/",
+        "chrome": "~/.config/google-chrome/",
+        "chromium": "~/.config/chromium/",
+        "edge": "~/.config/microsoft-edge/",
+        "firefox": "~/.mozilla/firefox/",
+        "opera": "~/.config/opera/",
+        "safari": None,
+        "vivaldi": "~/.config/vivaldi/",
+        "whale": ["~/.config/Whale/", "~/.config/naver-whale/"]
+    }
+    path = browsers.get(browser_option)
+    # If the browser is not installed, inform the user and do not execute the command
+    if (browser_option == "safari") or (
+        isinstance(path, list) and not any(os.path.exists(os.path.expanduser(p)) for p in path)
+    ) or (isinstance(path, str) and not os.path.exists(os.path.expanduser(path))):
+        app.send_message(user_id, f"{browser_option.capitalize()} browser not installed.")
+        callback_query.answer("Browser not installed.")
+        return
+
+    # Build the command for cookie extraction: yt-dlp --cookies "cookie.txt" --cookies-from-browser <browser_option>
+    cmd = f'yt-dlp --cookies "{cookie_file}" --cookies-from-browser {browser_option}'
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+    # If the return code is not 0, but the error is due to missing URL, consider the cookies as successfully extracted
+    if result.returncode != 0:
+        if "You must provide at least one URL" in result.stderr:
+            app.send_message(user_id, f"Cookies saved using browser: {browser_option}")
+        else:
+            app.send_message(user_id, f"Failed to save cookies: {result.stderr}")
     else:
-        # Use the selected browser option directly (e.g., "chromium")
-        browser_option = data
-        # Build the command: yt-dlp --cookies cookie.txt --cookies-from-browser <browser_option>
-        cmd = f"yt-dlp --cookies \"{cookie_file}\" --cookies-from-browser {browser_option}"
-        try:
-            subprocess.run(cmd, shell=True, check=True)
-            app.send_message(user_id, f"Cookie file saved as {cookie_file} using browser: {browser_option}")
-        except subprocess.CalledProcessError as e:
-            app.send_message(user_id, f"Failed to save cookie file: {e}")
+        app.send_message(user_id, f"Cookies saved using browser: {browser_option}")
 
     callback_query.answer("Browser choice updated.")
+
+
 
 # Command /format handler
 @app.on_message(filters.command("format") & filters.private)
@@ -635,12 +665,16 @@ def checking_cookie_file(app, message):
     file_path = os.path.join("users", user_id, cookie_filename)
     
     if os.path.exists(file_path):
-        send_to_all(message, "**Cookie file exists.**")
         with open(file_path, "r", encoding="utf-8") as cookie:
             cookie_content = cookie.read()
-        send_to_all(message, f"**cookie data --->>>>>>>>>>>>>>**\n`{cookie_content}`")
+        # Check if the cookie file has the Netscape Navigator format
+        if cookie_content.startswith("# Netscape HTTP Cookie File"):
+            send_to_all(message, "Cookie file exists and has correct format")
+        else:
+            send_to_all(message, "Cookie file exists but has incorrect format")
     else:
-        send_to_all(message, "**Cookie file is not found.**")
+        send_to_all(message, "Cookie file is not found.")
+
 
 
 
@@ -823,13 +857,6 @@ def TimeFormatter(milliseconds: int) -> str:
     return tmp[:-2]
 
 
-def create_directory(dir_name):
-    if not os.path.exists("users"):
-        os.mkdir("users")
-    if not os.path.exists("users/" + dir_name):
-        os.mkdir("users/" + dir_name)
-        print("Directory ", dir_name,  " Created ")
-
 
 def split_video_2(dir, video_name, video_path, video_size, max_size, duration):
 
@@ -981,6 +1008,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             print(f"Attempt with format {ytdl_opts['format']} failed: {e}")
             return None
 
+    # Local function for progress hook (in case an error occurs during download)
+    def my_hook(d):
+        if d.get('status') == 'error':
+            print('Some error occurred.')
+            send_to_all(message, "Sorry... Some error occurred during download.")
+
     # Process each video in the loop
     for x in range(video_count):
         current_index = x  # used in playlist_items
@@ -998,12 +1031,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             rename_name = playlist_name + " - Part " + str(x + video_start_with)
         else:
             rename_name = defalt_name
-
-        # Local function for progress hook (in case an error occurs during download)
-        def my_hook(d):
-            if d.get('status') == 'error':
-                print('some error occurred.')
-                send_to_all(message, "Sorry... Some error occurred during download.")
 
         info_dict = None
         # Try each download option until one succeeds
@@ -1097,7 +1124,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
     else:
         success_msg = f"**Upload complete** - {video_count} files uploaded.\n \n__Managed by__ @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl"
         app.edit_message_text(user_id, (msg_id + 1), success_msg)
-        app.send_message(user_id, success_msg)
+        
 
 
 
