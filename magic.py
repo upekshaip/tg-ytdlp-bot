@@ -78,7 +78,6 @@ def cookies_from_browser(app, message):
     }
 
     buttons = []
-    # Iterate through each browser to create buttons
     for browser, path in browsers.items():
         if browser == "safari":
             exists = False
@@ -87,13 +86,10 @@ def cookies_from_browser(app, message):
         else:
             exists = os.path.exists(os.path.expanduser(path))
         emoji = "✅" if exists else "❌"
-        display_name = browser.capitalize()  # Capitalize the first letter
+        display_name = browser.capitalize()
         button = InlineKeyboardButton(f"{emoji} {display_name}", callback_data=f"browser_choice|{browser}")
-        buttons.append([button])  # Each button in a separate row
-
-    # Add a button for removing browser settings
+        buttons.append([button])
     buttons.append([InlineKeyboardButton("No Browser (Remove)", callback_data="browser_choice|no_browser")])
-
     keyboard = InlineKeyboardMarkup(buttons)
 
     app.send_message(
@@ -102,36 +98,33 @@ def cookies_from_browser(app, message):
         reply_markup=keyboard
     )
 
-
-
 # Callback handler for browser selection
 @app.on_callback_query(filters.regex(r"^browser_choice\|"))
 def browser_choice_callback(app, callback_query):
+    import subprocess
+    import os
+
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]  # e.g. "chromium" or "firefox"
     user_dir = f"./users/{user_id}"
-    create_directory(str(user_id))
+    create_directory(str(user_dir))
+    cookie_file = os.path.join(user_dir, "cookie.txt")
 
     if data == "no_browser":
-        # ... [remains unchanged: remove the cookies_from_browser.txt if exists]
-        if os.path.exists(f"{user_dir}/cookies_from_browser.txt"):
-            os.remove(f"{user_dir}/cookies_from_browser.txt")
+        if os.path.exists(cookie_file):
+            os.remove(cookie_file)
         app.send_message(user_id, "No browser selected. Browser cookies have been removed.")
     else:
-        # If a Chromium-based browser is selected, use the Default profile
-        browser_profile = data
-        if data in ["brave", "chrome", "chromium", "edge", "opera", "vivaldi", "whale"]:
-            browser_profile = f"{data}:Default"
-        # Save the selected browser (with profile) to a file for later use
-        with open(f"{user_dir}/cookies_from_browser.txt", "w", encoding="utf-8") as f:
-            f.write(browser_profile)
-        app.send_message(
-            user_id, 
-            f"Browser selected: {browser_profile}. Using cookies from this browser for downloads."
-        )
-
+        # Use the selected browser name directly (for example, "chromium")
+        browser_option = data  
+        # Build the command: yt-dlp --cookies cookie.txt --cookies-from-browser <browser_option>
+        cmd = f"yt-dlp --cookies \"{cookie_file}\" --cookies-from-browser {browser_option}"
+        try:
+            subprocess.run(cmd, shell=True, check=True)
+            app.send_message(user_id, f"Cookie file saved as {cookie_file} using browser: {browser_option}")
+        except subprocess.CalledProcessError as e:
+            app.send_message(user_id, f"Failed to save cookie file: {e}")
     callback_query.answer("Browser choice updated.")
-
 
 
 # Command /format handler
