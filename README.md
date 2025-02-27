@@ -64,7 +64,7 @@ To use the `/cookies_from_browser` command (which extracts cookies from installe
 
 2. **Rename and make it executable**  
    ```bash
-   mv yt-dlp_x86_64 yt-dlp
+   mv yt-dlp_linux yt-dlp
    chmod +x yt-dlp
    ```
 
