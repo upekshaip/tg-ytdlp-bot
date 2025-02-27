@@ -66,6 +66,10 @@ def create_directory(path):
 @app.on_message(filters.command("cookies_from_browser") & filters.private)
 def cookies_from_browser(app, message):
     user_id = message.chat.id
+    # For non-admin users, check if they are in the channel.
+    if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+        return
+
     # Path to the user's directory, e.g. "./users/7360853"
     user_dir = os.path.join(".", "users", str(user_id))
     create_directory(user_dir)  # Ensure the user's folder exists
@@ -106,7 +110,7 @@ def cookies_from_browser(app, message):
         reply_markup=keyboard
     )
 
-# Callback handler for browser selection
+# Callback handler for browser selection remains unchanged.
 @app.on_callback_query(filters.regex(r"^browser_choice\|"))
 def browser_choice_callback(app, callback_query):
     import subprocess
@@ -162,11 +166,14 @@ def browser_choice_callback(app, callback_query):
     callback_query.answer("Browser choice updated.")
 
 
-
 # Command /format handler
 @app.on_message(filters.command("format") & filters.private)
 def set_format(app, message):
     user_id = message.chat.id
+    # For non-admin users, check subscription
+    if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+        return
+
     user_dir = f"./users/{user_id}"
     create_directory(str(user_id))  # Ensure user folder exists
 
@@ -196,6 +203,12 @@ def set_format(app, message):
 @app.on_callback_query(filters.regex(r"^format_option\|"))
 def format_option_callback(app, callback_query):
     user_id = callback_query.from_user.id
+    # Optional: Add subscription check for callback queries if desired.
+    # For example, you can verify if the user is in the channel via:
+    # if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, callback_query.message):
+    #     callback_query.answer("Please join the channel to use this command.", show_alert=True)
+    #     return
+
     data = callback_query.data.split("|")[1]
     
     if data == "custom":
@@ -228,6 +241,7 @@ def format_option_callback(app, callback_query):
 
 
 
+
 #####################################################################################
 
 # checking user is blocked or not
@@ -256,86 +270,103 @@ def check_user(message):
 
 
 # checking actions
-# Text message handler
+# Text message handler for general commands
 @app.on_message(filters.text & filters.private)
 def url_distractor(app, message):
     user_id = message.chat.id
-    try:
-        if is_user_in_channel(app, message):
-            # If the message starts with the cookie save command, process it and exit
-            if message.text.startswith(Config.SAVE_AS_COOKIE_COMMAND):
-                save_as_cookie_file(app, message)
-                return
+    is_admin = int(user_id) in Config.ADMIN
+    text = message.text.strip()
 
-            # If the message is the cookie check command, call the check function and exit
-            if message.text.strip() == Config.CHECK_COOKIE_COMMAND:
-                checking_cookie_file(app, message)
-                return
+    # For non-admin users, if they haven't joined the channel, exit immediately.
+    if not is_admin and not is_user_in_channel(app, message):
+        return
 
-            # Then, if the message contains a URL, launch the video download function
-            if ("https://" in message.text) or ("http://" in message.text):
-                if not is_user_blocked(message):
-                    video_url_extractor(app, message)
+    # ----- User commands -----
+    # /save_as_cookie command
+    if text.startswith(Config.SAVE_AS_COOKIE_COMMAND):
+        save_as_cookie_file(app, message)
+        return
 
-            # If the message is a reply to a video, call the caption editor
-            if message.reply_to_message:
-                if not is_user_blocked(message):
-                    if message.reply_to_message.video:
-                        caption_editor(app, message)
+    # /download_cookie command
+    if text == Config.DOWNLOAD_COOKIE_COMMAND:
+        download_cookie(app, message)
+        return
+    
+    # /check_cookie command
+    if text == Config.CHECK_COOKIE_COMMAND:
+        checking_cookie_file(app, message)
+        return
 
-            if Config.CLEAN_COMMAND in message.text:
-                remove_media(message)
-                send_to_all(message, 'All files are removed.')
+    # /cookies_from_browser command
+    if text.startswith(Config.COOKIES_FROM_BROWSER_COMMAND):
+        cookies_from_browser(app, message)
+        return
 
-            if Config.USAGE_COMMAND in message.text:
-                get_user_log(app, message)
+    # /format command
+    if text.startswith(Config.FORMAT_COMMAND):
+        set_format(app, message)
+        return
 
-            # calling check cookie function
-            if Config.CHECK_COOKIE_COMMAND == message.text:
-                checking_cookie_file(app, message)
+    # /clean command
+    if Config.CLEAN_COMMAND in text:
+        remove_media(message)
+        send_to_all(message, "All files are removed.")
+        return
 
-            # calling update the cookie file function
-            if Config.SAVE_AS_COOKIE_COMMAND in message.text:
-                save_as_cookie_file(app, message)
+    # /usage command
+    if Config.USAGE_COMMAND in text:
+        get_user_log(app, message)
+        return
 
-        # Admin commands
-        if int(message.chat.id) in Config.ADMIN:
+    # If the message contains a URL, launch the video download function.
+    if ("https://" in text) or ("http://" in text):
+        if not is_user_blocked(message):
+            video_url_extractor(app, message)
+        return
 
-            # Broadcast messages to users
-            if message.reply_to_message and message.text == Config.BROADCAST_MESSAGE:
-                send_promo_message(app, message)
-                # send_to_user(message, message.reply_to_message)
+    # If the message is a reply to a video, call the caption editor.
+    if message.reply_to_message:
+        if not is_user_blocked(message):
+            if message.reply_to_message.video:
+                caption_editor(app, message)
+        return
 
-            # download cookiefile
-            if Config.DOWNLOAD_COOKIE_COMMAND == message.text:
-                download_cookie(app, message)
+    # ----- Admin commands (only processed if user is admin) -----
+    if is_admin:
+        # Broadcast message: reply to a message and use /broadcast
+        if message.reply_to_message and text == Config.BROADCAST_MESSAGE:
+            send_promo_message(app, message)
+            return
 
-            # Block user
-            if Config.BLOCK_USER_COMMAND in message.text:
-                block_user(app, message)
+        # /block_user command
+        if Config.BLOCK_USER_COMMAND in text:
+            block_user(app, message)
+            return
 
-            # Unblock user
-            if Config.UNBLOCK_USER_COMMAND in message.text:
-                unblock_user(app, message)
+        # /unblock_user command
+        if Config.UNBLOCK_USER_COMMAND in text:
+            unblock_user(app, message)
+            return
 
-            # Check running time
-            if Config.RUN_TIME in message.text:
-                check_runtime(message)
+        # /run_time command
+        if Config.RUN_TIME in text:
+            check_runtime(message)
+            return
 
-            # get all users deatial list
-            if Config.GET_USER_DETAILS_COMMAND in message.text:
-                get_user_details(app, message)
+        # /all command for user details
+        if Config.GET_USER_DETAILS_COMMAND in text:
+            get_user_details(app, message)
+            return
 
-            # Getting logs of specific user
-            if Config.GET_USER_LOGS_COMMAND in message.text:
-                get_user_log(app, message)
-        
-    except IndexError:
-        send_to_all(message, f"{IndexError}\n{Config.INDEX_ERROR}")
-    except Exception as e:
-        send_to_all(message, f"Some error occurred 😕\n{e}")
-    else:
-        print(user_id, "No system errors found on above activity")
+        # /log command for user logs
+        if Config.GET_USER_LOGS_COMMAND in text:
+            get_user_log(app, message)
+            return
+
+    # If no matching command is processed, log the message.
+    print(user_id, "No matching command processed.")
+
+
 
 
 
