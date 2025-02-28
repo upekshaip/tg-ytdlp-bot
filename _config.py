@@ -34,6 +34,8 @@ class Config(object):
     DOWNLOAD_COOKIE_COMMAND = "/download_cookie"
     CHECK_COOKIE_COMMAND = "/check_cookie"
     SAVE_AS_COOKIE_COMMAND = "/save_as_cookie"
+    FORMAT_COMMAND = "/format"
+    COOKIES_FROM_BROWSER_COMMAND = "/cookies_from_browser"
     BLOCK_USER_COMMAND = "/block_user"
     UNBLOCK_USER_COMMAND = "/unblock_user"
     RUN_TIME = "/run_time"

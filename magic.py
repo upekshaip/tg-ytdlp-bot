@@ -57,11 +57,123 @@ def command2(app, message):
                      parse_mode=enums.ParseMode.MARKDOWN)
     send_to_logger(message, f"Send help txt to user")
 
+def create_directory(path):
+    # Create the directory (and all intermediate directories) if it does not exist.
+    if not os.path.exists(path):
+        os.makedirs(path, exist_ok=True)
+
+# Command to set browser cookies
+@app.on_message(filters.command("cookies_from_browser") & filters.private)
+def cookies_from_browser(app, message):
+    user_id = message.chat.id
+    # For non-admin users, check if they are in the channel.
+    if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+        return
+
+    # Path to the user's directory, e.g. "./users/7360853"
+    user_dir = os.path.join(".", "users", str(user_id))
+    create_directory(user_dir)  # Ensure the user's folder exists
+
+    # Dictionary with browsers and their paths
+    browsers = {
+        "brave": "~/.config/BraveSoftware/Brave-Browser/",
+        "chrome": "~/.config/google-chrome/",
+        "chromium": "~/.config/chromium/",
+        "edge": "~/.config/microsoft-edge/",
+        "firefox": "~/.mozilla/firefox/",
+        "opera": "~/.config/opera/",
+        "safari": None,  # Not supported on Linux
+        "vivaldi": "~/.config/vivaldi/",
+        "whale": ["~/.config/Whale/", "~/.config/naver-whale/"]
+    }
+
+    buttons = []
+    for browser, path in browsers.items():
+        if browser == "safari":
+            exists = False
+        elif isinstance(path, list):
+            exists = any(os.path.exists(os.path.expanduser(p)) for p in path)
+        else:
+            exists = os.path.exists(os.path.expanduser(path))
+        emoji = "✅" if exists else "❌"
+        display_name = browser.capitalize()  # Capitalize the first letter
+        button = InlineKeyboardButton(f"{emoji} {display_name}", callback_data=f"browser_choice|{browser}")
+        buttons.append([button])
+    
+    # Add a Cancel button to cancel the selection
+    buttons.append([InlineKeyboardButton("Cancel", callback_data="browser_choice|cancel")])
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    app.send_message(
+        user_id,
+        "Select a browser to download cookies from:",
+        reply_markup=keyboard
+    )
+
+# Callback handler for browser selection remains unchanged.
+@app.on_callback_query(filters.regex(r"^browser_choice\|"))
+def browser_choice_callback(app, callback_query):
+    import subprocess
+
+    user_id = callback_query.from_user.id
+    data = callback_query.data.split("|")[1]  # e.g. "chromium", "firefox", or "cancel"
+    # Path to the user's directory, e.g. "./users/7360853"
+    user_dir = os.path.join(".", "users", str(user_id))
+    create_directory(user_dir)
+    cookie_file = os.path.join(user_dir, "cookie.txt")
+
+    if data == "cancel":
+        app.send_message(user_id, "Browser selection canceled.")
+        callback_query.answer("Browser choice updated.")
+        return
+
+    browser_option = data
+
+    # Dictionary with browsers and their paths (same as above)
+    browsers = {
+        "brave": "~/.config/BraveSoftware/Brave-Browser/",
+        "chrome": "~/.config/google-chrome/",
+        "chromium": "~/.config/chromium/",
+        "edge": "~/.config/microsoft-edge/",
+        "firefox": "~/.mozilla/firefox/",
+        "opera": "~/.config/opera/",
+        "safari": None,
+        "vivaldi": "~/.config/vivaldi/",
+        "whale": ["~/.config/Whale/", "~/.config/naver-whale/"]
+    }
+    path = browsers.get(browser_option)
+    # If the browser is not installed, inform the user and do not execute the command
+    if (browser_option == "safari") or (
+        isinstance(path, list) and not any(os.path.exists(os.path.expanduser(p)) for p in path)
+    ) or (isinstance(path, str) and not os.path.exists(os.path.expanduser(path))):
+        app.send_message(user_id, f"{browser_option.capitalize()} browser not installed.")
+        callback_query.answer("Browser not installed.")
+        return
+
+    # Build the command for cookie extraction: yt-dlp --cookies "cookie.txt" --cookies-from-browser <browser_option>
+    cmd = f'yt-dlp --cookies "{cookie_file}" --cookies-from-browser {browser_option}'
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+    # If the return code is not 0, but the error is due to missing URL, consider the cookies as successfully extracted
+    if result.returncode != 0:
+        if "You must provide at least one URL" in result.stderr:
+            app.send_message(user_id, f"Cookies saved using browser: {browser_option}")
+        else:
+            app.send_message(user_id, f"Failed to save cookies: {result.stderr}")
+    else:
+        app.send_message(user_id, f"Cookies saved using browser: {browser_option}")
+
+    callback_query.answer("Browser choice updated.")
+
 
 # Command /format handler
 @app.on_message(filters.command("format") & filters.private)
 def set_format(app, message):
     user_id = message.chat.id
+    # For non-admin users, check subscription
+    if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+        return
+
     user_dir = f"./users/{user_id}"
     create_directory(str(user_id))  # Ensure user folder exists
 
@@ -91,6 +203,12 @@ def set_format(app, message):
 @app.on_callback_query(filters.regex(r"^format_option\|"))
 def format_option_callback(app, callback_query):
     user_id = callback_query.from_user.id
+    # Optional: Add subscription check for callback queries if desired.
+    # For example, you can verify if the user is in the channel via:
+    # if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, callback_query.message):
+    #     callback_query.answer("Please join the channel to use this command.", show_alert=True)
+    #     return
+
     data = callback_query.data.split("|")[1]
     
     if data == "custom":
@@ -123,6 +241,7 @@ def format_option_callback(app, callback_query):
 
 
 
+
 #####################################################################################
 
 # checking user is blocked or not
@@ -151,86 +270,103 @@ def check_user(message):
 
 
 # checking actions
-# Text message handler
+# Text message handler for general commands
 @app.on_message(filters.text & filters.private)
 def url_distractor(app, message):
     user_id = message.chat.id
-    try:
-        if is_user_in_channel(app, message):
-            # If the message starts with the cookie save command, process it and exit
-            if message.text.startswith(Config.SAVE_AS_COOKIE_COMMAND):
-                save_as_cookie_file(app, message)
-                return
+    is_admin = int(user_id) in Config.ADMIN
+    text = message.text.strip()
 
-            # If the message is the cookie check command, call the check function and exit
-            if message.text.strip() == Config.CHECK_COOKIE_COMMAND:
-                checking_cookie_file(app, message)
-                return
+    # For non-admin users, if they haven't joined the channel, exit immediately.
+    if not is_admin and not is_user_in_channel(app, message):
+        return
 
-            # Then, if the message contains a URL, launch the video download function
-            if ("https://" in message.text) or ("http://" in message.text):
-                if not is_user_blocked(message):
-                    video_url_extractor(app, message)
+    # ----- User commands -----
+    # /save_as_cookie command
+    if text.startswith(Config.SAVE_AS_COOKIE_COMMAND):
+        save_as_cookie_file(app, message)
+        return
 
-            # If the message is a reply to a video, call the caption editor
-            if message.reply_to_message:
-                if not is_user_blocked(message):
-                    if message.reply_to_message.video:
-                        caption_editor(app, message)
+    # /download_cookie command
+    if text == Config.DOWNLOAD_COOKIE_COMMAND:
+        download_cookie(app, message)
+        return
+    
+    # /check_cookie command
+    if text == Config.CHECK_COOKIE_COMMAND:
+        checking_cookie_file(app, message)
+        return
 
-            if Config.CLEAN_COMMAND in message.text:
-                remove_media(message)
-                send_to_all(message, 'All files are removed.')
+    # /cookies_from_browser command
+    if text.startswith(Config.COOKIES_FROM_BROWSER_COMMAND):
+        cookies_from_browser(app, message)
+        return
 
-            if Config.USAGE_COMMAND in message.text:
-                get_user_log(app, message)
+    # /format command
+    if text.startswith(Config.FORMAT_COMMAND):
+        set_format(app, message)
+        return
 
-            # calling check cookie function
-            if Config.CHECK_COOKIE_COMMAND == message.text:
-                checking_cookie_file(app, message)
+    # /clean command
+    if Config.CLEAN_COMMAND in text:
+        remove_media(message)
+        send_to_all(message, "All files are removed.")
+        return
 
-            # calling update the cookie file function
-            if Config.SAVE_AS_COOKIE_COMMAND in message.text:
-                save_as_cookie_file(app, message)
+    # /usage command
+    if Config.USAGE_COMMAND in text:
+        get_user_log(app, message)
+        return
 
-        # Admin commands
-        if int(message.chat.id) in Config.ADMIN:
+    # If the message contains a URL, launch the video download function.
+    if ("https://" in text) or ("http://" in text):
+        if not is_user_blocked(message):
+            video_url_extractor(app, message)
+        return
 
-            # Broadcast messages to users
-            if message.reply_to_message and message.text == Config.BROADCAST_MESSAGE:
-                send_promo_message(app, message)
-                # send_to_user(message, message.reply_to_message)
+    # If the message is a reply to a video, call the caption editor.
+    if message.reply_to_message:
+        if not is_user_blocked(message):
+            if message.reply_to_message.video:
+                caption_editor(app, message)
+        return
 
-            # download cookiefile
-            if Config.DOWNLOAD_COOKIE_COMMAND == message.text:
-                download_cookie(app, message)
+    # ----- Admin commands (only processed if user is admin) -----
+    if is_admin:
+        # Broadcast message: reply to a message and use /broadcast
+        if message.reply_to_message and text == Config.BROADCAST_MESSAGE:
+            send_promo_message(app, message)
+            return
 
-            # Block user
-            if Config.BLOCK_USER_COMMAND in message.text:
-                block_user(app, message)
+        # /block_user command
+        if Config.BLOCK_USER_COMMAND in text:
+            block_user(app, message)
+            return
 
-            # Unblock user
-            if Config.UNBLOCK_USER_COMMAND in message.text:
-                unblock_user(app, message)
+        # /unblock_user command
+        if Config.UNBLOCK_USER_COMMAND in text:
+            unblock_user(app, message)
+            return
 
-            # Check running time
-            if Config.RUN_TIME in message.text:
-                check_runtime(message)
+        # /run_time command
+        if Config.RUN_TIME in text:
+            check_runtime(message)
+            return
 
-            # get all users deatial list
-            if Config.GET_USER_DETAILS_COMMAND in message.text:
-                get_user_details(app, message)
+        # /all command for user details
+        if Config.GET_USER_DETAILS_COMMAND in text:
+            get_user_details(app, message)
+            return
 
-            # Getting logs of specific user
-            if Config.GET_USER_LOGS_COMMAND in message.text:
-                get_user_log(app, message)
-        
-    except IndexError:
-        send_to_all(message, f"{IndexError}\n{Config.INDEX_ERROR}")
-    except Exception as e:
-        send_to_all(message, f"Some error occurred 😕\n{e}")
-    else:
-        print(user_id, "No system errors found on above activity")
+        # /log command for user logs
+        if Config.GET_USER_LOGS_COMMAND in text:
+            get_user_log(app, message)
+            return
+
+    # If no matching command is processed, log the message.
+    print(user_id, "No matching command processed.")
+
+
 
 
 
@@ -560,12 +696,16 @@ def checking_cookie_file(app, message):
     file_path = os.path.join("users", user_id, cookie_filename)
     
     if os.path.exists(file_path):
-        send_to_all(message, "**Cookie file exists.**")
         with open(file_path, "r", encoding="utf-8") as cookie:
             cookie_content = cookie.read()
-        send_to_all(message, f"**cookie data --->>>>>>>>>>>>>>**\n`{cookie_content}`")
+        # Check if the cookie file has the Netscape Navigator format
+        if cookie_content.startswith("# Netscape HTTP Cookie File"):
+            send_to_all(message, "Cookie file exists and has correct format")
+        else:
+            send_to_all(message, "Cookie file exists but has incorrect format")
     else:
-        send_to_all(message, "**Cookie file is not found.**")
+        send_to_all(message, "Cookie file is not found.")
+
 
 
 
@@ -748,13 +888,6 @@ def TimeFormatter(milliseconds: int) -> str:
     return tmp[:-2]
 
 
-def create_directory(dir_name):
-    if not os.path.exists("users"):
-        os.mkdir("users")
-    if not os.path.exists("users/" + dir_name):
-        os.mkdir("users/" + dir_name)
-        print("Directory ", dir_name,  " Created ")
-
 
 def split_video_2(dir, video_name, video_path, video_size, max_size, duration):
 
@@ -906,6 +1039,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             print(f"Attempt with format {ytdl_opts['format']} failed: {e}")
             return None
 
+    # Local function for progress hook (in case an error occurs during download)
+    def my_hook(d):
+        if d.get('status') == 'error':
+            print('Some error occurred.')
+            send_to_all(message, "Sorry... Some error occurred during download.")
+
     # Process each video in the loop
     for x in range(video_count):
         current_index = x  # used in playlist_items
@@ -923,12 +1062,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             rename_name = playlist_name + " - Part " + str(x + video_start_with)
         else:
             rename_name = defalt_name
-
-        # Local function for progress hook (in case an error occurs during download)
-        def my_hook(d):
-            if d.get('status') == 'error':
-                print('some error occurred.')
-                send_to_all(message, "Sorry... Some error occurred during download.")
 
         info_dict = None
         # Try each download option until one succeeds
@@ -1022,7 +1155,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
     else:
         success_msg = f"**Upload complete** - {video_count} files uploaded.\n \n__Developed by__ @upekshaip"
         app.edit_message_text(user_id, (msg_id + 1), success_msg)
-        app.send_message(user_id, success_msg)
+        
+
 
 
 #####################################################################################
