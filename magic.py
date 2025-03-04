@@ -648,10 +648,18 @@ def check_runtime(message):
 @app.on_message(filters.document & filters.private)
 def save_my_cookie(app, message):
     user_id = str(message.chat.id)
-    create_directory(user_id)
-    app.download_media(
-        message, file_name=f"./users/{user_id}/{Config.COOKIE_FILE_PATH}")
-    send_to_user(message, f"Cookie file saved")
+    # Define the user folder path (e.g., "./users/7360853")
+    user_folder = f"./users/{user_id}"
+    # Create the user directory if it doesn't exist
+    create_directory(user_folder)
+    # Extract only the filename (e.g., "cookie.txt") from the config path
+    cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
+    # Construct the full path where the cookie file should be saved
+    cookie_file_path = os.path.join(user_folder, cookie_filename)
+    # Download the media and save it directly in the user's root folder
+    app.download_media(message, file_name=cookie_file_path)
+    send_to_user(message, "Cookie file saved")
+
 
 
 def download_cookie(app, message):
