@@ -41,6 +41,8 @@ Download private YouTube/videos using a cookie file.
    docker -v
    ```
 
+---
+
 ### Installing ffmpeg in the System
 
 It is essential to have **ffmpeg** installed on your system because **yt-dlp** relies on it for merging streams (and in some cases, for transcoding or extracting thumbnails). To install ffmpeg on a Debian-based system, run:
@@ -55,26 +57,6 @@ Verify installation:
 ffmpeg -version
 ```
 
-### Preparing `yt-dlp` for `/cookies_from_browser`
-
-To use the `/cookies_from_browser` command (which extracts cookies from installed browsers on your server), you need to have the `yt-dlp` binary properly set up. Follow these steps:
-
-1. **Download `yt-dlp`**  
-   Go to the [official `yt-dlp` releases page](https://github.com/yt-dlp/yt-dlp/releases) and download the binary for your CPU architecture (e.g., `yt-dlp_x86_64`, `yt-dlp_arm`, etc.).
-
-2. **Rename and make it executable**  
-   ```bash
-   mv yt-dlp_linux yt-dlp
-   chmod +x yt-dlp
-   ```
-
-3. **Create a symbolic link**  
-   So that `yt-dlp` can be run from any directory without specifying the full path, create a symlink (for example, in `/usr/local/bin`):
-   ```bash
-   sudo ln -s /full/path/to/yt-dlp /usr/local/bin/yt-dlp
-   ```
-   Make sure `/usr/local/bin` is in your `PATH`. Now you can invoke `yt-dlp` directly.
-
 ---
 
 #### Setting up `config.py`
@@ -86,6 +68,31 @@ sudo mv _config.py config.py
 nano config.py
 ```
 Edit your config before deployment. After your edits, proceed with Docker build steps below.
+
+---
+
+### Preparing `yt-dlp` for `/cookies_from_browser`
+
+To use the `/cookies_from_browser` command (which extracts cookies from installed browsers on your server), you need to have the `yt-dlp` binary properly set up. Follow these steps:
+
+1. **Download `yt-dlp`**  
+   Go to the [official `yt-dlp` releases page](https://github.com/yt-dlp/yt-dlp/releases) and download the binary for your CPU architecture (e.g., `yt-dlp_x86_64`, `yt-dlp_arm`, etc.).
+   Place this binary executable to `tg-ytdlp-bot` project folder.
+ 
+2. **Rename and make it executable**  
+   ```bash
+   mv yt-dlp_linux yt-dlp
+   chmod +x yt-dlp
+   ```
+
+3. **Create a symbolic link**  
+   So that `yt-dlp` can be run from any directory without specifying the full path, create a symlink (for example, in `/usr/local/bin`):
+   ```bash
+   sudo ln -s /full/path/to/tg-ytdlp-bot/yt-dlp /usr/local/bin/yt-dlp
+   ```
+   Make sure `/usr/local/bin` is in your `PATH`. Now you can invoke `yt-dlp` directly.
+
+---
 
 #### Building and Running with Docker
 
