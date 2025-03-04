@@ -1,3 +1,18 @@
+Commands for users:
+
+start - Start the bot
+help - Send help text
+clean - clean your working directory
+usage - Get all logs
+
+check_cookie - Check cookie file
+save_as_cookie - Save txt as cookie
+download_cookie - Download the cookie file
+cookies_from_browser - Get cookies from browser
+format - Choose media format options
+
+---
+
 Commands for admin:
 
 start - Start the bot
@@ -9,10 +24,6 @@ broadcast - Send message to all users
 clean - clean your working directory
 usage - Get all logs
 
-check_cookie - Check cookie file
-save_as_cookie - Save txt as cookie
-download_cookie - Download the cookie file
-
 block_user - Block user
 unblock_user - Unblock user
 
@@ -20,9 +31,3 @@ all_users - Get all users
 all_blocked - Get all blocked users
 all_unblocked - Get all unblocked users
 
-Commands for users:
-
-start - Start the bot
-help - Send help text
-clean - clean your working directory
-usage - Get all logs
