@@ -1007,35 +1007,41 @@ def send_to_all(message, msg):
     app.send_message(user_id, msg, parse_mode=enums.ParseMode.MARKDOWN)
 
 
-def progress_bar(user_id, msg_id,  msg):
-    app.edit_message_text(user_id, (msg_id+1), msg)
+def progress_bar(*args):
+    # Pyrogram is expected to call progress_bar with five parameters:
+    # current, total, speed, eta, file_size, and then additionally your progress_args (user_id, msg_id, status_text)
+    if len(args) < 8:
+        return
+    current, total, speed, eta, file_size, user_id, msg_id, status_text = args[:8]
+    try:
+        app.edit_message_text(user_id, msg_id, status_text)
+    except Exception as e:
+        print(f"Error updating progress: {e}")
+
 
 
 def send_videos(message, video_abs_path, caption, duration, thumb_file_path, info_text, msg_id):
-    stage = f"Uploading Video... 📤"
-    send_to_logger(
-        message, f"{info_text}")
+    """
+    Sends the video using send_video (not as document) with streaming support.
+    Updates progress via the progress_bar callback.
+    """
+    stage = "Uploading Video... 📤"
+    send_to_logger(message, info_text)
     user_id = message.chat.id
     app.send_video(
         chat_id=user_id,
         video=video_abs_path,
         caption=caption,
-        # parse_mode="HTML",
         duration=duration,
         width=640,
         height=360,
         supports_streaming=True,
         thumb=thumb_file_path,
-        # reply_to_message_id=message.id,
-        progress=progress_bar(
-            user_id, msg_id, (f"{info_text}\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n \n__{stage}__"))
-        # progress_args=(
-        #     f"videos is uploading...."
-        # Translation.UPLOAD_START,
-        # usermsg,
-        # start_time
-        # )
+        progress=progress_bar,
+        progress_args=(user_id, msg_id, f"{info_text}\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n\n__{stage}__")
     )
+
+    
 #####################################################################################
 
 
@@ -1100,19 +1106,24 @@ def get_duration_thumb_(dir, video_path, thumb_name):
     return duration, thumb_dir
 
 
-def get_duration_thumb(message, dir, video_path, thumb_name):
-    thumb_dir = os.path.abspath(os.path.join(dir, thumb_name + ".jpg"))
+def get_duration_thumb(message, dir_path, video_path, thumb_name):
+    """
+    Captures a thumbnail at 2 seconds into the video and retrieves video duration.
+    Forces overwriting existing thumbnail with the '-y' flag.
+    """
+    thumb_dir = os.path.abspath(os.path.join(dir_path, thumb_name + ".jpg"))
 
-    # Run ffmpeg command to capture a frame at 2 seconds into the video
+    # ffmpeg command with -y flag to overwrite thumbnail file
     ffmpeg_command = [
         "ffmpeg",
+        "-y",
         "-i", video_path,
-        "-ss", "2",  # Seek to 2 seconds into the video
-        "-vframes", "1",  # Capture only 1 frame
+        "-ss", "2",         # Seek to 2 seconds
+        "-vframes", "1",    # Capture 1 frame
         thumb_dir
     ]
 
-    # Run ffprobe command to get the video duration
+    # ffprobe command to get video duration
     ffprobe_command = [
         "ffprobe",
         "-v", "error",
@@ -1123,18 +1134,13 @@ def get_duration_thumb(message, dir, video_path, thumb_name):
     ]
 
     try:
-        # Execute ffmpeg command to capture thumbnail
         subprocess.run(ffmpeg_command, check=True)
-
-        # Execute ffprobe command to get video duration
-        result = subprocess.check_output(
-            ffprobe_command, stderr=subprocess.STDOUT, universal_newlines=True)
+        result = subprocess.check_output(ffprobe_command, stderr=subprocess.STDOUT, universal_newlines=True)
         duration = int(float(result))
-
         return duration, thumb_dir
     except subprocess.CalledProcessError as e:
-        send_to_all(message,
-                    f"❌ Error capturing thumbnail or getting video duration: {e}")
+        send_to_all(message, f"❌ Error capturing thumbnail or getting video duration: {e}")
+        return None
 
 
 def write_logs(message, video_url, video_title):
@@ -1273,10 +1279,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
 
         ###############################################################################################################################
         # Uploading part: locate the downloaded file
-        dir_path = "./users/" + str(user_id)
+        dir_path = os.path.join("users", str(user_id))
         allfiles = os.listdir(dir_path)
-        # Look for files with .mp4 or .mkv extensions
-        files = [fname for fname in allfiles if fname.endswith(('.mp4', '.mkv'))]
+        # Look for files with .mp4, .mkv, or .webm extensions
+        files = [fname for fname in allfiles if fname.endswith(('.mp4', '.mkv', '.webm'))]
         files.sort()
         if not files:
             send_to_all(message, "❌ File not found after download.")
@@ -1287,17 +1293,48 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
 
         # If the filename does not match the expected name and a different name is provided, rename the file
         if rename_name == defalt_name:
-            caption_name = downloaded_file.split(".mp4")[0]
+            caption_name = os.path.splitext(downloaded_file)[0]
             final_name = downloaded_file
         else:
-            final_name = rename_name + ".mp4"
+            # Preserve the original file extension
+            ext = os.path.splitext(downloaded_file)[1]
+            final_name = rename_name + ext
             caption_name = rename_name
-            os.rename(dir_path + "/" + downloaded_file, dir_path + "/" + final_name)
+            os.rename(os.path.join(dir_path, downloaded_file), os.path.join(dir_path, final_name))
 
-        user_vid_path = dir_path + "/" + final_name
+        user_vid_path = os.path.join(dir_path, final_name)
+        # If the file is in webm format, convert it to mp4 for inline playback
+        if final_name.lower().endswith(".webm"):
+            mp4_file = os.path.join(dir_path, os.path.splitext(final_name)[0] + ".mp4")
+            ffmpeg_convert_cmd = [
+                "ffmpeg",
+                "-y",  # overwrite output file without asking
+                "-i", user_vid_path,
+                "-c:v", "libx264",
+                "-preset", "fast",
+                "-crf", "23",
+                "-c:a", "aac",
+                "-b:a", "128k",
+                mp4_file
+            ]
+            try:
+                subprocess.run(ffmpeg_convert_cmd, check=True)
+                # Remove the original webm file after successful conversion
+                os.remove(user_vid_path)
+                # Update the path and filename to the converted file
+                user_vid_path = mp4_file
+                final_name = os.path.basename(mp4_file)
+            except Exception as e:
+                send_to_all(message, f"❌ Conversion to MP4 failed: {e}")
+                continue
         after_rename_abs_path = os.path.abspath(user_vid_path)
 
-        duration, thumb_dir = get_duration_thumb(message, dir_path, user_vid_path, caption_name)
+        result = get_duration_thumb(message, dir_path, user_vid_path, caption_name)
+        if result is None:
+            send_to_all(message, "❌ Failed to get video duration and thumbnail.")
+            continue
+        duration, thumb_dir = result
+
         video_size_in_bytes = os.path.getsize(user_vid_path)
         video_size = humanbytes(int(video_size_in_bytes))
 
