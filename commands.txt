@@ -1,3 +1,4 @@
+
 Commands for users:
 
 start - Start the bot
@@ -10,6 +11,7 @@ save_as_cookie - Save txt as cookie
 download_cookie - Download the cookie file
 cookies_from_browser - Get cookies from browser
 format - Choose media format options
+audio - + URL - Download only audio
 
 ---
 
@@ -30,4 +32,3 @@ unblock_user - Unblock user
 all_users - Get all users
 all_blocked - Get all blocked users
 all_unblocked - Get all unblocked users
-
