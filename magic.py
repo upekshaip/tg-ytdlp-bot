@@ -177,7 +177,7 @@ def audio_command_handler(app, message):
 
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)  # Let's make sure the user folder exists
-        
+
     # A command like this is expected: /audio <URL>
     if len(message.command) < 2:
         send_to_user(message, "Please provide the URL of the video to download the audio.")
@@ -365,10 +365,10 @@ def down_and_audio(app, message, url):
     # Form the absolute path to the user's directory (./users/<user_id>)
     user_folder = os.path.abspath(os.path.join("users", str(user_id)))
     create_directory(user_folder)
-    
+
     # Form the path to the cookie file (filename taken from Config.COOKIE_FILE_PATH)
     cookie_file = os.path.join(user_folder, os.path.basename(Config.COOKIE_FILE_PATH))
-    
+
     # Options for yt-dlp: download the best audio track and convert to mp3
     ytdl_opts = {
         'format': 'ba',  # choose the best audio track
@@ -383,7 +383,7 @@ def down_and_audio(app, message, url):
         'outtmpl': os.path.join(user_folder, "%(title)s.%(ext)s"),
         'progress_hooks': [],
     }
-    
+
     # Local function to update download status
     def progress_hook(d):
         if d.get("status") == "downloading":
@@ -404,14 +404,14 @@ def down_and_audio(app, message, url):
                 app.edit_message_text(user_id, status_message_id, "Error occurred during audio download.")
             except Exception as e:
                 print(f"Error editing message: {e}")
-    
+
     ytdl_opts['progress_hooks'].append(progress_hook)
-    
+
     try:
         # Download audio using yt-dlp
         with YoutubeDL(ytdl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-        
+
         # Form the expected filename (with .mp3 extension)
         audio_title = info.get("title", "audio")
         audio_file = os.path.join(user_folder, audio_title + ".mp3")
@@ -422,18 +422,18 @@ def down_and_audio(app, message, url):
             else:
                 send_to_user(message, "Audio file not found after download.")
                 return
-        
+
         # Update status before uploading the file
         app.edit_message_text(user_id, status_message_id, "Uploading audio file... 📤")
         app.send_audio(chat_id=user_id, audio=audio_file, caption=f"Audio downloaded: {audio_title}")
         app.edit_message_text(user_id, status_message_id, f"✅ Audio successfully downloaded and sent.\n\n{Config.CREDITS_MSG}")
-        
+
         # Delete the audio file after sending to avoid disk clutter
         try:
             os.remove(audio_file)
         except Exception as e:
             print(f"Failed to delete file {audio_file}: {e}")
-        
+
     except Exception as e:
         send_to_user(message, f"Failed to download audio: {e}")
         try:
@@ -479,7 +479,7 @@ def url_distractor(app, message):
     # /audio command
     if text.startswith(Config.AUDIO_COMMAND):
         audio_command_handler(app, message)
-        return    
+        return
 
     # /format command
     if text.startswith(Config.FORMAT_COMMAND):
@@ -1008,8 +1008,8 @@ def send_to_all(message, msg):
 
 
 def progress_bar(*args):
-    # Pyrogram is expected to call progress_bar with five parameters:
-    # current, total, speed, eta, file_size, and then additionally your progress_args (user_id, msg_id, status_text)
+    # Ожидается, что Pyrogram вызовет progress_bar с пятью параметрами:
+    # current, total, speed, eta, file_size, а затем дополнительно ваши progress_args (user_id, msg_id, status_text)
     if len(args) < 8:
         return
     current, total, speed, eta, file_size, user_id, msg_id, status_text = args[:8]
@@ -1041,7 +1041,7 @@ def send_videos(message, video_abs_path, caption, duration, thumb_file_path, inf
         progress_args=(user_id, msg_id, f"{info_text}\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n\n__{stage}__")
     )
 
-    
+
 #####################################################################################
 
 
@@ -1254,7 +1254,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 # Video downloaded successfully
                 break
         if info_dict is None:
-            send_to_all(message, "❌ Failed to download video. You may need `Cookie` for downloading this video. \nPlease get Youtube's `cookie` via /download_cookie command or send your own cookie from any site ([guide1](https://t.me/c/2303231066/18)) ([guide2](https://t.me/c/2303231066/22)) and after that send your video link again.")
+            send_to_all(message, "❌ Failed to download video. Check if your site is suported [here](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md). If so - you may need `Cookie` for downloading this video. Please get Youtube's `cookie` via /download_cookie command or send your own cookie from any site ([guide1](https://t.me/c/2303231066/18)) ([guide2](https://t.me/c/2303231066/22)) and after that send your video link again.")
             continue  # move to the next video if available
 
         # Increment counter when download succeeds
