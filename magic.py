@@ -585,6 +585,7 @@ def remove_media(message):
         part_files = [fname for fname in allfiles if fname.endswith('.part')]
         ytdl_files = [fname for fname in allfiles if fname.endswith('.ytdl')]
         txt_files = [fname for fname in allfiles if fname.endswith('.txt')]
+        ts_files = [fname for fname in allfiles if fname.endswith('.ts')]
         webm_files = [fname for fname in allfiles if fname.endswith('.webm')]
 
         if len(mp4_files) > 0:
@@ -604,6 +605,9 @@ def remove_media(message):
                 os.remove(f"{dir}/{file}")
         if len(txt_files) > 0:
             for file in txt_files:
+                os.remove(f"{dir}/{file}")
+        if len(ts_files) > 0:
+            for file in ts_files:
                 os.remove(f"{dir}/{file}")
         if len(webm_files) > 0:
             for file in webm_files:
@@ -1154,117 +1158,137 @@ def write_logs(message, video_url, video_title):
 
 
 def down_and_up(app, message, url, playlist_name, video_count, video_start_with):
+    # Initialize basic variables
     user_id = message.chat.id
     msg_id = message.id
     plus_one = msg_id + 1
     app.send_message(user_id, "Processing... ♻️")
     check_user(message)
 
-    # Create the user folder inside "users" using the absolute path
+    # Create user's folder (absolute path)
     user_dir_name = os.path.abspath(os.path.join("users", str(user_id)))
-    create_directory(user_dir_name)  # Ensure the folder exists
+    create_directory(user_dir_name)
 
-    # If user has custom format saved, use it; otherwise use the default fallback cascade
-    custom_format_path = f"{user_dir_name}/format.txt"
+    # Determine format options from custom file or default cascade
+    custom_format_path = os.path.join(user_dir_name, "format.txt")
     if os.path.exists(custom_format_path):
         with open(custom_format_path, "r", encoding="utf-8") as f:
             custom_format = f.read().strip()
-        # If user selected "best", then use prefer_ffmpeg False; otherwise True with merge_output_format mp4.
         if custom_format.lower() == "best":
-            attempts = [{
-                'format': custom_format,
-                'prefer_ffmpeg': False
-            }]
+            attempts = [{'format': custom_format, 'prefer_ffmpeg': False}]
         else:
-            attempts = [{
-                'format': custom_format,
-                'prefer_ffmpeg': True,
-                'merge_output_format': 'mp4'
-            }]
+            attempts = [{'format': custom_format, 'prefer_ffmpeg': True, 'merge_output_format': 'mp4'}]
     else:
-        # Default fallback cascade (if /format not set)
         attempts = [
-            {
-                'format': 'bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
-                'prefer_ffmpeg': True,
-                'merge_output_format': 'mp4'
-            },
-            {
-                'format': 'bestvideo+bestaudio/best',
-                'prefer_ffmpeg': True,
-                'merge_output_format': 'mp4'
-            },
-            {
-                'format': 'best',
-                'prefer_ffmpeg': False
-            }
+            {'format': 'bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
+             'prefer_ffmpeg': True, 'merge_output_format': 'mp4'},
+            {'format': 'bestvideo+bestaudio/best',
+             'prefer_ffmpeg': True, 'merge_output_format': 'mp4'},
+            {'format': 'best', 'prefer_ffmpeg': False}
         ]
 
-    # Wrapper function for logging and attempting the download
-    def try_download(url, attempt_opts, total_info_text):
-        common_opts = {
-            'cookiefile': os.path.join("users", str(user_id), os.path.basename(Config.COOKIE_FILE_PATH)),
-            'progress_hooks': [my_hook],
-            'playlist_items': str(current_index + video_start_with),
-            'outtmpl': user_dir_name + "/%(title)s.%(ext)s"
-        }
-        ytdl_opts = {**common_opts, **attempt_opts}
-        try:
-            # First, extract video info (without downloading) for logging purposes
-            with YoutubeDL(ytdl_opts) as ydl:
-                info_dict = ydl.extract_info(url, download=False)
-            app.edit_message_text(user_id, plus_one, f"{total_info_text}\n \n__Downloading using format: {ytdl_opts['format']}...__ 📥")
-            with YoutubeDL(ytdl_opts) as ydl:
-                ydl.download([url])
-            return info_dict  # return the video information
-        except Exception as e:
-            print(f"Attempt with format {ytdl_opts['format']} failed: {e}")
-            return None
+    # Function to update HLS stream status by showing the last fragment's name
+    def update_stream_status():
+        part_files = [f for f in os.listdir(user_dir_name) if "Frag" in f and ".part" in f]
+        if part_files:
+            last_part = sorted(part_files)[-1]
+            try:
+                app.edit_message_text(user_id, plus_one, f"Downloading HLS stream: {last_part}")
+            except Exception as e:
+                print(f"Error updating HLS status: {e}")
 
-    # Local function for progress hook (in case an error occurs during download)
-    def my_hook(d):
-        if d.get('status') == 'error':
-            print('Some error occurred.')
+    # Throttled progress function: updates at most once every 3 seconds
+    last_update = 0
+    def progress_func(d):
+        nonlocal last_update
+        if d.get("status") == "downloading":
+            # For HLS, update using stream status
+            filename = d.get("filename", "").lower()
+            if "m3u8" in filename or d.get("hls") is True:
+                update_stream_status()
+            else:
+                downloaded = d.get("downloaded_bytes", 0)
+                total = d.get("total_bytes", 0)
+                percent = (downloaded / total * 100) if total else 0
+                current_time = time.time()
+                if current_time - last_update < 3:
+                    return
+                blocks = int(percent // 10)
+                bar = "🟩" * blocks + "⬜️" * (10 - blocks)
+                try:
+                    app.edit_message_text(user_id, plus_one, f"{total_process}\n{bar}   {percent:.1f}%")
+                except Exception as e:
+                    print(f"Error updating progress: {e}")
+                last_update = current_time
+        elif d.get("status") == "error":
+            print("Error occurred during download.")
             send_to_all(message, "❌ Sorry... Some error occurred during download.")
 
-    successful_uploads = 0  # counter for successful downloads/uploads
+    successful_uploads = 0  # Counter for successful downloads/uploads
 
     for x in range(video_count):
-        current_index = x  # used in playlist_items
-        j = ((x + 1) / video_count * 100)
-        j_bar = f"{'🟩' * math.floor(j / 10)}{'⬜️' * (10 - math.floor(j / 10))}"
+        current_index = x  # used for playlist_items parameter
         total_process = f"""
 **<<<** __Total progress__ **>>>**
 
-**Video number:** __{x + 1}__
-**Total videos:** __{video_count}__
-
-            {j_bar}   __{math.floor(j)}%__"""
-        defalt_name = "Defalt name will apply"
+**Video number:** {x + 1} / {video_count}
+"""
+        # If playlist_name is provided and more than one video, use it with part numbers;
+        # otherwise, use video title from metadata later.
         if playlist_name and video_count > 1:
-            rename_name = playlist_name + " - Part " + str(x + video_start_with)
+            rename_name = f"{playlist_name} - Part {x + video_start_with}"
         else:
-            rename_name = defalt_name
+            rename_name = None  # We'll use video_title if no custom name is provided
+
+        # Wrapper function to try downloading with given options
+        def try_download(url, attempt_opts):
+            common_opts = {
+                'cookiefile': os.path.join("users", str(user_id), os.path.basename(Config.COOKIE_FILE_PATH)),
+                'progress_hooks': [progress_func],
+                'playlist_items': str(current_index + video_start_with),
+                'outtmpl': os.path.join(user_dir_name, "%(title)s.%(ext)s")
+            }
+            ytdl_opts = {**common_opts, **attempt_opts}
+            try:
+                with YoutubeDL(ytdl_opts) as ydl:
+                    info_dict = ydl.extract_info(url, download=False)
+                # If HLS stream detected, add ffmpeg downloader options
+                if "protocol" in info_dict and info_dict["protocol"] == "m3u8_native":
+                    ytdl_opts["downloader"] = "ffmpeg"
+                    ytdl_opts["hls_use_mpegts"] = True
+                    try:
+                        app.edit_message_text(user_id, plus_one, f"{total_process}\n\n__Detected HLS stream. Using ffmpeg...__ 📥")
+                    except Exception as e:
+                        print(f"HLS options update error: {e}")
+                try:
+                    app.edit_message_text(user_id, plus_one, f"{total_process}\n\n__Downloading using format: {ytdl_opts['format']}...__ 📥")
+                except Exception as e:
+                    print(f"Status update error: {e}")
+                with YoutubeDL(ytdl_opts) as ydl:
+                    ydl.download([url])
+                return info_dict
+            except Exception as e:
+                print(f"Attempt with format {ytdl_opts['format']} failed: {e}")
+                return None
 
         info_dict = None
-        # Try each download option until one succeeds
         for attempt in attempts:
-            info_dict = try_download(url, attempt, total_process)
+            info_dict = try_download(url, attempt)
             if info_dict is not None:
-                # Video downloaded successfully
                 break
         if info_dict is None:
-            send_to_all(message, "❌ Failed to download video. Check if your site is suported [here](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md). If so - you may need `Cookie` for downloading this video. Please get Youtube's `cookie` via /download_cookie command or send your own cookie from any site ([guide1](https://t.me/c/2303231066/18)) ([guide2](https://t.me/c/2303231066/22)) and after that send your video link again.")
-            continue  # move to the next video if available
+            send_to_all(message, "❌ Failed to download video. Try using a cookie.")
+            continue
 
-        # Increment counter when download succeeds
         successful_uploads += 1
 
-        # After download, continue with standard processing:
         video_id = info_dict.get("id", None)
-        video_title = info_dict.get('title', None)
-        # Determine the expected filename
-        expected_video_name = str(video_title) + ".mp4"
+        video_title = info_dict.get("title", None)
+        # Если custom name не задан, используем video_title
+        if rename_name is None:
+            rename_name = video_title
+
+        expected_video_name = f"{video_title}.mp4"
         info_text = f"""
 {total_process}
 
@@ -1275,14 +1299,15 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
 **Caption Name:** __{rename_name}__
 **Video id:** {video_id}"""
 
-        app.edit_message_text(user_id, plus_one, f"{info_text}\n \n__Downloaded video. Processing for upload...__ ♻️")
+        try:
+            app.edit_message_text(user_id, plus_one, f"{info_text}\n\n__Downloaded video. Processing for upload...__ ♻️")
+        except Exception as e:
+            print(f"Status update error after download: {e}")
 
-        ###############################################################################################################################
-        # Uploading part: locate the downloaded file
+        # Locate the downloaded file
         dir_path = os.path.join("users", str(user_id))
         allfiles = os.listdir(dir_path)
-        # Look for files with .mp4, .mkv, or .webm extensions
-        files = [fname for fname in allfiles if fname.endswith(('.mp4', '.mkv', '.webm'))]
+        files = [fname for fname in allfiles if fname.endswith(('.mp4', '.mkv', '.webm', '.ts'))]
         files.sort()
         if not files:
             send_to_all(message, "❌ File not found after download.")
@@ -1291,24 +1316,27 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
         downloaded_file = files[0]
         write_logs(message, url, downloaded_file)
 
-        # If the filename does not match the expected name and a different name is provided, rename the file
-        if rename_name == defalt_name:
-            caption_name = os.path.splitext(downloaded_file)[0]
+        # Rename file if custom name provided; else use video_title as caption
+        if rename_name == video_title:
+            caption_name = video_title
             final_name = downloaded_file
         else:
-            # Preserve the original file extension
             ext = os.path.splitext(downloaded_file)[1]
             final_name = rename_name + ext
             caption_name = rename_name
             os.rename(os.path.join(dir_path, downloaded_file), os.path.join(dir_path, final_name))
 
         user_vid_path = os.path.join(dir_path, final_name)
-        # If the file is in webm format, convert it to mp4 for inline playback
-        if final_name.lower().endswith(".webm"):
+        # Convert .webm or .ts to mp4 for inline playback
+        if final_name.lower().endswith((".webm", ".ts")):
+            try:
+                app.edit_message_text(user_id, plus_one, f"{info_text}\n\nConverting video using ffmpeg... ⏳")
+            except Exception as e:
+                print(f"Error updating status before conversion: {e}")
             mp4_file = os.path.join(dir_path, os.path.splitext(final_name)[0] + ".mp4")
-            ffmpeg_convert_cmd = [
+            ffmpeg_cmd = [
                 "ffmpeg",
-                "-y",  # overwrite output file without asking
+                "-y",  # overwrite output file
                 "-i", user_vid_path,
                 "-c:v", "libx264",
                 "-preset", "fast",
@@ -1318,17 +1346,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 mp4_file
             ]
             try:
-                subprocess.run(ffmpeg_convert_cmd, check=True)
-                # Remove the original webm file after successful conversion
+                subprocess.run(ffmpeg_cmd, check=True)
                 os.remove(user_vid_path)
-                # Update the path and filename to the converted file
                 user_vid_path = mp4_file
-                final_name = os.path.basename(mp4_file)
             except Exception as e:
                 send_to_all(message, f"❌ Conversion to MP4 failed: {e}")
                 continue
-        after_rename_abs_path = os.path.abspath(user_vid_path)
 
+        after_rename_abs_path = os.path.abspath(user_vid_path)
         result = get_duration_thumb(message, dir_path, user_vid_path, caption_name)
         if result is None:
             send_to_all(message, "❌ Failed to get video duration and thumbnail.")
@@ -1337,42 +1362,41 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
 
         video_size_in_bytes = os.path.getsize(user_vid_path)
         video_size = humanbytes(int(video_size_in_bytes))
-
         max_size = 1850000000
         if int(video_size_in_bytes) > max_size:
-            app.edit_message_text(user_id, plus_one, f"{info_text}\n \n__⚠️ Your video size ({video_size}) is too large.__\n__Splitting file...__ ✂️")
-            returned = split_video_2(dir_path, caption_name, after_rename_abs_path,
-                                     int(video_size_in_bytes), max_size, duration)
+            app.edit_message_text(user_id, plus_one, f"{info_text}\n\n__⚠️ Your video size ({video_size}) is too large.__\n__Splitting file...__ ✂️")
+            returned = split_video_2(dir_path, caption_name, after_rename_abs_path, int(video_size_in_bytes), max_size, duration)
             caption_lst = returned.get("video")
             path_lst = returned.get("path")
             for p in range(len(caption_lst)):
-                part_duration, splited_thumb_dir = get_duration_thumb(message, dir_path, path_lst[p], caption_lst[p])
+                part_result = get_duration_thumb(message, dir_path, path_lst[p], caption_lst[p])
+                if part_result is None:
+                    continue
+                part_duration, splited_thumb_dir = part_result
                 send_videos(message, path_lst[p], caption_lst[p], part_duration, splited_thumb_dir, info_text, msg_id)
-                app.edit_message_text(user_id, plus_one, f"{info_text}\n \n__Splitted part {p + 1} file uploaded__")
+                app.edit_message_text(user_id, plus_one, f"{info_text}\n\n__Splitted part {p + 1} file uploaded__")
                 app.forward_messages(Config.LOGS_ID, user_id, (msg_id + 2 + p))
                 time.sleep(2)
                 os.remove(splited_thumb_dir)
                 os.remove(path_lst[p])
             os.remove(thumb_dir)
             os.remove(user_vid_path)
-            success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n \n{Config.CREDITS_MSG}"
+            success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n\n{Config.CREDITS_MSG}"
             app.edit_message_text(user_id, (msg_id + 1), success_msg)
             break
         else:
             if final_name:
-                send_videos(message, after_rename_abs_path, caption_name,
-                            duration, thumb_dir, info_text, msg_id)
+                send_videos(message, after_rename_abs_path, caption_name, duration, thumb_dir, info_text, msg_id)
                 app.forward_messages(Config.LOGS_ID, user_id, (msg_id + 2 + x))
-                app.edit_message_text(user_id, (msg_id + 1), f"{info_text}\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n \n{x + 1} file uploaded.")
+                app.edit_message_text(user_id, (msg_id + 1), f"{info_text}\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n\n{x + 1} file uploaded.")
                 os.remove(after_rename_abs_path)
                 os.remove(thumb_dir)
                 time.sleep(2)
             else:
                 send_to_all(message, "❌ Some error occurred during processing. 😢")
 
-    # Send final summary only if all videos were successfully downloaded/uploaded
     if successful_uploads == video_count:
-        success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n \n{Config.CREDITS_MSG}"
+        success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n\n{Config.CREDITS_MSG}"
         app.edit_message_text(user_id, (msg_id + 1), success_msg)
 
 
