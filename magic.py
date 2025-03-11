@@ -1090,7 +1090,7 @@ def down_and_audio(app, message, url):
         return
     active_downloads[user_id] = True
     try:
-        status_message = app.send_message(user_id, "Processing audio... ♻️")
+        status_message = app.send_message(user_id, "Processing audio, wait... ♻️")
         status_message_id = status_message.id
         # Отправляем сообщение с анимацией часов
         hourglass_message = app.send_message(user_id, "⌛️")
@@ -1192,6 +1192,7 @@ def down_and_audio(app, message, url):
         stop_anim.set()
         anim_thread.join()
         try:
+            app.delete_messages(user_id, status_msg_id)
             app.delete_messages(user_id, hourglass_msg_id)
         except Exception as e:
             print("Error deleting hourglass message:", e)
@@ -1247,7 +1248,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 {'format': 'best', 'prefer_ffmpeg': False}
             ]
 
-        status_message = app.send_message(user_id, "Processing video... ♻️")
+        status_message = app.send_message(user_id, "Processing video, wait... ♻️")
         status_msg_id = status_message.id
         hourglass_message = app.send_message(user_id, "⌛️")
         hourglass_msg_id = hourglass_message.id
@@ -1508,6 +1509,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
     finally:
         active_downloads[user_id] = False
         try:
+            app.delete_messages(user_id, status_msg_id)
             app.delete_messages(user_id, hourglass_msg_id)
         except Exception as e:
             print("Error deleting hourglass message:", e)
