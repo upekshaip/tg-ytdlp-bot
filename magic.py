@@ -358,20 +358,20 @@ def check_user(message):
 
 def down_and_audio(app, message, url):
     user_id = message.chat.id
-    # Send initial status message and get its id for editing
+    # Отправляем начальное сообщение и получаем его id для последующего редактирования
     status_message = app.send_message(user_id, "Processing audio... ♻️")
-    status_message_id = status_message.id  # Use .id since .message_id might not exist
+    status_message_id = status_message.id  # используем .id, поскольку .message_id может отсутствовать
 
-    # Form the absolute path to the user's directory (./users/<user_id>)
+    # Формируем абсолютный путь к папке пользователя (./users/<user_id>)
     user_folder = os.path.abspath(os.path.join("users", str(user_id)))
     create_directory(user_folder)
 
-    # Form the path to the cookie file (filename taken from Config.COOKIE_FILE_PATH)
+    # Формируем путь к файлу cookie (имя берём из Config.COOKIE_FILE_PATH)
     cookie_file = os.path.join(user_folder, os.path.basename(Config.COOKIE_FILE_PATH))
 
-    # Options for yt-dlp: download the best audio track and convert to mp3
+    # Опции для yt-dlp: скачиваем лучший аудиотрек и конвертируем его в mp3
     ytdl_opts = {
-        'format': 'ba',  # choose the best audio track
+        'format': 'ba',  # выбираем лучший аудиотрек
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
@@ -384,35 +384,48 @@ def down_and_audio(app, message, url):
         'progress_hooks': [],
     }
 
-    # Local function to update download status
+    last_update = 0
+
+    # Локальная функция для обновления статуса скачивания аудио с прогресс-баром
     def progress_hook(d):
+        nonlocal last_update
+        current_time = time.time()
+        if current_time - last_update < 0.1:
+            return
         if d.get("status") == "downloading":
             downloaded = d.get("downloaded_bytes", 0)
             total = d.get("total_bytes", 0)
             percent = (downloaded / total * 100) if total else 0
+            blocks = int(percent // 10)
+            bar = "🟩" * blocks + "⬜️" * (10 - blocks)
             try:
-                app.edit_message_text(user_id, status_message_id, f"Downloading audio: {percent:.1f}%")
+                app.edit_message_text(user_id, status_message_id, f"Downloading audio:\n{bar}   {percent:.1f}%")
             except Exception as e:
-                print(f"Error editing message: {e}")
+                print(f"Error updating progress: {e}")
+            last_update = current_time
         elif d.get("status") == "finished":
             try:
-                app.edit_message_text(user_id, status_message_id, "Download finished, processing audio...")
+                full_bar = "🟩" * 10
+                # Отображаем 100% после завершения скачивания
+                app.edit_message_text(user_id, status_message_id, f"Downloading audio:\n{full_bar}   100.0%\nDownload finished, processing audio...")
             except Exception as e:
-                print(f"Error editing message: {e}")
+                print(f"Error updating progress: {e}")
+            last_update = current_time
         elif d.get("status") == "error":
             try:
                 app.edit_message_text(user_id, status_message_id, "Error occurred during audio download.")
             except Exception as e:
-                print(f"Error editing message: {e}")
+                print(f"Error updating progress: {e}")
+            last_update = current_time
 
     ytdl_opts['progress_hooks'].append(progress_hook)
 
     try:
-        # Download audio using yt-dlp
+        # Скачиваем аудио с помощью yt-dlp
         with YoutubeDL(ytdl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
 
-        # Form the expected filename (with .mp3 extension)
+        # Формируем ожидаемое имя файла (с расширением .mp3)
         audio_title = info.get("title", "audio")
         audio_file = os.path.join(user_folder, audio_title + ".mp3")
         if not os.path.exists(audio_file):
@@ -423,12 +436,25 @@ def down_and_audio(app, message, url):
                 send_to_user(message, "Audio file not found after download.")
                 return
 
-        # Update status before uploading the file
-        app.edit_message_text(user_id, status_message_id, "Uploading audio file... 📤")
-        app.send_audio(chat_id=user_id, audio=audio_file, caption=f"Audio downloaded: {audio_title}")
-        app.edit_message_text(user_id, status_message_id, f"✅ Audio successfully downloaded and sent.\n\n{Config.CREDITS_MSG}")
+        # Перед загрузкой аудио обновляем сообщение, показывая 100% прогресс
+        try:
+            full_bar = "🟩" * 10
+            app.edit_message_text(user_id, status_message_id, f"Uploading audio file...\n{full_bar}   100.0%")
+        except Exception as e:
+            print(f"Error updating upload status: {e}")
 
-        # Delete the audio file after sending to avoid disk clutter
+        # Отправляем аудио в чат
+        app.send_audio(chat_id=user_id, audio=audio_file, caption=f"Audio downloaded: {audio_title}")
+
+        # После отправки аудио обновляем сообщение, показывая 100%
+        try:
+            full_bar = "🟩" * 10
+            app.edit_message_text(user_id, status_message_id,
+                                  f"✅ Audio successfully downloaded and sent.\n\n{Config.CREDITS_MSG}")
+        except Exception as e:
+            print(f"Error updating final status: {e}")
+
+        # Удаляем аудиофайл, чтобы не захламлять диск
         try:
             os.remove(audio_file)
         except Exception as e:
@@ -440,6 +466,7 @@ def down_and_audio(app, message, url):
             app.edit_message_text(user_id, status_message_id, f"Error: {e}")
         except Exception as e:
             print(f"Error editing message on exception: {e}")
+
 
 
 
@@ -1187,45 +1214,106 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             {'format': 'best', 'prefer_ffmpeg': False}
         ]
 
-    # Function to update HLS stream status by showing the last fragment's name
-    def update_stream_status():
-        part_files = [f for f in os.listdir(user_dir_name) if "Frag" in f and ".part" in f]
-        if part_files:
-            last_part = sorted(part_files)[-1]
-            try:
-                app.edit_message_text(user_id, plus_one, f"Downloading HLS stream: {last_part}")
-            except Exception as e:
-                print(f"Error updating HLS status: {e}")
-
-    # Throttled progress function: updates at most once every 3 seconds
+    # Header text for progress messages
+    current_total_process = ""
     last_update = 0
+    full_bar = "🟩" * 10  # для обновления на 100%
+
+    # Standard progress hook for non-HLS videos (updates based on percent)
     def progress_func(d):
         nonlocal last_update
+        current_time = time.time()
+        if current_time - last_update < 1.5:
+            return
         if d.get("status") == "downloading":
-            # For HLS, update using stream status
-            filename = d.get("filename", "").lower()
-            if "m3u8" in filename or d.get("hls") is True:
-                update_stream_status()
-            else:
-                downloaded = d.get("downloaded_bytes", 0)
-                total = d.get("total_bytes", 0)
-                percent = (downloaded / total * 100) if total else 0
-                current_time = time.time()
-                if current_time - last_update < 3:
-                    return
-                blocks = int(percent // 10)
-                bar = "🟩" * blocks + "⬜️" * (10 - blocks)
-                try:
-                    app.edit_message_text(user_id, plus_one, f"{total_process}\n{bar}   {percent:.1f}%")
-                except Exception as e:
-                    print(f"Error updating progress: {e}")
-                last_update = current_time
+            downloaded = d.get("downloaded_bytes", 0)
+            total = d.get("total_bytes", 0)
+            percent = (downloaded / total * 100) if total else 0
+            blocks = int(percent // 10)
+            bar = "🟩" * blocks + "⬜️" * (10 - blocks)
+            try:
+                app.edit_message_text(user_id, plus_one, f"{current_total_process}\n{bar}   {percent:.1f}%")
+            except Exception as e:
+                print(f"Error updating progress: {e}")
         elif d.get("status") == "error":
             print("Error occurred during download.")
             send_to_all(message, "❌ Sorry... Some error occurred during download.")
+        last_update = current_time
 
     successful_uploads = 0  # Counter for successful downloads/uploads
 
+    # try_download attempts to download the video using given options.
+    # For HLS streams the progress_hook is disabled and a separate thread cycles the progress bar.
+    def try_download(url, attempt_opts):
+        nonlocal current_total_process
+        common_opts = {
+            'cookiefile': os.path.join("users", str(user_id), os.path.basename(Config.COOKIE_FILE_PATH)),
+            'playlist_items': str(current_index + video_start_with),
+            'outtmpl': os.path.join(user_dir_name, "%(title)s.%(ext)s")
+        }
+        # Check if the URL indicates an HLS stream
+        is_hls = ("m3u8" in url.lower())
+        if not is_hls:
+            common_opts['progress_hooks'] = [progress_func]
+        ytdl_opts = {**common_opts, **attempt_opts}
+        try:
+            with YoutubeDL(ytdl_opts) as ydl:
+                info_dict = ydl.extract_info(url, download=False)
+            if ("m3u8" in url.lower()) or (info_dict.get("protocol") == "m3u8_native"):
+                is_hls = True
+                ytdl_opts["downloader"] = "ffmpeg"
+                ytdl_opts["hls_use_mpegts"] = True
+            try:
+                if is_hls:
+                    app.edit_message_text(user_id, plus_one,
+                        f"{current_total_process}\n\n__Detected HLS stream. Downloading...__ 📥")
+                else:
+                    app.edit_message_text(user_id, plus_one,
+                        f"{current_total_process}\n\n__Downloading using format: {ytdl_opts['format']}...__ 📥")
+            except Exception as e:
+                print(f"Status update error: {e}")
+            with YoutubeDL(ytdl_opts) as ydl:
+                if is_hls:
+                    # For HLS: start a thread that cycles the progress bar with fragment names.
+                    cycle_stop = threading.Event()
+                    def cycle_progress():
+                        nonlocal cycle_stop
+                        counter = 0
+                        while not cycle_stop.is_set():
+                            counter = (counter + 1) % 11  # cycles 0..10
+                            # Look for fragment files (containing ".part-Frag" and ending with ".part")
+                            frag_files = [f for f in os.listdir(user_dir_name) if ".part-Frag" in f and f.endswith(".part")]
+                            if frag_files:
+                                last_frag = sorted(frag_files)[-1]
+                                m = re.search(r'Frag(\d+)', last_frag)
+                                frag_text = f"Frag{m.group(1)}" if m else "Frag?"
+                            else:
+                                frag_text = "waiting for fragments"
+                            bar = "🟩" * counter + "⬜️" * (10 - counter)
+                            try:
+                                app.edit_message_text(user_id, plus_one,
+                                    f"{current_total_process}\nDownloading HLS stream: {frag_text}\n{bar}")
+                            except Exception as e:
+                                print("Cycle progress error:", e)
+                            time.sleep(1.5)
+                    cycle_thread = threading.Thread(target=cycle_progress)
+                    cycle_thread.start()
+                    ydl.download([url])
+                    cycle_stop.set()
+                    cycle_thread.join()
+                else:
+                    ydl.download([url])
+            # Final update: regardless of type, update message with full progress bar (100%)
+            try:
+                app.edit_message_text(user_id, plus_one, f"{current_total_process}\n{full_bar}   100.0%")
+            except Exception as e:
+                print("Final progress update error:", e)
+            return info_dict
+        except Exception as e:
+            print(f"Attempt with format {ytdl_opts['format']} failed: {e}")
+            return None
+
+    # Main loop for each video (for playlists, video_count > 1)
     for x in range(video_count):
         current_index = x  # used for playlist_items parameter
         total_process = f"""
@@ -1233,43 +1321,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
 
 **Video number:** {x + 1} / {video_count}
 """
-        # If playlist_name is provided and more than one video, use it with part numbers;
-        # otherwise, use video title from metadata later.
+        current_total_process = total_process
+
         if playlist_name and video_count > 1:
             rename_name = f"{playlist_name} - Part {x + video_start_with}"
         else:
-            rename_name = None  # We'll use video_title if no custom name is provided
-
-        # Wrapper function to try downloading with given options
-        def try_download(url, attempt_opts):
-            common_opts = {
-                'cookiefile': os.path.join("users", str(user_id), os.path.basename(Config.COOKIE_FILE_PATH)),
-                'progress_hooks': [progress_func],
-                'playlist_items': str(current_index + video_start_with),
-                'outtmpl': os.path.join(user_dir_name, "%(title)s.%(ext)s")
-            }
-            ytdl_opts = {**common_opts, **attempt_opts}
-            try:
-                with YoutubeDL(ytdl_opts) as ydl:
-                    info_dict = ydl.extract_info(url, download=False)
-                # If HLS stream detected, add ffmpeg downloader options
-                if "protocol" in info_dict and info_dict["protocol"] == "m3u8_native":
-                    ytdl_opts["downloader"] = "ffmpeg"
-                    ytdl_opts["hls_use_mpegts"] = True
-                    try:
-                        app.edit_message_text(user_id, plus_one, f"{total_process}\n\n__Detected HLS stream. Using ffmpeg...__ 📥")
-                    except Exception as e:
-                        print(f"HLS options update error: {e}")
-                try:
-                    app.edit_message_text(user_id, plus_one, f"{total_process}\n\n__Downloading using format: {ytdl_opts['format']}...__ 📥")
-                except Exception as e:
-                    print(f"Status update error: {e}")
-                with YoutubeDL(ytdl_opts) as ydl:
-                    ydl.download([url])
-                return info_dict
-            except Exception as e:
-                print(f"Attempt with format {ytdl_opts['format']} failed: {e}")
-                return None
+            rename_name = None
 
         info_dict = None
         for attempt in attempts:
@@ -1284,7 +1341,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
 
         video_id = info_dict.get("id", None)
         video_title = info_dict.get("title", None)
-        # Если custom name не задан, используем video_title
         if rename_name is None:
             rename_name = video_title
 
@@ -1299,8 +1355,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
 **Caption Name:** __{rename_name}__
 **Video id:** {video_id}"""
 
+        # Update status after download with full progress bar
         try:
-            app.edit_message_text(user_id, plus_one, f"{info_text}\n\n__Downloaded video. Processing for upload...__ ♻️")
+            app.edit_message_text(user_id, plus_one,
+                f"{info_text}\n\n{full_bar}   100.0%\n__Downloaded video. Processing for upload...__ ♻️")
         except Exception as e:
             print(f"Status update error after download: {e}")
 
@@ -1316,7 +1374,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
         downloaded_file = files[0]
         write_logs(message, url, downloaded_file)
 
-        # Rename file if custom name provided; else use video_title as caption
         if rename_name == video_title:
             caption_name = video_title
             final_name = downloaded_file
@@ -1327,10 +1384,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             os.rename(os.path.join(dir_path, downloaded_file), os.path.join(dir_path, final_name))
 
         user_vid_path = os.path.join(dir_path, final_name)
-        # Convert .webm or .ts to mp4 for inline playback
+        # If file is .webm or .ts, convert it to mp4 for inline playback
         if final_name.lower().endswith((".webm", ".ts")):
             try:
-                app.edit_message_text(user_id, plus_one, f"{info_text}\n\nConverting video using ffmpeg... ⏳")
+                app.edit_message_text(user_id, plus_one,
+                    f"{info_text}\n\n{full_bar}   100.0%\nConverting video using ffmpeg... ⏳")
             except Exception as e:
                 print(f"Error updating status before conversion: {e}")
             mp4_file = os.path.join(dir_path, os.path.splitext(final_name)[0] + ".mp4")
@@ -1364,7 +1422,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
         video_size = humanbytes(int(video_size_in_bytes))
         max_size = 1850000000
         if int(video_size_in_bytes) > max_size:
-            app.edit_message_text(user_id, plus_one, f"{info_text}\n\n__⚠️ Your video size ({video_size}) is too large.__\n__Splitting file...__ ✂️")
+            app.edit_message_text(user_id, plus_one,
+                f"{info_text}\n\n{full_bar}   100.0%\n__⚠️ Your video size ({video_size}) is too large.__\n__Splitting file...__ ✂️")
             returned = split_video_2(dir_path, caption_name, after_rename_abs_path, int(video_size_in_bytes), max_size, duration)
             caption_lst = returned.get("video")
             path_lst = returned.get("path")
@@ -1374,7 +1433,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                     continue
                 part_duration, splited_thumb_dir = part_result
                 send_videos(message, path_lst[p], caption_lst[p], part_duration, splited_thumb_dir, info_text, msg_id)
-                app.edit_message_text(user_id, plus_one, f"{info_text}\n\n__Splitted part {p + 1} file uploaded__")
+                app.edit_message_text(user_id, plus_one,
+                    f"{info_text}\n\n{full_bar}   100.0%\n__Splitted part {p + 1} file uploaded__")
                 app.forward_messages(Config.LOGS_ID, user_id, (msg_id + 2 + p))
                 time.sleep(2)
                 os.remove(splited_thumb_dir)
@@ -1388,7 +1448,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             if final_name:
                 send_videos(message, after_rename_abs_path, caption_name, duration, thumb_dir, info_text, msg_id)
                 app.forward_messages(Config.LOGS_ID, user_id, (msg_id + 2 + x))
-                app.edit_message_text(user_id, (msg_id + 1), f"{info_text}\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n\n{x + 1} file uploaded.")
+                app.edit_message_text(user_id, (msg_id + 1),
+                    f"{info_text}\n{full_bar}   100.0%\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n\n{x + 1} file uploaded.")
                 os.remove(after_rename_abs_path)
                 os.remove(thumb_dir)
                 time.sleep(2)
