@@ -1085,11 +1085,19 @@ def write_logs(message, video_url, video_title):
 #########################################
 def down_and_audio(app, message, url):
     user_id = message.chat.id
+    # Проверка активного процесса и отправка реплая, если уже идет загрузка
     if active_downloads.get(user_id, False):
-        message.reply("⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED")
+        app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
         return
     active_downloads[user_id] = True
     try:
+        # Добавляем начальное сообщение, как в down_and_up
+        msg_id = message.id
+        plus_one = msg_id + 1
+        app.send_message(user_id, "Processing... ♻️")
+        check_user(message)
+        
+        # Отправляем отдельное статусное сообщение для аудио
         status_message = app.send_message(user_id, "Processing audio, wait... ♻️")
         status_message_id = status_message.id
         # Отправляем сообщение с анимацией часов
@@ -1105,7 +1113,6 @@ def down_and_audio(app, message, url):
                 except Exception as e:
                     print("Hourglass animation error:", e)
                 current = not current
-                # Ждём 3 секунды с возможностью прерывания
                 if stop_anim.wait(3):
                     break
         anim_thread = threading.Thread(target=animate_hourglass)
@@ -1140,21 +1147,21 @@ def down_and_audio(app, message, url):
                 blocks = int(percent // 10)
                 bar = "🟩" * blocks + "⬜️" * (10 - blocks)
                 try:
-                    app.edit_message_text(user_id, status_message_id, f"Downloading audio:\n{bar}   {percent:.1f}%")
+                    app.edit_message_text(user_id, plus_one, f"Downloading audio:\n{bar}   {percent:.1f}%")
                 except Exception as e:
                     print(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "finished":
                 try:
                     full_bar = "🟩" * 10
-                    app.edit_message_text(user_id, status_message_id,
+                    app.edit_message_text(user_id, plus_one,
                         f"Downloading audio:\n{full_bar}   100.0%\nDownload finished, processing audio...")
                 except Exception as e:
                     print(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "error":
                 try:
-                    app.edit_message_text(user_id, status_message_id, "Error occurred during audio download.")
+                    app.edit_message_text(user_id, plus_one, "Error occurred during audio download.")
                 except Exception as e:
                     print(f"Error updating progress: {e}")
                 last_update = current_time
@@ -1176,7 +1183,7 @@ def down_and_audio(app, message, url):
 
         try:
             full_bar = "🟩" * 10
-            app.edit_message_text(user_id, status_message_id, f"Uploading audio file...\n{full_bar}   100.0%")
+            app.edit_message_text(user_id, plus_one, f"Uploading audio file...\n{full_bar}   100.0%")
         except Exception as e:
             print(f"Error updating upload status: {e}")
 
@@ -1184,7 +1191,7 @@ def down_and_audio(app, message, url):
 
         try:
             full_bar = "🟩" * 10
-            app.edit_message_text(user_id, status_message_id,
+            app.edit_message_text(user_id, plus_one,
                                   f"✅ Audio successfully downloaded and sent.\n\n{Config.CREDITS_MSG}")
         except Exception as e:
             print(f"Error updating final status: {e}")
@@ -1192,8 +1199,8 @@ def down_and_audio(app, message, url):
         stop_anim.set()
         anim_thread.join()
         try:
-            app.delete_messages(user_id, status_msg_id)
-            app.delete_messages(user_id, hourglass_msg_id)
+            app.delete_messages(chat_id=user_id, message_ids=[status_message_id], revoke=True)
+            app.delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
         except Exception as e:
             print("Error deleting hourglass message:", e)
 
@@ -1205,11 +1212,12 @@ def down_and_audio(app, message, url):
     except Exception as e:
         send_to_user(message, f"Failed to download audio: {e}")
         try:
-            app.edit_message_text(user_id, status_message_id, f"Error: {e}")
+            app.edit_message_text(user_id, plus_one, f"Error: {e}")
         except Exception as e:
             print(f"Error editing message on exception: {e}")
     finally:
         active_downloads[user_id] = False
+
 
 
 
@@ -1219,7 +1227,7 @@ def down_and_audio(app, message, url):
 def down_and_up(app, message, url, playlist_name, video_count, video_start_with):
     user_id = message.chat.id
     if active_downloads.get(user_id, False):
-        message.reply("⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED")
+        app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
         return
     active_downloads[user_id] = True
     try:
@@ -1483,7 +1491,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                         f"{info_text}\n\n{full_bar}   100.0%\n__Splitted part {p + 1} file uploaded__")
                     app.forward_messages(Config.LOGS_ID, user_id, (msg_id + 2 + p))
                     if p < len(caption_lst) - 1:
-                        time.sleep(2)
+                        threading.Event().wait(2)
                     os.remove(splited_thumb_dir)
                     os.remove(path_lst[p])
                 os.remove(thumb_dir)
@@ -1499,7 +1507,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                         f"{info_text}\n{full_bar}   100.0%\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n\n{x + 1} file uploaded.")
                     os.remove(after_rename_abs_path)
                     os.remove(thumb_dir)
-                    time.sleep(2)
+                    threading.Event().wait(2)
                 else:
                     send_to_all(message, "❌ Some error occurred during processing. 😢")
 
@@ -1509,8 +1517,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
     finally:
         active_downloads[user_id] = False
         try:
-            app.delete_messages(user_id, status_msg_id)
-            app.delete_messages(user_id, hourglass_msg_id)
+            app.delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
+            app.delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
         except Exception as e:
             print("Error deleting hourglass message:", e)
 
