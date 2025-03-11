@@ -10,6 +10,7 @@ from datetime import datetime
 import requests
 import math
 import time
+import threading
 from yt_dlp import YoutubeDL
 from moviepy.editor import VideoFileClip
 from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
@@ -47,7 +48,7 @@ def command1(app, message):
     else:
         check_user(message)
         app.send_message(
-            message.chat.id, f"Hello {message.chat.first_name},\n \n__This bot🤖 can download any videos into telegram directly.😊 For more information press **/help**__ 👈\n \n __Developed by__ @upekshaip")
+            message.chat.id, f"Hello {message.chat.first_name},\n \n__This bot🤖 can download any videos into telegram directly.😊 For more information press **/help**__ 👈\n \n {Config.CREDITS_MSG}")
         send_to_logger(message, f"{message.chat.id} - user started the bot")
 
 
@@ -70,7 +71,7 @@ def cookies_from_browser(app, message):
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
 
-    # Path to the user's directory, e.g. "./users/7360853"
+    # Path to the user's directory, e.g. "./users/1234567"
     user_dir = os.path.join(".", "users", str(user_id))
     create_directory(user_dir)  # Ensure the user's folder exists
 
@@ -95,13 +96,13 @@ def cookies_from_browser(app, message):
             exists = any(os.path.exists(os.path.expanduser(p)) for p in path)
         else:
             exists = os.path.exists(os.path.expanduser(path))
-        emoji = "✅" if exists else "❌"
+        emoji = "✅" if exists else "☑️"
         display_name = browser.capitalize()  # Capitalize the first letter
         button = InlineKeyboardButton(f"{emoji} {display_name}", callback_data=f"browser_choice|{browser}")
         buttons.append([button])
-    
+
     # Add a Cancel button to cancel the selection
-    buttons.append([InlineKeyboardButton("Cancel", callback_data="browser_choice|cancel")])
+    buttons.append([InlineKeyboardButton("🔙 Cancel", callback_data="browser_choice|cancel")])
     keyboard = InlineKeyboardMarkup(buttons)
 
     app.send_message(
@@ -110,21 +111,21 @@ def cookies_from_browser(app, message):
         reply_markup=keyboard
     )
 
-# Callback handler for browser selection remains unchanged.
+# Callback handler for browser selection
 @app.on_callback_query(filters.regex(r"^browser_choice\|"))
 def browser_choice_callback(app, callback_query):
     import subprocess
 
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]  # e.g. "chromium", "firefox", or "cancel"
-    # Path to the user's directory, e.g. "./users/7360853"
+    # Path to the user's directory, e.g. "./users/1234567"
     user_dir = os.path.join(".", "users", str(user_id))
     create_directory(user_dir)
     cookie_file = os.path.join(user_dir, "cookie.txt")
 
     if data == "cancel":
-        app.send_message(user_id, "Browser selection canceled.")
-        callback_query.answer("Browser choice updated.")
+        callback_query.edit_message_text("🔚 Browser selection canceled.")
+        callback_query.answer("✅ Browser choice updated.")
         return
 
     browser_option = data
@@ -146,8 +147,8 @@ def browser_choice_callback(app, callback_query):
     if (browser_option == "safari") or (
         isinstance(path, list) and not any(os.path.exists(os.path.expanduser(p)) for p in path)
     ) or (isinstance(path, str) and not os.path.exists(os.path.expanduser(path))):
-        app.send_message(user_id, f"{browser_option.capitalize()} browser not installed.")
-        callback_query.answer("Browser not installed.")
+        callback_query.edit_message_text(f"⚠️ {browser_option.capitalize()} browser not installed.")
+        callback_query.answer("⚠️ Browser not installed.")
         return
 
     # Build the command for cookie extraction: yt-dlp --cookies "cookie.txt" --cookies-from-browser <browser_option>
@@ -157,40 +158,62 @@ def browser_choice_callback(app, callback_query):
     # If the return code is not 0, but the error is due to missing URL, consider the cookies as successfully extracted
     if result.returncode != 0:
         if "You must provide at least one URL" in result.stderr:
-            app.send_message(user_id, f"Cookies saved using browser: {browser_option}")
+            callback_query.edit_message_text(f"✅ Cookies saved using browser: {browser_option}")
         else:
-            app.send_message(user_id, f"Failed to save cookies: {result.stderr}")
+            callback_query.edit_message_text(f"❌ Failed to save cookies: {result.stderr}")
     else:
-        app.send_message(user_id, f"Cookies saved using browser: {browser_option}")
+        callback_query.edit_message_text(f"✅ Cookies saved using browser: {browser_option}")
 
-    callback_query.answer("Browser choice updated.")
+    callback_query.answer("✅ Browser choice updated.")
+
+
+
+# Command to download audio from a video URL
+@app.on_message(filters.command("audio") & filters.private)
+def audio_command_handler(app, message):
+    user_id = message.chat.id
+    # For non-administrators, we're checking subscriptions
+    if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+        return
+
+    user_dir = os.path.join("users", str(user_id))
+    create_directory(user_dir)  # Let's make sure the user folder exists
+
+    # A command like this is expected: /audio <URL>
+    if len(message.command) < 2:
+        send_to_user(message, "Please provide the URL of the video to download the audio.")
+        return
+    url = message.command[1]  # Take the URL from the command arguments
+    down_and_audio(app, message, url)
 
 
 # Command /format handler
 @app.on_message(filters.command("format") & filters.private)
 def set_format(app, message):
     user_id = message.chat.id
-    # For non-admin users, check subscription
+    # For non-administrators, we're checking subscriptions
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
 
-    user_dir = f"./users/{user_id}"
-    create_directory(str(user_id))  # Ensure user folder exists
+    user_dir = os.path.join("users", str(user_id))
+    create_directory(user_dir)  # Let's make sure the user folder exists
 
     # If additional text is passed, save it as a custom format
     if len(message.command) > 1:
         custom_format = message.text.split(" ", 1)[1].strip()
-        with open(f"{user_dir}/format.txt", "w", encoding="utf-8") as f:
+        with open(os.path.join(user_dir, "format.txt"), "w", encoding="utf-8") as f:
             f.write(custom_format)
-        app.send_message(user_id, f"Format updated to:\n{custom_format}")
+        app.send_message(user_id, f"✅ Format updated to:\n{custom_format}")
     else:
-        # Otherwise display a menu with preset options
+        # Main menu with a few popular options, plus the Others button
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("<=4k (best for desktop TG app)", callback_data="format_option|bv2160")],
-            [InlineKeyboardButton("<=FullHD (best for mobile TG app)", callback_data="format_option|bv1080")],
-            [InlineKeyboardButton("bestvideo+bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
-            [InlineKeyboardButton("best (no ffmpeg)", callback_data="format_option|best")],
-            [InlineKeyboardButton("custom", callback_data="format_option|custom")]
+            [InlineKeyboardButton("💻<=4k (best for desktop TG app)", callback_data="format_option|bv2160")],
+            [InlineKeyboardButton("📱<=FullHD (best for mobile TG app)", callback_data="format_option|bv1080")],
+            [InlineKeyboardButton("📈bestvideo+bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
+            [InlineKeyboardButton("📉best (no ffmpeg)", callback_data="format_option|best")],
+            [InlineKeyboardButton("Others", callback_data="format_option|others")],
+            [InlineKeyboardButton("🎚 custom", callback_data="format_option|custom")],
+            [InlineKeyboardButton("🔙 Cancel", callback_data="format_option|cancel")]
         ])
         app.send_message(
             user_id,
@@ -203,28 +226,80 @@ def set_format(app, message):
 @app.on_callback_query(filters.regex(r"^format_option\|"))
 def format_option_callback(app, callback_query):
     user_id = callback_query.from_user.id
-    # Optional: Add subscription check for callback queries if desired.
-    # For example, you can verify if the user is in the channel via:
-    # if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, callback_query.message):
-    #     callback_query.answer("Please join the channel to use this command.", show_alert=True)
-    #     return
-
     data = callback_query.data.split("|")[1]
-    
+
+    # If the Cancel button is pressed
+    if data == "cancel":
+        callback_query.edit_message_text("🔚 Format selection canceled.")
+        callback_query.answer("✅ Format choice updated.")
+        return
+
+    # When the Custom button is pressed
     if data == "custom":
-        # Sending a hint on how to use the custom format
-        app.send_message(
-            user_id,
-            "To use a custom format, send the command in the following form:\n\n`/format bestvideo+bestaudio/best`\n\nReplace `bestvideo+bestaudio/best` with the desired format string."
+        callback_query.edit_message_text(
+            "To use a custom format, send the command in the following form:\n\n`/format bestvideo+bestaudio/best`\n\nReplace `bestvideo+bestaudio/best` with your desired format string."
         )
         callback_query.answer("Hint sent.")
         return
 
-    # Mapping a short identifier to a full format string
-    if data == "bv2160":
-        chosen_format = "bv*[vcodec*=avc1][height<=2160]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+    # If the Others button is pressed, the second menu with the full set of permissions is displayed
+    if data == "others":
+        full_res_keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("144p (256×144)", callback_data="format_option|bv144"),
+                InlineKeyboardButton("240p (426×240)", callback_data="format_option|bv240"),
+                InlineKeyboardButton("360p (640×360)", callback_data="format_option|bv360")
+            ],
+            [
+                InlineKeyboardButton("480p (854×480)", callback_data="format_option|bv480"),
+                InlineKeyboardButton("720p (1280×720)", callback_data="format_option|bv720"),
+                InlineKeyboardButton("1080p (1920×1080)", callback_data="format_option|bv1080")
+            ],
+            [
+                InlineKeyboardButton("1440p (2560×1440)", callback_data="format_option|bv1440"),
+                InlineKeyboardButton("2160p (3840×2160)", callback_data="format_option|bv2160"),
+                InlineKeyboardButton("4320p (7680×4320)", callback_data="format_option|bv4320")
+            ],
+            [InlineKeyboardButton("🔙 Back", callback_data="format_option|back")]
+        ])
+        callback_query.edit_message_text("Select your desired resolution:", reply_markup=full_res_keyboard)
+        callback_query.answer()
+        return
+
+    # If the Back button is pressed in the second menu - return to the original menu
+    if data == "back":
+        main_keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("💻<=4k (best for desktop TG app)", callback_data="format_option|bv2160")],
+            [InlineKeyboardButton("📱<=FullHD (best for mobile TG app)", callback_data="format_option|bv1080")],
+            [InlineKeyboardButton("📈bestvideo+bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
+            [InlineKeyboardButton("📉best (no ffmpeg)", callback_data="format_option|best")],
+            [InlineKeyboardButton("Others", callback_data="format_option|others")],
+            [InlineKeyboardButton("🎚 custom", callback_data="format_option|custom")],
+            [InlineKeyboardButton("🔙 Cancel", callback_data="format_option|cancel")]
+        ])
+        callback_query.edit_message_text("Select a format option or send a custom one using `/format <format_string>`:", reply_markup=main_keyboard)
+        callback_query.answer()
+        return
+
+    # Mapping for the rest of the options
+    if data == "bv144":
+        chosen_format = "bv*[vcodec*=avc1][height<=144]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+    elif data == "bv240":
+        chosen_format = "bv*[vcodec*=avc1][height<=240]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+    elif data == "bv360":
+        chosen_format = "bv*[vcodec*=avc1][height<=360]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+    elif data == "bv480":
+        chosen_format = "bv*[vcodec*=avc1][height<=480]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+    elif data == "bv720":
+        chosen_format = "bv*[vcodec*=avc1][height<=720]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
     elif data == "bv1080":
         chosen_format = "bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+    elif data == "bv1440":
+        chosen_format = "bv*[vcodec*=avc1][height<=1440]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+    elif data == "bv2160":
+        chosen_format = "bv*[vcodec*=avc1][height<=2160]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+    elif data == "bv4320":
+        chosen_format = "bv*[vcodec*=avc1][height<=4320]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
     elif data == "bestvideo":
         chosen_format = "bestvideo+bestaudio/best"
     elif data == "best":
@@ -232,12 +307,13 @@ def format_option_callback(app, callback_query):
     else:
         chosen_format = data
 
-    user_dir = f"./users/{user_id}"
-    create_directory(str(user_id))
-    with open(f"{user_dir}/format.txt", "w", encoding="utf-8") as f:
+    # Save the selected format
+    user_dir = os.path.join("users", str(user_id))
+    create_directory(user_dir)
+    with open(os.path.join(user_dir, "format.txt"), "w", encoding="utf-8") as f:
         f.write(chosen_format)
-    app.send_message(user_id, f"Format updated to:\n{chosen_format}")
-    callback_query.answer("Format saved.")
+    callback_query.edit_message_text(f"✅ Format updated to:\n{chosen_format}")
+    callback_query.answer("✅ Format saved.")
 
 
 
@@ -249,7 +325,7 @@ def is_user_blocked(message):
     blocked = db.child(f"{Config.BOT_DB_PATH}/blocked_users").get().each()
     blocked_users = [int(b_user.key()) for b_user in blocked]
     if int(message.chat.id) in blocked_users:
-        send_to_user(message, "You are banned from the bot!")
+        send_to_user(message, "🚫 You are banned from the bot!")
         return True
     else:
         return False
@@ -257,16 +333,142 @@ def is_user_blocked(message):
 
 # cheking users are in main user directory in db
 def check_user(message):
-    user_db = db.child(f"{Config.BOT_DB_PATH}/users").get().each()
-    users = [int(user.key()) for user in user_db]
+    user_id_str = str(message.chat.id)
+    # Create the user folder inside the "users" directory
+    user_dir = os.path.join("users", user_id_str)
+    create_directory(user_dir)
 
-    if int(message.chat.id) not in users:
-        data = {"ID": message.chat.id,
-                "timestamp": math.floor(time.time())}
-        db.child(
-            f"{Config.BOT_DB_PATH}/users/{str(message.chat.id)}").set(data)
+    # Copy cookie.txt from the project root to the user's folder if not already present
+    cookie_src = os.path.join(os.getcwd(), "cookie.txt")
+    cookie_dest = os.path.join(user_dir, os.path.basename(Config.COOKIE_FILE_PATH))
+    if os.path.exists(cookie_src) and not os.path.exists(cookie_dest):
+        import shutil
+        shutil.copy(cookie_src, cookie_dest)
+
+    # Register the user in the database if not already registered
+    user_db = db.child(f"{Config.BOT_DB_PATH}/users").get().each()
+    users = [user.key() for user in user_db] if user_db else []
+    if user_id_str not in users:
+        data = {"ID": message.chat.id, "timestamp": math.floor(time.time())}
+        db.child(f"{Config.BOT_DB_PATH}/users/{user_id_str}").set(data)
+
+
 
 #####################################################################################
+
+
+def down_and_audio(app, message, url):
+    user_id = message.chat.id
+    # Отправляем начальное сообщение и получаем его id для последующего редактирования
+    status_message = app.send_message(user_id, "Processing audio... ♻️")
+    status_message_id = status_message.id  # используем .id, поскольку .message_id может отсутствовать
+
+    # Формируем абсолютный путь к папке пользователя (./users/<user_id>)
+    user_folder = os.path.abspath(os.path.join("users", str(user_id)))
+    create_directory(user_folder)
+
+    # Формируем путь к файлу cookie (имя берём из Config.COOKIE_FILE_PATH)
+    cookie_file = os.path.join(user_folder, os.path.basename(Config.COOKIE_FILE_PATH))
+
+    # Опции для yt-dlp: скачиваем лучший аудиотрек и конвертируем его в mp3
+    ytdl_opts = {
+        'format': 'ba',  # выбираем лучший аудиотрек
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }],
+        'prefer_ffmpeg': True,
+        'extractaudio': True,
+        'cookiefile': cookie_file,
+        'outtmpl': os.path.join(user_folder, "%(title)s.%(ext)s"),
+        'progress_hooks': [],
+    }
+
+    last_update = 0
+
+    # Локальная функция для обновления статуса скачивания аудио с прогресс-баром
+    def progress_hook(d):
+        nonlocal last_update
+        current_time = time.time()
+        if current_time - last_update < 0.1:
+            return
+        if d.get("status") == "downloading":
+            downloaded = d.get("downloaded_bytes", 0)
+            total = d.get("total_bytes", 0)
+            percent = (downloaded / total * 100) if total else 0
+            blocks = int(percent // 10)
+            bar = "🟩" * blocks + "⬜️" * (10 - blocks)
+            try:
+                app.edit_message_text(user_id, status_message_id, f"Downloading audio:\n{bar}   {percent:.1f}%")
+            except Exception as e:
+                print(f"Error updating progress: {e}")
+            last_update = current_time
+        elif d.get("status") == "finished":
+            try:
+                full_bar = "🟩" * 10
+                # Отображаем 100% после завершения скачивания
+                app.edit_message_text(user_id, status_message_id, f"Downloading audio:\n{full_bar}   100.0%\nDownload finished, processing audio...")
+            except Exception as e:
+                print(f"Error updating progress: {e}")
+            last_update = current_time
+        elif d.get("status") == "error":
+            try:
+                app.edit_message_text(user_id, status_message_id, "Error occurred during audio download.")
+            except Exception as e:
+                print(f"Error updating progress: {e}")
+            last_update = current_time
+
+    ytdl_opts['progress_hooks'].append(progress_hook)
+
+    try:
+        # Скачиваем аудио с помощью yt-dlp
+        with YoutubeDL(ytdl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+
+        # Формируем ожидаемое имя файла (с расширением .mp3)
+        audio_title = info.get("title", "audio")
+        audio_file = os.path.join(user_folder, audio_title + ".mp3")
+        if not os.path.exists(audio_file):
+            files = [f for f in os.listdir(user_folder) if f.endswith(".mp3")]
+            if files:
+                audio_file = os.path.join(user_folder, files[0])
+            else:
+                send_to_user(message, "Audio file not found after download.")
+                return
+
+        # Перед загрузкой аудио обновляем сообщение, показывая 100% прогресс
+        try:
+            full_bar = "🟩" * 10
+            app.edit_message_text(user_id, status_message_id, f"Uploading audio file...\n{full_bar}   100.0%")
+        except Exception as e:
+            print(f"Error updating upload status: {e}")
+
+        # Отправляем аудио в чат
+        app.send_audio(chat_id=user_id, audio=audio_file, caption=f"Audio downloaded: {audio_title}")
+
+        # После отправки аудио обновляем сообщение, показывая 100%
+        try:
+            full_bar = "🟩" * 10
+            app.edit_message_text(user_id, status_message_id,
+                                  f"✅ Audio successfully downloaded and sent.\n\n{Config.CREDITS_MSG}")
+        except Exception as e:
+            print(f"Error updating final status: {e}")
+
+        # Удаляем аудиофайл, чтобы не захламлять диск
+        try:
+            os.remove(audio_file)
+        except Exception as e:
+            print(f"Failed to delete file {audio_file}: {e}")
+
+    except Exception as e:
+        send_to_user(message, f"Failed to download audio: {e}")
+        try:
+            app.edit_message_text(user_id, status_message_id, f"Error: {e}")
+        except Exception as e:
+            print(f"Error editing message on exception: {e}")
+
+
 
 
 # checking actions
@@ -291,7 +493,7 @@ def url_distractor(app, message):
     if text == Config.DOWNLOAD_COOKIE_COMMAND:
         download_cookie(app, message)
         return
-    
+
     # /check_cookie command
     if text == Config.CHECK_COOKIE_COMMAND:
         checking_cookie_file(app, message)
@@ -302,6 +504,11 @@ def url_distractor(app, message):
         cookies_from_browser(app, message)
         return
 
+    # /audio command
+    if text.startswith(Config.AUDIO_COMMAND):
+        audio_command_handler(app, message)
+        return
+
     # /format command
     if text.startswith(Config.FORMAT_COMMAND):
         set_format(app, message)
@@ -310,7 +517,7 @@ def url_distractor(app, message):
     # /clean command
     if Config.CLEAN_COMMAND in text:
         remove_media(message)
-        send_to_all(message, "All files are removed.")
+        send_to_all(message, "🗑 All files are removed.")
         return
 
     # /usage command
@@ -380,7 +587,7 @@ def is_user_in_channel(app, message):
 
     except:
 
-        text = "__To use this bot you needs to subscribe @upekshaip's Telegram channel.__\nAfter you join the channel, **send your link** ❤️\n \n \n__Developed by @upekshaip__"
+        text = f"{Config.TO_USE_MSG}\n \n{Config.CREDITS_MSG}"
         button = InlineKeyboardButton(
             "Join Channel", url=Config.SUBSCRIBE_CHANNEL_URL)
         keyboard = InlineKeyboardMarkup([[button]])
@@ -406,6 +613,7 @@ def remove_media(message):
         part_files = [fname for fname in allfiles if fname.endswith('.part')]
         ytdl_files = [fname for fname in allfiles if fname.endswith('.ytdl')]
         txt_files = [fname for fname in allfiles if fname.endswith('.txt')]
+        ts_files = [fname for fname in allfiles if fname.endswith('.ts')]
         webm_files = [fname for fname in allfiles if fname.endswith('.webm')]
 
         if len(mp4_files) > 0:
@@ -425,6 +633,9 @@ def remove_media(message):
                 os.remove(f"{dir}/{file}")
         if len(txt_files) > 0:
             for file in txt_files:
+                os.remove(f"{dir}/{file}")
+        if len(ts_files) > 0:
+            for file in ts_files:
                 os.remove(f"{dir}/{file}")
         if len(webm_files) > 0:
             for file in webm_files:
@@ -466,10 +677,10 @@ def send_promo_message(app, message):
             except:
                 pass
 
-        send_to_all(message, "**Promo message sent to all other users**")
+        send_to_all(message, "**✅ Promo message sent to all other users**")
     except:
         send_to_all(
-            message, "**Cannot send the promo message. Try repling to a massege\n Or some error occured**")
+            message, "**❌ Cannot send the promo message. Try repling to a massege\n Or some error occured**")
 
 
 # Getting the user logs
@@ -500,29 +711,28 @@ def get_user_log(app, message):
                 info = data_tg[(total - 10) + i]
                 least_10.append(info)
             least_10.sort(key=str.lower)
-            format = '\n \n'.join(least_10)
+            format_str = '\n \n'.join(least_10)
         else:
             data_tg.sort(key=str.lower)
-            format = '\n \n'.join(data_tg)
+            format_str = '\n \n'.join(data_tg)
         data.sort(key=str.lower)
         now = datetime.fromtimestamp(math.floor(time.time()))
         txt_format = f"Logs of {Config.BOT_NAME_FOR_USERS}\nUser: {user_id}\nTotal logs: {total}\nCurrent time: {now}\n \n" + \
             '\n'.join(data)
 
-        create_directory(str(message.chat.id))
-        log_path = f"./users/{str(message.chat.id)}/logs.txt"
+        user_dir = os.path.join("users", str(message.chat.id))
+        create_directory(user_dir)
+        log_path = os.path.join(user_dir, "logs.txt")
         with open(log_path, 'w', encoding="utf-8") as f:
             f.write(str(txt_format))
 
-        send_to_all(
-            message, f"Total: **{total}**\n**{user_id}** - logs (Last 10):\n \n \n{format}")
+        send_to_all(message, f"Total: **{total}**\n**{user_id}** - logs (Last 10):\n \n \n{format_str}")
         app.send_document(message.chat.id, log_path,
                           caption=f"{user_id} - all logs")
         app.send_document(Config.LOGS_ID, log_path,
                           caption=f"{user_id} - all logs")
     except:
-        send_to_all(
-            message, "**User did not download any content yet...** Not exist in logs")
+        send_to_all(message, "**❌ User did not download any content yet...** Not exist in logs")
 
 # Get all kinds of users (users/ blocked/ unblocked)
 
@@ -589,7 +799,7 @@ def block_user(app, message):
             Config.BLOCK_USER_COMMAND + " ")[1])
 
         if int(b_user_id) in Config.ADMIN:
-            send_to_user(message, "Admin cannot delete an admin")
+            send_to_user(message, "🚫 Admin cannot delete an admin")
         else:
             all_blocked_users = db.child(
                 f"{Config.BOT_DB_PATH}/blocked_users").get().each()
@@ -605,7 +815,7 @@ def block_user(app, message):
             else:
                 send_to_user(message, f"`{b_user_id}` is already blocked ❌😐")
     else:
-        send_to_user(message, "Sorry! You are not an admin")
+        send_to_user(message, "🚫 Sorry! You are not an admin")
 
 
 # Unblock user
@@ -631,7 +841,7 @@ def unblock_user(app, message):
         else:
             send_to_user(message, f"`{ub_user_id}` is already unblocked ✅😐")
     else:
-        send_to_user(message, "Sorry! You are not an admin")
+        send_to_user(message, "🚫 Sorry! You are not an admin")
 
 
 # Check Runtime
@@ -640,7 +850,7 @@ def check_runtime(message):
         now = time.time()
         now = math.floor((now - starting_point[0]) * 1000)
         now = TimeFormatter(now)
-        send_to_user(message, f"__Bot running time -__ **{now}**")
+        send_to_user(message, f"⏳ __Bot running time -__ **{now}**")
     pass
 
 
@@ -648,7 +858,7 @@ def check_runtime(message):
 @app.on_message(filters.document & filters.private)
 def save_my_cookie(app, message):
     user_id = str(message.chat.id)
-    # Define the user folder path (e.g., "./users/7360853")
+    # Define the user folder path (e.g., "./users/1234567")
     user_folder = f"./users/{user_id}"
     # Create the user directory if it doesn't exist
     create_directory(user_folder)
@@ -658,8 +868,7 @@ def save_my_cookie(app, message):
     cookie_file_path = os.path.join(user_folder, cookie_filename)
     # Download the media and save it directly in the user's root folder
     app.download_media(message, file_name=cookie_file_path)
-    send_to_user(message, "Cookie file saved")
-
+    send_to_user(message, "✅ Cookie file saved")
 
 
 def download_cookie(app, message):
@@ -667,17 +876,18 @@ def download_cookie(app, message):
     user_id = str(message.chat.id)
     response = requests.get(Config.COOKIE_URL)
     if response.status_code == 200:
-        # Create a directory for the user if it doesn't exist yet
-        create_directory(user_id)
+        # Create the user directory inside "users" if it doesn't exist yet
+        user_dir = os.path.join("users", user_id)
+        create_directory(user_dir)
         # Extract the cookie filename from the full path specified in the config
         cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
         # Construct the full path for saving the cookie file in the user's folder
-        file_path = os.path.join("users", user_id, cookie_filename)
+        file_path = os.path.join(user_dir, cookie_filename)
         with open(file_path, "wb") as cf:
             cf.write(response.content)
-        send_to_all(message, "**Cookie file downloaded and saved in your folder.**")
+        send_to_all(message, "**✅ Cookie file downloaded and saved in your folder.**")
     else:
-        send_to_all(message, "Cookie URL is not available!")
+        send_to_all(message, "❌ Cookie URL is not available!")
 
 
 # caption editor for videos
@@ -702,17 +912,17 @@ def checking_cookie_file(app, message):
     cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
     # Construct the path to the cookie file within the user's folder
     file_path = os.path.join("users", user_id, cookie_filename)
-    
+
     if os.path.exists(file_path):
         with open(file_path, "r", encoding="utf-8") as cookie:
             cookie_content = cookie.read()
         # Check if the cookie file has the Netscape Navigator format
         if cookie_content.startswith("# Netscape HTTP Cookie File"):
-            send_to_all(message, "Cookie file exists and has correct format")
+            send_to_all(message, "✅ Cookie file exists and has correct format")
         else:
-            send_to_all(message, "Cookie file exists but has incorrect format")
+            send_to_all(message, "⚠️ Cookie file exists but has incorrect format")
     else:
-        send_to_all(message, "Cookie file is not found.")
+        send_to_all(message, "❌ Cookie file is not found.")
 
 
 
@@ -725,13 +935,10 @@ def save_as_cookie_file(app, message):
     # Extract the cookie content from the message text after the command
     content = message.text[len(Config.SAVE_AS_COOKIE_COMMAND):].strip()
     new_cookie = ""
-    
-    # Check if the content starts with a code block
+
     if content.startswith("```"):
         lines = content.splitlines()
-        # Remove the first line (e.g., "```cookie")
         if lines[0].startswith("```"):
-            # If the last line is a closing code block, remove it as well
             if lines[-1].strip() == "```":
                 lines = lines[1:-1]
             else:
@@ -742,7 +949,6 @@ def save_as_cookie_file(app, message):
     else:
         new_cookie = content
 
-    # Replace multiple spaces with a tab if no tab exists in the line
     processed_lines = []
     for line in new_cookie.splitlines():
         if "\t" not in line:
@@ -751,27 +957,27 @@ def save_as_cookie_file(app, message):
     final_cookie = "\n".join(processed_lines)
 
     if final_cookie:
-        send_to_all(message, "**User provided a new cookie file.**")
-        create_directory(user_id)
-        # Extract only the filename from the full cookie file path in the config
+        send_to_all(message, "**✅ User provided a new cookie file.**")
+        user_dir = os.path.join("users", user_id)
+        create_directory(user_dir)
         cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
-        # Construct the path to save the cookie file inside the user's folder
-        file_path = os.path.join("users", user_id, cookie_filename)
+        file_path = os.path.join(user_dir, cookie_filename)
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(final_cookie)
-        send_to_all(message, f"**Cookie successfully updated:**\n`{final_cookie}`")
+        send_to_all(message, f"**✅ Cookie successfully updated:**\n`{final_cookie}`")
     else:
-        send_to_all(message, "**Not a valid cookie.**")
-
+        send_to_all(message, "**❌ Not a valid cookie.**")
 
 
 # url extractor
 @app.on_message(filters.text & filters.private)
 def video_url_extractor(app, message):
+    # Ensure the user folder is created and the user is registered
+    check_user(message)
     user_id = message.chat.id
     full_string = message.text
     if ("https://" in full_string) or ("http://" in full_string):
-        # printing
+        # Logging the entered URL
         users_first_name = message.chat.first_name
         send_to_logger(
             message, f"User entered a **url**\n **user's name:** {users_first_name}\nURL: {full_string}")
@@ -788,25 +994,21 @@ def video_url_extractor(app, message):
             video_start_with = 1
             playlist_name = False
         elif len(url_with_everything) == 3:
-            video_count = (
-                int(url_with_everything[2]) - int(url_with_everything[1]) + 1)
+            video_count = (int(url_with_everything[2]) - int(url_with_everything[1]) + 1)
             video_start_with = int(url_with_everything[1])
             playlist_name = False
         else:
             video_start_with = int(url_with_everything[1])
             playlist_name = f"{url_with_everything[3]}"
-            video_count = (
-                int(url_with_everything[2]) - int(url_with_everything[1]) + 1)
+            video_count = (int(url_with_everything[2]) - int(url_with_everything[1]) + 1)
 
-#############################################################################################################################################
-        # Downloading and uploading parts comes here..............
-        down_and_up(app, message, url, playlist_name,
-                    video_count, video_start_with)
-
-#############################################################################################################################################
+        # Downloading and uploading parts come here...
+        down_and_up(app, message, url, playlist_name, video_count, video_start_with)
     else:
         send_to_all(
             message, f"**User entered like this:** {full_string}\n{Config.ERROR1}")
+
+
 
 #############################################################################################
 
@@ -837,35 +1039,41 @@ def send_to_all(message, msg):
     app.send_message(user_id, msg, parse_mode=enums.ParseMode.MARKDOWN)
 
 
-def progress_bar(user_id, msg_id,  msg):
-    app.edit_message_text(user_id, (msg_id+1), msg)
+def progress_bar(*args):
+    # Ожидается, что Pyrogram вызовет progress_bar с пятью параметрами:
+    # current, total, speed, eta, file_size, а затем дополнительно ваши progress_args (user_id, msg_id, status_text)
+    if len(args) < 8:
+        return
+    current, total, speed, eta, file_size, user_id, msg_id, status_text = args[:8]
+    try:
+        app.edit_message_text(user_id, msg_id, status_text)
+    except Exception as e:
+        print(f"Error updating progress: {e}")
+
 
 
 def send_videos(message, video_abs_path, caption, duration, thumb_file_path, info_text, msg_id):
-    stage = f"Uploading Video... 📤"
-    send_to_logger(
-        message, f"{info_text}")
+    """
+    Sends the video using send_video (not as document) with streaming support.
+    Updates progress via the progress_bar callback.
+    """
+    stage = "Uploading Video... 📤"
+    send_to_logger(message, info_text)
     user_id = message.chat.id
     app.send_video(
         chat_id=user_id,
         video=video_abs_path,
         caption=caption,
-        # parse_mode="HTML",
         duration=duration,
         width=640,
         height=360,
         supports_streaming=True,
         thumb=thumb_file_path,
-        # reply_to_message_id=message.id,
-        progress=progress_bar(
-            user_id, msg_id, (f"{info_text}\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n \n__{stage}__"))
-        # progress_args=(
-        #     f"videos is uploading...."
-        # Translation.UPLOAD_START,
-        # usermsg,
-        # start_time
-        # )
+        progress=progress_bar,
+        progress_args=(user_id, msg_id, f"{info_text}\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n\n__{stage}__")
     )
+
+
 #####################################################################################
 
 
@@ -930,19 +1138,24 @@ def get_duration_thumb_(dir, video_path, thumb_name):
     return duration, thumb_dir
 
 
-def get_duration_thumb(message, dir, video_path, thumb_name):
-    thumb_dir = os.path.abspath(os.path.join(dir, thumb_name + ".jpg"))
+def get_duration_thumb(message, dir_path, video_path, thumb_name):
+    """
+    Captures a thumbnail at 2 seconds into the video and retrieves video duration.
+    Forces overwriting existing thumbnail with the '-y' flag.
+    """
+    thumb_dir = os.path.abspath(os.path.join(dir_path, thumb_name + ".jpg"))
 
-    # Run ffmpeg command to capture a frame at 2 seconds into the video
+    # ffmpeg command with -y flag to overwrite thumbnail file
     ffmpeg_command = [
         "ffmpeg",
+        "-y",
         "-i", video_path,
-        "-ss", "2",  # Seek to 2 seconds into the video
-        "-vframes", "1",  # Capture only 1 frame
+        "-ss", "2",         # Seek to 2 seconds
+        "-vframes", "1",    # Capture 1 frame
         thumb_dir
     ]
 
-    # Run ffprobe command to get the video duration
+    # ffprobe command to get video duration
     ffprobe_command = [
         "ffprobe",
         "-v", "error",
@@ -953,18 +1166,13 @@ def get_duration_thumb(message, dir, video_path, thumb_name):
     ]
 
     try:
-        # Execute ffmpeg command to capture thumbnail
         subprocess.run(ffmpeg_command, check=True)
-
-        # Execute ffprobe command to get video duration
-        result = subprocess.check_output(
-            ffprobe_command, stderr=subprocess.STDOUT, universal_newlines=True)
+        result = subprocess.check_output(ffprobe_command, stderr=subprocess.STDOUT, universal_newlines=True)
         duration = int(float(result))
-
         return duration, thumb_dir
     except subprocess.CalledProcessError as e:
-        send_to_all(message,
-                    f"Error capturing thumbnail or getting video duration: {e}")
+        send_to_all(message, f"❌ Error capturing thumbnail or getting video duration: {e}")
+        return None
 
 
 def write_logs(message, video_url, video_title):
@@ -978,115 +1186,166 @@ def write_logs(message, video_url, video_title):
 
 
 def down_and_up(app, message, url, playlist_name, video_count, video_start_with):
+    # Initialize basic variables
     user_id = message.chat.id
     msg_id = message.id
     plus_one = msg_id + 1
     app.send_message(user_id, "Processing... ♻️")
     check_user(message)
 
-    create_directory(str(user_id))
-    user_dir_name = os.path.abspath("./users/" + str(user_id))
+    # Create user's folder (absolute path)
+    user_dir_name = os.path.abspath(os.path.join("users", str(user_id)))
+    create_directory(user_dir_name)
 
-    # If user has custom format saved, use it; otherwise use the default fallback cascade
-    custom_format_path = f"{user_dir_name}/format.txt"
+    # Determine format options from custom file or default cascade
+    custom_format_path = os.path.join(user_dir_name, "format.txt")
     if os.path.exists(custom_format_path):
         with open(custom_format_path, "r", encoding="utf-8") as f:
             custom_format = f.read().strip()
-        # If user selected "best", then use prefer_ffmpeg False; otherwise True with merge_output_format mp4.
         if custom_format.lower() == "best":
-            attempts = [{
-                'format': custom_format,
-                'prefer_ffmpeg': False
-            }]
+            attempts = [{'format': custom_format, 'prefer_ffmpeg': False}]
         else:
-            attempts = [{
-                'format': custom_format,
-                'prefer_ffmpeg': True,
-                'merge_output_format': 'mp4'
-            }]
+            attempts = [{'format': custom_format, 'prefer_ffmpeg': True, 'merge_output_format': 'mp4'}]
     else:
-        # Default fallback cascade (if /format not set)
         attempts = [
-            # 1) Attempt: select H.264 (avc1) up to 1080p + AAC without transcoding
-            {
-                'format': 'bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
-                'prefer_ffmpeg': True,
-                'merge_output_format': 'mp4'
-            },
-            # 2) Attempt: bestvideo+bestaudio/best with merge_output_format (without transcoding)
-            {
-                'format': 'bestvideo+bestaudio/best',
-                'prefer_ffmpeg': True,
-                'merge_output_format': 'mp4'
-            },
-            # 3) Fallback to the original option
-            {
-                'format': 'best',
-                'prefer_ffmpeg': False
-            }
+            {'format': 'bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
+             'prefer_ffmpeg': True, 'merge_output_format': 'mp4'},
+            {'format': 'bestvideo+bestaudio/best',
+             'prefer_ffmpeg': True, 'merge_output_format': 'mp4'},
+            {'format': 'best', 'prefer_ffmpeg': False}
         ]
 
-    # Wrapper function for logging and attempting the download
-    def try_download(url, attempt_opts, total_info_text):
+    # Header text for progress messages
+    current_total_process = ""
+    last_update = 0
+    full_bar = "🟩" * 10  # для обновления на 100%
+
+    # Standard progress hook for non-HLS videos (updates based on percent)
+    def progress_func(d):
+        nonlocal last_update
+        current_time = time.time()
+        if current_time - last_update < 1.5:
+            return
+        if d.get("status") == "downloading":
+            downloaded = d.get("downloaded_bytes", 0)
+            total = d.get("total_bytes", 0)
+            percent = (downloaded / total * 100) if total else 0
+            blocks = int(percent // 10)
+            bar = "🟩" * blocks + "⬜️" * (10 - blocks)
+            try:
+                app.edit_message_text(user_id, plus_one, f"{current_total_process}\n{bar}   {percent:.1f}%")
+            except Exception as e:
+                print(f"Error updating progress: {e}")
+        elif d.get("status") == "error":
+            print("Error occurred during download.")
+            send_to_all(message, "❌ Sorry... Some error occurred during download.")
+        last_update = current_time
+
+    successful_uploads = 0  # Counter for successful downloads/uploads
+
+    # try_download attempts to download the video using given options.
+    # For HLS streams the progress_hook is disabled and a separate thread cycles the progress bar.
+    def try_download(url, attempt_opts):
+        nonlocal current_total_process
         common_opts = {
             'cookiefile': os.path.join("users", str(user_id), os.path.basename(Config.COOKIE_FILE_PATH)),
-            'progress_hooks': [my_hook],
             'playlist_items': str(current_index + video_start_with),
-            'outtmpl': user_dir_name + "/%(title)s.%(ext)s"
+            'outtmpl': os.path.join(user_dir_name, "%(title)s.%(ext)s")
         }
+        # Check if the URL indicates an HLS stream
+        is_hls = ("m3u8" in url.lower())
+        if not is_hls:
+            common_opts['progress_hooks'] = [progress_func]
         ytdl_opts = {**common_opts, **attempt_opts}
         try:
-            # First, extract video info (without downloading) for logging purposes
             with YoutubeDL(ytdl_opts) as ydl:
                 info_dict = ydl.extract_info(url, download=False)
-            app.edit_message_text(user_id, plus_one, f"{total_info_text}\n \n__Downloading using format: {ytdl_opts['format']}...__ 📥")
+            if ("m3u8" in url.lower()) or (info_dict.get("protocol") == "m3u8_native"):
+                is_hls = True
+                ytdl_opts["downloader"] = "ffmpeg"
+                ytdl_opts["hls_use_mpegts"] = True
+            try:
+                if is_hls:
+                    app.edit_message_text(user_id, plus_one,
+                        f"{current_total_process}\n\n__Detected HLS stream. Downloading...__ 📥")
+                else:
+                    app.edit_message_text(user_id, plus_one,
+                        f"{current_total_process}\n\n__Downloading using format: {ytdl_opts['format']}...__ 📥")
+            except Exception as e:
+                print(f"Status update error: {e}")
             with YoutubeDL(ytdl_opts) as ydl:
-                ydl.download([url])
-            return info_dict  # return the video information
+                if is_hls:
+                    # For HLS: start a thread that cycles the progress bar with fragment names.
+                    cycle_stop = threading.Event()
+                    def cycle_progress():
+                        nonlocal cycle_stop
+                        counter = 0
+                        while not cycle_stop.is_set():
+                            counter = (counter + 1) % 11  # cycles 0..10
+                            # Look for fragment files (containing ".part-Frag" and ending with ".part")
+                            frag_files = [f for f in os.listdir(user_dir_name) if ".part-Frag" in f and f.endswith(".part")]
+                            if frag_files:
+                                last_frag = sorted(frag_files)[-1]
+                                m = re.search(r'Frag(\d+)', last_frag)
+                                frag_text = f"Frag{m.group(1)}" if m else "Frag?"
+                            else:
+                                frag_text = "waiting for fragments"
+                            bar = "🟩" * counter + "⬜️" * (10 - counter)
+                            try:
+                                app.edit_message_text(user_id, plus_one,
+                                    f"{current_total_process}\nDownloading HLS stream: {frag_text}\n{bar}")
+                            except Exception as e:
+                                print("Cycle progress error:", e)
+                            time.sleep(1.5)
+                    cycle_thread = threading.Thread(target=cycle_progress)
+                    cycle_thread.start()
+                    ydl.download([url])
+                    cycle_stop.set()
+                    cycle_thread.join()
+                else:
+                    ydl.download([url])
+            # Final update: regardless of type, update message with full progress bar (100%)
+            try:
+                app.edit_message_text(user_id, plus_one, f"{current_total_process}\n{full_bar}   100.0%")
+            except Exception as e:
+                print("Final progress update error:", e)
+            return info_dict
         except Exception as e:
             print(f"Attempt with format {ytdl_opts['format']} failed: {e}")
             return None
 
-    # Local function for progress hook (in case an error occurs during download)
-    def my_hook(d):
-        if d.get('status') == 'error':
-            print('Some error occurred.')
-            send_to_all(message, "Sorry... Some error occurred during download.")
-
-    # Process each video in the loop
+    # Main loop for each video (for playlists, video_count > 1)
     for x in range(video_count):
-        current_index = x  # used in playlist_items
-        j = ((x + 1) / video_count * 100)
-        j_bar = f"{'🟩' * math.floor(j / 10)}{'⬜️' * (10 - math.floor(j / 10))}"
+        current_index = x  # used for playlist_items parameter
         total_process = f"""
 **<<<** __Total progress__ **>>>**
 
-**Video number:** __{x + 1}__
-**Total videos:** __{video_count}__
+**Video number:** {x + 1} / {video_count}
+"""
+        current_total_process = total_process
 
-            {j_bar}   __{math.floor(j)}%__"""
-        defalt_name = "Defalt name will apply"
         if playlist_name and video_count > 1:
-            rename_name = playlist_name + " - Part " + str(x + video_start_with)
+            rename_name = f"{playlist_name} - Part {x + video_start_with}"
         else:
-            rename_name = defalt_name
+            rename_name = None
 
         info_dict = None
-        # Try each download option until one succeeds
         for attempt in attempts:
-            info_dict = try_download(url, attempt, total_process)
+            info_dict = try_download(url, attempt)
             if info_dict is not None:
-                # Video downloaded successfully
                 break
         if info_dict is None:
-            send_to_all(message, "Failed to download video using all available options.\nUpdate your cookie via /save_as_cookie or /download_cookie commands and try again.")
-            continue  # move to the next video if available
+            send_to_all(message, "❌ Failed to download video. Try using a cookie.")
+            continue
 
-        # After download, continue with standard processing:
+        successful_uploads += 1
+
         video_id = info_dict.get("id", None)
-        video_title = info_dict.get('title', None)
-        # Determine the expected filename
-        expected_video_name = str(video_title) + ".mp4"
+        video_title = info_dict.get("title", None)
+        if rename_name is None:
+            rename_name = video_title
+
+        expected_video_name = f"{video_title}.mp4"
         info_text = f"""
 {total_process}
 
@@ -1097,73 +1356,112 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
 **Caption Name:** __{rename_name}__
 **Video id:** {video_id}"""
 
-        app.edit_message_text(user_id, plus_one, f"{info_text}\n \n__Downloaded video. Processing for upload...__ ♻️")
+        # Update status after download with full progress bar
+        try:
+            app.edit_message_text(user_id, plus_one,
+                f"{info_text}\n\n{full_bar}   100.0%\n__Downloaded video. Processing for upload...__ ♻️")
+        except Exception as e:
+            print(f"Status update error after download: {e}")
 
-        ###############################################################################################################################
-        # Uploading part: locate the downloaded file
-        dir_path = "./users/" + str(user_id)
+        # Locate the downloaded file
+        dir_path = os.path.join("users", str(user_id))
         allfiles = os.listdir(dir_path)
-        # Look for files with .mp4 or .mkv extensions
-        files = [fname for fname in allfiles if fname.endswith(('.mp4', '.mkv'))]
+        files = [fname for fname in allfiles if fname.endswith(('.mp4', '.mkv', '.webm', '.ts'))]
         files.sort()
         if not files:
-            send_to_all(message, "File not found after download.")
+            send_to_all(message, "❌ File not found after download.")
             continue
 
         downloaded_file = files[0]
         write_logs(message, url, downloaded_file)
 
-        # If the filename does not match the expected name and a different name is provided, rename the file
-        if rename_name == defalt_name:
-            caption_name = downloaded_file.split(".mp4")[0]
+        if rename_name == video_title:
+            caption_name = video_title
             final_name = downloaded_file
         else:
-            final_name = rename_name + ".mp4"
+            ext = os.path.splitext(downloaded_file)[1]
+            final_name = rename_name + ext
             caption_name = rename_name
-            os.rename(dir_path + "/" + downloaded_file, dir_path + "/" + final_name)
+            os.rename(os.path.join(dir_path, downloaded_file), os.path.join(dir_path, final_name))
 
-        user_vid_path = dir_path + "/" + final_name
+        user_vid_path = os.path.join(dir_path, final_name)
+        # If file is .webm or .ts, convert it to mp4 for inline playback
+        if final_name.lower().endswith((".webm", ".ts")):
+            try:
+                app.edit_message_text(user_id, plus_one,
+                    f"{info_text}\n\n{full_bar}   100.0%\nConverting video using ffmpeg... ⏳")
+            except Exception as e:
+                print(f"Error updating status before conversion: {e}")
+            mp4_file = os.path.join(dir_path, os.path.splitext(final_name)[0] + ".mp4")
+            ffmpeg_cmd = [
+                "ffmpeg",
+                "-y",  # overwrite output file
+                "-i", user_vid_path,
+                "-c:v", "libx264",
+                "-preset", "fast",
+                "-crf", "23",
+                "-c:a", "aac",
+                "-b:a", "128k",
+                mp4_file
+            ]
+            try:
+                subprocess.run(ffmpeg_cmd, check=True)
+                os.remove(user_vid_path)
+                user_vid_path = mp4_file
+            except Exception as e:
+                send_to_all(message, f"❌ Conversion to MP4 failed: {e}")
+                continue
+
         after_rename_abs_path = os.path.abspath(user_vid_path)
+        result = get_duration_thumb(message, dir_path, user_vid_path, caption_name)
+        if result is None:
+            send_to_all(message, "❌ Failed to get video duration and thumbnail.")
+            continue
+        duration, thumb_dir = result
 
-        duration, thumb_dir = get_duration_thumb(message, dir_path, user_vid_path, caption_name)
         video_size_in_bytes = os.path.getsize(user_vid_path)
         video_size = humanbytes(int(video_size_in_bytes))
-
         max_size = 1850000000
         if int(video_size_in_bytes) > max_size:
-            app.edit_message_text(user_id, plus_one, f"{info_text}\n \n__Your video size ({video_size}) is too large.__\n__Splitting file...__ ✂️")
-            returned = split_video_2(dir_path, caption_name, after_rename_abs_path,
-                                     int(video_size_in_bytes), max_size, duration)
+            app.edit_message_text(user_id, plus_one,
+                f"{info_text}\n\n{full_bar}   100.0%\n__⚠️ Your video size ({video_size}) is too large.__\n__Splitting file...__ ✂️")
+            returned = split_video_2(dir_path, caption_name, after_rename_abs_path, int(video_size_in_bytes), max_size, duration)
             caption_lst = returned.get("video")
             path_lst = returned.get("path")
             for p in range(len(caption_lst)):
-                part_duration, splited_thumb_dir = get_duration_thumb(message, dir_path, path_lst[p], caption_lst[p])
+                part_result = get_duration_thumb(message, dir_path, path_lst[p], caption_lst[p])
+                if part_result is None:
+                    continue
+                part_duration, splited_thumb_dir = part_result
                 send_videos(message, path_lst[p], caption_lst[p], part_duration, splited_thumb_dir, info_text, msg_id)
-                app.edit_message_text(user_id, plus_one, f"{info_text}\n \n__Splitted part {p + 1} file uploaded__")
+                app.edit_message_text(user_id, plus_one,
+                    f"{info_text}\n\n{full_bar}   100.0%\n__Splitted part {p + 1} file uploaded__")
                 app.forward_messages(Config.LOGS_ID, user_id, (msg_id + 2 + p))
                 time.sleep(2)
                 os.remove(splited_thumb_dir)
                 os.remove(path_lst[p])
             os.remove(thumb_dir)
             os.remove(user_vid_path)
-            success_msg = f"**Upload complete** - {video_count} files uploaded.\n \n__Developed by__ @upekshaip"
+            success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n\n{Config.CREDITS_MSG}"
             app.edit_message_text(user_id, (msg_id + 1), success_msg)
             break
         else:
             if final_name:
-                send_videos(message, after_rename_abs_path, caption_name,
-                            duration, thumb_dir, info_text, msg_id)
+                send_videos(message, after_rename_abs_path, caption_name, duration, thumb_dir, info_text, msg_id)
                 app.forward_messages(Config.LOGS_ID, user_id, (msg_id + 2 + x))
-                app.edit_message_text(user_id, (msg_id + 1), f"{info_text}\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n \n{x + 1} file uploaded.")
+                app.edit_message_text(user_id, (msg_id + 1),
+                    f"{info_text}\n{full_bar}   100.0%\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n\n{x + 1} file uploaded.")
                 os.remove(after_rename_abs_path)
                 os.remove(thumb_dir)
                 time.sleep(2)
             else:
-                send_to_all(message, "Some error occurred during processing. 😢")
-    else:
-        success_msg = f"**Upload complete** - {video_count} files uploaded.\n \n__Developed by__ @upekshaip"
+                send_to_all(message, "❌ Some error occurred during processing. 😢")
+
+    if successful_uploads == video_count:
+        success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n\n{Config.CREDITS_MSG}"
         app.edit_message_text(user_id, (msg_id + 1), success_msg)
-        
+
+
 
 
 
