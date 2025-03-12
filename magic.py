@@ -945,7 +945,6 @@ def progress_bar(*args):
         print(f"Error updating progress: {e}")
 
 
-
 def send_videos(message, video_abs_path, caption, duration, thumb_file_path, info_text, msg_id):
     """
     Sends the video using send_video (not as document) with streaming support.
@@ -954,7 +953,7 @@ def send_videos(message, video_abs_path, caption, duration, thumb_file_path, inf
     stage = "Uploading Video... 📤"
     send_to_logger(message, info_text)
     user_id = message.chat.id
-    app.send_video(
+    video_msg = app.send_video(
         chat_id=user_id,
         video=video_abs_path,
         caption=caption,
@@ -966,6 +965,7 @@ def send_videos(message, video_abs_path, caption, duration, thumb_file_path, inf
         progress=progress_bar,
         progress_args=(user_id, msg_id, f"{info_text}\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n\n__{stage}__")
     )
+    return video_msg
 
 
 #####################################################################################
@@ -1085,24 +1085,25 @@ def write_logs(message, video_url, video_title):
 #########################################
 def down_and_audio(app, message, url):
     user_id = message.chat.id
+    # Логируем запрос на скачивание аудио
+    send_to_logger(message, f"Audio download requested:\nURL: {url}")
+    
     # Проверка активного процесса и отправка реплая, если уже идет загрузка
     if active_downloads.get(user_id, False):
         app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
         return
     active_downloads[user_id] = True
     try:
-        # Добавляем начальное сообщение, как в down_and_up
-        msg_id = message.id
-        plus_one = msg_id + 1
-        app.send_message(user_id, "Processing... ♻️")
+        proc_msg = app.send_message(user_id, "Processing... ♻️")
+        proc_msg_id = proc_msg.id
         check_user(message)
         
-        # Отправляем отдельное статусное сообщение для аудио
-        status_message = app.send_message(user_id, "Processing audio, wait... ♻️")
-        status_message_id = status_message.id
-        # Отправляем сообщение с анимацией часов
-        hourglass_message = app.send_message(user_id, "⌛️")
-        hourglass_msg_id = hourglass_message.id
+        status_msg = app.send_message(user_id, "Processing audio, wait... ♻️")
+        hourglass_msg = app.send_message(user_id, "⌛️")
+        # Сохраняем ID статусных сообщений сразу
+        status_msg_id = status_msg.id
+        hourglass_msg_id = hourglass_msg.id
+        
         stop_anim = threading.Event()
         def animate_hourglass():
             current = True
@@ -1147,21 +1148,21 @@ def down_and_audio(app, message, url):
                 blocks = int(percent // 10)
                 bar = "🟩" * blocks + "⬜️" * (10 - blocks)
                 try:
-                    app.edit_message_text(user_id, plus_one, f"Downloading audio:\n{bar}   {percent:.1f}%")
+                    app.edit_message_text(user_id, proc_msg_id, f"Downloading audio:\n{bar}   {percent:.1f}%")
                 except Exception as e:
                     print(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "finished":
                 try:
                     full_bar = "🟩" * 10
-                    app.edit_message_text(user_id, plus_one,
+                    app.edit_message_text(user_id, proc_msg_id,
                         f"Downloading audio:\n{full_bar}   100.0%\nDownload finished, processing audio...")
                 except Exception as e:
                     print(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "error":
                 try:
-                    app.edit_message_text(user_id, plus_one, "Error occurred during audio download.")
+                    app.edit_message_text(user_id, proc_msg_id, "Error occurred during audio download.")
                 except Exception as e:
                     print(f"Error updating progress: {e}")
                 last_update = current_time
@@ -1183,26 +1184,34 @@ def down_and_audio(app, message, url):
 
         try:
             full_bar = "🟩" * 10
-            app.edit_message_text(user_id, plus_one, f"Uploading audio file...\n{full_bar}   100.0%")
+            app.edit_message_text(user_id, proc_msg_id, f"Uploading audio file...\n{full_bar}   100.0%")
         except Exception as e:
             print(f"Error updating upload status: {e}")
 
-        app.send_audio(chat_id=user_id, audio=audio_file, caption=f"{audio_title}")
+        # Отправляем аудио и сохраняем объект сообщения для репоста
+        audio_msg = app.send_audio(chat_id=user_id, audio=audio_file, caption=f"{audio_title}")
+        # Репостим финальное аудио сообщение в лог-канал (замена .message_id -> .id)
+        try:
+            app.forward_messages(Config.LOGS_ID, user_id, [audio_msg.id])
+        except Exception as e:
+            print("Error forwarding audio to logger:", e)
 
         try:
             full_bar = "🟩" * 10
-            app.edit_message_text(user_id, plus_one,
-                                  f"✅ Audio successfully downloaded and sent.\n\n{Config.CREDITS_MSG}")
+            success_msg = f"✅ Audio successfully downloaded and sent.\n\n{Config.CREDITS_MSG}"
+            app.edit_message_text(user_id, proc_msg_id, success_msg)
+            
         except Exception as e:
             print(f"Error updating final status: {e}")
+        send_to_logger(message, success_msg)
 
         stop_anim.set()
         anim_thread.join()
         try:
-            app.delete_messages(chat_id=user_id, message_ids=[status_message_id], revoke=True)
+            app.delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
             app.delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
         except Exception as e:
-            print("Error deleting hourglass message:", e)
+            print("Error deleting status messages:", e)
 
         try:
             os.remove(audio_file)
@@ -1211,14 +1220,13 @@ def down_and_audio(app, message, url):
 
     except Exception as e:
         send_to_user(message, f"❌ Failed to download audio: {e}")
+        send_to_logger(message, f"Error in audio download: {e}")
         try:
-            app.edit_message_text(user_id, plus_one, f"Error: {e}")
+            app.edit_message_text(user_id, proc_msg_id, f"Error: {e}")
         except Exception as e:
             print(f"Error editing message on exception: {e}")
     finally:
         active_downloads[user_id] = False
-
-
 
 
 #########################################
@@ -1226,15 +1234,17 @@ def down_and_audio(app, message, url):
 #########################################
 def down_and_up(app, message, url, playlist_name, video_count, video_start_with):
     user_id = message.chat.id
+    # Логируем запрос на скачивание видео
+    send_to_logger(message, f"Video download requested:\nURL: {url}\nPlaylist: {playlist_name}\nCount: {video_count}, Start: {video_start_with}")
+    
     if active_downloads.get(user_id, False):
         app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
         return
     active_downloads[user_id] = True
     error_message = ""
     try:
-        msg_id = message.id
-        plus_one = msg_id + 1
-        app.send_message(user_id, "Processing... ♻️")
+        proc_msg = app.send_message(user_id, "Processing... ♻️")
+        proc_msg_id = proc_msg.id
         check_user(message)
 
         user_dir_name = os.path.abspath(os.path.join("users", str(user_id)))
@@ -1257,10 +1267,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 {'format': 'best', 'prefer_ffmpeg': False}
             ]
 
-        status_message = app.send_message(user_id, "Processing video, wait... ♻️")
-        status_msg_id = status_message.id
-        hourglass_message = app.send_message(user_id, "⌛️")
-        hourglass_msg_id = hourglass_message.id
+        status_msg = app.send_message(user_id, "Processing video, wait... ♻️")
+        hourglass_msg = app.send_message(user_id, "⌛️")
+        # Сохраняем ID статусных сообщений
+        status_msg_id = status_msg.id
+        hourglass_msg_id = hourglass_msg.id
+        
         stop_anim = threading.Event()
         def animate_hourglass():
             current = True
@@ -1292,7 +1304,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 blocks = int(percent // 10)
                 bar = "🟩" * blocks + "⬜️" * (10 - blocks)
                 try:
-                    app.edit_message_text(user_id, plus_one, f"{current_total_process}\n{bar}   {percent:.1f}%")
+                    app.edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{bar}   {percent:.1f}%")
                 except Exception as e:
                     print(f"Error updating progress: {e}")
             elif d.get("status") == "error":
@@ -1324,10 +1336,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                     ytdl_opts["hls_use_mpegts"] = True
                 try:
                     if is_hls:
-                        app.edit_message_text(user_id, plus_one,
+                        app.edit_message_text(user_id, proc_msg_id,
                             f"{current_total_process}\n\n__Detected HLS stream. Downloading...__ 📥")
                     else:
-                        app.edit_message_text(user_id, plus_one,
+                        app.edit_message_text(user_id, proc_msg_id,
                             f"{current_total_process}\n\n__Downloading using format: {ytdl_opts.get('format', 'default')}...__ 📥")
                 except Exception as e:
                     print(f"Status update error: {e}")
@@ -1348,7 +1360,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                                     frag_text = "waiting for fragments"
                                 bar = "🟩" * counter + "⬜️" * (10 - counter)
                                 try:
-                                    app.edit_message_text(user_id, plus_one,
+                                    app.edit_message_text(user_id, proc_msg_id,
                                         f"{current_total_process}\nDownloading HLS stream: {frag_text}\n{bar}")
                                 except Exception as e:
                                     print("Cycle progress error:", e)
@@ -1364,7 +1376,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                         with YoutubeDL(ytdl_opts) as ydl:
                             ydl.download([url])
                 try:
-                    app.edit_message_text(user_id, plus_one, f"{current_total_process}\n{full_bar}   100.0%")
+                    app.edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{full_bar}   100.0%")
                 except Exception as e:
                     print("Final progress update error:", e)
                 return info_dict
@@ -1415,9 +1427,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
 **Video Name:** __{video_title}__
 **Caption Name:** __{rename_name}__
 **Video id:** {video_id}"""
-
             try:
-                app.edit_message_text(user_id, plus_one,
+                app.edit_message_text(user_id, proc_msg_id,
                     f"{info_text}\n\n{full_bar}   100.0%\n__Downloaded video. Processing for upload...__ ♻️")
             except Exception as e:
                 print(f"Status update error after download: {e}")
@@ -1445,7 +1456,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             user_vid_path = os.path.join(dir_path, final_name)
             if final_name.lower().endswith((".webm", ".ts")):
                 try:
-                    app.edit_message_text(user_id, plus_one,
+                    app.edit_message_text(user_id, proc_msg_id,
                         f"{info_text}\n\n{full_bar}   100.0%\nConverting video using ffmpeg... ⏳")
                 except Exception as e:
                     print(f"Error updating status before conversion: {e}")
@@ -1480,7 +1491,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             video_size = humanbytes(int(video_size_in_bytes))
             max_size = 1850000000
             if int(video_size_in_bytes) > max_size:
-                app.edit_message_text(user_id, plus_one,
+                app.edit_message_text(user_id, proc_msg_id,
                     f"{info_text}\n\n{full_bar}   100.0%\n__⚠️ Your video size ({video_size}) is too large.__\n__Splitting file...__ ✂️")
                 returned = split_video_2(dir_path, caption_name, after_rename_abs_path, int(video_size_in_bytes), max_size, duration)
                 caption_lst = returned.get("video")
@@ -1490,10 +1501,15 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                     if part_result is None:
                         continue
                     part_duration, splited_thumb_dir = part_result
-                    send_videos(message, path_lst[p], caption_lst[p], part_duration, splited_thumb_dir, info_text, msg_id)
-                    app.edit_message_text(user_id, plus_one,
+                    # Отправляем видео и сохраняем объект отправленного сообщения
+                    video_msg = send_videos(message, path_lst[p], caption_lst[p], part_duration, splited_thumb_dir, info_text, proc_msg.id)
+                    # Репостим именно сообщение с видео в лог-канал
+                    try:
+                        app.forward_messages(Config.LOGS_ID, user_id, [video_msg.message_id])
+                    except Exception as e:
+                        print("Error forwarding video to logger:", e)
+                    app.edit_message_text(user_id, proc_msg_id,
                         f"{info_text}\n\n{full_bar}   100.0%\n__Splitted part {p + 1} file uploaded__")
-                    app.forward_messages(Config.LOGS_ID, user_id, (msg_id + 2 + p))
                     if p < len(caption_lst) - 1:
                         threading.Event().wait(2)
                     os.remove(splited_thumb_dir)
@@ -1501,30 +1517,36 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 os.remove(thumb_dir)
                 os.remove(user_vid_path)
                 success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n\n{Config.CREDITS_MSG}"
-                app.edit_message_text(user_id, (msg_id + 1), success_msg)
+                app.edit_message_text(user_id, proc_msg_id, success_msg)
+                send_to_logger(message, "Video upload completed with file splitting.")
                 break
             else:
                 if final_name:
-                    send_videos(message, after_rename_abs_path, caption_name, duration, thumb_dir, info_text, msg_id)
-                    app.forward_messages(Config.LOGS_ID, user_id, (msg_id + 2 + x))
-                    app.edit_message_text(user_id, (msg_id + 1),
-                        f"{info_text}\n{full_bar}   100.0%\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n\n{x + 1} file uploaded.")
+                    video_msg = send_videos(message, after_rename_abs_path, caption_name, duration, thumb_dir, info_text, proc_msg.id)
+                    try:
+                        app.forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
+                    except Exception as e:
+                        print("Error forwarding video to logger:", e)
+                    app.edit_message_text(user_id, proc_msg_id,
+                        f"{info_text}\n{full_bar}   100.0%\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n\n1 file uploaded.")
                     os.remove(after_rename_abs_path)
                     os.remove(thumb_dir)
                     threading.Event().wait(2)
                 else:
                     send_to_all(message, "❌ Some error occurred during processing. 😢")
-
         if successful_uploads == video_count:
             success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n\n{Config.CREDITS_MSG}"
-            app.edit_message_text(user_id, (msg_id + 1), success_msg)
+            app.edit_message_text(user_id, proc_msg_id, success_msg)
+            send_to_logger(message, success_msg)
     finally:
         active_downloads[user_id] = False
         try:
             app.delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
             app.delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
         except Exception as e:
-            print("Error deleting hourglass message:", e)
+            print("Error deleting status messages:", e)
+
+
 
 
 
