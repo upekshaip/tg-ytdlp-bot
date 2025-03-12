@@ -70,9 +70,12 @@ def create_directory(path):
 @app.on_message(filters.command("cookies_from_browser") & filters.private)
 def cookies_from_browser(app, message):
     user_id = message.chat.id
-    # For non-admin users, check if they are in the channel.
+    # Для неадминистраторов проверяем подписку
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
+
+    # Логирование запроса на получение cookies из браузера
+    send_to_logger(message, "User requested cookies from browser.")
 
     # Path to the user's directory, e.g. "./users/1234567"
     user_dir = os.path.join(".", "users", str(user_id))
@@ -113,6 +116,9 @@ def cookies_from_browser(app, message):
         "Select a browser to download cookies from:",
         reply_markup=keyboard
     )
+    send_to_logger(message, "Browser selection keyboard sent.")
+    
+    
 
 # Callback handler for browser selection
 @app.on_callback_query(filters.regex(r"^browser_choice\|"))
@@ -129,6 +135,7 @@ def browser_choice_callback(app, callback_query):
     if data == "cancel":
         callback_query.edit_message_text("🔚 Browser selection canceled.")
         callback_query.answer("✅ Browser choice updated.")
+        send_to_logger(callback_query.message, "Browser selection canceled.")
         return
 
     browser_option = data
@@ -146,26 +153,29 @@ def browser_choice_callback(app, callback_query):
         "whale": ["~/.config/Whale/", "~/.config/naver-whale/"]
     }
     path = browsers.get(browser_option)
-    # If the browser is not installed, inform the user and do not execute the command
+    # Если браузер не установлен, информируем пользователя и не выполняем команду
     if (browser_option == "safari") or (
         isinstance(path, list) and not any(os.path.exists(os.path.expanduser(p)) for p in path)
     ) or (isinstance(path, str) and not os.path.exists(os.path.expanduser(path))):
         callback_query.edit_message_text(f"⚠️ {browser_option.capitalize()} browser not installed.")
         callback_query.answer("⚠️ Browser not installed.")
+        send_to_logger(callback_query.message, f"Browser {browser_option} not installed.")
         return
 
     # Build the command for cookie extraction: yt-dlp --cookies "cookie.txt" --cookies-from-browser <browser_option>
     cmd = f'yt-dlp --cookies "{cookie_file}" --cookies-from-browser {browser_option}'
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
-    # If the return code is not 0, but the error is due to missing URL, consider the cookies as successfully extracted
     if result.returncode != 0:
         if "You must provide at least one URL" in result.stderr:
             callback_query.edit_message_text(f"✅ Cookies saved using browser: {browser_option}")
+            send_to_logger(callback_query.message, f"Cookies saved using browser: {browser_option}")
         else:
             callback_query.edit_message_text(f"❌ Failed to save cookies: {result.stderr}")
+            send_to_logger(callback_query.message, f"Failed to save cookies using browser {browser_option}: {result.stderr}")
     else:
         callback_query.edit_message_text(f"✅ Cookies saved using browser: {browser_option}")
+        send_to_logger(callback_query.message, f"Cookies saved using browser: {browser_option}")
 
     callback_query.answer("✅ Browser choice updated.")
 
@@ -199,19 +209,22 @@ def audio_command_handler(app, message):
 @app.on_message(filters.command("format") & filters.private)
 def set_format(app, message):
     user_id = message.chat.id
-    # For non-administrators, we're checking subscriptions
+    # Для неадминистраторов проверяем подписку
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
 
-    user_dir = os.path.join("users", str(user_id))
-    create_directory(user_dir)  # Let's make sure the user folder exists
+    send_to_logger(message, "User requested format change.")
 
-    # If additional text is passed, save it as a custom format
+    user_dir = os.path.join("users", str(user_id))
+    create_directory(user_dir)  # Ensure the user's folder exists
+
+    # Если передан дополнительный текст, сохраняем его как custom format
     if len(message.command) > 1:
         custom_format = message.text.split(" ", 1)[1].strip()
         with open(os.path.join(user_dir, "format.txt"), "w", encoding="utf-8") as f:
             f.write(custom_format)
         app.send_message(user_id, f"✅ Format updated to:\n{custom_format}")
+        send_to_logger(message, f"Format updated to: {custom_format}")
     else:
         # Main menu with a few popular options, plus the Others button
         keyboard = InlineKeyboardMarkup([
@@ -228,6 +241,7 @@ def set_format(app, message):
             "Select a format option or send a custom one using `/format <format_string>`:",
             reply_markup=keyboard
         )
+        send_to_logger(message, "Format menu sent.")
 
 
 # CallbackQuery handler for /format menu selection
@@ -236,21 +250,23 @@ def format_option_callback(app, callback_query):
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]
 
-    # If the Cancel button is pressed
+    # Если нажата кнопка Cancel
     if data == "cancel":
         callback_query.edit_message_text("🔚 Format selection canceled.")
         callback_query.answer("✅ Format choice updated.")
+        send_to_logger(callback_query.message, "Format selection canceled.")
         return
 
-    # When the Custom button is pressed
+    # Если нажата кнопка Custom
     if data == "custom":
         callback_query.edit_message_text(
             "To use a custom format, send the command in the following form:\n\n`/format bestvideo+bestaudio/best`\n\nReplace `bestvideo+bestaudio/best` with your desired format string."
         )
         callback_query.answer("Hint sent.")
+        send_to_logger(callback_query.message, "Custom format hint sent.")
         return
 
-    # If the Others button is pressed, the second menu with the full set of permissions is displayed
+    # Если нажата кнопка Others – выводим второй набор опций
     if data == "others":
         full_res_keyboard = InlineKeyboardMarkup([
             [
@@ -272,9 +288,10 @@ def format_option_callback(app, callback_query):
         ])
         callback_query.edit_message_text("Select your desired resolution:", reply_markup=full_res_keyboard)
         callback_query.answer()
+        send_to_logger(callback_query.message, "Format resolution menu sent.")
         return
 
-    # If the Back button is pressed in the second menu - return to the original menu
+    # Если нажата кнопка Back – возвращаем в главное меню
     if data == "back":
         main_keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("💻<=4k (best for desktop TG app)", callback_data="format_option|bv2160")],
@@ -287,6 +304,7 @@ def format_option_callback(app, callback_query):
         ])
         callback_query.edit_message_text("Select a format option or send a custom one using `/format <format_string>`:", reply_markup=main_keyboard)
         callback_query.answer()
+        send_to_logger(callback_query.message, "Returned to main format menu.")
         return
 
     # Mapping for the rest of the options
@@ -322,6 +340,8 @@ def format_option_callback(app, callback_query):
         f.write(chosen_format)
     callback_query.edit_message_text(f"✅ Format updated to:\n{chosen_format}")
     callback_query.answer("✅ Format saved.")
+    send_to_logger(callback_query.message, f"Format updated to: {chosen_format}")
+
 
 
 
@@ -363,7 +383,6 @@ def check_user(message):
 
 
 #####################################################################################
-
 
 
 
@@ -428,17 +447,10 @@ def url_distractor(app, message):
             video_url_extractor(app, message)
         return
 
-    # If the message is a reply to a video, call the caption editor.
-    if message.reply_to_message:
-        if not is_user_blocked(message):
-            if message.reply_to_message.video:
-                caption_editor(app, message)
-        return
-
-    # ----- Admin commands (only processed if user is admin) -----
+    # ----- Admin commands -----
     if is_admin:
-        # Broadcast message: reply to a message and use /broadcast
-        if message.reply_to_message and text == Config.BROADCAST_MESSAGE:
+        # Если сообщение начинается с /broadcast, обрабатываем его как broadcast, вне зависимости от реплая
+        if text.startswith(Config.BROADCAST_MESSAGE):
             send_promo_message(app, message)
             return
 
@@ -467,9 +479,21 @@ def url_distractor(app, message):
             get_user_log(app, message)
             return
 
-    # If no matching command is processed, log the message.
-    print(user_id, "No matching command processed.")
+    # Обработка реплая для всех пользователей (админов и обычных)
+    if message.reply_to_message:
+        # Если текст реплая начинается с /broadcast, то:
+        if text.startswith(Config.BROADCAST_MESSAGE):
+            # Только для админов вызываем send_promo_message
+            if is_admin:
+                send_promo_message(app, message)
+        else:
+            # Иначе, если реплай содержит видео, вызываем caption_editor
+            if not is_user_blocked(message):
+                if message.reply_to_message.video:
+                    caption_editor(app, message)
+        return
 
+    print(user_id, "No matching command processed.")
 
 
 
@@ -541,43 +565,61 @@ def remove_media(message):
         print("All media removed.")
 
 
-# Send messages to all the users
+# Send broadcast message to all users
 def send_promo_message(app, message):
+    # Получаем список пользователей из базы
     user_lst = db.child(f"{Config.BOT_DB_PATH}/users").get().each()
     user_lst = [int(user.key()) for user in user_lst]
+    # Добавляем администраторов, если их нет в списке
     for admin in Config.ADMIN:
-        user_lst.append(admin)
+        if admin not in user_lst:
+            user_lst.append(admin)
+    
+    # Извлекаем текст broadcast. Если сообщение содержит переносы строк, берем все строки после первой.
+    lines = message.text.splitlines()
+    if len(lines) > 1:
+        broadcast_text = "\n".join(lines[1:]).strip()
+    else:
+        broadcast_text = message.text[len(Config.BROADCAST_MESSAGE):].strip()
+
+    # Если сообщение является реплаем, получаем его
+    reply = message.reply_to_message if message.reply_to_message else None
+
+    send_to_logger(message, f"Broadcast initiated. Text:\n{broadcast_text}")
+
     try:
-        reply = message.reply_to_message
+        # Рассылаем сообщение всем пользователям
         for user in user_lst:
             try:
                 if user != 0:
-                    if reply.text:
-                        app.send_message(user, reply.text)
-                    if reply.video:
-                        app.send_video(user, reply.video.file_id,
-                                       caption=reply.caption)
-                    if reply.photo:
-                        app.send_photo(user, reply.photo.file_id,
-                                       caption=reply.caption)
-                    if reply.sticker:
-                        app.send_sticker(user, reply.sticker.file_id)
-                    if reply.document:
-                        app.send_document(user, reply.document.file_id,
-                                          caption=reply.caption)
-                    if reply.audio:
-                        app.send_audio(user, reply.audio.file_id,
-                                       caption=reply.caption)
-                    if reply.animation:
-                        app.send_animation(user, reply.animation.file_id,
-                                           caption=reply.caption)
-            except:
-                pass
-
+                    # Если сообщение является реплаем, пересылаем его (в зависимости от типа контента)
+                    if reply:
+                        if reply.text:
+                            app.send_message(user, reply.text)
+                        elif reply.video:
+                            app.send_video(user, reply.video.file_id, caption=reply.caption)
+                        elif reply.photo:
+                            app.send_photo(user, reply.photo.file_id, caption=reply.caption)
+                        elif reply.sticker:
+                            app.send_sticker(user, reply.sticker.file_id)
+                        elif reply.document:
+                            app.send_document(user, reply.document.file_id, caption=reply.caption)
+                        elif reply.audio:
+                            app.send_audio(user, reply.audio.file_id, caption=reply.caption)
+                        elif reply.animation:
+                            app.send_animation(user, reply.animation.file_id, caption=reply.caption)
+                    # Если есть дополнительный текст, отправляем его
+                    if broadcast_text:
+                        app.send_message(user, broadcast_text)
+            except Exception as e:
+                print(f"Error sending broadcast to user {user}: {e}")
         send_to_all(message, "**✅ Promo message sent to all other users**")
-    except:
-        send_to_all(
-            message, "**❌ Cannot send the promo message. Try repling to a massege\n Or some error occured**")
+        send_to_logger(message, "Broadcast message sent to all users.")
+    except Exception as e:
+        send_to_all(message, "**❌ Cannot send the promo message. Try replying to a message\nOr some error occurred**")
+        send_to_logger(message, f"Failed to broadcast message: {e}")
+
+
 
 
 # Getting the user logs
@@ -755,36 +797,32 @@ def check_runtime(message):
 @app.on_message(filters.document & filters.private)
 def save_my_cookie(app, message):
     user_id = str(message.chat.id)
-    # Define the user folder path (e.g., "./users/1234567")
+    # Определяем путь к папке пользователя (например, "./users/1234567")
     user_folder = f"./users/{user_id}"
-    # Create the user directory if it doesn't exist
     create_directory(user_folder)
-    # Extract only the filename (e.g., "cookie.txt") from the config path
     cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
-    # Construct the full path where the cookie file should be saved
     cookie_file_path = os.path.join(user_folder, cookie_filename)
-    # Download the media and save it directly in the user's root folder
     app.download_media(message, file_name=cookie_file_path)
     send_to_user(message, "✅ Cookie file saved")
+    send_to_logger(message, f"Cookie file saved for user {user_id}.")
 
 
 def download_cookie(app, message):
-    # Convert the user's id to a string for proper path handling
     user_id = str(message.chat.id)
     response = requests.get(Config.COOKIE_URL)
     if response.status_code == 200:
-        # Create the user directory inside "users" if it doesn't exist yet
         user_dir = os.path.join("users", user_id)
         create_directory(user_dir)
-        # Extract the cookie filename from the full path specified in the config
         cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
-        # Construct the full path for saving the cookie file in the user's folder
         file_path = os.path.join(user_dir, cookie_filename)
         with open(file_path, "wb") as cf:
             cf.write(response.content)
         send_to_all(message, "**✅ Cookie file downloaded and saved in your folder.**")
+        send_to_logger(message, f"Cookie file downloaded for user {user_id}.")
     else:
         send_to_all(message, "❌ Cookie URL is not available!")
+        send_to_logger(message, f"Failed to download cookie file for user {user_id}.")
+        
 
 
 # caption editor for videos
@@ -803,33 +841,29 @@ def caption_editor(app, message):
 
 @app.on_message(filters.text & filters.private)
 def checking_cookie_file(app, message):
-    # Convert the user's id to a string for proper path handling
     user_id = str(message.chat.id)
-    # Extract the cookie filename from the full path specified in the config
     cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
-    # Construct the path to the cookie file within the user's folder
     file_path = os.path.join("users", user_id, cookie_filename)
 
     if os.path.exists(file_path):
         with open(file_path, "r", encoding="utf-8") as cookie:
             cookie_content = cookie.read()
-        # Check if the cookie file has the Netscape Navigator format
         if cookie_content.startswith("# Netscape HTTP Cookie File"):
             send_to_all(message, "✅ Cookie file exists and has correct format")
+            send_to_logger(message, "Cookie file exists and has correct format.")
         else:
             send_to_all(message, "⚠️ Cookie file exists but has incorrect format")
+            send_to_logger(message, "Cookie file exists but has incorrect format.")
     else:
         send_to_all(message, "❌ Cookie file is not found.")
+        send_to_logger(message, "Cookie file not found.")
 
 
 
 
-# updating the cookie file.
-# Function to save cookie file supporting code block
+# Updating the cookie file.
 def save_as_cookie_file(app, message):
-    # Convert the user's id to a string for proper path handling
     user_id = str(message.chat.id)
-    # Extract the cookie content from the message text after the command
     content = message.text[len(Config.SAVE_AS_COOKIE_COMMAND):].strip()
     new_cookie = ""
 
@@ -862,9 +896,11 @@ def save_as_cookie_file(app, message):
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(final_cookie)
         send_to_all(message, f"**✅ Cookie successfully updated:**\n`{final_cookie}`")
+        send_to_logger(message, f"Cookie file updated for user {user_id}.")
     else:
         send_to_all(message, "**❌ Not a valid cookie.**")
-
+        send_to_logger(message, f"Invalid cookie content provided by user {user_id}.")
+        
 
 # url extractor
 @app.on_message(filters.text & filters.private)
