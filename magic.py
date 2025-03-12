@@ -1230,6 +1230,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
         app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
         return
     active_downloads[user_id] = True
+    error_message = ""
     try:
         msg_id = message.id
         plus_one = msg_id + 1
@@ -1368,6 +1369,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                     print("Final progress update error:", e)
                 return info_dict
             except Exception as e:
+                nonlocal error_message
+                error_message = str(e)
                 print(f"Attempt with format {ytdl_opts.get('format', 'default')} failed: {e}")
                 return None
 
@@ -1386,12 +1389,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 rename_name = None
 
             info_dict = None
+
             for attempt in attempts:
                 info_dict = try_download(url, attempt)
                 if info_dict is not None:
                     break
             if info_dict is None:
-                send_to_all(message, "❌ Failed to download video. You may need `Cookie` for downloading this video. \nPlease get Youtube's `cookie` via /download_cookie command or send your own cookie from any site ([guide1](https://t.me/c/2303231066/18)) ([guide2](https://t.me/c/2303231066/22)) and after that send your video link again.")
+                send_to_all(message, f"❌ Failed to download video: {error_message}\n────────────────\nCheck [here](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) if your site supported\nYou may need `cookie` for downloading this video.\nFor Youtube - get `cookie` via /download_cookie command. For any other supported site - send your own cookie ([guide1](https://t.me/c/2303231066/18)) ([guide2](https://t.me/c/2303231066/22)) and after that send your video link again.")
                 continue  # move to the next video if available
 
             successful_uploads += 1
