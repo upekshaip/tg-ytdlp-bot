@@ -1210,7 +1210,7 @@ def down_and_audio(app, message, url):
             print(f"Failed to delete file {audio_file}: {e}")
 
     except Exception as e:
-        send_to_user(message, f"Failed to download audio: {e}")
+        send_to_user(message, f"❌ Failed to download audio: {e}")
         try:
             app.edit_message_text(user_id, plus_one, f"Error: {e}")
         except Exception as e:
@@ -1391,8 +1391,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 if info_dict is not None:
                     break
             if info_dict is None:
-                send_to_all(message, "❌ Failed to download video. Try using a cookie.")
-                continue
+                send_to_all(message, "❌ Failed to download video. You may need `Cookie` for downloading this video. \nPlease get Youtube's `cookie` via /download_cookie command or send your own cookie from any site ([guide1](https://t.me/c/2303231066/18)) ([guide2](https://t.me/c/2303231066/22)) and after that send your video link again.")
+                continue  # move to the next video if available
 
             successful_uploads += 1
 
