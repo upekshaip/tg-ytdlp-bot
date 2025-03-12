@@ -19,6 +19,9 @@ from config import Config
 ################################################################################################
 # this is the bot's starting point. do not touch this one
 starting_point = []
+
+# В начале файла (например, сразу после импортов)
+active_downloads = {}  # глобальный словарь для отслеживания процессов
 ################################################################################################
 
 # Firebase initialization
@@ -172,18 +175,23 @@ def browser_choice_callback(app, callback_query):
 @app.on_message(filters.command("audio") & filters.private)
 def audio_command_handler(app, message):
     user_id = message.chat.id
-    # For non-administrators, we're checking subscriptions
+    # Если у пользователя уже запущен процесс, отвечаем реплаем и выходим
+    if active_downloads.get(user_id, False):
+        app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
+        return
+
+    # Для неадминистраторов проверяем подписку
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
 
     user_dir = os.path.join("users", str(user_id))
-    create_directory(user_dir)  # Let's make sure the user folder exists
+    create_directory(user_dir)  # Ensure the user's folder exists
 
-    # A command like this is expected: /audio <URL>
+    # Команда ожидает: /audio <URL>
     if len(message.command) < 2:
         send_to_user(message, "Please provide the URL of the video to download the audio.")
         return
-    url = message.command[1]  # Take the URL from the command arguments
+    url = message.command[1]  # Берём URL из аргументов команды
     down_and_audio(app, message, url)
 
 
@@ -356,117 +364,6 @@ def check_user(message):
 
 #####################################################################################
 
-
-def down_and_audio(app, message, url):
-    user_id = message.chat.id
-    # Отправляем начальное сообщение и получаем его id для последующего редактирования
-    status_message = app.send_message(user_id, "Processing audio... ♻️")
-    status_message_id = status_message.id  # используем .id, поскольку .message_id может отсутствовать
-
-    # Формируем абсолютный путь к папке пользователя (./users/<user_id>)
-    user_folder = os.path.abspath(os.path.join("users", str(user_id)))
-    create_directory(user_folder)
-
-    # Формируем путь к файлу cookie (имя берём из Config.COOKIE_FILE_PATH)
-    cookie_file = os.path.join(user_folder, os.path.basename(Config.COOKIE_FILE_PATH))
-
-    # Опции для yt-dlp: скачиваем лучший аудиотрек и конвертируем его в mp3
-    ytdl_opts = {
-        'format': 'ba',  # выбираем лучший аудиотрек
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
-        'prefer_ffmpeg': True,
-        'extractaudio': True,
-        'cookiefile': cookie_file,
-        'outtmpl': os.path.join(user_folder, "%(title)s.%(ext)s"),
-        'progress_hooks': [],
-    }
-
-    last_update = 0
-
-    # Локальная функция для обновления статуса скачивания аудио с прогресс-баром
-    def progress_hook(d):
-        nonlocal last_update
-        current_time = time.time()
-        if current_time - last_update < 0.1:
-            return
-        if d.get("status") == "downloading":
-            downloaded = d.get("downloaded_bytes", 0)
-            total = d.get("total_bytes", 0)
-            percent = (downloaded / total * 100) if total else 0
-            blocks = int(percent // 10)
-            bar = "🟩" * blocks + "⬜️" * (10 - blocks)
-            try:
-                app.edit_message_text(user_id, status_message_id, f"Downloading audio:\n{bar}   {percent:.1f}%")
-            except Exception as e:
-                print(f"Error updating progress: {e}")
-            last_update = current_time
-        elif d.get("status") == "finished":
-            try:
-                full_bar = "🟩" * 10
-                # Отображаем 100% после завершения скачивания
-                app.edit_message_text(user_id, status_message_id, f"Downloading audio:\n{full_bar}   100.0%\nDownload finished, processing audio...")
-            except Exception as e:
-                print(f"Error updating progress: {e}")
-            last_update = current_time
-        elif d.get("status") == "error":
-            try:
-                app.edit_message_text(user_id, status_message_id, "Error occurred during audio download.")
-            except Exception as e:
-                print(f"Error updating progress: {e}")
-            last_update = current_time
-
-    ytdl_opts['progress_hooks'].append(progress_hook)
-
-    try:
-        # Скачиваем аудио с помощью yt-dlp
-        with YoutubeDL(ytdl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-
-        # Формируем ожидаемое имя файла (с расширением .mp3)
-        audio_title = info.get("title", "audio")
-        audio_file = os.path.join(user_folder, audio_title + ".mp3")
-        if not os.path.exists(audio_file):
-            files = [f for f in os.listdir(user_folder) if f.endswith(".mp3")]
-            if files:
-                audio_file = os.path.join(user_folder, files[0])
-            else:
-                send_to_user(message, "Audio file not found after download.")
-                return
-
-        # Перед загрузкой аудио обновляем сообщение, показывая 100% прогресс
-        try:
-            full_bar = "🟩" * 10
-            app.edit_message_text(user_id, status_message_id, f"Uploading audio file...\n{full_bar}   100.0%")
-        except Exception as e:
-            print(f"Error updating upload status: {e}")
-
-        # Отправляем аудио в чат
-        app.send_audio(chat_id=user_id, audio=audio_file, caption=f"Audio downloaded: {audio_title}")
-
-        # После отправки аудио обновляем сообщение, показывая 100%
-        try:
-            full_bar = "🟩" * 10
-            app.edit_message_text(user_id, status_message_id,
-                                  f"✅ Audio successfully downloaded and sent.\n\n{Config.CREDITS_MSG}")
-        except Exception as e:
-            print(f"Error updating final status: {e}")
-
-        # Удаляем аудиофайл, чтобы не захламлять диск
-        try:
-            os.remove(audio_file)
-        except Exception as e:
-            print(f"Failed to delete file {audio_file}: {e}")
-
-    except Exception as e:
-        send_to_user(message, f"Failed to download audio: {e}")
-        try:
-            app.edit_message_text(user_id, status_message_id, f"Error: {e}")
-        except Exception as e:
-            print(f"Error editing message on exception: {e}")
 
 
 
@@ -972,21 +869,21 @@ def save_as_cookie_file(app, message):
 # url extractor
 @app.on_message(filters.text & filters.private)
 def video_url_extractor(app, message):
-    # Ensure the user folder is created and the user is registered
+    global active_downloads
     check_user(message)
     user_id = message.chat.id
+    # Если у пользователя уже запущен процесс, отвечаем реплаем и выходим
+    if active_downloads.get(user_id, False):
+        app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
+        return
     full_string = message.text
     if ("https://" in full_string) or ("http://" in full_string):
-        # Logging the entered URL
         users_first_name = message.chat.first_name
-        send_to_logger(
-            message, f"User entered a **url**\n **user's name:** {users_first_name}\nURL: {full_string}")
+        send_to_logger(message, f"User entered a **url**\n **user's name:** {users_first_name}\nURL: {full_string}")
         for j in range(len(Config.PORN_LIST)):
             if Config.PORN_LIST[j] in full_string:
-                send_to_all(
-                    message, "User entered a porn content. Cannot be downloaded.")
+                send_to_all(message, "User entered a porn content. Cannot be downloaded.")
                 return
-
         url_with_everything = full_string.split("*")
         url = url_with_everything[0]
         if len(url_with_everything) < 3:
@@ -1001,12 +898,9 @@ def video_url_extractor(app, message):
             video_start_with = int(url_with_everything[1])
             playlist_name = f"{url_with_everything[3]}"
             video_count = (int(url_with_everything[2]) - int(url_with_everything[1]) + 1)
-
-        # Downloading and uploading parts come here...
         down_and_up(app, message, url, playlist_name, video_count, video_start_with)
     else:
-        send_to_all(
-            message, f"**User entered like this:** {full_string}\n{Config.ERROR1}")
+        send_to_all(message, f"**User entered like this:** {full_string}\n{Config.ERROR1}")
 
 
 
@@ -1185,168 +1079,334 @@ def write_logs(message, video_url, video_title):
 #####################################################################################
 
 
-def down_and_up(app, message, url, playlist_name, video_count, video_start_with):
-    # Initialize basic variables
+
+#########################################
+# Функция down_and_audio
+#########################################
+def down_and_audio(app, message, url):
     user_id = message.chat.id
-    msg_id = message.id
-    plus_one = msg_id + 1
-    app.send_message(user_id, "Processing... ♻️")
-    check_user(message)
+    # Проверка активного процесса и отправка реплая, если уже идет загрузка
+    if active_downloads.get(user_id, False):
+        app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
+        return
+    active_downloads[user_id] = True
+    try:
+        # Добавляем начальное сообщение, как в down_and_up
+        msg_id = message.id
+        plus_one = msg_id + 1
+        app.send_message(user_id, "Processing... ♻️")
+        check_user(message)
+        
+        # Отправляем отдельное статусное сообщение для аудио
+        status_message = app.send_message(user_id, "Processing audio, wait... ♻️")
+        status_message_id = status_message.id
+        # Отправляем сообщение с анимацией часов
+        hourglass_message = app.send_message(user_id, "⌛️")
+        hourglass_msg_id = hourglass_message.id
+        stop_anim = threading.Event()
+        def animate_hourglass():
+            current = True
+            while not stop_anim.is_set():
+                emoji = "⌛️" if current else "⏳"
+                try:
+                    app.edit_message_text(user_id, hourglass_msg_id, emoji)
+                except Exception as e:
+                    print("Hourglass animation error:", e)
+                current = not current
+                if stop_anim.wait(3):
+                    break
+        anim_thread = threading.Thread(target=animate_hourglass)
+        anim_thread.start()
 
-    # Create user's folder (absolute path)
-    user_dir_name = os.path.abspath(os.path.join("users", str(user_id)))
-    create_directory(user_dir_name)
-
-    # Determine format options from custom file or default cascade
-    custom_format_path = os.path.join(user_dir_name, "format.txt")
-    if os.path.exists(custom_format_path):
-        with open(custom_format_path, "r", encoding="utf-8") as f:
-            custom_format = f.read().strip()
-        if custom_format.lower() == "best":
-            attempts = [{'format': custom_format, 'prefer_ffmpeg': False}]
-        else:
-            attempts = [{'format': custom_format, 'prefer_ffmpeg': True, 'merge_output_format': 'mp4'}]
-    else:
-        attempts = [
-            {'format': 'bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
-             'prefer_ffmpeg': True, 'merge_output_format': 'mp4'},
-            {'format': 'bestvideo+bestaudio/best',
-             'prefer_ffmpeg': True, 'merge_output_format': 'mp4'},
-            {'format': 'best', 'prefer_ffmpeg': False}
-        ]
-
-    # Header text for progress messages
-    current_total_process = ""
-    last_update = 0
-    full_bar = "🟩" * 10  # для обновления на 100%
-
-    # Standard progress hook for non-HLS videos (updates based on percent)
-    def progress_func(d):
-        nonlocal last_update
-        current_time = time.time()
-        if current_time - last_update < 1.5:
-            return
-        if d.get("status") == "downloading":
-            downloaded = d.get("downloaded_bytes", 0)
-            total = d.get("total_bytes", 0)
-            percent = (downloaded / total * 100) if total else 0
-            blocks = int(percent // 10)
-            bar = "🟩" * blocks + "⬜️" * (10 - blocks)
-            try:
-                app.edit_message_text(user_id, plus_one, f"{current_total_process}\n{bar}   {percent:.1f}%")
-            except Exception as e:
-                print(f"Error updating progress: {e}")
-        elif d.get("status") == "error":
-            print("Error occurred during download.")
-            send_to_all(message, "❌ Sorry... Some error occurred during download.")
-        last_update = current_time
-
-    successful_uploads = 0  # Counter for successful downloads/uploads
-
-    # try_download attempts to download the video using given options.
-    # For HLS streams the progress_hook is disabled and a separate thread cycles the progress bar.
-    def try_download(url, attempt_opts):
-        nonlocal current_total_process
-        common_opts = {
-            'cookiefile': os.path.join("users", str(user_id), os.path.basename(Config.COOKIE_FILE_PATH)),
-            'playlist_items': str(current_index + video_start_with),
-            'outtmpl': os.path.join(user_dir_name, "%(title)s.%(ext)s")
+        user_folder = os.path.abspath(os.path.join("users", str(user_id)))
+        create_directory(user_folder)
+        cookie_file = os.path.join(user_folder, os.path.basename(Config.COOKIE_FILE_PATH))
+        ytdl_opts = {
+            'format': 'ba',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+            'prefer_ffmpeg': True,
+            'extractaudio': True,
+            'cookiefile': cookie_file,
+            'outtmpl': os.path.join(user_folder, "%(title)s.%(ext)s"),
+            'progress_hooks': [],
         }
-        # Check if the URL indicates an HLS stream
-        is_hls = ("m3u8" in url.lower())
-        if not is_hls:
-            common_opts['progress_hooks'] = [progress_func]
-        ytdl_opts = {**common_opts, **attempt_opts}
-        try:
-            with YoutubeDL(ytdl_opts) as ydl:
-                info_dict = ydl.extract_info(url, download=False)
-            if ("m3u8" in url.lower()) or (info_dict.get("protocol") == "m3u8_native"):
-                is_hls = True
-                ytdl_opts["downloader"] = "ffmpeg"
-                ytdl_opts["hls_use_mpegts"] = True
-            try:
-                if is_hls:
+        last_update = 0
+        def progress_hook(d):
+            nonlocal last_update
+            current_time = time.time()
+            if current_time - last_update < 0.1:
+                return
+            if d.get("status") == "downloading":
+                downloaded = d.get("downloaded_bytes", 0)
+                total = d.get("total_bytes", 0)
+                percent = (downloaded / total * 100) if total else 0
+                blocks = int(percent // 10)
+                bar = "🟩" * blocks + "⬜️" * (10 - blocks)
+                try:
+                    app.edit_message_text(user_id, plus_one, f"Downloading audio:\n{bar}   {percent:.1f}%")
+                except Exception as e:
+                    print(f"Error updating progress: {e}")
+                last_update = current_time
+            elif d.get("status") == "finished":
+                try:
+                    full_bar = "🟩" * 10
                     app.edit_message_text(user_id, plus_one,
-                        f"{current_total_process}\n\n__Detected HLS stream. Downloading...__ 📥")
-                else:
-                    app.edit_message_text(user_id, plus_one,
-                        f"{current_total_process}\n\n__Downloading using format: {ytdl_opts['format']}...__ 📥")
-            except Exception as e:
-                print(f"Status update error: {e}")
-            with YoutubeDL(ytdl_opts) as ydl:
-                if is_hls:
-                    # For HLS: start a thread that cycles the progress bar with fragment names.
-                    cycle_stop = threading.Event()
-                    def cycle_progress():
-                        nonlocal cycle_stop
-                        counter = 0
-                        while not cycle_stop.is_set():
-                            counter = (counter + 1) % 11  # cycles 0..10
-                            # Look for fragment files (containing ".part-Frag" and ending with ".part")
-                            frag_files = [f for f in os.listdir(user_dir_name) if ".part-Frag" in f and f.endswith(".part")]
-                            if frag_files:
-                                last_frag = sorted(frag_files)[-1]
-                                m = re.search(r'Frag(\d+)', last_frag)
-                                frag_text = f"Frag{m.group(1)}" if m else "Frag?"
-                            else:
-                                frag_text = "waiting for fragments"
-                            bar = "🟩" * counter + "⬜️" * (10 - counter)
-                            try:
-                                app.edit_message_text(user_id, plus_one,
-                                    f"{current_total_process}\nDownloading HLS stream: {frag_text}\n{bar}")
-                            except Exception as e:
-                                print("Cycle progress error:", e)
-                            time.sleep(1.5)
-                    cycle_thread = threading.Thread(target=cycle_progress)
-                    cycle_thread.start()
-                    ydl.download([url])
-                    cycle_stop.set()
-                    cycle_thread.join()
-                else:
-                    ydl.download([url])
-            # Final update: regardless of type, update message with full progress bar (100%)
-            try:
-                app.edit_message_text(user_id, plus_one, f"{current_total_process}\n{full_bar}   100.0%")
-            except Exception as e:
-                print("Final progress update error:", e)
-            return info_dict
-        except Exception as e:
-            print(f"Attempt with format {ytdl_opts['format']} failed: {e}")
-            return None
+                        f"Downloading audio:\n{full_bar}   100.0%\nDownload finished, processing audio...")
+                except Exception as e:
+                    print(f"Error updating progress: {e}")
+                last_update = current_time
+            elif d.get("status") == "error":
+                try:
+                    app.edit_message_text(user_id, plus_one, "Error occurred during audio download.")
+                except Exception as e:
+                    print(f"Error updating progress: {e}")
+                last_update = current_time
 
-    # Main loop for each video (for playlists, video_count > 1)
-    for x in range(video_count):
-        current_index = x  # used for playlist_items parameter
-        total_process = f"""
+        ytdl_opts['progress_hooks'].append(progress_hook)
+
+        with YoutubeDL(ytdl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+
+        audio_title = info.get("title", "audio")
+        audio_file = os.path.join(user_folder, audio_title + ".mp3")
+        if not os.path.exists(audio_file):
+            files = [f for f in os.listdir(user_folder) if f.endswith(".mp3")]
+            if files:
+                audio_file = os.path.join(user_folder, files[0])
+            else:
+                send_to_user(message, "Audio file not found after download.")
+                return
+
+        try:
+            full_bar = "🟩" * 10
+            app.edit_message_text(user_id, plus_one, f"Uploading audio file...\n{full_bar}   100.0%")
+        except Exception as e:
+            print(f"Error updating upload status: {e}")
+
+        app.send_audio(chat_id=user_id, audio=audio_file, caption=f"{audio_title}")
+
+        try:
+            full_bar = "🟩" * 10
+            app.edit_message_text(user_id, plus_one,
+                                  f"✅ Audio successfully downloaded and sent.\n\n{Config.CREDITS_MSG}")
+        except Exception as e:
+            print(f"Error updating final status: {e}")
+
+        stop_anim.set()
+        anim_thread.join()
+        try:
+            app.delete_messages(chat_id=user_id, message_ids=[status_message_id], revoke=True)
+            app.delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
+        except Exception as e:
+            print("Error deleting hourglass message:", e)
+
+        try:
+            os.remove(audio_file)
+        except Exception as e:
+            print(f"Failed to delete file {audio_file}: {e}")
+
+    except Exception as e:
+        send_to_user(message, f"❌ Failed to download audio: {e}")
+        try:
+            app.edit_message_text(user_id, plus_one, f"Error: {e}")
+        except Exception as e:
+            print(f"Error editing message on exception: {e}")
+    finally:
+        active_downloads[user_id] = False
+
+
+
+
+#########################################
+# Функция down_and_up
+#########################################
+def down_and_up(app, message, url, playlist_name, video_count, video_start_with):
+    user_id = message.chat.id
+    if active_downloads.get(user_id, False):
+        app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
+        return
+    active_downloads[user_id] = True
+    error_message = ""
+    try:
+        msg_id = message.id
+        plus_one = msg_id + 1
+        app.send_message(user_id, "Processing... ♻️")
+        check_user(message)
+
+        user_dir_name = os.path.abspath(os.path.join("users", str(user_id)))
+        create_directory(user_dir_name)
+
+        custom_format_path = os.path.join(user_dir_name, "format.txt")
+        if os.path.exists(custom_format_path):
+            with open(custom_format_path, "r", encoding="utf-8") as f:
+                custom_format = f.read().strip()
+            if custom_format.lower() == "best":
+                attempts = [{'format': custom_format, 'prefer_ffmpeg': False}]
+            else:
+                attempts = [{'format': custom_format, 'prefer_ffmpeg': True, 'merge_output_format': 'mp4'}]
+        else:
+            attempts = [
+                {'format': 'bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
+                 'prefer_ffmpeg': True, 'merge_output_format': 'mp4'},
+                {'format': 'bestvideo+bestaudio/best',
+                 'prefer_ffmpeg': True, 'merge_output_format': 'mp4'},
+                {'format': 'best', 'prefer_ffmpeg': False}
+            ]
+
+        status_message = app.send_message(user_id, "Processing video, wait... ♻️")
+        status_msg_id = status_message.id
+        hourglass_message = app.send_message(user_id, "⌛️")
+        hourglass_msg_id = hourglass_message.id
+        stop_anim = threading.Event()
+        def animate_hourglass():
+            current = True
+            while not stop_anim.is_set():
+                emoji = "⌛️" if current else "⏳"
+                try:
+                    app.edit_message_text(user_id, hourglass_msg_id, emoji)
+                except Exception as e:
+                    print("Hourglass animation error:", e)
+                current = not current
+                if stop_anim.wait(3):
+                    break
+        anim_thread = threading.Thread(target=animate_hourglass)
+        anim_thread.start()
+
+        current_total_process = ""
+        last_update = 0
+        full_bar = "🟩" * 10
+
+        def progress_func(d):
+            nonlocal last_update
+            current_time = time.time()
+            if current_time - last_update < 1.5:
+                return
+            if d.get("status") == "downloading":
+                downloaded = d.get("downloaded_bytes", 0)
+                total = d.get("total_bytes", 0)
+                percent = (downloaded / total * 100) if total else 0
+                blocks = int(percent // 10)
+                bar = "🟩" * blocks + "⬜️" * (10 - blocks)
+                try:
+                    app.edit_message_text(user_id, plus_one, f"{current_total_process}\n{bar}   {percent:.1f}%")
+                except Exception as e:
+                    print(f"Error updating progress: {e}")
+            elif d.get("status") == "error":
+                print("Error occurred during download.")
+                send_to_all(message, "❌ Sorry... Some error occurred during download.")
+            last_update = current_time
+
+        successful_uploads = 0
+
+        def try_download(url, attempt_opts):
+            nonlocal current_total_process
+            common_opts = {
+                'cookiefile': os.path.join("users", str(user_id), os.path.basename(Config.COOKIE_FILE_PATH)),
+                'playlist_items': str(current_index + video_start_with),
+                'outtmpl': os.path.join(user_dir_name, "%(title)s.%(ext)s")
+            }
+            is_hls = ("m3u8" in url.lower())
+            if not is_hls:
+                common_opts['progress_hooks'] = [progress_func]
+            ytdl_opts = {**common_opts, **attempt_opts}
+            try:
+                with YoutubeDL(ytdl_opts) as ydl:
+                    info_dict = ydl.extract_info(url, download=False)
+                if ("m3u8" in url.lower()) or (info_dict.get("protocol") == "m3u8_native"):
+                    is_hls = True
+                    if "format" in ytdl_opts:
+                        del ytdl_opts["format"]
+                    ytdl_opts["downloader"] = "ffmpeg"
+                    ytdl_opts["hls_use_mpegts"] = True
+                try:
+                    if is_hls:
+                        app.edit_message_text(user_id, plus_one,
+                            f"{current_total_process}\n\n__Detected HLS stream. Downloading...__ 📥")
+                    else:
+                        app.edit_message_text(user_id, plus_one,
+                            f"{current_total_process}\n\n__Downloading using format: {ytdl_opts.get('format', 'default')}...__ 📥")
+                except Exception as e:
+                    print(f"Status update error: {e}")
+                with YoutubeDL(ytdl_opts) as ydl:
+                    if is_hls:
+                        cycle_stop = threading.Event()
+                        def cycle_progress():
+                            nonlocal cycle_stop
+                            counter = 0
+                            while not cycle_stop.is_set():
+                                counter = (counter + 1) % 11
+                                frag_files = [f for f in os.listdir(user_dir_name) if ".part-Frag" in f and f.endswith(".part")]
+                                if frag_files:
+                                    last_frag = sorted(frag_files)[-1]
+                                    m = re.search(r'Frag(\d+)', last_frag)
+                                    frag_text = f"Frag{m.group(1)}" if m else "Frag?"
+                                else:
+                                    frag_text = "waiting for fragments"
+                                bar = "🟩" * counter + "⬜️" * (10 - counter)
+                                try:
+                                    app.edit_message_text(user_id, plus_one,
+                                        f"{current_total_process}\nDownloading HLS stream: {frag_text}\n{bar}")
+                                except Exception as e:
+                                    print("Cycle progress error:", e)
+                                if cycle_stop.wait(1.5):
+                                    break
+                        cycle_thread = threading.Thread(target=cycle_progress)
+                        cycle_thread.start()
+                        with YoutubeDL(ytdl_opts) as ydl:
+                            ydl.download([url])
+                        cycle_stop.set()
+                        cycle_thread.join()
+                    else:
+                        with YoutubeDL(ytdl_opts) as ydl:
+                            ydl.download([url])
+                try:
+                    app.edit_message_text(user_id, plus_one, f"{current_total_process}\n{full_bar}   100.0%")
+                except Exception as e:
+                    print("Final progress update error:", e)
+                return info_dict
+            except Exception as e:
+                nonlocal error_message
+                error_message = str(e)
+                print(f"Attempt with format {ytdl_opts.get('format', 'default')} failed: {e}")
+                return None
+
+        for x in range(video_count):
+            current_index = x
+            total_process = f"""
 **<<<** __Total progress__ **>>>**
 
 **Video number:** {x + 1} / {video_count}
 """
-        current_total_process = total_process
+            current_total_process = total_process
 
-        if playlist_name and video_count > 1:
-            rename_name = f"{playlist_name} - Part {x + video_start_with}"
-        else:
-            rename_name = None
+            if playlist_name and video_count > 1:
+                rename_name = f"{playlist_name} - Part {x + video_start_with}"
+            else:
+                rename_name = None
 
-        info_dict = None
-        for attempt in attempts:
-            info_dict = try_download(url, attempt)
-            if info_dict is not None:
-                break
-        if info_dict is None:
-            send_to_all(message, "❌ Failed to download video. Try using a cookie.")
-            continue
+            info_dict = None
 
-        successful_uploads += 1
+            for attempt in attempts:
+                info_dict = try_download(url, attempt)
+                if info_dict is not None:
+                    break
+            if info_dict is None:
+                send_to_all(message, f"❌ Failed to download video: {error_message}\n────────────────\nCheck [here](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) if your site supported\nYou may need `cookie` for downloading this video.\nFor Youtube - get `cookie` via /download_cookie command. For any other supported site - send your own cookie ([guide1](https://t.me/c/2303231066/18)) ([guide2](https://t.me/c/2303231066/22)) and after that send your video link again.")
+                continue  # move to the next video if available
 
-        video_id = info_dict.get("id", None)
-        video_title = info_dict.get("title", None)
-        if rename_name is None:
-            rename_name = video_title
+            successful_uploads += 1
 
-        expected_video_name = f"{video_title}.mp4"
-        info_text = f"""
+            video_id = info_dict.get("id", None)
+            video_title = info_dict.get("title", None)
+            if rename_name is None:
+                rename_name = video_title
+
+            expected_video_name = f"{video_title}.mp4"
+            info_text = f"""
 {total_process}
 
 **<<<** __Info__ **>>>**
@@ -1356,112 +1416,115 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
 **Caption Name:** __{rename_name}__
 **Video id:** {video_id}"""
 
-        # Update status after download with full progress bar
-        try:
-            app.edit_message_text(user_id, plus_one,
-                f"{info_text}\n\n{full_bar}   100.0%\n__Downloaded video. Processing for upload...__ ♻️")
-        except Exception as e:
-            print(f"Status update error after download: {e}")
-
-        # Locate the downloaded file
-        dir_path = os.path.join("users", str(user_id))
-        allfiles = os.listdir(dir_path)
-        files = [fname for fname in allfiles if fname.endswith(('.mp4', '.mkv', '.webm', '.ts'))]
-        files.sort()
-        if not files:
-            send_to_all(message, "❌ File not found after download.")
-            continue
-
-        downloaded_file = files[0]
-        write_logs(message, url, downloaded_file)
-
-        if rename_name == video_title:
-            caption_name = video_title
-            final_name = downloaded_file
-        else:
-            ext = os.path.splitext(downloaded_file)[1]
-            final_name = rename_name + ext
-            caption_name = rename_name
-            os.rename(os.path.join(dir_path, downloaded_file), os.path.join(dir_path, final_name))
-
-        user_vid_path = os.path.join(dir_path, final_name)
-        # If file is .webm or .ts, convert it to mp4 for inline playback
-        if final_name.lower().endswith((".webm", ".ts")):
             try:
                 app.edit_message_text(user_id, plus_one,
-                    f"{info_text}\n\n{full_bar}   100.0%\nConverting video using ffmpeg... ⏳")
+                    f"{info_text}\n\n{full_bar}   100.0%\n__Downloaded video. Processing for upload...__ ♻️")
             except Exception as e:
-                print(f"Error updating status before conversion: {e}")
-            mp4_file = os.path.join(dir_path, os.path.splitext(final_name)[0] + ".mp4")
-            ffmpeg_cmd = [
-                "ffmpeg",
-                "-y",  # overwrite output file
-                "-i", user_vid_path,
-                "-c:v", "libx264",
-                "-preset", "fast",
-                "-crf", "23",
-                "-c:a", "aac",
-                "-b:a", "128k",
-                mp4_file
-            ]
-            try:
-                subprocess.run(ffmpeg_cmd, check=True)
-                os.remove(user_vid_path)
-                user_vid_path = mp4_file
-            except Exception as e:
-                send_to_all(message, f"❌ Conversion to MP4 failed: {e}")
+                print(f"Status update error after download: {e}")
+
+            dir_path = os.path.join("users", str(user_id))
+            allfiles = os.listdir(dir_path)
+            files = [fname for fname in allfiles if fname.endswith(('.mp4', '.mkv', '.webm', '.ts'))]
+            files.sort()
+            if not files:
+                send_to_all(message, "❌ File not found after download.")
                 continue
 
-        after_rename_abs_path = os.path.abspath(user_vid_path)
-        result = get_duration_thumb(message, dir_path, user_vid_path, caption_name)
-        if result is None:
-            send_to_all(message, "❌ Failed to get video duration and thumbnail.")
-            continue
-        duration, thumb_dir = result
+            downloaded_file = files[0]
+            write_logs(message, url, downloaded_file)
 
-        video_size_in_bytes = os.path.getsize(user_vid_path)
-        video_size = humanbytes(int(video_size_in_bytes))
-        max_size = 1850000000
-        if int(video_size_in_bytes) > max_size:
-            app.edit_message_text(user_id, plus_one,
-                f"{info_text}\n\n{full_bar}   100.0%\n__⚠️ Your video size ({video_size}) is too large.__\n__Splitting file...__ ✂️")
-            returned = split_video_2(dir_path, caption_name, after_rename_abs_path, int(video_size_in_bytes), max_size, duration)
-            caption_lst = returned.get("video")
-            path_lst = returned.get("path")
-            for p in range(len(caption_lst)):
-                part_result = get_duration_thumb(message, dir_path, path_lst[p], caption_lst[p])
-                if part_result is None:
+            if rename_name == video_title:
+                caption_name = video_title
+                final_name = downloaded_file
+            else:
+                ext = os.path.splitext(downloaded_file)[1]
+                final_name = rename_name + ext
+                caption_name = rename_name
+                os.rename(os.path.join(dir_path, downloaded_file), os.path.join(dir_path, final_name))
+
+            user_vid_path = os.path.join(dir_path, final_name)
+            if final_name.lower().endswith((".webm", ".ts")):
+                try:
+                    app.edit_message_text(user_id, plus_one,
+                        f"{info_text}\n\n{full_bar}   100.0%\nConverting video using ffmpeg... ⏳")
+                except Exception as e:
+                    print(f"Error updating status before conversion: {e}")
+                mp4_file = os.path.join(dir_path, os.path.splitext(final_name)[0] + ".mp4")
+                ffmpeg_cmd = [
+                    "ffmpeg",
+                    "-y",
+                    "-i", user_vid_path,
+                    "-c:v", "libx264",
+                    "-preset", "fast",
+                    "-crf", "23",
+                    "-c:a", "aac",
+                    "-b:a", "128k",
+                    mp4_file
+                ]
+                try:
+                    subprocess.run(ffmpeg_cmd, check=True)
+                    os.remove(user_vid_path)
+                    user_vid_path = mp4_file
+                except Exception as e:
+                    send_to_all(message, f"❌ Conversion to MP4 failed: {e}")
                     continue
-                part_duration, splited_thumb_dir = part_result
-                send_videos(message, path_lst[p], caption_lst[p], part_duration, splited_thumb_dir, info_text, msg_id)
+
+            after_rename_abs_path = os.path.abspath(user_vid_path)
+            result = get_duration_thumb(message, dir_path, user_vid_path, caption_name)
+            if result is None:
+                send_to_all(message, "❌ Failed to get video duration and thumbnail.")
+                continue
+            duration, thumb_dir = result
+
+            video_size_in_bytes = os.path.getsize(user_vid_path)
+            video_size = humanbytes(int(video_size_in_bytes))
+            max_size = 1850000000
+            if int(video_size_in_bytes) > max_size:
                 app.edit_message_text(user_id, plus_one,
-                    f"{info_text}\n\n{full_bar}   100.0%\n__Splitted part {p + 1} file uploaded__")
-                app.forward_messages(Config.LOGS_ID, user_id, (msg_id + 2 + p))
-                time.sleep(2)
-                os.remove(splited_thumb_dir)
-                os.remove(path_lst[p])
-            os.remove(thumb_dir)
-            os.remove(user_vid_path)
+                    f"{info_text}\n\n{full_bar}   100.0%\n__⚠️ Your video size ({video_size}) is too large.__\n__Splitting file...__ ✂️")
+                returned = split_video_2(dir_path, caption_name, after_rename_abs_path, int(video_size_in_bytes), max_size, duration)
+                caption_lst = returned.get("video")
+                path_lst = returned.get("path")
+                for p in range(len(caption_lst)):
+                    part_result = get_duration_thumb(message, dir_path, path_lst[p], caption_lst[p])
+                    if part_result is None:
+                        continue
+                    part_duration, splited_thumb_dir = part_result
+                    send_videos(message, path_lst[p], caption_lst[p], part_duration, splited_thumb_dir, info_text, msg_id)
+                    app.edit_message_text(user_id, plus_one,
+                        f"{info_text}\n\n{full_bar}   100.0%\n__Splitted part {p + 1} file uploaded__")
+                    app.forward_messages(Config.LOGS_ID, user_id, (msg_id + 2 + p))
+                    if p < len(caption_lst) - 1:
+                        threading.Event().wait(2)
+                    os.remove(splited_thumb_dir)
+                    os.remove(path_lst[p])
+                os.remove(thumb_dir)
+                os.remove(user_vid_path)
+                success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n\n{Config.CREDITS_MSG}"
+                app.edit_message_text(user_id, (msg_id + 1), success_msg)
+                break
+            else:
+                if final_name:
+                    send_videos(message, after_rename_abs_path, caption_name, duration, thumb_dir, info_text, msg_id)
+                    app.forward_messages(Config.LOGS_ID, user_id, (msg_id + 2 + x))
+                    app.edit_message_text(user_id, (msg_id + 1),
+                        f"{info_text}\n{full_bar}   100.0%\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n\n{x + 1} file uploaded.")
+                    os.remove(after_rename_abs_path)
+                    os.remove(thumb_dir)
+                    threading.Event().wait(2)
+                else:
+                    send_to_all(message, "❌ Some error occurred during processing. 😢")
+
+        if successful_uploads == video_count:
             success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n\n{Config.CREDITS_MSG}"
             app.edit_message_text(user_id, (msg_id + 1), success_msg)
-            break
-        else:
-            if final_name:
-                send_videos(message, after_rename_abs_path, caption_name, duration, thumb_dir, info_text, msg_id)
-                app.forward_messages(Config.LOGS_ID, user_id, (msg_id + 2 + x))
-                app.edit_message_text(user_id, (msg_id + 1),
-                    f"{info_text}\n{full_bar}   100.0%\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n\n{x + 1} file uploaded.")
-                os.remove(after_rename_abs_path)
-                os.remove(thumb_dir)
-                time.sleep(2)
-            else:
-                send_to_all(message, "❌ Some error occurred during processing. 😢")
-
-    if successful_uploads == video_count:
-        success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n\n{Config.CREDITS_MSG}"
-        app.edit_message_text(user_id, (msg_id + 1), success_msg)
-
-
+    finally:
+        active_downloads[user_id] = False
+        try:
+            app.delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
+            app.delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
+        except Exception as e:
+            print("Error deleting hourglass message:", e)
 
 
 
