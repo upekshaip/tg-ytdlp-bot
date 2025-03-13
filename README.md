@@ -10,13 +10,13 @@ Download private YouTube/videos using a cookie file.
 
 ---
 
-## Deploy on a VM
+## Deploy on a VM in a Docker container
 
 - First, add your bot to the **logging channel** and **subscription channel**. Both are required.
 - Star and fork this repository. Then rename the file **_config.py** to **config.py**.
 - Add your configuration to the **config.py** file.
 
-### Setup Debian for Docker (if you prefer to run bot in container)
+### Setup Debian for Docker
 
 1. ```sh
    sudo apt-get update
@@ -56,11 +56,54 @@ nano config.py
 Edit your configuration before deployment. After your edits, proceed with the Docker build steps below.
 
 ---
+
+#### Building and Running with Docker
+
+```sh
+sudo docker build . -t tg-public-bot
+sudo docker ps -a
+sudo docker run tg-public-bot
+```
+
+(optional) If you want to use `/cookies_from_browser` command, after docker deployment you need to enter your docker CMD and install desktop environment (GUI) and Browser into your docker container.
+(optional) Also you will need download `yt-dlp` binary into your Docker container. See [(Optional) Preparing `yt-dlp` for `/cookies_from_browser`](### (Optional) Preparing `yt-dlp` for `/cookies_from_browser`)
+---
+
+## Alternative local deployment on a VM (without Docker container)
+
+If you prefer local deployment rather than docker container, you should use this commands:
+
+#### Install `git` and `python3`
+```sh
+sudo apt update
+sudo apt install git python3.10 python3-pip python3.10-venv
+#### Setting up `config.py`
+```
+#### Setting up `config.py`
+```sh
+git clone https://github.com/upekshaip/tg-ytdlp-bot.git
+cd tg-ytdlp-bot
+sudo mv _config.py config.py
+nano config.py
+```
+Edit your configuration before deployment. After your edits, proceed with the Docker build steps below.
+
+#### Install `python` modules
+
+```sh
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt --no-cache-dir
+pip uninstall urllib3 -y
+pip install "urllib3==1.26.20" --no-cache-dir --force-reinstall
+pip install --no-deps moviepy==1.0.3
+python3 magic.py
+```
+---
 ### (Optional) Installing ffmpeg
 <details>
   <summary>spoiler</summary> 
       
-
    If you prefer local deployment rather that docker container you also need to install `ffmpeg`
    **ffmpeg** is essential since **yt-dlp** relies on it for merging streams (and in some cases for transcoding or extracting thumbnails). To install ffmpeg on a Debian-based system, run:
 
@@ -79,7 +122,6 @@ Edit your configuration before deployment. After your edits, proceed with the Do
 ### (Optional) Preparing `yt-dlp` for `/cookies_from_browser`
 <details>
    <summary>spoiler</summary> 
-
 
    To use the `/cookies_from_browser` command (which extracts cookies from installed browsers on your server), ensure that the **yt-dlp** binary is set up properly:
    (Also in that case you must install desktop environment (GUI) and any supported by `yt-dlp` browser by yourself)
@@ -103,34 +145,6 @@ Edit your configuration before deployment. After your edits, proceed with the Do
    
 </details>
 
----
-
-#### Building and Running with Docker
-
-```sh
-sudo docker build . -t tg-public-bot
-sudo docker ps -a
-sudo docker run tg-public-bot
-```
-
-(optional) If you want to use `/cookies_from_browser` command, after docker deployment you need to enter your docker CMD and install desktop environment (GUI) and Browser into your docker container.
-
----
-
-#### Alternative deployment (without Docker container)
-
-If you prefer local deployment rather than docker container, you should use this commands
-
-```sh
-sudo apt update
-sudo apt install python3.10 python3-pip python3.10-venv
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt --no-cache-dir
-pip uninstall urllib3 -y
-pip install "urllib3==1.26.20" --no-cache-dir --force-reinstall
-pip install --no-deps moviepy==1.0.3
-```
 ---
 
 ## New Commands and Features
