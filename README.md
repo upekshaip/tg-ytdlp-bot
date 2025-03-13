@@ -66,7 +66,7 @@ sudo docker run tg-public-bot
 ```
 
 (optional) If you want to use `/cookies_from_browser` command, after docker deployment you need to enter your docker CMD and install desktop environment (GUI) and Browser into your docker container.
-(optional) Also you will need download `yt-dlp` binary into your Docker container. See [(Optional) Preparing `yt-dlp` for `/cookies_from_browser`](### (Optional) Preparing `yt-dlp` for `/cookies_from_browser`)
+(optional) Also you will need download `yt-dlp` binary into your Docker container. See [(Optional) Preparing `yt-dlp` for `/cookies_from_browser`](#(Optional) Preparing `yt-dlp` for `/cookies_from_browser`)
 ---
 
 ## Alternative local deployment on a VM (without Docker container)
