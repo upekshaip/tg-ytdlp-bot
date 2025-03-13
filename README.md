@@ -248,14 +248,14 @@ Then select the desired option from the menu.
 
 **This bot allows you to download videos and audio, and also work with playlists.**
 
-• Simply send a video link and the bot will start downloading. 
-• For playlists, specify the range of indexes separated by asterisks (e.g. `https://example.com*1*4`) to download videos from position 1 to 4.
-• You can set a custom playlist name by adding it after the range (e.g. `https://example.com*1*4*My Playlist`).
+• Simply send a video link and the bot will start downloading. \
+• For playlists, specify the range of indexes separated by asterisks (e.g. `https://example.com*1*4`) to download videos from position 1 to 4. \
+• You can set a custom playlist name by adding it after the range (e.g. `https://example.com*1*4*My Playlist`). \
 
-• To change the caption of a video, reply to the video with your message – the bot will send the video with your caption.
-• To extract audio from a video, use the **/audio** command.
-• Upload a cookie file to download private videos and playlists.
-• Check or update your cookie file with **/check_cookie**, **/download_cookie**, and **/cookies_from_browser** commands.
+• To change the caption of a video, reply to the video with your message – the bot will send the video with your caption. \
+• To extract audio from a video, use the **/audio** command. \
+• Upload a cookie file to download private videos and playlists. \
+• Check or update your cookie file with **/check_cookie**, **/download_cookie**, and **/cookies_from_browser** commands. \
 • See your usage statistics and logs by sending the **/usage** command.
 
 ---
