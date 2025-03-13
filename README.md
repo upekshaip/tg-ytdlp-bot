@@ -108,13 +108,13 @@ python3 magic.py
    **ffmpeg** is essential since **yt-dlp** relies on it for merging streams (and in some cases for transcoding or extracting thumbnails). To install ffmpeg on a Debian-based system, run:
 
    ```sh
-      sudo apt-get update
-      sudo apt-get install -y ffmpeg
+   sudo apt-get update
+   sudo apt-get install -y ffmpeg
    ```
 
    Verify the installation:
    ```sh
-      ffmpeg -version
+   ffmpeg -version
    ```
 </details> 
 
@@ -131,16 +131,16 @@ python3 magic.py
       Place the binary executable in the `tg-ytdlp-bot` project folder.
  
   2. **Rename and make it executable**  
-         ```bash
-         mv yt-dlp_linux yt-dlp
-         chmod +x yt-dlp
-         ```
+     ```bash
+     mv yt-dlp_linux yt-dlp
+     chmod +x yt-dlp
+     ```
 
    3. **Create a symbolic link**  
       Create a symlink so that `yt-dlp` can be run from any directory (for example, in `/usr/local/bin`):
-         ```bash
-         sudo ln -s /full/path/to/tg-ytdlp-bot/yt-dlp /usr/local/bin/yt-dlp
-         ```
+      ```bash
+      sudo ln -s /full/path/to/tg-ytdlp-bot/yt-dlp /usr/local/bin/yt-dlp
+      ```
       Ensure `/usr/local/bin` is in your `PATH`. Now you can run `yt-dlp` directly.
    
 </details>
