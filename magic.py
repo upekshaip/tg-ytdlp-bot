@@ -16,7 +16,7 @@ from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 import subprocess
 from config import Config
 ################################################################################################
-# This is the back of Starting Point. do not toch this one
+# This is the back of Starting Point. do not touch this one
 starting_point = []
 
 # At the beginning of the file (for example, immediately after imports)
@@ -69,7 +69,7 @@ def create_directory(path):
 
 def cookies_from_browser(app, message):
     user_id = message.chat.id
-    # For non -departments, we check the subscription
+    # For non-admins, we check the subscription
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
 
@@ -160,7 +160,7 @@ def browser_choice_callback(app, callback_query):
         send_to_logger(callback_query.message, f"Browser {browser_option} not installed.")
         return
 
-    # Build the Command for Cookie Extraction: Yt-DLP-Cookies "Cookie.txt"-Cookies-from-browser <browser_option>
+   # Build the command for cookie extraction: yt-dlp --cookies "cookie.txt" --cookies-from-browser <browser_option>
     cmd = f'yt-dlp --cookies "{cookie_file}" --cookies-from-browser {browser_option}'
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
@@ -187,18 +187,18 @@ def audio_command_handler(app, message):
         app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
         return
 
-    # For non -departments, we check the subscription
+    # For non-admins, we check the subscription
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
 
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)  # Ensure The User's Folder Exists
 
-    # The team expects: /audio <url>
+    # Command expects: /audio <url>
     if len(message.command) < 2:
         send_to_user(message, "Please provide the URL of the video to download the audio.")
         return
-    url = message.command[1]  # We take the URL from the arguments of the team
+    url = message.command[1]  # We take the URL from the arguments of Command
     down_and_audio(app, message, url)
 
 # Command /Format Handler
@@ -206,7 +206,7 @@ def audio_command_handler(app, message):
 
 def set_format(app, message):
     user_id = message.chat.id
-    # For non -departments, we check the subscription
+    # For non-admins, we check the subscription
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
 
@@ -385,7 +385,7 @@ def url_distractor(app, message):
     is_admin = int(user_id) in Config.ADMIN
     text = message.text.strip()
 
-    # For non-dimein users, if the Iven't Joined the Channel, Exit ImmediaTely.
+    # For non-admin users, if they haven't Joined the Channel, Exit ImmediaTely.
     if not is_admin and not is_user_in_channel(app, message):
         return
 
@@ -469,7 +469,7 @@ def url_distractor(app, message):
             get_user_log(app, message)
             return
 
-    # Reframed processing for all users (admins and ordinary)
+    # Reframed processing for all users (admins and ordinary users)
     if message.reply_to_message:
         # If the reference text begins with /broadcast, then:
         if text.startswith(Config.BROADCAST_MESSAGE):
@@ -500,7 +500,7 @@ def is_user_in_channel(app, message):
         button = InlineKeyboardButton(
             "Join Channel", url=Config.SUBSCRIBE_CHANNEL_URL)
         keyboard = InlineKeyboardMarkup([[button]])
-        # Uce the send_message () Method to send the memage with the button
+        # Use the send_message () Method to send the message with the button
         app.send_message(
             chat_id=message.chat.id,
             text=text,
