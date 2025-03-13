@@ -60,6 +60,7 @@ Edit your configuration before deployment. After your edits, proceed with the Do
 <details>
   <summary>spoiler</summary> 
       
+
    If you prefer local deployment rather that docker container you also need to install `ffmpeg`
    **ffmpeg** is essential since **yt-dlp** relies on it for merging streams (and in some cases for transcoding or extracting thumbnails). To install ffmpeg on a Debian-based system, run:
 
@@ -77,27 +78,28 @@ Edit your configuration before deployment. After your edits, proceed with the Do
 ---
 ### (Optional) Preparing `yt-dlp` for `/cookies_from_browser`
 <details>
-     <summary>(Optional) Preparing yt-dlp for /cookies_from_browser</summary> 
+   <summary>spoiler</summary> 
 
-      To use the `/cookies_from_browser` command (which extracts cookies from installed browsers on your server), ensure that the **yt-dlp** binary is set up properly:
-      (Also in that case you must install desktop environment (GUI) and any supported by `yt-dlp` browser by yourself)
 
-      1. **Download `yt-dlp`**  
-         Visit the [official `yt-dlp` releases page](https://github.com/yt-dlp/yt-dlp/releases) and download the binary for your CPU architecture (e.g., `yt-dlp_x86_64`, `yt-dlp_arm`, etc.).  
-         Place the binary executable in the `tg-ytdlp-bot` project folder.
+   To use the `/cookies_from_browser` command (which extracts cookies from installed browsers on your server), ensure that the **yt-dlp** binary is set up properly:
+   (Also in that case you must install desktop environment (GUI) and any supported by `yt-dlp` browser by yourself)
+
+   1. **Download `yt-dlp`**  
+      Visit the [official `yt-dlp` releases page](https://github.com/yt-dlp/yt-dlp/releases) and download the binary for your CPU architecture (e.g., `yt-dlp_x86_64`, `yt-dlp_arm`, etc.).  
+      Place the binary executable in the `tg-ytdlp-bot` project folder.
  
-      2. **Rename and make it executable**  
+  2. **Rename and make it executable**  
          ```bash
          mv yt-dlp_linux yt-dlp
          chmod +x yt-dlp
          ```
 
-      3. **Create a symbolic link**  
-         Create a symlink so that `yt-dlp` can be run from any directory (for example, in `/usr/local/bin`):
+   3. **Create a symbolic link**  
+      Create a symlink so that `yt-dlp` can be run from any directory (for example, in `/usr/local/bin`):
          ```bash
          sudo ln -s /full/path/to/tg-ytdlp-bot/yt-dlp /usr/local/bin/yt-dlp
          ```
-         Ensure `/usr/local/bin` is in your `PATH`. Now you can run `yt-dlp` directly.
+      Ensure `/usr/local/bin` is in your `PATH`. Now you can run `yt-dlp` directly.
    
 </details>
 
