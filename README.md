@@ -93,9 +93,9 @@ Edit your configuration before deployment.
 ```sh
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt --no-cache-dir
+pip install --no-cache-dir -r requirements.txt
 pip uninstall urllib3 -y
-pip install "urllib3==1.26.20" --no-cache-dir --force-reinstall
+pip install --no-cache-dir --force-reinstall "urllib3==1.26.20"
 pip install --no-deps moviepy==1.0.3
 python3 magic.py
 ```
