@@ -253,9 +253,10 @@ Then select the desired option from the menu.
 • You can set a custom playlist name by adding it after the range (e.g. `https://example.com*1*4*My Playlist`). 
 
 • To change the caption of a video, reply to the video with your message – the bot will send the video with your caption. \
-• To extract audio from a video, use the **/audio** command. \
+• To extract audio from a video, use the **/audio** command (e.g. `/audio https://example.com`). \
 • Upload a cookie file to download private videos and playlists. \
-• Check or update your cookie file with **/check_cookie**, **/download_cookie**, and **/cookies_from_browser** commands. \
+• Check or update your cookie file with **/check_cookie**, **/download_cookie**, **/save_as_cookie** and **/cookies_from_browser** commands. \
+• To clean your workspace on server from bad files (e.g. old cookies or media) use **/clean** command (might be helpfull for get rid of errors). \
 • See your usage statistics and logs by sending the **/usage** command.
 
 ---
