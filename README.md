@@ -1,6 +1,7 @@
 # cookiebot - tg-ytdlp-bot
 
 Support me on [BuyMeACoffee](https://buymeacoffee.com/upekshaip)
+Thanks to Contributor - [@IIlIlIlIIIlllIIlIIlIllIIllIlIIIl](https://t.me/IIlIlIlIIIlllIIlIIlIllIIllIlIIIl)
 
 Download private YouTube/videos using a cookie file.
 
@@ -15,7 +16,7 @@ Download private YouTube/videos using a cookie file.
 - Star and fork this repository. Then rename the file **_config.py** to **config.py**.
 - Add your configuration to the **config.py** file.
 
-### Setup Debian/Any for Docker
+### Setup Debian for Docker (if you prefer to run bot in container)
 
 1. ```sh
    sudo apt-get update
@@ -43,22 +44,6 @@ Download private YouTube/videos using a cookie file.
 
 ---
 
-### Installing ffmpeg
-
-**ffmpeg** is essential since **yt-dlp** relies on it for merging streams (and in some cases for transcoding or extracting thumbnails). To install ffmpeg on a Debian-based system, run:
-
-```sh
-sudo apt-get update
-sudo apt-get install -y ffmpeg
-```
-
-Verify the installation:
-```sh
-ffmpeg -version
-```
-
----
-
 #### Setting up `config.py`
 
 ```sh
@@ -71,28 +56,47 @@ nano config.py
 Edit your configuration before deployment. After your edits, proceed with the Docker build steps below.
 
 ---
+<details>
+     <summary>### (Optional) Installing ffmpeg</summary> 
+      
+      If you prefer local deployment rather that docker container you also need to install `ffmpeg`
+      **ffmpeg** is essential since **yt-dlp** relies on it for merging streams (and in some cases for transcoding or extracting thumbnails). To install ffmpeg on a Debian-based system, run:
 
-### Preparing `yt-dlp` for `/cookies_from_browser`
+      ```sh
+      sudo apt-get update
+      sudo apt-get install -y ffmpeg
+      ```
 
-To use the `/cookies_from_browser` command (which extracts cookies from installed browsers on your server), ensure that the **yt-dlp** binary is set up properly:
+      Verify the installation:
+      ```sh
+      ffmpeg -version
+      ```
+</details> 
+---
+<details>
+     <summary>### (Optional) Preparing `yt-dlp` for `/cookies_from_browser`</summary> 
 
-1. **Download `yt-dlp`**  
-   Visit the [official `yt-dlp` releases page](https://github.com/yt-dlp/yt-dlp/releases) and download the binary for your CPU architecture (e.g., `yt-dlp_x86_64`, `yt-dlp_arm`, etc.).  
-   Place the binary executable in the `tg-ytdlp-bot` project folder.
+      To use the `/cookies_from_browser` command (which extracts cookies from installed browsers on your server), ensure that the **yt-dlp** binary is set up properly:
+      (Also in that case you must install desktop environment (GUI) and any supported by `yt-dlp` browser by yourself)
+
+      1. **Download `yt-dlp`**  
+         Visit the [official `yt-dlp` releases page](https://github.com/yt-dlp/yt-dlp/releases) and download the binary for your CPU architecture (e.g., `yt-dlp_x86_64`, `yt-dlp_arm`, etc.).  
+         Place the binary executable in the `tg-ytdlp-bot` project folder.
  
-2. **Rename and make it executable**  
-   ```bash
-   mv yt-dlp_linux yt-dlp
-   chmod +x yt-dlp
-   ```
+      2. **Rename and make it executable**  
+         ```bash
+         mv yt-dlp_linux yt-dlp
+         chmod +x yt-dlp
+         ```
 
-3. **Create a symbolic link**  
-   Create a symlink so that `yt-dlp` can be run from any directory (for example, in `/usr/local/bin`):
-   ```bash
-   sudo ln -s /full/path/to/tg-ytdlp-bot/yt-dlp /usr/local/bin/yt-dlp
-   ```
-   Ensure `/usr/local/bin` is in your `PATH`. Now you can run `yt-dlp` directly.
-
+      3. **Create a symbolic link**  
+         Create a symlink so that `yt-dlp` can be run from any directory (for example, in `/usr/local/bin`):
+         ```bash
+         sudo ln -s /full/path/to/tg-ytdlp-bot/yt-dlp /usr/local/bin/yt-dlp
+         ```
+         Ensure `/usr/local/bin` is in your `PATH`. Now you can run `yt-dlp` directly.
+   
+</details>
 ---
 
 #### Building and Running with Docker
@@ -103,6 +107,24 @@ sudo docker ps -a
 sudo docker run tg-public-bot
 ```
 
+(optional) If you want to use `/cookies_from_browser` command, after docker deployment you need to enter your docker CMD and install desktop environment (GUI) and Browser into your docker container.
+
+---
+
+#### Alternative deployment (without Docker container)
+
+If you prefer local deployment rather than docker container, you should use this commands
+
+```sh
+sudo apt update
+sudo apt install python3.10 python3-pip python3.10-venv
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt --no-cache-dir
+pip uninstall urllib3 -y
+pip install "urllib3==1.26.20" --no-cache-dir --force-reinstall
+pip install --no-deps moviepy==1.0.3
+```
 ---
 
 ## New Commands and Features
