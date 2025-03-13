@@ -56,8 +56,9 @@ nano config.py
 Edit your configuration before deployment. After your edits, proceed with the Docker build steps below.
 
 ---
+### (Optional) Installing ffmpeg
 <details>
-     <summary>### (Optional) Installing ffmpeg</summary> 
+     <summary>(Optional) Installing ffmpeg</summary> 
       
       If you prefer local deployment rather that docker container you also need to install `ffmpeg`
       **ffmpeg** is essential since **yt-dlp** relies on it for merging streams (and in some cases for transcoding or extracting thumbnails). To install ffmpeg on a Debian-based system, run:
@@ -72,9 +73,11 @@ Edit your configuration before deployment. After your edits, proceed with the Do
       ffmpeg -version
       ```
 </details> 
+
 ---
+### (Optional) Preparing `yt-dlp` for `/cookies_from_browser`
 <details>
-     <summary>### (Optional) Preparing `yt-dlp` for `/cookies_from_browser`</summary> 
+     <summary>(Optional) Preparing yt-dlp for /cookies_from_browser</summary> 
 
       To use the `/cookies_from_browser` command (which extracts cookies from installed browsers on your server), ensure that the **yt-dlp** binary is set up properly:
       (Also in that case you must install desktop environment (GUI) and any supported by `yt-dlp` browser by yourself)
@@ -97,6 +100,7 @@ Edit your configuration before deployment. After your edits, proceed with the Do
          Ensure `/usr/local/bin` is in your `PATH`. Now you can run `yt-dlp` directly.
    
 </details>
+
 ---
 
 #### Building and Running with Docker
