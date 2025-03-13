@@ -124,8 +124,7 @@ python3 magic.py
    <summary>spoiler</summary> 
 
    To use the `/cookies_from_browser` command (which extracts cookies from installed browsers on your server), ensure that the **yt-dlp** binary is set up properly:
-   (Also in that case you must install desktop environment (GUI) and any supported by `yt-dlp` browser by yourself)
-
+  
    1. **Download `yt-dlp`**  
       Visit the [official `yt-dlp` releases page](https://github.com/yt-dlp/yt-dlp/releases) and download the binary for your CPU architecture (e.g., `yt-dlp_x86_64`, `yt-dlp_arm`, etc.).  
       Place the binary executable in the `tg-ytdlp-bot` project folder.
@@ -142,7 +141,9 @@ python3 magic.py
       sudo ln -s /full/path/to/tg-ytdlp-bot/yt-dlp /usr/local/bin/yt-dlp
       ```
       Ensure `/usr/local/bin` is in your `PATH`. Now you can run `yt-dlp` directly.
-   
+
+    (Also in that case you must install desktop environment (GUI) and any supported by `yt-dlp` browser by yourself)
+
 </details>
 
 ---
