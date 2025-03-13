@@ -229,18 +229,18 @@ Then select the desired option from the menu.
 
 ## Link Command Pattern Spec
 
-- **`https://blabla.blaa`**  
-  Download the video with its original name.  
-  If it is a playlist, only the first video is downloaded.
+- **`https://blabla.blaa`** \
+  Download the video with its original name. \
+  If it is a playlist, only the first video is downloaded. \
 
-- **`https://blabla.blaa*1*3`**  
-  Download a specified range of videos from the playlist with their original names.
+- **`https://blabla.blaa*1*3`**  \
+  Download a specified range of videos from the playlist with their original names. \
 
-- **`https://blabla.blaa*1*3*name`**  
-  Download a specified range of videos from the playlist with a custom name.  
-  Videos will be named as:
-  - `name - Part 1`
-  - `name - Part 2`
+- **`https://blabla.blaa*1*3*name`**  \
+  Download a specified range of videos from the playlist with a custom name. \
+  Videos will be named as: \
+  - `name - Part 1` \
+  - `name - Part 2` 
 
 ---
 
