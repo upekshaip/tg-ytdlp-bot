@@ -250,7 +250,7 @@ Then select the desired option from the menu.
 
 • Simply send a video link and the bot will start downloading. \
 • For playlists, specify the range of indexes separated by asterisks (e.g. `https://example.com*1*4`) to download videos from position 1 to 4. \
-• You can set a custom playlist name by adding it after the range (e.g. `https://example.com*1*4*My Playlist`). \
+• You can set a custom playlist name by adding it after the range (e.g. `https://example.com*1*4*My Playlist`). 
 
 • To change the caption of a video, reply to the video with your message – the bot will send the video with your caption. \
 • To extract audio from a video, use the **/audio** command. \
