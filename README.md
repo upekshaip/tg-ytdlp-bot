@@ -78,7 +78,6 @@ If you prefer local deployment rather than docker container, you should use this
 ```sh
 sudo apt update
 sudo apt install git python3.10 python3-pip python3.10-venv
-#### Setting up `config.py`
 ```
 #### Setting up `config.py`
 ```sh
@@ -87,7 +86,7 @@ cd tg-ytdlp-bot
 sudo mv _config.py config.py
 nano config.py
 ```
-Edit your configuration before deployment. After your edits, proceed with the Docker build steps below.
+Edit your configuration before deployment.
 
 #### Install `python` modules
 
