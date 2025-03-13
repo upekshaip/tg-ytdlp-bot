@@ -142,7 +142,7 @@ python3 magic.py
       ```
       Ensure `/usr/local/bin` is in your `PATH`. Now you can run `yt-dlp` directly.
 
-    (Also in that case you must install desktop environment (GUI) and any supported by `yt-dlp` browser by yourself)
+   (Also in that case you must install desktop environment (GUI) and any supported by `yt-dlp` browser by yourself)
 
 </details>
 
