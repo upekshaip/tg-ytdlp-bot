@@ -1497,20 +1497,22 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 returned = split_video_2(dir_path, caption_name, after_rename_abs_path, int(video_size_in_bytes), max_size, duration)
                 caption_lst = returned.get("video")
                 path_lst = returned.get("path")
+                # For each split video part, send the part and immediately forward it to the log channel
                 for p in range(len(caption_lst)):
                     part_result = get_duration_thumb(message, dir_path, path_lst[p], caption_lst[p])
                     if part_result is None:
                         continue
                     part_duration, splited_thumb_dir = part_result
-                    # We send a video and save the object of the sent message
+                    # Send the split video part and save the message object
                     video_msg = send_videos(message, path_lst[p], caption_lst[p], part_duration, splited_thumb_dir, info_text, proc_msg.id)
-                    # Reposts precisely the message from the video to the log channel
+                    # Immediately forward the sent video message to the log channel using its id
                     try:
-                        app.forward_messages(Config.LOGS_ID, user_id, [video_msg.message_id])
+                        app.forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
                     except Exception as e:
                         print("Error forwarding video to logger:", e)
+                    # Update progress message for this part
                     app.edit_message_text(user_id, proc_msg_id,
-                        f"{info_text}\n\n{full_bar}   100.0%\n__Splitted part {p + 1} file uploaded__")
+                                          f"{info_text}\n\n{full_bar}   100.0%\n__Splitted part {p + 1} file uploaded__")
                     if p < len(caption_lst) - 1:
                         threading.Event().wait(2)
                     os.remove(splited_thumb_dir)
