@@ -3,7 +3,6 @@ import re
 import os
 from pyrogram import Client, filters
 from pyrogram import enums
-from pyrogram import errors
 from pyrogram.enums import ChatMemberStatus
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from datetime import datetime
@@ -17,20 +16,19 @@ from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 import subprocess
 from config import Config
 ################################################################################################
-# this is the bot's starting point. do not touch this one
+# This is the back of Starting Point. do not touch this one
 starting_point = []
 
-# В начале файла (например, сразу после импортов)
-active_downloads = {}  # глобальный словарь для отслеживания процессов
+# At the beginning of the file (for example, immediately after imports)
+active_downloads = {}  # Global dictionary to track processes
 ################################################################################################
 
-# Firebase initialization
+# Firebase Initialization
 firebase = pyrebase.initialize_app(Config.FIREBASE_CONF)
 db = firebase.database()
 
 ##############################################################################################################################
 ##############################################################################################################################
-
 
 # App
 app = Client(
@@ -43,8 +41,8 @@ app = Client(
 ##############################################################################################################################
 ##############################################################################################################################
 
-
 @app.on_message(filters.command("start") & filters.private)
+
 def command1(app, message):
     if int(message.chat.id) in Config.ADMIN:
         send_to_user(message, "Welcome Master 🥷")
@@ -54,34 +52,35 @@ def command1(app, message):
             message.chat.id, f"Hello {message.chat.first_name},\n \n__This bot🤖 can download any videos into telegram directly.😊 For more information press **/help**__ 👈\n \n {Config.CREDITS_MSG}")
         send_to_logger(message, f"{message.chat.id} - user started the bot")
 
-
 @app.on_message(filters.command("help"))
+
 def command2(app, message):
     app.send_message(message.chat.id, (Config.HELP_MSG),
                      parse_mode=enums.ParseMode.MARKDOWN)
     send_to_logger(message, f"Send help txt to user")
 
 def create_directory(path):
-    # Create the directory (and all intermediate directories) if it does not exist.
+    # Create The Directory (And All Intermediate Directories) IF Its Not Exist.
     if not os.path.exists(path):
         os.makedirs(path, exist_ok=True)
 
-# Command to set browser cookies
+# Command to Set Browser Cooks
 @app.on_message(filters.command("cookies_from_browser") & filters.private)
+
 def cookies_from_browser(app, message):
     user_id = message.chat.id
-    # Для неадминистраторов проверяем подписку
+    # For non-admins, we check the subscription
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
 
-    # Логирование запроса на получение cookies из браузера
+    # Logging a request for cookies from browser
     send_to_logger(message, "User requested cookies from browser.")
 
-    # Path to the user's directory, e.g. "./users/1234567"
+    # Path to the User's Directory, E.G. "./users/1234567"
     user_dir = os.path.join(".", "users", str(user_id))
-    create_directory(user_dir)  # Ensure the user's folder exists
+    create_directory(user_dir)  # Ensure The User's Folder Exists
 
-    # Dictionary with browsers and their paths
+    # Dictionary with Browsers and Their Paths
     browsers = {
         "brave": "~/.config/BraveSoftware/Brave-Browser/",
         "chrome": "~/.config/google-chrome/",
@@ -89,7 +88,7 @@ def cookies_from_browser(app, message):
         "edge": "~/.config/microsoft-edge/",
         "firefox": "~/.mozilla/firefox/",
         "opera": "~/.config/opera/",
-        "safari": None,  # Not supported on Linux
+        "safari": None,  # Not support on linux
         "vivaldi": "~/.config/vivaldi/",
         "whale": ["~/.config/Whale/", "~/.config/naver-whale/"]
     }
@@ -107,7 +106,7 @@ def cookies_from_browser(app, message):
         button = InlineKeyboardButton(f"{emoji} {display_name}", callback_data=f"browser_choice|{browser}")
         buttons.append([button])
 
-    # Add a Cancel button to cancel the selection
+    # Add a Cancel Button to Cancel The Selection
     buttons.append([InlineKeyboardButton("🔙 Cancel", callback_data="browser_choice|cancel")])
     keyboard = InlineKeyboardMarkup(buttons)
 
@@ -117,17 +116,16 @@ def cookies_from_browser(app, message):
         reply_markup=keyboard
     )
     send_to_logger(message, "Browser selection keyboard sent.")
-    
-    
 
-# Callback handler for browser selection
+# Callback Handler for Browser Selection
 @app.on_callback_query(filters.regex(r"^browser_choice\|"))
+
 def browser_choice_callback(app, callback_query):
     import subprocess
 
     user_id = callback_query.from_user.id
-    data = callback_query.data.split("|")[1]  # e.g. "chromium", "firefox", or "cancel"
-    # Path to the user's directory, e.g. "./users/1234567"
+    data = callback_query.data.split("|")[1]  # E.G. "Chromium", "Firefox", or "Cancel"
+    # Path to the User's Directory, E.G. "./users/1234567"
     user_dir = os.path.join(".", "users", str(user_id))
     create_directory(user_dir)
     cookie_file = os.path.join(user_dir, "cookie.txt")
@@ -140,7 +138,7 @@ def browser_choice_callback(app, callback_query):
 
     browser_option = data
 
-    # Dictionary with browsers and their paths (same as above)
+    # Dictionary with Browsers and Their Paths (Same as ABOVE)
     browsers = {
         "brave": "~/.config/BraveSoftware/Brave-Browser/",
         "chrome": "~/.config/google-chrome/",
@@ -153,7 +151,7 @@ def browser_choice_callback(app, callback_query):
         "whale": ["~/.config/Whale/", "~/.config/naver-whale/"]
     }
     path = browsers.get(browser_option)
-    # Если браузер не установлен, информируем пользователя и не выполняем команду
+    # If the browser is not installed, we inform the user and do not execute the command
     if (browser_option == "safari") or (
         isinstance(path, list) and not any(os.path.exists(os.path.expanduser(p)) for p in path)
     ) or (isinstance(path, str) and not os.path.exists(os.path.expanduser(path))):
@@ -162,7 +160,7 @@ def browser_choice_callback(app, callback_query):
         send_to_logger(callback_query.message, f"Browser {browser_option} not installed.")
         return
 
-    # Build the command for cookie extraction: yt-dlp --cookies "cookie.txt" --cookies-from-browser <browser_option>
+   # Build the command for cookie extraction: yt-dlp --cookies "cookie.txt" --cookies-from-browser <browser_option>
     cmd = f'yt-dlp --cookies "{cookie_file}" --cookies-from-browser {browser_option}'
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
@@ -179,46 +177,45 @@ def browser_choice_callback(app, callback_query):
 
     callback_query.answer("✅ Browser choice updated.")
 
-
-
-# Command to download audio from a video URL
+# Command to Download Audio from a Video url
 @app.on_message(filters.command("audio") & filters.private)
+
 def audio_command_handler(app, message):
     user_id = message.chat.id
-    # Если у пользователя уже запущен процесс, отвечаем реплаем и выходим
+    # If the user has already been launched by the process, we answer the rein and go out
     if active_downloads.get(user_id, False):
         app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
         return
 
-    # Для неадминистраторов проверяем подписку
+    # For non-admins, we check the subscription
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
 
     user_dir = os.path.join("users", str(user_id))
-    create_directory(user_dir)  # Ensure the user's folder exists
+    create_directory(user_dir)  # Ensure The User's Folder Exists
 
-    # Команда ожидает: /audio <URL>
+    # Command expects: /audio <url>
     if len(message.command) < 2:
         send_to_user(message, "Please provide the URL of the video to download the audio.")
         return
-    url = message.command[1]  # Берём URL из аргументов команды
+    url = message.command[1]  # We take the URL from the arguments of Command
     down_and_audio(app, message, url)
 
-
-# Command /format handler
+# Command /Format Handler
 @app.on_message(filters.command("format") & filters.private)
+
 def set_format(app, message):
     user_id = message.chat.id
-    # Для неадминистраторов проверяем подписку
+    # For non-admins, we check the subscription
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
 
     send_to_logger(message, "User requested format change.")
 
     user_dir = os.path.join("users", str(user_id))
-    create_directory(user_dir)  # Ensure the user's folder exists
+    create_directory(user_dir)  # Ensure The User's Folder Exists
 
-    # Если передан дополнительный текст, сохраняем его как custom format
+    # If the additional text is transmitted, we save it as Custom Format
     if len(message.command) > 1:
         custom_format = message.text.split(" ", 1)[1].strip()
         with open(os.path.join(user_dir, "format.txt"), "w", encoding="utf-8") as f:
@@ -226,7 +223,7 @@ def set_format(app, message):
         app.send_message(user_id, f"✅ Format updated to:\n{custom_format}")
         send_to_logger(message, f"Format updated to: {custom_format}")
     else:
-        # Main menu with a few popular options, plus the Others button
+        # Main Menu with A Few Popular Options, Plus The Others Button
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("💻<=4k (best for desktop TG app)", callback_data="format_option|bv2160")],
             [InlineKeyboardButton("📱<=FullHD (best for mobile TG app)", callback_data="format_option|bv1080")],
@@ -243,21 +240,21 @@ def set_format(app, message):
         )
         send_to_logger(message, "Format menu sent.")
 
-
-# CallbackQuery handler for /format menu selection
+# Callbackquery Handler for /Format Menu Selection
 @app.on_callback_query(filters.regex(r"^format_option\|"))
+
 def format_option_callback(app, callback_query):
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]
 
-    # Если нажата кнопка Cancel
+    # If you press the Cancel button
     if data == "cancel":
         callback_query.edit_message_text("🔚 Format selection canceled.")
         callback_query.answer("✅ Format choice updated.")
         send_to_logger(callback_query.message, "Format selection canceled.")
         return
 
-    # Если нажата кнопка Custom
+    # If the Custom button is pressed
     if data == "custom":
         callback_query.edit_message_text(
             "To use a custom format, send the command in the following form:\n\n`/format bestvideo+bestaudio/best`\n\nReplace `bestvideo+bestaudio/best` with your desired format string."
@@ -266,7 +263,7 @@ def format_option_callback(app, callback_query):
         send_to_logger(callback_query.message, "Custom format hint sent.")
         return
 
-    # Если нажата кнопка Others – выводим второй набор опций
+    # If the Others button is pressed - we display the second set of options
     if data == "others":
         full_res_keyboard = InlineKeyboardMarkup([
             [
@@ -291,7 +288,7 @@ def format_option_callback(app, callback_query):
         send_to_logger(callback_query.message, "Format resolution menu sent.")
         return
 
-    # Если нажата кнопка Back – возвращаем в главное меню
+    # If the Back button is pressed - we return to the main menu
     if data == "back":
         main_keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("💻<=4k (best for desktop TG app)", callback_data="format_option|bv2160")],
@@ -307,7 +304,7 @@ def format_option_callback(app, callback_query):
         send_to_logger(callback_query.message, "Returned to main format menu.")
         return
 
-    # Mapping for the rest of the options
+    # Mapping for the Rest of the Options
     if data == "bv144":
         chosen_format = "bv*[vcodec*=avc1][height<=144]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
     elif data == "bv240":
@@ -333,7 +330,7 @@ def format_option_callback(app, callback_query):
     else:
         chosen_format = data
 
-    # Save the selected format
+    # Save The Selected Format
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
     with open(os.path.join(user_dir, "format.txt"), "w", encoding="utf-8") as f:
@@ -342,13 +339,10 @@ def format_option_callback(app, callback_query):
     callback_query.answer("✅ Format saved.")
     send_to_logger(callback_query.message, f"Format updated to: {chosen_format}")
 
-
-
-
-
 #####################################################################################
 
-# checking user is blocked or not
+# Checking user is Blocked or not
+
 def is_user_blocked(message):
     blocked = db.child(f"{Config.BOT_DB_PATH}/blocked_users").get().each()
     blocked_users = [int(b_user.key()) for b_user in blocked]
@@ -358,136 +352,132 @@ def is_user_blocked(message):
     else:
         return False
 
+# Cheking Users are in Main User Directory in DB
 
-# cheking users are in main user directory in db
 def check_user(message):
     user_id_str = str(message.chat.id)
-    # Create the user folder inside the "users" directory
+    # Create The User Folder Inside The "Users" Directory
     user_dir = os.path.join("users", user_id_str)
     create_directory(user_dir)
 
-    # Copy cookie.txt from the project root to the user's folder if not already present
+    # Copy Cookie.txt from the Project Root to the User's Folder If Not Alread Present
     cookie_src = os.path.join(os.getcwd(), "cookie.txt")
     cookie_dest = os.path.join(user_dir, os.path.basename(Config.COOKIE_FILE_PATH))
     if os.path.exists(cookie_src) and not os.path.exists(cookie_dest):
         import shutil
         shutil.copy(cookie_src, cookie_dest)
 
-    # Register the user in the database if not already registered
+    # Register the User in the Database If Not Alread Registered
     user_db = db.child(f"{Config.BOT_DB_PATH}/users").get().each()
     users = [user.key() for user in user_db] if user_db else []
     if user_id_str not in users:
         data = {"ID": message.chat.id, "timestamp": math.floor(time.time())}
         db.child(f"{Config.BOT_DB_PATH}/users/{user_id_str}").set(data)
 
-
-
 #####################################################################################
 
-
-
-
-# checking actions
-# Text message handler for general commands
+# Checking Actions
+# Text Message Handler for General Commands
 @app.on_message(filters.text & filters.private)
+
 def url_distractor(app, message):
     user_id = message.chat.id
     is_admin = int(user_id) in Config.ADMIN
     text = message.text.strip()
 
-    # For non-admin users, if they haven't joined the channel, exit immediately.
+    # For non-admin users, if they haven't Joined the Channel, Exit ImmediaTely.
     if not is_admin and not is_user_in_channel(app, message):
         return
 
-    # ----- User commands -----
-    # /save_as_cookie command
+    # ----- User Commands -----
+    # /Save_as_cookie Command
     if text.startswith(Config.SAVE_AS_COOKIE_COMMAND):
         save_as_cookie_file(app, message)
         return
 
-    # /download_cookie command
+    # /Download_cookie Command
     if text == Config.DOWNLOAD_COOKIE_COMMAND:
         download_cookie(app, message)
         return
 
-    # /check_cookie command
+    # /Check_cookie Command
     if text == Config.CHECK_COOKIE_COMMAND:
         checking_cookie_file(app, message)
         return
 
-    # /cookies_from_browser command
+    # /cookies_from_browser Command
     if text.startswith(Config.COOKIES_FROM_BROWSER_COMMAND):
         cookies_from_browser(app, message)
         return
 
-    # /audio command
+    # /Audio Command
     if text.startswith(Config.AUDIO_COMMAND):
         audio_command_handler(app, message)
         return
 
-    # /format command
+    # /Format Command
     if text.startswith(Config.FORMAT_COMMAND):
         set_format(app, message)
         return
 
-    # /clean command
+    # /Clean Command
     if Config.CLEAN_COMMAND in text:
         remove_media(message)
         send_to_all(message, "🗑 All files are removed.")
         return
 
-    # /usage command
+    # /USAGE Command
     if Config.USAGE_COMMAND in text:
         get_user_log(app, message)
         return
 
-    # If the message contains a URL, launch the video download function.
+    # If the Message Contains a URL, Launch The Video Download Function.
     if ("https://" in text) or ("http://" in text):
         if not is_user_blocked(message):
             video_url_extractor(app, message)
         return
 
-    # ----- Admin commands -----
+    # ----- Admin Commands -----
     if is_admin:
-        # Если сообщение начинается с /broadcast, обрабатываем его как broadcast, вне зависимости от реплая
+        # If the message begins with /BroadCast, we process it as BroadCast, regardless
         if text.startswith(Config.BROADCAST_MESSAGE):
             send_promo_message(app, message)
             return
 
-        # /block_user command
+        # /Block_user Command
         if Config.BLOCK_USER_COMMAND in text:
             block_user(app, message)
             return
 
-        # /unblock_user command
+        # /unblock_user Command
         if Config.UNBLOCK_USER_COMMAND in text:
             unblock_user(app, message)
             return
 
-        # /run_time command
+        # /Run_Time Command
         if Config.RUN_TIME in text:
             check_runtime(message)
             return
 
-        # /all command for user details
+        # /All Command for User Details
         if Config.GET_USER_DETAILS_COMMAND in text:
             get_user_details(app, message)
             return
 
-        # /log command for user logs
+        # /log Command for User Logs
         if Config.GET_USER_LOGS_COMMAND in text:
             get_user_log(app, message)
             return
 
-    # Обработка реплая для всех пользователей (админов и обычных)
+    # Reframed processing for all users (admins and ordinary users)
     if message.reply_to_message:
-        # Если текст реплая начинается с /broadcast, то:
+        # If the reference text begins with /broadcast, then:
         if text.startswith(Config.BROADCAST_MESSAGE):
-            # Только для админов вызываем send_promo_message
+            # Only for admins we call send_promo_message
             if is_admin:
                 send_promo_message(app, message)
         else:
-            # Иначе, если реплай содержит видео, вызываем caption_editor
+            # Otherwise, if the reform contains video, we call Caption_EDITOR
             if not is_user_blocked(message):
                 if message.reply_to_message.video:
                     caption_editor(app, message)
@@ -495,10 +485,8 @@ def url_distractor(app, message):
 
     print(user_id, "No matching command processed.")
 
+# Check the USAGE of the BOT
 
-
-
-# Check the usage of the bot
 def is_user_in_channel(app, message):
     try:
         cht_member = app.get_chat_member(
@@ -512,7 +500,7 @@ def is_user_in_channel(app, message):
         button = InlineKeyboardButton(
             "Join Channel", url=Config.SUBSCRIBE_CHANNEL_URL)
         keyboard = InlineKeyboardMarkup([[button]])
-        # Use the send_message() method to send the message with the button
+        # Use the send_message () Method to send the message with the button
         app.send_message(
             chat_id=message.chat.id,
             text=text,
@@ -520,8 +508,8 @@ def is_user_in_channel(app, message):
         )
         return False
 
+# Remove All User Media Files
 
-# Remove all user media files
 def remove_media(message):
     dir = f'./users/{str(message.chat.id)}'
     if os.path.exists(dir):
@@ -564,35 +552,35 @@ def remove_media(message):
 
         print("All media removed.")
 
+# SEND BRODCAST Message to All Users
 
-# Send broadcast message to all users
 def send_promo_message(app, message):
-    # Получаем список пользователей из базы
+    # We get a list of users from the base
     user_lst = db.child(f"{Config.BOT_DB_PATH}/users").get().each()
     user_lst = [int(user.key()) for user in user_lst]
-    # Добавляем администраторов, если их нет в списке
+    # Add administrators if they are not on the list
     for admin in Config.ADMIN:
         if admin not in user_lst:
             user_lst.append(admin)
-    
-    # Извлекаем текст broadcast. Если сообщение содержит переносы строк, берем все строки после первой.
+
+    # We extract the text of Boadcast. If the message contains lines transfers, take all the lines after the first.
     lines = message.text.splitlines()
     if len(lines) > 1:
         broadcast_text = "\n".join(lines[1:]).strip()
     else:
         broadcast_text = message.text[len(Config.BROADCAST_MESSAGE):].strip()
 
-    # Если сообщение является реплаем, получаем его
+    # If the message is a reference, we get it
     reply = message.reply_to_message if message.reply_to_message else None
 
     send_to_logger(message, f"Broadcast initiated. Text:\n{broadcast_text}")
 
     try:
-        # Рассылаем сообщение всем пользователям
+        # We send a message to all users
         for user in user_lst:
             try:
                 if user != 0:
-                    # Если сообщение является реплаем, пересылаем его (в зависимости от типа контента)
+                    # If the message is a reference, send it (depending on the type of content)
                     if reply:
                         if reply.text:
                             app.send_message(user, reply.text)
@@ -608,7 +596,7 @@ def send_promo_message(app, message):
                             app.send_audio(user, reply.audio.file_id, caption=reply.caption)
                         elif reply.animation:
                             app.send_animation(user, reply.animation.file_id, caption=reply.caption)
-                    # Если есть дополнительный текст, отправляем его
+                    # If there is an additional text, we send it
                     if broadcast_text:
                         app.send_message(user, broadcast_text)
             except Exception as e:
@@ -619,10 +607,8 @@ def send_promo_message(app, message):
         send_to_all(message, "**❌ Cannot send the promo message. Try replying to a message\nOr some error occurred**")
         send_to_logger(message, f"Failed to broadcast message: {e}")
 
+# Getting the User Logs
 
-
-
-# Getting the user logs
 def get_user_log(app, message):
     user_id = message.chat.id
     if int(message.chat.id) in Config.ADMIN:
@@ -636,7 +622,6 @@ def get_user_log(app, message):
         data = []
         data_tg = []
         least_10 = []
-        topics = ["TS", "ID", "Name", "Video Title", "URL"]
 
         for l in lst:
             ts = datetime.fromtimestamp(int(l["timestamp"]))
@@ -656,7 +641,7 @@ def get_user_log(app, message):
             format_str = '\n \n'.join(data_tg)
         data.sort(key=str.lower)
         now = datetime.fromtimestamp(math.floor(time.time()))
-        txt_format = f"Logs of {Config.BOT_NAME_FOR_USERS}\nUser: {user_id}\nTotal logs: {total}\nCurrent time: {now}\n \n" + \
+        txt_format = f"Logs of {Config.BOT_NAME_FOR_USERS}\nUser: {user_id}\nTotal logs: {total}\nCurrent time: {now}\n \n" +\
             '\n'.join(data)
 
         user_dir = os.path.join("users", str(message.chat.id))
@@ -673,8 +658,7 @@ def get_user_log(app, message):
     except:
         send_to_all(message, "**❌ User did not download any content yet...** Not exist in logs")
 
-# Get all kinds of users (users/ blocked/ unblocked)
-
+# Get All Kinds of Users (Users/ Blocked/ Unblocked)
 
 def get_user_details(app, message):
     command = message.text.split(Config.GET_USER_DETAILS_COMMAND)[1]
@@ -702,17 +686,17 @@ def get_user_details(app, message):
     txt_lst.sort(key=str.lower)
     no_of_users_to_display = 20
     if len(modified_lst) <= no_of_users_to_display:
-        mod = f"__Total Users: {len(modified_lst)}__\nLast {str(no_of_users_to_display)} " + \
-            path + \
-            f":\n \n" + \
+        mod = f"__Total Users: {len(modified_lst)}__\nLast {str(no_of_users_to_display)} " +\
+            path +\
+            f":\n \n" +\
             '\n'.join(modified_lst)
     else:
         temp = []
         for j in range(no_of_users_to_display):
             temp.append(modified_lst[((j+1) * -1)])
         temp.sort(key=str.lower)
-        mod = f"__Total Users: {len(modified_lst)}__\nLast {str(no_of_users_to_display)} " + \
-            path + \
+        mod = f"__Total Users: {len(modified_lst)}__\nLast {str(no_of_users_to_display)} " +\
+            path +\
             f":\n \n" + '\n'.join(temp)
 
     now = datetime.fromtimestamp(math.floor(time.time()))
@@ -729,8 +713,8 @@ def get_user_details(app, message):
 
     print(mod)
 
+# Block User
 
-# Block user
 def block_user(app, message):
     if int(message.chat.id) in Config.ADMIN:
         dt = math.floor(time.time())
@@ -756,8 +740,8 @@ def block_user(app, message):
     else:
         send_to_user(message, "🚫 Sorry! You are not an admin")
 
+# Unblock User
 
-# Unblock user
 def unblock_user(app, message):
     if int(message.chat.id) in Config.ADMIN:
         ub_user_id = str((message.text).split(
@@ -782,8 +766,8 @@ def unblock_user(app, message):
     else:
         send_to_user(message, "🚫 Sorry! You are not an admin")
 
-
 # Check Runtime
+
 def check_runtime(message):
     if int(message.chat.id) in Config.ADMIN:
         now = time.time()
@@ -792,12 +776,12 @@ def check_runtime(message):
         send_to_user(message, f"⏳ __Bot running time -__ **{now}**")
     pass
 
-
-# Send cookie via document
+# SEND COOKIE VIA Document
 @app.on_message(filters.document & filters.private)
+
 def save_my_cookie(app, message):
     user_id = str(message.chat.id)
-    # Определяем путь к папке пользователя (например, "./users/1234567")
+    # We determine the path to the user folder (for example, "./users/1234567)
     user_folder = f"./users/{user_id}"
     create_directory(user_folder)
     cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
@@ -805,7 +789,6 @@ def save_my_cookie(app, message):
     app.download_media(message, file_name=cookie_file_path)
     send_to_user(message, "✅ Cookie file saved")
     send_to_logger(message, f"Cookie file saved for user {user_id}.")
-
 
 def download_cookie(app, message):
     user_id = str(message.chat.id)
@@ -822,24 +805,23 @@ def download_cookie(app, message):
     else:
         send_to_all(message, "❌ Cookie URL is not available!")
         send_to_logger(message, f"Failed to download cookie file for user {user_id}.")
-        
 
-
-# caption editor for videos
+# Caption Editor for Videos
 @app.on_message(filters.text & filters.private)
+
 def caption_editor(app, message):
     users_name = message.chat.first_name
     user_id = message.chat.id
     caption = message.text
     video_file_id = message.reply_to_message.video.file_id
     info_of_video = f"\n**Caption:** `{caption}`\n**User id:** `{user_id}`\n**User first name:** `{users_name}`\n**Video file id:** `{video_file_id}`"
-    # sending to logs
+    # Sending to logs
     send_to_logger(message, info_of_video)
     app.send_video(user_id, video_file_id, caption=caption)
     app.send_video(Config.LOGS_ID, video_file_id, caption=caption)
 
-
 @app.on_message(filters.text & filters.private)
+
 def checking_cookie_file(app, message):
     user_id = str(message.chat.id)
     cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
@@ -858,10 +840,8 @@ def checking_cookie_file(app, message):
         send_to_all(message, "❌ Cookie file is not found.")
         send_to_logger(message, "Cookie file not found.")
 
+# Updating The Cookie File.
 
-
-
-# Updating the cookie file.
 def save_as_cookie_file(app, message):
     user_id = str(message.chat.id)
     content = message.text[len(Config.SAVE_AS_COOKIE_COMMAND):].strip()
@@ -900,15 +880,15 @@ def save_as_cookie_file(app, message):
     else:
         send_to_all(message, "**❌ Not a valid cookie.**")
         send_to_logger(message, f"Invalid cookie content provided by user {user_id}.")
-        
 
-# url extractor
+# URL Extractor
 @app.on_message(filters.text & filters.private)
+
 def video_url_extractor(app, message):
     global active_downloads
     check_user(message)
     user_id = message.chat.id
-    # Если у пользователя уже запущен процесс, отвечаем реплаем и выходим
+    # If the user has already been launched by the process, we answer the rein and go out
     if active_downloads.get(user_id, False):
         app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
         return
@@ -938,40 +918,36 @@ def video_url_extractor(app, message):
     else:
         send_to_all(message, f"**User entered like this:** {full_string}\n{Config.ERROR1}")
 
-
-
 #############################################################################################
 
-# send message to logger
-
+# Send Message to Logger
 
 def send_to_logger(message, msg):
     user_id = message.chat.id
     msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
-    # print(user_id, "-", msg)
+    # Print (user_id, "-", msg)
     app.send_message(Config.LOGS_ID, msg_with_id,
                      parse_mode=enums.ParseMode.MARKDOWN)
 
+# Send Message to User Only
 
-# send message to user only
 def send_to_user(message, msg):
     user_id = message.chat.id
     app.send_message(user_id, msg, parse_mode=enums.ParseMode.MARKDOWN)
 
+# Send Message to All ...
 
-# send message to all...
 def send_to_all(message, msg):
     user_id = message.chat.id
     msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
-    # print(user_id, "-", msg)
+    # Print (user_id, "-", msg)
     app.send_message(Config.LOGS_ID, msg_with_id,
                      parse_mode=enums.ParseMode.MARKDOWN)
     app.send_message(user_id, msg, parse_mode=enums.ParseMode.MARKDOWN)
 
-
 def progress_bar(*args):
-    # Ожидается, что Pyrogram вызовет progress_bar с пятью параметрами:
-    # current, total, speed, eta, file_size, а затем дополнительно ваши progress_args (user_id, msg_id, status_text)
+    # It is expected that Pyrogram will cause Progress_BAR with five parameters:
+    # Current, Total, Speed, ETA, File_SIZE, and then additionally your Progress_args (User_id, Msg_id, Status_text)
     if len(args) < 8:
         return
     current, total, speed, eta, file_size, user_id, msg_id, status_text = args[:8]
@@ -979,7 +955,6 @@ def progress_bar(*args):
         app.edit_message_text(user_id, msg_id, status_text)
     except Exception as e:
         print(f"Error updating progress: {e}")
-
 
 def send_videos(message, video_abs_path, caption, duration, thumb_file_path, info_text, msg_id):
     """
@@ -1003,13 +978,11 @@ def send_videos(message, video_abs_path, caption, duration, thumb_file_path, inf
     )
     return video_msg
 
-
 #####################################################################################
-
 
 def humanbytes(size):
     # https://stackoverflow.com/a/49361727/4723940
-    # 2**10 = 1024
+    # 2 ** 10 = 1024
     if not size:
         return ""
     power = 2**10
@@ -1020,20 +993,17 @@ def humanbytes(size):
         n += 1
     return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
 
-
 def TimeFormatter(milliseconds: int) -> str:
     seconds, milliseconds = divmod(int(milliseconds), 1000)
     minutes, seconds = divmod(seconds, 60)
     hours, minutes = divmod(minutes, 60)
     days, hours = divmod(hours, 24)
-    tmp = ((str(days) + "d, ") if days else "") + \
-        ((str(hours) + "h, ") if hours else "") + \
-        ((str(minutes) + "m, ") if minutes else "") + \
-        ((str(seconds) + "s, ") if seconds else "") + \
+    tmp = ((str(days) + "d, ") if days else "") +\
+        ((str(hours) + "h, ") if hours else "") +\
+        ((str(minutes) + "m, ") if minutes else "") +\
+        ((str(seconds) + "s, ") if seconds else "") +\
         ((str(milliseconds) + "ms, ") if milliseconds else "")
     return tmp[:-2]
-
-
 
 def split_video_2(dir, video_name, video_path, video_size, max_size, duration):
 
@@ -1058,7 +1028,6 @@ def split_video_2(dir, video_name, video_path, video_size, max_size, duration):
     print("convert successfull")
     return split_vid_dict
 
-
 def get_duration_thumb_(dir, video_path, thumb_name):
     thumb_dir = os.path.abspath(dir + "/" + thumb_name + ".jpg")
     clip = VideoFileClip(video_path)
@@ -1067,7 +1036,6 @@ def get_duration_thumb_(dir, video_path, thumb_name):
     clip.close()
     return duration, thumb_dir
 
-
 def get_duration_thumb(message, dir_path, video_path, thumb_name):
     """
     Captures a thumbnail at 2 seconds into the video and retrieves video duration.
@@ -1075,17 +1043,17 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
     """
     thumb_dir = os.path.abspath(os.path.join(dir_path, thumb_name + ".jpg"))
 
-    # ffmpeg command with -y flag to overwrite thumbnail file
+    # FFMPEG Command with -y Flag to overwrite Thumbnail File
     ffmpeg_command = [
         "ffmpeg",
         "-y",
         "-i", video_path,
-        "-ss", "2",         # Seek to 2 seconds
-        "-vframes", "1",    # Capture 1 frame
+        "-ss", "2",         # Seek to 2 Seconds
+        "-vframes", "1",    # Capture 1 Frame
         thumb_dir
     ]
 
-    # ffprobe command to get video duration
+    # FFPROBE COMMAND to GET Video Duration
     ffprobe_command = [
         "ffprobe",
         "-v", "error",
@@ -1104,7 +1072,6 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
         send_to_all(message, f"❌ Error capturing thumbnail or getting video duration: {e}")
         return None
 
-
 def write_logs(message, video_url, video_title):
     ts = str(math.floor(time.time()))
     data = {"ID": str(message.chat.id), "timestamp": ts,
@@ -1114,17 +1081,16 @@ def write_logs(message, video_url, video_title):
 #####################################################################################
 #####################################################################################
 
-
-
 #########################################
-# Функция down_and_audio
+# Down_and_audio function
 #########################################
+
 def down_and_audio(app, message, url):
     user_id = message.chat.id
-    # Логируем запрос на скачивание аудио
+    # Logging a request for downloading audio
     send_to_logger(message, f"Audio download requested:\nURL: {url}")
-    
-    # Проверка активного процесса и отправка реплая, если уже идет загрузка
+
+    # Checking the active process and sending a reference if loading is already underway
     if active_downloads.get(user_id, False):
         app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
         return
@@ -1133,13 +1099,13 @@ def down_and_audio(app, message, url):
         proc_msg = app.send_message(user_id, "Processing... ♻️")
         proc_msg_id = proc_msg.id
         check_user(message)
-        
+
         status_msg = app.send_message(user_id, "Processing audio, wait... ♻️")
         hourglass_msg = app.send_message(user_id, "⌛️")
-        # Сохраняем ID статусных сообщений сразу
+        # We save ID status messages at once
         status_msg_id = status_msg.id
         hourglass_msg_id = hourglass_msg.id
-        
+
         stop_anim = threading.Event()
         def animate_hourglass():
             current = True
@@ -1224,9 +1190,9 @@ def down_and_audio(app, message, url):
         except Exception as e:
             print(f"Error updating upload status: {e}")
 
-        # Отправляем аудио и сохраняем объект сообщения для репоста
+        # Send audio and save the message object for repost
         audio_msg = app.send_audio(chat_id=user_id, audio=audio_file, caption=f"{audio_title}")
-        # Репостим финальное аудио сообщение в лог-канал (замена .message_id -> .id)
+        # Reposting final audio message to the log channel (replacement .Message_id -> .id)
         try:
             app.forward_messages(Config.LOGS_ID, user_id, [audio_msg.id])
         except Exception as e:
@@ -1236,7 +1202,7 @@ def down_and_audio(app, message, url):
             full_bar = "🟩" * 10
             success_msg = f"✅ Audio successfully downloaded and sent.\n\n{Config.CREDITS_MSG}"
             app.edit_message_text(user_id, proc_msg_id, success_msg)
-            
+
         except Exception as e:
             print(f"Error updating final status: {e}")
         send_to_logger(message, success_msg)
@@ -1264,15 +1230,15 @@ def down_and_audio(app, message, url):
     finally:
         active_downloads[user_id] = False
 
+#########################################
+# Download_and_up function
+#########################################
 
-#########################################
-# Функция down_and_up
-#########################################
 def down_and_up(app, message, url, playlist_name, video_count, video_start_with):
     user_id = message.chat.id
-    # Логируем запрос на скачивание видео
+    # Logging a video download request
     send_to_logger(message, f"Video download requested:\nURL: {url}\nPlaylist: {playlist_name}\nCount: {video_count}, Start: {video_start_with}")
-    
+
     if active_downloads.get(user_id, False):
         app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
         return
@@ -1305,10 +1271,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
 
         status_msg = app.send_message(user_id, "Processing video, wait... ♻️")
         hourglass_msg = app.send_message(user_id, "⌛️")
-        # Сохраняем ID статусных сообщений
+        # We save ID status messages
         status_msg_id = status_msg.id
         hourglass_msg_id = hourglass_msg.id
-        
+
         stop_anim = threading.Event()
         def animate_hourglass():
             current = True
@@ -1444,7 +1410,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                     break
             if info_dict is None:
                 send_to_all(message, f"❌ Failed to download video: {error_message}\n────────────────\nCheck [here](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) if your site supported\nYou may need `cookie` for downloading this video.\nFor Youtube - get `cookie` via /download_cookie command. For any other supported site - send your own cookie ([guide1](https://t.me/c/2303231066/18)) ([guide2](https://t.me/c/2303231066/22)) and after that send your video link again.")
-                continue  # move to the next video if available
+                continue  # Move to the Next Video If Availble
 
             successful_uploads += 1
 
@@ -1453,7 +1419,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             if rename_name is None:
                 rename_name = video_title
 
-            expected_video_name = f"{video_title}.mp4"
             info_text = f"""
 {total_process}
 
@@ -1537,9 +1502,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                     if part_result is None:
                         continue
                     part_duration, splited_thumb_dir = part_result
-                    # Отправляем видео и сохраняем объект отправленного сообщения
+                    # We send a video and save the object of the sent message
                     video_msg = send_videos(message, path_lst[p], caption_lst[p], part_duration, splited_thumb_dir, info_text, proc_msg.id)
-                    # Репостим именно сообщение с видео в лог-канал
+                    # Reposts precisely the message from the video to the log channel
                     try:
                         app.forward_messages(Config.LOGS_ID, user_id, [video_msg.message_id])
                     except Exception as e:
@@ -1582,19 +1547,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
         except Exception as e:
             print("Error deleting status messages:", e)
 
-
-
-
-
 #####################################################################################
 #####################################################################################
 #####################################################################################
 
+# YT-DLP HOOK
 
-# yt-dlp hook
 def ytdlp_hook(d):
     print(d['status'])
-
 
 #####################################################################################
 _format = {"ID": '0', "timestamp": math.floor(time.time())}
