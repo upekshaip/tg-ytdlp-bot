@@ -64,15 +64,15 @@ Edit your configuration before deployment. After your edits, proceed with the Do
    If you prefer local deployment rather that docker container you also need to install `ffmpeg`
    **ffmpeg** is essential since **yt-dlp** relies on it for merging streams (and in some cases for transcoding or extracting thumbnails). To install ffmpeg on a Debian-based system, run:
 
-      ```sh
+   ```sh
       sudo apt-get update
       sudo apt-get install -y ffmpeg
-      ```
+   ```
 
    Verify the installation:
-      ```sh
+   ```sh
       ffmpeg -version
-      ```
+   ```
 </details> 
 
 ---
