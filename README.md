@@ -238,7 +238,7 @@ Then select the desired option from the menu.
 
 - **`https://blabla.blaa*1*3*name`**  \
   Download a specified range of videos from the playlist with a custom name. \
-  Videos will be named as: \
+  Videos will be named as: 
   - `name - Part 1` 
   - `name - Part 2` 
 
@@ -248,7 +248,7 @@ Then select the desired option from the menu.
 
 **This bot allows you to download videos and audio, and also work with playlists.**
 
-• Simply send a video link and the bot will start downloading.
+• Simply send a video link and the bot will start downloading. 
 • For playlists, specify the range of indexes separated by asterisks (e.g. `https://example.com*1*4`) to download videos from position 1 to 4.
 • You can set a custom playlist name by adding it after the range (e.g. `https://example.com*1*4*My Playlist`).
 
