@@ -293,3 +293,50 @@ For example, add the following line to your crontab:
 - Add a custom formatter selector for downloads.
 - Enhance MP3 support.
 - Add Google Drive support to store files.
+
+---
+
+Below is an example section for your GitHub README.md that explains how to set up Firebase for your Telegram bot, including creating a Firebase project, setting up a Realtime Database with authentication, and creating a user.
+
+---
+
+## Firebase Setup for Telegram Bot
+
+This section describes how to create a Firebase project, set up the Realtime Database with authentication, create a test user, and integrate Firebase into your Telegram bot.
+
+### 1. Create a Firebase Project
+
+1. Go to the [Firebase Console](https://console.firebase.google.com/) and click **Add Project** (or select an existing project).
+2. Follow the setup wizard to create your new project.
+3. After the project is created, navigate to **Project Settings** and copy your configuration parameters (such as `apiKey`, `authDomain`, `databaseURL`, `projectId`, etc.). These values are required for configuring the connection in your bot.
+
+### 2. Create a Realtime Database
+
+1. In the Firebase Console, select **Realtime Database**.
+2. Click **Create Database**.
+3. Choose your database location and set the mode. For initial testing, you may choose **Test Mode** (keep in mind that test mode does not enforce authentication).
+4. Once your database is created, update its security rules as described in Step 4.
+
+### 3. Enable Authentication
+
+1. In the left-hand menu of the Firebase Console, select **Authentication**.
+2. Click **Get Started**.
+3. Navigate to the **Sign-in Method** tab and enable the desired provider. For a basic setup, enable **Email/Password**:
+   - Click on **Email/Password**.
+   - Toggle the switch to **Enable**.
+4. After enabling the sign-in method, create a test user manually in the **Users** tab, or implement user registration in your application.
+
+### 4. Update Realtime Database Security Rules
+
+To restrict access to your database only to authenticated users, update your security rules as follows:
+
+```json
+{
+  "rules": {
+    ".read": "auth != null && now < 4070908800000",
+    ".write": "auth != null && now < 4070908800000"
+  }
+}
+```
+
+These rules allow read and write operations only if the request contains a valid `idToken`—meaning the user is authenticated.
