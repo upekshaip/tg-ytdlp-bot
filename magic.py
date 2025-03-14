@@ -30,10 +30,38 @@ firebase = pyrebase.initialize_app(Config.FIREBASE_CONF)
 auth = firebase.auth()
 
 # Sign in using email and password (ensure these credentials are set in your Config)
-user = auth.sign_in_with_email_and_password(Config.FIREBASE_USER, Config.FIREBASE_PASSWORD)
+try:
+    user = auth.sign_in_with_email_and_password(Config.FIREBASE_USER, Config.FIREBASE_PASSWORD)
+    # Debug: Print essential details of the user object
+    print("User signed in successfully.")
+    print("User email:", user.get("email"))
+    print("User localId:", user.get("localId"))
+    # Если доступно, проверяем статус верификации email
+    if "emailVerified" in user:
+        print("Email verified:", user["emailVerified"])
+    else:
+        print("Email verification status not available in user object.")
+except Exception as e:
+    print("Error during Firebase authentication:", e)
+    raise
+
+# Debug: Print a portion of idToken
+idToken = user.get("idToken")
+if idToken:
+    print("Firebase idToken (first 20 chars):", idToken[:20])
+else:
+    print("No idToken received!")
+    raise Exception("idToken is empty.")
 
 # Get the base database object
 base_db = firebase.database()
+
+# Дополнительная проверка: Выполнить тестовый GET запрос на корневой узел
+try:
+    test_data = base_db.get(idToken)
+    print("Test GET operation succeeded. Data:", test_data.val())
+except Exception as e:
+    print("Test GET operation failed:", e)
 
 # Define a wrapper class to automatically pass the idToken for all database operations
 class AuthedDB:
@@ -42,43 +70,53 @@ class AuthedDB:
         self.token = token
 
     def child(self, path):
-        # Returns a reference to the child node
-        return self.db.child(path)
+        return AuthedDB(self.db.child(path), self.token)
 
     def set(self, data, *args, **kwargs):
-        # Calls set() with the idToken automatically added
         return self.db.set(data, self.token, *args, **kwargs)
 
     def get(self, *args, **kwargs):
-        # Calls get() with the idToken automatically added
         return self.db.get(self.token, *args, **kwargs)
 
     def push(self, data, *args, **kwargs):
-        # Calls push() with the idToken automatically added
         return self.db.push(data, self.token, *args, **kwargs)
 
     def update(self, data, *args, **kwargs):
-        # Calls update() with the idToken automatically added
         return self.db.update(data, self.token, *args, **kwargs)
 
     def remove(self, *args, **kwargs):
-        # Calls remove() with the idToken automatically added
         return self.db.remove(self.token, *args, **kwargs)
 
-# Initialize the authenticated database object
-db = AuthedDB(base_db, user['idToken'])
+# Используем метод rstrip() прямо в f-строке для формирования корректного пути
+db = AuthedDB(base_db, user["idToken"])
+db_path = Config.BOT_DB_PATH.rstrip("/")
+_format = {"ID": "0", "timestamp": math.floor(time.time())}
+try:
+    # Пробуем записать данные по пути: bot/tgytdlp_bot/users/0
+    result = db.child(f"{db_path}/users/0").set(_format)
+    print("Data written successfully. Result:", result)
+except Exception as e:
+    print("Error writing data to Firebase:", e)
+    raise
 
-# Note:
-# To enforce authentication in your Firebase Realtime Database, create email/password user and update your rules in the Firebase Console to:
-#
-# {
-#   "rules": {
-#     ".read": "auth != null && now < 4070908800000",
-#     ".write": "auth != null && now < 4070908800000"
-#   }
-# }
-#
-# This will ensure that only authenticated users (i.e. users with a valid idToken) can read and write.
+# Function to periodically refresh the idToken using the refreshToken
+def token_refresher():
+    global db, user
+    while True:
+        # Sleep for 50 minutes (3000 seconds)
+        time.sleep(3000)
+        try:
+            new_user = auth.refresh(user["refreshToken"])
+            new_idToken = new_user["idToken"]
+            db.token = new_idToken
+            user = new_user
+            print("Firebase idToken refreshed successfully. New token (first 20 chars):", new_idToken[:20])
+        except Exception as e:
+            print("Error refreshing Firebase idToken:", e)
+
+# Start the token refresher thread as a daemon
+token_thread = threading.Thread(target=token_refresher, daemon=True)
+token_thread.start()
 
 ################################################################################################
 
@@ -89,7 +127,6 @@ app = Client(
     api_hash=Config.API_HASH,
     bot_token=Config.BOT_TOKEN
 )
-
 
 ##############################################################################################################################
 ##############################################################################################################################
@@ -397,7 +434,7 @@ def format_option_callback(app, callback_query):
 # Checking user is Blocked or not
 
 def is_user_blocked(message):
-    blocked = db.child(f"{Config.BOT_DB_PATH}/blocked_users").get().each()
+    blocked = db.child("bot").child("tgytdlp_bot").child("blocked_users").get().each()
     blocked_users = [int(b_user.key()) for b_user in blocked]
     if int(message.chat.id) in blocked_users:
         send_to_user(message, "🚫 You are banned from the bot!")
@@ -421,11 +458,11 @@ def check_user(message):
         shutil.copy(cookie_src, cookie_dest)
 
     # Register the User in the Database If Not Alread Registered
-    user_db = db.child(f"{Config.BOT_DB_PATH}/users").get().each()
+    user_db = db.child("bot").child("tgytdlp_bot").child("users").get().each()
     users = [user.key() for user in user_db] if user_db else []
     if user_id_str not in users:
         data = {"ID": message.chat.id, "timestamp": math.floor(time.time())}
-        db.child(f"{Config.BOT_DB_PATH}/users/{user_id_str}").set(data)
+        db.child("bot").child("tgytdlp_bot").child("users").child(user_id_str).set(data)
 
 #####################################################################################
 
@@ -609,7 +646,7 @@ def remove_media(message):
 
 def send_promo_message(app, message):
     # We get a list of users from the base
-    user_lst = db.child(f"{Config.BOT_DB_PATH}/users").get().each()
+    user_lst = db.child("bot").child("tgytdlp_bot").child("users").get().each()
     user_lst = [int(user.key()) for user in user_lst]
     # Add administrators if they are not on the list
     for admin in Config.ADMIN:
@@ -670,7 +707,7 @@ def get_user_log(app, message):
             user_id = message.text.split(Config.GET_USER_LOGS_COMMAND + " ")[1]
 
     try:
-        db_data = db.child(f"{Config.BOT_DB_PATH}/logs/{user_id}").get().each()
+        db_data = db.child("bot").child("tgytdlp_bot").child("logs").child(user_id).get().each()
         lst = [user.val() for user in db_data]
         data = []
         data_tg = []
@@ -1129,7 +1166,7 @@ def write_logs(message, video_url, video_title):
     ts = str(math.floor(time.time()))
     data = {"ID": str(message.chat.id), "timestamp": ts,
             "name": message.chat.first_name, "urls": str(video_url), "title": video_title}
-    db.child(f"{Config.BOT_DB_PATH}/logs/{str(message.chat.id)}/{ts}").set(data)
+    db.child("bot").child("tgytdlp_bot").child("logs").child(str(message.chat.id)).child(str(ts)).set(data)
     print("Log for user added")
 #####################################################################################
 #####################################################################################
@@ -1613,9 +1650,9 @@ def ytdlp_hook(d):
 
 #####################################################################################
 _format = {"ID": '0', "timestamp": math.floor(time.time())}
-db.child(f"{Config.BOT_DB_PATH}/users/{str(0)}").set(_format)
-db.child(f"{Config.BOT_DB_PATH}/blocked_users/{str(0)}").set(_format)
-db.child(f"{Config.BOT_DB_PATH}/unblocked_users/{str(0)}").set(_format)
+db.child("bot").child("tgytdlp_bot").child("users").child("0").set(_format)
+db.child("bot").child("tgytdlp_bot").child("blocked_users").child("0").set(_format)
+db.child("bot").child("tgytdlp_bot").child("unblocked_users").child("0").set(_format)
 print("db created")
 starting_point.append(time.time())
 print("Bot started")
