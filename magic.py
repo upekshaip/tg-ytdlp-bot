@@ -15,28 +15,81 @@ from moviepy.editor import VideoFileClip
 from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 import subprocess
 from config import Config
+
 ################################################################################################
-# This is the back of Starting Point. do not touch this one
+# Global starting point list (do not modify)
 starting_point = []
 
-# At the beginning of the file (for example, immediately after imports)
-active_downloads = {}  # Global dictionary to track processes
+# Global dictionary to track active downloads
+active_downloads = {}
+
+# Firebase Initialization with Authentication
+firebase = pyrebase.initialize_app(Config.FIREBASE_CONF)
+
+# Create auth object from pyrebase
+auth = firebase.auth()
+
+# Sign in using email and password (ensure these credentials are set in your Config)
+user = auth.sign_in_with_email_and_password(Config.FIREBASE_USER, Config.FIREBASE_PASSWORD)
+
+# Get the base database object
+base_db = firebase.database()
+
+# Define a wrapper class to automatically pass the idToken for all database operations
+class AuthedDB:
+    def __init__(self, db, token):
+        self.db = db
+        self.token = token
+
+    def child(self, path):
+        # Returns a reference to the child node
+        return self.db.child(path)
+
+    def set(self, data, *args, **kwargs):
+        # Calls set() with the idToken automatically added
+        return self.db.set(data, self.token, *args, **kwargs)
+
+    def get(self, *args, **kwargs):
+        # Calls get() with the idToken automatically added
+        return self.db.get(self.token, *args, **kwargs)
+
+    def push(self, data, *args, **kwargs):
+        # Calls push() with the idToken automatically added
+        return self.db.push(data, self.token, *args, **kwargs)
+
+    def update(self, data, *args, **kwargs):
+        # Calls update() with the idToken automatically added
+        return self.db.update(data, self.token, *args, **kwargs)
+
+    def remove(self, *args, **kwargs):
+        # Calls remove() with the idToken automatically added
+        return self.db.remove(self.token, *args, **kwargs)
+
+# Initialize the authenticated database object
+db = AuthedDB(base_db, user['idToken'])
+
+# Note:
+# To enforce authentication in your Firebase Realtime Database, create email/password user and update your rules in the Firebase Console to:
+#
+# {
+#   "rules": {
+#     ".read": "auth != null && now < 4070908800000",
+#     ".write": "auth != null && now < 4070908800000"
+#   }
+# }
+#
+# This will ensure that only authenticated users (i.e. users with a valid idToken) can read and write.
+
 ################################################################################################
 
-# Firebase Initialization
-firebase = pyrebase.initialize_app(Config.FIREBASE_CONF)
-db = firebase.database()
-
-##############################################################################################################################
-##############################################################################################################################
-
-# App
+# Pyrogram App Initialization
 app = Client(
     "magic",
     api_id=Config.API_ID,
     api_hash=Config.API_HASH,
     bot_token=Config.BOT_TOKEN
 )
+
 
 ##############################################################################################################################
 ##############################################################################################################################
