@@ -36,7 +36,7 @@ try:
     print("User signed in successfully.")
     print("User email:", user.get("email"))
     print("User localId:", user.get("localId"))
-    # Если доступно, проверяем статус верификации email
+    # If available, check email verification status
     if "emailVerified" in user:
         print("Email verified:", user["emailVerified"])
     else:
@@ -56,7 +56,7 @@ else:
 # Get the base database object
 base_db = firebase.database()
 
-# Дополнительная проверка: Выполнить тестовый GET запрос на корневой узел
+# Additional check: Execute a test GET request to the root node
 try:
     test_data = base_db.get(idToken)
     print("Test GET operation succeeded. Data:", test_data.val())
@@ -87,12 +87,12 @@ class AuthedDB:
     def remove(self, *args, **kwargs):
         return self.db.remove(self.token, *args, **kwargs)
 
-# Используем метод rstrip() прямо в f-строке для формирования корректного пути
+# Let's use the rstrip() method directly in the f-string to form the correct path
 db = AuthedDB(base_db, user["idToken"])
 db_path = Config.BOT_DB_PATH.rstrip("/")
 _format = {"ID": "0", "timestamp": math.floor(time.time())}
 try:
-    # Пробуем записать данные по пути: bot/tgytdlp_bot/users/0
+    # Try writing data to the path: bot/tgytdlp_bot/users/0
     result = db.child(f"{db_path}/users/0").set(_format)
     print("Data written successfully. Result:", result)
 except Exception as e:
