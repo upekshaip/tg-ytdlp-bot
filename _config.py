@@ -76,6 +76,8 @@ __Contributor___ @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl
     # your firebase DB path
     BOT_DB_PATH = f"bot/{BOT_NAME}/"
     # Firebase Config - Required (str for all)
+    FIREBASE_USER = "YOUR@E.MAIL"
+    FIREBASE_PASSWORD = "YOUR_PASSWORD"
     FIREBASE_CONF = {
         'apiKey': "",
         'authDomain': "",
