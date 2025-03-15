@@ -55,46 +55,29 @@ class Config(object):
     ERROR1 = "Did not found a url link. Please enter a url with **https://** or **http://**"
     INDEX_ERROR = "You did not give a valid information. Try again..."
     HELP_MSG = """
-**You can enter any video link. Also you can enter youtube playlist link with the range. 
-If you entered a playlist link you must provide a range**
-
-
-• You can download videos with this bot. Just send the link like this:
-
-    `https://blabla.blaa`
-
-
-• If you want to download youtube playlist give a range like this: 
-__separate the --link--, --start-- and --end-- playlist index numbers in `*` mark.__
-
-    `https://blabla.blaa*1*4` 
-
-__this will download all videos from --index 1-- to --index 4-- on that playlist.__
-
-
-• If you need a coustom playlist name send like this:
-
-    `https://blabla.blaa*1*4*coustom name`
-
-• __If you want to change the caption of a video reply to the video with your caption.__ **Bot will send your video with your caption.**
-
-• To clean your working space send /clean command. If you get any download errors, you can try this out. Then send the link again. It will fix the issue.
-
-• You can also download any private video with a cookie file. Just send your cookies.txt file to the bot.
-
-• To check the cookie file run /check_cookie command. After setting the cookie file, you can enter your video url as usual. If you need to download private playlist it will also work as usual.
-
-• To see your logs and your usage, send /usage command. 
-
-
+> **This bot allows you to download videos and audio, and also work with playlists.**
+> 
+> • Simply send a video link and the bot will start downloading.
+> • For playlists, specify the range of indexes separated by asterisks (e.g. `https://example.com*1*4`) to download videos from position 1 to 4.
+> • You can set a custom playlist name by adding it after the range (e.g. `https://example.com*1*4*My Playlist`).
+> 
+> • To change the caption of a video, reply to the video with your message – the bot will send the video with your caption.
+> • To extract audio from a video, use the **/audio** command (e.g. `/audio https://example.com`).
+> • Upload a cookie file to download private videos and playlists.
+> • Check or update your cookie file with **/check_cookie**, **/download_cookie**, **/save_as_cookie** and **/cookies_from_browser** commands.
+> • To clean your workspace on server from bad files (e.g. old cookies or media) use **/clean** command (might be helpfull for get rid of errors).
+> • See your usage statistics and logs by sending the **/usage** command.
 
 __Developed by__ @upekshaip
+__Contributor___ @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl
 """
 
 # Firebase initialization
     # your firebase DB path
     BOT_DB_PATH = f"bot/{BOT_NAME}/"
     # Firebase Config - Required (str for all)
+    FIREBASE_USER = "YOUR@E.MAIL"
+    FIREBASE_PASSWORD = "YOUR_PASSWORD"
     FIREBASE_CONF = {
         'apiKey': "",
         'authDomain': "",

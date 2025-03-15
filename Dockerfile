@@ -15,7 +15,9 @@ WORKDIR /app
 # Copy requirements.txt and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
+RUN pip uninstall urllib3 -y
+RUN pip install --no-cache-dir --force-reinstall "urllib3==1.26.20"
+RUN pip install --no-deps moviepy==1.0.3
 # Copy the rest of the application files
 COPY . .
 
