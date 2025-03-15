@@ -55,18 +55,18 @@ class Config(object):
     ERROR1 = "Did not found a url link. Please enter a url with **https://** or **http://**"
     INDEX_ERROR = "You did not give a valid information. Try again..."
     HELP_MSG = """
-**This bot allows you to download videos and audio, and also work with playlists.**
-
-• Simply send a video link and the bot will start downloading.
-• For playlists, specify the range of indexes separated by asterisks (e.g. `https://example.com*1*4`) to download videos from position 1 to 4.
-• You can set a custom playlist name by adding it after the range (e.g. `https://example.com*1*4*My Playlist`).
-
-• To change the caption of a video, reply to the video with your message – the bot will send the video with your caption.
-• To extract audio from a video, use the **/audio** command (e.g. `/audio https://example.com`).
-• Upload a cookie file to download private videos and playlists.
-• Check or update your cookie file with **/check_cookie**, **/download_cookie**, **/save_as_cookie** and **/cookies_from_browser** commands.
-• To clean your workspace on server from bad files (e.g. old cookies or media) use **/clean** command (might be helpfull for get rid of errors).
-• See your usage statistics and logs by sending the **/usage** command.
+> **This bot allows you to download videos and audio, and also work with playlists.**
+> 
+> • Simply send a video link and the bot will start downloading.
+> • For playlists, specify the range of indexes separated by asterisks (e.g. `https://example.com*1*4`) to download videos from position 1 to 4.
+> • You can set a custom playlist name by adding it after the range (e.g. `https://example.com*1*4*My Playlist`).
+> 
+> • To change the caption of a video, reply to the video with your message – the bot will send the video with your caption.
+> • To extract audio from a video, use the **/audio** command (e.g. `/audio https://example.com`).
+> • Upload a cookie file to download private videos and playlists.
+> • Check or update your cookie file with **/check_cookie**, **/download_cookie**, **/save_as_cookie** and **/cookies_from_browser** commands.
+> • To clean your workspace on server from bad files (e.g. old cookies or media) use **/clean** command (might be helpfull for get rid of errors).
+> • See your usage statistics and logs by sending the **/usage** command.
 
 __Developed by__ @upekshaip
 __Contributor___ @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl
