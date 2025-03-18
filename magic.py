@@ -44,11 +44,11 @@ active_downloads_lock = threading.Lock()
 def check_disk_space(path, required_bytes):
     """
     Check if there's enough disk space available at the specified path.
-    
+
     Args:
         path (str): Path to check
         required_bytes (int): Required bytes of free space
-        
+
     Returns:
         bool: True if enough space is available, False otherwise
     """
@@ -649,10 +649,10 @@ def remove_media(message):
     allfiles = os.listdir(dir)
 
     file_extensions = [
-        ('.mp4', '.mkv'), '.mp3', '.jpg', '.part', '.ytdl', 
-        '.txt', '.ts', '.webm'
+        '.mp4', '.mkv', '.mp3', '.m4a', '.jpg', '.jpeg', '.part', '.ytdl',
+        '.txt', '.ts', '.m3u8', '.webm', '.wmv', '.avi', '.mpeg', '.wav'
     ]
-    
+
     for extension in file_extensions:
         if isinstance(extension, tuple):
             # Handle multiple extensions
@@ -660,12 +660,12 @@ def remove_media(message):
         else:
             # Handle single extension
             files = [fname for fname in allfiles if fname.endswith(extension)]
-            
+
         for file in files:
-            # Skip special files like cookie.txt and logs.txt
-            if extension == '.txt' and file in ['cookie.txt', 'logs.txt']:
+            # Skip special files like cookie.txt and logs.txt and format.txt
+            if extension == '.txt' and file in ['cookie.txt', 'logs.txt', 'format.txt']:
                 continue
-                
+
             file_path = os.path.join(dir, file)
             try:
                 os.remove(file_path)
@@ -1131,7 +1131,7 @@ def TimeFormatter(milliseconds: int) -> str:
 def split_video_2(dir, video_name, video_path, video_size, max_size, duration):
     """
     Split a video into multiple parts
-    
+
     Args:
         dir: Directory path
         video_name: Name for the video
@@ -1139,7 +1139,7 @@ def split_video_2(dir, video_name, video_path, video_size, max_size, duration):
         video_size: Size of the video in bytes
         max_size: Maximum size for each part
         duration: Duration of the video
-        
+
     Returns:
         dict: Dictionary with video parts information
     """
@@ -1147,47 +1147,47 @@ def split_video_2(dir, video_name, video_path, video_size, max_size, duration):
     n = duration / rounds
     caption_lst = []
     path_lst = []
-    
+
     try:
         if rounds > 20:
             logger.warning(f"Video will be split into {rounds} parts, which may be excessive")
-            
+
         for x in range(rounds):
             start_time = x * n
             end_time = (x * n) + n
-            
+
             # Ensure end_time doesn't exceed duration
             end_time = min(end_time, duration)
-            
+
             cap_name = video_name + " - Part " + str(x + 1)
             target_name = os.path.join(dir, cap_name + ".mp4")
-            
+
             caption_lst.append(cap_name)
             path_lst.append(target_name)
-            
+
             try:
                 # Use progress logging
                 logger.info(f"Splitting video part {x+1}/{rounds}: {start_time:.2f}s to {end_time:.2f}s")
                 ffmpeg_extract_subclip(video_path, start_time, end_time, targetname=target_name)
-                
+
                 # Verify the split was successful
                 if not os.path.exists(target_name) or os.path.getsize(target_name) == 0:
                     logger.error(f"Failed to create split part {x+1}: {target_name}")
                 else:
                     logger.info(f"Successfully created split part {x+1}: {target_name} ({os.path.getsize(target_name)} bytes)")
-                    
+
             except Exception as e:
                 logger.error(f"Error splitting video part {x+1}: {e}")
                 # If a part fails, we continue with the others
-                
+
         split_vid_dict = {
             "video": caption_lst,
             "path": path_lst
         }
-        
+
         logger.info(f"Video split into {len(path_lst)} parts successfully")
         return split_vid_dict
-        
+
     except Exception as e:
         logger.error(f"Error in video splitting process: {e}")
         # Return what we have so far
@@ -1210,13 +1210,13 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
     """
     Captures a thumbnail at 2 seconds into the video and retrieves video duration.
     Forces overwriting existing thumbnail with the '-y' flag.
-    
+
     Args:
         message: The message object
         dir_path: Directory path for the thumbnail
         video_path: Path to the video file
         thumb_name: Name for the thumbnail
-        
+
     Returns:
         tuple: (duration, thumbnail_path) or None if error
     """
@@ -1248,27 +1248,27 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
             logger.error(f"Video file does not exist: {video_path}")
             send_to_all(message, f"❌ Video file not found: {os.path.basename(video_path)}")
             return None
-            
+
         # Run ffmpeg command to create thumbnail
         ffmpeg_result = subprocess.run(ffmpeg_command, check=True, capture_output=True, text=True)
         if ffmpeg_result.returncode != 0:
             logger.error(f"Error creating thumbnail: {ffmpeg_result.stderr}")
-            
+
         # Run ffprobe command to get duration
         result = subprocess.check_output(ffprobe_command, stderr=subprocess.STDOUT, universal_newlines=True)
-        
+
         try:
             duration = int(float(result))
         except (ValueError, TypeError) as e:
             logger.error(f"Error parsing video duration: {e}, result was: {result}")
             duration = 0
-            
+
         # Verify thumbnail was created
         if not os.path.exists(thumb_dir):
             logger.warning(f"Thumbnail not created at {thumb_dir}, using default")
             # Create a blank thumbnail as fallback
             create_default_thumbnail(thumb_dir)
-            
+
         return duration, thumb_dir
     except subprocess.CalledProcessError as e:
         logger.error(f"Command execution error: {e.stderr if hasattr(e, 'stderr') else e}")
@@ -1317,7 +1317,7 @@ def down_and_audio(app, message, url):
     if get_active_download(user_id):
         app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
         return
-    
+
     set_active_download(user_id, True)
     proc_msg = None
     proc_msg_id = None
@@ -1328,16 +1328,16 @@ def down_and_audio(app, message, url):
     anim_thread = None
     stop_anim = threading.Event()
     audio_file = None  # Initialize audio_file variable
-    
+
     try:
         # Check if there's enough disk space (estimate 500MB per audio file)
         user_folder = os.path.abspath(os.path.join("users", str(user_id)))
         create_directory(user_folder)
-        
+
         if not check_disk_space(user_folder, 500 * 1024 * 1024):
             send_to_user(message, "❌ Not enough disk space to download the audio.")
             return
-            
+
         proc_msg = app.send_message(user_id, "Processing... ♻️")
         proc_msg_id = proc_msg.id
         check_user(message)
@@ -1440,7 +1440,7 @@ def down_and_audio(app, message, url):
             safe_edit_message_text(user_id, proc_msg_id, success_msg)
         except Exception as e:
             logger.error(f"Error updating final status: {e}")
-            
+
         send_to_logger(message, success_msg)
 
     except Exception as e:
@@ -1456,7 +1456,7 @@ def down_and_audio(app, message, url):
         stop_anim.set()
         if anim_thread:
             anim_thread.join(timeout=1)  # Wait for animation thread with timeout
-            
+
         try:
             if status_msg_id:
                 safe_delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
@@ -1470,7 +1470,7 @@ def down_and_audio(app, message, url):
                 os.remove(audio_file)
         except Exception as e:
             logger.error(f"Failed to delete file {audio_file}: {e}")
-            
+
         set_active_download(user_id, False)
 
 #########################################
@@ -1485,7 +1485,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
     if get_active_download(user_id):
         app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
         return
-        
+
     set_active_download(user_id, True)
     error_message = ""
     proc_msg = None
@@ -1496,16 +1496,17 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
     hourglass_msg_id = None
     anim_thread = None
     stop_anim = threading.Event()
-    
+
     try:
         # Check if there's enough disk space (estimate 2GB per video)
         user_dir_name = os.path.abspath(os.path.join("users", str(user_id)))
         create_directory(user_dir_name)
-        
-        if not check_disk_space(user_dir_name, 2 * 1024 * 1024 * 1024 * video_count):
-            send_to_user(message, f"❌ Not enough disk space to download {video_count} videos.")
+
+        # We only need disk space for one video at a time, since files are deleted after upload
+        if not check_disk_space(user_dir_name, 2 * 1024 * 1024 * 1024):
+            send_to_user(message, f"❌ Not enough disk space to download videos.")
             return
-            
+
         proc_msg = app.send_message(user_id, "Processing... ♻️")
         proc_msg_id = proc_msg.id
         check_user(message)
@@ -1650,7 +1651,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             video_title = info_dict.get("title", None)
             # Sanitize video title
             video_title = sanitize_filename(video_title) if video_title else "video"
-            
+
             if rename_name is None:
                 rename_name = video_title
 
@@ -1689,14 +1690,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 caption_name = rename_name
                 old_path = os.path.join(dir_path, downloaded_file)
                 new_path = os.path.join(dir_path, final_name)
-                
+
                 # If target file already exists, remove it first
                 if os.path.exists(new_path):
                     try:
                         os.remove(new_path)
                     except Exception as e:
                         logger.error(f"Error removing existing file {new_path}: {e}")
-                
+
                 try:
                     os.rename(old_path, new_path)
                 except Exception as e:
@@ -1712,11 +1713,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                         f"{info_text}\n\n{full_bar}   100.0%\nConverting video using ffmpeg... ⏳")
                 except Exception as e:
                     logger.error(f"Error updating status before conversion: {e}")
-                    
+
                 # Generate sanitized output filename
                 mp4_basename = sanitize_filename(os.path.splitext(final_name)[0]) + ".mp4"
                 mp4_file = os.path.join(dir_path, mp4_basename)
-                
+
                 ffmpeg_cmd = [
                     "ffmpeg",
                     "-y",
@@ -1831,29 +1832,29 @@ import signal
 def signal_handler(sig, frame):
     """
     Handler for system signals to ensure graceful shutdown
-    
+
     Args:
         sig: Signal number
         frame: Current stack frame
     """
     logger.info(f"Received signal {sig}, shutting down gracefully...")
-    
+
     # Stop all active animations and threads
-    active_threads = [t for t in threading.enumerate() 
+    active_threads = [t for t in threading.enumerate()
                      if t != threading.current_thread() and not t.daemon]
-    
+
     if active_threads:
         logger.info(f"Waiting for {len(active_threads)} active threads to finish")
         for thread in active_threads:
             logger.info(f"Waiting for thread {thread.name} to finish...")
             thread.join(timeout=2)  # Wait with timeout to avoid hanging
-    
+
     # Clean up temporary files
     try:
         cleanup_temp_files()
     except Exception as e:
         logger.error(f"Error during cleanup: {e}")
-    
+
     # Finish the application
     logger.info("Shutting down Pyrogram client...")
     try:
@@ -1861,7 +1862,7 @@ def signal_handler(sig, frame):
         logger.info("Pyrogram client stopped successfully")
     except Exception as e:
         logger.error(f"Error stopping Pyrogram client: {e}")
-        
+
     logger.info("Shutdown complete.")
     sys.exit(0)
 
@@ -1869,7 +1870,7 @@ def cleanup_temp_files():
     """Clean up temporary files across all user directories"""
     if not os.path.exists("users"):
         return
-        
+
     logger.info("Cleaning up temporary files")
     for user_dir in os.listdir("users"):
         try:
@@ -1892,10 +1893,10 @@ signal.signal(signal.SIGTERM, signal_handler)
 def get_active_download(user_id):
     """
     Thread-safe function to get the active download status for a user
-    
+
     Args:
         user_id: The user ID
-        
+
     Returns:
         bool: Whether the user has an active download
     """
@@ -1906,32 +1907,32 @@ def get_active_download(user_id):
 def sanitize_filename(filename, max_length=150):
     """
     Sanitize filename by removing invalid characters and shortening if needed
-    
+
     Args:
         filename (str): Original filename
         max_length (int): Maximum allowed length for filename (excluding extension)
-        
+
     Returns:
         str: Sanitized and shortened filename
     """
     # Exit early if None
     if filename is None:
         return "untitled"
-        
+
     # Extract extension first
     name, ext = os.path.splitext(filename)
-    
+
     # Remove invalid characters (Windows and Linux safe)
     invalid_chars = r'[<>:"/\\|?*\x00-\x1f]'
     name = re.sub(invalid_chars, '', name)
-    
+
     # Replace multiple spaces with single space and strip
     name = re.sub(r'\s+', ' ', name).strip()
-    
+
     # Shorten if too long
     if len(name) > max_length:
         name = name[:max_length-3] + "..."
-    
+
     # Return sanitized filename with extension
     return name + ext
 
@@ -1939,7 +1940,7 @@ def sanitize_filename(filename, max_length=150):
 def set_active_download(user_id, status):
     """
     Thread-safe function to set the active download status for a user
-    
+
     Args:
         user_id: The user ID
         status (bool): Whether the user has an active download
@@ -1951,18 +1952,18 @@ def set_active_download(user_id, status):
 def safe_send_message(chat_id, text, **kwargs):
     """
     Safely send a message with flood wait handling
-    
+
     Args:
         chat_id: The chat ID to send to
         text: The text to send
         **kwargs: Additional arguments for send_message
-        
+
     Returns:
         The message object or None if sending failed
     """
     max_retries = 3
     retry_delay = 5
-    
+
     for attempt in range(max_retries):
         try:
             return app.send_message(chat_id, text, **kwargs)
@@ -1977,10 +1978,10 @@ def safe_send_message(chat_id, text, **kwargs):
                 else:
                     logger.warning(f"Flood wait detected but couldn't extract time, sleeping for {retry_delay} seconds")
                     time.sleep(retry_delay)
-                    
+
                 if attempt < max_retries - 1:
                     continue
-            
+
             logger.error(f"Failed to send message after {max_retries} attempts: {e}")
             return None
 
@@ -1988,19 +1989,19 @@ def safe_send_message(chat_id, text, **kwargs):
 def safe_forward_messages(chat_id, from_chat_id, message_ids, **kwargs):
     """
     Safely forward messages with flood wait handling
-    
+
     Args:
         chat_id: The chat ID to forward to
         from_chat_id: The chat ID to forward from
         message_ids: The message IDs to forward
         **kwargs: Additional arguments for forward_messages
-        
+
     Returns:
         The message objects or None if forwarding failed
     """
     max_retries = 3
     retry_delay = 5
-    
+
     for attempt in range(max_retries):
         try:
             return app.forward_messages(chat_id, from_chat_id, message_ids, **kwargs)
@@ -2015,10 +2016,10 @@ def safe_forward_messages(chat_id, from_chat_id, message_ids, **kwargs):
                 else:
                     logger.warning(f"Flood wait detected but couldn't extract time, sleeping for {retry_delay} seconds")
                     time.sleep(retry_delay)
-                    
+
                 if attempt < max_retries - 1:
                     continue
-            
+
             logger.error(f"Failed to forward messages after {max_retries} attempts: {e}")
             return None
 
@@ -2026,19 +2027,19 @@ def safe_forward_messages(chat_id, from_chat_id, message_ids, **kwargs):
 def safe_edit_message_text(chat_id, message_id, text, **kwargs):
     """
     Safely edit message text with flood wait handling
-    
+
     Args:
         chat_id: The chat ID
         message_id: The message ID to edit
         text: The new text
         **kwargs: Additional arguments for edit_message_text
-        
+
     Returns:
         The message object or None if editing failed
     """
     max_retries = 3
     retry_delay = 5
-    
+
     for attempt in range(max_retries):
         try:
             return app.edit_message_text(chat_id, message_id, text, **kwargs)
@@ -2050,11 +2051,11 @@ def safe_edit_message_text(chat_id, message_id, text, **kwargs):
                 if attempt == 0:
                     logger.debug(f"Tried to edit message that was already deleted: {message_id}")
                 return None
-                
+
             # If message was not modified, also return immediately (not an error)
             elif "message is not modified" in str(e).lower() or "MESSAGE_NOT_MODIFIED" in str(e):
                 return None
-                
+
             # Handle flood wait errors
             elif "FLOOD_WAIT" in str(e):
                 # Extract wait time
@@ -2066,10 +2067,10 @@ def safe_edit_message_text(chat_id, message_id, text, **kwargs):
                 else:
                     logger.warning(f"Flood wait detected but couldn't extract time, sleeping for {retry_delay} seconds")
                     time.sleep(retry_delay)
-                    
+
                 if attempt < max_retries - 1:
                     continue
-            
+
             # Only log other errors as real errors
             if attempt == max_retries - 1:  # Log only on last attempt
                 logger.error(f"Failed to edit message after {max_retries} attempts: {e}")
@@ -2079,18 +2080,18 @@ def safe_edit_message_text(chat_id, message_id, text, **kwargs):
 def safe_delete_messages(chat_id, message_ids, **kwargs):
     """
     Safely delete messages with flood wait handling
-    
+
     Args:
         chat_id: The chat ID
         message_ids: List of message IDs to delete
         **kwargs: Additional arguments for delete_messages
-        
+
     Returns:
         True on success or None if deletion failed
     """
     max_retries = 3
     retry_delay = 5
-    
+
     for attempt in range(max_retries):
         try:
             return app.delete_messages(chat_id=chat_id, message_ids=message_ids, **kwargs)
@@ -2105,10 +2106,10 @@ def safe_delete_messages(chat_id, message_ids, **kwargs):
                 else:
                     logger.warning(f"Flood wait detected but couldn't extract time, sleeping for {retry_delay} seconds")
                     time.sleep(retry_delay)
-                    
+
                 if attempt < max_retries - 1:
                     continue
-            
+
             logger.error(f"Failed to delete messages after {max_retries} attempts: {e}")
             return None
 
@@ -2116,33 +2117,33 @@ def safe_delete_messages(chat_id, message_ids, **kwargs):
 def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
     """
     Start an hourglass animation in a separate thread
-    
+
     Args:
         user_id: The user ID
         hourglass_msg_id: The message ID to animate
         stop_anim: An event to signal when to stop the animation
-        
+
     Returns:
         The animation thread
     """
-    
+
     def animate_hourglass():
         """Animate an hourglass emoji by toggling between two hourglass emojis"""
         counter = 0
         emojis = ["⏳", "⌛"]
         active = True
-        
+
         while active and not stop_anim.is_set():
             try:
                 emoji = emojis[counter % len(emojis)]
                 # Attempt to edit message but don't keep trying if message is invalid
                 result = safe_edit_message_text(user_id, hourglass_msg_id, f"{emoji} Please wait...")
-                
+
                 # If message edit returns None due to MESSAGE_ID_INVALID, stop animation
                 if result is None and counter > 0:  # Allow first attempt to fail
                     active = False
                     break
-                    
+
                 counter += 1
                 time.sleep(1.5)
             except Exception as e:
@@ -2150,9 +2151,9 @@ def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
                 # Stop animation on error to prevent log spam
                 active = False
                 break
-        
+
         logger.debug(f"Hourglass animation stopped for message {hourglass_msg_id}")
-    
+
     # Start animation in a daemon thread so it will exit when the main thread exits
     hourglass_thread = threading.Thread(target=animate_hourglass, daemon=True)
     hourglass_thread.start()
@@ -2162,23 +2163,23 @@ def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
 def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_name, cycle_stop):
     """
     Start a progress animation for HLS downloads
-    
+
     Args:
         user_id: The user ID
         proc_msg_id: The message ID to update with progress
         current_total_process: String describing the current process
         user_dir_name: Directory name where fragments are saved
         cycle_stop: Event to signal animation stop
-        
+
     Returns:
         The animation thread
     """
-    
+
     def cycle_progress():
         """Show progress animation for HLS downloads"""
         counter = 0
         active = True
-        
+
         while active and not cycle_stop.is_set():
             counter = (counter + 1) % 11
             try:
@@ -2188,37 +2189,37 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
                     frag_files = [f for f in os.listdir(user_dir_name) if 'Frag' in f]
                 except (FileNotFoundError, PermissionError) as e:
                     logger.debug(f"Error checking fragment files: {e}")
-                
+
                 if frag_files:
                     last_frag = sorted(frag_files)[-1]
                     m = re.search(r'Frag(\d+)', last_frag)
                     frag_text = f"Frag{m.group(1)}" if m else "Frag?"
                 else:
                     frag_text = "waiting for fragments"
-                    
+
                 bar = "🟩" * counter + "⬜️" * (10 - counter)
-                
+
                 # Use safe_edit_message_text and check if message exists
                 result = safe_edit_message_text(user_id, proc_msg_id,
                     f"{current_total_process}\nDownloading HLS stream: {frag_text}\n{bar}")
-                
+
                 # If message was deleted (returns None), stop animation
                 if result is None and counter > 2:  # Allow first few attempts to fail
                     active = False
                     break
-                    
+
             except Exception as e:
                 logger.warning(f"Cycle progress error: {e}")
                 # Stop animation on consistent errors to prevent log spam
                 active = False
                 break
-                
+
             # Sleep with check for stop event
             if cycle_stop.wait(1.5):
                 break
-                
+
         logger.debug(f"Cycle progress animation stopped for message {proc_msg_id}")
-    
+
     cycle_thread = threading.Thread(target=cycle_progress, daemon=True)
     cycle_thread.start()
     return cycle_thread
