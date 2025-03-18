@@ -1543,7 +1543,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
         def progress_func(d):
             nonlocal last_update
             current_time = time.time()
-            if current_time - last_update < 1.5:
+            if current_time - last_update < 3.0:
                 return
             if d.get("status") == "downloading":
                 downloaded = d.get("downloaded_bytes", 0)
@@ -2145,7 +2145,7 @@ def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
                     break
 
                 counter += 1
-                time.sleep(1.5)
+                time.sleep(3.0)
             except Exception as e:
                 logger.error(f"Error in hourglass animation: {e}")
                 # Stop animation on error to prevent log spam
@@ -2215,7 +2215,7 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
                 break
 
             # Sleep with check for stop event
-            if cycle_stop.wait(1.5):
+            if cycle_stop.wait(3.0):
                 break
 
         logger.debug(f"Cycle progress animation stopped for message {proc_msg_id}")
