@@ -1368,7 +1368,7 @@ def down_and_audio(app, message, url):
         def progress_hook(d):
             nonlocal last_update
             current_time = time.time()
-            if current_time - last_update < 0.1:
+            if current_time - last_update < 1.5:
                 return
             if d.get("status") == "downloading":
                 downloaded = d.get("downloaded_bytes", 0)
