@@ -338,7 +338,6 @@ To restrict access to your database only to authenticated users, update your sec
     ".write": "auth != null && auth.token.email === 'YOUREMAIL@gmail.com'"
   }
 }
-}
 ```
 
 These rules allow read and write operations only if the request contains a valid `idToken`—meaning the user is authenticated.
