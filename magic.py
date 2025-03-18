@@ -1199,16 +1199,46 @@ def down_and_audio(app, message, url):
         stop_anim = threading.Event()
         def animate_hourglass():
             current = True
+            error_count = 0
+            max_errors = 3
+            wait_seconds = 0
             while not stop_anim.is_set():
                 emoji = "⌛️" if current else "⏳"
                 try:
+                    # Если есть задержка ожидания, пропускаем редактирование
+                    if wait_seconds > 0:
+                        time.sleep(min(wait_seconds, 3))
+                        wait_seconds = max(0, wait_seconds - 3)
+                        if stop_anim.wait(0.1):
+                            break
+                        continue
+                        
                     app.edit_message_text(user_id, hourglass_msg_id, emoji)
+                    error_count = 0  # Сбрасываем счетчик ошибок при успешном редактировании
                 except Exception as e:
+                    error_count += 1
                     print("Hourglass animation error:", e)
+                    # Проверяем, является ли ошибка FLOOD_WAIT
+                    if "FLOOD_WAIT_X" in str(e):
+                        try:
+                            # Извлекаем время ожидания из сообщения ошибки
+                            wait_match = re.search(r'A wait of (\d+) seconds is required', str(e))
+                            if wait_match:
+                                wait_seconds = int(wait_match.group(1))
+                                print(f"Detected flood wait, pausing animations for {wait_seconds} seconds")
+                        except Exception as parse_error:
+                            print("Error parsing flood wait time:", parse_error)
+                    
+                    # Прекращаем анимацию после нескольких ошибок подряд
+                    if error_count >= max_errors:
+                        print(f"Too many animation errors ({error_count}), stopping animation")
+                        stop_anim.set()
+                        break
+                
                 current = not current
                 if stop_anim.wait(3):
                     break
-        anim_thread = threading.Thread(target=animate_hourglass)
+        anim_thread = threading.Thread(target=animate_hourglass, daemon=True)
         anim_thread.start()
 
         user_folder = os.path.abspath(os.path.join("users", str(user_id)))
@@ -1368,16 +1398,46 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
         stop_anim = threading.Event()
         def animate_hourglass():
             current = True
+            error_count = 0
+            max_errors = 3
+            wait_seconds = 0
             while not stop_anim.is_set():
                 emoji = "⌛️" if current else "⏳"
                 try:
+                    # Если есть задержка ожидания, пропускаем редактирование
+                    if wait_seconds > 0:
+                        time.sleep(min(wait_seconds, 3))
+                        wait_seconds = max(0, wait_seconds - 3)
+                        if stop_anim.wait(0.1):
+                            break
+                        continue
+                        
                     app.edit_message_text(user_id, hourglass_msg_id, emoji)
+                    error_count = 0  # Сбрасываем счетчик ошибок при успешном редактировании
                 except Exception as e:
+                    error_count += 1
                     print("Hourglass animation error:", e)
+                    # Проверяем, является ли ошибка FLOOD_WAIT
+                    if "FLOOD_WAIT_X" in str(e):
+                        try:
+                            # Извлекаем время ожидания из сообщения ошибки
+                            wait_match = re.search(r'A wait of (\d+) seconds is required', str(e))
+                            if wait_match:
+                                wait_seconds = int(wait_match.group(1))
+                                print(f"Detected flood wait, pausing animations for {wait_seconds} seconds")
+                        except Exception as parse_error:
+                            print("Error parsing flood wait time:", parse_error)
+                    
+                    # Прекращаем анимацию после нескольких ошибок подряд
+                    if error_count >= max_errors:
+                        print(f"Too many animation errors ({error_count}), stopping animation")
+                        stop_anim.set()
+                        break
+                
                 current = not current
                 if stop_anim.wait(3):
                     break
-        anim_thread = threading.Thread(target=animate_hourglass)
+        anim_thread = threading.Thread(target=animate_hourglass, daemon=True)
         anim_thread.start()
 
         current_total_process = ""
@@ -1458,7 +1518,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                                     print("Cycle progress error:", e)
                                 if cycle_stop.wait(1.5):
                                     break
-                        cycle_thread = threading.Thread(target=cycle_progress)
+                        cycle_thread = threading.Thread(target=cycle_progress, daemon=True)
                         cycle_thread.start()
                         with YoutubeDL(ytdl_opts) as ydl:
                             ydl.download([url])
@@ -1662,4 +1722,26 @@ db.child("bot").child("tgytdlp_bot").child("unblocked_users").child("0").set(_fo
 print("db created")
 starting_point.append(time.time())
 print("Bot started")
+
+# Добавляем обработку сигналов для корректного завершения
+import signal
+
+def signal_handler(sig, frame):
+    print(f"Received signal {sig}, shutting down gracefully...")
+    # Останавливаем все активные анимации
+    for thread in threading.enumerate():
+        if thread != threading.current_thread() and not thread.daemon:
+            print(f"Waiting for thread {thread.name} to finish...")
+    
+    # Завершаем работу приложения
+    print("Shutting down Pyrogram client...")
+    app.stop()
+    print("Shutdown complete.")
+    import sys
+    sys.exit(0)
+
+# Регистрируем обработчики для наиболее распространенных сигналов завершения
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
+
 app.run()
