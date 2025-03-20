@@ -40,6 +40,10 @@ starting_point = []
 active_downloads = {}
 active_downloads_lock = threading.Lock()
 
+# Global dictionary to track playlist errors and lock for thread-safe access
+playlist_errors = {}
+playlist_errors_lock = threading.Lock()
+
 # Helper function to check available disk space
 def check_disk_space(path, required_bytes):
     """
@@ -1011,6 +1015,11 @@ def video_url_extractor(app, message):
     global active_downloads
     check_user(message)
     user_id = message.chat.id
+    with playlist_errors_lock:
+        keys_to_remove = [k for k in playlist_errors if k.startswith(f"{user_id}_")]
+        for key in keys_to_remove:
+            del playlist_errors[key]
+
     # If the user has already been launched by the process, we answer the rein and go out
     if get_active_download(user_id):
         app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
@@ -1037,6 +1046,14 @@ def video_url_extractor(app, message):
             video_start_with = int(url_with_everything[1])
             playlist_name = f"{url_with_everything[3]}"
             video_count = (int(url_with_everything[2]) - int(url_with_everything[1]) + 1)
+        
+        # Сброс флага ошибок для нового запроса по плейлисту
+        if playlist_name:
+            with playlist_errors_lock:
+                error_key = f"{user_id}_{playlist_name}"
+                if error_key in playlist_errors:
+                    del playlist_errors[error_key]
+        
         down_and_up(app, message, url, playlist_name, video_count, video_start_with)
     else:
         send_to_all(message, f"**User entered like this:** {full_string}\n{Config.ERROR1}")
@@ -1511,6 +1528,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
         proc_msg_id = proc_msg.id
         check_user(message)
 
+        # Сброс флага ошибок для нового запуска плейлиста
+        if playlist_name:
+            with playlist_errors_lock:
+                error_key = f"{user_id}_{playlist_name}"
+                if error_key in playlist_errors:
+                    del playlist_errors[error_key]
+
+
         custom_format_path = os.path.join(user_dir_name, "format.txt")
         if os.path.exists(custom_format_path):
             with open(custom_format_path, "r", encoding="utf-8") as f:
@@ -1522,11 +1547,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
         else:
             attempts = [
                 {'format': 'bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
-                 'prefer_ffmpeg': True, 'merge_output_format': 'mp4'},
+                'prefer_ffmpeg': True, 'merge_output_format': 'mp4', 'extract_flat': False},
                 {'format': 'bestvideo+bestaudio/best',
-                 'prefer_ffmpeg': True, 'merge_output_format': 'mp4'},
-                {'format': 'best', 'prefer_ffmpeg': False}
+                'prefer_ffmpeg': True, 'merge_output_format': 'mp4', 'extract_flat': False},
+                {'format': 'best', 'prefer_ffmpeg': False, 'extract_flat': False}
             ]
+
 
         status_msg = app.send_message(user_id, "📹 Video is processing...")
         hourglass_msg = app.send_message(user_id, "⌛️")
@@ -1576,6 +1602,17 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             try:
                 with YoutubeDL(ytdl_opts) as ydl:
                     info_dict = ydl.extract_info(url, download=False)
+                if "entries" in info_dict:
+                    entries = info_dict["entries"]
+                    if len(entries) > 1:  # Если видео в плейлисте больше одного
+                        if current_index < len(entries):
+                            info_dict = entries[current_index]
+                        else:
+                            raise Exception(f"Video index {current_index} out of range (total {len(entries)})")
+                    else:
+                        # Если всего одно видео в плейлисте, просто скачиваем его
+                        info_dict = entries[0]  # Просто берём первое видео
+
                 if ("m3u8" in url.lower()) or (info_dict.get("protocol") == "m3u8_native"):
                     is_hls = True
                     if "format" in ytdl_opts:
@@ -1615,6 +1652,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 logger.error(f"Attempt with format {ytdl_opts.get('format', 'default')} failed: {e}")
                 return None
 
+
         for x in range(video_count):
             current_index = x
             total_process = f"""
@@ -1624,34 +1662,41 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
 """
             current_total_process = total_process
 
-            if playlist_name and video_count > 1:
-                rename_name = sanitize_filename(f"{playlist_name} - Part {x + video_start_with}")
+            # Определяем rename_name на основе входящего playlist_name:
+            if playlist_name and playlist_name.strip():
+                # Явно задано новое имя для плейлиста – используем его
+                rename_name = sanitize_filename(f"{playlist_name.strip()} - Part {x + video_start_with}")
             else:
+                # Новое имя не задано – извлекаем название из метаданных
                 rename_name = None
 
             info_dict = None
-
             for attempt in attempts:
                 info_dict = try_download(url, attempt)
                 if info_dict is not None:
                     break
+
             if info_dict is None:
-                send_to_all(
-                    message,
-                    f"❌ Failed to download video: {error_message}\n────────────────\n"
-                    "> Check [here](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) if your site supported\n"
-                    "> You may need `cookie` for downloading this video. First, clean your workspace via **/clean** command\n"
-                    "> For Youtube - get `cookie` via **/download_cookie** command. For any other supported site - send your own cookie ([guide1](https://t.me/c/2303231066/18)) ([guide2](https://t.me/c/2303231066/22)) and after that send your video link again."
-                )
-                continue  # Move to the Next Video If Available
+                with playlist_errors_lock:
+                    error_key = f"{user_id}_{playlist_name}"
+                    if error_key not in playlist_errors:
+                        playlist_errors[error_key] = True
+                        send_to_all(
+                            message,
+                            f"❌ Failed to download video: {error_message}\n────────────────\n"
+                            "> Check [here](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) if your site supported\n"
+                            "> You may need `cookie` for downloading this video. First, clean your workspace via **/clean** command\n"
+                            "> For Youtube - get `cookie` via **/download_cookie** command. For any other supported site - send your own cookie ([guide1](https://t.me/c/2303231066/18)) ([guide2](https://t.me/c/2303231066/22)) and after that send your video link again."
+                        )
+                break
 
             successful_uploads += 1
 
             video_id = info_dict.get("id", None)
             video_title = info_dict.get("title", None)
-            # Sanitize video title
             video_title = sanitize_filename(video_title) if video_title else "video"
 
+            # Если rename_name не задано, устанавливаем его равным video_title
             if rename_name is None:
                 rename_name = video_title
 
@@ -1691,7 +1736,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 old_path = os.path.join(dir_path, downloaded_file)
                 new_path = os.path.join(dir_path, final_name)
 
-                # If target file already exists, remove it first
                 if os.path.exists(new_path):
                     try:
                         os.remove(new_path)
@@ -1702,7 +1746,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                     os.rename(old_path, new_path)
                 except Exception as e:
                     logger.error(f"Error renaming file from {old_path} to {new_path}: {e}")
-                    # Fallback to original name if rename fails
                     final_name = downloaded_file
                     caption_name = video_title
 
@@ -1714,7 +1757,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 except Exception as e:
                     logger.error(f"Error updating status before conversion: {e}")
 
-                # Generate sanitized output filename
                 mp4_basename = sanitize_filename(os.path.splitext(final_name)[0]) + ".mp4"
                 mp4_file = os.path.join(dir_path, mp4_basename)
 
@@ -1754,20 +1796,16 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 returned = split_video_2(dir_path, sanitize_filename(caption_name), after_rename_abs_path, int(video_size_in_bytes), max_size, duration)
                 caption_lst = returned.get("video")
                 path_lst = returned.get("path")
-                # For each split video part, send the part and immediately forward it to the log channel
                 for p in range(len(caption_lst)):
                     part_result = get_duration_thumb(message, dir_path, path_lst[p], sanitize_filename(caption_lst[p]))
                     if part_result is None:
                         continue
                     part_duration, splited_thumb_dir = part_result
-                    # Send the split video part and save the message object
                     video_msg = send_videos(message, path_lst[p], caption_lst[p], part_duration, splited_thumb_dir, info_text, proc_msg.id)
-                    # Immediately forward the sent video message to the log channel using its id
                     try:
                         safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
                     except Exception as e:
                         logger.error(f"Error forwarding video to logger: {e}")
-                    # Update progress message for this part
                     safe_edit_message_text(user_id, proc_msg_id,
                                           f"{info_text}\n\n{full_bar}   100.0%\n__Splitted part {p + 1} file uploaded__")
                     if p < len(caption_lst) - 1:
@@ -1800,6 +1838,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             send_to_logger(message, success_msg)
     finally:
         set_active_download(user_id, False)
+        if playlist_name:
+            with playlist_errors_lock:
+                error_key = f"{user_id}_{playlist_name}"
+                if error_key in playlist_errors:
+                    del playlist_errors[error_key]
+
         try:
             if status_msg_id:
                 safe_delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
@@ -1807,6 +1851,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 safe_delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
         except Exception as e:
             logger.error(f"Error deleting status messages: {e}")
+
+
 
 #####################################################################################
 #####################################################################################
