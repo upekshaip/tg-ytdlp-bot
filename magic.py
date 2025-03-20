@@ -1377,6 +1377,7 @@ def down_and_audio(app, message, url):
             }],
             'prefer_ffmpeg': True,
             'extractaudio': True,
+            'noplaylist': True,
             'cookiefile': cookie_file,
             'outtmpl': os.path.join(user_folder, "%(title)s.%(ext)s"),
             'progress_hooks': [],
