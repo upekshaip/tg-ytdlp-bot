@@ -1723,7 +1723,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             files.sort()
             if not files:
                 send_to_all(message, "❌ File not found after download.")
-                break
+                continue
 
             downloaded_file = files[0]
             write_logs(message, url, downloaded_file)
@@ -1780,13 +1780,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                     final_name = mp4_basename
                 except Exception as e:
                     send_to_all(message, f"❌ Conversion to MP4 failed: {e}")
-                    break
+                    continue
 
             after_rename_abs_path = os.path.abspath(user_vid_path)
             result = get_duration_thumb(message, dir_path, user_vid_path, sanitize_filename(caption_name))
             if result is None:
                 send_to_all(message, "❌ Failed to get video duration and thumbnail.")
-                break
+                continue
             duration, thumb_dir = result
 
             video_size_in_bytes = os.path.getsize(user_vid_path)
@@ -1973,6 +1973,15 @@ def sanitize_filename(filename, max_length=150):
     # Remove invalid characters (Windows and Linux safe)
     invalid_chars = r'[<>:"/\\|?*\x00-\x1f]'
     name = re.sub(invalid_chars, '', name)
+
+    # Remove emoji characters to avoid issues with ffmpeg
+    emoji_pattern = re.compile("[" 
+                               "\U0001F600-\U0001F64F"  # emoticons
+                               "\U0001F300-\U0001F5FF"  # symbols & pictographs
+                               "\U0001F680-\U0001F6FF"  # transport & map symbols
+                               "\U0001F1E0-\U0001F1FF"  # flags
+                               "]+", flags=re.UNICODE)
+    name = emoji_pattern.sub(r'', name)
 
     # Replace multiple spaces with single space and strip
     name = re.sub(r'\s+', ' ', name).strip()
