@@ -1978,11 +1978,17 @@ def sanitize_filename(filename, max_length=150):
     name = re.sub(r'\s+', ' ', name).strip()
 
     # Shorten if too long
-    if len(name) > max_length:
-        name = name[:max_length-3] + "..."
+    full_name = name + ext
+    max_total = 100
+    if len(full_name) > max_total:
+       allowed = max_total - len(ext)
+       if allowed > 3:
+          name = name[:allowed-3] + "..."
+       else:
+          name = name[:allowed]
+       full_name = name + ext
+    return full_name
 
-    # Return sanitized filename with extension
-    return name + ext
 
 # Helper function to safely set active download status
 def set_active_download(user_id, status):
