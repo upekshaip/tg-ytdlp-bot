@@ -1723,7 +1723,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             files.sort()
             if not files:
                 send_to_all(message, "❌ File not found after download.")
-                continue
+                break
 
             downloaded_file = files[0]
             write_logs(message, url, downloaded_file)
@@ -1780,13 +1780,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                     final_name = mp4_basename
                 except Exception as e:
                     send_to_all(message, f"❌ Conversion to MP4 failed: {e}")
-                    continue
+                    break
 
             after_rename_abs_path = os.path.abspath(user_vid_path)
             result = get_duration_thumb(message, dir_path, user_vid_path, sanitize_filename(caption_name))
             if result is None:
                 send_to_all(message, "❌ Failed to get video duration and thumbnail.")
-                continue
+                break
             duration, thumb_dir = result
 
             video_size_in_bytes = os.path.getsize(user_vid_path)
