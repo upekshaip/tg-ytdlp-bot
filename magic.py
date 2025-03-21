@@ -1626,7 +1626,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                             f"{current_total_process}\n\n__Detected HLS stream. Downloading...__ 📥")
                     else:
                         safe_edit_message_text(user_id, proc_msg_id,
-                            f"{current_total_process}\n\n__Downloading using format: {ytdl_opts.get('format', 'default')}...__ 📥")
+                            f"{current_total_process}\n\n> __Downloading using format: {ytdl_opts.get('format', 'default')}...__ 📥")
                 except Exception as e:
                     logger.error(f"Status update error: {e}")
                 with YoutubeDL(ytdl_opts) as ydl:
@@ -1828,7 +1828,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                     except Exception as e:
                         logger.error(f"Error forwarding video to logger: {e}")
                     safe_edit_message_text(user_id, proc_msg_id,
-                        f"{info_text}\n{full_bar}   100.0%\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n\n1 file uploaded.")
+                        f"{info_text}\n{full_bar}   100.0%\n\n**🎞 Video duration:** __{TimeFormatter(duration * 1000)}__\n\n1 file uploaded.")
                     os.remove(after_rename_abs_path)
                     os.remove(thumb_dir)
                     threading.Event().wait(2)
