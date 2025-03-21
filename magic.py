@@ -1046,14 +1046,14 @@ def video_url_extractor(app, message):
             video_start_with = int(url_with_everything[1])
             playlist_name = f"{url_with_everything[3]}"
             video_count = (int(url_with_everything[2]) - int(url_with_everything[1]) + 1)
-        
+
         # Сброс флага ошибок для нового запроса по плейлисту
         if playlist_name:
             with playlist_errors_lock:
                 error_key = f"{user_id}_{playlist_name}"
                 if error_key in playlist_errors:
                     del playlist_errors[error_key]
-        
+
         down_and_up(app, message, url, playlist_name, video_count, video_start_with)
     else:
         send_to_all(message, f"**User entered like this:** {full_string}\n{Config.ERROR1}")
@@ -1657,10 +1657,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
         for x in range(video_count):
             current_index = x
             total_process = f"""
-**<<<** __Total progress__ **>>>**
-
-**Video number:** {x + 1} / {video_count}
+**📶 Total Progress**
+> **Video:** {x + 1} / {video_count}
 """
+
             current_total_process = total_process
 
             # Определяем rename_name на основе входящего playlist_name:
@@ -1704,12 +1704,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             info_text = f"""
 {total_process}
 
-**<<<** __Info__ **>>>**
+**📋 Video Info**
+> **Number:** {x + video_start_with}
+> **Title:** {video_title}
+> **Caption:** {rename_name}
+> **ID:** {video_id}
+"""
 
-**Video number:** {x + video_start_with}
-**Video Name:** __{video_title}__
-**Caption Name:** __{rename_name}__
-**Video id:** {video_id}"""
             try:
                 safe_edit_message_text(user_id, proc_msg_id,
                     f"{info_text}\n\n{full_bar}   100.0%\n__Downloaded video. Processing for upload...__ ♻️")
