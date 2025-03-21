@@ -1,6 +1,9 @@
 import pyrebase
 import re
 import os
+import shutil
+import logging
+import threading
 from pyrogram import Client, filters
 from pyrogram import enums
 from pyrogram.enums import ChatMemberStatus
@@ -14,14 +17,55 @@ from yt_dlp import YoutubeDL
 from moviepy.editor import VideoFileClip
 from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 import subprocess
+import signal
+import sys
 from config import Config
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('bot.log')
+    ]
+)
+logger = logging.getLogger(__name__)
 
 ################################################################################################
 # Global starting point list (do not modify)
 starting_point = []
 
-# Global dictionary to track active downloads
+# Global dictionary to track active downloads and lock for thread-safe access
 active_downloads = {}
+active_downloads_lock = threading.Lock()
+
+# Global dictionary to track playlist errors and lock for thread-safe access
+playlist_errors = {}
+playlist_errors_lock = threading.Lock()
+
+# Helper function to check available disk space
+def check_disk_space(path, required_bytes):
+    """
+    Check if there's enough disk space available at the specified path.
+
+    Args:
+        path (str): Path to check
+        required_bytes (int): Required bytes of free space
+
+    Returns:
+        bool: True if enough space is available, False otherwise
+    """
+    try:
+        total, used, free = shutil.disk_usage(path)
+        if free < required_bytes:
+            logger.warning(f"Not enough disk space. Required: {humanbytes(required_bytes)}, Available: {humanbytes(free)}")
+            return False
+        return True
+    except Exception as e:
+        logger.error(f"Error checking disk space: {e}")
+        # If we can't check, assume there's enough space
+        return True
 
 # Firebase Initialization with Authentication
 firebase = pyrebase.initialize_app(Config.FIREBASE_CONF)
@@ -33,24 +77,24 @@ auth = firebase.auth()
 try:
     user = auth.sign_in_with_email_and_password(Config.FIREBASE_USER, Config.FIREBASE_PASSWORD)
     # Debug: Print essential details of the user object
-    print("User signed in successfully.")
-    print("User email:", user.get("email"))
-    print("User localId:", user.get("localId"))
+    logger.info("User signed in successfully.")
+    logger.info(f"User email: {user.get('email')}")
+    logger.info(f"User localId: {user.get('localId')}")
     # If available, check email verification status
     if "emailVerified" in user:
-        print("Email verified:", user["emailVerified"])
+        logger.info(f"Email verified: {user['emailVerified']}")
     else:
-        print("Email verification status not available in user object.")
+        logger.info("Email verification status not available in user object.")
 except Exception as e:
-    print("Error during Firebase authentication:", e)
+    logger.error(f"Error during Firebase authentication: {e}")
     raise
 
 # Debug: Print a portion of idToken
 idToken = user.get("idToken")
 if idToken:
-    print("Firebase idToken (first 20 chars):", idToken[:20])
+    logger.info(f"Firebase idToken (first 20 chars): {idToken[:20]}")
 else:
-    print("No idToken received!")
+    logger.error("No idToken received!")
     raise Exception("idToken is empty.")
 
 # Get the base database object
@@ -59,9 +103,9 @@ base_db = firebase.database()
 # Additional check: Execute a test GET request to the root node
 try:
     test_data = base_db.get(idToken)
-    print("Test GET operation succeeded. Data:", test_data.val())
+    logger.info("Test GET operation succeeded. Data:", test_data.val())
 except Exception as e:
-    print("Test GET operation failed:", e)
+    logger.error("Test GET operation failed:", e)
 
 # Define a wrapper class to automatically pass the idToken for all database operations
 class AuthedDB:
@@ -94,9 +138,9 @@ _format = {"ID": "0", "timestamp": math.floor(time.time())}
 try:
     # Try writing data to the path: bot/tgytdlp_bot/users/0
     result = db.child(f"{db_path}/users/0").set(_format)
-    print("Data written successfully. Result:", result)
+    logger.info("Data written successfully. Result:", result)
 except Exception as e:
-    print("Error writing data to Firebase:", e)
+    logger.error("Error writing data to Firebase:", e)
     raise
 
 # Function to periodically refresh the idToken using the refreshToken
@@ -110,9 +154,9 @@ def token_refresher():
             new_idToken = new_user["idToken"]
             db.token = new_idToken
             user = new_user
-            print("Firebase idToken refreshed successfully. New token (first 20 chars):", new_idToken[:20])
+            logger.info("Firebase idToken refreshed successfully. New token (first 20 chars):", new_idToken[:20])
         except Exception as e:
-            print("Error refreshing Firebase idToken:", e)
+            logger.error("Error refreshing Firebase idToken:", e)
 
 # Start the token refresher thread as a daemon
 token_thread = threading.Thread(target=token_refresher, daemon=True)
@@ -273,7 +317,7 @@ def browser_choice_callback(app, callback_query):
 def audio_command_handler(app, message):
     user_id = message.chat.id
     # If the user has already been launched by the process, we answer the rein and go out
-    if active_downloads.get(user_id, False):
+    if get_active_download(user_id):
         app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
         return
 
@@ -573,7 +617,7 @@ def url_distractor(app, message):
                     caption_editor(app, message)
         return
 
-    print(user_id, "No matching command processed.")
+    logger.info(f"{user_id} No matching command processed.")
 
 # Check the USAGE of the BOT
 
@@ -602,45 +646,38 @@ def is_user_in_channel(app, message):
 
 def remove_media(message):
     dir = f'./users/{str(message.chat.id)}'
-    if os.path.exists(dir):
+    if not os.path.exists(dir):
+        logger.warning(f"Directory {dir} does not exist, nothing to remove")
+        return
 
-        allfiles = os.listdir(dir)
+    allfiles = os.listdir(dir)
 
-        mp4_files = [fname for fname in allfiles if fname.endswith(('.mp4', '.mkv'))]
-        mp3_files = [fname for fname in allfiles if fname.endswith('.mp3')]
-        jpg_files = [fname for fname in allfiles if fname.endswith('.jpg')]
-        part_files = [fname for fname in allfiles if fname.endswith('.part')]
-        ytdl_files = [fname for fname in allfiles if fname.endswith('.ytdl')]
-        txt_files = [fname for fname in allfiles if fname.endswith('.txt')]
-        ts_files = [fname for fname in allfiles if fname.endswith('.ts')]
-        webm_files = [fname for fname in allfiles if fname.endswith('.webm')]
+    file_extensions = [
+        '.mp4', '.mkv', '.mp3', '.m4a', '.jpg', '.jpeg', '.part', '.ytdl',
+        '.txt', '.ts', '.m3u8', '.webm', '.wmv', '.avi', '.mpeg', '.wav'
+    ]
 
-        if len(mp4_files) > 0:
-            for file in mp4_files:
-                os.remove(f"{dir}/{file}")
-        if len(mp3_files) > 0:
-            for file in mp3_files:
-                os.remove(f"{dir}/{file}")
-        if len(jpg_files) > 0:
-            for file in jpg_files:
-                os.remove(f"{dir}/{file}")
-        if len(part_files) > 0:
-            for file in part_files:
-                os.remove(f"{dir}/{file}")
-        if len(ytdl_files) > 0:
-            for file in ytdl_files:
-                os.remove(f"{dir}/{file}")
-        if len(txt_files) > 0:
-            for file in txt_files:
-                os.remove(f"{dir}/{file}")
-        if len(ts_files) > 0:
-            for file in ts_files:
-                os.remove(f"{dir}/{file}")
-        if len(webm_files) > 0:
-            for file in webm_files:
-                os.remove(f"{dir}/{file}")
+    for extension in file_extensions:
+        if isinstance(extension, tuple):
+            # Handle multiple extensions
+            files = [fname for fname in allfiles if any(fname.endswith(ext) for ext in extension)]
+        else:
+            # Handle single extension
+            files = [fname for fname in allfiles if fname.endswith(extension)]
 
-        print("All media removed.")
+        for file in files:
+            # Skip special files like cookie.txt and logs.txt and format.txt
+            if extension == '.txt' and file in ['cookie.txt', 'logs.txt', 'format.txt']:
+                continue
+
+            file_path = os.path.join(dir, file)
+            try:
+                os.remove(file_path)
+                logger.info(f"Removed file: {file_path}")
+            except Exception as e:
+                logger.error(f"Failed to remove file {file_path}: {e}")
+
+    logger.info(f"Media cleanup completed for user {message.chat.id}")
 
 # SEND BRODCAST Message to All Users
 
@@ -690,7 +727,7 @@ def send_promo_message(app, message):
                     if broadcast_text:
                         app.send_message(user, broadcast_text)
             except Exception as e:
-                print(f"Error sending broadcast to user {user}: {e}")
+                logger.error(f"Error sending broadcast to user {user}: {e}")
         send_to_all(message, "**✅ Promo message sent to all other users**")
         send_to_logger(message, "Broadcast message sent to all users.")
     except Exception as e:
@@ -801,7 +838,7 @@ def get_user_details(app, message):
     app.send_document(Config.LOGS_ID, "./" + file,
                       caption=f"{Config.BOT_NAME} - all {path}")
 
-    print(mod)
+    logger.info(mod)
 
 # Block User
 
@@ -978,8 +1015,13 @@ def video_url_extractor(app, message):
     global active_downloads
     check_user(message)
     user_id = message.chat.id
+    with playlist_errors_lock:
+        keys_to_remove = [k for k in playlist_errors if k.startswith(f"{user_id}_")]
+        for key in keys_to_remove:
+            del playlist_errors[key]
+
     # If the user has already been launched by the process, we answer the rein and go out
-    if active_downloads.get(user_id, False):
+    if get_active_download(user_id):
         app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
         return
     full_string = message.text
@@ -1004,6 +1046,14 @@ def video_url_extractor(app, message):
             video_start_with = int(url_with_everything[1])
             playlist_name = f"{url_with_everything[3]}"
             video_count = (int(url_with_everything[2]) - int(url_with_everything[1]) + 1)
+
+        # Сброс флага ошибок для нового запроса по плейлисту
+        if playlist_name:
+            with playlist_errors_lock:
+                error_key = f"{user_id}_{playlist_name}"
+                if error_key in playlist_errors:
+                    del playlist_errors[error_key]
+
         down_and_up(app, message, url, playlist_name, video_count, video_start_with)
     else:
         send_to_all(message, f"**User entered like this:** {full_string}\n{Config.ERROR1}")
@@ -1016,14 +1066,14 @@ def send_to_logger(message, msg):
     user_id = message.chat.id
     msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
     # Print (user_id, "-", msg)
-    app.send_message(Config.LOGS_ID, msg_with_id,
+    safe_send_message(Config.LOGS_ID, msg_with_id,
                      parse_mode=enums.ParseMode.MARKDOWN)
 
 # Send Message to User Only
 
 def send_to_user(message, msg):
     user_id = message.chat.id
-    app.send_message(user_id, msg, parse_mode=enums.ParseMode.MARKDOWN)
+    safe_send_message(user_id, msg, parse_mode=enums.ParseMode.MARKDOWN)
 
 # Send Message to All ...
 
@@ -1031,9 +1081,9 @@ def send_to_all(message, msg):
     user_id = message.chat.id
     msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
     # Print (user_id, "-", msg)
-    app.send_message(Config.LOGS_ID, msg_with_id,
+    safe_send_message(Config.LOGS_ID, msg_with_id,
                      parse_mode=enums.ParseMode.MARKDOWN)
-    app.send_message(user_id, msg, parse_mode=enums.ParseMode.MARKDOWN)
+    safe_send_message(user_id, msg, parse_mode=enums.ParseMode.MARKDOWN)
 
 def progress_bar(*args):
     # It is expected that Pyrogram will cause Progress_BAR with five parameters:
@@ -1044,7 +1094,7 @@ def progress_bar(*args):
     try:
         app.edit_message_text(user_id, msg_id, status_text)
     except Exception as e:
-        print(f"Error updating progress: {e}")
+        logger.error(f"Error updating progress: {e}")
 
 def send_videos(message, video_abs_path, caption, duration, thumb_file_path, info_text, msg_id):
     """
@@ -1096,27 +1146,74 @@ def TimeFormatter(milliseconds: int) -> str:
     return tmp[:-2]
 
 def split_video_2(dir, video_name, video_path, video_size, max_size, duration):
+    """
+    Split a video into multiple parts
 
+    Args:
+        dir: Directory path
+        video_name: Name for the video
+        video_path: Path to the video file
+        video_size: Size of the video in bytes
+        max_size: Maximum size for each part
+        duration: Duration of the video
+
+    Returns:
+        dict: Dictionary with video parts information
+    """
     rounds = (math.floor(video_size / max_size)) + 1
     n = duration / rounds
     caption_lst = []
     path_lst = []
-    for x in range(rounds):
-        start_time = x * n
-        end_time = (x * n) + n
-        cap_name = video_name + " - Part " + str(x + 1)
-        target_name = dir + "/" + cap_name + ".mp4"
-        video = video_path
-        caption_lst.append(cap_name)
-        path_lst.append(target_name)
-        ffmpeg_extract_subclip(
-            video, start_time, end_time, targetname=target_name)
-    split_vid_dict = {
-        "video": caption_lst,
-        "path": path_lst
-    }
-    print("convert successfull")
-    return split_vid_dict
+
+    try:
+        if rounds > 20:
+            logger.warning(f"Video will be split into {rounds} parts, which may be excessive")
+
+        for x in range(rounds):
+            start_time = x * n
+            end_time = (x * n) + n
+
+            # Ensure end_time doesn't exceed duration
+            end_time = min(end_time, duration)
+
+            cap_name = video_name + " - Part " + str(x + 1)
+            target_name = os.path.join(dir, cap_name + ".mp4")
+
+            caption_lst.append(cap_name)
+            path_lst.append(target_name)
+
+            try:
+                # Use progress logging
+                logger.info(f"Splitting video part {x+1}/{rounds}: {start_time:.2f}s to {end_time:.2f}s")
+                ffmpeg_extract_subclip(video_path, start_time, end_time, targetname=target_name)
+
+                # Verify the split was successful
+                if not os.path.exists(target_name) or os.path.getsize(target_name) == 0:
+                    logger.error(f"Failed to create split part {x+1}: {target_name}")
+                else:
+                    logger.info(f"Successfully created split part {x+1}: {target_name} ({os.path.getsize(target_name)} bytes)")
+
+            except Exception as e:
+                logger.error(f"Error splitting video part {x+1}: {e}")
+                # If a part fails, we continue with the others
+
+        split_vid_dict = {
+            "video": caption_lst,
+            "path": path_lst
+        }
+
+        logger.info(f"Video split into {len(path_lst)} parts successfully")
+        return split_vid_dict
+
+    except Exception as e:
+        logger.error(f"Error in video splitting process: {e}")
+        # Return what we have so far
+        split_vid_dict = {
+            "video": caption_lst,
+            "path": path_lst,
+            "duration": video_duration
+        }
+        return split_vid_dict
 
 def get_duration_thumb_(dir, video_path, thumb_name):
     thumb_dir = os.path.abspath(dir + "/" + thumb_name + ".jpg")
@@ -1130,6 +1227,15 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
     """
     Captures a thumbnail at 2 seconds into the video and retrieves video duration.
     Forces overwriting existing thumbnail with the '-y' flag.
+
+    Args:
+        message: The message object
+        dir_path: Directory path for the thumbnail
+        video_path: Path to the video file
+        thumb_name: Name for the thumbnail
+
+    Returns:
+        tuple: (duration, thumbnail_path) or None if error
     """
     thumb_dir = os.path.abspath(os.path.join(dir_path, thumb_name + ".jpg"))
 
@@ -1154,20 +1260,64 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
     ]
 
     try:
-        subprocess.run(ffmpeg_command, check=True)
+        # First check if video file exists
+        if not os.path.exists(video_path):
+            logger.error(f"Video file does not exist: {video_path}")
+            send_to_all(message, f"❌ Video file not found: {os.path.basename(video_path)}")
+            return None
+
+        # Run ffmpeg command to create thumbnail
+        ffmpeg_result = subprocess.run(ffmpeg_command, check=True, capture_output=True, text=True)
+        if ffmpeg_result.returncode != 0:
+            logger.error(f"Error creating thumbnail: {ffmpeg_result.stderr}")
+
+        # Run ffprobe command to get duration
         result = subprocess.check_output(ffprobe_command, stderr=subprocess.STDOUT, universal_newlines=True)
-        duration = int(float(result))
+
+        try:
+            duration = int(float(result))
+        except (ValueError, TypeError) as e:
+            logger.error(f"Error parsing video duration: {e}, result was: {result}")
+            duration = 0
+
+        # Verify thumbnail was created
+        if not os.path.exists(thumb_dir):
+            logger.warning(f"Thumbnail not created at {thumb_dir}, using default")
+            # Create a blank thumbnail as fallback
+            create_default_thumbnail(thumb_dir)
+
         return duration, thumb_dir
     except subprocess.CalledProcessError as e:
-        send_to_all(message, f"❌ Error capturing thumbnail or getting video duration: {e}")
+        logger.error(f"Command execution error: {e.stderr if hasattr(e, 'stderr') else e}")
+        send_to_all(message, f"❌ Error processing video: {e}")
         return None
+    except Exception as e:
+        logger.error(f"Unexpected error processing video: {e}")
+        send_to_all(message, f"❌ Error processing video: {e}")
+        return None
+
+def create_default_thumbnail(thumb_path):
+    """Create a default thumbnail when normal thumbnail creation fails"""
+    try:
+        # Create a 640x360 black image
+        ffmpeg_cmd = [
+            "ffmpeg", "-y",
+            "-f", "lavfi",
+            "-i", "color=c=black:s=640x360",
+            "-frames:v", "1",
+            thumb_path
+        ]
+        subprocess.run(ffmpeg_cmd, check=True, capture_output=True)
+        logger.info(f"Created default thumbnail at {thumb_path}")
+    except Exception as e:
+        logger.error(f"Failed to create default thumbnail: {e}")
 
 def write_logs(message, video_url, video_title):
     ts = str(math.floor(time.time()))
     data = {"ID": str(message.chat.id), "timestamp": ts,
             "name": message.chat.first_name, "urls": str(video_url), "title": video_title}
     db.child("bot").child("tgytdlp_bot").child("logs").child(str(message.chat.id)).child(str(ts)).set(data)
-    print("Log for user added")
+    logger.info("Log for user added")
 #####################################################################################
 #####################################################################################
 
@@ -1181,38 +1331,42 @@ def down_and_audio(app, message, url):
     send_to_logger(message, f"Audio download requested:\nURL: {url}")
 
     # Checking the active process and sending a reference if loading is already underway
-    if active_downloads.get(user_id, False):
+    if get_active_download(user_id):
         app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
         return
-    active_downloads[user_id] = True
+
+    set_active_download(user_id, True)
+    proc_msg = None
+    proc_msg_id = None
+    status_msg = None
+    status_msg_id = None
+    hourglass_msg = None
+    hourglass_msg_id = None
+    anim_thread = None
+    stop_anim = threading.Event()
+    audio_file = None  # Initialize audio_file variable
+
     try:
+        # Check if there's enough disk space (estimate 500MB per audio file)
+        user_folder = os.path.abspath(os.path.join("users", str(user_id)))
+        create_directory(user_folder)
+
+        if not check_disk_space(user_folder, 500 * 1024 * 1024):
+            send_to_user(message, "❌ Not enough disk space to download the audio.")
+            return
+
         proc_msg = app.send_message(user_id, "Processing... ♻️")
         proc_msg_id = proc_msg.id
         check_user(message)
 
-        status_msg = app.send_message(user_id, "Processing audio, wait... ♻️")
+        status_msg = app.send_message(user_id, "🎧 Audio is processing...")
         hourglass_msg = app.send_message(user_id, "⌛️")
         # We save ID status messages at once
         status_msg_id = status_msg.id
         hourglass_msg_id = hourglass_msg.id
 
-        stop_anim = threading.Event()
-        def animate_hourglass():
-            current = True
-            while not stop_anim.is_set():
-                emoji = "⌛️" if current else "⏳"
-                try:
-                    app.edit_message_text(user_id, hourglass_msg_id, emoji)
-                except Exception as e:
-                    print("Hourglass animation error:", e)
-                current = not current
-                if stop_anim.wait(3):
-                    break
-        anim_thread = threading.Thread(target=animate_hourglass)
-        anim_thread.start()
+        anim_thread = start_hourglass_animation(user_id, hourglass_msg_id, stop_anim)
 
-        user_folder = os.path.abspath(os.path.join("users", str(user_id)))
-        create_directory(user_folder)
         cookie_file = os.path.join(user_folder, os.path.basename(Config.COOKIE_FILE_PATH))
         ytdl_opts = {
             'format': 'ba',
@@ -1223,6 +1377,7 @@ def down_and_audio(app, message, url):
             }],
             'prefer_ffmpeg': True,
             'extractaudio': True,
+            'noplaylist': True,
             'cookiefile': cookie_file,
             'outtmpl': os.path.join(user_folder, "%(title)s.%(ext)s"),
             'progress_hooks': [],
@@ -1231,7 +1386,7 @@ def down_and_audio(app, message, url):
         def progress_hook(d):
             nonlocal last_update
             current_time = time.time()
-            if current_time - last_update < 0.1:
+            if current_time - last_update < 0.2:
                 return
             if d.get("status") == "downloading":
                 downloaded = d.get("downloaded_bytes", 0)
@@ -1240,31 +1395,38 @@ def down_and_audio(app, message, url):
                 blocks = int(percent // 10)
                 bar = "🟩" * blocks + "⬜️" * (10 - blocks)
                 try:
-                    app.edit_message_text(user_id, proc_msg_id, f"Downloading audio:\n{bar}   {percent:.1f}%")
+                    safe_edit_message_text(user_id, proc_msg_id, f"Downloading audio:\n{bar}   {percent:.1f}%")
                 except Exception as e:
-                    print(f"Error updating progress: {e}")
+                    logger.error(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "finished":
                 try:
                     full_bar = "🟩" * 10
-                    app.edit_message_text(user_id, proc_msg_id,
+                    safe_edit_message_text(user_id, proc_msg_id,
                         f"Downloading audio:\n{full_bar}   100.0%\nDownload finished, processing audio...")
                 except Exception as e:
-                    print(f"Error updating progress: {e}")
+                    logger.error(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "error":
                 try:
-                    app.edit_message_text(user_id, proc_msg_id, "Error occurred during audio download.")
+                    safe_edit_message_text(user_id, proc_msg_id, "Error occurred during audio download.")
                 except Exception as e:
-                    print(f"Error updating progress: {e}")
+                    logger.error(f"Error updating progress: {e}")
                 last_update = current_time
 
         ytdl_opts['progress_hooks'].append(progress_hook)
 
-        with YoutubeDL(ytdl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
+        try:
+            with YoutubeDL(ytdl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+        except Exception as ytdl_error:
+            logger.error(f"YouTube-DL error: {ytdl_error}")
+            send_to_user(message, f"❌ Failed to download audio: {ytdl_error}")
+            return
 
         audio_title = info.get("title", "audio")
+        # Sanitize the audio title for file naming
+        audio_title = sanitize_filename(audio_title)
         audio_file = os.path.join(user_folder, audio_title + ".mp3")
         if not os.path.exists(audio_file):
             files = [f for f in os.listdir(user_folder) if f.endswith(".mp3")]
@@ -1276,49 +1438,58 @@ def down_and_audio(app, message, url):
 
         try:
             full_bar = "🟩" * 10
-            app.edit_message_text(user_id, proc_msg_id, f"Uploading audio file...\n{full_bar}   100.0%")
+            safe_edit_message_text(user_id, proc_msg_id, f"Uploading audio file...\n{full_bar}   100.0%")
         except Exception as e:
-            print(f"Error updating upload status: {e}")
+            logger.error(f"Error updating upload status: {e}")
 
         # Send audio and save the message object for repost
-        audio_msg = app.send_audio(chat_id=user_id, audio=audio_file, caption=f"{audio_title}")
-        # Reposting final audio message to the log channel (replacement .Message_id -> .id)
         try:
-            app.forward_messages(Config.LOGS_ID, user_id, [audio_msg.id])
-        except Exception as e:
-            print("Error forwarding audio to logger:", e)
+            audio_msg = app.send_audio(chat_id=user_id, audio=audio_file, caption=f"{audio_title}")
+            # Reposting final audio message to the log channel
+            safe_forward_messages(Config.LOGS_ID, user_id, [audio_msg.id])
+        except Exception as send_error:
+            logger.error(f"Error sending audio: {send_error}")
+            send_to_user(message, f"❌ Failed to send audio: {send_error}")
+            return
 
         try:
             full_bar = "🟩" * 10
             success_msg = f"✅ Audio successfully downloaded and sent.\n\n{Config.CREDITS_MSG}"
-            app.edit_message_text(user_id, proc_msg_id, success_msg)
-
+            safe_edit_message_text(user_id, proc_msg_id, success_msg)
         except Exception as e:
-            print(f"Error updating final status: {e}")
+            logger.error(f"Error updating final status: {e}")
+
         send_to_logger(message, success_msg)
 
-        stop_anim.set()
-        anim_thread.join()
-        try:
-            app.delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
-            app.delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
-        except Exception as e:
-            print("Error deleting status messages:", e)
-
-        try:
-            os.remove(audio_file)
-        except Exception as e:
-            print(f"Failed to delete file {audio_file}: {e}")
-
     except Exception as e:
+        logger.error(f"Error in audio download: {e}")
         send_to_user(message, f"❌ Failed to download audio: {e}")
-        send_to_logger(message, f"Error in audio download: {e}")
         try:
-            app.edit_message_text(user_id, proc_msg_id, f"Error: {e}")
-        except Exception as e:
-            print(f"Error editing message on exception: {e}")
+            if proc_msg_id:
+                safe_edit_message_text(user_id, proc_msg_id, f"Error: {e}")
+        except Exception as edit_error:
+            logger.error(f"Error editing message on exception: {edit_error}")
     finally:
-        active_downloads[user_id] = False
+        # Always clean up resources
+        stop_anim.set()
+        if anim_thread:
+            anim_thread.join(timeout=1)  # Wait for animation thread with timeout
+
+        try:
+            if status_msg_id:
+                safe_delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
+            if hourglass_msg_id:
+                safe_delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
+        except Exception as e:
+            logger.error(f"Error deleting status messages: {e}")
+
+        try:
+            if os.path.exists(audio_file):
+                os.remove(audio_file)
+        except Exception as e:
+            logger.error(f"Failed to delete file {audio_file}: {e}")
+
+        set_active_download(user_id, False)
 
 #########################################
 # Download_and_up function
@@ -1329,18 +1500,42 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
     # Logging a video download request
     send_to_logger(message, f"Video download requested:\nURL: {url}\nPlaylist: {playlist_name}\nCount: {video_count}, Start: {video_start_with}")
 
-    if active_downloads.get(user_id, False):
+    if get_active_download(user_id):
         app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
         return
-    active_downloads[user_id] = True
+
+    set_active_download(user_id, True)
     error_message = ""
+    proc_msg = None
+    proc_msg_id = None
+    status_msg = None
+    status_msg_id = None
+    hourglass_msg = None
+    hourglass_msg_id = None
+    anim_thread = None
+    stop_anim = threading.Event()
+
     try:
+        # Check if there's enough disk space (estimate 2GB per video)
+        user_dir_name = os.path.abspath(os.path.join("users", str(user_id)))
+        create_directory(user_dir_name)
+
+        # We only need disk space for one video at a time, since files are deleted after upload
+        if not check_disk_space(user_dir_name, 2 * 1024 * 1024 * 1024):
+            send_to_user(message, f"❌ Not enough disk space to download videos.")
+            return
+
         proc_msg = app.send_message(user_id, "Processing... ♻️")
         proc_msg_id = proc_msg.id
         check_user(message)
 
-        user_dir_name = os.path.abspath(os.path.join("users", str(user_id)))
-        create_directory(user_dir_name)
+        # Сброс флага ошибок для нового запуска плейлиста
+        if playlist_name:
+            with playlist_errors_lock:
+                error_key = f"{user_id}_{playlist_name}"
+                if error_key in playlist_errors:
+                    del playlist_errors[error_key]
+
 
         custom_format_path = os.path.join(user_dir_name, "format.txt")
         if os.path.exists(custom_format_path):
@@ -1353,32 +1548,20 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
         else:
             attempts = [
                 {'format': 'bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
-                 'prefer_ffmpeg': True, 'merge_output_format': 'mp4'},
+                'prefer_ffmpeg': True, 'merge_output_format': 'mp4', 'extract_flat': False},
                 {'format': 'bestvideo+bestaudio/best',
-                 'prefer_ffmpeg': True, 'merge_output_format': 'mp4'},
-                {'format': 'best', 'prefer_ffmpeg': False}
+                'prefer_ffmpeg': True, 'merge_output_format': 'mp4', 'extract_flat': False},
+                {'format': 'best', 'prefer_ffmpeg': False, 'extract_flat': False}
             ]
 
-        status_msg = app.send_message(user_id, "Processing video, wait... ♻️")
+
+        status_msg = app.send_message(user_id, "📹 Video is processing...")
         hourglass_msg = app.send_message(user_id, "⌛️")
         # We save ID status messages
         status_msg_id = status_msg.id
         hourglass_msg_id = hourglass_msg.id
 
-        stop_anim = threading.Event()
-        def animate_hourglass():
-            current = True
-            while not stop_anim.is_set():
-                emoji = "⌛️" if current else "⏳"
-                try:
-                    app.edit_message_text(user_id, hourglass_msg_id, emoji)
-                except Exception as e:
-                    print("Hourglass animation error:", e)
-                current = not current
-                if stop_anim.wait(3):
-                    break
-        anim_thread = threading.Thread(target=animate_hourglass)
-        anim_thread.start()
+        anim_thread = start_hourglass_animation(user_id, hourglass_msg_id, stop_anim)
 
         current_total_process = ""
         last_update = 0
@@ -1396,11 +1579,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 blocks = int(percent // 10)
                 bar = "🟩" * blocks + "⬜️" * (10 - blocks)
                 try:
-                    app.edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{bar}   {percent:.1f}%")
+                    safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{bar}   {percent:.1f}%")
                 except Exception as e:
-                    print(f"Error updating progress: {e}")
+                    logger.error(f"Error updating progress: {e}")
             elif d.get("status") == "error":
-                print("Error occurred during download.")
+                logger.error("Error occurred during download.")
                 send_to_all(message, "❌ Sorry... Some error occurred during download.")
             last_update = current_time
 
@@ -1420,6 +1603,17 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             try:
                 with YoutubeDL(ytdl_opts) as ydl:
                     info_dict = ydl.extract_info(url, download=False)
+                if "entries" in info_dict:
+                    entries = info_dict["entries"]
+                    if len(entries) > 1:  # Если видео в плейлисте больше одного
+                        if current_index < len(entries):
+                            info_dict = entries[current_index]
+                        else:
+                            raise Exception(f"Video index {current_index} out of range (total {len(entries)})")
+                    else:
+                        # Если всего одно видео в плейлисте, просто скачиваем его
+                        info_dict = entries[0]  # Просто берём первое видео
+
                 if ("m3u8" in url.lower()) or (info_dict.get("protocol") == "m3u8_native"):
                     is_hls = True
                     if "format" in ytdl_opts:
@@ -1428,107 +1622,100 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                     ytdl_opts["hls_use_mpegts"] = True
                 try:
                     if is_hls:
-                        app.edit_message_text(user_id, proc_msg_id,
+                        safe_edit_message_text(user_id, proc_msg_id,
                             f"{current_total_process}\n\n__Detected HLS stream. Downloading...__ 📥")
                     else:
-                        app.edit_message_text(user_id, proc_msg_id,
-                            f"{current_total_process}\n\n__Downloading using format: {ytdl_opts.get('format', 'default')}...__ 📥")
+                        safe_edit_message_text(user_id, proc_msg_id,
+                            f"{current_total_process}\n\n> __Downloading using format: {ytdl_opts.get('format', 'default')}...__ 📥")
                 except Exception as e:
-                    print(f"Status update error: {e}")
+                    logger.error(f"Status update error: {e}")
                 with YoutubeDL(ytdl_opts) as ydl:
                     if is_hls:
                         cycle_stop = threading.Event()
-                        def cycle_progress():
-                            nonlocal cycle_stop
-                            counter = 0
-                            while not cycle_stop.is_set():
-                                counter = (counter + 1) % 11
-                                frag_files = [f for f in os.listdir(user_dir_name) if ".part-Frag" in f and f.endswith(".part")]
-                                if frag_files:
-                                    last_frag = sorted(frag_files)[-1]
-                                    m = re.search(r'Frag(\d+)', last_frag)
-                                    frag_text = f"Frag{m.group(1)}" if m else "Frag?"
-                                else:
-                                    frag_text = "waiting for fragments"
-                                bar = "🟩" * counter + "⬜️" * (10 - counter)
-                                try:
-                                    app.edit_message_text(user_id, proc_msg_id,
-                                        f"{current_total_process}\nDownloading HLS stream: {frag_text}\n{bar}")
-                                except Exception as e:
-                                    print("Cycle progress error:", e)
-                                if cycle_stop.wait(1.5):
-                                    break
-                        cycle_thread = threading.Thread(target=cycle_progress)
-                        cycle_thread.start()
-                        with YoutubeDL(ytdl_opts) as ydl:
-                            ydl.download([url])
-                        cycle_stop.set()
-                        cycle_thread.join()
+                        cycle_thread = start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_name, cycle_stop)
+                        try:
+                            with YoutubeDL(ytdl_opts) as ydl:
+                                ydl.download([url])
+                        finally:
+                            cycle_stop.set()
+                            cycle_thread.join(timeout=1)
                     else:
                         with YoutubeDL(ytdl_opts) as ydl:
                             ydl.download([url])
                 try:
-                    app.edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{full_bar}   100.0%")
+                    safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{full_bar}   100.0%")
                 except Exception as e:
-                    print("Final progress update error:", e)
+                    logger.error(f"Final progress update error: {e}")
                 return info_dict
             except Exception as e:
                 nonlocal error_message
                 error_message = str(e)
-                print(f"Attempt with format {ytdl_opts.get('format', 'default')} failed: {e}")
+                logger.error(f"Attempt with format {ytdl_opts.get('format', 'default')} failed: {e}")
                 return None
+
 
         for x in range(video_count):
             current_index = x
             total_process = f"""
-**<<<** __Total progress__ **>>>**
-
-**Video number:** {x + 1} / {video_count}
+**📶 Total Progress**
+> **Video:** {x + 1} / {video_count}
 """
+
             current_total_process = total_process
 
-            if playlist_name and video_count > 1:
-                rename_name = f"{playlist_name} - Part {x + video_start_with}"
+            # Определяем rename_name на основе входящего playlist_name:
+            if playlist_name and playlist_name.strip():
+                # Явно задано новое имя для плейлиста – используем его
+                rename_name = sanitize_filename(f"{playlist_name.strip()} - Part {x + video_start_with}")
             else:
+                # Новое имя не задано – извлекаем название из метаданных
                 rename_name = None
 
             info_dict = None
-
             for attempt in attempts:
                 info_dict = try_download(url, attempt)
                 if info_dict is not None:
                     break
+
             if info_dict is None:
-                send_to_all(
-                    message,
-                    f"❌ Failed to download video: {error_message}\n────────────────\n"
-                    "> Check [here](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) if your site supported\n"
-                    "> You may need `cookie` for downloading this video. First, clean your workspace via **/clean** command\n"
-                    "> For Youtube - get `cookie` via **/download_cookie** command. For any other supported site - send your own cookie ([guide1](https://t.me/c/2303231066/18)) ([guide2](https://t.me/c/2303231066/22)) and after that send your video link again."
-                )
-                continue  # Move to the Next Video If Available
+                with playlist_errors_lock:
+                    error_key = f"{user_id}_{playlist_name}"
+                    if error_key not in playlist_errors:
+                        playlist_errors[error_key] = True
+                        send_to_all(
+                            message,
+                            f"❌ Failed to download video: {error_message}\n────────────────\n"
+                            "> Check [here](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) if your site supported\n"
+                            "> You may need `cookie` for downloading this video. First, clean your workspace via **/clean** command\n"
+                            "> For Youtube - get `cookie` via **/download_cookie** command. For any other supported site - send your own cookie ([guide1](https://t.me/c/2303231066/18)) ([guide2](https://t.me/c/2303231066/22)) and after that send your video link again."
+                        )
+                break
 
             successful_uploads += 1
 
             video_id = info_dict.get("id", None)
             video_title = info_dict.get("title", None)
+            video_title = sanitize_filename(video_title) if video_title else "video"
+
+            # Если rename_name не задано, устанавливаем его равным video_title
             if rename_name is None:
                 rename_name = video_title
 
             info_text = f"""
 {total_process}
 
-**<<<** __Info__ **>>>**
+**📋 Video Info**
+> **Number:** {x + video_start_with}
+> **Title:** {video_title}
+> **Caption:** {rename_name}
+> **ID:** {video_id}
+"""
 
-**Video number:** {x + video_start_with}
-**Video Name:** __{video_title}__
-**Caption Name:** __{rename_name}__
-**Video id:** {video_id}"""
             try:
-                app.edit_message_text(user_id, proc_msg_id,
-                    f"{info_text}\n\n{full_bar}   100.0%\n__Downloaded video. Processing for upload...__ ♻️")
+                safe_edit_message_text(user_id, proc_msg_id,
+                    f"{info_text}\n\n{full_bar}   100.0%\n\n__Downloaded video. Processing for upload...__ ♻️")
             except Exception as e:
-                print(f"Status update error after download: {e}")
+                logger.error(f"Status update error after download: {e}")
 
             dir_path = os.path.join("users", str(user_id))
             allfiles = os.listdir(dir_path)
@@ -1536,7 +1723,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             files.sort()
             if not files:
                 send_to_all(message, "❌ File not found after download.")
-                continue
+                break
 
             downloaded_file = files[0]
             write_logs(message, url, downloaded_file)
@@ -1548,16 +1735,33 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 ext = os.path.splitext(downloaded_file)[1]
                 final_name = rename_name + ext
                 caption_name = rename_name
-                os.rename(os.path.join(dir_path, downloaded_file), os.path.join(dir_path, final_name))
+                old_path = os.path.join(dir_path, downloaded_file)
+                new_path = os.path.join(dir_path, final_name)
+
+                if os.path.exists(new_path):
+                    try:
+                        os.remove(new_path)
+                    except Exception as e:
+                        logger.error(f"Error removing existing file {new_path}: {e}")
+
+                try:
+                    os.rename(old_path, new_path)
+                except Exception as e:
+                    logger.error(f"Error renaming file from {old_path} to {new_path}: {e}")
+                    final_name = downloaded_file
+                    caption_name = video_title
 
             user_vid_path = os.path.join(dir_path, final_name)
             if final_name.lower().endswith((".webm", ".ts")):
                 try:
-                    app.edit_message_text(user_id, proc_msg_id,
+                    safe_edit_message_text(user_id, proc_msg_id,
                         f"{info_text}\n\n{full_bar}   100.0%\nConverting video using ffmpeg... ⏳")
                 except Exception as e:
-                    print(f"Error updating status before conversion: {e}")
-                mp4_file = os.path.join(dir_path, os.path.splitext(final_name)[0] + ".mp4")
+                    logger.error(f"Error updating status before conversion: {e}")
+
+                mp4_basename = sanitize_filename(os.path.splitext(final_name)[0]) + ".mp4"
+                mp4_file = os.path.join(dir_path, mp4_basename)
+
                 ffmpeg_cmd = [
                     "ffmpeg",
                     "-y",
@@ -1573,41 +1777,38 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                     subprocess.run(ffmpeg_cmd, check=True)
                     os.remove(user_vid_path)
                     user_vid_path = mp4_file
+                    final_name = mp4_basename
                 except Exception as e:
                     send_to_all(message, f"❌ Conversion to MP4 failed: {e}")
-                    continue
+                    break
 
             after_rename_abs_path = os.path.abspath(user_vid_path)
-            result = get_duration_thumb(message, dir_path, user_vid_path, caption_name)
+            result = get_duration_thumb(message, dir_path, user_vid_path, sanitize_filename(caption_name))
             if result is None:
                 send_to_all(message, "❌ Failed to get video duration and thumbnail.")
-                continue
+                break
             duration, thumb_dir = result
 
             video_size_in_bytes = os.path.getsize(user_vid_path)
             video_size = humanbytes(int(video_size_in_bytes))
-            max_size = 1850000000
+            max_size = 1950000000  # 1.95 GB - close to Telegram's 2GB limit with 50MB safety margin
             if int(video_size_in_bytes) > max_size:
-                app.edit_message_text(user_id, proc_msg_id,
+                safe_edit_message_text(user_id, proc_msg_id,
                     f"{info_text}\n\n{full_bar}   100.0%\n__⚠️ Your video size ({video_size}) is too large.__\n__Splitting file...__ ✂️")
-                returned = split_video_2(dir_path, caption_name, after_rename_abs_path, int(video_size_in_bytes), max_size, duration)
+                returned = split_video_2(dir_path, sanitize_filename(caption_name), after_rename_abs_path, int(video_size_in_bytes), max_size, duration)
                 caption_lst = returned.get("video")
                 path_lst = returned.get("path")
-                # For each split video part, send the part and immediately forward it to the log channel
                 for p in range(len(caption_lst)):
-                    part_result = get_duration_thumb(message, dir_path, path_lst[p], caption_lst[p])
+                    part_result = get_duration_thumb(message, dir_path, path_lst[p], sanitize_filename(caption_lst[p]))
                     if part_result is None:
                         continue
                     part_duration, splited_thumb_dir = part_result
-                    # Send the split video part and save the message object
                     video_msg = send_videos(message, path_lst[p], caption_lst[p], part_duration, splited_thumb_dir, info_text, proc_msg.id)
-                    # Immediately forward the sent video message to the log channel using its id
                     try:
-                        app.forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
+                        safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
                     except Exception as e:
-                        print("Error forwarding video to logger:", e)
-                    # Update progress message for this part
-                    app.edit_message_text(user_id, proc_msg_id,
+                        logger.error(f"Error forwarding video to logger: {e}")
+                    safe_edit_message_text(user_id, proc_msg_id,
                                           f"{info_text}\n\n{full_bar}   100.0%\n__Splitted part {p + 1} file uploaded__")
                     if p < len(caption_lst) - 1:
                         threading.Event().wait(2)
@@ -1616,18 +1817,18 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 os.remove(thumb_dir)
                 os.remove(user_vid_path)
                 success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n\n{Config.CREDITS_MSG}"
-                app.edit_message_text(user_id, proc_msg_id, success_msg)
+                safe_edit_message_text(user_id, proc_msg_id, success_msg)
                 send_to_logger(message, "Video upload completed with file splitting.")
                 break
             else:
                 if final_name:
                     video_msg = send_videos(message, after_rename_abs_path, caption_name, duration, thumb_dir, info_text, proc_msg.id)
                     try:
-                        app.forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
+                        safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
                     except Exception as e:
-                        print("Error forwarding video to logger:", e)
-                    app.edit_message_text(user_id, proc_msg_id,
-                        f"{info_text}\n{full_bar}   100.0%\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n\n1 file uploaded.")
+                        logger.error(f"Error forwarding video to logger: {e}")
+                    safe_edit_message_text(user_id, proc_msg_id,
+                        f"{info_text}\n{full_bar}   100.0%\n\n**🎞 Video duration:** __{TimeFormatter(duration * 1000)}__\n\n1 file uploaded.")
                     os.remove(after_rename_abs_path)
                     os.remove(thumb_dir)
                     threading.Event().wait(2)
@@ -1635,15 +1836,25 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                     send_to_all(message, "❌ Some error occurred during processing. 😢")
         if successful_uploads == video_count:
             success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n\n{Config.CREDITS_MSG}"
-            app.edit_message_text(user_id, proc_msg_id, success_msg)
+            safe_edit_message_text(user_id, proc_msg_id, success_msg)
             send_to_logger(message, success_msg)
     finally:
-        active_downloads[user_id] = False
+        set_active_download(user_id, False)
+        if playlist_name:
+            with playlist_errors_lock:
+                error_key = f"{user_id}_{playlist_name}"
+                if error_key in playlist_errors:
+                    del playlist_errors[error_key]
+
         try:
-            app.delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
-            app.delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
+            if status_msg_id:
+                safe_delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
+            if hourglass_msg_id:
+                safe_delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
         except Exception as e:
-            print("Error deleting status messages:", e)
+            logger.error(f"Error deleting status messages: {e}")
+
+
 
 #####################################################################################
 #####################################################################################
@@ -1652,14 +1863,428 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
 # YT-DLP HOOK
 
 def ytdlp_hook(d):
-    print(d['status'])
+    logger.info(d['status'])
 
 #####################################################################################
 _format = {"ID": '0', "timestamp": math.floor(time.time())}
 db.child("bot").child("tgytdlp_bot").child("users").child("0").set(_format)
 db.child("bot").child("tgytdlp_bot").child("blocked_users").child("0").set(_format)
 db.child("bot").child("tgytdlp_bot").child("unblocked_users").child("0").set(_format)
-print("db created")
+logger.info("db created")
 starting_point.append(time.time())
-print("Bot started")
+logger.info("Bot started")
+
+# Add signal processing for correct termination
+import signal
+
+def signal_handler(sig, frame):
+    """
+    Handler for system signals to ensure graceful shutdown
+
+    Args:
+        sig: Signal number
+        frame: Current stack frame
+    """
+    logger.info(f"Received signal {sig}, shutting down gracefully...")
+
+    # Stop all active animations and threads
+    active_threads = [t for t in threading.enumerate()
+                     if t != threading.current_thread() and not t.daemon]
+
+    if active_threads:
+        logger.info(f"Waiting for {len(active_threads)} active threads to finish")
+        for thread in active_threads:
+            logger.info(f"Waiting for thread {thread.name} to finish...")
+            thread.join(timeout=2)  # Wait with timeout to avoid hanging
+
+    # Clean up temporary files
+    try:
+        cleanup_temp_files()
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}")
+
+    # Finish the application
+    logger.info("Shutting down Pyrogram client...")
+    try:
+        app.stop()
+        logger.info("Pyrogram client stopped successfully")
+    except Exception as e:
+        logger.error(f"Error stopping Pyrogram client: {e}")
+
+    logger.info("Shutdown complete.")
+    sys.exit(0)
+
+def cleanup_temp_files():
+    """Clean up temporary files across all user directories"""
+    if not os.path.exists("users"):
+        return
+
+    logger.info("Cleaning up temporary files")
+    for user_dir in os.listdir("users"):
+        try:
+            user_path = os.path.join("users", user_dir)
+            if os.path.isdir(user_path):
+                for filename in os.listdir(user_path):
+                    if filename.endswith(('.part', '.ytdl', '.temp', '.tmp')):
+                        try:
+                            os.remove(os.path.join(user_path, filename))
+                        except Exception as e:
+                            logger.error(f"Failed to remove temp file {filename}: {e}")
+        except Exception as e:
+            logger.error(f"Error cleaning user directory {user_dir}: {e}")
+
+# Register handlers for the most common termination signals
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
+
+# Helper function to safely get active download status
+def get_active_download(user_id):
+    """
+    Thread-safe function to get the active download status for a user
+
+    Args:
+        user_id: The user ID
+
+    Returns:
+        bool: Whether the user has an active download
+    """
+    with active_downloads_lock:
+        return active_downloads.get(user_id, False)
+
+# Helper function to sanitize and shorten filenames
+def sanitize_filename(filename, max_length=150):
+    """
+    Sanitize filename by removing invalid characters and shortening if needed
+
+    Args:
+        filename (str): Original filename
+        max_length (int): Maximum allowed length for filename (excluding extension)
+
+    Returns:
+        str: Sanitized and shortened filename
+    """
+    # Exit early if None
+    if filename is None:
+        return "untitled"
+
+    # Extract extension first
+    name, ext = os.path.splitext(filename)
+
+    # Remove invalid characters (Windows and Linux safe)
+    invalid_chars = r'[<>:"/\\|?*\x00-\x1f]'
+    name = re.sub(invalid_chars, '', name)
+
+    # Remove emoji characters to avoid issues with ffmpeg
+    emoji_pattern = re.compile("[" 
+                               "\U0001F600-\U0001F64F"  # emoticons
+                               "\U0001F300-\U0001F5FF"  # symbols & pictographs
+                               "\U0001F680-\U0001F6FF"  # transport & map symbols
+                               "\U0001F1E0-\U0001F1FF"  # flags
+                               "]+", flags=re.UNICODE)
+    name = emoji_pattern.sub(r'', name)
+
+    # Replace multiple spaces with single space and strip
+    name = re.sub(r'\s+', ' ', name).strip()
+
+    # Shorten if too long
+    full_name = name + ext
+    max_total = 100
+    if len(full_name) > max_total:
+       allowed = max_total - len(ext)
+       if allowed > 3:
+          name = name[:allowed-3] + "..."
+       else:
+          name = name[:allowed]
+       full_name = name + ext
+    return full_name
+
+
+# Helper function to safely set active download status
+def set_active_download(user_id, status):
+    """
+    Thread-safe function to set the active download status for a user
+
+    Args:
+        user_id: The user ID
+        status (bool): Whether the user has an active download
+    """
+    with active_downloads_lock:
+        active_downloads[user_id] = status
+
+# Helper function for safe message sending with flood wait handling
+def safe_send_message(chat_id, text, **kwargs):
+    """
+    Safely send a message with flood wait handling
+
+    Args:
+        chat_id: The chat ID to send to
+        text: The text to send
+        **kwargs: Additional arguments for send_message
+
+    Returns:
+        The message object or None if sending failed
+    """
+    max_retries = 3
+    retry_delay = 5
+
+    for attempt in range(max_retries):
+        try:
+            return app.send_message(chat_id, text, **kwargs)
+        except Exception as e:
+            if "FLOOD_WAIT" in str(e):
+                # Extract wait time
+                wait_match = re.search(r'A wait of (\d+) seconds is required', str(e))
+                if wait_match:
+                    wait_seconds = int(wait_match.group(1))
+                    logger.warning(f"Flood wait detected, sleeping for {wait_seconds} seconds")
+                    time.sleep(min(wait_seconds + 1, 30))  # Wait the required time (max 30 sec)
+                else:
+                    logger.warning(f"Flood wait detected but couldn't extract time, sleeping for {retry_delay} seconds")
+                    time.sleep(retry_delay)
+
+                if attempt < max_retries - 1:
+                    continue
+
+            logger.error(f"Failed to send message after {max_retries} attempts: {e}")
+            return None
+
+# Helper function for safe message forwarding with flood wait handling
+def safe_forward_messages(chat_id, from_chat_id, message_ids, **kwargs):
+    """
+    Safely forward messages with flood wait handling
+
+    Args:
+        chat_id: The chat ID to forward to
+        from_chat_id: The chat ID to forward from
+        message_ids: The message IDs to forward
+        **kwargs: Additional arguments for forward_messages
+
+    Returns:
+        The message objects or None if forwarding failed
+    """
+    max_retries = 3
+    retry_delay = 5
+
+    for attempt in range(max_retries):
+        try:
+            return app.forward_messages(chat_id, from_chat_id, message_ids, **kwargs)
+        except Exception as e:
+            if "FLOOD_WAIT" in str(e):
+                # Extract wait time
+                wait_match = re.search(r'A wait of (\d+) seconds is required', str(e))
+                if wait_match:
+                    wait_seconds = int(wait_match.group(1))
+                    logger.warning(f"Flood wait detected, sleeping for {wait_seconds} seconds")
+                    time.sleep(min(wait_seconds + 1, 30))  # Wait the required time (max 30 sec)
+                else:
+                    logger.warning(f"Flood wait detected but couldn't extract time, sleeping for {retry_delay} seconds")
+                    time.sleep(retry_delay)
+
+                if attempt < max_retries - 1:
+                    continue
+
+            logger.error(f"Failed to forward messages after {max_retries} attempts: {e}")
+            return None
+
+# Helper function for safely editing message text with flood wait handling
+def safe_edit_message_text(chat_id, message_id, text, **kwargs):
+    """
+    Safely edit message text with flood wait handling
+
+    Args:
+        chat_id: The chat ID
+        message_id: The message ID to edit
+        text: The new text
+        **kwargs: Additional arguments for edit_message_text
+
+    Returns:
+        The message object or None if editing failed
+    """
+    max_retries = 3
+    retry_delay = 5
+
+    for attempt in range(max_retries):
+        try:
+            return app.edit_message_text(chat_id, message_id, text, **kwargs)
+        except Exception as e:
+            # If message ID is invalid, it means the message was deleted
+            # No need to retry, just return immediately
+            if "MESSAGE_ID_INVALID" in str(e):
+                # We only log this once, not for every retry
+                if attempt == 0:
+                    logger.debug(f"Tried to edit message that was already deleted: {message_id}")
+                return None
+
+            # If message was not modified, also return immediately (not an error)
+            elif "message is not modified" in str(e).lower() or "MESSAGE_NOT_MODIFIED" in str(e):
+                return None
+
+            # Handle flood wait errors
+            elif "FLOOD_WAIT" in str(e):
+                # Extract wait time
+                wait_match = re.search(r'A wait of (\d+) seconds is required', str(e))
+                if wait_match:
+                    wait_seconds = int(wait_match.group(1))
+                    logger.warning(f"Flood wait detected, sleeping for {wait_seconds} seconds")
+                    time.sleep(min(wait_seconds + 1, 30))  # Wait the required time (max 30 sec)
+                else:
+                    logger.warning(f"Flood wait detected but couldn't extract time, sleeping for {retry_delay} seconds")
+                    time.sleep(retry_delay)
+
+                if attempt < max_retries - 1:
+                    continue
+
+            # Only log other errors as real errors
+            if attempt == max_retries - 1:  # Log only on last attempt
+                logger.error(f"Failed to edit message after {max_retries} attempts: {e}")
+            return None
+
+# Helper function for safely deleting messages with flood wait handling
+def safe_delete_messages(chat_id, message_ids, **kwargs):
+    """
+    Safely delete messages with flood wait handling
+
+    Args:
+        chat_id: The chat ID
+        message_ids: List of message IDs to delete
+        **kwargs: Additional arguments for delete_messages
+
+    Returns:
+        True on success or None if deletion failed
+    """
+    max_retries = 3
+    retry_delay = 5
+
+    for attempt in range(max_retries):
+        try:
+            return app.delete_messages(chat_id=chat_id, message_ids=message_ids, **kwargs)
+        except Exception as e:
+            if "FLOOD_WAIT" in str(e):
+                # Extract wait time
+                wait_match = re.search(r'A wait of (\d+) seconds is required', str(e))
+                if wait_match:
+                    wait_seconds = int(wait_match.group(1))
+                    logger.warning(f"Flood wait detected, sleeping for {wait_seconds} seconds")
+                    time.sleep(min(wait_seconds + 1, 30))  # Wait the required time (max 30 sec)
+                else:
+                    logger.warning(f"Flood wait detected but couldn't extract time, sleeping for {retry_delay} seconds")
+                    time.sleep(retry_delay)
+
+                if attempt < max_retries - 1:
+                    continue
+
+            logger.error(f"Failed to delete messages after {max_retries} attempts: {e}")
+            return None
+
+# Helper function to start the hourglass animation
+def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
+    """
+    Start an hourglass animation in a separate thread
+
+    Args:
+        user_id: The user ID
+        hourglass_msg_id: The message ID to animate
+        stop_anim: An event to signal when to stop the animation
+
+    Returns:
+        The animation thread
+    """
+
+    def animate_hourglass():
+        """Animate an hourglass emoji by toggling between two hourglass emojis"""
+        counter = 0
+        emojis = ["⏳", "⌛"]
+        active = True
+
+        while active and not stop_anim.is_set():
+            try:
+                emoji = emojis[counter % len(emojis)]
+                # Attempt to edit message but don't keep trying if message is invalid
+                result = safe_edit_message_text(user_id, hourglass_msg_id, f"{emoji} Please wait...")
+
+                # If message edit returns None due to MESSAGE_ID_INVALID, stop animation
+                if result is None and counter > 0:  # Allow first attempt to fail
+                    active = False
+                    break
+
+                counter += 1
+                time.sleep(3.0)
+            except Exception as e:
+                logger.error(f"Error in hourglass animation: {e}")
+                # Stop animation on error to prevent log spam
+                active = False
+                break
+
+        logger.debug(f"Hourglass animation stopped for message {hourglass_msg_id}")
+
+    # Start animation in a daemon thread so it will exit when the main thread exits
+    hourglass_thread = threading.Thread(target=animate_hourglass, daemon=True)
+    hourglass_thread.start()
+    return hourglass_thread
+
+# Helper function to start cycle progress animation
+def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_name, cycle_stop):
+    """
+    Start a progress animation for HLS downloads
+
+    Args:
+        user_id: The user ID
+        proc_msg_id: The message ID to update with progress
+        current_total_process: String describing the current process
+        user_dir_name: Directory name where fragments are saved
+        cycle_stop: Event to signal animation stop
+
+    Returns:
+        The animation thread
+    """
+
+    def cycle_progress():
+        """Show progress animation for HLS downloads"""
+        counter = 0
+        active = True
+
+        while active and not cycle_stop.is_set():
+            counter = (counter + 1) % 11
+            try:
+                # Check for fragment files
+                frag_files = []
+                try:
+                    frag_files = [f for f in os.listdir(user_dir_name) if 'Frag' in f]
+                except (FileNotFoundError, PermissionError) as e:
+                    logger.debug(f"Error checking fragment files: {e}")
+
+                if frag_files:
+                    last_frag = sorted(frag_files)[-1]
+                    m = re.search(r'Frag(\d+)', last_frag)
+                    frag_text = f"Frag{m.group(1)}" if m else "Frag?"
+                else:
+                    frag_text = "waiting for fragments"
+
+                bar = "🟩" * counter + "⬜️" * (10 - counter)
+
+                # Use safe_edit_message_text and check if message exists
+                result = safe_edit_message_text(user_id, proc_msg_id,
+                    f"{current_total_process}\nDownloading HLS stream: {frag_text}\n{bar}")
+
+                # If message was deleted (returns None), stop animation
+                if result is None and counter > 2:  # Allow first few attempts to fail
+                    active = False
+                    break
+
+            except Exception as e:
+                logger.warning(f"Cycle progress error: {e}")
+                # Stop animation on consistent errors to prevent log spam
+                active = False
+                break
+
+            # Sleep with check for stop event
+            if cycle_stop.wait(3.0):
+                break
+
+        logger.debug(f"Cycle progress animation stopped for message {proc_msg_id}")
+
+    cycle_thread = threading.Thread(target=cycle_progress, daemon=True)
+    cycle_thread.start()
+    return cycle_thread
+
 app.run()

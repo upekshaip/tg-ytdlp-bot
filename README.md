@@ -333,8 +333,9 @@ To restrict access to your database only to authenticated users, update your sec
 ```json
 {
   "rules": {
-    ".read": "auth != null && now < 4070908800000",
-    ".write": "auth != null && now < 4070908800000"
+    // Allow access only to authenticated user with certain email
+    ".read":  "auth != null && auth.token.email === 'YOUREMAIL@gmail.com'",
+    ".write": "auth != null && auth.token.email === 'YOUREMAIL@gmail.com'"
   }
 }
 ```
