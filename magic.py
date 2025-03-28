@@ -222,7 +222,7 @@ def cookies_from_browser(app, message):
         "edge": "~/.config/microsoft-edge/",
         "firefox": "~/.mozilla/firefox/",
         "opera": "~/.config/opera/",
-        "safari": None,  # Not support on linux
+        "safari": "~/Library/Safari/",
         "vivaldi": "~/.config/vivaldi/",
         "whale": ["~/.config/Whale/", "~/.config/naver-whale/"]
     }
