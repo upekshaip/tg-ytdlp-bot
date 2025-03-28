@@ -280,7 +280,7 @@ def browser_choice_callback(app, callback_query):
         "edge": "~/.config/microsoft-edge/",
         "firefox": "~/.mozilla/firefox/",
         "opera": "~/.config/opera/",
-        "safari": None,
+        "safari": "~/Library/Safari/",
         "vivaldi": "~/.config/vivaldi/",
         "whale": ["~/.config/Whale/", "~/.config/naver-whale/"]
     }
@@ -490,18 +490,21 @@ def is_user_blocked(message):
 
 def check_user(message):
     user_id_str = str(message.chat.id)
+
     # Create The User Folder Inside The "Users" Directory
     user_dir = os.path.join("users", user_id_str)
     create_directory(user_dir)
 
-    # Copy Cookie.txt from the Project Root to the User's Folder If Not Alread Present
-    cookie_src = os.path.join(os.getcwd(), "cookie.txt")
+    # Updated path for cookie.txt
+    cookie_src = os.path.join(os.getcwd(), "cookies", "cookie.txt")
     cookie_dest = os.path.join(user_dir, os.path.basename(Config.COOKIE_FILE_PATH))
+
+    # Copy Cookie.txt to the User's Folder if Not Already Present
     if os.path.exists(cookie_src) and not os.path.exists(cookie_dest):
         import shutil
         shutil.copy(cookie_src, cookie_dest)
 
-    # Register the User in the Database If Not Alread Registered
+    # Register the User in the Database if Not Already Registered
     user_db = db.child("bot").child("tgytdlp_bot").child("users").get().each()
     users = [user.key() for user in user_db] if user_db else []
     if user_id_str not in users:
@@ -667,7 +670,7 @@ def remove_media(message):
 
         for file in files:
             # Skip special files like cookie.txt and logs.txt and format.txt
-            if extension == '.txt' and file in ['cookie.txt', 'logs.txt', 'format.txt']:
+            if extension == '.txt' and file in ['logs.txt', 'format.txt']:
                 continue
 
             file_path = os.path.join(dir, file)
@@ -1975,7 +1978,7 @@ def sanitize_filename(filename, max_length=150):
     name = re.sub(invalid_chars, '', name)
 
     # Remove emoji characters to avoid issues with ffmpeg
-    emoji_pattern = re.compile("[" 
+    emoji_pattern = re.compile("["
                                "\U0001F600-\U0001F64F"  # emoticons
                                "\U0001F300-\U0001F5FF"  # symbols & pictographs
                                "\U0001F680-\U0001F6FF"  # transport & map symbols
