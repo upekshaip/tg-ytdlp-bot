@@ -5,6 +5,8 @@ Thanks to Contributor - [@IIlIlIlIIIlllIIlIIlIllIIllIlIIIl](https://t.me/IIlIlIl
 
 Download private YouTube/videos using a cookie file.
 
+Test free bot - https://t.me/tgytdlp_bot
+
 ## Full Documentation
 [https://upekshaip.com/projects/-O0t36gRpfJR1p8KB7vU](https://upekshaip.com/projects/-O0t36gRpfJR1p8KB7vU)
 
