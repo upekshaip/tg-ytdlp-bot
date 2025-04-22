@@ -1,22 +1,22 @@
 # Config
 class Config(object):
     # Your bot name - Required (str)
-    BOT_NAME = "public"
+    BOT_NAME = "YouTube"
     # A name for users - Required (str)
     BOT_NAME_FOR_USERS = "Video Downloader bot by upekshaip"
     # Add all admin id's as a list - Required (lst[int])
     ADMIN = [0000000000]
     # Add your telegram API ID - Required (int)
-    API_ID = 0000000
+    API_ID = 29575403
     # Add your Telegram API HASH - Required (str)
-    API_HASH = ""
+    API_HASH = "c5e5f3858165ac1af75d97921d8c3444"
     # Add your telegram bot token (str)
-    BOT_TOKEN = ""
+    BOT_TOKEN = "7951257975:AAES4HFvILH1JFLaKApzXMvE4AO3kUiKcv0"
     # Add telegram Log channel Id - Required (int)
-    LOGS_ID = -0000000000000
+    LOGS_ID = -1002591279476
     # Add main channel to subscribe - Required (int)
-    SUBSCRIBE_CHANNEL = -0000000000000
-    # Add subscription channel - Required (str)
+    SUBSCRIBE_CHANNEL = -1002520909898
+    # Add subscription channed (str)
     SUBSCRIBE_CHANNEL_URL = "https://t.me/upekshaip"
 
     # Cookie file URL
