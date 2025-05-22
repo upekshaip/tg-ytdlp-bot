@@ -44,6 +44,37 @@ active_downloads_lock = threading.Lock()
 playlist_errors = {}
 playlist_errors_lock = threading.Lock()
 
+# Добавляем глобальный словарь для отслеживания времени начала загрузок
+download_start_times = {}
+download_start_times_lock = threading.Lock()
+
+def set_download_start_time(user_id):
+    """
+    Устанавливает время начала загрузки для пользователя
+    """
+    with download_start_times_lock:
+        download_start_times[user_id] = time.time()
+
+def clear_download_start_time(user_id):
+    """
+    Очищает время начала загрузки для пользователя
+    """
+    with download_start_times_lock:
+        if user_id in download_start_times:
+            del download_start_times[user_id]
+
+def check_download_timeout(user_id):
+    """
+    Проверяет, не превышен ли таймаут загрузки
+    """
+    with download_start_times_lock:
+        if user_id in download_start_times:
+            start_time = download_start_times[user_id]
+            current_time = time.time()
+            if current_time - start_time > Config.DOWNLOAD_TIMEOUT:
+                return True
+    return False
+
 # Helper function to check available disk space
 def check_disk_space(path, required_bytes):
     """
@@ -227,7 +258,8 @@ def cookies_from_browser(app, message):
         "whale": ["~/.config/Whale/", "~/.config/naver-whale/"]
     }
 
-    buttons = []
+    # Создаем список только установленных браузеров
+    installed_browsers = []
     for browser, path in browsers.items():
         if browser == "safari":
             exists = False
@@ -235,12 +267,26 @@ def cookies_from_browser(app, message):
             exists = any(os.path.exists(os.path.expanduser(p)) for p in path)
         else:
             exists = os.path.exists(os.path.expanduser(path))
-        emoji = "✅" if exists else "☑️"
-        display_name = browser.capitalize()  # Capitalize the first letter
-        button = InlineKeyboardButton(f"{emoji} {display_name}", callback_data=f"browser_choice|{browser}")
+        if exists:
+            installed_browsers.append(browser)
+
+    # Если нет установленных браузеров, отправляем сообщение об этом
+    if not installed_browsers:
+        app.send_message(
+            user_id,
+            "❌ No supported browsers found on the server. Please install one of the supported browsers or use manual cookie upload."
+        )
+        send_to_logger(message, "No installed browsers found.")
+        return
+
+    # Создаем кнопки только для установленных браузеров
+    buttons = []
+    for browser in installed_browsers:
+        display_name = browser.capitalize()
+        button = InlineKeyboardButton(f"✅ {display_name}", callback_data=f"browser_choice|{browser}")
         buttons.append([button])
 
-    # Add a Cancel Button to Cancel The Selection
+    # Добавляем кнопку отмены
     buttons.append([InlineKeyboardButton("🔙 Cancel", callback_data="browser_choice|cancel")])
     keyboard = InlineKeyboardMarkup(buttons)
 
@@ -249,7 +295,7 @@ def cookies_from_browser(app, message):
         "Select a browser to download cookies from:",
         reply_markup=keyboard
     )
-    send_to_logger(message, "Browser selection keyboard sent.")
+    send_to_logger(message, "Browser selection keyboard sent with installed browsers only.")
 
 # Callback Handler for Browser Selection
 @app.on_callback_query(filters.regex(r"^browser_choice\|"))
@@ -328,11 +374,14 @@ def audio_command_handler(app, message):
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)  # Ensure The User's Folder Exists
 
-    # Command expects: /audio <url>
-    if len(message.command) < 2:
+    # Извлекаем URL из сообщения
+    text = message.text
+    url_match = re.search(r'https?://[^\s\*]+', text)
+    if not url_match:
         send_to_user(message, "Please provide the URL of the video to download the audio.")
         return
-    url = message.command[1]  # We take the URL from the arguments of Command
+
+    url = url_match.group(0)
     down_and_audio(app, message, url)
 
 # Command /Format Handler
@@ -1107,10 +1156,19 @@ def send_videos(message, video_abs_path, caption, duration, thumb_file_path, inf
     stage = "Uploading Video... 📤"
     send_to_logger(message, info_text)
     user_id = message.chat.id
+
+    # Получаем URL из сообщения пользователя
+    text = message.text
+    url_match = re.search(r'https?://[^\s\*]+', text)
+    video_url = url_match.group(0) if url_match else ""
+
+    # Формируем текст с ссылкой
+    caption_with_link = f"{caption}\n\n[🔗 Video URL]({video_url})"
+
     video_msg = app.send_video(
         chat_id=user_id,
         video=video_abs_path,
-        caption=caption,
+        caption=caption_with_link,
         duration=duration,
         width=640,
         height=360,
@@ -1333,12 +1391,12 @@ def down_and_audio(app, message, url):
     # Logging a request for downloading audio
     send_to_logger(message, f"Audio download requested:\nURL: {url}")
 
-    # Checking the active process and sending a reference if loading is already underway
     if get_active_download(user_id):
         app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
         return
 
     set_active_download(user_id, True)
+    set_download_start_time(user_id)  # Устанавливаем время начала загрузки
     proc_msg = None
     proc_msg_id = None
     status_msg = None
@@ -1388,6 +1446,9 @@ def down_and_audio(app, message, url):
         last_update = 0
         def progress_hook(d):
             nonlocal last_update
+            # Проверяем таймаут
+            if check_download_timeout(user_id):
+                raise Exception(f"Download timeout exceeded ({Config.DOWNLOAD_TIMEOUT // 3600} hours)")
             current_time = time.time()
             if current_time - last_update < 0.2:
                 return
@@ -1445,9 +1506,12 @@ def down_and_audio(app, message, url):
         except Exception as e:
             logger.error(f"Error updating upload status: {e}")
 
+        # Формируем текст с ссылкой для аудио
+        caption_with_link = f"{audio_title}\n\n[🔗 Audio URL]({url})"
+
         # Send audio and save the message object for repost
         try:
-            audio_msg = app.send_audio(chat_id=user_id, audio=audio_file, caption=f"{audio_title}")
+            audio_msg = app.send_audio(chat_id=user_id, audio=audio_file, caption=caption_with_link)
             # Reposting final audio message to the log channel
             safe_forward_messages(Config.LOGS_ID, user_id, [audio_msg.id])
         except Exception as send_error:
@@ -1465,13 +1529,12 @@ def down_and_audio(app, message, url):
         send_to_logger(message, success_msg)
 
     except Exception as e:
-        logger.error(f"Error in audio download: {e}")
-        send_to_user(message, f"❌ Failed to download audio: {e}")
-        try:
-            if proc_msg_id:
-                safe_edit_message_text(user_id, proc_msg_id, f"Error: {e}")
-        except Exception as edit_error:
-            logger.error(f"Error editing message on exception: {edit_error}")
+        if "Download timeout exceeded" in str(e):
+            send_to_user(message, "⏰ Download cancelled due to timeout (2 hours)")
+            send_to_logger(message, "Download cancelled due to timeout")
+        else:
+            logger.error(f"Error in audio download: {e}")
+            send_to_user(message, f"❌ Failed to download audio: {e}")
     finally:
         # Always clean up resources
         stop_anim.set()
@@ -1493,6 +1556,7 @@ def down_and_audio(app, message, url):
             logger.error(f"Failed to delete file {audio_file}: {e}")
 
         set_active_download(user_id, False)
+        clear_download_start_time(user_id)  # Очищаем время начала загрузки
 
 #########################################
 # Download_and_up function
@@ -1508,6 +1572,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
         return
 
     set_active_download(user_id, True)
+    set_download_start_time(user_id)  # Устанавливаем время начала загрузки
     error_message = ""
     proc_msg = None
     proc_msg_id = None
@@ -1572,6 +1637,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
 
         def progress_func(d):
             nonlocal last_update
+            # Проверяем таймаут
+            if check_download_timeout(user_id):
+                raise Exception(f"Download timeout exceeded ({Config.DOWNLOAD_TIMEOUT // 3600} hours)")
             current_time = time.time()
             if current_time - last_update < 1.5:
                 return
@@ -1843,6 +1911,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             send_to_logger(message, success_msg)
     finally:
         set_active_download(user_id, False)
+        clear_download_start_time(user_id)  # Очищаем время начала загрузки
         if playlist_name:
             with playlist_errors_lock:
                 error_key = f"{user_id}_{playlist_name}"
