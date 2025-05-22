@@ -19,6 +19,9 @@ class Config(object):
     # Add subscription channel - Required (str)
     SUBSCRIBE_CHANNEL_URL = "https://t.me/upekshaip"
 
+    # Download timeout in seconds (2 hours = 7200 seconds)
+    DOWNLOAD_TIMEOUT = 7200
+
     # Cookie file URL
     # EX: "https://path/to/your/cookie-file.txt"
     COOKIE_URL = ""
