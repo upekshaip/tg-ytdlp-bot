@@ -65,14 +65,14 @@ def clear_download_start_time(user_id):
 
 def check_download_timeout(user_id):
     """
-    Проверяет, не превышен ли таймаут загрузки (4 часа)
+    Проверяет, не превышен ли таймаут загрузки (2 часа)
     """
     with download_start_times_lock:
         if user_id in download_start_times:
             start_time = download_start_times[user_id]
             current_time = time.time()
-            # 4 часа = 14400 секунд
-            if current_time - start_time > 14400:
+            # 2 часа = 7200 секунд
+            if current_time - start_time > 7200:
                 return True
     return False
 
@@ -1449,7 +1449,7 @@ def down_and_audio(app, message, url):
             nonlocal last_update
             # Проверяем таймаут
             if check_download_timeout(user_id):
-                raise Exception("Download timeout exceeded (4 hours)")
+                raise Exception("Download timeout exceeded (2 hours)")
             current_time = time.time()
             if current_time - last_update < 0.2:
                 return
@@ -1531,7 +1531,7 @@ def down_and_audio(app, message, url):
 
     except Exception as e:
         if "Download timeout exceeded" in str(e):
-            send_to_user(message, "⏰ Download cancelled due to timeout (4 hours)")
+            send_to_user(message, "⏰ Download cancelled due to timeout (2 hours)")
             send_to_logger(message, "Download cancelled due to timeout")
         else:
             logger.error(f"Error in audio download: {e}")
@@ -1640,7 +1640,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             nonlocal last_update
             # Проверяем таймаут
             if check_download_timeout(user_id):
-                raise Exception("Download timeout exceeded (4 hours)")
+                raise Exception("Download timeout exceeded (2 hours)")
             current_time = time.time()
             if current_time - last_update < 1.5:
                 return
