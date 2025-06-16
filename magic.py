@@ -4,6 +4,8 @@ import os
 import shutil
 import logging
 import threading
+from typing import Tuple
+
 from pyrogram import Client, filters
 from pyrogram import enums
 from pyrogram.enums import ChatMemberStatus
@@ -1148,36 +1150,95 @@ def progress_bar(*args):
     except Exception as e:
         logger.error(f"Error updating progress: {e}")
 
-def send_videos(message, video_abs_path, caption, duration, thumb_file_path, info_text, msg_id):
+
+def truncate_caption(
+    title: str,
+    description: str,
+    url: str,
+    max_length: int = 1024
+) -> Tuple[str, str]:
     """
-    Sends the video using send_video (not as document) with streaming support.
-    Updates progress via the progress_bar callback.
+    Build caption **{title}**, then description as quote, then link.
+    Truncate description in one pass so that total length <= max_length.
     """
-    stage = "Uploading Video... 📤"
-    send_to_logger(message, info_text)
+    # Helper to build full caption
+    def build(t: str, d: str) -> str:
+        if d:
+            return f"**{t}**\n\n> {d}\n\n[🔗 Video URL]({url})"
+        else:
+            return f"**{t}**\n\n[🔗 Video URL]({url})"
+
+    # Compute overhead length without any description
+    overhead = len(build(title, ""))
+
+    # If even without description too long, cut title
+    if overhead > max_length:
+        # reserve 3 chars for "..."
+        cut_len = max_length - 3
+        return title[:cut_len] + "...", ""
+
+    # Now room for description
+    avail = max_length - overhead
+    if not description:
+        return title, ""
+
+    # If description fits — leave as is
+    if len(description) <= avail:
+        return title, description
+
+    # Otherwise truncate with ellipsis
+    desc_trunc = description[:avail - 3] + "..."
+    return title, desc_trunc
+
+def send_videos(
+    message,
+    video_abs_path: str,
+    caption: str,
+    duration: int,
+    thumb_file_path: str,
+    info_text: str,
+    msg_id: int,
+    full_video_title: str,
+):
+    """
+    Fast one-pass truncation to 1024 chars.
+    """
     user_id = message.chat.id
+    text = message.text or ""
+    m = re.search(r'https?://[^\s\*]+', text)
+    video_url = m.group(0) if m else ""
 
-    # Получаем URL из сообщения пользователя
-    text = message.text
-    url_match = re.search(r'https?://[^\s\*]+', text)
-    video_url = url_match.group(0) if url_match else ""
+    # Truncate to bot API limit 1024
+    title_trunc, desc_trunc = truncate_caption(
+        title=caption,
+        description=full_video_title,
+        url=video_url,
+        max_length=1024
+    )
 
-    # Формируем текст с ссылкой
-    caption_with_link = f"{caption}\n\n[🔗 Video URL]({video_url})"
+    # Build final caption
+    if desc_trunc:
+        cap = f"**{title_trunc}**\n\n> {desc_trunc}\n\n[🔗 Video URL]({video_url})"
+    else:
+        cap = f"**{title_trunc}**\n\n[🔗 Video URL]({video_url})"
 
-    video_msg = app.send_video(
+    # Отправляем раз и навсегда
+    return app.send_video(
         chat_id=user_id,
         video=video_abs_path,
-        caption=caption_with_link,
+        caption=cap,
         duration=duration,
         width=640,
         height=360,
         supports_streaming=True,
         thumb=thumb_file_path,
         progress=progress_bar,
-        progress_args=(user_id, msg_id, f"{info_text}\n**Video duration:** __{TimeFormatter(duration * 1000)}__\n\n__{stage}__")
+        progress_args=(
+            user_id,
+            msg_id,
+            f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n\n__Uploading Video... 📤__"
+        )
     )
-    return video_msg
 
 #####################################################################################
 
@@ -1766,11 +1827,22 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
 
             video_id = info_dict.get("id", None)
             video_title = info_dict.get("title", None)
+            full_video_title = info_dict.get("description", video_title)
             video_title = sanitize_filename(video_title) if video_title else "video"
 
             # Если rename_name не задано, устанавливаем его равным video_title
             if rename_name is None:
                 rename_name = video_title
+
+            dir_path = os.path.join("users", str(user_id))  # Перемещаем определение dir_path сюда
+
+            # Сохраняем полное название в файл
+            full_title_path = os.path.join(dir_path, "full_title.txt")
+            try:
+                with open(full_title_path, "w", encoding="utf-8") as f:
+                    f.write(full_video_title if full_video_title else video_title)
+            except Exception as e:
+                logger.error(f"Error saving full title: {e}")
 
             info_text = f"""
 {total_process}
@@ -1793,8 +1865,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             files = [fname for fname in allfiles if fname.endswith(('.mp4', '.mkv', '.webm', '.ts'))]
             files.sort()
             if not files:
-                send_to_all(message, "❌ File not found after download.")
-                break
+                send_to_all(message, f"Skipping unsupported file type in playlist at index {x + video_start_with}")
+                continue
 
             downloaded_file = files[0]
             write_logs(message, url, downloaded_file)
@@ -1856,9 +1928,19 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             after_rename_abs_path = os.path.abspath(user_vid_path)
             result = get_duration_thumb(message, dir_path, user_vid_path, sanitize_filename(caption_name))
             if result is None:
-                send_to_all(message, "❌ Failed to get video duration and thumbnail.")
-                break
-            duration, thumb_dir = result
+                logger.warning("Failed to get video duration and thumbnail, continuing without thumbnail")
+                duration = 0
+                thumb_dir = None
+            else:
+                duration, thumb_dir = result
+
+            # Проверяем существование превью и создаем дефолтное если нужно
+            if thumb_dir and not os.path.exists(thumb_dir):
+                logger.warning(f"Thumbnail not found at {thumb_dir}, creating default")
+                thumb_dir = create_default_thumbnail(os.path.join(dir_path, "default_thumb.jpg"))
+                if not thumb_dir:
+                    logger.warning("Failed to create default thumbnail, continuing without thumbnail")
+                    thumb_dir = None
 
             video_size_in_bytes = os.path.getsize(user_vid_path)
             video_size = humanbytes(int(video_size_in_bytes))
@@ -1874,7 +1956,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                     if part_result is None:
                         continue
                     part_duration, splited_thumb_dir = part_result
-                    video_msg = send_videos(message, path_lst[p], caption_lst[p], part_duration, splited_thumb_dir, info_text, proc_msg.id)
+                    video_msg = send_videos(message, path_lst[p], caption_lst[p], part_duration, splited_thumb_dir, info_text, proc_msg.id, full_video_title)
                     try:
                         safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
                     except Exception as e:
@@ -1893,18 +1975,39 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 break
             else:
                 if final_name:
-                    video_msg = send_videos(message, after_rename_abs_path, caption_name, duration, thumb_dir, info_text, proc_msg.id)
+                    # Читаем полное название из файла
+                    full_caption = caption_name
                     try:
-                        safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
+                        if os.path.exists(full_title_path):
+                            with open(full_title_path, "r", encoding="utf-8") as f:
+                                full_caption = f.read().strip()
                     except Exception as e:
-                        logger.error(f"Error forwarding video to logger: {e}")
-                    safe_edit_message_text(user_id, proc_msg_id,
-                        f"{info_text}\n{full_bar}   100.0%\n\n**🎞 Video duration:** __{TimeFormatter(duration * 1000)}__\n\n1 file uploaded.")
-                    os.remove(after_rename_abs_path)
-                    os.remove(thumb_dir)
-                    threading.Event().wait(2)
-                else:
-                    send_to_all(message, "❌ Some error occurred during processing. 😢")
+                        logger.error(f"Error reading full title: {e}")
+
+                    # Проверяем существование превью перед отправкой
+                    if thumb_dir and not os.path.exists(thumb_dir):
+                        logger.warning(f"Thumbnail not found before sending, creating default")
+                        thumb_dir = create_default_thumbnail(os.path.join(dir_path, "default_thumb.jpg"))
+                        if not thumb_dir:
+                            logger.warning("Failed to create default thumbnail before sending, continuing without thumbnail")
+                            thumb_dir = None
+
+                    try:
+                        video_msg = send_videos(message, after_rename_abs_path, video_title, duration, thumb_dir, info_text, proc_msg.id, full_video_title)
+                        try:
+                            safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
+                        except Exception as e:
+                            logger.error(f"Error forwarding video to logger: {e}")
+                        safe_edit_message_text(user_id, proc_msg_id,
+                            f"{info_text}\n{full_bar}   100.0%\n\n**🎞 Video duration:** __{TimeFormatter(duration * 1000)}__\n\n1 file uploaded.")
+                        os.remove(after_rename_abs_path)
+                        if thumb_dir and os.path.exists(thumb_dir):
+                            os.remove(thumb_dir)
+                        threading.Event().wait(2)
+                    except Exception as e:
+                        logger.error(f"Error sending video: {e}")
+                        send_to_all(message, f"❌ Error sending video: {str(e)}")
+                        continue
         if successful_uploads == video_count:
             success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n\n{Config.CREDITS_MSG}"
             safe_edit_message_text(user_id, proc_msg_id, success_msg)
