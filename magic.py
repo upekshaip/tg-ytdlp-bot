@@ -1,3 +1,4 @@
+# Version 1.0.2 - Fixed duplicate messages, title/description deduplication, and added logging
 import pyrebase
 import re
 import os
@@ -22,6 +23,29 @@ import subprocess
 import signal
 import sys
 from config import Config
+from urllib.parse import urlparse
+from pyrogram.errors import FloodWait
+
+def is_tiktok_url(url: str) -> bool:
+    """
+    Проверяет, является ли URL ссылкой на TikTok
+    """
+    tiktok_domains = [
+        'tiktok.com',
+        'vm.tiktok.com',
+        'vt.tiktok.com',
+        'www.tiktok.com',
+        'm.tiktok.com',
+        'tiktokv.com',
+        'www.tiktokv.com',
+        'tiktok.ru',
+        'www.tiktok.ru'
+    ]
+    try:
+        parsed_url = urlparse(url)
+        return any(domain in parsed_url.netloc for domain in tiktok_domains)
+    except:
+        return False
 
 # Configure logging
 logging.basicConfig(
@@ -1156,39 +1180,112 @@ def truncate_caption(
     description: str,
     url: str,
     max_length: int = 1024
-) -> Tuple[str, str]:
+) -> Tuple[str, str, bool]:
     """
     Build caption **{title}**, then description as quote, then link.
     Truncate description in one pass so that total length <= max_length.
+    Returns: (title, description, was_truncated)
     """
     # Helper to build full caption
-    def build(t: str, d: str) -> str:
-        if d:
-            return f"**{t}**\n\n> {d}\n\n[🔗 Video URL]({url})"
+    def build(t: str, d: str, is_tiktok: bool = False) -> str:
+        if is_tiktok:
+            if d:
+                return f"{d}\n\n[🔗 Video URL]({url})"
+            else:
+                return f"[🔗 Video URL]({url})"
         else:
-            return f"**{t}**\n\n[🔗 Video URL]({url})"
+            if d:
+                return f"**{t}**\n\n{d}\n\n[🔗 Video URL]({url})"
+            else:
+                return f"**{t}**\n\n[🔗 Video URL]({url})"
+
+    # Helper function to process timestamps in description
+    def process_timestamps(desc: str) -> str:
+        """
+        Process timestamps in description to ensure they work properly in Telegram.
+        Adds newline before first timestamp if needed to break quote formatting.
+        All text except timestamp lines should be formatted as quote.
+        """
+        if not desc:
+            return desc
+
+        # Pattern to match timestamps like 00:00, 01:23, 12:34:56 at the beginning of line
+        timestamp_pattern = r'^\s*(\d{1,2}:\d{2}(?::\d{2})?)\s+'
+
+        lines = desc.split('\n')
+        processed_lines = []
+
+        # Find all timestamp line indices
+        timestamp_indices = []
+        for i, line in enumerate(lines):
+            if re.match(timestamp_pattern, line):
+                timestamp_indices.append(i)
+
+        if not timestamp_indices:
+            # No timestamps found, just add quote prefix to all non-empty lines
+            for line in lines:
+                if line.strip():
+                    processed_lines.append(f"> {line}")
+                else:
+                    processed_lines.append(line)
+            return '\n'.join(processed_lines)
+
+        # Process lines with timestamps
+        for i, line in enumerate(lines):
+            if i in timestamp_indices:
+                # This is a timestamp line
+                if i == timestamp_indices[0]:  # First timestamp
+                    # Check if we need to add newline before first timestamp
+                    if i > 0 and lines[i-1].strip():  # Previous line is not empty
+                        processed_lines.append('')
+                processed_lines.append(line)
+            else:
+                # This is a non-timestamp line
+                if line.strip():  # Only add prefix for non-empty lines
+                    processed_lines.append(f"> {line}")
+                else:
+                    # For empty lines, just add them as they are
+                    processed_lines.append(line)
+
+        return '\n'.join(processed_lines)
+
+    is_tiktok = is_tiktok_url(url)
+
+    # First, process timestamps in description to get the actual length
+    processed_description = ""
+    if description:
+        processed_description = process_timestamps(description)
+
+    # Check if title and description are the same (after processing)
+    if title and processed_description and title.strip() == processed_description.strip():
+        # If they are the same, use only title and clear description
+        processed_description = ""
 
     # Compute overhead length without any description
-    overhead = len(build(title, ""))
+    overhead = len(build(title, "", is_tiktok))
 
     # If even without description too long, cut title
-    if overhead > max_length:
+    if overhead > max_length and not is_tiktok:
         # reserve 3 chars for "..."
         cut_len = max_length - 3
-        return title[:cut_len] + "...", ""
+        return title[:cut_len] + "...", "", True
 
-    # Now room for description
+    # Now room for description (using processed description length)
     avail = max_length - overhead
-    if not description:
-        return title, ""
+    if not processed_description:
+        return title, "", False
 
-    # If description fits — leave as is
-    if len(description) <= avail:
-        return title, description
+    # If processed description fits — leave as is
+    if len(processed_description) <= avail:
+        return title, processed_description, False
 
     # Otherwise truncate with ellipsis
+    # We need to truncate the original description, not the processed one
+    # to avoid cutting in the middle of a quote prefix
     desc_trunc = description[:avail - 3] + "..."
-    return title, desc_trunc
+    # Process the truncated description
+    processed_desc_trunc = process_timestamps(desc_trunc)
+    return title, processed_desc_trunc, True
 
 def send_videos(
     message,
@@ -1208,37 +1305,78 @@ def send_videos(
     m = re.search(r'https?://[^\s\*]+', text)
     video_url = m.group(0) if m else ""
 
-    # Truncate to bot API limit 1024
-    title_trunc, desc_trunc = truncate_caption(
-        title=caption,
-        description=full_video_title,
-        url=video_url,
-        max_length=1024
-    )
+    # Создаем временный файл для полного описания
+    temp_desc_path = os.path.join(os.path.dirname(video_abs_path), "full_description.txt")
+    was_truncated = False
 
-    # Build final caption
-    if desc_trunc:
-        cap = f"**{title_trunc}**\n\n> {desc_trunc}\n\n[🔗 Video URL]({video_url})"
-    else:
-        cap = f"**{title_trunc}**\n\n[🔗 Video URL]({video_url})"
-
-    # Отправляем раз и навсегда
-    return app.send_video(
-        chat_id=user_id,
-        video=video_abs_path,
-        caption=cap,
-        duration=duration,
-        width=640,
-        height=360,
-        supports_streaming=True,
-        thumb=thumb_file_path,
-        progress=progress_bar,
-        progress_args=(
-            user_id,
-            msg_id,
-            f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n\n__Uploading Video... 📤__"
+    try:
+        # Truncate to bot API limit 1024
+        title_trunc, desc_trunc, was_truncated = truncate_caption(
+            title=caption,
+            description=full_video_title,
+            url=video_url,
+            max_length=1024
         )
-    )
+
+        # Если описание было обрезано, сохраняем полное описание в файл
+        if was_truncated and full_video_title:
+            with open(temp_desc_path, "w", encoding="utf-8") as f:
+                f.write(full_video_title)
+
+        # Build final caption
+        is_tiktok = is_tiktok_url(video_url)
+        if is_tiktok:
+            if desc_trunc:
+                cap = f"{desc_trunc}\n\n[🔗 Video URL]({video_url})"
+            else:
+                cap = f"[🔗 Video URL]({video_url})"
+        else:
+            if desc_trunc:
+                cap = f"**{title_trunc}**\n\n{desc_trunc}\n\n[🔗 Video URL]({video_url})"
+            else:
+                cap = f"**{title_trunc}**\n\n[🔗 Video URL]({video_url})"
+
+        # Отправляем видео
+        video_msg = app.send_video(
+            chat_id=user_id,
+            video=video_abs_path,
+            caption=cap,
+            duration=duration,
+            width=640,
+            height=360,
+            supports_streaming=True,
+            thumb=thumb_file_path,
+            progress=progress_bar,
+            progress_args=(
+                user_id,
+                msg_id,
+                f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n\n__Uploading Video... 📤__"
+            )
+        )
+
+        # Если описание было обрезано, отправляем полное описание в отдельном файле
+        if was_truncated and os.path.exists(temp_desc_path):
+            try:
+                # Отправляем файл пользователю
+                user_doc_msg = app.send_document(
+                    chat_id=user_id,
+                    document=temp_desc_path,
+                    caption="📝 if you want to change video caption - reply to video with new text"
+                )
+                # Репостим файл в лог-канал
+                safe_forward_messages(Config.LOGS_ID, user_id, [user_doc_msg.id])
+            except Exception as e:
+                logger.error(f"Error sending full description file: {e}")
+
+        return video_msg
+
+    finally:
+        # Удаляем временный файл с описанием
+        if os.path.exists(temp_desc_path):
+            try:
+                os.remove(temp_desc_path)
+            except Exception as e:
+                logger.error(f"Error removing temporary description file: {e}")
 
 #####################################################################################
 
@@ -1449,17 +1587,51 @@ def write_logs(message, video_url, video_title):
 
 def down_and_audio(app, message, url):
     user_id = message.chat.id
-    # Logging a request for downloading audio
-    send_to_logger(message, f"Audio download requested:\nURL: {url}")
+    try:
+        # Проверяем, есть ли сохраненное время ожидания
+        user_dir = os.path.join("users", str(user_id))
+        flood_time_file = os.path.join(user_dir, "flood_wait.txt")
 
-    if get_active_download(user_id):
-        app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
+        # Отправляем начальное сообщение
+        if os.path.exists(flood_time_file):
+            with open(flood_time_file, 'r') as f:
+                wait_time = int(f.read().strip())
+                hours = wait_time // 3600
+                minutes = (wait_time % 3600) // 60
+                seconds = wait_time % 60
+                time_str = f"{hours}h {minutes}m {seconds}s"
+                proc_msg = app.send_message(user_id, f"⚠️ Telegram has limited message sending.\n\n⏳ Please wait: {time_str}\n\nTo update timer send URL again 2 times.")
+        else:
+            proc_msg = app.send_message(user_id, "⚠️ Telegram has limited message sending.\n\n⏳ Please wait: \n\nTo update timer send URL again 2 times.")
+
+        # Пытаемся заменить на "Download started"
+        try:
+            app.edit_message_text(
+                chat_id=user_id,
+                message_id=proc_msg.id,
+                text="Download started"
+            )
+            # Если удалось заменить, значит ошибки флуда нет
+            if os.path.exists(flood_time_file):
+                os.remove(flood_time_file)
+        except FloodWait as e:
+            # Обновляем счетчик
+            wait_time = e.value
+            os.makedirs(user_dir, exist_ok=True)
+            with open(flood_time_file, 'w') as f:
+                f.write(str(wait_time))
+            return
+        except Exception as e:
+            logger.error(f"Error editing message: {e}")
+            return
+
+    except Exception as e:
+        logger.error(f"Error in down_and_audio: {e}")
         return
 
-    set_active_download(user_id, True)
-    set_download_start_time(user_id)  # Устанавливаем время начала загрузки
-    proc_msg = None
-    proc_msg_id = None
+    # Если ошибки флуда нет, отправляем обычное сообщение
+    proc_msg = app.send_message(user_id, "Processing... ♻️")
+    proc_msg_id = proc_msg.id
     status_msg = None
     status_msg_id = None
     hourglass_msg = None
@@ -1625,18 +1797,52 @@ def down_and_audio(app, message, url):
 
 def down_and_up(app, message, url, playlist_name, video_count, video_start_with):
     user_id = message.chat.id
-    # Logging a video download request
-    send_to_logger(message, f"Video download requested:\nURL: {url}\nPlaylist: {playlist_name}\nCount: {video_count}, Start: {video_start_with}")
+    try:
+        # Проверяем, есть ли сохраненное время ожидания
+        user_dir = os.path.join("users", str(user_id))
+        flood_time_file = os.path.join(user_dir, "flood_wait.txt")
 
-    if get_active_download(user_id):
-        app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
+        # Отправляем начальное сообщение
+        if os.path.exists(flood_time_file):
+            with open(flood_time_file, 'r') as f:
+                wait_time = int(f.read().strip())
+                hours = wait_time // 3600
+                minutes = (wait_time % 3600) // 60
+                seconds = wait_time % 60
+                time_str = f"{hours}h {minutes}m {seconds}s"
+                proc_msg = app.send_message(user_id, f"⚠️ Telegram has limited message sending.\n\n⏳ Please wait: {time_str}\n\nTo update timer send URL again 2 times.")
+        else:
+            proc_msg = app.send_message(user_id, "⚠️ Telegram has limited message sending.\n\n⏳ Please wait: \n\nTo update timer send URL again 2 times.")
+
+        # Пытаемся заменить на "Download started"
+        try:
+            app.edit_message_text(
+                chat_id=user_id,
+                message_id=proc_msg.id,
+                text="Download started"
+            )
+            # Если удалось заменить, значит ошибки флуда нет
+            if os.path.exists(flood_time_file):
+                os.remove(flood_time_file)
+        except FloodWait as e:
+            # Обновляем счетчик
+            wait_time = e.value
+            os.makedirs(user_dir, exist_ok=True)
+            with open(flood_time_file, 'w') as f:
+                f.write(str(wait_time))
+            return
+        except Exception as e:
+            logger.error(f"Error editing message: {e}")
+            return
+
+    except Exception as e:
+        logger.error(f"Error in down_and_up: {e}")
         return
 
-    set_active_download(user_id, True)
-    set_download_start_time(user_id)  # Устанавливаем время начала загрузки
+    # Если ошибки флуда нет, отправляем обычное сообщение
+    proc_msg = app.send_message(user_id, "Processing... ♻️")
+    proc_msg_id = proc_msg.id
     error_message = ""
-    proc_msg = None
-    proc_msg_id = None
     status_msg = None
     status_msg_id = None
     hourglass_msg = None
@@ -1654,8 +1860,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             send_to_user(message, f"❌ Not enough disk space to download videos.")
             return
 
-        proc_msg = app.send_message(user_id, "Processing... ♻️")
-        proc_msg_id = proc_msg.id
         check_user(message)
 
         # Сброс флага ошибок для нового запуска плейлиста
@@ -1695,9 +1899,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
         current_total_process = ""
         last_update = 0
         full_bar = "🟩" * 10
+        first_progress_update = True  # Флаг для отслеживания первого обновления
 
         def progress_func(d):
-            nonlocal last_update
+            nonlocal last_update, first_progress_update
             # Проверяем таймаут
             if check_download_timeout(user_id):
                 raise Exception(f"Download timeout exceeded ({Config.DOWNLOAD_TIMEOUT // 3600} hours)")
@@ -1711,6 +1916,28 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                 blocks = int(percent // 10)
                 bar = "🟩" * blocks + "⬜️" * (10 - blocks)
                 try:
+                    # При первом обновлении прогресса удаляем первые сообщения Processing
+                    if first_progress_update:
+                        try:
+                            # Получаем больше сообщений для поиска всех Processing сообщений
+                            messages = app.get_chat_history(user_id, limit=20)
+                            processing_messages = []
+                            download_started_messages = []
+                            for msg in messages:
+                                if msg.text == "Processing... ♻️":
+                                    processing_messages.append(msg.id)
+                                elif msg.text == "Download started":
+                                    download_started_messages.append(msg.id)
+                            # Удаляем первые 2 Processing сообщения (если их больше 1)
+                            if len(processing_messages) >= 2:
+                                safe_delete_messages(chat_id=user_id, message_ids=processing_messages[-2:], revoke=True)
+                            # Удаляем первые 2 Download started сообщения (если их больше 1)
+                            if len(download_started_messages) >= 2:
+                                safe_delete_messages(chat_id=user_id, message_ids=download_started_messages[-2:], revoke=True)
+                        except Exception as e:
+                            logger.error(f"Error deleting first processing messages: {e}")
+                        first_progress_update = False
+
                     safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{bar}   {percent:.1f}%")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
