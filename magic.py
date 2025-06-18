@@ -1,4 +1,4 @@
-# Version 1.0.2 - Fixed duplicate messages, title/description deduplication, and added logging
+# Version 1.0.3 - Удалено всё, что связано с закреплением и откреплением сообщений (pin/unpin)
 import pyrebase
 import re
 import os
@@ -1635,21 +1635,7 @@ def down_and_audio(app, message, url):
     # Если ошибки флуда нет, отправляем обычное сообщение
     proc_msg = app.send_message(user_id, "Processing... ♻️", reply_to_message_id=message.id)
     proc_msg_id = proc_msg.id
-    # Закрепляем статусное сообщение
-    try:
-        thread_id = getattr(message, 'message_thread_id', None)
-        chat_type = getattr(message.chat, 'type', None)
-        if chat_type == 'private':
-            app.pin_chat_message(user_id, proc_msg_id, disable_notification=True)
-            logger.info(f"[PIN] Закреплено в личке: chat_id={user_id}, msg_id={proc_msg_id}")
-        elif thread_id:
-            app.pin_chat_message(user_id, proc_msg_id, disable_notification=True, message_thread_id=thread_id)
-            logger.info(f"[PIN] Закреплено в топике: chat_id={user_id}, msg_id={proc_msg_id}, thread_id={thread_id}")
-        else:
-            app.pin_chat_message(user_id, proc_msg_id, disable_notification=True)
-            logger.info(f"[PIN] Закреплено в группе: chat_id={user_id}, msg_id={proc_msg_id}")
-    except Exception as e:
-        logger.error(f"Не удалось закрепить сообщение: {e}")
+    # Удалено закрепление статусного сообщения
     status_msg = app.send_message(user_id, "🎧 Audio is processing...", reply_to_message_id=message.id)
     hourglass_msg = app.send_message(user_id, "⌛️", reply_to_message_id=message.id)
     status_msg_id = status_msg.id
@@ -1808,21 +1794,7 @@ def down_and_audio(app, message, url):
         set_active_download(user_id, False)
         clear_download_start_time(user_id)  # Очищаем время начала загрузки
 
-        # Открепляем статусное сообщение
-        try:
-            thread_id = getattr(message, 'message_thread_id', None)
-            chat_type = getattr(message.chat, 'type', None)
-            if chat_type == 'private':
-                app.unpin_chat_message(user_id, proc_msg_id)
-                logger.info(f"[UNPIN] Откреплено в личке: chat_id={user_id}, msg_id={proc_msg_id}")
-            elif thread_id:
-                app.unpin_chat_message(user_id, proc_msg_id, message_thread_id=thread_id)
-                logger.info(f"[UNPIN] Откреплено в топике: chat_id={user_id}, msg_id={proc_msg_id}, thread_id={thread_id}")
-            else:
-                app.unpin_chat_message(user_id, proc_msg_id)
-                logger.info(f"[UNPIN] Откреплено в группе: chat_id={user_id}, msg_id={proc_msg_id}")
-        except Exception as e:
-            logger.error(f"Не удалось открепить сообщение: {e}")
+        # Удалено открепление статусного сообщения
 
 #########################################
 # Download_and_up function
@@ -2289,27 +2261,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
         except Exception as e:
             logger.error(f"Error deleting status messages: {e}")
 
-        # Открепляем статусное сообщение
-        try:
-            thread_id = getattr(message, 'message_thread_id', None)
-            chat_type = getattr(message.chat, 'type', None)
-            if chat_type == 'private':
-                app.unpin_chat_message(user_id, proc_msg_id)
-                logger.info(f"[UNPIN] Откреплено в личке: chat_id={user_id}, msg_id={proc_msg_id}")
-            elif thread_id:
-                app.unpin_chat_message(user_id, proc_msg_id, message_thread_id=thread_id)
-                logger.info(f"[UNPIN] Откреплено в топике: chat_id={user_id}, msg_id={proc_msg_id}, thread_id={thread_id}")
-            else:
-                app.unpin_chat_message(user_id, proc_msg_id)
-                logger.info(f"[UNPIN] Откреплено в группе: chat_id={user_id}, msg_id={proc_msg_id}")
-        except Exception as e:
-            logger.error(f"Не удалось открепить сообщение: {e}")
+        # Удалено открепление статусного сообщения
 
-
-
-#####################################################################################
-#####################################################################################
-#####################################################################################
+#########################################
 
 # YT-DLP HOOK
 
