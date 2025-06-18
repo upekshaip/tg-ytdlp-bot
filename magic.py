@@ -91,8 +91,11 @@ def clear_download_start_time(user_id):
 
 def check_download_timeout(user_id):
     """
-    Проверяет, не превышен ли таймаут загрузки
+    Проверяет, не превышен ли таймаут загрузки. Для админов таймаут не применяется.
     """
+    # Если пользователь — админ, таймаут не применяется
+    if hasattr(Config, 'ADMIN') and int(user_id) in Config.ADMIN:
+        return False
     with download_start_times_lock:
         if user_id in download_start_times:
             start_time = download_start_times[user_id]
@@ -1151,17 +1154,15 @@ def send_to_logger(message, msg):
 
 def send_to_user(message, msg):
     user_id = message.chat.id
-    safe_send_message(user_id, msg, parse_mode=enums.ParseMode.MARKDOWN)
+    safe_send_message(user_id, msg, parse_mode=enums.ParseMode.MARKDOWN, reply_to_message_id=message.id)
 
 # Send Message to All ...
 
 def send_to_all(message, msg):
     user_id = message.chat.id
     msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
-    # Print (user_id, "-", msg)
-    safe_send_message(Config.LOGS_ID, msg_with_id,
-                     parse_mode=enums.ParseMode.MARKDOWN)
-    safe_send_message(user_id, msg, parse_mode=enums.ParseMode.MARKDOWN)
+    safe_send_message(Config.LOGS_ID, msg_with_id, parse_mode=enums.ParseMode.MARKDOWN, reply_to_message_id=message.id)
+    safe_send_message(user_id, msg, parse_mode=enums.ParseMode.MARKDOWN, reply_to_message_id=message.id)
 
 def progress_bar(*args):
     # It is expected that Pyrogram will cause Progress_BAR with five parameters:
@@ -1351,7 +1352,8 @@ def send_videos(
                 user_id,
                 msg_id,
                 f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n\n__Uploading Video... 📤__"
-            )
+            ),
+            reply_to_message_id=message.id
         )
 
         # Если описание было обрезано, отправляем полное описание в отдельном файле
@@ -1361,7 +1363,8 @@ def send_videos(
                 user_doc_msg = app.send_document(
                     chat_id=user_id,
                     document=temp_desc_path,
-                    caption="📝 if you want to change video caption - reply to video with new text"
+                    caption="📝 if you want to change video caption - reply to video with new text",
+                    reply_to_message_id=message.id
                 )
                 # Репостим файл в лог-канал
                 safe_forward_messages(Config.LOGS_ID, user_id, [user_doc_msg.id])
@@ -1630,14 +1633,28 @@ def down_and_audio(app, message, url):
         return
 
     # Если ошибки флуда нет, отправляем обычное сообщение
-    proc_msg = app.send_message(user_id, "Processing... ♻️")
+    proc_msg = app.send_message(user_id, "Processing... ♻️", reply_to_message_id=message.id)
     proc_msg_id = proc_msg.id
-    status_msg = None
-    status_msg_id = None
-    hourglass_msg = None
-    hourglass_msg_id = None
-    anim_thread = None
-    stop_anim = threading.Event()
+    # Закрепляем статусное сообщение
+    try:
+        thread_id = getattr(message, 'message_thread_id', None)
+        chat_type = getattr(message.chat, 'type', None)
+        if chat_type == 'private':
+            app.pin_chat_message(user_id, proc_msg_id, disable_notification=True)
+            logger.info(f"[PIN] Закреплено в личке: chat_id={user_id}, msg_id={proc_msg_id}")
+        elif thread_id:
+            app.pin_chat_message(user_id, proc_msg_id, disable_notification=True, message_thread_id=thread_id)
+            logger.info(f"[PIN] Закреплено в топике: chat_id={user_id}, msg_id={proc_msg_id}, thread_id={thread_id}")
+        else:
+            app.pin_chat_message(user_id, proc_msg_id, disable_notification=True)
+            logger.info(f"[PIN] Закреплено в группе: chat_id={user_id}, msg_id={proc_msg_id}")
+    except Exception as e:
+        logger.error(f"Не удалось закрепить сообщение: {e}")
+    status_msg = app.send_message(user_id, "🎧 Audio is processing...", reply_to_message_id=message.id)
+    hourglass_msg = app.send_message(user_id, "⌛️", reply_to_message_id=message.id)
+    status_msg_id = status_msg.id
+    hourglass_msg_id = hourglass_msg.id
+    anim_thread = start_hourglass_animation(user_id, hourglass_msg_id, stop_anim)
     audio_file = None  # Initialize audio_file variable
 
     try:
@@ -1649,12 +1666,12 @@ def down_and_audio(app, message, url):
             send_to_user(message, "❌ Not enough disk space to download the audio.")
             return
 
-        proc_msg = app.send_message(user_id, "Processing... ♻️")
+        proc_msg = app.send_message(user_id, "Processing... ♻️", reply_to_message_id=message.id)
         proc_msg_id = proc_msg.id
         check_user(message)
 
-        status_msg = app.send_message(user_id, "🎧 Audio is processing...")
-        hourglass_msg = app.send_message(user_id, "⌛️")
+        status_msg = app.send_message(user_id, "🎧 Audio is processing...", reply_to_message_id=message.id)
+        hourglass_msg = app.send_message(user_id, "⌛️", reply_to_message_id=message.id)
         # We save ID status messages at once
         status_msg_id = status_msg.id
         hourglass_msg_id = hourglass_msg.id
@@ -1791,6 +1808,22 @@ def down_and_audio(app, message, url):
         set_active_download(user_id, False)
         clear_download_start_time(user_id)  # Очищаем время начала загрузки
 
+        # Открепляем статусное сообщение
+        try:
+            thread_id = getattr(message, 'message_thread_id', None)
+            chat_type = getattr(message.chat, 'type', None)
+            if chat_type == 'private':
+                app.unpin_chat_message(user_id, proc_msg_id)
+                logger.info(f"[UNPIN] Откреплено в личке: chat_id={user_id}, msg_id={proc_msg_id}")
+            elif thread_id:
+                app.unpin_chat_message(user_id, proc_msg_id, message_thread_id=thread_id)
+                logger.info(f"[UNPIN] Откреплено в топике: chat_id={user_id}, msg_id={proc_msg_id}, thread_id={thread_id}")
+            else:
+                app.unpin_chat_message(user_id, proc_msg_id)
+                logger.info(f"[UNPIN] Откреплено в группе: chat_id={user_id}, msg_id={proc_msg_id}")
+        except Exception as e:
+            logger.error(f"Не удалось открепить сообщение: {e}")
+
 #########################################
 # Download_and_up function
 #########################################
@@ -1840,7 +1873,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
         return
 
     # Если ошибки флуда нет, отправляем обычное сообщение
-    proc_msg = app.send_message(user_id, "Processing... ♻️")
+    proc_msg = app.send_message(user_id, "Processing... ♻️", reply_to_message_id=message.id)
     proc_msg_id = proc_msg.id
     error_message = ""
     status_msg = None
@@ -1888,8 +1921,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
             ]
 
 
-        status_msg = app.send_message(user_id, "📹 Video is processing...")
-        hourglass_msg = app.send_message(user_id, "⌛️")
+        status_msg = app.send_message(user_id, "📹 Video is processing...", reply_to_message_id=message.id)
+        hourglass_msg = app.send_message(user_id, "⌛️", reply_to_message_id=message.id)
         # We save ID status messages
         status_msg_id = status_msg.id
         hourglass_msg_id = hourglass_msg.id
@@ -2256,6 +2289,22 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
         except Exception as e:
             logger.error(f"Error deleting status messages: {e}")
 
+        # Открепляем статусное сообщение
+        try:
+            thread_id = getattr(message, 'message_thread_id', None)
+            chat_type = getattr(message.chat, 'type', None)
+            if chat_type == 'private':
+                app.unpin_chat_message(user_id, proc_msg_id)
+                logger.info(f"[UNPIN] Откреплено в личке: chat_id={user_id}, msg_id={proc_msg_id}")
+            elif thread_id:
+                app.unpin_chat_message(user_id, proc_msg_id, message_thread_id=thread_id)
+                logger.info(f"[UNPIN] Откреплено в топике: chat_id={user_id}, msg_id={proc_msg_id}, thread_id={thread_id}")
+            else:
+                app.unpin_chat_message(user_id, proc_msg_id)
+                logger.info(f"[UNPIN] Откреплено в группе: chat_id={user_id}, msg_id={proc_msg_id}")
+        except Exception as e:
+            logger.error(f"Не удалось открепить сообщение: {e}")
+
 
 
 #####################################################################################
@@ -2415,20 +2464,12 @@ def set_active_download(user_id, status):
 
 # Helper function for safe message sending with flood wait handling
 def safe_send_message(chat_id, text, **kwargs):
-    """
-    Safely send a message with flood wait handling
-
-    Args:
-        chat_id: The chat ID to send to
-        text: The text to send
-        **kwargs: Additional arguments for send_message
-
-    Returns:
-        The message object or None if sending failed
-    """
+    # Добавляем reply_to_message_id если передан message
+    if 'reply_to_message_id' not in kwargs and 'message' in kwargs:
+        kwargs['reply_to_message_id'] = kwargs['message'].id
+        del kwargs['message']
     max_retries = 3
     retry_delay = 5
-
     for attempt in range(max_retries):
         try:
             return app.send_message(chat_id, text, **kwargs)
@@ -2443,10 +2484,8 @@ def safe_send_message(chat_id, text, **kwargs):
                 else:
                     logger.warning(f"Flood wait detected but couldn't extract time, sleeping for {retry_delay} seconds")
                     time.sleep(retry_delay)
-
                 if attempt < max_retries - 1:
                     continue
-
             logger.error(f"Failed to send message after {max_retries} attempts: {e}")
             return None
 
