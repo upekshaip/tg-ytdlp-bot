@@ -5,8 +5,6 @@ Thanks to Contributor - [@IIlIlIlIIIlllIIlIIlIllIIllIlIIIl](https://t.me/IIlIlIl
 
 Download private YouTube/videos using a cookie file.
 
-Test free bot - https://t.me/tgytdlp_bot
-
 ## Full Documentation
 [https://upekshaip.com/projects/-O0t36gRpfJR1p8KB7vU](https://upekshaip.com/projects/-O0t36gRpfJR1p8KB7vU)
 
@@ -20,16 +18,33 @@ Test free bot - https://t.me/tgytdlp_bot
 
 ### Setup Debian for Docker
 
-[Install Docker Engine
-](https://docs.docker.com/engine/install/)
+1. ```sh
+   sudo apt-get update
+   ```
+2. ```sh
+   sudo apt -y install apt-transport-https ca-certificates curl gnupg2 software-properties-common
+   ```
+3. ```sh
+   curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+   ```
+4. ```sh
+   echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] \
+   https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
+   | sudo tee /etc/apt/sources.list.d/docker.list
+   ```
+5. ```sh
+   sudo apt update
+   ```
+6. ```sh
+   sudo apt install -y docker-ce docker-ce-cli containerd.io
+   ```
+7. ```sh
+   docker -v
+   ```
+
 ---
 
-#### Setting up `config.py` (example for Ubuntu/Debian)
-
-```sh
-sudo apt update
-sudo apt install git
-```
+#### Setting up `config.py`
 
 ```sh
 git clone https://github.com/upekshaip/tg-ytdlp-bot.git
@@ -40,27 +55,6 @@ nano config.py
 
 Edit your configuration before deployment. After your edits, proceed with the Docker build steps below.
 
----
-
-#### Get YouTube cookies
-
-YouTube rotates account cookies frequently on open YouTube browser tabs as a security measure. To export cookies that will remain working with yt-dlp, you will need to export cookies in such a way that they are never rotated.
-
-One way to do this is through a private browsing/incognito window:
-
-- Open a new private browsing/incognito window and log into YouTube
-- Open a new tab and close the YouTube tab
-- Export youtube.com cookies from the browser then close the private browsing/incognito window so the session is never opened in the browser again.
-
-For export you can use browser extension [Cookie-Editor](https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm)
-
-create in project folder subfolder `cookies` and place `cookie.txt` extracted from YouTube here
-
-```sh
-cd tg-ytdlp-bot
-mkdir cookies
-nano cookie.txt
-```
 ---
 
 #### Building and Running with Docker
@@ -80,7 +74,7 @@ Also you will need download `yt-dlp` binary into your Docker container. See [(Op
 
 If you prefer local deployment rather than docker container, you should use this commands:
 
-#### Install `git` and `python3` (example for Ubuntu/Debian)
+#### Install `git` and `python3`
 ```sh
 sudo apt update
 sudo apt install git python3.10 python3-pip python3.10-venv
@@ -106,7 +100,7 @@ pip install --no-deps moviepy==1.0.3
 python3 magic.py
 ```
 ---
-### (Optional) Installing ffmpeg (example for Ubuntu/Debian)
+### (Optional) Installing ffmpeg
 <details>
   <summary>spoiler</summary> 
       
@@ -210,6 +204,7 @@ Then select the desired option from the menu.
 - **/usage** - Show your usage statistics.
 - **/audio** - Download audio from a video URL.
 - **/format** - Choose media format options.
+- **/tags** - Show all your unique tags (one per line, for navigation).
 
 ## Admin Commands
 
@@ -247,7 +242,44 @@ Then select the desired option from the menu.
   Videos will be named as: 
   - `name - Part 1` 
   - `name - Part 2` 
+  
+---
 
+## Tags System (Navigation Tags)
+
+You can add tags to any link (video, playlist, audio) directly in your message:
+
+- Format: `https://site.com/link#tag1#tag2#my_tag`
+- Tags must start with `#` and contain only letters, digits, and underscore (`_`).
+- Tags are automatically added to the caption of the video/audio, separated by spaces.
+- All unique tags you send are saved in the `tags.txt` file in your user folder.
+
+### Example of using tags:
+```
+https://youtu.be/STeeOaX2FBs?si=5rz1QhvuiauZ7A4d#youtube#mytag#tag123
+```
+The video caption will include:
+```
+#youtube #mytag #tag123
+```
+
+---
+
+### /tags Command
+
+The `/tags` command lets you get a list of all your unique tags (one per line). If the list is long, the bot will send several messages.
+
+**Example:**
+```
+/tags
+```
+Response:
+```
+#youtube
+#mytag
+#tag123
+...
+```
 ---
 
 ## Help
@@ -296,8 +328,8 @@ For example, add the following line to your crontab:
 
 ## TODO
 
-- ~~Add a custom formatter selector for downloads.~~
-- ~~Enhance MP3 support.~~
+- Add a custom formatter selector for downloads.
+- Enhance MP3 support.
 - Add Google Drive support to store files.
 
 ---
