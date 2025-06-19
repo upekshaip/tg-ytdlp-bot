@@ -1200,23 +1200,23 @@ def truncate_caption(
         processed_lines = []
         timestamp_indices = [i for i, line in enumerate(lines) if re.match(timestamp_pattern, line)]
         if not timestamp_indices:
+            # Все строки (включая пустые) оформляем как цитату
             for line in lines:
-                if line.strip():
-                    processed_lines.append(f"> {line}")
-                else:
-                    processed_lines.append(line)
+                processed_lines.append(f"> {line}" if line.strip() == '' or not line.startswith('>') else line)
             return '\n'.join(processed_lines)
+        in_timestamps = False
         for i, line in enumerate(lines):
             if i in timestamp_indices:
-                if i == timestamp_indices[0]:
-                    if i > 0 and lines[i-1].strip():
-                        processed_lines.append('')
+                # Начинается блок таймкодов
+                if not in_timestamps:
+                    in_timestamps = True
                 processed_lines.append(line)
             else:
-                if line.strip():
-                    processed_lines.append(f"> {line}")
-                else:
-                    processed_lines.append(line)
+                # Если вышли из блока таймкодов, снова цитируем
+                if in_timestamps and (i == 0 or (i-1) in timestamp_indices):
+                    in_timestamps = False
+                # Все строки (включая пустые) оформляем как цитату
+                processed_lines.append(f"> {line}" if line.strip() == '' or not line.startswith('>') else line)
         return '\n'.join(processed_lines)
 
     is_tiktok = is_tiktok_url(url)
@@ -1235,11 +1235,18 @@ def truncate_caption(
     avail = max_length - overhead
     if not processed_description:
         return title, '', tags_text, False
+    # Новый подсчёт: если длина уже оформленного processed_description <= avail, то ок
     if len(processed_description) <= avail:
         return title, processed_description, tags_text, False
-    desc_trunc = description[:avail - 3] + '...'
-    processed_desc_trunc = process_timestamps(desc_trunc)
-    return title, processed_desc_trunc, tags_text, True
+    # Если не влезает, обрезаем исходный description, пока оформленный не влезет
+    desc_trunc = description
+    for cut in range(len(description), 0, -1):
+        desc_trunc = description[:cut] + '...'
+        processed_desc_trunc = process_timestamps(desc_trunc)
+        if len(processed_desc_trunc) <= avail:
+            return title, processed_desc_trunc, tags_text, True
+    # Если даже минимальный не влезает, возвращаем пусто
+    return title, '', tags_text, True
 
 def send_videos(
     message,
