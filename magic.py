@@ -407,6 +407,7 @@ def audio_command_handler(app, message):
     if not url:
         send_to_user(message, "Пожалуйста, укажите ссылку на видео для загрузки аудио.")
         return
+    save_user_tags(user_id, tags)
     down_and_audio(app, message, url, tags_text)
 
 # Command /Format Handler
@@ -642,6 +643,12 @@ def url_distractor(app, message):
         get_user_log(app, message)
         return
 
+    # /TAGS Command
+    if Config.TAGS_COMMAND in text:
+        tags_command(app, message)
+        return
+
+
     # If the Message Contains a URL, Launch The Video Download Function.
     if ("https://" in text) or ("http://" in text):
         if not is_user_blocked(message):
@@ -696,6 +703,7 @@ def url_distractor(app, message):
 
     logger.info(f"{user_id} No matching command processed.")
 
+
 # Check the USAGE of the BOT
 
 def is_user_in_channel(app, message):
@@ -743,8 +751,8 @@ def remove_media(message):
             files = [fname for fname in allfiles if fname.endswith(extension)]
 
         for file in files:
-            # Skip special files like cookie.txt and logs.txt and format.txt
-            if extension == '.txt' and file in ['logs.txt', 'format.txt']:
+            # Skip special files like tags.txt and logs.txt and format.txt
+            if extension == '.txt' and file in ['logs.txt', 'format.txt', 'tags.txt']:
                 continue
 
             file_path = os.path.join(dir, file)
@@ -1118,6 +1126,7 @@ def video_url_extractor(app, message):
                 error_key = f"{user_id}_{playlist_name}"
                 if error_key in playlist_errors:
                     del playlist_errors[error_key]
+        save_user_tags(user_id, tags)
         down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text)
     else:
         send_to_all(message, f"**User entered like this:** {full_string}\n{Config.ERROR1}")
@@ -2639,5 +2648,47 @@ def extract_url_range_tags(text: str):
         # Формируем tags_text с пробелами между тегами
         tags_text = ' '.join(tags)
     return url, video_start_with, video_end_with, playlist_name, tags, tags_text, (error_tag, error_tag_example) if error_tag else None
+
+def save_user_tags(user_id, tags):
+    if not tags:
+        return
+    user_dir = os.path.join("users", str(user_id))
+    create_directory(user_dir)
+    tags_file = os.path.join(user_dir, "tags.txt")
+    existing = set()
+    if os.path.exists(tags_file):
+        with open(tags_file, "r", encoding="utf-8") as f:
+            for line in f:
+                tag = line.strip()
+                if tag:
+                    existing.add(tag)
+    new_tags = [t for t in tags if t not in existing]
+    if new_tags:
+        with open(tags_file, "a", encoding="utf-8") as f:
+            for tag in new_tags:
+                f.write(tag + "\n")
+
+@app.on_message(filters.command("tags") & filters.private)
+def tags_command(app, message):
+    user_id = message.chat.id
+    user_dir = os.path.join("users", str(user_id))
+    tags_file = os.path.join(user_dir, "tags.txt")
+    if not os.path.exists(tags_file):
+        app.send_message(user_id, "You have no tags yet.", reply_to_message_id=message.id)
+        return
+    with open(tags_file, "r", encoding="utf-8") as f:
+        tags = [line.strip() for line in f if line.strip()]
+    if not tags:
+        app.send_message(user_id, "You have no tags yet.", reply_to_message_id=message.id)
+        return
+    # Формируем сообщения по 4096 символов
+    msg = ''
+    for tag in tags:
+        if len(msg) + len(tag) + 1 > 4096:
+            app.send_message(user_id, msg, reply_to_message_id=message.id)
+            msg = ''
+        msg += tag + '\n'
+    if msg:
+        app.send_message(user_id, msg, reply_to_message_id=message.id)
 
 app.run()
