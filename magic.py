@@ -2658,12 +2658,13 @@ def extract_url_range_tags(text: str):
     error_tag_example = None
     tag_part = after_playlist.strip()
     if tag_part:
-        tag_matches = re.findall(r'#([A-Za-z0-9_]+|[^#\s]+)', tag_part)
+        tag_matches = re.findall(r'#([^#\s]+)', tag_part)
         for raw in re.finditer(r'#([^#\s]+)', tag_part):
             tag = raw.group(1)
-            if not re.fullmatch(r'[A-Za-z0-9_]+', tag):
+            # Разрешаем любые буквы Unicode, цифры и _
+            if not re.fullmatch(r'[\w\d_]+', tag, re.UNICODE):
                 error_tag = tag
-                example = re.sub(r'[^A-Za-z0-9_]', '_', tag)
+                example = re.sub(r'[^\w\d_]', '_', tag, flags=re.UNICODE)
                 error_tag_example = f'#{example}'
                 break
             tags.append(f'#{tag}')
