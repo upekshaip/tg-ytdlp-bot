@@ -1579,8 +1579,8 @@ def down_and_audio(app, message, url, tags_text):
     # Если ошибки флуда нет, отправляем обычное сообщение (только один раз)
     proc_msg = app.send_message(user_id, "Processing... ♻️", reply_to_message_id=message.id)
     proc_msg_id = proc_msg.id
-    status_msg = app.send_message(user_id, "🎧 Audio is processing...", reply_to_message_id=message.id)
-    hourglass_msg = app.send_message(user_id, "⏳ Please wait...", reply_to_message_id=message.id)
+    status_msg = app.send_message(user_id, "🎧 Audio is processing...")
+    hourglass_msg = app.send_message(user_id, "⏳ Please wait...")
     status_msg_id = status_msg.id
     hourglass_msg_id = hourglass_msg.id
     anim_thread = start_hourglass_animation(user_id, hourglass_msg_id, stop_anim)
@@ -1820,8 +1820,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             ]
 
 
-        status_msg = app.send_message(user_id, "📹 Video is processing...", reply_to_message_id=message.id)
-        hourglass_msg = app.send_message(user_id, "⌛️", reply_to_message_id=message.id)
+        status_msg = app.send_message(user_id, "📹 Video is processing...")
+        hourglass_msg = app.send_message(user_id, "⌛️")
         # We save ID status messages
         status_msg_id = status_msg.id
         hourglass_msg_id = hourglass_msg.id
