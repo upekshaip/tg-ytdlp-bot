@@ -2085,13 +2085,28 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     break
 
             after_rename_abs_path = os.path.abspath(user_vid_path)
+            # --- Новый блок: если YouTube, скачиваем превью ---
+            youtube_thumb_path = None
+            try:
+                if ("youtube.com" in url or "youtu.be" in url):
+                    video_id = extract_youtube_id(url)
+                    youtube_thumb_path = os.path.join(dir_path, f"yt_thumb_{video_id}.jpg")
+                    download_thumbnail(video_id, youtube_thumb_path)
+                    thumb_dir = youtube_thumb_path
+            except Exception as e:
+                logger.warning(f"YouTube thumbnail error: {e}")
+            # --- Конец блока ---
             result = get_duration_thumb(message, dir_path, user_vid_path, sanitize_filename(caption_name))
             if result is None:
                 logger.warning("Failed to get video duration and thumbnail, continuing without thumbnail")
                 duration = 0
-                thumb_dir = None
+                if not youtube_thumb_path:
+                    thumb_dir = None
             else:
-                duration, thumb_dir = result
+                duration, thumb_dir_default = result
+                if not youtube_thumb_path:
+                    thumb_dir = thumb_dir_default
+            # ... существующий код ...
 
             # Проверяем существование превью и создаем дефолтное если нужно
             if thumb_dir and not os.path.exists(thumb_dir):
@@ -2697,5 +2712,34 @@ def tags_command(app, message):
         msg += tag + '\n'
     if msg:
         app.send_message(user_id, msg, reply_to_message_id=message.id)
+
+def extract_youtube_id(url: str) -> str:
+    """
+    Извлекает YouTube video ID из разных форматов ссылок.
+    """
+    patterns = [
+        r"youtu\.be/([^?&/]+)",
+        r"v=([^?&/]+)",
+        r"embed/([^?&/]+)",
+        r"youtube\.com/watch\?[^ ]*v=([^?&/]+)"
+    ]
+    for pat in patterns:
+        m = re.search(pat, url)
+        if m:
+            return m.group(1)
+    raise ValueError("Не удалось извлечь YouTube ID")
+
+def download_thumbnail(video_id: str, dest: str) -> None:
+    """
+    Пытается скачать maxresdefault.jpg, затем hqdefault.jpg.
+    """
+    base = f"https://img.youtube.com/vi/{video_id}"
+    for name in ("maxresdefault.jpg", "hqdefault.jpg"):
+        r = requests.get(f"{base}/{name}", timeout=10)
+        if r.status_code == 200 and len(r.content) <= 200 * 1024:
+            with open(dest, "wb") as f:
+                f.write(r.content)
+            return
+    raise RuntimeError("Не удалось скачать thumbnail или он слишком большой")
 
 app.run()
