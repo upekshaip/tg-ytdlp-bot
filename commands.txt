@@ -5,6 +5,7 @@ start - Start the bot
 help - Send help text
 clean - clean your working directory
 usage - Get all logs
+tags - Get all tags
 
 check_cookie - Check cookie file
 save_as_cookie - Save txt as cookie
