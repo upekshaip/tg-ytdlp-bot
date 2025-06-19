@@ -250,7 +250,7 @@ def command1(app, message):
 
 def command2(app, message):
     app.send_message(message.chat.id, (Config.HELP_MSG),
-                     parse_mode=enums.ParseMode.MARKDOWN)
+                     parse_mode=enums.ParseMode.HTML)
     send_to_logger(message, f"Send help txt to user")
 
 def create_directory(path):
@@ -1174,79 +1174,71 @@ def truncate_caption(
     url: str,
     tags_text: str = '',
     max_length: int = 1024
-) -> Tuple[str, str, str, bool]:
+) -> Tuple[str, str, str, str, str, bool]:
     """
-    Формирует caption: теги, title, description, ссылка. Обрезает description и title с учётом тегов, чтобы всё влезло в 1024 символа.
-    Возвращает: (title, description, tags_text, was_truncated)
+    Возвращает: (title_html, pre_block, blockquote_content, tags_block, link_block, was_truncated)
+    title_html — жирный title вне цитаты
+    pre_block — таймкоды вне цитаты (или пусто)
+    blockquote_content — только description (без таймкодов) внутри <blockquote expandable>
+    tags_block — теги вне цитаты
+    link_block — ссылка вне цитаты
+    was_truncated — был ли усечён description или таймкоды
     """
-    def build(t: str, d: str, tags: str, is_tiktok: bool = False) -> str:
-        tags_block = (tags.strip() + '\n') if tags and tags.strip() else ''
-        if is_tiktok:
-            if d:
-                return f"{tags_block}{d}\n\n[🔗 Video URL]({url})"
-            else:
-                return f"{tags_block}[🔗 Video URL]({url})"
+    title_html = f'<b>{title}</b>' if title else ''
+    timestamp_pattern = r'^\s*(\d{1,2}[:\.]\d{2}(?::\d{2})?)\s+'
+    lines = description.split('\n') if description else []
+    pre_block = ''
+    pre_block_lines = []
+    post_block_lines = []
+    in_timestamps = False
+    for i, line in enumerate(lines):
+        if re.match(timestamp_pattern, line):
+            pre_block += (line + '\n')
+            pre_block_lines.append(line)
+            in_timestamps = True
         else:
-            if d:
-                return f"{tags_block}**{t}**\n\n{d}\n\n[🔗 Video URL]({url})"
-            else:
-                return f"{tags_block}**{t}**\n\n[🔗 Video URL]({url})"
-
-    def process_timestamps(desc: str) -> str:
-        if not desc:
-            return desc
-        timestamp_pattern = r'^\s*(\d{1,2}:\d{2}(?::\d{2})?)\s+'
-        lines = desc.split('\n')
-        processed_lines = []
-        timestamp_indices = [i for i, line in enumerate(lines) if re.match(timestamp_pattern, line)]
-        if not timestamp_indices:
-            # Все строки (включая пустые) оформляем как цитату
-            for line in lines:
-                processed_lines.append(f"> {line}" if line.strip() == '' or not line.startswith('>') else line)
-            return '\n'.join(processed_lines)
-        in_timestamps = False
-        for i, line in enumerate(lines):
-            if i in timestamp_indices:
-                # Начинается блок таймкодов
-                if not in_timestamps:
-                    in_timestamps = True
-                processed_lines.append(line)
-            else:
-                # Если вышли из блока таймкодов, снова цитируем
-                if in_timestamps and (i == 0 or (i-1) in timestamp_indices):
-                    in_timestamps = False
-                # Все строки (включая пустые) оформляем как цитату
-                processed_lines.append(f"> {line}" if line.strip() == '' or not line.startswith('>') else line)
-        return '\n'.join(processed_lines)
-
-    is_tiktok = is_tiktok_url(url)
-    processed_description = process_timestamps(description) if description else ''
-    # Если title и description совпадают — не добавляем description
-    if title and processed_description and title.strip() == processed_description.strip():
-        processed_description = ''
-    # Считаем длину блока тегов
+            if in_timestamps:
+                post_block_lines = lines[i:]
+                break
+    else:
+        if not in_timestamps:
+            post_block_lines = lines
+    post_block = '\n'.join(post_block_lines).strip() if post_block_lines else ''
     tags_block = (tags_text.strip() + '\n') if tags_text and tags_text.strip() else ''
-    # Считаем overhead без description
-    overhead = len(build(title, '', tags_text, is_tiktok))
-    # Если даже без description слишком длинно — режем title
-    if overhead > max_length and not is_tiktok:
-        cut_len = max_length - len(tags_block) - len(f"\n\n[🔗 Video URL]({url})") - 3
-        return title[:cut_len] + '...', '', tags_text, True
-    avail = max_length - overhead
-    if not processed_description:
-        return title, '', tags_text, False
-    # Новый подсчёт: если длина уже оформленного processed_description <= avail, то ок
-    if len(processed_description) <= avail:
-        return title, processed_description, tags_text, False
-    # Если не влезает, обрезаем исходный description, пока оформленный не влезет
-    desc_trunc = description
-    for cut in range(len(description), 0, -1):
-        desc_trunc = description[:cut] + '...'
-        processed_desc_trunc = process_timestamps(desc_trunc)
-        if len(processed_desc_trunc) <= avail:
-            return title, processed_desc_trunc, tags_text, True
-    # Если даже минимальный не влезает, возвращаем пусто
-    return title, '', tags_text, True
+    link_block = f'<a href="{url}">🔗 Video URL</a>'
+    html_quote_overhead = len('<blockquote expandable>') + len('</blockquote>')
+    lim = max_length - len(title_html) - len(pre_block) - len(tags_block) - len(link_block) - html_quote_overhead - 2
+    was_truncated = False
+    blockquote_content = post_block
+    # 1. Обрезаем description, если не влезает
+    if len(blockquote_content) > lim:
+        blockquote_content = blockquote_content[:lim-3] + '...'
+        was_truncated = True
+    # 2. Если всё равно не влезает — обрезаем pre_block (таймкоды) с конца
+    total_len = len(title_html) + len(pre_block) + len(tags_block) + len(link_block) + html_quote_overhead + len(blockquote_content) + 2
+    if total_len > max_length and pre_block_lines:
+        cut_lines = pre_block_lines.copy()
+        cut = False
+        while cut_lines and (len(title_html) + len('\n'.join(cut_lines)) + len(tags_block) + len(link_block) + html_quote_overhead + len(blockquote_content) + 2 > max_length):
+            cut_lines.pop()
+            cut = True
+        pre_block = '\n'.join(cut_lines)
+        if cut and pre_block:
+            pre_block += '\n...'
+        elif cut:
+            pre_block = '...'
+        was_truncated = True
+    # 3. Если и этого мало — pre_block пустой, оставляем только title и максимально возможную цитату
+    total_len = len(title_html) + len(pre_block) + len(tags_block) + len(link_block) + html_quote_overhead + len(blockquote_content) + 2
+    if total_len > max_length:
+        pre_block = ''
+        lim = max_length - len(title_html) - len(tags_block) - len(link_block) - html_quote_overhead - 2
+        if lim < 0:
+            lim = 0
+        if len(blockquote_content) > lim:
+            blockquote_content = blockquote_content[:max(0, lim-3)] + '...'
+        was_truncated = True
+    return title_html, pre_block, blockquote_content, tags_block, link_block, was_truncated
 
 def send_videos(
     message,
@@ -1266,26 +1258,23 @@ def send_videos(
     temp_desc_path = os.path.join(os.path.dirname(video_abs_path), "full_description.txt")
     was_truncated = False
     try:
-        # Передаём tags_text в truncate_caption
-        title_trunc, desc_trunc, tags_trunc, was_truncated = truncate_caption(
+        title_html, pre_block, blockquote_content, tags_block, link_block, was_truncated = truncate_caption(
             title=caption,
             description=full_video_title,
             url=video_url,
             tags_text=tags_text,
             max_length=1024
         )
-        is_tiktok = is_tiktok_url(video_url)
-        tags_block = (tags_trunc.strip() + '\n') if tags_trunc.strip() else ''
-        if is_tiktok:
-            if desc_trunc:
-                cap = f"{desc_trunc}\n\n{tags_block}[🔗 Video URL]({video_url})"
-            else:
-                cap = f"{tags_block}[🔗 Video URL]({video_url})"
-        else:
-            if desc_trunc:
-                cap = f"**{title_trunc}**\n\n{desc_trunc}\n\n{tags_block}[🔗 Video URL]({video_url})"
-            else:
-                cap = f"**{title_trunc}**\n\n{tags_block}[🔗 Video URL]({video_url})"
+        # Формируем HTML caption: title вне цитаты, таймкоды вне цитаты, description в цитате, теги и ссылка вне цитаты
+        cap = ''
+        if title_html:
+            cap += title_html + '\n\n'
+        if pre_block:
+            cap += pre_block + '\n'
+        cap += f'<blockquote expandable>{blockquote_content}</blockquote>\n'
+        if tags_block:
+            cap += tags_block
+        cap += link_block
         video_msg = app.send_video(
             chat_id=user_id,
             video=video_abs_path,
@@ -1301,7 +1290,8 @@ def send_videos(
                 msg_id,
                 f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n\n__Uploading Video... 📤__"
             ),
-            reply_to_message_id=message.id
+            reply_to_message_id=message.id,
+            parse_mode=enums.ParseMode.HTML
         )
         if was_truncated and full_video_title:
             with open(temp_desc_path, "w", encoding="utf-8") as f:
