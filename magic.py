@@ -391,27 +391,23 @@ def browser_choice_callback(app, callback_query):
 
 def audio_command_handler(app, message):
     user_id = message.chat.id
-    # If the user has already been launched by the process, we answer the rein and go out
     if get_active_download(user_id):
-        app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
+        app.send_message(user_id, "⏰ WAIT UNTIL YOUR ПРЕДЫДУЩАЯ ЗАГРУЗКА НЕ ЗАВЕРШЕНА", reply_to_message_id=message.id)
         return
-
-    # For non-admins, we check the subscription
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
-
     user_dir = os.path.join("users", str(user_id))
-    create_directory(user_dir)  # Ensure The User's Folder Exists
-
-    # Извлекаем URL из сообщения
+    create_directory(user_dir)
     text = message.text
-    url_match = re.search(r'https?://[^\s\*]+', text)
-    if not url_match:
-        send_to_user(message, "Please provide the URL of the video to download the audio.")
+    url, _, _, _, tags, tags_text, tag_error = extract_url_range_tags(text)
+    if tag_error:
+        wrong, example = tag_error
+        app.send_message(user_id, f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}", reply_to_message_id=message.id)
         return
-
-    url = url_match.group(0)
-    down_and_audio(app, message, url)
+    if not url:
+        send_to_user(message, "Пожалуйста, укажите ссылку на видео для загрузки аудио.")
+        return
+    down_and_audio(app, message, url, tags_text)
 
 # Command /Format Handler
 @app.on_message(filters.command("format") & filters.private)
@@ -1100,42 +1096,29 @@ def video_url_extractor(app, message):
         keys_to_remove = [k for k in playlist_errors if k.startswith(f"{user_id}_")]
         for key in keys_to_remove:
             del playlist_errors[key]
-
-    # If the user has already been launched by the process, we answer the rein and go out
     if get_active_download(user_id):
         app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
         return
     full_string = message.text
-    if ("https://" in full_string) or ("http://" in full_string):
+    url, video_start_with, video_end_with, playlist_name, tags, tags_text, tag_error = extract_url_range_tags(full_string)
+    if tag_error:
+        wrong, example = tag_error
+        app.send_message(user_id, f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}", reply_to_message_id=message.id)
+        return
+    if url:
         users_first_name = message.chat.first_name
         send_to_logger(message, f"User entered a **url**\n **user's name:** {users_first_name}\nURL: {full_string}")
         for j in range(len(Config.PORN_LIST)):
             if Config.PORN_LIST[j] in full_string:
                 send_to_all(message, "User entered a porn content. Cannot be downloaded.")
                 return
-        url_with_everything = full_string.split("*")
-        url = url_with_everything[0]
-        if len(url_with_everything) < 3:
-            video_count = 1
-            video_start_with = 1
-            playlist_name = False
-        elif len(url_with_everything) == 3:
-            video_count = (int(url_with_everything[2]) - int(url_with_everything[1]) + 1)
-            video_start_with = int(url_with_everything[1])
-            playlist_name = False
-        else:
-            video_start_with = int(url_with_everything[1])
-            playlist_name = f"{url_with_everything[3]}"
-            video_count = (int(url_with_everything[2]) - int(url_with_everything[1]) + 1)
-
-        # Сброс флага ошибок для нового запроса по плейлисту
+        video_count = video_end_with - video_start_with + 1
         if playlist_name:
             with playlist_errors_lock:
                 error_key = f"{user_id}_{playlist_name}"
                 if error_key in playlist_errors:
                     del playlist_errors[error_key]
-
-        down_and_up(app, message, url, playlist_name, video_count, video_start_with)
+        down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text)
     else:
         send_to_all(message, f"**User entered like this:** {full_string}\n{Config.ERROR1}")
 
@@ -1180,113 +1163,74 @@ def truncate_caption(
     title: str,
     description: str,
     url: str,
+    tags_text: str = '',
     max_length: int = 1024
-) -> Tuple[str, str, bool]:
+) -> Tuple[str, str, str, bool]:
     """
-    Build caption **{title}**, then description as quote, then link.
-    Truncate description in one pass so that total length <= max_length.
-    Returns: (title, description, was_truncated)
+    Формирует caption: теги, title, description, ссылка. Обрезает description и title с учётом тегов, чтобы всё влезло в 1024 символа.
+    Возвращает: (title, description, tags_text, was_truncated)
     """
-    # Helper to build full caption
-    def build(t: str, d: str, is_tiktok: bool = False) -> str:
+    def build(t: str, d: str, tags: str, is_tiktok: bool = False) -> str:
+        tags_block = (tags.strip() + '\n') if tags and tags.strip() else ''
         if is_tiktok:
             if d:
-                return f"{d}\n\n[🔗 Video URL]({url})"
+                return f"{tags_block}{d}\n\n[🔗 Video URL]({url})"
             else:
-                return f"[🔗 Video URL]({url})"
+                return f"{tags_block}[🔗 Video URL]({url})"
         else:
             if d:
-                return f"**{t}**\n\n{d}\n\n[🔗 Video URL]({url})"
+                return f"{tags_block}**{t}**\n\n{d}\n\n[🔗 Video URL]({url})"
             else:
-                return f"**{t}**\n\n[🔗 Video URL]({url})"
+                return f"{tags_block}**{t}**\n\n[🔗 Video URL]({url})"
 
-    # Helper function to process timestamps in description
     def process_timestamps(desc: str) -> str:
-        """
-        Process timestamps in description to ensure they work properly in Telegram.
-        Adds newline before first timestamp if needed to break quote formatting.
-        All text except timestamp lines should be formatted as quote.
-        """
         if not desc:
             return desc
-
-        # Pattern to match timestamps like 00:00, 01:23, 12:34:56 at the beginning of line
         timestamp_pattern = r'^\s*(\d{1,2}:\d{2}(?::\d{2})?)\s+'
-
         lines = desc.split('\n')
         processed_lines = []
-
-        # Find all timestamp line indices
-        timestamp_indices = []
-        for i, line in enumerate(lines):
-            if re.match(timestamp_pattern, line):
-                timestamp_indices.append(i)
-
+        timestamp_indices = [i for i, line in enumerate(lines) if re.match(timestamp_pattern, line)]
         if not timestamp_indices:
-            # No timestamps found, just add quote prefix to all non-empty lines
             for line in lines:
                 if line.strip():
                     processed_lines.append(f"> {line}")
                 else:
                     processed_lines.append(line)
             return '\n'.join(processed_lines)
-
-        # Process lines with timestamps
         for i, line in enumerate(lines):
             if i in timestamp_indices:
-                # This is a timestamp line
-                if i == timestamp_indices[0]:  # First timestamp
-                    # Check if we need to add newline before first timestamp
-                    if i > 0 and lines[i-1].strip():  # Previous line is not empty
+                if i == timestamp_indices[0]:
+                    if i > 0 and lines[i-1].strip():
                         processed_lines.append('')
                 processed_lines.append(line)
             else:
-                # This is a non-timestamp line
-                if line.strip():  # Only add prefix for non-empty lines
+                if line.strip():
                     processed_lines.append(f"> {line}")
                 else:
-                    # For empty lines, just add them as they are
                     processed_lines.append(line)
-
         return '\n'.join(processed_lines)
 
     is_tiktok = is_tiktok_url(url)
-
-    # First, process timestamps in description to get the actual length
-    processed_description = ""
-    if description:
-        processed_description = process_timestamps(description)
-
-    # Check if title and description are the same (after processing)
+    processed_description = process_timestamps(description) if description else ''
+    # Если title и description совпадают — не добавляем description
     if title and processed_description and title.strip() == processed_description.strip():
-        # If they are the same, use only title and clear description
-        processed_description = ""
-
-    # Compute overhead length without any description
-    overhead = len(build(title, "", is_tiktok))
-
-    # If even without description too long, cut title
+        processed_description = ''
+    # Считаем длину блока тегов
+    tags_block = (tags_text.strip() + '\n') if tags_text and tags_text.strip() else ''
+    # Считаем overhead без description
+    overhead = len(build(title, '', tags_text, is_tiktok))
+    # Если даже без description слишком длинно — режем title
     if overhead > max_length and not is_tiktok:
-        # reserve 3 chars for "..."
-        cut_len = max_length - 3
-        return title[:cut_len] + "...", "", True
-
-    # Now room for description (using processed description length)
+        cut_len = max_length - len(tags_block) - len(f"\n\n[🔗 Video URL]({url})") - 3
+        return title[:cut_len] + '...', '', tags_text, True
     avail = max_length - overhead
     if not processed_description:
-        return title, "", False
-
-    # If processed description fits — leave as is
+        return title, '', tags_text, False
     if len(processed_description) <= avail:
-        return title, processed_description, False
-
-    # Otherwise truncate with ellipsis
-    # We need to truncate the original description, not the processed one
-    # to avoid cutting in the middle of a quote prefix
-    desc_trunc = description[:avail - 3] + "..."
-    # Process the truncated description
+        return title, processed_description, tags_text, False
+    desc_trunc = description[:avail - 3] + '...'
     processed_desc_trunc = process_timestamps(desc_trunc)
-    return title, processed_desc_trunc, True
+    return title, processed_desc_trunc, tags_text, True
 
 def send_videos(
     message,
@@ -1297,47 +1241,35 @@ def send_videos(
     info_text: str,
     msg_id: int,
     full_video_title: str,
+    tags_text: str = '',
 ):
-    """
-    Fast one-pass truncation to 1024 chars.
-    """
     user_id = message.chat.id
     text = message.text or ""
     m = re.search(r'https?://[^\s\*]+', text)
     video_url = m.group(0) if m else ""
-
-    # Создаем временный файл для полного описания
     temp_desc_path = os.path.join(os.path.dirname(video_abs_path), "full_description.txt")
     was_truncated = False
-
     try:
-        # Truncate to bot API limit 1024
-        title_trunc, desc_trunc, was_truncated = truncate_caption(
+        # Передаём tags_text в truncate_caption
+        title_trunc, desc_trunc, tags_trunc, was_truncated = truncate_caption(
             title=caption,
             description=full_video_title,
             url=video_url,
+            tags_text=tags_text,
             max_length=1024
         )
-
-        # Если описание было обрезано, сохраняем полное описание в файл
-        if was_truncated and full_video_title:
-            with open(temp_desc_path, "w", encoding="utf-8") as f:
-                f.write(full_video_title)
-
-        # Build final caption
         is_tiktok = is_tiktok_url(video_url)
+        tags_block = (tags_trunc.strip() + '\n') if tags_trunc.strip() else ''
         if is_tiktok:
             if desc_trunc:
-                cap = f"{desc_trunc}\n\n[🔗 Video URL]({video_url})"
+                cap = f"{desc_trunc}\n\n{tags_block}[🔗 Video URL]({video_url})"
             else:
-                cap = f"[🔗 Video URL]({video_url})"
+                cap = f"{tags_block}[🔗 Video URL]({video_url})"
         else:
             if desc_trunc:
-                cap = f"**{title_trunc}**\n\n{desc_trunc}\n\n[🔗 Video URL]({video_url})"
+                cap = f"**{title_trunc}**\n\n{desc_trunc}\n\n{tags_block}[🔗 Video URL]({video_url})"
             else:
-                cap = f"**{title_trunc}**\n\n[🔗 Video URL]({video_url})"
-
-        # Отправляем видео
+                cap = f"**{title_trunc}**\n\n{tags_block}[🔗 Video URL]({video_url})"
         video_msg = app.send_video(
             chat_id=user_id,
             video=video_abs_path,
@@ -1355,26 +1287,22 @@ def send_videos(
             ),
             reply_to_message_id=message.id
         )
-
-        # Если описание было обрезано, отправляем полное описание в отдельном файле
+        if was_truncated and full_video_title:
+            with open(temp_desc_path, "w", encoding="utf-8") as f:
+                f.write(full_video_title)
         if was_truncated and os.path.exists(temp_desc_path):
             try:
-                # Отправляем файл пользователю
                 user_doc_msg = app.send_document(
                     chat_id=user_id,
                     document=temp_desc_path,
                     caption="📝 if you want to change video caption - reply to video with new text",
                     reply_to_message_id=message.id
                 )
-                # Репостим файл в лог-канал
                 safe_forward_messages(Config.LOGS_ID, user_id, [user_doc_msg.id])
             except Exception as e:
                 logger.error(f"Error sending full description file: {e}")
-
         return video_msg
-
     finally:
-        # Удаляем временный файл с описанием
         if os.path.exists(temp_desc_path):
             try:
                 os.remove(temp_desc_path)
@@ -1588,8 +1516,10 @@ def write_logs(message, video_url, video_title):
 # Down_and_audio function
 #########################################
 
-def down_and_audio(app, message, url):
+def down_and_audio(app, message, url, tags_text):
     user_id = message.chat.id
+    anim_thread = None
+    stop_anim = threading.Event()
     try:
         # Проверяем, есть ли сохраненное время ожидания
         user_dir = os.path.join("users", str(user_id))
@@ -1614,11 +1544,9 @@ def down_and_audio(app, message, url):
                 message_id=proc_msg.id,
                 text="Download started"
             )
-            # Если удалось заменить, значит ошибки флуда нет
             if os.path.exists(flood_time_file):
                 os.remove(flood_time_file)
         except FloodWait as e:
-            # Обновляем счетчик
             wait_time = e.value
             os.makedirs(user_dir, exist_ok=True)
             with open(flood_time_file, 'w') as f:
@@ -1632,17 +1560,15 @@ def down_and_audio(app, message, url):
         logger.error(f"Error in down_and_audio: {e}")
         return
 
-    # Если ошибки флуда нет, отправляем обычное сообщение
+    # Если ошибки флуда нет, отправляем обычное сообщение (только один раз)
     proc_msg = app.send_message(user_id, "Processing... ♻️", reply_to_message_id=message.id)
     proc_msg_id = proc_msg.id
-    # Удалено закрепление статусного сообщения
     status_msg = app.send_message(user_id, "🎧 Audio is processing...", reply_to_message_id=message.id)
-    hourglass_msg = app.send_message(user_id, "⌛️", reply_to_message_id=message.id)
+    hourglass_msg = app.send_message(user_id, "⏳ Please wait...", reply_to_message_id=message.id)
     status_msg_id = status_msg.id
     hourglass_msg_id = hourglass_msg.id
     anim_thread = start_hourglass_animation(user_id, hourglass_msg_id, stop_anim)
-    audio_file = None  # Initialize audio_file variable
-
+    audio_file = None
     try:
         # Check if there's enough disk space (estimate 500MB per audio file)
         user_folder = os.path.abspath(os.path.join("users", str(user_id)))
@@ -1652,17 +1578,7 @@ def down_and_audio(app, message, url):
             send_to_user(message, "❌ Not enough disk space to download the audio.")
             return
 
-        proc_msg = app.send_message(user_id, "Processing... ♻️", reply_to_message_id=message.id)
-        proc_msg_id = proc_msg.id
         check_user(message)
-
-        status_msg = app.send_message(user_id, "🎧 Audio is processing...", reply_to_message_id=message.id)
-        hourglass_msg = app.send_message(user_id, "⌛️", reply_to_message_id=message.id)
-        # We save ID status messages at once
-        status_msg_id = status_msg.id
-        hourglass_msg_id = hourglass_msg.id
-
-        anim_thread = start_hourglass_animation(user_id, hourglass_msg_id, stop_anim)
 
         cookie_file = os.path.join(user_folder, os.path.basename(Config.COOKIE_FILE_PATH))
         ytdl_opts = {
@@ -1725,7 +1641,6 @@ def down_and_audio(app, message, url):
             return
 
         audio_title = info.get("title", "audio")
-        # Sanitize the audio title for file naming
         audio_title = sanitize_filename(audio_title)
         audio_file = os.path.join(user_folder, audio_title + ".mp3")
         if not os.path.exists(audio_file):
@@ -1735,20 +1650,16 @@ def down_and_audio(app, message, url):
             else:
                 send_to_user(message, "Audio file not found after download.")
                 return
-
         try:
             full_bar = "🟩" * 10
             safe_edit_message_text(user_id, proc_msg_id, f"Uploading audio file...\n{full_bar}   100.0%")
         except Exception as e:
             logger.error(f"Error updating upload status: {e}")
-
-        # Формируем текст с ссылкой для аудио
-        caption_with_link = f"{audio_title}\n\n[🔗 Audio URL]({url})"
-
-        # Send audio and save the message object for repost
+        # Формируем текст с тегами и ссылкой для аудио
+        tags_block = (tags_text.strip() + '\n') if tags_text and tags_text.strip() else ''
+        caption_with_link = f"{audio_title}\n\n{tags_block}[🔗 Audio URL]({url})"
         try:
-            audio_msg = app.send_audio(chat_id=user_id, audio=audio_file, caption=caption_with_link)
-            # Reposting final audio message to the log channel
+            audio_msg = app.send_audio(chat_id=user_id, audio=audio_file, caption=caption_with_link, reply_to_message_id=message.id)
             safe_forward_messages(Config.LOGS_ID, user_id, [audio_msg.id])
         except Exception as send_error:
             logger.error(f"Error sending audio: {send_error}")
@@ -1800,7 +1711,7 @@ def down_and_audio(app, message, url):
 # Download_and_up function
 #########################################
 
-def down_and_up(app, message, url, playlist_name, video_count, video_start_with):
+def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text):
     user_id = message.chat.id
     try:
         # Проверяем, есть ли сохраненное время ожидания
@@ -2188,7 +2099,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                     if part_result is None:
                         continue
                     part_duration, splited_thumb_dir = part_result
-                    video_msg = send_videos(message, path_lst[p], caption_lst[p], part_duration, splited_thumb_dir, info_text, proc_msg.id, full_video_title)
+                    video_msg = send_videos(message, path_lst[p], caption_lst[p], part_duration, splited_thumb_dir, info_text, proc_msg.id, full_video_title, tags_text)
                     try:
                         safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
                     except Exception as e:
@@ -2225,7 +2136,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with)
                             thumb_dir = None
 
                     try:
-                        video_msg = send_videos(message, after_rename_abs_path, video_title, duration, thumb_dir, info_text, proc_msg.id, full_video_title)
+                        video_msg = send_videos(message, after_rename_abs_path, video_title, duration, thumb_dir, info_text, proc_msg.id, full_video_title, tags_text)
                         try:
                             safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
                         except Exception as e:
@@ -2681,5 +2592,52 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
     cycle_thread = threading.Thread(target=cycle_progress, daemon=True)
     cycle_thread.start()
     return cycle_thread
+
+# --- Функция для очистки тегов под Telegram ---
+def clean_telegram_tag(tag: str) -> str:
+    return '#' + re.sub(r'[^\w]', '', tag.lstrip('#'))
+
+# --- Функция для извлечения url, диапазона и тегов из текста ---
+def extract_url_range_tags(text: str):
+    url_match = re.search(r'https?://[^\s\*#]+', text)
+    if not url_match:
+        return None, 1, 1, None, [], '', None
+    url = url_match.group(0)
+    after_url = text[url_match.end():]
+    # Диапазон
+    range_match = re.match(r'\*([0-9]+)\*([0-9]+)', after_url)
+    if range_match:
+        video_start_with = int(range_match.group(1))
+        video_end_with = int(range_match.group(2))
+        after_range = after_url[range_match.end():]
+    else:
+        video_start_with = 1
+        video_end_with = 1
+        after_range = after_url
+    playlist_name = None
+    playlist_match = re.match(r'\*([^\s\*#]+)', after_range)
+    if playlist_match:
+        playlist_name = playlist_match.group(1)
+        after_playlist = after_range[playlist_match.end():]
+    else:
+        after_playlist = after_range
+    tags = []
+    tags_text = ''
+    error_tag = None
+    error_tag_example = None
+    tag_part = after_playlist.strip()
+    if tag_part:
+        tag_matches = re.findall(r'#([A-Za-z0-9_]+|[^#\s]+)', tag_part)
+        for raw in re.finditer(r'#([^#\s]+)', tag_part):
+            tag = raw.group(1)
+            if not re.fullmatch(r'[A-Za-z0-9_]+', tag):
+                error_tag = tag
+                example = re.sub(r'[^A-Za-z0-9_]', '_', tag)
+                error_tag_example = f'#{example}'
+                break
+            tags.append(f'#{tag}')
+        # Формируем tags_text с пробелами между тегами
+        tags_text = ' '.join(tags)
+    return url, video_start_with, video_end_with, playlist_name, tags, tags_text, (error_tag, error_tag_example) if error_tag else None
 
 app.run()
