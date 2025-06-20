@@ -2008,11 +2008,28 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             full_video_title = info_dict.get("description", video_title)
             video_title = sanitize_filename(video_title) if video_title else "video"
 
+            # --- YouTube: автотег канала ---
+            channel_tag = None
+            if ("youtube.com" in url or "youtu.be" in url):
+                channel_name = info_dict.get("channel") or info_dict.get("uploader")
+                if channel_name:
+                    safe_channel = re.sub(r"[^\w\d_]", "_", channel_name)
+                    channel_tag = f'#{safe_channel}'
+            # ...
             # Если rename_name не задано, устанавливаем его равным video_title
             if rename_name is None:
                 rename_name = video_title
 
             dir_path = os.path.join("users", str(user_id))  # Перемещаем определение dir_path сюда
+
+            # --- Добавляем канал к тегам, если найден ---
+            tags_text_final = tags_text
+            if channel_tag and channel_tag.lower() not in tags_text.lower():
+                tags_text_final = (tags_text.strip() + ' ' + channel_tag).strip()
+                # Сохраняем канал в tags.txt пользователя
+                save_user_tags(user_id, [channel_tag])
+            else:
+                tags_text_final = tags_text
 
             # Сохраняем полное название в файл
             full_title_path = os.path.join(dir_path, "full_title.txt")
@@ -2150,7 +2167,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         continue
                     part_duration, splited_thumb_dir = part_result
                     # --- TikTok: не передавать title ---
-                    video_msg = send_videos(message, path_lst[p], '' if force_no_title else caption_lst[p], part_duration, splited_thumb_dir, info_text, proc_msg.id, full_video_title, tags_text)
+                    video_msg = send_videos(message, path_lst[p], '' if force_no_title else caption_lst[p], part_duration, splited_thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final)
                     try:
                         safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
                     except Exception as e:
@@ -2188,7 +2205,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
                     try:
                         # --- TikTok: не передавать title ---
-                        video_msg = send_videos(message, after_rename_abs_path, '' if force_no_title else video_title, duration, thumb_dir, info_text, proc_msg.id, full_video_title, tags_text)
+                        video_msg = send_videos(message, after_rename_abs_path, '' if force_no_title else video_title, duration, thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final)
                         try:
                             safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
                         except Exception as e:
