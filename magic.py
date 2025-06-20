@@ -26,6 +26,7 @@ from config import Config
 from urllib.parse import urlparse
 from pyrogram.errors import FloodWait
 import tldextract
+from pyrogram.types import ReplyKeyboardMarkup
 
 def is_tiktok_url(url: str) -> bool:
     """
@@ -650,6 +651,10 @@ def url_distractor(app, message):
             remove_media(message, only=["format.txt"])
             send_to_all(message, "🗑 Format file removed.")
             return
+        elif clean_args == "split":
+            remove_media(message, only=["split.txt"])
+            send_to_all(message, "🗑 Split file removed.")
+            return
         else:
             remove_media(message)
             send_to_all(message, "🗑 All files are removed.")
@@ -665,6 +670,10 @@ def url_distractor(app, message):
         tags_command(app, message)
         return
 
+    # /Split Command
+    if text.startswith(Config.SPLIT_COMMAND):
+        split_command(app, message)
+        return
 
     # If the Message Contains a URL, Launch The Video Download Function.
     if ("https://" in text) or ("http://" in text):
@@ -772,7 +781,7 @@ def remove_media(message, only=None):
         else:
             files = [fname for fname in allfiles if fname.endswith(extension)]
         for file in files:
-            if extension == '.txt' and file in ['logs.txt', 'format.txt', 'tags.txt']:
+            if extension == '.txt' and file in ['logs.txt', 'format.txt', 'tags.txt', 'split.txt']:
                 continue
             file_path = os.path.join(dir, file)
             try:
@@ -2154,7 +2163,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
             video_size_in_bytes = os.path.getsize(user_vid_path)
             video_size = humanbytes(int(video_size_in_bytes))
-            max_size = 1950000000  # 1.95 GB - close to Telegram's 2GB limit with 50MB safety margin
+            max_size = get_user_split_size(user_id)  # 1.95 GB - close to Telegram's 2GB limit with 50MB safety margin
             if int(video_size_in_bytes) > max_size:
                 safe_edit_message_text(user_id, proc_msg_id,
                     f"{info_text}\n\n{full_bar}   100.0%\n__⚠️ Your video size ({video_size}) is too large.__\n__Splitting file...__ ✂️")
@@ -2864,5 +2873,64 @@ def is_porn_domain(domain_parts):
         if dom in PORN_DOMAINS:
             return True
     return False
+
+# Version 1.3.0 - Добавлена команда /split для выбора размера частей видео
+
+@app.on_message(filters.command("split") & filters.private)
+def split_command(app, message):
+    user_id = message.chat.id
+    # Проверка подписки для не-админов
+    if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+        return
+    user_dir = os.path.join("users", str(user_id))
+    create_directory(user_dir)
+    # Кнопки выбора размера
+    sizes = [
+        ("250 MB", 250 * 1024 * 1024),
+        ("500 MB", 500 * 1024 * 1024),
+        ("1 GB", 1024 * 1024 * 1024),
+        ("1.5 GB", 1536 * 1024 * 1024),
+        ("2 GB (default)", 1950 * 1024 * 1024)
+    ]
+    buttons = [[InlineKeyboardButton(text, callback_data=f"split_size|{size}")] for text, size in sizes]
+    buttons.append([InlineKeyboardButton("🔙 Cancel", callback_data="split_size|cancel")])
+    keyboard = InlineKeyboardMarkup(buttons)
+    app.send_message(user_id, "Choose max part size for video splitting:", reply_markup=keyboard)
+    send_to_logger(message, "User opened /split menu.")
+
+@app.on_callback_query(filters.regex(r"^split_size\\|"))
+def split_size_callback(app, callback_query):
+    user_id = callback_query.from_user.id
+    data = callback_query.data.split("|")[1]
+    if data == "cancel":
+        callback_query.edit_message_text("🔚 Split size selection canceled.")
+        callback_query.answer("✅ Split choice updated.")
+        send_to_logger(callback_query.message, "Split selection canceled.")
+        return
+    try:
+        size = int(data)
+    except Exception:
+        callback_query.answer("Invalid size.")
+        return
+    user_dir = os.path.join("users", str(user_id))
+    create_directory(user_dir)
+    split_file = os.path.join(user_dir, "split.txt")
+    with open(split_file, "w", encoding="utf-8") as f:
+        f.write(str(size))
+    callback_query.edit_message_text(f"✅ Split part size set to: {humanbytes(size)}")
+    send_to_logger(callback_query.message, f"Split size set to {size} bytes.")
+
+# --- Функция для чтения split.txt ---
+def get_user_split_size(user_id):
+    user_dir = os.path.join("users", str(user_id))
+    split_file = os.path.join(user_dir, "split.txt")
+    if os.path.exists(split_file):
+        try:
+            with open(split_file, "r", encoding="utf-8") as f:
+                size = int(f.read().strip())
+                return size
+        except Exception:
+            pass
+    return 1950 * 1024 * 1024  # default 1.95GB
 
 app.run()
