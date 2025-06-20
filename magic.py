@@ -2687,22 +2687,28 @@ def tags_command(app, message):
     user_dir = os.path.join("users", str(user_id))
     tags_file = os.path.join(user_dir, "tags.txt")
     if not os.path.exists(tags_file):
-        app.send_message(user_id, "You have no tags yet.", reply_to_message_id=message.id)
+        reply_text = "You have no tags yet."
+        app.send_message(user_id, reply_text, reply_to_message_id=message.id)
+        send_to_logger(message, reply_text)
         return
     with open(tags_file, "r", encoding="utf-8") as f:
         tags = [line.strip() for line in f if line.strip()]
     if not tags:
-        app.send_message(user_id, "You have no tags yet.", reply_to_message_id=message.id)
+        reply_text = "You have no tags yet."
+        app.send_message(user_id, reply_text, reply_to_message_id=message.id)
+        send_to_logger(message, reply_text)
         return
     # Формируем сообщения по 4096 символов
     msg = ''
     for tag in tags:
         if len(msg) + len(tag) + 1 > 4096:
             app.send_message(user_id, msg, reply_to_message_id=message.id)
+            send_to_logger(message, msg)
             msg = ''
         msg += tag + '\n'
     if msg:
         app.send_message(user_id, msg, reply_to_message_id=message.id)
+        send_to_logger(message, msg)
 
 def extract_youtube_id(url: str) -> str:
     """
