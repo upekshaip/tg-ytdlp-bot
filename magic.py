@@ -2132,15 +2132,24 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             after_rename_abs_path = os.path.abspath(user_vid_path)
             # --- Новый блок: если YouTube, скачиваем превью ---
             youtube_thumb_path = None
+            thumb_dir = None
             try:
                 if ("youtube.com" in url or "youtu.be" in url):
-                    video_id = extract_youtube_id(url)
-                    youtube_thumb_path = os.path.join(dir_path, f"yt_thumb_{video_id}.jpg")
-                    download_thumbnail(video_id, youtube_thumb_path)
-                    thumb_dir = youtube_thumb_path
+                    yt_id = video_id or None
+                    if not yt_id:
+                        try:
+                            yt_id = extract_youtube_id(url)
+                        except Exception:
+                            yt_id = None
+                    if yt_id:
+                        youtube_thumb_path = os.path.join(dir_path, f"yt_thumb_{yt_id}.jpg")
+                        download_thumbnail(yt_id, youtube_thumb_path)
+                        thumb_dir = youtube_thumb_path
             except Exception as e:
                 logger.warning(f"YouTube thumbnail error: {e}")
             # --- Конец блока ---
+            # Если thumb_dir не определён — используем ffmpeg превью
+
             result = get_duration_thumb(message, dir_path, user_vid_path, sanitize_filename(caption_name))
             if result is None:
                 logger.warning("Failed to get video duration and thumbnail, continuing without thumbnail")
