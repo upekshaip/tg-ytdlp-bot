@@ -634,10 +634,28 @@ def url_distractor(app, message):
         return
 
     # /Clean Command
-    if Config.CLEAN_COMMAND in text:
-        remove_media(message)
-        send_to_all(message, "🗑 All files are removed.")
-        return
+    if text.startswith(Config.CLEAN_COMMAND):
+        clean_args = text[len(Config.CLEAN_COMMAND):].strip().lower()
+        if clean_args in ["cookie", "cookies"]:
+            remove_media(message, only=["cookie.txt"])
+            send_to_all(message, "🗑 Cookie file removed.")
+            return
+        elif clean_args in ["log", "logs"]:
+            remove_media(message, only=["logs.txt"])
+            send_to_all(message, "🗑 Logs file removed.")
+            return
+        elif clean_args in ["tag", "tags"]:
+            remove_media(message, only=["tags.txt"])
+            send_to_all(message, "🗑 Tags file removed.")
+            return
+        elif clean_args == "format":
+            remove_media(message, only=["format.txt"])
+            send_to_all(message, "🗑 Format file removed.")
+            return
+        else:
+            remove_media(message)
+            send_to_all(message, "🗑 All files are removed.")
+            return
 
     # /USAGE Command
     if Config.USAGE_COMMAND in text:
@@ -730,39 +748,40 @@ def is_user_in_channel(app, message):
 
 # Remove All User Media Files
 
-def remove_media(message):
+def remove_media(message, only=None):
     dir = f'./users/{str(message.chat.id)}'
     if not os.path.exists(dir):
         logger.warning(f"Directory {dir} does not exist, nothing to remove")
         return
-
+    if only:
+        for fname in only:
+            file_path = os.path.join(dir, fname)
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                    logger.info(f"Removed file: {file_path}")
+                except Exception as e:
+                    logger.error(f"Failed to remove file {file_path}: {e}")
+        return
     allfiles = os.listdir(dir)
-
     file_extensions = [
         '.mp4', '.mkv', '.mp3', '.m4a', '.jpg', '.jpeg', '.part', '.ytdl',
         '.txt', '.ts', '.m3u8', '.webm', '.wmv', '.avi', '.mpeg', '.wav'
     ]
-
     for extension in file_extensions:
         if isinstance(extension, tuple):
-            # Handle multiple extensions
             files = [fname for fname in allfiles if any(fname.endswith(ext) for ext in extension)]
         else:
-            # Handle single extension
             files = [fname for fname in allfiles if fname.endswith(extension)]
-
         for file in files:
-            # Skip special files like tags.txt and logs.txt and format.txt
             if extension == '.txt' and file in ['logs.txt', 'format.txt', 'tags.txt']:
                 continue
-
             file_path = os.path.join(dir, file)
             try:
                 os.remove(file_path)
                 logger.info(f"Removed file: {file_path}")
             except Exception as e:
                 logger.error(f"Failed to remove file {file_path}: {e}")
-
     logger.info(f"Media cleanup completed for user {message.chat.id}")
 
 # SEND BRODCAST Message to All Users
