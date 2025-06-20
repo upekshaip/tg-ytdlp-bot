@@ -36,7 +36,18 @@ class Config(object):
         'vk.com', 'm.vk.com', 'vkvideo.ru', 'vkontakte.ru',
         # Можно добавить другие безопасные домены
     ]
-    
+    # Список доменов TikTok
+    TIKTOK_DOMAINS = [
+        'tiktok.com',
+        'vm.tiktok.com',
+        'vt.tiktok.com',
+        'www.tiktok.com',
+        'm.tiktok.com',
+        'tiktokv.com',
+        'www.tiktokv.com',
+        'tiktok.ru',
+        'www.tiktok.ru'
+    ]    
     # Commands
     DOWNLOAD_COOKIE_COMMAND = "/download_cookie"
     CHECK_COOKIE_COMMAND = "/check_cookie"
