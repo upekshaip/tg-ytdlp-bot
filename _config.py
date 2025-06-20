@@ -32,7 +32,12 @@ class Config(object):
 
     # Restricted content site lists
     PORN_LIST = ["pornhub", "phncdn.com", "xvideos", "xhcdn.com", "xhamster"]
-
+    # --- Белый список доменов, которые не считаются порно ---
+    PORN_WHITELIST = [
+        'vk.com', 'm.vk.com', 'vkvideo.ru', 'vkontakte.ru',
+        # Можно добавить другие безопасные домены
+    ]
+    
     # Commands
     DOWNLOAD_COOKIE_COMMAND = "/download_cookie"
     CHECK_COOKIE_COMMAND = "/check_cookie"
