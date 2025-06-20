@@ -18,7 +18,6 @@ class Config(object):
     SUBSCRIBE_CHANNEL = -0000000000000
     # Add subscription channel - Required (str)
     SUBSCRIBE_CHANNEL_URL = "https://t.me/upekshaip"
-
     # Download timeout in seconds (2 hours = 7200 seconds)
     DOWNLOAD_TIMEOUT = 7200
 
@@ -72,7 +71,8 @@ class Config(object):
     • To extract audio from a video, use the <b>/audio</b> command (e.g. <code>/audio https://example.com</code>).<br>
     • Upload a cookie file to download private videos and playlists.<br>
     • Check or update your cookie file with <b>/check_cookie</b>, <b>/download_cookie</b>, <b>/save_as_cookie</b> and <b>/cookies_from_browser</b> commands.<br>
-    • To clean your workspace on server from bad files (e.g. old cookies or media) use <b>/clean</b> command (might be helpful for get rid of errors).<br>
+    • To clean your workspace on server from bad files (e.g. old cookies or media) use <b>/clean</b> command.<br>
+    • You can also use <b>/clean cookies</b>, <b>/clean logs</b>, <b>/clean tags</b>, <b>/clean format</b> to remove only cookies, logs, tags or format file.<br>
     • See your usage statistics and logs by sending the <b>/usage</b> command.<br>
     • You can add tags to any link: just add #tag1#tag2 after the URL (e.g. https://youtu.be/xxxx#mytag#music). Tags will appear in the caption and are saved for navigation. See all your tags with /tags.<br><br>
     <blockquote expandable>
@@ -84,7 +84,8 @@ class Config(object):
     • Для извлечения аудио из видео используйте команду <b>/audio</b> (например, <code>/audio https://example.com</code>).<br>
     • Загрузите файл cookie – это позволит скачивать приватные видео и плейлисты.<br>
     • Проверьте или обновите cookie с помощью команд <b>/check_cookie</b>, <b>/download_cookie</b>, <b>/save_as_cookie</b> и <b>/cookies_from_browser</b>.<br>
-    • Чтобы очистить свою папку на сервере от лишних файлов (например от старых cookies или медиа) используйте команду <b>/clean</b> (может быть полезна при ошибках).<br>
+    • Чтобы очистить свою папку на сервере от лишних файлов (например от старых cookies или медиа) используйте команду <b>/clean</b>.<br>
+    • Также доступны <b>/clean cookies</b>, <b>/clean logs</b>, <b>/clean tags</b>, <b>/clean format</b> — для удаления только cookies, логов, тегов или файла формата.<br>
     • Узнайте свою статистику использования и логи командой <b>/usage</b>.<br>
     • Можно добавлять теги к любой ссылке: просто добавьте #тег1#тег2 после URL (например, https://youtu.be/xxxx#mytag#music). Теги появятся в подписи и сохраняются для навигации. Посмотреть все свои теги — командой /tags.<br>
     </blockquote>
