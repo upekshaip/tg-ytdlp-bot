@@ -2674,14 +2674,16 @@ def save_user_tags(user_id, tags):
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
     tags_file = os.path.join(user_dir, "tags.txt")
+    # Читаем уже сохранённые теги
     existing = set()
     if os.path.exists(tags_file):
         with open(tags_file, "r", encoding="utf-8") as f:
             for line in f:
                 tag = line.strip()
                 if tag:
-                    existing.add(tag)
-    new_tags = [t for t in tags if t not in existing]
+                    existing.add(tag.lower())
+    # Добавляем новые теги (без учёта регистра и без повторов)
+    new_tags = [t for t in tags if t and t.lower() not in existing]
     if new_tags:
         with open(tags_file, "a", encoding="utf-8") as f:
             for tag in new_tags:
@@ -2794,11 +2796,9 @@ def get_auto_tags(url, user_tags):
     auto_tags = set()
     url_l = url.lower()
     domain_parts, main_domain = extract_domain_parts(url)
-    # 1. Porn check (по всем суффиксам домена)
-    for dom in domain_parts:
-        if dom in PORN_DOMAINS:
-            auto_tags.add('#porn')
-            break
+    # 1. Porn check (по всем суффиксам домена, но с учётом белого списка)
+    if is_porn_domain(domain_parts):
+        auto_tags.add('#porn')
     # 2. Supported check (только точное совпадение слова с доменом)
     for word in SUPPORTED_WORDS:
         if word == main_domain:
@@ -2806,5 +2806,23 @@ def get_auto_tags(url, user_tags):
     # Не дублируем пользовательские теги
     auto_tags = [t for t in auto_tags if t.lower() not in [ut.lower() for ut in user_tags]]
     return auto_tags
+
+# Version 1.0.9 - Белый список доменов для порно берётся из config.py
+
+# --- Белый список доменов, которые не считаются порно ---
+# Теперь берём из config.py
+# from config import Config (уже импортирован)
+# ...
+
+def is_porn_domain(domain_parts):
+    # Если любой суффикс домена в белом списке — не порно
+    for dom in domain_parts:
+        if dom in Config.PORN_WHITELIST:
+            return False
+    # Если любой суффикс домена в списке порно — это порно
+    for dom in domain_parts:
+        if dom in PORN_DOMAINS:
+            return True
+    return False
 
 app.run()
