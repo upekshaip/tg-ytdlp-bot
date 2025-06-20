@@ -31,22 +31,20 @@ def is_tiktok_url(url: str) -> bool:
     """
     Проверяет, является ли URL ссылкой на TikTok
     """
-    tiktok_domains = [
-        'tiktok.com',
-        'vm.tiktok.com',
-        'vt.tiktok.com',
-        'www.tiktok.com',
-        'm.tiktok.com',
-        'tiktokv.com',
-        'www.tiktokv.com',
-        'tiktok.ru',
-        'www.tiktok.ru'
-    ]
     try:
         parsed_url = urlparse(url)
-        return any(domain in parsed_url.netloc for domain in tiktok_domains)
+        return any(domain in parsed_url.netloc for domain in Config.TIKTOK_DOMAINS)
     except:
         return False
+
+# --- Извлечение имени профиля из TikTok URL ---
+def extract_tiktok_profile(url: str) -> str:
+    # Ищем @username после домена
+    import re
+    m = re.search(r'/@([\w\.\-_]+)', url)
+    if m:
+        return m.group(1)
+    return ''
 
 # Configure logging
 logging.basicConfig(
@@ -1115,7 +1113,6 @@ def save_as_cookie_file(app, message):
 
 # URL Extractor
 @app.on_message(filters.text & filters.private)
-
 def video_url_extractor(app, message):
     global active_downloads
     check_user(message)
@@ -1140,7 +1137,13 @@ def video_url_extractor(app, message):
             if Config.PORN_LIST[j] in full_string:
                 send_to_all(message, "User entered a porn content. Cannot be downloaded.")
                 return
-        # --- ДОБАВЛЯЕМ автотеги ---
+        # --- TikTok: автотег профиля и без title ---
+        is_tiktok = is_tiktok_url(url)
+        tiktok_profile = ''
+        if is_tiktok:
+            tiktok_profile = extract_tiktok_profile(url)
+            if tiktok_profile:
+                tags = tags + [f'#{tiktok_profile}']
         auto_tags = get_auto_tags(url, tags)
         all_tags = tags + auto_tags
         tags_text_full = ' '.join(all_tags)
@@ -1151,7 +1154,11 @@ def video_url_extractor(app, message):
                 if error_key in playlist_errors:
                     del playlist_errors[error_key]
         save_user_tags(user_id, all_tags)
-        down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full)
+        # --- Передаём title='' для тиктока, иначе как обычно ---
+        if is_tiktok:
+            down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full, force_no_title=True)
+        else:
+            down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full)
     else:
         send_to_all(message, f"**User entered like this:** {full_string}\n{Config.ERROR1}")
 
@@ -1231,20 +1238,18 @@ def truncate_caption(
     tags_block = (tags_text.strip() + '\n') if tags_text and tags_text.strip() else ''
     link_block = f'<a href="{url}">🔗 Video URL</a>'
     html_quote_overhead = len('<blockquote expandable>') + len('</blockquote>')
-    # --- Корректируем лимит: tags_text может быть длиннее из-за автотегов ---
-    lim = max_length - len(title_html) - len(pre_block) - len(tags_block) - len(link_block) - html_quote_overhead - 2
+    # --- Корректируем лимит: если title_html пустой (тикток), не учитываем его длину ---
+    lim = max_length - (len(title_html) if title_html else 0) - len(pre_block) - len(tags_block) - len(link_block) - html_quote_overhead - 2
     was_truncated = False
     blockquote_content = post_block
-    # 1. Обрезаем description, если не влезает
     if len(blockquote_content) > lim:
         blockquote_content = blockquote_content[:lim-3] + '...'
         was_truncated = True
-    # 2. Если всё равно не влезает — обрезаем pre_block (таймкоды) с конца
-    total_len = len(title_html) + len(pre_block) + len(tags_block) + len(link_block) + html_quote_overhead + len(blockquote_content) + 2
+    total_len = (len(title_html) if title_html else 0) + len(pre_block) + len(tags_block) + len(link_block) + html_quote_overhead + len(blockquote_content) + 2
     if total_len > max_length and pre_block_lines:
         cut_lines = pre_block_lines.copy()
         cut = False
-        while cut_lines and (len(title_html) + len('\n'.join(cut_lines)) + len(tags_block) + len(link_block) + html_quote_overhead + len(blockquote_content) + 2 > max_length):
+        while cut_lines and ((len(title_html) if title_html else 0) + len('\n'.join(cut_lines)) + len(tags_block) + len(link_block) + html_quote_overhead + len(blockquote_content) + 2 > max_length):
             cut_lines.pop()
             cut = True
         pre_block = '\n'.join(cut_lines)
@@ -1253,11 +1258,10 @@ def truncate_caption(
         elif cut:
             pre_block = '...'
         was_truncated = True
-    # 3. Если и этого мало — pre_block пустой, оставляем только title и максимально возможную цитату
-    total_len = len(title_html) + len(pre_block) + len(tags_block) + len(link_block) + html_quote_overhead + len(blockquote_content) + 2
+    total_len = (len(title_html) if title_html else 0) + len(pre_block) + len(tags_block) + len(link_block) + html_quote_overhead + len(blockquote_content) + 2
     if total_len > max_length:
         pre_block = ''
-        lim = max_length - len(title_html) - len(tags_block) - len(link_block) - html_quote_overhead - 2
+        lim = max_length - (len(title_html) if title_html else 0) - len(tags_block) - len(link_block) - html_quote_overhead - 2
         if lim < 0:
             lim = 0
         if len(blockquote_content) > lim:
@@ -1742,7 +1746,7 @@ def down_and_audio(app, message, url, tags_text):
 # Download_and_up function
 #########################################
 
-def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text):
+def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False):
     user_id = message.chat.id
     try:
         # Проверяем, есть ли сохраненное время ожидания
@@ -2145,7 +2149,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     if part_result is None:
                         continue
                     part_duration, splited_thumb_dir = part_result
-                    video_msg = send_videos(message, path_lst[p], caption_lst[p], part_duration, splited_thumb_dir, info_text, proc_msg.id, full_video_title, tags_text)
+                    # --- TikTok: не передавать title ---
+                    video_msg = send_videos(message, path_lst[p], '' if force_no_title else caption_lst[p], part_duration, splited_thumb_dir, info_text, proc_msg.id, full_video_title, tags_text)
                     try:
                         safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
                     except Exception as e:
@@ -2182,7 +2187,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             thumb_dir = None
 
                     try:
-                        video_msg = send_videos(message, after_rename_abs_path, video_title, duration, thumb_dir, info_text, proc_msg.id, full_video_title, tags_text)
+                        # --- TikTok: не передавать title ---
+                        video_msg = send_videos(message, after_rename_abs_path, '' if force_no_title else video_title, duration, thumb_dir, info_text, proc_msg.id, full_video_title, tags_text)
                         try:
                             safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
                         except Exception as e:
@@ -2830,8 +2836,6 @@ def get_auto_tags(url, user_tags):
 
 # --- Белый список доменов, которые не считаются порно ---
 # Теперь берём из config.py
-# from config import Config (уже импортирован)
-# ...
 
 def is_porn_domain(domain_parts):
     # Если любой суффикс домена в белом списке — не порно
