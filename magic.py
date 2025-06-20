@@ -1,4 +1,4 @@
-# Version 1.0.3 - Удалено всё, что связано с закреплением и откреплением сообщений (pin/unpin)
+# Version 1.0.6 - Оптимизация автотегов: быстрый поиск по суффиксам домена для porn.txt, точный поиск по supported.txt
 import pyrebase
 import re
 import os
@@ -25,6 +25,7 @@ import sys
 from config import Config
 from urllib.parse import urlparse
 from pyrogram.errors import FloodWait
+import tldextract
 
 def is_tiktok_url(url: str) -> bool:
     """
@@ -1120,14 +1121,18 @@ def video_url_extractor(app, message):
             if Config.PORN_LIST[j] in full_string:
                 send_to_all(message, "User entered a porn content. Cannot be downloaded.")
                 return
+        # --- ДОБАВЛЯЕМ автотеги ---
+        auto_tags = get_auto_tags(url, tags)
+        all_tags = tags + auto_tags
+        tags_text_full = ' '.join(all_tags)
         video_count = video_end_with - video_start_with + 1
         if playlist_name:
             with playlist_errors_lock:
                 error_key = f"{user_id}_{playlist_name}"
                 if error_key in playlist_errors:
                     del playlist_errors[error_key]
-        save_user_tags(user_id, tags)
-        down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text)
+        save_user_tags(user_id, all_tags)
+        down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full)
     else:
         send_to_all(message, f"**User entered like this:** {full_string}\n{Config.ERROR1}")
 
@@ -1207,6 +1212,7 @@ def truncate_caption(
     tags_block = (tags_text.strip() + '\n') if tags_text and tags_text.strip() else ''
     link_block = f'<a href="{url}">🔗 Video URL</a>'
     html_quote_overhead = len('<blockquote expandable>') + len('</blockquote>')
+    # --- Корректируем лимит: tags_text может быть длиннее из-за автотегов ---
     lim = max_length - len(title_html) - len(pre_block) - len(tags_block) - len(link_block) - html_quote_overhead - 2
     was_truncated = False
     blockquote_content = post_block
@@ -2738,5 +2744,67 @@ def download_thumbnail(video_id: str, dest: str) -> None:
                 f.write(r.content)
             return
     raise RuntimeError("Не удалось скачать thumbnail или он слишком большой")
+
+# --- Глобальные списки доменов и ключевых слов ---
+PORN_DOMAINS = set()
+SUPPORTED_WORDS = set()
+
+# --- Загрузка списков при старте ---
+def load_domain_lists():
+    global PORN_DOMAINS, SUPPORTED_WORDS
+    try:
+        with open('porn.txt', 'r', encoding='utf-8', errors='ignore') as f:
+            PORN_DOMAINS = set(line.strip().lower() for line in f if line.strip())
+    except Exception as e:
+        logger.error(f"Не удалось загрузить porn.txt: {e}")
+        PORN_DOMAINS = set()
+    try:
+        with open('supported.txt', 'r', encoding='utf-8', errors='ignore') as f:
+            SUPPORTED_WORDS = set(line.strip().lower() for line in f if line.strip())
+    except Exception as e:
+        logger.error(f"Не удалось загрузить supported.txt: {e}")
+        SUPPORTED_WORDS = set()
+
+load_domain_lists()
+
+# --- Вспомогательная функция для извлечения домена ---
+def extract_domain_parts(url):
+    try:
+        ext = tldextract.extract(url)
+        # Собираем домен: domain.suffix (например, xvideos.com)
+        if ext.domain and ext.suffix:
+            full_domain = f"{ext.domain}.{ext.suffix}".lower()
+            subdomain = ext.subdomain.lower() if ext.subdomain else ''
+            # Получаем все суффиксы: xvideos.com, b.xvideos.com, a.b.xvideos.com
+            parts = [full_domain]
+            if subdomain:
+                sub_parts = subdomain.split('.')
+                for i in range(len(sub_parts)):
+                    parts.append('.'.join(sub_parts[i:] + [full_domain]))
+            return parts, ext.domain.lower()
+        elif ext.domain:
+            return [ext.domain.lower()], ext.domain.lower()
+        else:
+            return [url.lower()], url.lower()
+    except Exception:
+        return [url.lower()], url.lower()
+
+# --- Вспомогательная функция для поиска автотегов ---
+def get_auto_tags(url, user_tags):
+    auto_tags = set()
+    url_l = url.lower()
+    domain_parts, main_domain = extract_domain_parts(url)
+    # 1. Porn check (по всем суффиксам домена)
+    for dom in domain_parts:
+        if dom in PORN_DOMAINS:
+            auto_tags.add('#porn')
+            break
+    # 2. Supported check (только точное совпадение слова с доменом)
+    for word in SUPPORTED_WORDS:
+        if word == main_domain:
+            auto_tags.add(f'#{word}')
+    # Не дублируем пользовательские теги
+    auto_tags = [t for t in auto_tags if t.lower() not in [ut.lower() for ut in user_tags]]
+    return auto_tags
 
 app.run()
