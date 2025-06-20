@@ -65,7 +65,8 @@ class Config(object):
     BROADCAST_MESSAGE = "/broadcast"
     # this is a main cmd - to user /get_user_details_users
     GET_USER_DETAILS_COMMAND = "/all"
-
+    SPLIT_COMMAND = "/split"
+    
     # Messages and errors
     CREDITS_MSG = "__Developed by__ @upekshaip"
     TO_USE_MSG = "__To use this bot you need to subscribe to @upekshaip Telegram channel.__\nAfter you join the channel, **resend your video link again and I will download it for you** ❤️  "
@@ -83,9 +84,10 @@ class Config(object):
     • Upload a cookie file to download private videos and playlists.<br>
     • Check or update your cookie file with <b>/check_cookie</b>, <b>/download_cookie</b>, <b>/save_as_cookie</b> and <b>/cookies_from_browser</b> commands.<br>
     • To clean your workspace on server from bad files (e.g. old cookies or media) use <b>/clean</b> command.<br>
-    • You can also use <b>/clean cookies</b>, <b>/clean logs</b>, <b>/clean tags</b>, <b>/clean format</b> to remove only cookies, logs, tags or format file.<br>
+    • You can also use <b>/clean cookies</b>, <b>/clean logs</b>, <b>/clean tags</b>, <b>/clean format</b>, <b>/clean split</b> to remove only cookies, logs, tags, split or format file.<br>
     • See your usage statistics and logs by sending the <b>/usage</b> command.<br>
-    • You can add tags to any link: just add #tag1#tag2 after the URL (e.g. https://youtu.be/xxxx#mytag#music). Tags will appear in the caption and are saved for navigation. See all your tags with /tags.<br><br>
+    • You can add tags to any link: just add #tag1#tag2 after the URL (e.g. https://youtu.be/xxxx#mytag#music). Tags will appear in the caption and are saved for navigation. See all your tags with /tags.<br>
+    • You can also use <b>/split</b> to set the maximum part size for video splitting (250MB, 500MB, 1GB, 2GB).<br><br>
     <blockquote expandable>
     <b>Бот позволяет скачивать видео и аудио, а также работать с плейлистами.</b><br><br>
     • Просто отправьте ссылку на видео, и бот начнет загрузку.<br>
@@ -96,9 +98,10 @@ class Config(object):
     • Загрузите файл cookie – это позволит скачивать приватные видео и плейлисты.<br>
     • Проверьте или обновите cookie с помощью команд <b>/check_cookie</b>, <b>/download_cookie</b>, <b>/save_as_cookie</b> и <b>/cookies_from_browser</b>.<br>
     • Чтобы очистить свою папку на сервере от лишних файлов (например от старых cookies или медиа) используйте команду <b>/clean</b>.<br>
-    • Также доступны <b>/clean cookies</b>, <b>/clean logs</b>, <b>/clean tags</b>, <b>/clean format</b> — для удаления только cookies, логов, тегов или файла формата.<br>
+    • Также доступны <b>/clean cookies</b>, <b>/clean logs</b>, <b>/clean tags</b>, <b>/clean format</b>, <b>/clean split</b> — для удаления только cookies, логов, тегов, размера обрезки или файла формата.<br>
     • Узнайте свою статистику использования и логи командой <b>/usage</b>.<br>
     • Можно добавлять теги к любой ссылке: просто добавьте #тег1#тег2 после URL (например, https://youtu.be/xxxx#mytag#music). Теги появятся в подписи и сохраняются для навигации. Посмотреть все свои теги — командой /tags.<br>
+    • Также доступна <b>/split</b> — для выбора максимального размера части при нарезке видео (250MB, 500MB, 1GB, 2GB).<br>
     </blockquote>
     <br>
     <i>Developed by</i> @upekshaip
