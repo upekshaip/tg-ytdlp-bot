@@ -502,13 +502,13 @@ def format_option_callback(app, callback_query):
     # If the Back button is pressed - we return to the main menu
     if data == "back":
         main_keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("❓ Always Ask", callback_data="format_option|alwaysask")],
-            [InlineKeyboardButton("💻<=4k (best for desktop TG app)", callback_data="format_option|bv2160")],
-            [InlineKeyboardButton("📱<=FullHD (best for mobile TG app)", callback_data="format_option|bv1080")],
-            [InlineKeyboardButton("📈bestvideo+bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
-            [InlineKeyboardButton("📉best (no ffmpeg)", callback_data="format_option|best")],
-            [InlineKeyboardButton("Others", callback_data="format_option|others")],
-            [InlineKeyboardButton("🎚 custom", callback_data="format_option|custom")],
+            [InlineKeyboardButton("❓ Always Ask (menu + buttons)", callback_data="format_option|alwaysask")],
+            [InlineKeyboardButton("🎛 Others (144p - 4320p)", callback_data="format_option|others")],
+            [InlineKeyboardButton("💻4k (best for PC/Mac Telegram)", callback_data="format_option|bv2160")],
+            [InlineKeyboardButton("📱FullHD (best for mobile Telegram)", callback_data="format_option|bv1080")],
+            [InlineKeyboardButton("📈Bestvideo+Bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
+            #[InlineKeyboardButton("📉best (no ffmpeg) (bad)", callback_data="format_option|best")],
+            [InlineKeyboardButton("🎚 Custom (enter your own)", callback_data="format_option|custom")],
             [InlineKeyboardButton("🔙 Cancel", callback_data="format_option|cancel")]
         ])
         callback_query.edit_message_text("Select a format option or send a custom one using `/format <format_string>`:", reply_markup=main_keyboard)
