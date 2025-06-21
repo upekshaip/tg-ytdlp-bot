@@ -1,4 +1,4 @@
-# Version 1.0.6 - Оптимизация автотегов: быстрый поиск по суффиксам домена для porn.txt, точный поиск по supported.txt
+# Version 1.5.0 - Always Ask по умолчанию, авто-санитизация тегов
 import pyrebase
 import re
 import os
@@ -27,6 +27,7 @@ from urllib.parse import urlparse
 from pyrogram.errors import FloodWait
 import tldextract
 from pyrogram.types import ReplyKeyboardMarkup
+import json
 
 def is_tiktok_url(url: str) -> bool:
     """
@@ -433,19 +434,20 @@ def set_format(app, message):
         send_to_logger(message, f"Format updated to: {custom_format}")
     else:
         # Main Menu with A Few Popular Options, Plus The Others Button
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("💻<=4k (best for desktop TG app)", callback_data="format_option|bv2160")],
-            [InlineKeyboardButton("📱<=FullHD (best for mobile TG app)", callback_data="format_option|bv1080")],
-            [InlineKeyboardButton("📈bestvideo+bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
-            [InlineKeyboardButton("📉best (no ffmpeg)", callback_data="format_option|best")],
-            [InlineKeyboardButton("Others", callback_data="format_option|others")],
-            [InlineKeyboardButton("🎚 custom", callback_data="format_option|custom")],
+        main_keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("❓ Always Ask (menu + buttons)", callback_data="format_option|alwaysask")],
+            [InlineKeyboardButton("🎛 Others (144p - 4320p)", callback_data="format_option|others")],
+            [InlineKeyboardButton("💻4k (best for PC/Mac Telegram)", callback_data="format_option|bv2160")],
+            [InlineKeyboardButton("📱FullHD (best for mobile Telegram)", callback_data="format_option|bv1080")],
+            [InlineKeyboardButton("📈Bestvideo+Bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
+            #[InlineKeyboardButton("📉best (no ffmpeg) (bad)", callback_data="format_option|best")],
+            [InlineKeyboardButton("🎚 Custom (enter your own)", callback_data="format_option|custom")],
             [InlineKeyboardButton("🔙 Cancel", callback_data="format_option|cancel")]
         ])
         app.send_message(
             user_id,
             "Select a format option or send a custom one using `/format <format_string>`:",
-            reply_markup=keyboard
+            reply_markup=main_keyboard
         )
         send_to_logger(message, "Format menu sent.")
 
@@ -500,6 +502,7 @@ def format_option_callback(app, callback_query):
     # If the Back button is pressed - we return to the main menu
     if data == "back":
         main_keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("❓ Always Ask", callback_data="format_option|alwaysask")],
             [InlineKeyboardButton("💻<=4k (best for desktop TG app)", callback_data="format_option|bv2160")],
             [InlineKeyboardButton("📱<=FullHD (best for mobile TG app)", callback_data="format_option|bv1080")],
             [InlineKeyboardButton("📈bestvideo+bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
@@ -547,6 +550,15 @@ def format_option_callback(app, callback_query):
     callback_query.edit_message_text(f"✅ Format updated to:\n{chosen_format}")
     callback_query.answer("✅ Format saved.")
     send_to_logger(callback_query.message, f"Format updated to: {chosen_format}")
+
+    if data == "alwaysask":
+        user_dir = os.path.join("users", str(user_id))
+        create_directory(user_dir)
+        with open(os.path.join(user_dir, "format.txt"), "w", encoding="utf-8") as f:
+            f.write("ALWAYS_ASK")
+        callback_query.edit_message_text("✅ Format set to: Always Ask. Now you will be prompted for quality each time you send a URL.")
+        send_to_logger(callback_query.message, "Format set to ALWAYS_ASK.")
+        return
 
 #####################################################################################
 
@@ -1126,19 +1138,46 @@ def video_url_extractor(app, message):
     global active_downloads
     check_user(message)
     user_id = message.chat.id
+    user_dir = os.path.join("users", str(user_id))
+    format_file = os.path.join(user_dir, "format.txt")
+
+    # По умолчанию спрашиваем качество, если не выбран конкретный формат
+    should_ask = True
+    if os.path.exists(format_file):
+        with open(format_file, "r", encoding="utf-8") as f:
+            fmt = f.read().strip()
+        # Не спрашиваем, только если формат задан и это НЕ "ALWAYS_ASK"
+        if fmt != "ALWAYS_ASK":
+            should_ask = False
+
+    if should_ask:
+        url, video_start_with, _, _, tags, _, tag_error = extract_url_range_tags(message.text)
+        # Добавляем проверку на ошибку в тегах
+        if tag_error:
+            wrong, example = tag_error
+            app.send_message(user_id, f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}", reply_to_message_id=message.id)
+            return
+        ask_quality_menu(app, message, url, tags, video_start_with)
+        return
+
+    # Этот код выполняется, только если пользователь выбрал конкретный формат
     with playlist_errors_lock:
         keys_to_remove = [k for k in playlist_errors if k.startswith(f"{user_id}_")]
         for key in keys_to_remove:
             del playlist_errors[key]
+            
     if get_active_download(user_id):
         app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_to_message_id=message.id)
         return
+        
     full_string = message.text
+    # Также добавляем проверку на ошибку в тегах здесь
     url, video_start_with, video_end_with, playlist_name, tags, tags_text, tag_error = extract_url_range_tags(full_string)
     if tag_error:
         wrong, example = tag_error
         app.send_message(user_id, f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}", reply_to_message_id=message.id)
         return
+    
     if url:
         users_first_name = message.chat.first_name
         send_to_logger(message, f"User entered a **url**\n **user's name:** {users_first_name}\nURL: {full_string}")
@@ -1148,11 +1187,6 @@ def video_url_extractor(app, message):
                 return
         # --- TikTok: автотег профиля и без title ---
         is_tiktok = is_tiktok_url(url)
-        tiktok_profile = ''
-        if is_tiktok:
-            tiktok_profile = extract_tiktok_profile(url)
-            if tiktok_profile:
-                tags = tags + [f'#{tiktok_profile}']
         auto_tags = get_auto_tags(url, tags)
         all_tags = tags + auto_tags
         tags_text_full = ' '.join(all_tags)
@@ -1217,66 +1251,60 @@ def truncate_caption(
 ) -> Tuple[str, str, str, str, str, bool]:
     """
     Возвращает: (title_html, pre_block, blockquote_content, tags_block, link_block, was_truncated)
-    title_html — жирный title вне цитаты
-    pre_block — таймкоды вне цитаты (или пусто)
-    blockquote_content — только description (без таймкодов) внутри <blockquote expandable>
-    tags_block — теги вне цитаты
-    link_block — ссылка вне цитаты
-    was_truncated — был ли усечён description или таймкоды
     """
     title_html = f'<b>{title}</b>' if title else ''
-    timestamp_pattern = r'^\s*(\d{1,2}[:\.]\d{2}(?::\d{2})?)\s+'
+    # Паттерн для поиска таймкодов в начале строки (00:00, 0:00:00, 0.00 и т.д.)
+    timestamp_pattern = r'^\s*(\d{1,2}:\d{2}(?::\d{2})?|\d{1,2}\.\d{2}(?:\.\d{2})?)\s+.*'
+
     lines = description.split('\n') if description else []
-    pre_block = ''
     pre_block_lines = []
     post_block_lines = []
-    in_timestamps = False
-    for i, line in enumerate(lines):
+
+    # Разделяем строки на таймкоды и основной текст
+    for line in lines:
         if re.match(timestamp_pattern, line):
-            pre_block += (line + '\n')
             pre_block_lines.append(line)
-            in_timestamps = True
         else:
-            if in_timestamps:
-                post_block_lines = lines[i:]
-                break
-    else:
-        if not in_timestamps:
-            post_block_lines = lines
-    post_block = '\n'.join(post_block_lines).strip() if post_block_lines else ''
+            post_block_lines.append(line)
+    
+    pre_block_str = '\n'.join(pre_block_lines)
+    post_block_str = '\n'.join(post_block_lines).strip()
+
     tags_block = (tags_text.strip() + '\n') if tags_text and tags_text.strip() else ''
     link_block = f'<a href="{url}">🔗 Video URL</a>'
-    html_quote_overhead = len('<blockquote expandable>') + len('</blockquote>')
-    # --- Корректируем лимит: если title_html пустой (тикток), не учитываем его длину ---
-    lim = max_length - (len(title_html) if title_html else 0) - len(pre_block) - len(tags_block) - len(link_block) - html_quote_overhead - 2
+    
     was_truncated = False
-    blockquote_content = post_block
-    if len(blockquote_content) > lim:
-        blockquote_content = blockquote_content[:lim-3] + '...'
+    
+    # Рассчитываем постоянный overhead
+    overhead = len(tags_block) + len(link_block)
+    if title_html:
+        overhead += len(title_html) + 2 # for '\n\n'
+    if pre_block_str:
+        overhead += len(pre_block_str) + 1 # for '\n'
+    
+    # Рассчитываем лимит для blockquote (с учетом тегов <blockquote>)
+    blockquote_overhead = len('<blockquote expandable></blockquote>') + 1 # for '\n'
+    blockquote_limit = max_length - overhead - blockquote_overhead
+    
+    blockquote_content = post_block_str
+    if len(blockquote_content) > blockquote_limit:
+        blockquote_content = blockquote_content[:blockquote_limit - 4] + '...'
         was_truncated = True
-    total_len = (len(title_html) if title_html else 0) + len(pre_block) + len(tags_block) + len(link_block) + html_quote_overhead + len(blockquote_content) + 2
-    if total_len > max_length and pre_block_lines:
-        cut_lines = pre_block_lines.copy()
-        cut = False
-        while cut_lines and ((len(title_html) if title_html else 0) + len('\n'.join(cut_lines)) + len(tags_block) + len(link_block) + html_quote_overhead + len(blockquote_content) + 2 > max_length):
-            cut_lines.pop()
-            cut = True
-        pre_block = '\n'.join(cut_lines)
-        if cut and pre_block:
-            pre_block += '\n...'
-        elif cut:
-            pre_block = '...'
-        was_truncated = True
-    total_len = (len(title_html) if title_html else 0) + len(pre_block) + len(tags_block) + len(link_block) + html_quote_overhead + len(blockquote_content) + 2
-    if total_len > max_length:
-        pre_block = ''
-        lim = max_length - (len(title_html) if title_html else 0) - len(tags_block) - len(link_block) - html_quote_overhead - 2
-        if lim < 0:
-            lim = 0
-        if len(blockquote_content) > lim:
-            blockquote_content = blockquote_content[:max(0, lim-3)] + '...'
-        was_truncated = True
-    return title_html, pre_block, blockquote_content, tags_block, link_block, was_truncated
+
+    # Итоговая проверка и возможное усечение pre_block
+    if overhead + len(blockquote_content) + blockquote_overhead > max_length:
+        pre_block_limit = max_length - (overhead - len(pre_block_str) -1) - len(blockquote_content) - blockquote_overhead
+        if pre_block_limit < len(pre_block_str):
+            pre_block_str = pre_block_str[:pre_block_limit-4] + '...'
+            was_truncated = True
+        else: # если даже с усеченным pre_block не влезает, усекаем всё
+             pre_block_str = ''
+
+
+    if pre_block_str:
+        pre_block_str += '\n'
+
+    return title_html, pre_block_str, blockquote_content, tags_block, link_block, was_truncated
 
 def send_videos(
     message,
@@ -1755,7 +1783,7 @@ def down_and_audio(app, message, url, tags_text):
 # Download_and_up function
 #########################################
 
-def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False):
+def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None):
     user_id = message.chat.id
     try:
         # Проверяем, есть ли сохраненное время ожидания
@@ -1829,23 +1857,25 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 if error_key in playlist_errors:
                     del playlist_errors[error_key]
 
-
-        custom_format_path = os.path.join(user_dir_name, "format.txt")
-        if os.path.exists(custom_format_path):
-            with open(custom_format_path, "r", encoding="utf-8") as f:
-                custom_format = f.read().strip()
-            if custom_format.lower() == "best":
-                attempts = [{'format': custom_format, 'prefer_ffmpeg': False}]
-            else:
-                attempts = [{'format': custom_format, 'prefer_ffmpeg': True, 'merge_output_format': 'mp4'}]
+        if format_override:
+            attempts = [{'format': format_override, 'prefer_ffmpeg': True, 'merge_output_format': 'mp4'}]
         else:
-            attempts = [
-                {'format': 'bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
-                'prefer_ffmpeg': True, 'merge_output_format': 'mp4', 'extract_flat': False},
-                {'format': 'bestvideo+bestaudio/best',
-                'prefer_ffmpeg': True, 'merge_output_format': 'mp4', 'extract_flat': False},
-                {'format': 'best', 'prefer_ffmpeg': False, 'extract_flat': False}
-            ]
+            custom_format_path = os.path.join(user_dir_name, "format.txt")
+            if os.path.exists(custom_format_path):
+                with open(custom_format_path, "r", encoding="utf-8") as f:
+                    custom_format = f.read().strip()
+                if custom_format.lower() == "best":
+                    attempts = [{'format': custom_format, 'prefer_ffmpeg': False}]
+                else:
+                    attempts = [{'format': custom_format, 'prefer_ffmpeg': True, 'merge_output_format': 'mp4'}]
+            else:
+                attempts = [
+                    {'format': 'bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
+                    'prefer_ffmpeg': True, 'merge_output_format': 'mp4', 'extract_flat': False},
+                    {'format': 'bestvideo+bestaudio/best',
+                    'prefer_ffmpeg': True, 'merge_output_format': 'mp4', 'extract_flat': False},
+                    {'format': 'best', 'prefer_ffmpeg': False, 'extract_flat': False}
+                ]
 
 
         status_msg = app.send_message(user_id, "📹 Video is processing...")
@@ -1935,8 +1965,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
                 if ("m3u8" in url.lower()) or (info_dict.get("protocol") == "m3u8_native"):
                     is_hls = True
-                    if "format" in ytdl_opts:
-                        del ytdl_opts["format"]
+                    # if "format" in ytdl_opts:
+                    #     del ytdl_opts["format"]
                     ytdl_opts["downloader"] = "ffmpeg"
                     ytdl_opts["hls_use_mpegts"] = True
                 try:
@@ -2017,28 +2047,15 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             full_video_title = info_dict.get("description", video_title)
             video_title = sanitize_filename(video_title) if video_title else "video"
 
-            # --- YouTube: автотег канала ---
-            channel_tag = None
-            if ("youtube.com" in url or "youtu.be" in url):
-                channel_name = info_dict.get("channel") or info_dict.get("uploader")
-                if channel_name:
-                    safe_channel = re.sub(r"[^\w\d_]", "_", channel_name)
-                    channel_tag = f'#{safe_channel}'
-            # ...
+            # --- Используем новую централизованную функцию для всех тегов ---
+            tags_text_final = generate_final_tags(url, tags_text.split(), info_dict)
+            save_user_tags(user_id, tags_text_final.split())
+
             # Если rename_name не задано, устанавливаем его равным video_title
             if rename_name is None:
                 rename_name = video_title
 
-            dir_path = os.path.join("users", str(user_id))  # Перемещаем определение dir_path сюда
-
-            # --- Добавляем канал к тегам, если найден ---
-            tags_text_final = tags_text
-            if channel_tag and channel_tag.lower() not in tags_text.lower():
-                tags_text_final = (tags_text.strip() + ' ' + channel_tag).strip()
-                # Сохраняем канал в tags.txt пользователя
-                save_user_tags(user_id, [channel_tag])
-            else:
-                tags_text_final = tags_text
+            dir_path = os.path.join("users", str(user_id))
 
             # Сохраняем полное название в файл
             full_title_path = os.path.join(dir_path, "full_title.txt")
@@ -2714,18 +2731,19 @@ def extract_url_range_tags(text: str):
     error_tag_example = None
     tag_part = after_playlist.strip()
     if tag_part:
-        tag_matches = re.findall(r'#([^#\s]+)', tag_part)
         for raw in re.finditer(r'#([^#\s]+)', tag_part):
             tag = raw.group(1)
-            # Разрешаем любые буквы Unicode, цифры и _
+            # Проверяем, что тег состоит только из разрешенных символов
             if not re.fullmatch(r'[\w\d_]+', tag, re.UNICODE):
                 error_tag = tag
+                # Для примера показываем пользователю, как мог бы выглядеть исправленный тег
                 example = re.sub(r'[^\w\d_]', '_', tag, flags=re.UNICODE)
                 error_tag_example = f'#{example}'
-                break
+                break  # Прерываем проверку после первой же ошибки
             tags.append(f'#{tag}')
         # Формируем tags_text с пробелами между тегами
         tags_text = ' '.join(tags)
+    # Возвращаем кортеж с ошибкой, если она была найдена
     return url, video_start_with, video_end_with, playlist_name, tags, tags_text, (error_tag, error_tag_example) if error_tag else None
 
 def save_user_tags(user_id, tags):
@@ -2858,11 +2876,11 @@ def get_auto_tags(url, user_tags):
     domain_parts, main_domain = extract_domain_parts(url)
     # 1. Porn check (по всем суффиксам домена, но с учётом белого списка)
     if is_porn_domain(domain_parts):
-        auto_tags.add('#porn')
+        auto_tags.add(sanitize_autotag('porn'))
     # 2. Supported check (только точное совпадение слова с доменом)
     for word in SUPPORTED_WORDS:
         if word == main_domain:
-            auto_tags.add(f'#{word}')
+            auto_tags.add(sanitize_autotag(word))
     # Не дублируем пользовательские теги
     auto_tags = [t for t in auto_tags if t.lower() not in [ut.lower() for ut in user_tags]]
     return auto_tags
@@ -2907,7 +2925,7 @@ def split_command(app, message):
     app.send_message(user_id, "Choose max part size for video splitting:", reply_markup=keyboard)
     send_to_logger(message, "User opened /split menu.")
 
-@app.on_callback_query(filters.regex(r"^split_size\\|"))
+@app.on_callback_query(filters.regex(r"^split_size\|"))
 def split_size_callback(app, callback_query):
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]
@@ -2941,5 +2959,217 @@ def get_user_split_size(user_id):
         except Exception:
             pass
     return 1950 * 1024 * 1024  # default 1.95GB
+
+# --- Получение форматов и метаданных через yt-dlp ---
+def get_video_formats(url, user_id=None, playlist_start_index=1):
+    ytdl_opts = {
+        'quiet': True,
+        'skip_download': True,
+        'forcejson': True,
+        'no_warnings': True,
+        'extract_flat': False,
+        'simulate': True,
+        'playlist_items': str(playlist_start_index),
+    }
+    if user_id is not None:
+        user_dir = os.path.join("users", str(user_id))
+        cookie_file = os.path.join(user_dir, os.path.basename(Config.COOKIE_FILE_PATH))
+        if os.path.exists(cookie_file):
+            ytdl_opts['cookiefile'] = cookie_file
+    with YoutubeDL(ytdl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+    if 'entries' in info and info.get('entries'):
+        return info['entries'][0]
+    return info
+
+# --- Always Ask обработка ---
+def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
+    user_id = message.chat.id
+    proc_msg = None
+    try:
+        proc_msg = app.send_message(user_id, "Processing... ♻️", reply_to_message_id=message.id)
+        info = get_video_formats(url, user_id, playlist_start_index)
+    except Exception as e:
+        error_text = f"❌ Error while getting video info:\n{e}\n\nFirst, try the /clean command and then try again.\nIf the error persists, YouTube may require authentication.\nPlease update your cookie.txt using /download_cookie or /cookies_from_browser and try again."
+        if proc_msg:
+            app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=error_text)
+        else:
+            app.send_message(user_id, error_text, reply_to_message_id=message.id)
+        send_to_logger(message, f"Always Ask menu error for {url}: {e}")
+        return
+    title = info.get('title', 'Video')
+    video_id = info.get('id')
+    # --- Автотеги ---
+    auto_tags = get_auto_tags(url, tags)
+    all_tags = tags + auto_tags
+    tags_text = ' '.join(all_tags)
+    # --- Картинка ---
+    thumb_path = None
+    user_dir = os.path.join("users", str(user_id))
+    create_directory(user_dir)
+    if ("youtube.com" in url or "youtu.be" in url) and video_id:
+        thumb_path = os.path.join(user_dir, f"yt_thumb_{video_id}.jpg")
+        try:
+            download_thumbnail(video_id, thumb_path)
+        except Exception:
+            thumb_path = None
+    # --- Кнопки по форматам ---
+    buttons = []
+    # Собираем все доступные разрешения видео (высоты)
+    available_heights = set()
+    for f in info.get('formats', []):
+        if f.get('vcodec', 'none') != 'none' and f.get('height'):
+            available_heights.add(f['height'])
+    # Список для сортировки и отображения
+    quality_order = [144, 240, 360, 480, 720, 1080, 1440, 2160, 4320]
+    quality_buttons = []
+    # Создаем кнопки в правильном порядке
+    for height in quality_order:
+        if height in available_heights:
+            quality_buttons.append(InlineKeyboardButton(f"📹 {height}p", callback_data=f"askq|{height}p"))
+    # Если ни одного стандартного качества не нашлось, но есть другие
+    if not quality_buttons and available_heights:
+        for height in sorted(list(available_heights)):
+             quality_buttons.append(InlineKeyboardButton(f"📹 {height}p", callback_data=f"askq|{height}p"))
+    # Располагаем кнопки в 3 ряда
+    for i in range(0, len(quality_buttons), 3):
+        buttons.append(quality_buttons[i:i+3])
+    # --- Кнопка mp3 ---
+    buttons.append([InlineKeyboardButton("🎵 audio (mp3)", callback_data="askq|mp3")])
+    keyboard = InlineKeyboardMarkup(buttons)
+    # --- Caption ---
+    hidden_link = f'<a href="{url}">&#8203;</a>'
+    cap = f"<b>{title}</b>\n"
+    if tags_text:
+        cap += f"{tags_text}\n"
+    cap += hidden_link
+    # --- Отправка ---
+    if proc_msg:
+        app.delete_messages(user_id, proc_msg.id)
+    if thumb_path and os.path.exists(thumb_path):
+        app.send_photo(user_id, thumb_path, caption=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_to_message_id=message.id)
+    else:
+        app.send_message(user_id, cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_to_message_id=message.id)
+    send_to_logger(message, f"Always Ask menu sent for {url}")
+
+# --- Callback обработчик ---
+@app.on_callback_query(filters.regex(r"^askq\|"))
+def askq_callback(app, callback_query):
+    user_id = callback_query.from_user.id
+    data = callback_query.data.split("|")[1]
+    original_message = callback_query.message.reply_to_message
+    if not original_message:
+        callback_query.answer("❌ Error: Original message not found. It might have been deleted. Please send the link again.", show_alert=True)
+        callback_query.message.delete()
+        return
+
+    url = None
+    # Сначала ищем скрытую ссылку в сообщении с кнопками
+    if callback_query.message.caption_entities:
+        for entity in callback_query.message.caption_entities:
+            if entity.type == enums.MessageEntityType.TEXT_LINK and entity.url:
+                url = entity.url
+                break
+    
+    # Если не нашли, извлекаем из оригинального сообщения пользователя
+    if not url and original_message.text:
+        # Важно: здесь нам нужна только сама ссылка, без диапазона
+        url_match = re.search(r'https?://[^\s\*#]+', original_message.text)
+        if url_match:
+            url = url_match.group(0)
+
+    if not url:
+        callback_query.answer("❌ Error: Original URL not found. Please send the link again.", show_alert=True)
+        callback_query.message.delete()
+        return
+
+    # Теги берем из сообщения с кнопками
+    tags = []
+    caption_text = callback_query.message.caption
+    if caption_text:
+        tag_matches = re.findall(r'#\S+', caption_text)
+        if tag_matches:
+            tags = tag_matches
+    tags_text = ' '.join(tags)
+
+    # После того как все данные извлечены, удаляем сообщение с кнопками
+    callback_query.message.delete()
+
+    if data == "mp3":
+        callback_query.answer("Downloading audio...")
+        # Передаем оригинальное сообщение пользователя, т.к. в нем есть диапазон
+        down_and_audio(app, original_message, url, tags_text)
+        return
+
+    quality_str = data.replace('p', '')
+    try:
+        quality_val = int(quality_str)
+        fmt = f"bestvideo[height<={quality_val}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
+    except ValueError:
+        callback_query.answer("Unknown quality.")
+        return
+
+    callback_query.answer(f"Downloading {data}...")
+    # Передаем оригинальное сообщение пользователя, т.к. в нем есть диапазон
+    down_and_up_with_format(app, original_message, url, fmt, tags_text)
+
+# --- Вспомогательная функция для скачивания с форматом ---
+def down_and_up_with_format(app, message, url, fmt, tags_text):
+    # Извлекаем диапазон и другие параметры из оригинального сообщения пользователя
+    full_string = message.text
+    _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
+
+    # Эту ошибку уже должны были поймать ранее, но для подстраховки
+    if tag_error:
+        wrong, example = tag_error
+        app.send_message(message.chat.id, f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}", reply_to_message_id=message.id)
+        return
+
+    video_count = video_end_with - video_start_with + 1
+    
+    # Проверяем, является ли ссылка на TikTok
+    is_tiktok = is_tiktok_url(url)
+
+    # Вызываем основную функцию загрузки с правильными параметрами плейлиста
+    down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=is_tiktok, format_override=fmt)
+
+# Version 1.4.1 - Добавлена функция sanitize_autotag для автотегов
+def sanitize_autotag(tag: str) -> str:
+    # Оставляем только буквы (любой язык), цифры и _
+    return '#' + re.sub(r'[^\w\d_]', '_', tag.lstrip('#'), flags=re.UNICODE)
+
+def generate_final_tags(url, user_tags, info_dict):
+    """Генерирует финальную строку тегов, включая пользовательские и все виды автоматических."""
+    
+    # 1. Начинаем с тегов, заданных пользователем (приводим к set для уникальности)
+    final_tags = set(user_tags)
+
+    # 2. Добавляем авто-теги (порно, supported.txt)
+    auto_tags_list = get_auto_tags(url, list(final_tags))
+    for tag in auto_tags_list:
+        final_tags.add(tag)
+
+    # 3. Добавляем тег профиля TikTok
+    if is_tiktok_url(url):
+        tiktok_profile = extract_tiktok_profile(url)
+        if tiktok_profile:
+            final_tags.add(sanitize_autotag(tiktok_profile))
+        # Также добавляем общий тег #tiktok
+        final_tags.add("#tiktok")
+
+    # 4. Добавляем тег канала YouTube (из info_dict)
+    if ("youtube.com" in url or "youtu.be" in url) and info_dict:
+        channel_name = info_dict.get("channel") or info_dict.get("uploader")
+        if channel_name:
+            final_tags.add(sanitize_autotag(channel_name))
+            
+    # Собираем уникальные теги без учета регистра, сохраняя регистр первого вхождения
+    unique_tags_case_insensitive = {}
+    # Сортируем для стабильного порядка и предсказуемости
+    for tag in sorted(list(final_tags)):
+        if tag.lower() not in unique_tags_case_insensitive:
+            unique_tags_case_insensitive[tag.lower()] = tag
+
+    return ' '.join(unique_tags_case_insensitive.values())
 
 app.run()
