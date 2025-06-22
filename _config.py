@@ -42,7 +42,8 @@ class Config(object):
 
     # --- Белый список доменов, которые не считаются порно ---
     WHITELIST = [
-        'vk.com', 'm.vk.com', 'vkvideo.ru', 'vkontakte.ru',
+        'x.com', 'tiktok.com', 'facebook.com', 'x.ai', 'vk.ru',
+        'vk.com', 'm.vk.com', 'vkvideo.ru', 'vkontakte.ru'
         # Можно добавить другие безопасные домены
     ]
     # Список доменов TikTok
