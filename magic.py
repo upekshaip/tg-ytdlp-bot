@@ -1,4 +1,4 @@
-# Version 1.5.0 - Always Ask по умолчанию, авто-санитизация тегов
+# Version 1.5.6 - Глубокое исправление обработки ссылок из поисковиков
 import pyrebase
 import re
 import os
@@ -23,18 +23,37 @@ import subprocess
 import signal
 import sys
 from config import Config
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 from pyrogram.errors import FloodWait
 import tldextract
 from pyrogram.types import ReplyKeyboardMarkup
 import json
+
+# --- Новая функция для очистки URL только для тегов ---
+def get_clean_url_for_tagging(url: str) -> str:
+    """
+    Извлекает последнюю (самую вложенную) ссылку из URL-оберток поисковиков.
+    Используется ТОЛЬКО для генерации тегов.
+    """
+    if not isinstance(url, str):
+        return ''
+    last_http_pos = url.rfind('http://')
+    last_https_pos = url.rfind('https://')
+
+    start_of_real_url_pos = max(last_http_pos, last_https_pos)
+
+    # Если нашли еще один http/https (не в самом начале), то это и есть реальная ссылка
+    if start_of_real_url_pos > 0:
+        return url[start_of_real_url_pos:]
+    return url
 
 def is_tiktok_url(url: str) -> bool:
     """
     Проверяет, является ли URL ссылкой на TikTok
     """
     try:
-        parsed_url = urlparse(url)
+        clean_url = get_clean_url_for_tagging(url)
+        parsed_url = urlparse(clean_url)
         return any(domain in parsed_url.netloc for domain in Config.TIKTOK_DOMAINS)
     except:
         return False
@@ -43,7 +62,8 @@ def is_tiktok_url(url: str) -> bool:
 def extract_tiktok_profile(url: str) -> str:
     # Ищем @username после домена
     import re
-    m = re.search(r'/@([\w\.\-_]+)', url)
+    clean_url = get_clean_url_for_tagging(url)
+    m = re.search(r'/@([\w\.\-_]+)', clean_url)
     if m:
         return m.group(1)
     return ''
@@ -2071,7 +2091,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 **📋 Video Info**
 > **Number:** {x + video_start_with}
 > **Title:** {video_title}
-> **Caption:** {rename_name}
 > **ID:** {video_id}
 """
 
@@ -2703,10 +2722,12 @@ def clean_telegram_tag(tag: str) -> str:
 
 # --- Функция для извлечения url, диапазона и тегов из текста ---
 def extract_url_range_tags(text: str):
+    # Эта функция теперь всегда возвращает ПОЛНУЮ оригинальную ссылку для скачивания
     url_match = re.search(r'https?://[^\s\*#]+', text)
     if not url_match:
         return None, 1, 1, None, [], '', None
     url = url_match.group(0)
+
     after_url = text[url_match.end():]
     # Диапазон
     range_match = re.match(r'\*([0-9]+)\*([0-9]+)', after_url)
@@ -2872,8 +2893,9 @@ def extract_domain_parts(url):
 # --- Вспомогательная функция для поиска автотегов ---
 def get_auto_tags(url, user_tags):
     auto_tags = set()
-    url_l = url.lower()
-    domain_parts, main_domain = extract_domain_parts(url)
+    clean_url = get_clean_url_for_tagging(url)
+    url_l = clean_url.lower()
+    domain_parts, main_domain = extract_domain_parts(url_l)
     # 1. Porn check (по всем суффиксам домена, но с учётом белого списка)
     if is_porn_domain(domain_parts):
         auto_tags.add(sanitize_autotag('porn'))
@@ -2881,6 +2903,9 @@ def get_auto_tags(url, user_tags):
     for word in SUPPORTED_WORDS:
         if word == main_domain:
             auto_tags.add(sanitize_autotag(word))
+    # 3. YouTube check (включая youtu.be)
+    if ("youtube.com" in url_l or "youtu.be" in url_l):
+        auto_tags.add("#youtube")
     # Не дублируем пользовательские теги
     auto_tags = [t for t in auto_tags if t.lower() not in [ut.lower() for ut in user_tags]]
     return auto_tags
@@ -2911,7 +2936,7 @@ def split_command(app, message):
         return
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
-    # Кнопки выбора размера
+    # Кнопки выбора размера в 2-3 ряда
     sizes = [
         ("250 MB", 250 * 1024 * 1024),
         ("500 MB", 500 * 1024 * 1024),
@@ -2919,7 +2944,15 @@ def split_command(app, message):
         ("1.5 GB", 1536 * 1024 * 1024),
         ("2 GB (default)", 1950 * 1024 * 1024)
     ]
-    buttons = [[InlineKeyboardButton(text, callback_data=f"split_size|{size}")] for text, size in sizes]
+    buttons = []
+    # Располагаем кнопки в 2-3 ряда
+    for i in range(0, len(sizes), 2):
+        row = []
+        for j in range(2):
+            if i + j < len(sizes):
+                text, size = sizes[i + j]
+                row.append(InlineKeyboardButton(text, callback_data=f"split_size|{size}"))
+        buttons.append(row)
     buttons.append([InlineKeyboardButton("🔙 Cancel", callback_data="split_size|cancel")])
     keyboard = InlineKeyboardMarkup(buttons)
     app.send_message(user_id, "Choose max part size for video splitting:", reply_markup=keyboard)
@@ -3031,6 +3064,11 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
     if not quality_buttons and available_heights:
         for height in sorted(list(available_heights)):
              quality_buttons.append(InlineKeyboardButton(f"📹 {height}p", callback_data=f"askq|{height}p"))
+    
+    # Если нет доступных качеств видео, добавляем кнопку лучшего качества
+    if not quality_buttons:
+        quality_buttons.append(InlineKeyboardButton("📹 Best Quality", callback_data="askq|best"))
+    
     # Располагаем кнопки в 3 ряда
     for i in range(0, len(quality_buttons), 3):
         buttons.append(quality_buttons[i:i+3])
@@ -3064,7 +3102,8 @@ def askq_callback(app, callback_query):
         return
 
     url = None
-    # Сначала ищем скрытую ссылку в сообщении с кнопками
+    # Сначала ищем скрытую ссылку в сообщении с кнопками.
+    # Эта ссылка - ПОЛНАЯ, оригинальная, как и нужно для скачивания.
     if callback_query.message.caption_entities:
         for entity in callback_query.message.caption_entities:
             if entity.type == enums.MessageEntityType.TEXT_LINK and entity.url:
@@ -3073,7 +3112,6 @@ def askq_callback(app, callback_query):
     
     # Если не нашли, извлекаем из оригинального сообщения пользователя
     if not url and original_message.text:
-        # Важно: здесь нам нужна только сама ссылка, без диапазона
         url_match = re.search(r'https?://[^\s\*#]+', original_message.text)
         if url_match:
             url = url_match.group(0)
@@ -3101,13 +3139,17 @@ def askq_callback(app, callback_query):
         down_and_audio(app, original_message, url, tags_text)
         return
 
-    quality_str = data.replace('p', '')
-    try:
-        quality_val = int(quality_str)
-        fmt = f"bestvideo[height<={quality_val}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
-    except ValueError:
-        callback_query.answer("Unknown quality.")
-        return
+    if data == "best":
+        callback_query.answer("Downloading best quality...")
+        fmt = "bestvideo+bestaudio/best"
+    else:
+        quality_str = data.replace('p', '')
+        try:
+            quality_val = int(quality_str)
+            fmt = f"bestvideo[height<={quality_val}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
+        except ValueError:
+            callback_query.answer("Unknown quality.")
+            return
 
     callback_query.answer(f"Downloading {data}...")
     # Передаем оригинальное сообщение пользователя, т.к. в нем есть диапазон
@@ -3145,11 +3187,13 @@ def generate_final_tags(url, user_tags, info_dict):
     final_tags = set(user_tags)
 
     # 2. Добавляем авто-теги (порно, supported.txt)
+    # Важно: передаем оригинальный URL в get_auto_tags, т.к. она сама его чистит
     auto_tags_list = get_auto_tags(url, list(final_tags))
     for tag in auto_tags_list:
         final_tags.add(tag)
 
     # 3. Добавляем тег профиля TikTok
+    # is_tiktok_url и extract_tiktok_profile сами очищают ссылку
     if is_tiktok_url(url):
         tiktok_profile = extract_tiktok_profile(url)
         if tiktok_profile:
@@ -3158,7 +3202,8 @@ def generate_final_tags(url, user_tags, info_dict):
         final_tags.add("#tiktok")
 
     # 4. Добавляем тег канала YouTube (из info_dict)
-    if ("youtube.com" in url or "youtu.be" in url) and info_dict:
+    clean_url_for_check = get_clean_url_for_tagging(url)
+    if ("youtube.com" in clean_url_for_check or "youtu.be" in clean_url_for_check) and info_dict:
         channel_name = info_dict.get("channel") or info_dict.get("uploader")
         if channel_name:
             final_tags.add(sanitize_autotag(channel_name))
