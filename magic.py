@@ -3101,25 +3101,22 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         for height in quality_order:
             if height in available_heights:
                 quality_key = f"{height}p"
-                button_text = f"📹 {quality_key}"
-                if quality_key in cached_qualities:
-                    button_text += " 🚀"
+                icon = "🚀" if quality_key in cached_qualities else "📹"
+                button_text = f"{icon} {quality_key}"
                 quality_buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         # Если ни одного стандартного качества не нашлось, но есть другие
         if not quality_buttons and available_heights:
             for height in sorted(list(available_heights)):
                 quality_key = f"{height}p"
-                button_text = f"📹 {quality_key}"
-                if quality_key in cached_qualities:
-                    button_text += " 🚀"
+                icon = "🚀" if quality_key in cached_qualities else "📹"
+                button_text = f"{icon} {quality_key}"
                 quality_buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         
         # Если нет доступных качеств видео, добавляем кнопку лучшего качества
         if not quality_buttons:
             quality_key = "best"
-            button_text = "📹 Best Quality"
-            if quality_key in cached_qualities:
-                button_text += " 🚀"
+            icon = "🚀" if quality_key in cached_qualities else "📹"
+            button_text = f"{icon} Best Quality"
             quality_buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         
         # Располагаем кнопки в 3 ряда
@@ -3127,9 +3124,8 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             buttons.append(quality_buttons[i:i+3])
         # --- Кнопка mp3 ---
         quality_key = "mp3"
-        button_text = "🎵 audio (mp3)"
-        if quality_key in cached_qualities:
-            button_text += " 🚀"
+        icon = "🚀" if quality_key in cached_qualities else "🎵"
+        button_text = f"{icon} audio (mp3)"
         buttons.append([InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}")])
         buttons.append([InlineKeyboardButton("🔙 Cancel", callback_data="askq|cancel")])
         keyboard = InlineKeyboardMarkup(buttons)
