@@ -1201,8 +1201,8 @@ def video_url_extractor(app, message):
     if url:
         users_first_name = message.chat.first_name
         send_to_logger(message, f"User entered a **url**\n **user's name:** {users_first_name}\nURL: {full_string}")
-        for j in range(len(Config.PORN_LIST)):
-            if Config.PORN_LIST[j] in full_string:
+        for j in range(len(Config.BLACK_LIST)):
+            if Config.BLACK_LIST[j] in full_string:
                 send_to_all(message, "User entered a porn content. Cannot be downloaded.")
                 return
         # --- TikTok: автотег профиля и без title ---
@@ -1344,11 +1344,12 @@ def send_videos(
     temp_desc_path = os.path.join(os.path.dirname(video_abs_path), "full_description.txt")
     was_truncated = False
     try:
+        # Логика упрощена: используем теги, которые уже были сгенерированы в down_and_up
         title_html, pre_block, blockquote_content, tags_block, link_block, was_truncated = truncate_caption(
             title=caption,
             description=full_video_title,
             url=video_url,
-            tags_text=tags_text,
+            tags_text=tags_text, # Используем финальные теги для расчета
             max_length=1024
         )
         # Формируем HTML caption: title вне цитаты, таймкоды вне цитаты, description в цитате, теги и ссылка вне цитаты
@@ -2848,23 +2849,30 @@ def download_thumbnail(video_id: str, dest: str) -> None:
 
 # --- Глобальные списки доменов и ключевых слов ---
 PORN_DOMAINS = set()
-SUPPORTED_WORDS = set()
+SUPPORTED_SITES = set()
+PORN_KEYWORDS = set()
 
 # --- Загрузка списков при старте ---
 def load_domain_lists():
-    global PORN_DOMAINS, SUPPORTED_WORDS
+    global PORN_DOMAINS, SUPPORTED_SITES, PORN_KEYWORDS
     try:
-        with open('porn.txt', 'r', encoding='utf-8', errors='ignore') as f:
+        with open(Config.PORN_DOMAINS_FILE, 'r', encoding='utf-8', errors='ignore') as f:
             PORN_DOMAINS = set(line.strip().lower() for line in f if line.strip())
     except Exception as e:
-        logger.error(f"Не удалось загрузить porn.txt: {e}")
+        logger.error(f"Не удалось загрузить {Config.PORN_DOMAINS_FILE}: {e}")
         PORN_DOMAINS = set()
     try:
-        with open('supported.txt', 'r', encoding='utf-8', errors='ignore') as f:
-            SUPPORTED_WORDS = set(line.strip().lower() for line in f if line.strip())
+        with open(Config.PORN_KEYWORDS_FILE, 'r', encoding='utf-8', errors='ignore') as f:
+            PORN_KEYWORDS = set(line.strip().lower() for line in f if line.strip())
     except Exception as e:
-        logger.error(f"Не удалось загрузить supported.txt: {e}")
-        SUPPORTED_WORDS = set()
+        logger.error(f"Не удалось загрузить {Config.PORN_KEYWORDS_FILE}: {e}")
+        PORN_KEYWORDS = set()
+    try:
+        with open(Config.SUPPORTED_SITES_FILE, 'r', encoding='utf-8', errors='ignore') as f:
+            SUPPORTED_SITES = set(line.strip().lower() for line in f if line.strip())
+    except Exception as e:
+        logger.error(f"Не удалось загрузить {Config.SUPPORTED_SITES_FILE}: {e}")
+        SUPPORTED_SITES = set()
 
 load_domain_lists()
 
@@ -2900,7 +2908,7 @@ def get_auto_tags(url, user_tags):
     if is_porn_domain(domain_parts):
         auto_tags.add(sanitize_autotag('porn'))
     # 2. Supported check (только точное совпадение слова с доменом)
-    for word in SUPPORTED_WORDS:
+    for word in SUPPORTED_SITES:
         if word == main_domain:
             auto_tags.add(sanitize_autotag(word))
     # 3. YouTube check (включая youtu.be)
@@ -2918,12 +2926,41 @@ def get_auto_tags(url, user_tags):
 def is_porn_domain(domain_parts):
     # Если любой суффикс домена в белом списке — не порно
     for dom in domain_parts:
-        if dom in Config.PORN_WHITELIST:
+        if dom in Config.WHITELIST:
             return False
     # Если любой суффикс домена в списке порно — это порно
     for dom in domain_parts:
         if dom in PORN_DOMAINS:
             return True
+    return False
+
+# --- Новая функция для проверки на порно ---
+def is_porn(url, title, description):
+    """
+    Проверяет контент на порнографию по домену и ключевым словам.
+    """
+    # 1. Проверка домена по URL
+    clean_url = get_clean_url_for_tagging(url)
+    domain_parts, _ = extract_domain_parts(clean_url)
+    if is_porn_domain(domain_parts):
+        return True
+
+    # 2. Проверка ключевых слов в заголовке и описании
+    title_lower = title.lower() if title else ""
+    description_lower = description.lower() if description else ""
+
+    logger.debug(f"is_porn check for url: {url}")
+    logger.debug(f"is_porn title: '{title_lower}'")
+    logger.debug(f"is_porn keywords being checked: {PORN_KEYWORDS}")
+
+    if not title_lower and not description_lower:
+        return False
+
+    for keyword in PORN_KEYWORDS:
+        if keyword in title_lower or keyword in description_lower:
+            logger.info(f"Porn keyword '{keyword}' found in title/description.")
+            return True
+
     return False
 
 # Version 1.3.0 - Добавлена команда /split для выбора размера частей видео
@@ -3186,7 +3223,7 @@ def generate_final_tags(url, user_tags, info_dict):
     # 1. Начинаем с тегов, заданных пользователем (приводим к set для уникальности)
     final_tags = set(user_tags)
 
-    # 2. Добавляем авто-теги (порно, supported.txt)
+    # 2. Добавляем авто-теги (porn, supported_sites.txt)
     # Важно: передаем оригинальный URL в get_auto_tags, т.к. она сама его чистит
     auto_tags_list = get_auto_tags(url, list(final_tags))
     for tag in auto_tags_list:
@@ -3208,6 +3245,12 @@ def generate_final_tags(url, user_tags, info_dict):
         if channel_name:
             final_tags.add(sanitize_autotag(channel_name))
             
+    # 5. NEW: Добавляем тег #porn на основе полной проверки
+    video_title = info_dict.get("title")
+    video_description = info_dict.get("description")
+    if is_porn(url, video_title, video_description):
+        final_tags.add("#porn")
+            
     # Собираем уникальные теги без учета регистра, сохраняя регистр первого вхождения
     unique_tags_case_insensitive = {}
     # Сортируем для стабильного порядка и предсказуемости
@@ -3215,6 +3258,8 @@ def generate_final_tags(url, user_tags, info_dict):
         if tag.lower() not in unique_tags_case_insensitive:
             unique_tags_case_insensitive[tag.lower()] = tag
 
-    return ' '.join(unique_tags_case_insensitive.values())
+    result = ' '.join(unique_tags_case_insensitive.values())
+    logger.info(f"Generated final tags for '{info_dict.get('title', 'N/A')}': \"{result}\"")
+    return result
 
 app.run()
