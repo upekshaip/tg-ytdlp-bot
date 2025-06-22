@@ -30,9 +30,18 @@ class Config(object):
     PIC_FILE_PATH = "pic.jpg"
 
     # Restricted content site lists
-    PORN_LIST = ["pornhub", "phncdn.com", "xvideos", "xhcdn.com", "xhamster"]
+    BLACK_LIST = []
+    #BLACK_LIST = ["pornhub", "phncdn.com", "xvideos", "xhcdn.com", "xhamster"]
+    
+    # Paths to domain and keyword lists
+    PORN_DOMAINS_FILE = "porn_domains.txt"
+    PORN_KEYWORDS_FILE = "porn_keywords.txt"
+    SUPPORTED_SITES_FILE = "supported_sites.txt"
+
+    #PORN_SITES = "https://raw.githubusercontent.com/4skinSkywalker/Anti-Porn-HOSTS-File/refs/heads/master/HOSTS.txt"
+
     # --- Белый список доменов, которые не считаются порно ---
-    PORN_WHITELIST = [
+    WHITELIST = [
         'vk.com', 'm.vk.com', 'vkvideo.ru', 'vkontakte.ru',
         # Можно добавить другие безопасные домены
     ]
