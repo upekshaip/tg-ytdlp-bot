@@ -1,10 +1,11 @@
-# Version 1.5.6 - Глубокое исправление обработки ссылок из поисковиков
+# Version 1.6.1 - Добавлено кэширование видео
 import pyrebase
 import re
 import os
 import shutil
 import logging
 import threading
+import hashlib
 from typing import Tuple
 
 from pyrogram import Client, filters
@@ -1609,7 +1610,7 @@ def write_logs(message, video_url, video_title):
 # Down_and_audio function
 #########################################
 
-def down_and_audio(app, message, url, tags_text):
+def down_and_audio(app, message, url, tags_text, quality_key=None):
     user_id = message.chat.id
     anim_thread = None
     stop_anim = threading.Event()
@@ -1753,7 +1754,9 @@ def down_and_audio(app, message, url, tags_text):
         caption_with_link = f"{audio_title}\n\n{tags_block}[🔗 Audio URL]({url})"
         try:
             audio_msg = app.send_audio(chat_id=user_id, audio=audio_file, caption=caption_with_link, reply_to_message_id=message.id)
-            safe_forward_messages(Config.LOGS_ID, user_id, [audio_msg.id])
+            forwarded_msg = safe_forward_messages(Config.LOGS_ID, user_id, [audio_msg.id])
+            if quality_key and forwarded_msg:
+                save_to_video_cache(url, quality_key, [m.id for m in forwarded_msg])
         except Exception as send_error:
             logger.error(f"Error sending audio: {send_error}")
             send_to_user(message, f"❌ Failed to send audio: {send_error}")
@@ -1804,7 +1807,7 @@ def down_and_audio(app, message, url, tags_text):
 # Download_and_up function
 #########################################
 
-def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None):
+def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None):
     user_id = message.chat.id
     try:
         # Проверяем, есть ли сохраненное время ожидания
@@ -2224,7 +2227,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     # --- TikTok: не передавать title ---
                     video_msg = send_videos(message, path_lst[p], '' if force_no_title else caption_lst[p], part_duration, splited_thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final)
                     try:
-                        safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
+                        forwarded_msgs = safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
+                        if forwarded_msgs:
+                            save_to_video_cache(url, quality_key, [m.id for m in forwarded_msgs])
                     except Exception as e:
                         logger.error(f"Error forwarding video to logger: {e}")
                     safe_edit_message_text(user_id, proc_msg_id,
@@ -2262,7 +2267,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         # --- TikTok: не передавать title ---
                         video_msg = send_videos(message, after_rename_abs_path, '' if force_no_title else video_title, duration, thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final)
                         try:
-                            safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
+                            forwarded_msgs = safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
+                            if forwarded_msgs:
+                                save_to_video_cache(url, quality_key, [m.id for m in forwarded_msgs])
                         except Exception as e:
                             logger.error(f"Error forwarding video to logger: {e}")
                         safe_edit_message_text(user_id, proc_msg_id,
@@ -2724,6 +2731,8 @@ def clean_telegram_tag(tag: str) -> str:
 # --- Функция для извлечения url, диапазона и тегов из текста ---
 def extract_url_range_tags(text: str):
     # Эта функция теперь всегда возвращает ПОЛНУЮ оригинальную ссылку для скачивания
+    if not isinstance(text, str):
+        return None, 1, 1, None, [], '', None
     url_match = re.search(r'https?://[^\s\*#]+', text)
     if not url_match:
         return None, 1, 1, None, [], '', None
@@ -3058,6 +3067,9 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
     proc_msg = None
     try:
         proc_msg = app.send_message(user_id, "Processing... ♻️", reply_to_message_id=message.id)
+        
+        cached_qualities = get_cached_qualities(url)
+
         info = get_video_formats(url, user_id, playlist_start_index)
         title = info.get('title', 'Video')
         video_id = info.get('id')
@@ -3088,21 +3100,37 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         # Создаем кнопки в правильном порядке
         for height in quality_order:
             if height in available_heights:
-                quality_buttons.append(InlineKeyboardButton(f"📹 {height}p", callback_data=f"askq|{height}p"))
+                quality_key = f"{height}p"
+                button_text = f"📹 {quality_key}"
+                if quality_key in cached_qualities:
+                    button_text += " 🚀"
+                quality_buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         # Если ни одного стандартного качества не нашлось, но есть другие
         if not quality_buttons and available_heights:
             for height in sorted(list(available_heights)):
-                 quality_buttons.append(InlineKeyboardButton(f"📹 {height}p", callback_data=f"askq|{height}p"))
+                quality_key = f"{height}p"
+                button_text = f"📹 {quality_key}"
+                if quality_key in cached_qualities:
+                    button_text += " 🚀"
+                quality_buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         
         # Если нет доступных качеств видео, добавляем кнопку лучшего качества
         if not quality_buttons:
-            quality_buttons.append(InlineKeyboardButton("📹 Best Quality", callback_data="askq|best"))
+            quality_key = "best"
+            button_text = "📹 Best Quality"
+            if quality_key in cached_qualities:
+                button_text += " 🚀"
+            quality_buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         
         # Располагаем кнопки в 3 ряда
         for i in range(0, len(quality_buttons), 3):
             buttons.append(quality_buttons[i:i+3])
         # --- Кнопка mp3 ---
-        buttons.append([InlineKeyboardButton("🎵 audio (mp3)", callback_data="askq|mp3")])
+        quality_key = "mp3"
+        button_text = "🎵 audio (mp3)"
+        if quality_key in cached_qualities:
+            button_text += " 🚀"
+        buttons.append([InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}")])
         buttons.append([InlineKeyboardButton("🔙 Cancel", callback_data="askq|cancel")])
         keyboard = InlineKeyboardMarkup(buttons)
         # --- Caption ---
@@ -3110,6 +3138,10 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         cap = f"<b>{title}</b>\n"
         if tags_text:
             cap += f"{tags_text}\n"
+        
+        hint = "choose quality to download. 🚀 - instant repost. video already saved."
+        cap += f"\n<blockquote>{hint}</blockquote>"
+
         cap += hidden_link
         # --- Отправка ---
         app.delete_messages(user_id, proc_msg.id)
@@ -3174,8 +3206,8 @@ def askq_callback(app, callback_query):
                 break
     
     # Если не нашли, извлекаем из оригинального сообщения пользователя
-    if not url and original_message.text:
-        url_match = re.search(r'https?://[^\s\*#]+', original_message.text)
+    if not url and callback_query.message.reply_to_message:
+        url_match = re.search(r'https?://[^\s\*#]+', callback_query.message.reply_to_message.text)
         if url_match:
             url = url_match.group(0)
 
@@ -3196,10 +3228,37 @@ def askq_callback(app, callback_query):
     # После того как все данные извлечены, удаляем сообщение с кнопками
     callback_query.message.delete()
 
+    # Проверяем кэш перед скачиванием
+    message_ids = get_cached_message_ids(url, data)
+    if message_ids:
+        callback_query.answer("🚀 Found in cache! Forwarding instantly...", show_alert=False)
+        try:
+            app.forward_messages(
+                chat_id=user_id,
+                from_chat_id=Config.LOGS_ID,
+                message_ids=message_ids
+            )
+            # Отправляем подтверждение пользователю
+            app.send_message(user_id, "✅ Video successfully sent from cache.", reply_to_message_id=original_message.id)
+        except Exception as e:
+            logger.error(f"Error forwarding from cache: {e}")
+            # Если пересылка не удалась, пробуем скачать заново
+            save_to_video_cache(url, data, [], clear=True) # Очищаем невалидную запись в кэше
+            app.send_message(user_id, "⚠️ Failed to get video from cache, starting a new download...", reply_to_message_id=original_message.id)
+            # Рекурсивный вызов или вызов основной функции? Лучше вызвать основную.
+            askq_callback_logic(app, callback_query, data, original_message, url, tags_text)
+        return
+
+    askq_callback_logic(app, callback_query, data, original_message, url, tags_text)
+
+
+def askq_callback_logic(app, callback_query, data, original_message, url, tags_text):
+    """Основная логика обработки выбора качества, вынесенная для повторного использования."""
+    user_id = callback_query.from_user.id
     if data == "mp3":
         callback_query.answer("Downloading audio...")
-        # Передаем оригинальное сообщение пользователя, т.к. в нем есть диапазон
-        down_and_audio(app, original_message, url, tags_text)
+        # Передаем оригинальное сообщение пользователя и ключ качества
+        down_and_audio(app, original_message, url, tags_text, quality_key="mp3")
         return
 
     if data == "best":
@@ -3215,13 +3274,13 @@ def askq_callback(app, callback_query):
             return
 
     callback_query.answer(f"Downloading {data}...")
-    # Передаем оригинальное сообщение пользователя, т.к. в нем есть диапазон
-    down_and_up_with_format(app, original_message, url, fmt, tags_text)
+    # Передаем оригинальное сообщение пользователя и ключ качества
+    down_and_up_with_format(app, original_message, url, fmt, tags_text, quality_key=data)
 
 # --- Вспомогательная функция для скачивания с форматом ---
-def down_and_up_with_format(app, message, url, fmt, tags_text):
+def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None):
     # Извлекаем диапазон и другие параметры из оригинального сообщения пользователя
-    full_string = message.text
+    full_string = message.text or message.caption or ""
     _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
 
     # Эту ошибку уже должны были поймать ранее, но для подстраховки
@@ -3236,7 +3295,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text):
     is_tiktok = is_tiktok_url(url)
 
     # Вызываем основную функцию загрузки с правильными параметрами плейлиста
-    down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=is_tiktok, format_override=fmt)
+    down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=is_tiktok, format_override=fmt, quality_key=quality_key)
 
 # Version 1.4.1 - Добавлена функция sanitize_autotag для автотегов
 def sanitize_autotag(tag: str) -> str:
@@ -3287,5 +3346,58 @@ def generate_final_tags(url, user_tags, info_dict):
     result = ' '.join(unique_tags_case_insensitive.values())
     logger.info(f"Generated final tags for '{info_dict.get('title', 'N/A')}': \"{result}\"")
     return result
+
+# --- Новые функции для кэширования ---
+def get_url_hash(url: str) -> str:
+    """Создает MD5 хэш из URL для использования в качестве ключа Firebase."""
+    return hashlib.md5(url.encode()).hexdigest()
+
+def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bool = False):
+    """Сохраняет или удаляет ID сообщения в кэше."""
+    if not quality_key:
+        return
+    try:
+        url_hash = get_url_hash(url)
+        cache_ref = db.child(Config.VIDEO_CACHE_DB_PATH).child(url_hash)
+        
+        if clear:
+            cache_ref.child(quality_key).remove()
+            logger.info(f"Cache cleared for URL hash {url_hash}, quality {quality_key}")
+            return
+
+        if not message_ids:
+            return
+
+        # Сохраняем ID сообщений как строку, разделенную запятыми
+        ids_string = ",".join(map(str, message_ids))
+        cache_ref.update({quality_key: ids_string})
+        logger.info(f"Saved to cache for URL hash {url_hash}, quality {quality_key}, msg_ids {ids_string}")
+    except Exception as e:
+        logger.error(f"Failed to save to cache: {e}")
+
+def get_cached_message_ids(url: str, quality_key: str) -> list:
+    """Получает список ID сообщений из кэша."""
+    try:
+        url_hash = get_url_hash(url)
+        ids_string = db.child(Config.VIDEO_CACHE_DB_PATH).child(url_hash).child(quality_key).get().val()
+        if ids_string:
+            # Преобразуем строку обратно в список чисел
+            return [int(msg_id) for msg_id in ids_string.split(',')]
+        return None
+    except Exception as e:
+        logger.error(f"Failed to get from cache: {e}")
+        return None
+
+def get_cached_qualities(url: str) -> set:
+    """Получает все закэшированные качества для URL."""
+    try:
+        url_hash = get_url_hash(url)
+        data = db.child(Config.VIDEO_CACHE_DB_PATH).child(url_hash).get().val()
+        if data:
+            return set(data.keys())
+        return set()
+    except Exception as e:
+        logger.error(f"Failed to get cached qualities: {e}")
+        return set()
 
 app.run()
