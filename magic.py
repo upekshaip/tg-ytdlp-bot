@@ -3059,6 +3059,85 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
     try:
         proc_msg = app.send_message(user_id, "Processing... ♻️", reply_to_message_id=message.id)
         info = get_video_formats(url, user_id, playlist_start_index)
+        title = info.get('title', 'Video')
+        video_id = info.get('id')
+        # --- Автотеги ---
+        auto_tags = get_auto_tags(url, tags)
+        all_tags = tags + auto_tags
+        tags_text = ' '.join(all_tags)
+        # --- Картинка ---
+        thumb_path = None
+        user_dir = os.path.join("users", str(user_id))
+        create_directory(user_dir)
+        if ("youtube.com" in url or "youtu.be" in url) and video_id:
+            thumb_path = os.path.join(user_dir, f"yt_thumb_{video_id}.jpg")
+            try:
+                download_thumbnail(video_id, thumb_path)
+            except Exception:
+                thumb_path = None
+        # --- Кнопки по форматам ---
+        buttons = []
+        # Собираем все доступные разрешения видео (высоты)
+        available_heights = set()
+        for f in info.get('formats', []):
+            if f.get('vcodec', 'none') != 'none' and f.get('height'):
+                available_heights.add(f['height'])
+        # Список для сортировки и отображения
+        quality_order = [144, 240, 360, 480, 720, 1080, 1440, 2160, 4320]
+        quality_buttons = []
+        # Создаем кнопки в правильном порядке
+        for height in quality_order:
+            if height in available_heights:
+                quality_buttons.append(InlineKeyboardButton(f"📹 {height}p", callback_data=f"askq|{height}p"))
+        # Если ни одного стандартного качества не нашлось, но есть другие
+        if not quality_buttons and available_heights:
+            for height in sorted(list(available_heights)):
+                 quality_buttons.append(InlineKeyboardButton(f"📹 {height}p", callback_data=f"askq|{height}p"))
+        
+        # Если нет доступных качеств видео, добавляем кнопку лучшего качества
+        if not quality_buttons:
+            quality_buttons.append(InlineKeyboardButton("📹 Best Quality", callback_data="askq|best"))
+        
+        # Располагаем кнопки в 3 ряда
+        for i in range(0, len(quality_buttons), 3):
+            buttons.append(quality_buttons[i:i+3])
+        # --- Кнопка mp3 ---
+        buttons.append([InlineKeyboardButton("🎵 audio (mp3)", callback_data="askq|mp3")])
+        buttons.append([InlineKeyboardButton("🔙 Cancel", callback_data="askq|cancel")])
+        keyboard = InlineKeyboardMarkup(buttons)
+        # --- Caption ---
+        hidden_link = f'<a href="{url}">&#8203;</a>'
+        cap = f"<b>{title}</b>\n"
+        if tags_text:
+            cap += f"{tags_text}\n"
+        cap += hidden_link
+        # --- Отправка ---
+        app.delete_messages(user_id, proc_msg.id)
+        proc_msg = None
+        if thumb_path and os.path.exists(thumb_path):
+            app.send_photo(user_id, thumb_path, caption=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_to_message_id=message.id)
+        else:
+            app.send_message(user_id, cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_to_message_id=message.id)
+        send_to_logger(message, f"Always Ask menu sent for {url}")
+
+    except FloodWait as e:
+        wait_time = e.value
+        user_dir = os.path.join("users", str(user_id))
+        create_directory(user_dir)
+        flood_time_file = os.path.join(user_dir, "flood_wait.txt")
+        with open(flood_time_file, 'w') as f:
+            f.write(str(wait_time))
+        
+        hours = wait_time // 3600
+        minutes = (wait_time % 3600) // 60
+        seconds = wait_time % 60
+        time_str = f"{hours}h {minutes}m {seconds}s"
+        flood_msg = f"⚠️ Telegram has limited message sending.\n\n⏳ Please wait: {time_str}\n\nTo update timer send URL again 2 times."
+        
+        if proc_msg:
+            app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=flood_msg)
+        return
+
     except Exception as e:
         error_text = f"❌ Error while getting video info:\n{e}\n\nFirst, try the /clean command and then try again.\nIf the error persists, YouTube may require authentication.\nPlease update your cookie.txt using /download_cookie or /cookies_from_browser and try again."
         if proc_msg:
@@ -3067,71 +3146,18 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             app.send_message(user_id, error_text, reply_to_message_id=message.id)
         send_to_logger(message, f"Always Ask menu error for {url}: {e}")
         return
-    title = info.get('title', 'Video')
-    video_id = info.get('id')
-    # --- Автотеги ---
-    auto_tags = get_auto_tags(url, tags)
-    all_tags = tags + auto_tags
-    tags_text = ' '.join(all_tags)
-    # --- Картинка ---
-    thumb_path = None
-    user_dir = os.path.join("users", str(user_id))
-    create_directory(user_dir)
-    if ("youtube.com" in url or "youtu.be" in url) and video_id:
-        thumb_path = os.path.join(user_dir, f"yt_thumb_{video_id}.jpg")
-        try:
-            download_thumbnail(video_id, thumb_path)
-        except Exception:
-            thumb_path = None
-    # --- Кнопки по форматам ---
-    buttons = []
-    # Собираем все доступные разрешения видео (высоты)
-    available_heights = set()
-    for f in info.get('formats', []):
-        if f.get('vcodec', 'none') != 'none' and f.get('height'):
-            available_heights.add(f['height'])
-    # Список для сортировки и отображения
-    quality_order = [144, 240, 360, 480, 720, 1080, 1440, 2160, 4320]
-    quality_buttons = []
-    # Создаем кнопки в правильном порядке
-    for height in quality_order:
-        if height in available_heights:
-            quality_buttons.append(InlineKeyboardButton(f"📹 {height}p", callback_data=f"askq|{height}p"))
-    # Если ни одного стандартного качества не нашлось, но есть другие
-    if not quality_buttons and available_heights:
-        for height in sorted(list(available_heights)):
-             quality_buttons.append(InlineKeyboardButton(f"📹 {height}p", callback_data=f"askq|{height}p"))
-    
-    # Если нет доступных качеств видео, добавляем кнопку лучшего качества
-    if not quality_buttons:
-        quality_buttons.append(InlineKeyboardButton("📹 Best Quality", callback_data="askq|best"))
-    
-    # Располагаем кнопки в 3 ряда
-    for i in range(0, len(quality_buttons), 3):
-        buttons.append(quality_buttons[i:i+3])
-    # --- Кнопка mp3 ---
-    buttons.append([InlineKeyboardButton("🎵 audio (mp3)", callback_data="askq|mp3")])
-    keyboard = InlineKeyboardMarkup(buttons)
-    # --- Caption ---
-    hidden_link = f'<a href="{url}">&#8203;</a>'
-    cap = f"<b>{title}</b>\n"
-    if tags_text:
-        cap += f"{tags_text}\n"
-    cap += hidden_link
-    # --- Отправка ---
-    if proc_msg:
-        app.delete_messages(user_id, proc_msg.id)
-    if thumb_path and os.path.exists(thumb_path):
-        app.send_photo(user_id, thumb_path, caption=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_to_message_id=message.id)
-    else:
-        app.send_message(user_id, cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_to_message_id=message.id)
-    send_to_logger(message, f"Always Ask menu sent for {url}")
 
 # --- Callback обработчик ---
 @app.on_callback_query(filters.regex(r"^askq\|"))
 def askq_callback(app, callback_query):
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]
+
+    if data == "cancel":
+        callback_query.message.delete()
+        callback_query.answer("Menu closed.")
+        return
+
     original_message = callback_query.message.reply_to_message
     if not original_message:
         callback_query.answer("❌ Error: Original message not found. It might have been deleted. Please send the link again.", show_alert=True)
