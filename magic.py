@@ -2946,7 +2946,7 @@ def is_porn_domain(domain_parts):
 # --- Новая функция для проверки на порно ---
 def is_porn(url, title, description):
     """
-    Проверяет контент на порнографию по домену и ключевым словам.
+    Проверяет контент на порнографию по домену и ключевым словам (только точные совпадения по словам).
     """
     # 1. Проверка домена по URL
     clean_url = get_clean_url_for_tagging(url)
@@ -2965,8 +2965,12 @@ def is_porn(url, title, description):
     if not title_lower and not description_lower:
         return False
 
+    # Проверяем только точные совпадения по словам (границы слова)
     for keyword in PORN_KEYWORDS:
-        if keyword in title_lower or keyword in description_lower:
+        if not keyword:
+            continue
+        pattern = r'\\b' + re.escape(keyword) + r'\\b'
+        if re.search(pattern, title_lower) or re.search(pattern, description_lower):
             logger.info(f"Porn keyword '{keyword}' found in title/description.")
             return True
 
