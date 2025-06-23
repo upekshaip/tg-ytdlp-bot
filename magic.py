@@ -3256,6 +3256,10 @@ def askq_callback(app, callback_query):
             )
             # We send confirmation to the user
             app.send_message(user_id, "✅ Video successfully sent from cache.", reply_to_message_id=original_message.id)
+            # --- LOGGING TO LOG CHANNEL ---
+            media_type = "Audio" if data == "mp3" else "Video"
+            log_msg = f"{media_type} sent from cache to user.\nURL: {url}\nUser: {callback_query.from_user.first_name} ({user_id})"
+            send_to_logger(original_message, log_msg)
         except Exception as e:
             logger.error(f"Error forwarding from cache: {e}")
             # If the shipping failed, we try to download it again
