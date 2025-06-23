@@ -2923,6 +2923,13 @@ def get_auto_tags(url, user_tags):
     # 3. YouTube check (включая youtu.be)
     if ("youtube.com" in url_l or "youtu.be" in url_l):
         auto_tags.add("#youtube")
+    # 4. Twitter/X check
+    if ("twitter.com" in url_l or "x.com" in url_l):
+        auto_tags.add("#twitter")
+    # 5. Boosty check (boosty.to, boosty.com)
+    if ("boosty.to" in url_l or "boosty.com" in url_l):
+        auto_tags.add("#boosty")
+        auto_tags.add("#porn")
     # Не дублируем пользовательские теги
     auto_tags = [t for t in auto_tags if t.lower() not in [ut.lower() for ut in user_tags]]
     return auto_tags
