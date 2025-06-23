@@ -3146,7 +3146,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         if tags_text:
             cap += f"{tags_text}\n"
         
-        hint = "choose quality to download. 🚀 - instant repost. video already saved."
+        hint = "📹 — Choose quality for new download.\n🚀 — Instant repost. Video is already saved."
         cap += f"\n<blockquote>{hint}</blockquote>"
 
         cap += hidden_link
