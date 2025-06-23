@@ -40,8 +40,8 @@ class Config(object):
 
     # --- Whitelist of domains that are not considered porn ---
     WHITELIST = [
-        'dailymotion.com', 'ok.ru',               
-        'youtube.com', 'youtu.be', 'tiktok.ru', 'rutube.ru', 
+        'dailymotion.com', 'ok.ru', 'kaspersky.com', 'sky.com', 'xbox.com', 
+        'youtube.com', 'youtu.be', 'tiktok.ru', 'rutube.ru', '1tv.ru',
         'x.com', 'tiktok.com', 'facebook.com', 'x.ai', 'vk.ru',
         'vk.com', 'm.vk.com', 'vkvideo.ru', 'vkontakte.ru'
         # Other secure domains can be added
