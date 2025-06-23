@@ -38,11 +38,9 @@ class Config(object):
     PORN_KEYWORDS_FILE = "porn_keywords.txt"
     SUPPORTED_SITES_FILE = "supported_sites.txt"
 
-    #PORN_SITES = "https://raw.githubusercontent.com/4skinSkywalker/Anti-Porn-HOSTS-File/refs/heads/master/HOSTS.txt"
-
     # --- Whitelist of domains that are not considered porn ---
     WHITELIST = [
-        'dailymotion.com',         
+        'dailymotion.com', 'ok.ru',               
         'youtube.com', 'youtu.be', 'tiktok.ru', 'rutube.ru', 
         'x.com', 'tiktok.com', 'facebook.com', 'x.ai', 'vk.ru',
         'vk.com', 'm.vk.com', 'vkvideo.ru', 'vkontakte.ru'
@@ -50,17 +48,11 @@ class Config(object):
     ]
     # TikTok Domain List
     TIKTOK_DOMAINS = [
-        'tiktok.com',
-        'vm.tiktok.com',
-        'vt.tiktok.com',
-        'www.tiktok.com',
-        'm.tiktok.com',
-        'tiktokv.com',
-        'www.tiktokv.com',
-        'tiktok.ru',
-        'www.tiktok.ru'
+        'tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com',
+        'www.tiktok.com', 'm.tiktok.com', 'tiktokv.com',
+        'www.tiktokv.com', 'tiktok.ru', 'www.tiktok.ru'
     ]
-    # Version 1.0.0 - Added CLEAN_QUERY array for domains where query and fragment can be safely cleared
+    # CLEAN_QUERY array for domains where query and fragment can be safely cleared
     CLEAN_QUERY = [
         'vk.com', 'm.vk.com', 'vkvideo.ru', 'vkontakte.ru',
         'tiktok.com', 'vm.tiktok.com',
