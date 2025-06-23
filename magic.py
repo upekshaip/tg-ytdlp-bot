@@ -2924,7 +2924,7 @@ def get_auto_tags(url, user_tags):
     if ("youtube.com" in url_l or "youtu.be" in url_l):
         auto_tags.add("#youtube")
     # 4. Twitter/X check
-    if ("twitter.com" in url_l or "x.com" in url_l):
+    if ("twitter.com" in url_l or "x.com" in url_l or "t.co" in url_l):
         auto_tags.add("#twitter")
     # 5. Boosty check (boosty.to, boosty.com)
     if ("boosty.to" in url_l or "boosty.com" in url_l):
