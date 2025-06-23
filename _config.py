@@ -42,6 +42,7 @@ class Config(object):
 
     # --- Белый список доменов, которые не считаются порно ---
     WHITELIST = [
+        'youtube.com', 'youtu.be', 'tiktok.ru', 'rutube.ru', 
         'x.com', 'tiktok.com', 'facebook.com', 'x.ai', 'vk.ru',
         'vk.com', 'm.vk.com', 'vkvideo.ru', 'vkontakte.ru'
         # Можно добавить другие безопасные домены
