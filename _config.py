@@ -40,15 +40,15 @@ class Config(object):
 
     #PORN_SITES = "https://raw.githubusercontent.com/4skinSkywalker/Anti-Porn-HOSTS-File/refs/heads/master/HOSTS.txt"
 
-    # --- Белый список доменов, которые не считаются порно ---
+    # --- Whitelist of domains that are not considered porn ---
     WHITELIST = [
         'dailymotion.com',         
         'youtube.com', 'youtu.be', 'tiktok.ru', 'rutube.ru', 
         'x.com', 'tiktok.com', 'facebook.com', 'x.ai', 'vk.ru',
         'vk.com', 'm.vk.com', 'vkvideo.ru', 'vkontakte.ru'
-        # Можно добавить другие безопасные домены
+        # Other secure domains can be added
     ]
-    # Список доменов TikTok
+    # TikTok Domain List
     TIKTOK_DOMAINS = [
         'tiktok.com',
         'vm.tiktok.com',
