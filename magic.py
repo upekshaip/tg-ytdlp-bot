@@ -25,7 +25,7 @@ import subprocess
 import signal
 import sys
 from config import Config
-from urllib.parse import urlparse, parse_qs, urlunparse
+from urllib.parse import urlparse, parse_qs, urlunparse, unquote
 from pyrogram.errors import FloodWait
 import tldextract
 from pyrogram.types import ReplyKeyboardMarkup
@@ -2932,8 +2932,11 @@ def get_auto_tags(url, user_tags):
     # 3. YouTube Check (including YouTu.be)
     if ("youtube.com" in url_l or "youtu.be" in url_l):
         auto_tags.add("#youtube")
-    # 4. Twitter/X check
-    if ("twitter.com" in url_l or "x.com" in url_l or "t.co" in url_l):
+    # 4. Twitter/X check (точное совпадение домена)
+    twitter_domains = {"twitter.com", "x.com", "t.co"}
+    parsed = urlparse(clean_url)
+    domain = parsed.netloc.lower()
+    if domain in twitter_domains:
         auto_tags.add("#twitter")
     # 5. Boosty check (boosty.to, boosty.com)
     if ("boosty.to" in url_l or "boosty.com" in url_l):
@@ -2942,8 +2945,6 @@ def get_auto_tags(url, user_tags):
     # Do not duplicate user tags
     auto_tags = [t for t in auto_tags if t.lower() not in [ut.lower() for ut in user_tags]]
     return auto_tags
-
-# Version 1.0.9 - White list of domains for porn is taken from config.py
 
 # --- White list of domains that are not considered porn ---
 # Now we take from config.py
@@ -2991,8 +2992,6 @@ def is_porn(url, title, description):
             return True
 
     return False
-
-# Version 1.3.0 - Added command /Split to select the size of the parts of the video
 
 @app.on_message(filters.command("split") & filters.private)
 def split_command(app, message):
@@ -3315,7 +3314,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
     # We call the main function of loading with the correct parameters of the playlist
     down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=is_tiktok, format_override=fmt, quality_key=quality_key)
 
-# Version 1.4.1 - Added the Sanitize_autotag function
+
 def sanitize_autotag(tag: str) -> str:
     # Leave only letters (any language), numbers and _
     return '#' + re.sub(r'[^\w\d_]', '_', tag.lstrip('#'), flags=re.UNICODE)
@@ -3418,23 +3417,41 @@ def get_cached_qualities(url: str) -> set:
         logger.error(f"Failed to get cached qualities: {e}")
         return set()
 
-# Version 1.6.5 - Cache now works on a cleared link (without query and fragment)
+
 def normalize_url_for_cache(url: str) -> str:
     """
     Clears the cache link: removes query parameters and fragments, leaving only the main part for domains in Config.CLEAN_QUERY.
     For all other domains, keeps the query (for YouTube, Facebook и др.).
+    If the link is a Google redirect, uses the target link for cache.
     """
     if not isinstance(url, str):
         return ''
+    # If Google redirect, extract the real URL
+    url = extract_real_url_if_google(url)
     clean_url = get_clean_url_for_tagging(url)
     parsed = urlparse(clean_url)
     domain = parsed.netloc.lower()
-    # Check if the domain is on the list to be cleaned
+    # Check if the domain is on the list to be cleaned (full match only)
     for clean_domain in getattr(Config, 'CLEAN_QUERY', []):
-        if clean_domain in domain:
+        if domain == clean_domain:
             normalized = urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', '', ''))
             return normalized
     # For the rest, we leave query
     return urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, parsed.query, ''))
+
+def extract_real_url_if_google(url: str) -> str:
+    """
+    If the link is a redirect via Google, returns the target link.
+    Otherwise, returns the original link.
+    """
+    parsed = urlparse(url)
+    if parsed.netloc.endswith('google.com') and parsed.path.startswith('/url'):
+        qs = parse_qs(parsed.query)
+        # Google may use either ?q= or ?url=
+        real_url = qs.get('q') or qs.get('url')
+        if real_url:
+            # Take the first variant, decode if needed
+            return unquote(real_url[0])
+    return url
 
 app.run()
