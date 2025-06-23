@@ -25,7 +25,7 @@ import subprocess
 import signal
 import sys
 from config import Config
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, urlunparse
 from pyrogram.errors import FloodWait
 import tldextract
 from pyrogram.types import ReplyKeyboardMarkup
@@ -3375,7 +3375,7 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
     if not quality_key:
         return
     try:
-        url_hash = get_url_hash(url)
+        url_hash = get_url_hash(normalize_url_for_cache(url))
         cache_ref = db.child(Config.VIDEO_CACHE_DB_PATH).child(url_hash)
         
         if clear:
@@ -3396,7 +3396,7 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
 def get_cached_message_ids(url: str, quality_key: str) -> list:
     """Receives a list of ID messages from the cache."""
     try:
-        url_hash = get_url_hash(url)
+        url_hash = get_url_hash(normalize_url_for_cache(url))
         ids_string = db.child(Config.VIDEO_CACHE_DB_PATH).child(url_hash).child(quality_key).get().val()
         if ids_string:
             # We convert the line back to the list of numbers
@@ -3409,7 +3409,7 @@ def get_cached_message_ids(url: str, quality_key: str) -> list:
 def get_cached_qualities(url: str) -> set:
     """He gets all the castle qualities for the URL."""
     try:
-        url_hash = get_url_hash(url)
+        url_hash = get_url_hash(normalize_url_for_cache(url))
         data = db.child(Config.VIDEO_CACHE_DB_PATH).child(url_hash).get().val()
         if data:
             return set(data.keys())
@@ -3417,5 +3417,24 @@ def get_cached_qualities(url: str) -> set:
     except Exception as e:
         logger.error(f"Failed to get cached qualities: {e}")
         return set()
+
+# Version 1.6.5 - Cache now works on a cleared link (without query and fragment)
+def normalize_url_for_cache(url: str) -> str:
+    """
+    Clears the cache link: removes query parameters and fragments, leaving only the main part for domains in Config.CLEAN_QUERY.
+    For all other domains, keeps the query (for YouTube, Facebook и др.).
+    """
+    if not isinstance(url, str):
+        return ''
+    clean_url = get_clean_url_for_tagging(url)
+    parsed = urlparse(clean_url)
+    domain = parsed.netloc.lower()
+    # Check if the domain is on the list to be cleaned
+    for clean_domain in getattr(Config, 'CLEAN_QUERY', []):
+        if clean_domain in domain:
+            normalized = urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', '', ''))
+            return normalized
+    # For the rest, we leave query
+    return urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, parsed.query, ''))
 
 app.run()
