@@ -1,4 +1,4 @@
-# Version 1.6.4 - All remaining Russian comments translated to English
+# Version 1.7.7 - Add TikTok URL cleaning for cache
 
 import pyrebase
 import re
@@ -25,7 +25,7 @@ import subprocess
 import signal
 import sys
 from config import Config
-from urllib.parse import urlparse, parse_qs, urlunparse, unquote
+from urllib.parse import urlparse, parse_qs, urlunparse, unquote, urlencode
 from pyrogram.errors import FloodWait
 import tldextract
 from pyrogram.types import ReplyKeyboardMarkup
@@ -1249,7 +1249,7 @@ def send_to_user(message, msg):
 def send_to_all(message, msg):
     user_id = message.chat.id
     msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
-    safe_send_message(Config.LOGS_ID, msg_with_id, parse_mode=enums.ParseMode.MARKDOWN, reply_to_message_id=message.id)
+    safe_send_message(Config.LOGS_ID, msg_with_id, parse_mode=enums.ParseMode.MARKDOWN)
     safe_send_message(user_id, msg, parse_mode=enums.ParseMode.MARKDOWN, reply_to_message_id=message.id)
 
 def progress_bar(*args):
@@ -1392,8 +1392,9 @@ def send_videos(
                 user_doc_msg = app.send_document(
                     chat_id=user_id,
                     document=temp_desc_path,
-                    caption="📝 if you want to change video caption - reply to video with new text",
-                    reply_to_message_id=message.id
+                    caption="<blockquote>📝 if you want to change video caption - reply to video with new text</blockquote>",
+                    reply_to_message_id=message.id,
+                    parse_mode=enums.ParseMode.HTML
                 )
                 safe_forward_messages(Config.LOGS_ID, user_id, [user_doc_msg.id])
             except Exception as e:
@@ -2914,6 +2915,10 @@ def extract_domain_parts(url):
         else:
             return [url.lower()], url.lower()
     except Exception:
+        # Fallback for URLs without a clear domain, e.g., "localhost"
+        parsed = urlparse(url)
+        if parsed.netloc:
+             return [parsed.netloc.lower()], parsed.netloc.lower()
         return [url.lower()], url.lower()
 
 # --- an auxiliary function for searching for car tues ---
@@ -2921,29 +2926,26 @@ def get_auto_tags(url, user_tags):
     auto_tags = set()
     clean_url = get_clean_url_for_tagging(url)
     url_l = clean_url.lower()
-    domain_parts, main_domain = extract_domain_parts(url_l)
-    # 1. Porn Check (for all the suffixes of the domain, but taking into account the white list)
+    # 1. Porn Check (for all the suffixes of the domain, but taking into account the whitelist)
+    domain_parts, _ = extract_domain_parts(url_l)
     if is_porn_domain(domain_parts):
         auto_tags.add(sanitize_autotag('porn'))
-    # 2. Supported Check (only the exact coincidence of the word with the domain)
-    for word in SUPPORTED_SITES:
-        if word == main_domain:
-            auto_tags.add(sanitize_autotag(word))
-    # 3. YouTube Check (including YouTu.be)
+    # 2. YouTube Check (including YouTu.be)
     if ("youtube.com" in url_l or "youtu.be" in url_l):
         auto_tags.add("#youtube")
-    # 4. Twitter/X check (точное совпадение домена)
+    # 3. Twitter/X check (exact domain match)
     twitter_domains = {"twitter.com", "x.com", "t.co"}
     parsed = urlparse(clean_url)
     domain = parsed.netloc.lower()
     if domain in twitter_domains:
         auto_tags.add("#twitter")
-    # 5. Boosty check (boosty.to, boosty.com)
+    # 4. Boosty check (boosty.to, boosty.com)
     if ("boosty.to" in url_l or "boosty.com" in url_l):
         auto_tags.add("#boosty")
         auto_tags.add("#porn")
     # Do not duplicate user tags
-    auto_tags = [t for t in auto_tags if t.lower() not in [ut.lower() for ut in user_tags]]
+    user_tags_lower = set(t.lower() for t in user_tags)
+    auto_tags = [t for t in auto_tags if t.lower() not in user_tags_lower]
     return auto_tags
 
 # --- White list of domains that are not considered porn ---
@@ -3093,9 +3095,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         title = info.get('title', 'Video')
         video_id = info.get('id')
         # --- Autotics ---
-        auto_tags = get_auto_tags(url, tags)
-        all_tags = tags + auto_tags
-        tags_text = ' '.join(all_tags)
+        tags_text = generate_final_tags(url, tags, info)
         # --- Picture ---
         thumb_path = None
         user_dir = os.path.join("users", str(user_id))
@@ -3320,47 +3320,49 @@ def sanitize_autotag(tag: str) -> str:
     return '#' + re.sub(r'[^\w\d_]', '_', tag.lstrip('#'), flags=re.UNICODE)
 
 def generate_final_tags(url, user_tags, info_dict):
-    """Generates the final line of tags, including user and all types of automatic."""
-    
-    # 1. We start with tags set by the user (lead to SET for uniqueness)
-    final_tags = set(user_tags)
-
-    # 2. Add auto tags (porn, supported_sites.txt)
-    # Important: we transfer the original URL to Get_auto_tags, because she cleans him herself
-    auto_tags_list = get_auto_tags(url, list(final_tags))
-    for tag in auto_tags_list:
-        final_tags.add(tag)
-
-    # 3. Add tiktok profile tag
-    # IS_TIKTOK_URL and EXTRACT_TIKTOK_PROFILE themselves clean the link
+    """Only user and auto-tags (service, channel/profile, porn) are included in the tag section."""
+    final_tags = []
+    seen = set()
+    # 1. Custom tags
+    for tag in user_tags:
+        tag_l = tag.lower()
+        if tag_l not in seen:
+            final_tags.append(tag)
+            seen.add(tag_l)
+    # 2. Auto-tags (no duplicates with user ones)
+    auto_tags = get_auto_tags(url, final_tags)
+    for tag in auto_tags:
+        tag_l = tag.lower()
+        if tag_l not in seen:
+            final_tags.append(tag)
+            seen.add(tag_l)
+    # 3. Profile/channel tags (tiktok/youtube)
     if is_tiktok_url(url):
         tiktok_profile = extract_tiktok_profile(url)
         if tiktok_profile:
-            final_tags.add(sanitize_autotag(tiktok_profile))
-        # Also add the overall tag #tiktok
-        final_tags.add("#tiktok")
-
-    # 4. Add the YouTube channel tag (from info_dict)
+            tiktok_tag = sanitize_autotag(tiktok_profile)
+            if tiktok_tag.lower() not in seen:
+                final_tags.append(tiktok_tag)
+                seen.add(tiktok_tag.lower())
+        if '#tiktok' not in seen:
+            final_tags.append('#tiktok')
+            seen.add('#tiktok')
     clean_url_for_check = get_clean_url_for_tagging(url)
     if ("youtube.com" in clean_url_for_check or "youtu.be" in clean_url_for_check) and info_dict:
         channel_name = info_dict.get("channel") or info_dict.get("uploader")
         if channel_name:
-            final_tags.add(sanitize_autotag(channel_name))
-            
-    # 5. New: Add #Porn tag based on a complete check
+            channel_tag = sanitize_autotag(channel_name)
+            if channel_tag.lower() not in seen:
+                final_tags.append(channel_tag)
+                seen.add(channel_tag.lower())
+    # 4. #porn if determined by content
     video_title = info_dict.get("title")
     video_description = info_dict.get("description")
     if is_porn(url, video_title, video_description):
-        final_tags.add("#porn")
-            
-    # We collect unique tags without taking into account the register, preserving the register of the first entry
-    unique_tags_case_insensitive = {}
-    # We sort for stable order and predictability
-    for tag in sorted(list(final_tags)):
-        if tag.lower() not in unique_tags_case_insensitive:
-            unique_tags_case_insensitive[tag.lower()] = tag
-
-    result = ' '.join(unique_tags_case_insensitive.values())
+        if '#porn' not in seen:
+            final_tags.append('#porn')
+            seen.add('#porn')
+    result = ' '.join(final_tags)
     logger.info(f"Generated final tags for '{info_dict.get('title', 'N/A')}': \"{result}\"")
     return result
 
@@ -3420,23 +3422,52 @@ def get_cached_qualities(url: str) -> set:
 
 def normalize_url_for_cache(url: str) -> str:
     """
-    Clears the cache link: removes query parameters and fragments, leaving only the main part for domains in Config.CLEAN_QUERY.
-    For all other domains, keeps the query (for YouTube, Facebook и др.).
-    If the link is a Google redirect, uses the target link for cache.
+    Normalizes URLs for caching based on a set of specific rules,
+    removing all non-essential query parameters.
     """
     if not isinstance(url, str):
         return ''
-    # If Google redirect, extract the real URL
+
     url = extract_real_url_if_google(url)
     clean_url = get_clean_url_for_tagging(url)
     parsed = urlparse(clean_url)
     domain = parsed.netloc.lower()
-    # Check if the domain is on the list to be cleaned (full match only)
+    path = parsed.path
+    query_params = parse_qs(parsed.query)
+
+    # TikTok: always strip all params, keep only path
+    if 'tiktok.com' in domain:
+        return urlunparse((parsed.scheme, parsed.netloc, path, '', '', ''))
+
+    # Shorts and youtu.be: always strip all params
+    if (('youtube.com' in domain and path.startswith('/shorts/')) or ('youtu.be' in domain)):
+        return urlunparse((parsed.scheme, parsed.netloc, path, '', '', ''))
+
+    # /watch: only v
+    if 'youtube.com' in domain and path == '/watch':
+        if 'v' in query_params:
+            new_query = urlencode({'v': query_params['v']}, doseq=True)
+            return urlunparse((parsed.scheme, parsed.netloc, path, '', new_query, ''))
+        return urlunparse((parsed.scheme, parsed.netloc, path, '', '', ''))
+    # /playlist: list only
+    if 'youtube.com' in domain and path == '/playlist':
+        if 'list' in query_params:
+            new_query = urlencode({'list': query_params['list']}, doseq=True)
+            return urlunparse((parsed.scheme, parsed.netloc, path, '', new_query, ''))
+        return urlunparse((parsed.scheme, parsed.netloc, path, '', '', ''))
+    # /embed: playlist only
+    if 'youtube.com' in domain and path.startswith('/embed/'):
+        allowed_params = {k: v for k, v in query_params.items() if k == 'playlist'}
+        new_query = urlencode(allowed_params, doseq=True)
+        return urlunparse((parsed.scheme, parsed.netloc, path, '', new_query, ''))
+    # live: only way
+    if 'youtube.com' in domain and (path.startswith('/live/') or path.endswith('/live')):
+        return urlunparse((parsed.scheme, parsed.netloc, path, '', '', ''))
+    # fallback for CLEAN_QUERY domains (suffix match)
     for clean_domain in getattr(Config, 'CLEAN_QUERY', []):
-        if domain == clean_domain:
-            normalized = urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', '', ''))
-            return normalized
-    # For the rest, we leave query
+        if domain == clean_domain or domain.endswith('.' + clean_domain):
+            return urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', '', ''))
+    # For all other URLs, return them as they are
     return urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, parsed.query, ''))
 
 def extract_real_url_if_google(url: str) -> str:
