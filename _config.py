@@ -54,16 +54,12 @@ class Config(object):
     ]
     # CLEAN_QUERY array for domains where query and fragment can be safely cleared
     CLEAN_QUERY = [
-        'vk.com', 'm.vk.com', 'vkvideo.ru', 'vkontakte.ru',
-        'tiktok.com', 'vm.tiktok.com',
-        'instagram.com', 'www.instagram.com',
-        'twitter.com', 'x.com', 't.co',
-        'vimeo.com', 'player.vimeo.com',
-        'dailymotion.com', 'www.dailymotion.com',
-        'twitch.tv', 'clips.twitch.tv',
-        'ok.ru', 'my.mail.ru',
+        'vk.com', 'vk.com', 'vkvideo.ru', 'vkontakte.ru',
+        'tiktok.com', 'tiktok.com', 'vimeo.com', 'twitch.tv', 'twitch.tv',
+        'instagram.com', 'instagram.com', 'dailymotion.com',
+        'twitter.com', 'x.com', 't.co', 'ok.ru', 'mail.ru'
         # Add here other domains where query and fragment are not needed for video uniqueness
-    ]        
+    ]         
     # Commands
     DOWNLOAD_COOKIE_COMMAND = "/download_cookie"
     CHECK_COOKIE_COMMAND = "/check_cookie"
