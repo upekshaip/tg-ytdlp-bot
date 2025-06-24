@@ -113,7 +113,6 @@ class Config(object):
     PORN_DOMAINS_FILE = "porn_domains.txt"
     PORN_KEYWORDS_FILE = "porn_keywords.txt"
     SUPPORTED_SITES_FILE = "supported_sites.txt"
-    #PORN_SITES = "https://raw.githubusercontent.com/4skinSkywalker/Anti-Porn-HOSTS-File/refs/heads/master/HOSTS.txt"
     # --- Whitelist of domains that are not considered porn ---
     WHITELIST = [
         'dailymotion.com', 'ok.ru', 'kaspersky.com', 'sky.com', 'xbox.com', 
