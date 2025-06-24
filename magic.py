@@ -2926,8 +2926,12 @@ def get_auto_tags(url, user_tags):
     auto_tags = set()
     clean_url = get_clean_url_for_tagging(url)
     url_l = clean_url.lower()
+    domain_parts, main_domain = extract_domain_parts(url_l)
+    parsed = urlparse(clean_url)
+    ext = tldextract.extract(clean_url)
+    second_level = ext.domain.lower() if ext.domain else ''
+    full_domain = f"{ext.domain}.{ext.suffix}".lower() if ext.domain and ext.suffix else ''
     # 1. Porn Check (for all the suffixes of the domain, but taking into account the whitelist)
-    domain_parts, _ = extract_domain_parts(url_l)
     if is_porn_domain(domain_parts):
         auto_tags.add(sanitize_autotag('porn'))
     # 2. YouTube Check (including YouTu.be)
@@ -2935,7 +2939,6 @@ def get_auto_tags(url, user_tags):
         auto_tags.add("#youtube")
     # 3. Twitter/X check (exact domain match)
     twitter_domains = {"twitter.com", "x.com", "t.co"}
-    parsed = urlparse(clean_url)
     domain = parsed.netloc.lower()
     if domain in twitter_domains:
         auto_tags.add("#twitter")
@@ -2943,6 +2946,13 @@ def get_auto_tags(url, user_tags):
     if ("boosty.to" in url_l or "boosty.com" in url_l):
         auto_tags.add("#boosty")
         auto_tags.add("#porn")
+    # 5. Service tag for supported sites (by full domain or 2nd level)
+    for site in SUPPORTED_SITES:
+        site_l = site.lower()
+        if second_level == site_l or full_domain == site_l:
+            service_tag = '#' + re.sub(r'[^\w\d_]', '', site_l)
+            auto_tags.add(service_tag)
+            break
     # Do not duplicate user tags
     user_tags_lower = set(t.lower() for t in user_tags)
     auto_tags = [t for t in auto_tags if t.lower() not in user_tags_lower]
@@ -3372,36 +3382,42 @@ def get_url_hash(url: str) -> str:
     return hashlib.md5(url.encode()).hexdigest()
 
 def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bool = False):
-    """Saves or deleys ID messages in the cache."""
+    """Saves message IDs to cache for two YouTube link variants (long/short) at once."""
     if not quality_key:
         return
     try:
-        url_hash = get_url_hash(normalize_url_for_cache(url))
-        cache_ref = db.child(Config.VIDEO_CACHE_DB_PATH).child(url_hash)
-        
-        if clear:
-            cache_ref.child(quality_key).remove()
-            logger.info(f"Cache cleared for URL hash {url_hash}, quality {quality_key}")
-            return
-
-        if not message_ids:
-            return
-
-        # We save ID messages as a string separated
-        ids_string = ",".join(map(str, message_ids))
-        cache_ref.update({quality_key: ids_string})
-        logger.info(f"Saved to cache for URL hash {url_hash}, quality {quality_key}, msg_ids {ids_string}")
+        urls = [normalize_url_for_cache(url)]
+        # If it's YouTube, add both options
+        if is_youtube_url(url):
+            urls.append(normalize_url_for_cache(youtube_to_short_url(url)))
+            urls.append(normalize_url_for_cache(youtube_to_long_url(url)))
+        for u in set(urls):
+            url_hash = get_url_hash(u)
+            cache_ref = db.child(Config.VIDEO_CACHE_DB_PATH).child(url_hash)
+            if clear:
+                cache_ref.child(quality_key).remove()
+                logger.info(f"Cache cleared for URL hash {url_hash}, quality {quality_key}")
+                continue
+            if not message_ids:
+                continue
+            ids_string = ",".join(map(str, message_ids))
+            cache_ref.update({quality_key: ids_string})
+            logger.info(f"Saved to cache for URL hash {url_hash}, quality {quality_key}, msg_ids {ids_string}")
     except Exception as e:
         logger.error(f"Failed to save to cache: {e}")
 
 def get_cached_message_ids(url: str, quality_key: str) -> list:
-    """Receives a list of ID messages from the cache."""
+    """Ищет кэш по обоим вариантам YouTube-ссылки (длинная/короткая)."""
     try:
-        url_hash = get_url_hash(normalize_url_for_cache(url))
-        ids_string = db.child(Config.VIDEO_CACHE_DB_PATH).child(url_hash).child(quality_key).get().val()
-        if ids_string:
-            # We convert the line back to the list of numbers
-            return [int(msg_id) for msg_id in ids_string.split(',')]
+        urls = [normalize_url_for_cache(url)]
+        if is_youtube_url(url):
+            urls.append(normalize_url_for_cache(youtube_to_short_url(url)))
+            urls.append(normalize_url_for_cache(youtube_to_long_url(url)))
+        for u in set(urls):
+            url_hash = get_url_hash(u)
+            ids_string = db.child(Config.VIDEO_CACHE_DB_PATH).child(url_hash).child(quality_key).get().val()
+            if ids_string:
+                return [int(msg_id) for msg_id in ids_string.split(',')]
         return None
     except Exception as e:
         logger.error(f"Failed to get from cache: {e}")
@@ -3424,6 +3440,7 @@ def normalize_url_for_cache(url: str) -> str:
     """
     Normalizes URLs for caching based on a set of specific rules,
     removing all non-essential query parameters.
+    Для youtube.com (без www) оставлять как есть, для youtu.be всегда без www.
     """
     if not isinstance(url, str):
         return ''
@@ -3435,40 +3452,51 @@ def normalize_url_for_cache(url: str) -> str:
     path = parsed.path
     query_params = parse_qs(parsed.query)
 
+    # --- YouTube/youtu.be: always from www.youtube.com and youtu.be ---
+    if domain in ('youtube.com', 'www.youtube.com'):
+        domain = 'www.youtube.com'
+    if domain in ('youtu.be', 'www.youtu.be'):
+        domain = 'youtu.be'
+
+    # Pornhub: ignore subdomain, always use pornhub.com
+    if domain.endswith('.pornhub.com'):
+        base_domain = 'pornhub.com'
+        return urlunparse((parsed.scheme, base_domain, path, '', '', ''))
+
     # TikTok: always strip all params, keep only path
     if 'tiktok.com' in domain:
-        return urlunparse((parsed.scheme, parsed.netloc, path, '', '', ''))
+        return urlunparse((parsed.scheme, domain, path, '', '', ''))
 
     # Shorts and youtu.be: always strip all params
-    if (('youtube.com' in domain and path.startswith('/shorts/')) or ('youtu.be' in domain)):
-        return urlunparse((parsed.scheme, parsed.netloc, path, '', '', ''))
+    if (("youtube.com" in domain and path.startswith('/shorts/')) or ("youtu.be" in domain)):
+        return urlunparse((parsed.scheme, domain, path, '', '', ''))
 
     # /watch: only v
     if 'youtube.com' in domain and path == '/watch':
         if 'v' in query_params:
             new_query = urlencode({'v': query_params['v']}, doseq=True)
-            return urlunparse((parsed.scheme, parsed.netloc, path, '', new_query, ''))
-        return urlunparse((parsed.scheme, parsed.netloc, path, '', '', ''))
+            return urlunparse((parsed.scheme, domain, path, '', new_query, ''))
+        return urlunparse((parsed.scheme, domain, path, '', '', ''))
     # /playlist: list only
     if 'youtube.com' in domain and path == '/playlist':
         if 'list' in query_params:
             new_query = urlencode({'list': query_params['list']}, doseq=True)
-            return urlunparse((parsed.scheme, parsed.netloc, path, '', new_query, ''))
-        return urlunparse((parsed.scheme, parsed.netloc, path, '', '', ''))
+            return urlunparse((parsed.scheme, domain, path, '', new_query, ''))
+        return urlunparse((parsed.scheme, domain, path, '', '', ''))
     # /embed: playlist only
     if 'youtube.com' in domain and path.startswith('/embed/'):
         allowed_params = {k: v for k, v in query_params.items() if k == 'playlist'}
         new_query = urlencode(allowed_params, doseq=True)
-        return urlunparse((parsed.scheme, parsed.netloc, path, '', new_query, ''))
+        return urlunparse((parsed.scheme, domain, path, '', new_query, ''))
     # live: only way
     if 'youtube.com' in domain and (path.startswith('/live/') or path.endswith('/live')):
-        return urlunparse((parsed.scheme, parsed.netloc, path, '', '', ''))
+        return urlunparse((parsed.scheme, domain, path, '', '', ''))
     # fallback for CLEAN_QUERY domains (suffix match)
     for clean_domain in getattr(Config, 'CLEAN_QUERY', []):
         if domain == clean_domain or domain.endswith('.' + clean_domain):
-            return urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', '', ''))
+            return urlunparse((parsed.scheme, domain, parsed.path, '', '', ''))
     # For all other URLs, return them as they are
-    return urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, parsed.query, ''))
+    return urlunparse((parsed.scheme, domain, parsed.path, parsed.params, parsed.query, ''))
 
 def extract_real_url_if_google(url: str) -> str:
     """
@@ -3484,5 +3512,38 @@ def extract_real_url_if_google(url: str) -> str:
             # Take the first variant, decode if needed
             return unquote(real_url[0])
     return url
+
+def youtube_to_short_url(url: str) -> str:
+    """Преобразует youtube.com/watch?v=... в youtu.be/... с сохранением query-параметров."""
+    parsed = urlparse(url)
+    if 'youtube.com' in parsed.netloc and parsed.path == '/watch':
+        qs = parse_qs(parsed.query)
+        v = qs.get('v', [None])[0]
+        if v:
+            # Collect query without v
+            query = {k: v for k, v in qs.items() if k != 'v'}
+            query_str = urlencode(query, doseq=True)
+            base = f'https://youtu.be/{v}'
+            if query_str:
+                return f'{base}?{query_str}'
+            return base
+    return url
+
+def youtube_to_long_url(url: str) -> str:
+    """Преобразует youtu.be/... в youtube.com/watch?v=... с сохранением query-параметров."""
+    parsed = urlparse(url)
+    if 'youtu.be' in parsed.netloc:
+        video_id = parsed.path.lstrip('/')
+        if video_id:
+            qs = parsed.query
+            base = f'https://www.youtube.com/watch?v={video_id}'
+            if qs:
+                return f'{base}&{qs}'
+            return base
+    return url
+
+def is_youtube_url(url: str) -> bool:
+    parsed = urlparse(url)
+    return 'youtube.com' in parsed.netloc or 'youtu.be' in parsed.netloc
 
 app.run()
