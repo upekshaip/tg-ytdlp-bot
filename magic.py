@@ -1,4 +1,4 @@
-# Version 1.7.7 - Add TikTok URL cleaning for cache
+# Version 1.7.8 - Fix playlist caching and Pornhub cache normalization
 
 import pyrebase
 import re
@@ -69,6 +69,19 @@ def extract_tiktok_profile(url: str) -> str:
     if m:
         return m.group(1)
     return ''
+
+# --- New function to check if URL contains playlist range ---
+def is_playlist_with_range(text: str) -> bool:
+    """
+    Checks if the text contains a playlist range pattern like *1*3, 1*1000, etc.
+    Returns True if a range is detected, False otherwise.
+    """
+    if not isinstance(text, str):
+        return False
+    
+    # Look for patterns like *1*3, 1*1000, *5*10, etc.
+    range_pattern = r'\*[0-9]+\*[0-9]+|[0-9]+\*[0-9]+'
+    return bool(re.search(range_pattern, text))
 
 # Configure logging
 logging.basicConfig(
@@ -1769,7 +1782,7 @@ def down_and_audio(app, message, url, tags, quality_key=None):
                     msg_ids = [m.id for m in forwarded_msg]
                 else:
                     msg_ids = [forwarded_msg.id]
-                save_to_video_cache(url, quality_key, msg_ids)
+                save_to_video_cache(url, quality_key, msg_ids, original_text=message.text or message.caption or "")
         except Exception as send_error:
             logger.error(f"Error sending audio: {send_error}")
             send_to_user(message, f"❌ Failed to send audio: {send_error}")
@@ -2241,7 +2254,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     try:
                         forwarded_msgs = safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
                         if forwarded_msgs:
-                            save_to_video_cache(url, quality_key, [m.id for m in forwarded_msgs])
+                            save_to_video_cache(url, quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
                     except Exception as e:
                         logger.error(f"Error forwarding video to logger: {e}")
                     safe_edit_message_text(user_id, proc_msg_id,
@@ -2281,7 +2294,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         try:
                             forwarded_msgs = safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
                             if forwarded_msgs:
-                                save_to_video_cache(url, quality_key, [m.id for m in forwarded_msgs])
+                                save_to_video_cache(url, quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
                         except Exception as e:
                             logger.error(f"Error forwarding video to logger: {e}")
                         safe_edit_message_text(user_id, proc_msg_id,
@@ -3099,7 +3112,13 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
     try:
         proc_msg = app.send_message(user_id, "Processing... ♻️", reply_to_message_id=message.id)
         
-        cached_qualities = get_cached_qualities(url)
+        # Check if this is a playlist with range - if so, skip cache
+        original_text = message.text or message.caption or ""
+        if is_playlist_with_range(original_text):
+            logger.info(f"Playlist with range detected, skipping cache for URL: {url}")
+            cached_qualities = set()
+        else:
+            cached_qualities = get_cached_qualities(url)
 
         info = get_video_formats(url, user_id, playlist_start_index)
         title = info.get('title', 'Video')
@@ -3253,6 +3272,13 @@ def askq_callback(app, callback_query):
     # After all the data is extracted, delete the message with the buttons
     callback_query.message.delete()
 
+    # Check if this is a playlist with range - if so, skip cache
+    original_text = original_message.text or original_message.caption or ""
+    if is_playlist_with_range(original_text):
+        logger.info(f"Playlist with range detected, skipping cache for URL: {url}")
+        askq_callback_logic(app, callback_query, data, original_message, url, tags_text)
+        return
+
     # Check the cache before downloading
     message_ids = get_cached_message_ids(url, data)
     if message_ids:
@@ -3381,10 +3407,16 @@ def get_url_hash(url: str) -> str:
     """Creates MD5 URL hash for use as a Firebase key."""
     return hashlib.md5(url.encode()).hexdigest()
 
-def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bool = False):
+def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bool = False, original_text: str = None):
     """Saves message IDs to cache for two YouTube link variants (long/short) at once."""
     if not quality_key:
         return
+    
+    # Check if this is a playlist with range - if so, skip cache
+    if original_text and is_playlist_with_range(original_text):
+        logger.info(f"Playlist with range detected, skipping cache save for URL: {url}")
+        return
+        
     try:
         urls = [normalize_url_for_cache(url)]
         # If it's YouTube, add both options
@@ -3458,10 +3490,10 @@ def normalize_url_for_cache(url: str) -> str:
     if domain in ('youtu.be', 'www.youtu.be'):
         domain = 'youtu.be'
 
-    # Pornhub: ignore subdomain, always use pornhub.com
+    # Pornhub: keep full path and query parameters for unique video identification
     if domain.endswith('.pornhub.com'):
         base_domain = 'pornhub.com'
-        return urlunparse((parsed.scheme, base_domain, path, '', '', ''))
+        return urlunparse((parsed.scheme, base_domain, path, parsed.params, parsed.query, parsed.fragment))
 
     # TikTok: always strip all params, keep only path
     if 'tiktok.com' in domain:
