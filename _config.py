@@ -1,5 +1,6 @@
 # Config
 class Config(object):
+    #######################################################    
     # Your bot name - Required (str)
     BOT_NAME = "public"
     # A name for users - Required (str)
@@ -20,7 +21,6 @@ class Config(object):
     SUBSCRIBE_CHANNEL_URL = "https://t.me/upekshaip"
     # Download timeout in seconds (2 hours = 7200 seconds)
     DOWNLOAD_TIMEOUT = 7200
-
     # Cookie file URL
     # EX: "https://path/to/your/cookie-file.txt"
     COOKIE_URL = ""
@@ -28,38 +28,24 @@ class Config(object):
     COOKIE_FILE_PATH = "cookies.txt"
     # Do not chanege this
     PIC_FILE_PATH = "pic.jpg"
-
-    # Restricted content site lists
-    BLACK_LIST = []
-    #BLACK_LIST = ["pornhub", "phncdn.com", "xvideos", "xhcdn.com", "xhamster"]
-    
-    # Paths to domain and keyword lists
-    PORN_DOMAINS_FILE = "porn_domains.txt"
-    PORN_KEYWORDS_FILE = "porn_keywords.txt"
-    SUPPORTED_SITES_FILE = "supported_sites.txt"
-
-    # --- Whitelist of domains that are not considered porn ---
-    WHITELIST = [
-        'dailymotion.com', 'ok.ru', 'kaspersky.com', 'sky.com', 'xbox.com', 
-        'youtube.com', 'youtu.be', 'tiktok.ru', 'rutube.ru', '1tv.ru',
-        'x.com', 'tiktok.com', 'facebook.com', 'x.ai', 'vk.ru',
-        'vk.com', 'm.vk.com', 'vkvideo.ru', 'vkontakte.ru'
-        # Other secure domains can be added
-    ]
-    # TikTok Domain List
-    TIKTOK_DOMAINS = [
-        'tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com',
-        'www.tiktok.com', 'm.tiktok.com', 'tiktokv.com',
-        'www.tiktokv.com', 'tiktok.ru', 'www.tiktok.ru'
-    ]
-    # CLEAN_QUERY array for domains where query and fragment can be safely cleared
-    CLEAN_QUERY = [
-        'vk.com', 'vk.com', 'vkvideo.ru', 'vkontakte.ru',
-        'tiktok.com', 'tiktok.com', 'vimeo.com', 'twitch.tv', 'twitch.tv',
-        'instagram.com', 'instagram.com', 'dailymotion.com',
-        'twitter.com', 'x.com', 't.co', 'ok.ru', 'mail.ru'
-        # Add here other domains where query and fragment are not needed for video uniqueness
-    ]         
+    #######################################################
+    # Firebase initialization
+    # your firebase DB path
+    BOT_DB_PATH = f"bot/{BOT_NAME}/"
+    VIDEO_CACHE_DB_PATH = f"bot/video_cache"
+    # Firebase Config - Required (str for all)
+    FIREBASE_USER = "YOUR@E.MAIL"
+    FIREBASE_PASSWORD = "YOUR_PASSWORD"
+    FIREBASE_CONF = {
+        'apiKey': "",
+        'authDomain': "",
+        'projectId': "",
+        'storageBucket': "",
+        'messagingSenderId': "",
+        'appId': "",
+        'databaseURL': ""
+    }
+    #######################################################
     # Commands
     DOWNLOAD_COOKIE_COMMAND = "/download_cookie"
     CHECK_COOKIE_COMMAND = "/check_cookie"
@@ -78,7 +64,7 @@ class Config(object):
     # this is a main cmd - to user /get_user_details_users
     GET_USER_DETAILS_COMMAND = "/all"
     SPLIT_COMMAND = "/split"
-    
+    #######################################################
     # Messages and errors
     CREDITS_MSG = "__Developed by__ @upekshaip"
     TO_USE_MSG = "__To use this bot you need to subscribe to @upekshaip Telegram channel.__\nAfter you join the channel, **resend your video link again and I will download it for you** ❤️  "
@@ -119,19 +105,34 @@ class Config(object):
     <i>Developed by</i> @upekshaip
     <i>Contributor</i> @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl
     """
-# Firebase initialization
-    # your firebase DB path
-    BOT_DB_PATH = f"bot/{BOT_NAME}/"
-    VIDEO_CACHE_DB_PATH = f"bot/video_cache"
-    # Firebase Config - Required (str for all)
-    FIREBASE_USER = "YOUR@E.MAIL"
-    FIREBASE_PASSWORD = "YOUR_PASSWORD"
-    FIREBASE_CONF = {
-        'apiKey': "",
-        'authDomain': "",
-        'projectId': "",
-        'storageBucket': "",
-        'messagingSenderId': "",
-        'appId': "",
-        'databaseURL': ""
-    }
+    #######################################################
+    # Restricted content site lists
+    BLACK_LIST = []
+    #BLACK_LIST = ["pornhub", "phncdn.com", "xvideos", "xhcdn.com", "xhamster"]
+        # Paths to domain and keyword lists
+    PORN_DOMAINS_FILE = "porn_domains.txt"
+    PORN_KEYWORDS_FILE = "porn_keywords.txt"
+    SUPPORTED_SITES_FILE = "supported_sites.txt"
+    #PORN_SITES = "https://raw.githubusercontent.com/4skinSkywalker/Anti-Porn-HOSTS-File/refs/heads/master/HOSTS.txt"
+    # --- Whitelist of domains that are not considered porn ---
+    WHITELIST = [
+        'dailymotion.com', 'ok.ru', 'kaspersky.com', 'sky.com', 'xbox.com', 
+        'youtube.com', 'youtu.be', 'tiktok.ru', 'rutube.ru', '1tv.ru',
+        'x.com', 'tiktok.com', 'facebook.com', 'x.ai', 'vk.ru',
+        'vk.com', 'm.vk.com', 'vkvideo.ru', 'vkontakte.ru'
+        # Other secure domains can be added
+    ]
+    # TikTok Domain List
+    TIKTOK_DOMAINS = [
+        'tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com',
+        'www.tiktok.com', 'm.tiktok.com', 'tiktokv.com',
+        'www.tiktokv.com', 'tiktok.ru', 'www.tiktok.ru'
+    ]
+    # Added CLEAN_QUERY array for domains where query and fragment can be safely cleared
+    CLEAN_QUERY = [
+        'vk.com', 'vk.com', 'vkvideo.ru', 'vkontakte.ru',
+        'tiktok.com', 'tiktok.com', 'vimeo.com', 'twitch.tv', 'twitch.tv',
+        'instagram.com', 'instagram.com', 'dailymotion.com',
+        'twitter.com', 'x.com', 't.co', 'ok.ru', 'mail.ru'
+        # Add here other domains where query and fragment are not needed for video uniqueness
+    ]       
