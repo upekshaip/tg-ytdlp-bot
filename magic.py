@@ -1,4 +1,4 @@
-# Version 1.7.8 - Fix playlist caching and Pornhub cache normalization
+# Version 1.7.9 - Add playlist support to down_and_audio function
 
 import pyrebase
 import re
@@ -444,7 +444,13 @@ def audio_command_handler(app, message):
         send_to_user(message, "Please, send valid URL.")
         return
     save_user_tags(user_id, tags)
-    down_and_audio(app, message, url, tags)
+    
+    # Extract playlist parameters from the message
+    full_string = message.text or message.caption or ""
+    _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
+    video_count = video_end_with - video_start_with + 1
+    
+    down_and_audio(app, message, url, tags, playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with)
 
 # Command /Format Handler
 @app.on_message(filters.command("format") & filters.private)
@@ -1627,7 +1633,7 @@ def write_logs(message, video_url, video_title):
 # Down_and_audio function
 # ########################################
 
-def down_and_audio(app, message, url, tags, quality_key=None):
+def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None, video_count=1, video_start_with=1):
     user_id = message.chat.id
     anim_thread = None
     stop_anim = threading.Event()
@@ -1679,37 +1685,33 @@ def down_and_audio(app, message, url, tags, quality_key=None):
     status_msg_id = status_msg.id
     hourglass_msg_id = hourglass_msg.id
     anim_thread = start_hourglass_animation(user_id, hourglass_msg_id, stop_anim)
-    audio_file = None
+    audio_files = []
     try:
         # Check if there's enough disk space (estimate 500MB per audio file)
         user_folder = os.path.abspath(os.path.join("users", str(user_id)))
         create_directory(user_folder)
 
-        if not check_disk_space(user_folder, 500 * 1024 * 1024):
-            send_to_user(message, "❌ Not enough disk space to download the audio.")
+        if not check_disk_space(user_folder, 500 * 1024 * 1024 * video_count):
+            send_to_user(message, "❌ Not enough disk space to download the audio files.")
             return
 
         check_user(message)
 
+        # Reset of the flag of errors for the new launch of the playlist
+        if playlist_name:
+            with playlist_errors_lock:
+                error_key = f"{user_id}_{playlist_name}"
+                if error_key in playlist_errors:
+                    del playlist_errors[error_key]
+
         cookie_file = os.path.join(user_folder, os.path.basename(Config.COOKIE_FILE_PATH))
-        ytdl_opts = {
-            'format': 'ba',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-            'prefer_ffmpeg': True,
-            'extractaudio': True,
-            'noplaylist': True,
-            'cookiefile': cookie_file,
-            'outtmpl': os.path.join(user_folder, "%(title)s.%(ext)s"),
-            'progress_hooks': [],
-        }
         last_update = 0
+        current_total_process = ""
+        successful_uploads = 0
+
         def progress_hook(d):
             nonlocal last_update
-            # Check the timaut
+            # Check the timeout
             if check_download_timeout(user_id):
                 raise Exception(f"Download timeout exceeded ({Config.DOWNLOAD_TIMEOUT // 3600} hours)")
             current_time = time.time()
@@ -1722,7 +1724,7 @@ def down_and_audio(app, message, url, tags, quality_key=None):
                 blocks = int(percent // 10)
                 bar = "🟩" * blocks + "⬜️" * (10 - blocks)
                 try:
-                    safe_edit_message_text(user_id, proc_msg_id, f"Downloading audio:\n{bar}   {percent:.1f}%")
+                    safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\nDownloading audio:\n{bar}   {percent:.1f}%")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
@@ -1730,7 +1732,7 @@ def down_and_audio(app, message, url, tags, quality_key=None):
                 try:
                     full_bar = "🟩" * 10
                     safe_edit_message_text(user_id, proc_msg_id,
-                        f"Downloading audio:\n{full_bar}   100.0%\nDownload finished, processing audio...")
+                        f"{current_total_process}\nDownloading audio:\n{full_bar}   100.0%\nDownload finished, processing audio...")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
@@ -1741,56 +1743,182 @@ def down_and_audio(app, message, url, tags, quality_key=None):
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
 
-        ytdl_opts['progress_hooks'].append(progress_hook)
+        def try_download_audio(url, current_index):
+            nonlocal current_total_process
+            ytdl_opts = {
+                'format': 'ba',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }],
+                'prefer_ffmpeg': True,
+                'extractaudio': True,
+                'playlist_items': str(current_index + video_start_with),
+                'cookiefile': cookie_file,
+                'outtmpl': os.path.join(user_folder, "%(title)s.%(ext)s"),
+                'progress_hooks': [progress_hook],
+            }
+            
+            try:
+                with YoutubeDL(ytdl_opts) as ydl:
+                    info_dict = ydl.extract_info(url, download=False)
+                if "entries" in info_dict:
+                    entries = info_dict["entries"]
+                    if len(entries) > 1:  # If the video in the playlist is more than one
+                        if current_index < len(entries):
+                            info_dict = entries[current_index]
+                        else:
+                            raise Exception(f"Audio index {current_index} out of range (total {len(entries)})")
+                    else:
+                        # If there is only one video in the playlist, just download it
+                        info_dict = entries[0]  # Just take the first video
 
-        try:
-            with YoutubeDL(ytdl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-            # logger.info(f"AUDIO INFO_DICT: {info}")
-        except Exception as ytdl_error:
-            logger.error(f"YouTube-DL error: {ytdl_error}")
-            send_to_user(message, f"❌ Failed to download audio: {ytdl_error}")
-            return
+                try:
+                    safe_edit_message_text(user_id, proc_msg_id,
+                        f"{current_total_process}\n\n> __Downloading audio using format: ba...__ 📥")
+                except Exception as e:
+                    logger.error(f"Status update error: {e}")
+                
+                with YoutubeDL(ytdl_opts) as ydl:
+                    ydl.download([url])
+                
+                try:
+                    full_bar = "🟩" * 10
+                    safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{full_bar}   100.0%")
+                except Exception as e:
+                    logger.error(f"Final progress update error: {e}")
+                return info_dict
+            except Exception as e:
+                logger.error(f"Audio download attempt failed: {e}")
+                return None
 
-        audio_title = info.get("title", "audio")
-        audio_title = sanitize_filename(audio_title)
-        audio_file = os.path.join(user_folder, audio_title + ".mp3")
-        if not os.path.exists(audio_file):
-            files = [f for f in os.listdir(user_folder) if f.endswith(".mp3")]
-            if files:
-                audio_file = os.path.join(user_folder, files[0])
+        for x in range(video_count):
+            current_index = x
+            total_process = f"""
+**📶 Total Progress**
+> **Audio:** {x + 1} / {video_count}
+"""
+
+            current_total_process = total_process
+
+            # Determine rename_name based on the incoming playlist_name:
+            if playlist_name and playlist_name.strip():
+                # A new name for the playlist is explicitly set - let's use it
+                rename_name = sanitize_filename(f"{playlist_name.strip()} - Part {x + video_start_with}")
             else:
-                send_to_user(message, "Audio file not found after download.")
-                return
-        try:
-            full_bar = "🟩" * 10
-            safe_edit_message_text(user_id, proc_msg_id, f"Uploading audio file...\n{full_bar}   100.0%")
-        except Exception as e:
-            logger.error(f"Error updating upload status: {e}")
-        # We form a text with tags and a link for audio
-        tags_for_final = tags if isinstance(tags, list) else (tags.split() if isinstance(tags, str) else [])
-        tags_text_final = generate_final_tags(url, tags_for_final, info)
-        tags_block = (tags_text_final.strip() + '\n') if tags_text_final and tags_text_final.strip() else ''
-        bot_name = getattr(Config, 'BOT_NAME', None) or 'bot'
-        bot_mention = f' @{bot_name}' if not bot_name.startswith('@') else f' {bot_name}'
-        caption_with_link = f"{audio_title}\n\n{tags_block}[🔗 Audio URL]({url}){bot_mention}"
-        try:
-            audio_msg = app.send_audio(chat_id=user_id, audio=audio_file, caption=caption_with_link, reply_to_message_id=message.id)
-            forwarded_msg = safe_forward_messages(Config.LOGS_ID, user_id, [audio_msg.id])
-            if quality_key and forwarded_msg:
-                if isinstance(forwarded_msg, list):
-                    msg_ids = [m.id for m in forwarded_msg]
-                else:
-                    msg_ids = [forwarded_msg.id]
-                save_to_video_cache(url, quality_key, msg_ids, original_text=message.text or message.caption or "")
-        except Exception as send_error:
-            logger.error(f"Error sending audio: {send_error}")
-            send_to_user(message, f"❌ Failed to send audio: {send_error}")
-            return
+                # No new name set - extract name from metadata
+                rename_name = None
 
+            info_dict = try_download_audio(url, current_index)
+
+            if info_dict is None:
+                with playlist_errors_lock:
+                    error_key = f"{user_id}_{playlist_name}"
+                    if error_key not in playlist_errors:
+                        playlist_errors[error_key] = True
+                        send_to_all(
+                            message,
+                            f"❌ Failed to download audio: Check if your site is supported\n"
+                            "> You may need `cookie` for downloading this audio. First, clean your workspace via **/clean** command\n"
+                            "> For Youtube - get `cookie` via **/download_cookie** command. For any other supported site - send your own cookie and after that send your audio link again."
+                        )
+                break
+
+            successful_uploads += 1
+
+            audio_title = info_dict.get("title", "audio")
+            audio_title = sanitize_filename(audio_title)
+            
+            # If rename_name is not set, set it equal to audio_title
+            if rename_name is None:
+                rename_name = audio_title
+
+            # Find the downloaded audio file
+            allfiles = os.listdir(user_folder)
+            files = [fname for fname in allfiles if fname.endswith('.mp3')]
+            files.sort()
+            if not files:
+                send_to_all(message, f"Skipping unsupported file type in playlist at index {x + video_start_with}")
+                continue
+
+            downloaded_file = files[0]
+            write_logs(message, url, downloaded_file)
+
+            if rename_name == audio_title:
+                caption_name = audio_title
+                final_name = downloaded_file
+            else:
+                ext = os.path.splitext(downloaded_file)[1]
+                final_name = rename_name + ext
+                caption_name = rename_name
+                old_path = os.path.join(user_folder, downloaded_file)
+                new_path = os.path.join(user_folder, final_name)
+
+                if os.path.exists(new_path):
+                    try:
+                        os.remove(new_path)
+                    except Exception as e:
+                        logger.error(f"Error removing existing file {new_path}: {e}")
+
+                try:
+                    os.rename(old_path, new_path)
+                except Exception as e:
+                    logger.error(f"Error renaming file from {old_path} to {new_path}: {e}")
+                    final_name = downloaded_file
+                    caption_name = audio_title
+
+            audio_file = os.path.join(user_folder, final_name)
+            if not os.path.exists(audio_file):
+                send_to_user(message, "Audio file not found after download.")
+                continue
+
+            audio_files.append(audio_file)
+
+            try:
+                full_bar = "🟩" * 10
+                safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\nUploading audio file...\n{full_bar}   100.0%")
+            except Exception as e:
+                logger.error(f"Error updating upload status: {e}")
+
+            # We form a text with tags and a link for audio
+            tags_for_final = tags if isinstance(tags, list) else (tags.split() if isinstance(tags, str) else [])
+            tags_text_final = generate_final_tags(url, tags_for_final, info_dict)
+            tags_block = (tags_text_final.strip() + '\n') if tags_text_final and tags_text_final.strip() else ''
+            bot_name = getattr(Config, 'BOT_NAME', None) or 'bot'
+            bot_mention = f' @{bot_name}' if not bot_name.startswith('@') else f' {bot_name}'
+            caption_with_link = f"{caption_name}\n\n{tags_block}[🔗 Audio URL]({url}){bot_mention}"
+            
+            try:
+                audio_msg = app.send_audio(chat_id=user_id, audio=audio_file, caption=caption_with_link, reply_to_message_id=message.id)
+                forwarded_msg = safe_forward_messages(Config.LOGS_ID, user_id, [audio_msg.id])
+                if quality_key and forwarded_msg:
+                    if isinstance(forwarded_msg, list):
+                        msg_ids = [m.id for m in forwarded_msg]
+                    else:
+                        msg_ids = [forwarded_msg.id]
+                    save_to_video_cache(url, quality_key, msg_ids, original_text=message.text or message.caption or "")
+            except Exception as send_error:
+                logger.error(f"Error sending audio: {send_error}")
+                send_to_user(message, f"❌ Failed to send audio: {send_error}")
+                continue
+
+            # Clean up the audio file after sending
+            try:
+                os.remove(audio_file)
+            except Exception as e:
+                logger.error(f"Failed to delete audio file {audio_file}: {e}")
+
+            # Add delay between uploads for playlists
+            if x < video_count - 1:
+                threading.Event().wait(2)
+
+        if successful_uploads == video_count:
+            success_msg = f"✅ Audio successfully downloaded and sent - {video_count} files uploaded.\n\n{Config.CREDITS_MSG}"
+        else:
+            success_msg = f"⚠️ Partially completed - {successful_uploads}/{video_count} audio files uploaded.\n\n{Config.CREDITS_MSG}"
+            
         try:
-            full_bar = "🟩" * 10
-            success_msg = f"✅ Audio successfully downloaded and sent.\n\n{Config.CREDITS_MSG}"
             safe_edit_message_text(user_id, proc_msg_id, success_msg)
         except Exception as e:
             logger.error(f"Error updating final status: {e}")
@@ -1818,16 +1946,23 @@ def down_and_audio(app, message, url, tags, quality_key=None):
         except Exception as e:
             logger.error(f"Error deleting status messages: {e}")
 
-        try:
-            if os.path.exists(audio_file):
-                os.remove(audio_file)
-        except Exception as e:
-            logger.error(f"Failed to delete file {audio_file}: {e}")
+        # Clean up any remaining audio files
+        for audio_file in audio_files:
+            try:
+                if os.path.exists(audio_file):
+                    os.remove(audio_file)
+            except Exception as e:
+                logger.error(f"Failed to delete file {audio_file}: {e}")
 
         set_active_download(user_id, False)
         clear_download_start_time(user_id)  # Cleaning the start time
 
-        # Removing the Removing of the Status Communication
+        # Reset playlist errors if this was a playlist
+        if playlist_name:
+            with playlist_errors_lock:
+                error_key = f"{user_id}_{playlist_name}"
+                if error_key in playlist_errors:
+                    del playlist_errors[error_key]
 
 # ########################################
 # Download_and_up function
@@ -3312,7 +3447,12 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
     tags = tags_text.split() if tags_text else []
     if data == "mp3":
         callback_query.answer("Downloading audio...")
-        down_and_audio(app, original_message, url, tags, quality_key="mp3")
+        # Extract playlist parameters from the original message
+        full_string = original_message.text or original_message.caption or ""
+        _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
+        video_count = video_end_with - video_start_with + 1
+        
+        down_and_audio(app, original_message, url, tags, quality_key="mp3", playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with)
         return
 
     if data == "best":
