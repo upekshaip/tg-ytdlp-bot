@@ -106,6 +106,25 @@ pip install --no-deps moviepy==1.0.3
 python3 magic.py
 ```
 ---
+### (Optional) Installing mediainfo (example for Ubuntu/Debian)
+<details>
+  <summary>spoiler</summary> 
+      
+   If you want to get mediainfo metadata about downloaded media files - you also need to install `mediainfo`
+   To install mediainfo on a Debian-based system, run:
+
+   ```sh
+   sudo apt-get update
+   sudo apt install mediainfo  # Ubuntu/Debian
+   ```
+
+   Verify the installation:
+   ```sh
+   mediainfo --version
+   ```
+</details> 
+
+---
 ### (Optional) Installing ffmpeg (example for Ubuntu/Debian)
 <details>
   <summary>spoiler</summary> 
