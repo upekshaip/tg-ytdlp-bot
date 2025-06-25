@@ -1,5 +1,3 @@
-# Version 1.7.9 - Add playlist support to down_and_audio function
-
 import pyrebase
 import re
 import os
@@ -12,7 +10,7 @@ from typing import Tuple
 from pyrogram import Client, filters
 from pyrogram import enums
 from pyrogram.enums import ChatMemberStatus
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, Message
 from datetime import datetime
 import requests
 import math
@@ -31,6 +29,7 @@ import tldextract
 from pyrogram.types import ReplyKeyboardMarkup
 import json
 from pymediainfo import MediaInfo
+import types
 
 # --- New function for cleaning URL only for tags ---
 def get_clean_url_for_tagging(url: str) -> str:
@@ -691,6 +690,11 @@ def url_distractor(app, message):
         mediainfo_command(app, message)
         return
     
+    # /Settings Command
+    if text.startswith(Config.SETTINGS_COMMAND):
+        settings_command(app, message)
+        return  
+    
     # /Clean Command
     if text.startswith(Config.CLEAN_COMMAND):
         clean_args = text[len(Config.CLEAN_COMMAND):].strip().lower()
@@ -1074,6 +1078,166 @@ def check_runtime(message):
         send_to_user(message, f"⏳ __Bot running time -__ **{now}**")
     pass
 
+# ===================== /settings =====================
+@app.on_message(filters.command("settings") & filters.private)
+def settings_command(app, message):
+    user_id = message.chat.id
+    # Main settings menu
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🍪 COOKIES", callback_data="settings__menu__cookies")],
+        [InlineKeyboardButton("🎞 MEDIA", callback_data="settings__menu__media")],
+        [InlineKeyboardButton("📖 LOGS", callback_data="settings__menu__logs")],
+        [InlineKeyboardButton("🔙 Close", callback_data="settings__menu__close")]
+    ])
+    app.send_message(
+        user_id,
+        "<b>Bot Settings</b>\n\nChoose a category:",
+        reply_markup=keyboard,
+        parse_mode=enums.ParseMode.HTML,
+        reply_to_message_id=message.id
+    )
+    send_to_logger(message, "Opened /settings menu")
+
+@app.on_callback_query(filters.regex(r"^settings__menu__"))
+def settings_menu_callback(app, callback_query: CallbackQuery):
+    user_id = callback_query.from_user.id
+    data = callback_query.data.split("__")[-1]
+    if data == "close":
+        callback_query.message.delete()
+        callback_query.answer("Menu closed.")
+        return
+    if data == "cookies":
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🧹 /clean - Delete cookies & broken media files", callback_data="settings__cmd__clean")],
+            [InlineKeyboardButton("📥 /download_cookie - Download my YouTube cookie", callback_data="settings__cmd__download_cookie")],
+            [InlineKeyboardButton("🌐 /cookies_from_browser - Get cookies from browser", callback_data="settings__cmd__cookies_from_browser")],
+            [InlineKeyboardButton("🔎 /check_cookie - Check cookie file in your folder", callback_data="settings__cmd__check_cookie")],
+            [InlineKeyboardButton("🔖 /save_as_cookie - Send text to save as cookie", callback_data="settings__cmd__save_as_cookie")],
+            [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
+        ])
+        callback_query.edit_message_text(
+            "<b>🍪 COOKIES</b>\n\nChoose an action:",
+            reply_markup=keyboard,
+            parse_mode=enums.ParseMode.HTML
+        )
+        callback_query.answer()
+        return
+    if data == "media":
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📼 /format - Change quality & format", callback_data="settings__cmd__format")],
+            [InlineKeyboardButton("📊 /mediainfo - Turn ON / OFF MediaInfo", callback_data="settings__cmd__mediainfo")],
+            [InlineKeyboardButton("✂️ /split - Change split video part size", callback_data="settings__cmd__split")],
+            [InlineKeyboardButton("🎧 /audio - Download video as audio", callback_data="settings__cmd__audio")],
+            [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
+        ])
+        callback_query.edit_message_text(
+            "<b>🎞 MEDIA</b>\n\nChoose an action:",
+            reply_markup=keyboard,
+            parse_mode=enums.ParseMode.HTML
+        )
+        callback_query.answer()
+        return
+    if data == "logs":
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("#️⃣ /tags - Send your #tags", callback_data="settings__cmd__tags")],
+            [InlineKeyboardButton("🆘 /help - Get instructions", callback_data="settings__cmd__help")],
+            [InlineKeyboardButton("📃 /usage -Send your logs", callback_data="settings__cmd__usage")],
+            [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
+        ])
+        callback_query.edit_message_text(
+            "<b>📖 LOGS</b>\n\nChoose an action:",
+            reply_markup=keyboard,
+            parse_mode=enums.ParseMode.HTML
+        )
+        callback_query.answer()
+        return
+    if data == "back":
+        # Return to main menu
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🍪 COOKIES", callback_data="settings__menu__cookies")],
+            [InlineKeyboardButton("🎞 MEDIA", callback_data="settings__menu__media")],
+            [InlineKeyboardButton("📖 LOGS", callback_data="settings__menu__logs")],
+            [InlineKeyboardButton("🔙 Close", callback_data="settings__menu__close")]
+        ])
+        callback_query.edit_message_text(
+            "<b>Bot Settings</b>\n\nChoose a category:",
+            reply_markup=keyboard,
+            parse_mode=enums.ParseMode.HTML
+        )
+        callback_query.answer()
+        return
+
+@app.on_callback_query(filters.regex(r"^settings__cmd__"))
+def settings_cmd_callback(app, callback_query: CallbackQuery):
+    user_id = callback_query.from_user.id
+    data = callback_query.data.split("__")[-1]
+    # Маппинг команд на обработчики
+    # Для команд, которые обрабатываются только через url_distractor, создаём временный Message
+    def fake_message(text, command=None):
+        m = types.SimpleNamespace()
+        m.chat = types.SimpleNamespace()
+        m.chat.id = user_id
+        m.chat.first_name = getattr(callback_query.from_user, 'first_name', 'User')
+        m.text = text
+        m.first_name = m.chat.first_name  # для совместимости с message.first_name
+        m.reply_to_message = None
+        m.id = getattr(callback_query.message, 'id', 0)
+        if command is not None:
+            m.command = command
+        return m
+    if data == "clean":
+        url_distractor(app, fake_message("/clean cookie"))
+        callback_query.answer("Command executed.")
+        return
+    if data == "download_cookie":
+        url_distractor(app, fake_message("/download_cookie"))
+        callback_query.answer("Command executed.")
+        return
+    if data == "cookies_from_browser":
+        cookies_from_browser(app, fake_message("/cookies_from_browser"))
+        callback_query.answer("Command executed.")
+        return
+    if data == "check_cookie":
+        url_distractor(app, fake_message("/check_cookie"))
+        callback_query.answer("Command executed.")
+        return
+    if data == "save_as_cookie":
+        app.send_message(user_id, Config.SAVE_AS_COOKIE_HINT, reply_to_message_id=callback_query.message.id, parse_mode=enums.ParseMode.HTML)
+        callback_query.answer("Hint sent.")
+        return
+    if data == "format":
+        # Добавляем атрибут command для корректной работы set_format
+        set_format(app, fake_message("/format", command=["format"]))
+        callback_query.answer("Command executed.")
+        return
+    if data == "mediainfo":
+        mediainfo_command(app, fake_message("/mediainfo"))
+        callback_query.answer("Command executed.")
+        return
+    if data == "split":
+        split_command(app, fake_message("/split"))
+        callback_query.answer("Command executed.")
+        return
+    if data == "audio":
+        # Просто отправляем подсказку по использованию
+        app.send_message(user_id, "Download only audio from video source.\nUsage: /audio + URL (ex. /audio https://youtu.be/abc123)", reply_to_message_id=callback_query.message.id)
+        callback_query.answer("Hint sent.")
+        return
+    if data == "tags":
+        tags_command(app, fake_message("/tags"))
+        callback_query.answer("Command executed.")
+        return
+    if data == "help":
+        command2(app, fake_message("/help"))
+        callback_query.answer("Command executed.")
+        return
+    if data == "usage":
+        url_distractor(app, fake_message("/usage"))
+        callback_query.answer("Command executed.")
+        return
+    callback_query.answer("Unknown command.", show_alert=True)
+
+
 # /Mediainfo Command
 @app.on_message(filters.command("mediainfo") & filters.private)
 def mediainfo_command(app, message):
@@ -1083,9 +1247,9 @@ def mediainfo_command(app, message):
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
     buttons = [
-        [InlineKeyboardButton("ON", callback_data="mediainfo_option|on")],
-        [InlineKeyboardButton("OFF", callback_data="mediainfo_option|off")],
-        [InlineKeyboardButton("Cancel", callback_data="mediainfo_option|cancel")]
+        [InlineKeyboardButton("✅ ON", callback_data="mediainfo_option|on")],
+        [InlineKeyboardButton("❌ OFF", callback_data="mediainfo_option|off")],
+        [InlineKeyboardButton("🔙 Cancel", callback_data="mediainfo_option|cancel")]
     ]
     keyboard = InlineKeyboardMarkup(buttons)
     app.send_message(
@@ -3817,7 +3981,6 @@ def youtube_to_long_url(url: str) -> str:
 def is_youtube_url(url: str) -> bool:
     parsed = urlparse(url)
     return 'youtube.com' in parsed.netloc or 'youtu.be' in parsed.netloc
-
 
 
 app.run()
