@@ -52,6 +52,7 @@ class Config(object):
     SAVE_AS_COOKIE_COMMAND = "/save_as_cookie"
     AUDIO_COMMAND = "/audio"
     FORMAT_COMMAND = "/format"
+    MEDIINFO_COMMAND = "/mediainfo"
     COOKIES_FROM_BROWSER_COMMAND = "/cookies_from_browser"
     BLOCK_USER_COMMAND = "/block_user"
     UNBLOCK_USER_COMMAND = "/unblock_user"
