@@ -1,3 +1,5 @@
+# Version 1.7.9 - Add playlist support to down_and_audio function
+
 import pyrebase
 import re
 import os
@@ -844,7 +846,7 @@ def remove_media(message, only=None):
         else:
             files = [fname for fname in allfiles if fname.endswith(extension)]
         for file in files:
-            if extension == '.txt' and file in ['logs.txt', 'format.txt', 'tags.txt', 'split.txt']:
+            if extension == '.txt' and file in ['mediainfo.txt', 'logs.txt', 'format.txt', 'tags.txt', 'split.txt']:
                 continue
             file_path = os.path.join(dir, file)
             try:
@@ -3287,18 +3289,21 @@ def load_domain_lists():
     try:
         with open(Config.PORN_DOMAINS_FILE, 'r', encoding='utf-8', errors='ignore') as f:
             PORN_DOMAINS = set(line.strip().lower() for line in f if line.strip())
+        logger.info(f"Loaded {len(PORN_DOMAINS)} domains from {Config.PORN_DOMAINS_FILE}. Example: {list(PORN_DOMAINS)[:5]}")
     except Exception as e:
         logger.error(f"Failed to load {Config.PORN_DOMAINS_FILE}: {e}")
         PORN_DOMAINS = set()
     try:
         with open(Config.PORN_KEYWORDS_FILE, 'r', encoding='utf-8', errors='ignore') as f:
             PORN_KEYWORDS = set(line.strip().lower() for line in f if line.strip())
+        logger.info(f"Loaded {len(PORN_KEYWORDS)} keywords from {Config.PORN_KEYWORDS_FILE}. Example: {list(PORN_KEYWORDS)[:5]}")
     except Exception as e:
         logger.error(f"Failed to load {Config.PORN_KEYWORDS_FILE}: {e}")
         PORN_KEYWORDS = set()
     try:
         with open(Config.SUPPORTED_SITES_FILE, 'r', encoding='utf-8', errors='ignore') as f:
             SUPPORTED_SITES = set(line.strip().lower() for line in f if line.strip())
+        logger.info(f"Loaded {len(SUPPORTED_SITES)} supported sites from {Config.SUPPORTED_SITES_FILE}. Example: {list(SUPPORTED_SITES)[:5]}")
     except Exception as e:
         logger.error(f"Failed to load {Config.SUPPORTED_SITES_FILE}: {e}")
         SUPPORTED_SITES = set()
@@ -3383,36 +3388,33 @@ def is_porn_domain(domain_parts):
     return False
 
 # --- a new function for checking for porn ---
-def is_porn(url, title, description):
+def is_porn(url, title, description, caption=None):
     """
-    Checks the content for pornography by domain and keywords (only accurate coincidences by words).
+    Проверяет контент на порнографию по домену и ключевым словам (поиск подстроки) в title, description и caption.
     """
-    # 1. Checking the domain by URL
     clean_url = get_clean_url_for_tagging(url)
     domain_parts, _ = extract_domain_parts(clean_url)
     if is_porn_domain(domain_parts):
+        logger.info(f"is_porn: domain match: {domain_parts}")
         return True
-
-    # 2. Checking keywords in the heading and description
     title_lower = title.lower() if title else ""
     description_lower = description.lower() if description else ""
-
+    caption_lower = caption.lower() if caption else ""
     logger.debug(f"is_porn check for url: {url}")
     logger.debug(f"is_porn title: '{title_lower}'")
+    logger.debug(f"is_porn description: '{description_lower}'")
+    logger.debug(f"is_porn caption: '{caption_lower}'")
     logger.debug(f"is_porn keywords being checked: {PORN_KEYWORDS}")
-
-    if not title_lower and not description_lower:
+    if not title_lower and not description_lower and not caption_lower:
+        logger.info("is_porn: all fields empty")
         return False
-
-    # We check only accurate coincidences by words (the boundaries of the word)
     for keyword in PORN_KEYWORDS:
         if not keyword:
             continue
-        pattern = r'\\b' + re.escape(keyword) + r'\\b'
-        if re.search(pattern, title_lower) or re.search(pattern, description_lower):
-            logger.info(f"Porn keyword '{keyword}' found in title/description.")
+        if keyword in title_lower or keyword in description_lower or keyword in caption_lower:
+            logger.info(f"is_porn: found match: {keyword}")
             return True
-
+    logger.info("is_porn: no matches found")
     return False
 
 @app.on_message(filters.command("split") & filters.private)
@@ -3760,23 +3762,23 @@ def sanitize_autotag(tag: str) -> str:
     return '#' + re.sub(r'[^\w\d_]', '_', tag.lstrip('#'), flags=re.UNICODE)
 
 def generate_final_tags(url, user_tags, info_dict):
-    """Only user and auto-tags (service, channel/profile, porn) are included in the tag section."""
+    """В тегах теперь #porn, если найдено по title, description или caption."""
     final_tags = []
     seen = set()
-    # 1. Custom tags
+    # 1. Пользовательские теги
     for tag in user_tags:
         tag_l = tag.lower()
         if tag_l not in seen:
             final_tags.append(tag)
             seen.add(tag_l)
-    # 2. Auto-tags (no duplicates with user ones)
+    # 2. Авто-теги (без дубликатов)
     auto_tags = get_auto_tags(url, final_tags)
     for tag in auto_tags:
         tag_l = tag.lower()
         if tag_l not in seen:
             final_tags.append(tag)
             seen.add(tag_l)
-    # 3. Profile/channel tags (tiktok/youtube)
+    # 3. Теги профиля/канала (tiktok/youtube)
     if is_tiktok_url(url):
         tiktok_profile = extract_tiktok_profile(url)
         if tiktok_profile:
@@ -3795,10 +3797,11 @@ def generate_final_tags(url, user_tags, info_dict):
             if channel_tag.lower() not in seen:
                 final_tags.append(channel_tag)
                 seen.add(channel_tag.lower())
-    # 4. #porn if determined by content
+    # 4. #porn если определено по title, description или caption
     video_title = info_dict.get("title")
     video_description = info_dict.get("description")
-    if is_porn(url, video_title, video_description):
+    video_caption = info_dict.get("caption") if info_dict else None
+    if is_porn(url, video_title, video_description, video_caption):
         if '#porn' not in seen:
             final_tags.append('#porn')
             seen.add('#porn')
@@ -3876,7 +3879,7 @@ def normalize_url_for_cache(url: str) -> str:
     """
     Normalizes URLs for caching based on a set of specific rules,
     removing all non-essential query parameters.
-    Для youtube.com (без www) оставлять как есть, для youtu.be всегда без www.
+    Для youtube.com (без www) оставлять как есть, для youtu.be всегда без www и без query.
     """
     if not isinstance(url, str):
         return ''
@@ -3904,7 +3907,10 @@ def normalize_url_for_cache(url: str) -> str:
         return urlunparse((parsed.scheme, domain, path, '', '', ''))
 
     # Shorts and youtu.be: always strip all params
-    if (("youtube.com" in domain and path.startswith('/shorts/')) or ("youtu.be" in domain)):
+    if ("youtube.com" in domain and path.startswith('/shorts/')):
+        return urlunparse((parsed.scheme, domain, path, '', '', ''))
+    if domain == 'youtu.be':
+        # Для youtu.be всегда удаляем query
         return urlunparse((parsed.scheme, domain, path, '', '', ''))
 
     # /watch: only v
