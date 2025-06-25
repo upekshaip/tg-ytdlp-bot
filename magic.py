@@ -1445,12 +1445,14 @@ def video_url_extractor(app, message):
 
     # By default, ask for quality if a specific format is not selected
     should_ask = True
+    saved_format = None
     if os.path.exists(format_file):
         with open(format_file, "r", encoding="utf-8") as f:
             fmt = f.read().strip()
         # Do not ask only if the format is set and it is NOT "ALWAYS_ASK"
         if fmt != "ALWAYS_ASK":
             should_ask = False
+            saved_format = fmt
 
     if should_ask:
         url, video_start_with, _, _, tags, _, tag_error = extract_url_range_tags(message.text)
@@ -1499,11 +1501,44 @@ def video_url_extractor(app, message):
                 if error_key in playlist_errors:
                     del playlist_errors[error_key]
         save_user_tags(user_id, all_tags)
+        
+        # Создаем quality_key на основе сохраненного формата для кэширования
+        quality_key = None
+        if saved_format:
+            # Преобразуем формат в quality_key для кэширования
+            if "height<=144" in saved_format:
+                quality_key = "144p"
+            elif "height<=240" in saved_format:
+                quality_key = "240p"
+            elif "height<=360" in saved_format:
+                quality_key = "360p"
+            elif "height<=480" in saved_format:
+                quality_key = "480p"
+            elif "height<=720" in saved_format:
+                quality_key = "720p"
+            elif "height<=1080" in saved_format:
+                quality_key = "1080p"
+            elif "height<=1440" in saved_format:
+                quality_key = "1440p"
+            elif "height<=2160" in saved_format:
+                quality_key = "2160p"
+            elif "height<=4320" in saved_format:
+                quality_key = "4320p"
+            elif "bestvideo+bestaudio" in saved_format:
+                quality_key = "bestvideo"
+            elif saved_format == "best":
+                quality_key = "best"
+            else:
+                # Для кастомных форматов используем хеш формата как quality_key
+                quality_key = f"custom_{hashlib.md5(saved_format.encode()).hexdigest()[:8]}"
+        
+        logger.info(f"video_url_extractor: using saved format '{saved_format}', quality_key='{quality_key}'")
+        
         # --- Pass title='' for TikTok, otherwise as usual ---
         if is_tiktok:
-            down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full, force_no_title=True)
+            down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full, force_no_title=True, format_override=saved_format, quality_key=quality_key)
         else:
-            down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full)
+            down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full, format_override=saved_format, quality_key=quality_key)
     else:
         send_to_all(message, f"**User entered like this:** {full_string}\n{Config.ERROR1}")
 
@@ -2231,7 +2266,37 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 # ########################################
 
 def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None):
+    """
+    Теперь если quality_key указан (например, через /format), то перед скачиванием проверяется кэш и при наличии — сразу репост.
+    После отправки видео — всегда сохраняется в кэш связка url+quality_key.
+    """
     user_id = message.chat.id
+    logger.info(f"down_and_up called: url={url}, quality_key={quality_key}, format_override={format_override}")
+    
+    # --- Проверка кэша по quality_key ---
+    if quality_key:
+        logger.info(f"down_and_up: checking cache for quality_key={quality_key}")
+        cached_ids = get_cached_message_ids(url, quality_key)
+        if cached_ids:
+            logger.info(f"down_and_up: found cached message_ids {cached_ids}, forwarding from cache")
+            try:
+                app.forward_messages(
+                    chat_id=user_id,
+                    from_chat_id=Config.LOGS_ID,
+                    message_ids=cached_ids
+                )
+                app.send_message(user_id, "✅ Видео отправлено из кэша.", reply_to_message_id=message.id)
+                send_to_logger(message, f"Video sent from cache (quality={quality_key}) to user {user_id}")
+                return
+            except Exception as e:
+                logger.error(f"Error forwarding from cache: {e}")
+                save_to_video_cache(url, quality_key, [], clear=True)
+                app.send_message(user_id, "⚠️ Не удалось получить видео из кэша, начинается новая загрузка...", reply_to_message_id=message.id)
+        else:
+            logger.info(f"down_and_up: no cache found for quality_key={quality_key}, proceeding with download")
+    else:
+        logger.info(f"down_and_up: quality_key is None, skipping cache check")
+
     try:
         # Check if there is a saved waiting time
         user_dir = os.path.join("users", str(user_id))
@@ -2650,10 +2715,17 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     video_msg = send_videos(message, path_lst[p], '' if force_no_title else caption_lst[p], part_duration, splited_thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final)
                     try:
                         forwarded_msgs = safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
+                        logger.info(f"down_and_up: forwarded_msgs result: {forwarded_msgs}")
                         if forwarded_msgs:
+                            logger.info(f"down_and_up: saving to cache with forwarded message IDs: {[m.id for m in forwarded_msgs]}")
                             save_to_video_cache(url, quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                        else:
+                            logger.info(f"down_and_up: saving to cache with video_msg.id: {video_msg.id}")
+                            save_to_video_cache(url, quality_key, [video_msg.id], original_text=message.text or message.caption or "")
                     except Exception as e:
                         logger.error(f"Error forwarding video to logger: {e}")
+                        logger.info(f"down_and_up: saving to cache with video_msg.id after error: {video_msg.id}")
+                        save_to_video_cache(url, quality_key, [video_msg.id], original_text=message.text or message.caption or "")
                     safe_edit_message_text(user_id, proc_msg_id,
                                           f"{info_text}\n\n{full_bar}   100.0%\n__Splitted part {p + 1} file uploaded__")
                     if p < len(caption_lst) - 1:
@@ -2691,10 +2763,17 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         video_msg = send_videos(message, after_rename_abs_path, '' if force_no_title else video_title, duration, thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final)
                         try:
                             forwarded_msgs = safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
+                            logger.info(f"down_and_up: forwarded_msgs result: {forwarded_msgs}")
                             if forwarded_msgs:
+                                logger.info(f"down_and_up: saving to cache with forwarded message IDs: {[m.id for m in forwarded_msgs]}")
                                 save_to_video_cache(url, quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                            else:
+                                logger.info(f"down_and_up: saving to cache with video_msg.id: {video_msg.id}")
+                                save_to_video_cache(url, quality_key, [video_msg.id], original_text=message.text or message.caption or "")
                         except Exception as e:
                             logger.error(f"Error forwarding video to logger: {e}")
+                            logger.info(f"down_and_up: saving to cache with video_msg.id after error: {video_msg.id}")
+                            save_to_video_cache(url, quality_key, [video_msg.id], original_text=message.text or message.caption or "")
                         safe_edit_message_text(user_id, proc_msg_id,
                             f"{info_text}\n{full_bar}   100.0%\n\n**🎞 Video duration:** __{TimeFormatter(duration * 1000)}__\n\n1 file uploaded.")
                         send_mediainfo_if_enabled(user_id, after_rename_abs_path, message)
@@ -3391,9 +3470,15 @@ def is_porn_domain(domain_parts):
 def is_porn(url, title, description, caption=None):
     """
     Проверяет контент на порнографию по домену и ключевым словам (поиск подстроки) в title, description и caption.
+    Если домен или поддомен найден в WHITELIST — сразу возвращает False.
     """
     clean_url = get_clean_url_for_tagging(url)
     domain_parts, _ = extract_domain_parts(clean_url)
+    # Сначала проверяем WHITELIST
+    for dom in domain_parts:
+        if dom in Config.WHITELIST:
+            logger.info(f"is_porn: domain in WHITELIST: {dom}")
+            return False
     if is_porn_domain(domain_parts):
         logger.info(f"is_porn: domain match: {domain_parts}")
         return True
@@ -3816,7 +3901,9 @@ def get_url_hash(url: str) -> str:
 
 def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bool = False, original_text: str = None):
     """Saves message IDs to cache for two YouTube link variants (long/short) at once."""
+    logger.info(f"save_to_video_cache called: url={url}, quality_key={quality_key}, message_ids={message_ids}, clear={clear}")
     if not quality_key:
+        logger.warning(f"save_to_video_cache: quality_key is empty, skipping cache save for URL: {url}")
         return
     
     # Check if this is a playlist with range - if so, skip cache
@@ -3830,6 +3917,7 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
         if is_youtube_url(url):
             urls.append(normalize_url_for_cache(youtube_to_short_url(url)))
             urls.append(normalize_url_for_cache(youtube_to_long_url(url)))
+        logger.info(f"save_to_video_cache: normalized URLs: {urls}")
         for u in set(urls):
             url_hash = get_url_hash(u)
             cache_ref = db.child(Config.VIDEO_CACHE_DB_PATH).child(url_hash)
@@ -3838,6 +3926,7 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
                 logger.info(f"Cache cleared for URL hash {url_hash}, quality {quality_key}")
                 continue
             if not message_ids:
+                logger.warning(f"save_to_video_cache: message_ids is empty for URL: {url}, quality: {quality_key}")
                 continue
             ids_string = ",".join(map(str, message_ids))
             cache_ref.update({quality_key: ids_string})
@@ -3847,16 +3936,27 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
 
 def get_cached_message_ids(url: str, quality_key: str) -> list:
     """Ищет кэш по обоим вариантам YouTube-ссылки (длинная/короткая)."""
+    logger.info(f"get_cached_message_ids called: url={url}, quality_key={quality_key}")
+    if not quality_key:
+        logger.warning(f"get_cached_message_ids: quality_key is empty for URL: {url}")
+        return None
     try:
         urls = [normalize_url_for_cache(url)]
         if is_youtube_url(url):
             urls.append(normalize_url_for_cache(youtube_to_short_url(url)))
             urls.append(normalize_url_for_cache(youtube_to_long_url(url)))
+        logger.info(f"get_cached_message_ids: checking URLs: {urls}")
         for u in set(urls):
             url_hash = get_url_hash(u)
+            logger.info(f"get_cached_message_ids: checking hash {url_hash} for quality {quality_key}")
             ids_string = db.child(Config.VIDEO_CACHE_DB_PATH).child(url_hash).child(quality_key).get().val()
             if ids_string:
-                return [int(msg_id) for msg_id in ids_string.split(',')]
+                result = [int(msg_id) for msg_id in ids_string.split(',')]
+                logger.info(f"get_cached_message_ids: found cached message_ids {result} for URL: {url}, quality: {quality_key}")
+                return result
+            else:
+                logger.info(f"get_cached_message_ids: no cache found for hash {url_hash}, quality {quality_key}")
+        logger.info(f"get_cached_message_ids: no cache found for any URL variant, returning None")
         return None
     except Exception as e:
         logger.error(f"Failed to get from cache: {e}")
