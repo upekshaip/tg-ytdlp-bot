@@ -128,11 +128,9 @@ class Config(object):
     PORN_KEYWORDS_FILE = "porn_keywords.txt"
     SUPPORTED_SITES_FILE = "supported_sites.txt"
     # --- Whitelist of domains that are not considered porn ---
+    # --- Whitelist of domains that are not considered porn ---
     WHITELIST = [
-        'dailymotion.com', 'ok.ru', 'kaspersky.com', 'sky.com', 'xbox.com', 
-        'youtube.com', 'youtu.be', 'tiktok.ru', 'rutube.ru', '1tv.ru',
-        'x.com', 'tiktok.com', 'facebook.com', 'x.ai', 'vk.ru',
-        'vk.com', 'm.vk.com', 'vkvideo.ru', 'vkontakte.ru'
+        'dailymotion.com', 'sky.com', 'xbox.com', 'youtube.com', 'youtu.be', '1tv.ru', 'x.ai'
         # Other secure domains can be added
     ]
     # TikTok Domain List
@@ -143,9 +141,7 @@ class Config(object):
     ]
     # Added CLEAN_QUERY array for domains where query and fragment can be safely cleared
     CLEAN_QUERY = [
-        'vk.com', 'vk.com', 'vkvideo.ru', 'vkontakte.ru',
-        'tiktok.com', 'tiktok.com', 'vimeo.com', 'twitch.tv', 'twitch.tv',
-        'instagram.com', 'instagram.com', 'dailymotion.com',
-        'twitter.com', 'x.com', 't.co', 'ok.ru', 'mail.ru'
+        'vk.com', 'vkvideo.ru', 'vkontakte.ru', 'tiktok.com', 'vimeo.com', 'twitch.tv',
+        'instagram.com', 'dailymotion.com', 'twitter.com', 'x.com', 't.co', 'ok.ru', 'mail.ru'
         # Add here other domains where query and fragment are not needed for video uniqueness
-    ]       
+    ]     
