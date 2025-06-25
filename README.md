@@ -250,6 +250,43 @@ Then select the desired option from the menu.
 
 ---
 
+## Tags System (Navigation Tags)
+
+You can add tags to any link (video, playlist, audio) directly in your message:
+
+- Format: `https://site.com/link#tag1#tag2#my_tag`
+- Tags must start with `#` and contain only letters, digits, and underscore (`_`).
+- Tags are automatically added to the caption of the video/audio, separated by spaces.
+- All unique tags you send are saved in the `tags.txt` file in your user folder.
+
+### Example of using tags:
+```
+https://youtu.be/STeeOaX2FBs?si=5rz1QhvuiauZ7A4d#youtube#mytag#tag123
+```
+The video caption will include:
+```
+#youtube #mytag #tag123
+```
+
+---
+
+### /tags Command
+
+The `/tags` command lets you get a list of all your unique tags (one per line). If the list is long, the bot will send several messages.
+
+**Example:**
+```
+/tags
+```
+Response:
+```
+#youtube
+#mytag
+#tag123
+...
+```
+---
+
 ## Help
 
 **This bot allows you to download videos and audio, and also work with playlists.**
