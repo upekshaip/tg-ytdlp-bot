@@ -2,6 +2,7 @@
 Commands for users:
 
 start - Start the bot
+settings - All commands of bot
 clean - Delete cookies & broken downloads
 download_cookie - Download YouTube cookie from web
 cookies_from_browser - Get cookies from embedded browser
