@@ -33,6 +33,7 @@ class Config(object):
     # your firebase DB path
     BOT_DB_PATH = f"bot/{BOT_NAME}/"
     VIDEO_CACHE_DB_PATH = f"bot/video_cache"
+    PLAYLIST_CACHE_DB_PATH = f"bot/video_cache/playlists"
     # Firebase Config - Required (str for all)
     FIREBASE_USER = "YOUR@E.MAIL"
     FIREBASE_PASSWORD = "YOUR_PASSWORD"
