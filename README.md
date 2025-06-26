@@ -202,34 +202,64 @@ Then select the desired option from the menu.
 
 ## User Commands
 
-- **/check_cookie** - Check the cookie file.
-- **/cookies_from_browser** - Get cookies from your browser.
-- **/help** - Display help message.
 - **/start** - Start the bot.
-- **/clean** - Clean your working directory.
-- **/usage** - Show your usage statistics.
+- **/help** - Display help message.
+- **/settings** - Open settings menu with categories and quick actions.
+- **/clean** - Clean your working directory or specific files (see /help).
+- **/usage** - Show your usage statistics and logs.
+- **/tags** - Get all your #tags.
 - **/audio** - Download audio from a video URL.
 - **/format** - Choose media format options.
+- **/split** - Change splitted video part size (0.25-2GB).
+- **/mediainfo** - Turn ON/OFF sending mediainfo.
+- **/check_cookie** - Check the cookie file.
+- **/download_cookie** - Download the cookie file.
+- **/save_as_cookie** - Save text as cookie (or upload TXT-doc).
+- **/cookies_from_browser** - Get cookies from browser (if supported).
 
 ## Admin Commands
 
-- **start** - Start the bot.
-- **help** - Send help text.
-- **run_time** - Show bot runtime.
-- **log** - Get user logs (e.g., `/log 10101010`).
-- **broadcast** - Broadcast a message to all users (reply to any message with this command).
-- **clean** - Clean the working directory.
-- **usage** - Get all logs.
-- **check_cookie** - Check the cookie file.
-- **save_as_cookie** - Save text as cookie.
-- **download_cookie** - Download the cookie file.
-- **cookies_from_browser** - Get cookies from your browser.
-- **format** - Choose media format options.
-- **block_user** - Block a user (e.g., `/block_user 10101010`).
-- **unblock_user** - Unblock a user (e.g., `/unblock_user 10101010`).
-- **all_users** - Get all users.
-- **all_blocked** - Get all blocked users.
-- **all_unblocked** - Get all unblocked users.
+- **/start** - Start the bot.
+- **/help** - Send help text.
+- **/run_time** - Show bot runtime.
+- **/log** - Get user logs (e.g., `/log 10101010`).
+- **/broadcast** - Broadcast a message to all users (reply to any message with this command).
+- **/clean** - Clean the working directory.
+- **/usage** - Get all logs.
+- **/check_cookie** - Check the cookie file.
+- **/save_as_cookie** - Save text as cookie.
+- **/download_cookie** - Download the cookie file.
+- **/cookies_from_browser** - Get cookies from your browser.
+- **/format** - Choose media format options.
+- **/block_user** - Block a user (e.g., `/block_user 10101010`).
+- **/unblock_user** - Unblock a user (e.g., `/unblock_user 10101010`).
+- **/all_users** - Get all users.
+- **/all_blocked** - Get all blocked users.
+- **/all_unblocked** - Get all unblocked users.
+
+---
+
+## Settings Menu (`/settings`)
+
+The `/settings` command opens an interactive menu with three categories:
+
+- **🍪 COOKIES**
+- **🎞 MEDIA**
+- **📖 LOGS**
+
+Each category contains quick action buttons for the most important commands. Example (COOKIES section):
+
+```
+🧹 /clean             - Delete cookies & broken media files
+📥 /download_cookie   - Download my YouTube cookie
+🌐 /cookies_from_browser - Get cookies from browser
+🔎 /check_cookie      - Check cookie file in your folder
+🔖 /save_as_cookie    - Send text to save as cookie
+```
+
+- Pressing a button instantly runs the corresponding command (not just sends text).
+- Some buttons (like /audio, /save_as_cookie) show usage hints.
+- The menu is fully localized and does not conflict with other inline menus.
 
 ---
 

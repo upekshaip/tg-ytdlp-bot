@@ -10,3 +10,4 @@ ffmpeg-python>=0.2.0
 moviepy==1.0.3
 python-dotenv>=1.0.0
 tldextract
+pymediainfo

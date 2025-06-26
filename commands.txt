@@ -2,6 +2,7 @@
 Commands for users:
 
 start - Start the bot
+settings - All commands of bot
 clean - Delete cookies & broken downloads
 download_cookie - Download YouTube cookie from web
 cookies_from_browser - Get cookies from embedded browser
@@ -9,6 +10,7 @@ check_cookie - Check and validate cookie file
 save_as_cookie - Save text as cookie (or upload TXT-doc)
 format - Change quality & format options
 split - Change splitted video part size (0.25-2GB)
+mediainfo - Turn ON/OFF sending mediainfo
 audio - + URL - Download video as audio (mp3)
 tags - Get all your #tags
 help - See help instructions
