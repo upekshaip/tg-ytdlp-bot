@@ -1,4 +1,4 @@
-#Version 2.1.1 
+#Version 2.1.2
 import pyrebase
 import re
 import os
@@ -3988,7 +3988,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         if table_block:
             cap += f"\n<blockquote>{table_block}</blockquote>\n"
         # Hint as a separate quote at the very bottom
-        hint = "\n<blockquote>📹 — Choose quality for new download.\n🚀 — Instant repost. Video is already saved.</blockquote>"
+        hint = "<blockquote>📹 — Choose quality for new download.\n🚀 — Instant repost. Video is already saved.</blockquote>"
         cap += f"\n{hint}\n"
         buttons = []
         for height in available_heights:
