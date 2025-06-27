@@ -1,4 +1,4 @@
-#Version 2.1.1 
+#Version 2.2.7 
 import pyrebase
 import re
 import os
@@ -3934,51 +3934,48 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             except Exception:
                 thumb_path = None
         # --- Table with qualities and sizes ---
-        # quality_order = [144, 240, 360, 480, 720, 1080, 1440, 2160, 4320]  # no longer needed
-        available_heights = sorted({f['height'] for f in info.get('formats', []) if f.get('vcodec', 'none') != 'none' and f.get('height')})
-        quality_size_map = {}
+        popular = [144, 240, 360, 480, 540, 576, 720, 1080, 1440, 2160, 4320]
+        # popular_sizes = [[256,144],[426,240],[640,360],[854,480],[960,540],[1024,576],[1280,720],[1920,1080],[2560,1440],[3840,2160],[7680,4320]]
+        minside_size_dim_map = {}
         for f in info.get('formats', []):
-            if f.get('vcodec', 'none') != 'none' and f.get('height'):
+            if f.get('vcodec', 'none') != 'none' and f.get('height') and f.get('width'):
+                w = f['width']
                 h = f['height']
-                if f.get('filesize'):
-                    size_mb = int(f['filesize']) // (1024*1024)
-                elif f.get('filesize_approx'):
-                    size_mb = int(f['filesize_approx']) // (1024*1024)
-                else:
-                    size_mb = None
-                if size_mb:
-                    quality_size_map[h] = size_mb
+                # Используем функцию get_quality_by_min_side для определения качества
+                quality_key = get_quality_by_min_side(w, h)
+                if quality_key != "best":  # Исключаем best из отображения
+                    if f.get('filesize'):
+                        size_mb = int(f['filesize']) // (1024*1024)
+                    elif f.get('filesize_approx'):
+                        size_mb = int(f['filesize_approx']) // (1024*1024)
+                    else:
+                        size_mb = None
+                    if size_mb:
+                        key = (quality_key, w, h)
+                        minside_size_dim_map[key] = size_mb
         table_lines = []
-        for height in available_heights:
-            quality_key = f"{height}p"
-            size_val = quality_size_map.get(height)
-            if size_val is None:
-                continue  # Don't add quality if size is unknown
-            size_str = ""
-            if size_val >= 1024:
-                size_str = f"{round(size_val/1024, 1)}GB"
-            else:
-                size_str = f"{size_val}MB"
-            logger.info(f"[QUALITY] {quality_key}: size found: {size_str}")
-            # Calculate number of parts if size exceeds split_size
+        found_quality_keys = set()
+        for (quality_key, w, h), size_val in sorted(minside_size_dim_map.items()):
+            found_quality_keys.add(quality_key)
+            size_str = f"{round(size_val/1024, 1)}GB" if size_val >= 1024 else f"{size_val}MB"
+            dim_str = f" ({w}×{h})"
             scissors = ""
             if get_user_split_size(user_id):
                 video_bytes = size_val * 1024 * 1024
                 if video_bytes > get_user_split_size(user_id):
                     n_parts = (video_bytes + get_user_split_size(user_id) - 1) // get_user_split_size(user_id)
                     scissors = f" ✂️{n_parts}"
-                    logger.info(f"[SPLIT] {quality_key}: {size_str}, split_size={get_user_split_size(user_id)}B, n_parts={n_parts} (scissors added)")
-                else:
-                    logger.info(f"[SPLIT] {quality_key}: {size_str}, split_size={get_user_split_size(user_id)}B, does not exceed split_size (no scissors)")
-            else:
-                logger.info(f"[SPLIT] {quality_key}: split_size not set (no scissors)")
             if is_playlist and playlist_range:
                 indices = list(range(playlist_range[0], playlist_range[1]+1))
-                is_cached = is_any_playlist_index_cached(get_clean_playlist_url(url), quality_key, indices)
+                n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
+                total = len(indices)
+                postfix = f" ({n_cached}/{total})"
+                is_cached = n_cached > 0
             else:
                 is_cached = quality_key in cached_qualities
+                postfix = ""
             emoji = "🚀" if is_cached else "📹"
-            table_lines.append(f"{emoji}  {quality_key}:  {size_str}{scissors}")
+            table_lines.append(f"{emoji}  {quality_key}:  {size_str}{dim_str}{scissors}{postfix}")
         table_block = "\n".join(table_lines)
         # --- Forming caption ---
         cap = f"<b>{title}</b>\n"
@@ -3991,44 +3988,29 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         hint = "<pre language=\"info\">📹 — Choose quality for new download.\n🚀 — Instant repost. Video is already saved.</pre>"
         cap += f"\n{hint}\n"
         buttons = []
-        for height in available_heights:
-            quality_key = f"{height}p"
-            size_val = quality_size_map.get(height)
-            if size_val is None:
-                continue  # Don't add button if size is unknown
+        for quality_key in sorted(found_quality_keys, key=lambda x: int(x.replace('p',''))):
             if is_playlist and playlist_range:
                 indices = list(range(playlist_range[0], playlist_range[1]+1))
-                if is_any_playlist_index_cached(get_clean_playlist_url(url), quality_key, indices):
-                    cached = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, indices)
-                    n_cached = len(cached)
-                    total = len(indices)
-                    icon = "🚀"
-                    postfix = f" ({n_cached}/{total})"
-                else:
-                    icon = "📹"
-                    postfix = ""
+                n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
+                total = len(indices)
+                icon = "🚀" if n_cached > 0 else "📹"
+                postfix = f" ({n_cached}/{total})" if total > 1 else ""
                 button_text = f"{icon} {quality_key}{postfix}"
             else:
                 icon = "🚀" if quality_key in cached_qualities else "📹"
                 button_text = f"{icon} {quality_key}"
             buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
-        if not buttons and available_heights:
-            for height in available_heights:
-                quality_key = f"{height}p"
-                size_val = quality_size_map.get(height)
+        if not buttons and popular:
+            for height in popular:
+                size_val = minside_size_dim_map.get((pop_side, w, h))
                 if size_val is None:
-                    continue  # Don't add button if size is unknown
+                    continue
                 if is_playlist and playlist_range:
                     indices = list(range(playlist_range[0], playlist_range[1]+1))
-                    if is_any_playlist_index_cached(get_clean_playlist_url(url), quality_key, indices):
-                        cached = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, indices)
-                        n_cached = len(cached)
-                        total = len(indices)
-                        icon = "🚀"
-                        postfix = f" ({n_cached}/{total})"
-                    else:
-                        icon = "📹"
-                        postfix = ""
+                    n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
+                    total = len(indices)
+                    icon = "🚀" if n_cached > 0 else "📹"
+                    postfix = f" ({n_cached}/{total})" if total > 1 else ""
                     button_text = f"{icon} {quality_key}{postfix}"
                 else:
                     icon = "🚀" if quality_key in cached_qualities else "📹"
@@ -4038,15 +4020,10 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             quality_key = "best"
             if is_playlist and playlist_range:
                 indices = list(range(playlist_range[0], playlist_range[1]+1))
-                if is_any_playlist_index_cached(get_clean_playlist_url(url), quality_key, indices):
-                    cached = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, indices)
-                    n_cached = len(cached)
-                    total = len(indices)
-                    icon = "🚀"
-                    postfix = f" ({n_cached}/{total})"
-                else:
-                    icon = "📹"
-                    postfix = ""
+                n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
+                total = len(indices)
+                icon = "🚀" if n_cached > 0 else "📹"
+                postfix = f" ({n_cached}/{total})" if total > 1 else ""
                 button_text = f"{icon} Best Quality{postfix}"
             else:
                 icon = "🚀" if quality_key in cached_qualities else "📹"
@@ -4060,15 +4037,10 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         quality_key = "mp3"
         if is_playlist and playlist_range:
             indices = list(range(playlist_range[0], playlist_range[1]+1))
-            if is_any_playlist_index_cached(get_clean_playlist_url(url), quality_key, indices):
-                cached = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, indices)
-                n_cached = len(cached)
-                total = len(indices)
-                icon = "🚀"
-                postfix = f" ({n_cached}/{total})"
-            else:
-                icon = "🎵"
-                postfix = ""
+            n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
+            total = len(indices)
+            icon = "🚀" if n_cached > 0 else "🎵"
+            postfix = f" ({n_cached}/{total})" if total > 1 else ""
             button_text = f"{icon} audio (mp3){postfix}"
         else:
             icon = "🚀" if quality_key in cached_qualities else "🎵"
@@ -4172,24 +4144,24 @@ def askq_callback(app, callback_query):
         _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(original_text)
         video_count = video_end_with - video_start_with + 1
         requested_indices = list(range(video_start_with, video_start_with + video_count))
+        
+        # Проверяем кэш для выбранного качества
         cached_videos = get_cached_playlist_videos(get_clean_playlist_url(url), data, requested_indices)
         uncached_indices = [i for i in requested_indices if i not in cached_videos]
         used_quality_key = data
-        # If the cache is empty for the current quality_key, we look for any other quality_key for these indexes
-        if not cached_videos:
-            # Get all available qualities from cache for this playlist
-            all_qualities = get_cached_playlist_qualities(get_clean_playlist_url(url))
-            found = False
-            for q in all_qualities:
-                alt_cached = get_cached_playlist_videos(get_clean_playlist_url(url), q, requested_indices)
-                if alt_cached:
-                    cached_videos = alt_cached
-                    used_quality_key = q
-                    found = True
-                    break
-            if not found:
-                used_quality_key = data  # fallback to current button
+        
+        # Если кэша для выбранного качества нет, пробуем fallback на best
+        if not cached_videos and data != "best":
+            logger.info(f"askq_callback: no cache for quality_key={data}, trying fallback to best")
+            best_cached = get_cached_playlist_videos(get_clean_playlist_url(url), "best", requested_indices)
+            if best_cached:
+                cached_videos = best_cached
+                used_quality_key = "best"
+                uncached_indices = [i for i in requested_indices if i not in cached_videos]
+                logger.info(f"askq_callback: found cache with best quality, cached: {list(cached_videos.keys())}, uncached: {uncached_indices}")
+        
         if cached_videos:
+            # Пересылаем закэшированные видео
             callback_query.answer("🚀 Found in cache! Reposting...", show_alert=False)
             for index in requested_indices:
                 if index in cached_videos:
@@ -4201,27 +4173,55 @@ def askq_callback(app, callback_query):
                         )
                     except Exception as e:
                         logger.warning(f"askq_callback: cached video for index {index} not found: {e}")
-            app.send_message(user_id, f"✅ Sent from cache: {len(cached_videos)}/{len(requested_indices)} files.", reply_to_message_id=original_message.id)
-            media_type = "Audio" if data == "mp3" else "Video"
-            log_msg = f"{media_type} playlist sent from cache to user.\nURL: {url}\nUser: {callback_query.from_user.first_name} ({user_id})"
-            send_to_logger(original_message, log_msg)
-        if uncached_indices:
-            logger.info(f"askq_callback: we start downloading the missing indexes: {uncached_indices}")
-            new_start = uncached_indices[0]
-            new_end = uncached_indices[-1]
-            new_count = new_end - new_start + 1
-            url_with_range = f"{url}*{new_start}*{new_end}"
-            # If used_quality_key could not be determined — fallback
-            if not used_quality_key or used_quality_key == "ALWAYS_ASK":
+            
+            # Если есть недостающие видео - скачиваем их
+            if uncached_indices:
+                logger.info(f"askq_callback: we start downloading the missing indexes: {uncached_indices}")
+                new_start = uncached_indices[0]
+                new_end = uncached_indices[-1]
+                new_count = new_end - new_start + 1
+                
                 if data == "mp3":
-                    used_quality_key = "mp3"
+                    down_and_audio(app, original_message, url, tags, quality_key=used_quality_key, playlist_name=playlist_name, video_count=new_count, video_start_with=new_start)
                 else:
-                    used_quality_key = None
-            if data == "mp3":
-                down_and_audio(app, original_message, url, tags, quality_key=used_quality_key, playlist_name=playlist_name, video_count=new_count, video_start_with=new_start)
+                    # Формируем правильный формат для недостающих видео
+                    if used_quality_key == "best":
+                        format_override = "bestvideo+bestaudio/best"
+                    else:
+                        try:
+                            quality_str = used_quality_key.replace('p', '')
+                            quality_val = int(quality_str)
+                            format_override = f"bestvideo[height<={quality_val}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
+                        except ValueError:
+                            format_override = "bestvideo+bestaudio/best"
+                    
+                    down_and_up(app, original_message, url, playlist_name, new_count, new_start, tags_text, force_no_title=False, format_override=format_override, quality_key=used_quality_key)
             else:
-                down_and_up(app, original_message, url, playlist_name, new_count, new_start, tags_text, force_no_title=False, format_override=None, quality_key=used_quality_key)
-        return
+                # Все видео были в кэше
+                app.send_message(user_id, f"✅ Sent from cache: {len(cached_videos)}/{len(requested_indices)} files.", reply_to_message_id=original_message.id)
+                media_type = "Audio" if data == "mp3" else "Video"
+                log_msg = f"{media_type} playlist sent from cache to user.\nURL: {url}\nUser: {callback_query.from_user.first_name} ({user_id})"
+                send_to_logger(original_message, log_msg)
+            return
+        else:
+            # Если кэша нет вообще - скачиваем всё заново
+            logger.info(f"askq_callback: no cache found for any quality, starting new download")
+            if data == "mp3":
+                down_and_audio(app, original_message, url, tags, quality_key=data, playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with)
+            else:
+                # Формируем правильный формат для нового скачивания
+                if data == "best":
+                    format_override = "bestvideo+bestaudio/best"
+                else:
+                    try:
+                        quality_str = data.replace('p', '')
+                        quality_val = int(quality_str)
+                        format_override = f"bestvideo[height<={quality_val}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
+                    except ValueError:
+                        format_override = "bestvideo+bestaudio/best"
+                
+                down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=data)
+            return
     # --- other logic for single files ---
     message_ids = get_cached_message_ids(url, data)
     if message_ids:
@@ -4236,6 +4236,7 @@ def askq_callback(app, callback_query):
             media_type = "Audio" if data == "mp3" else "Video"
             log_msg = f"{media_type} sent from cache to user.\nURL: {url}\nUser: {callback_query.from_user.first_name} ({user_id})"
             send_to_logger(original_message, log_msg)
+            return
         except Exception as e:
             logger.error(f"Error forwarding from cache: {e}")
             save_to_video_cache(url, data, [], clear=True)
@@ -4254,25 +4255,58 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
         full_string = original_message.text or original_message.caption or ""
         _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
         video_count = video_end_with - video_start_with + 1
-        
         down_and_audio(app, original_message, url, tags, quality_key="mp3", playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with)
         return
-
+    
+    # Логика формирования формата с учетом реальной height
     if data == "best":
         callback_query.answer("Downloading best quality...")
         fmt = "bestvideo+bestaudio/best"
+        quality_key = "best"
     else:
-        quality_str = data.replace('p', '')
         try:
-            quality_val = int(quality_str)
-            fmt = f"bestvideo[height<={quality_val}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
+            # Получаем информацию о видео для определения размеров
+            info = get_video_formats(url, user_id)
+            formats = info.get('formats', [])
+            
+            # Ищем формат с максимальным качеством для определения размеров
+            max_width = 0
+            max_height = 0
+            for f in formats:
+                if f.get('width') and f.get('height'):
+                    if f['width'] > max_width:
+                        max_width = f['width']
+                    if f['height'] > max_height:
+                        max_height = f['height']
+            
+            # Если размеры не найдены, используем стандартную логику
+            if max_width == 0 or max_height == 0:
+                quality_str = data.replace('p', '')
+                quality_val = int(quality_str)
+                fmt = f"bestvideo[height<={quality_val}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
+            else:
+                # Определяем качество по меньшей стороне
+                min_side_quality = get_quality_by_min_side(max_width, max_height)
+                
+                # Если выбранное качество не соответствует меньшей стороне, используем стандартную логику
+                if data != min_side_quality:
+                    quality_str = data.replace('p', '')
+                    quality_val = int(quality_str)
+                    fmt = f"bestvideo[height<={quality_val}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
+                else:
+                    # Используем реальную height для формирования формата
+                    real_height = get_real_height_for_quality(data, max_width, max_height)
+                    fmt = f"bestvideo[height<={real_height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={real_height}]+bestaudio/best[height<={real_height}]/best"
+            
+            quality_key = data
+            callback_query.answer(f"Downloading {data}...")
         except ValueError:
             callback_query.answer("Unknown quality.")
             return
+    
+    down_and_up_with_format(app, original_message, url, fmt, tags_text, quality_key=quality_key)
 
-    callback_query.answer(f"Downloading {data}...")
-    down_and_up_with_format(app, original_message, url, fmt, tags_text, quality_key=data)
-
+# ... существующий code ...
 # --- an auxiliary function for downloading with the format ---
 def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None):
 
@@ -4583,29 +4617,36 @@ def get_cached_playlist_videos(playlist_url: str, quality_key: str, requested_in
         logger.warning(f"get_cached_playlist_videos: quality_key is empty for playlist: {playlist_url}")
         return {}
     if not hasattr(Config, 'PLAYLIST_CACHE_DB_PATH') or not Config.PLAYLIST_CACHE_DB_PATH or Config.PLAYLIST_CACHE_DB_PATH.strip() in ('', '/', '.'):
-        logger.error(f"get_cached_playlist_videos: PLAYLIST_CACHE_DB_PATH is empty or invalid! Skipping cache read for playlist: {playlist_url}")
+        logger.error(f"get_cached_playlist_videos: PLAYLIST_CACHE_DB_PATH is empty или invalid! Skipping cache read for playlist: {playlist_url}")
         return {}
     try:
         urls = [normalize_url_for_cache(strip_range_from_url(playlist_url))]
         if is_youtube_url(playlist_url):
             urls.append(normalize_url_for_cache(strip_range_from_url(youtube_to_short_url(playlist_url))))
             urls.append(normalize_url_for_cache(strip_range_from_url(youtube_to_long_url(playlist_url))))
-        logger.info(f"get_cached_playlist_videos: checking URLs: {urls}")
+        quality_keys = [quality_key]
+        try:
+            if quality_key.endswith('p'):
+                h = int(quality_key[:-1])
+                rounded = f"{ceil_to_popular(h)}p"
+                if rounded != quality_key:
+                    quality_keys.append(rounded)
+        except Exception:
+            pass
+        found = {}
         for u in set(urls):
             url_hash = get_url_hash(u)
-            cached_videos = {}
-            for index in requested_indices:
-                index_str = str(index)
-                val = db_child_by_path(db, f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}/{quality_key}/{index_str}").get().val()
-                if val is not None:
-                    cached_videos[index] = int(val)
-                    logger.info(f"get_cached_playlist_videos: found cached video for index {index}: {val}")
-                else:
-                    logger.warning(f"get_cached_playlist_videos: index {index} not found in playlist data")
-            if cached_videos:
-                logger.info(f"get_cached_playlist_videos: returning cached videos for indices {list(cached_videos.keys())}: {cached_videos}")
-                return cached_videos
-        logger.info(f"get_cached_playlist_videos: no cache found for any URL variant, returning empty dict")
+            for qk in quality_keys:
+                for index in requested_indices:
+                    index_str = str(index)
+                    val = db_child_by_path(db, f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}/{qk}/{index_str}").get().val()
+                    if val is not None:
+                        found[index] = int(val)
+                        logger.info(f"get_cached_playlist_videos: found cached video for index {index} (quality={qk}): {val}")
+        if found:
+            logger.info(f"get_cached_playlist_videos: returning cached videos for indices {list(found.keys())}: {found}")
+            return found
+        logger.info(f"get_cached_playlist_videos: no cache found for any URL/quality variant, returning empty dict")
         return {}
     except Exception as e:
         logger.error(f"Failed to get from playlist cache: {e}")
@@ -4648,10 +4689,127 @@ def db_child_by_path(db, path):
 # round height to popular quality for cache only
 # --- Round height to nearest higher popular quality ---
 def ceil_to_popular(h):
-    popular = [144, 240, 360, 480, 720, 1080, 1440, 2160, 4320]
+    popular = [144, 240, 360, 480, 540, 576, 720, 1080, 1440, 2160, 4320]
     for p in popular:
         if h <= p:
             return p
     return popular[-1]
+
+# --- Быстрое получение количества кэшированных видео для качества ---
+def get_cached_playlist_count(playlist_url: str, quality_key: str, indices: list = None) -> int:
+    """
+    Возвращает количество закэшированных видео для заданного качества (по количеству ключей в базе),
+    учитывая и округлённый quality_key (ceil_to_popular).
+    Если передан список индексов, считает только их пересечение с кэшем.
+    """
+    try:
+        urls = [normalize_url_for_cache(strip_range_from_url(playlist_url))]
+        if is_youtube_url(playlist_url):
+            urls.append(normalize_url_for_cache(strip_range_from_url(youtube_to_short_url(playlist_url))))
+            urls.append(normalize_url_for_cache(strip_range_from_url(youtube_to_long_url(playlist_url))))
+        quality_keys = [quality_key]
+        try:
+            if quality_key.endswith('p'):
+                h = int(quality_key[:-1])
+                rounded = f"{ceil_to_popular(h)}p"
+                if rounded != quality_key:
+                    quality_keys.append(rounded)
+        except Exception:
+            pass
+        
+        cached_count = 0
+        for u in set(urls):
+            url_hash = get_url_hash(u)
+            for qk in quality_keys:
+                if indices is not None:
+                    # Проверяем каждый индекс отдельно
+                    for index in indices:
+                        index_str = str(index)
+                        val = db_child_by_path(db, f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}/{qk}/{index_str}").get().val()
+                        if val is not None:
+                            cached_count += 1
+                else:
+                    # Получаем все данные качества и считаем непустые записи
+                    try:
+                        data = db_child_by_path(db, f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}/{qk}").get().val()
+                        if data:
+                            if isinstance(data, dict):
+                                cached_count = len(data)
+                            elif isinstance(data, list):
+                                # Если данные в виде списка, считаем непустые элементы
+                                cached_count = sum(1 for item in data if item is not None)
+                            else:
+                                logger.warning(f"get_cached_playlist_count: unexpected data type for url_hash={url_hash}, quality={qk}, type={type(data)}")
+                                continue
+                    except Exception as e:
+                        logger.error(f"get_cached_playlist_count: error reading cache for url_hash={url_hash}, quality={qk}: {e}")
+                        continue
+                
+                if cached_count > 0:
+                    return cached_count
+        
+        return 0
+    except Exception as e:
+        logger.error(f"get_cached_playlist_count error: {e}")
+        return 0
+
+
+
+
+def get_quality_by_min_side(width: int, height: int) -> str:
+    """
+    Определяет качество по меньшей стороне видео.
+    Например, для 1280×720 возвращает '720p', для 720×1280 тоже '720p'.
+    """
+    min_side = min(width, height)
+    quality_map = {
+        144: "144p", 256: "144p",
+        240: "240p", 426: "240p", 
+        480: "480p", 854: "480p",
+        540: "540p", 960: "540p",
+        576: "576p", 1024: "576p",
+        720: "720p", 1280: "720p",
+        1080: "1080p", 1920: "1080p",
+        1440: "1440p", 2560: "1440p",
+        2160: "2160p", 3840: "2160p",
+        4320: "4320p", 7680: "4320p"
+    }
+    return quality_map.get(min_side, "best")
+
+def get_real_height_for_quality(quality: str, width: int, height: int) -> int:
+    """
+    Возвращает реальную высоту для заданного качества, учитывая ориентацию видео.
+    Например, для качества '720p' и видео 1280×720 вернет 720, для 720×1280 вернет 1280.
+    """
+    if quality == "best":
+        return height  # Для best используем реальную высоту
+    
+    try:
+        quality_val = int(quality.replace('p', ''))
+        # Определяем, какая сторона соответствует выбранному качеству
+        if min(width, height) == quality_val:
+            # Если меньшая сторона равна качеству, используем реальную высоту
+            return height
+        else:
+            # Иначе ищем соответствующую высоту
+            quality_map = {
+                144: [144, 256],
+                240: [240, 426],
+                480: [480, 854],
+                540: [540, 960],
+                576: [576, 1024],
+                720: [720, 1280],
+                1080: [1080, 1920],
+                1440: [1440, 2560],
+                2160: [2160, 3840],
+                4320: [4320, 7680]
+            }
+            heights = quality_map.get(quality_val, [quality_val])
+            # Выбираем высоту, которая ближе к реальной высоте видео
+            return min(heights, key=lambda h: abs(h - height))
+    except ValueError:
+        return height
+
+
 
 app.run()
