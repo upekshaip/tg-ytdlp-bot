@@ -1,4 +1,4 @@
-#Version 2.1.2
+#Version 2.1.1 
 import pyrebase
 import re
 import os
@@ -3987,8 +3987,8 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         # Block with qualities
         if table_block:
             cap += f"\n<blockquote>{table_block}</blockquote>\n"
-        # Hint as a separate quote at the very bottom
-        hint = "<blockquote>📹 — Choose quality for new download.\n🚀 — Instant repost. Video is already saved.</blockquote>"
+        # Hint as a separate code block at the very bottom
+        hint = "<pre language=\"info\">📹 — Choose quality for new download.\n🚀 — Instant repost. Video is already saved.</pre>"
         cap += f"\n{hint}\n"
         buttons = []
         for height in available_heights:
@@ -4468,8 +4468,13 @@ def normalize_url_for_cache(url: str) -> str:
 
     # /watch: only v
     if 'youtube.com' in domain and path == '/watch':
+        v = None
         if 'v' in query_params:
-            new_query = urlencode({'v': query_params['v']}, doseq=True)
+            v = query_params['v'][0]
+            # Исправление: если v содержит ? или &, берём только до этих символов
+            v = v.split('?')[0].split('&')[0]
+        if v:
+            new_query = urlencode({'v': v}, doseq=True)
             return urlunparse((parsed.scheme, domain, path, '', new_query, ''))
         return urlunparse((parsed.scheme, domain, path, '', '', ''))
     # /playlist: list only
