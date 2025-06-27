@@ -1,4 +1,4 @@
-#Version 2.1.0 
+#Version 2.1.1 
 import pyrebase
 import re
 import os
@@ -3043,7 +3043,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     current_video_index = x + video_start_with
                                     save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
                                     cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, [current_video_index])
-                                    logger.info(f"Checking the cache immediately after writing:{cached_check}")
+                                    logger.info(f"Checking the cache immediately after writing: {cached_check}")
                                     playlist_indices.append(current_video_index)
                                     playlist_msg_ids.append(video_msg.id)
                                 else:
@@ -3984,11 +3984,12 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         cap = f"<b>{title}</b>\n"
         if tags_text:
             cap += f"{tags_text}\n"
-        # The hint is now at the very bottom
-        hint = "\n📹 — Choose quality for new download.\n🚀 — Instant repost. Video is already saved."
-        cap += f"\n{hint}\n"
+        # Block with qualities
         if table_block:
             cap += f"\n<blockquote>{table_block}</blockquote>\n"
+        # Hint as a separate quote at the very bottom
+        hint = "\n<blockquote>📹 — Choose quality for new download.\n🚀 — Instant repost. Video is already saved.</blockquote>"
+        cap += f"\n{hint}\n"
         buttons = []
         for height in available_heights:
             quality_key = f"{height}p"
