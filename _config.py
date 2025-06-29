@@ -63,6 +63,7 @@ class Config(object):
     CLEAN_COMMAND = "/clean"
     USAGE_COMMAND = "/usage"
     TAGS_COMMAND = "/tags"
+    UNCACHE_COMMAND = "/uncache"   
     BROADCAST_MESSAGE = "/broadcast"
     # this is a main cmd - to user /get_user_details_users
     GET_USER_DETAILS_COMMAND = "/all"
