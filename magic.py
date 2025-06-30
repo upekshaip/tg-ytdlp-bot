@@ -2095,9 +2095,10 @@ def send_videos(
     was_truncated = False
     try:
         # Logic simplified: use tags that were already generated in down_and_up.
+        # Use original title for caption, but truncated description
         title_html, pre_block, blockquote_content, tags_block, link_block, was_truncated = truncate_caption(
-            title=caption,
-            description=full_video_title,
+            title=caption,  # Original title for caption
+            description=full_video_title,  # Full description to be truncated
             url=video_url,
             tags_text=tags_text, # Use final tags for calculation
             max_length=1000  # Reduced for safety
@@ -2639,12 +2640,24 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             write_logs(message, url, downloaded_file)
 
             if rename_name == audio_title:
-                caption_name = audio_title
-                final_name = downloaded_file
+                caption_name = audio_title  # Original title for caption
+                # Sanitize filename for disk storage while keeping original title for caption
+                final_name = sanitize_filename(downloaded_file)
+                if final_name != downloaded_file:
+                    old_path = os.path.join(user_folder, downloaded_file)
+                    new_path = os.path.join(user_folder, final_name)
+                    try:
+                        if os.path.exists(new_path):
+                            os.remove(new_path)
+                        os.rename(old_path, new_path)
+                    except Exception as e:
+                        logger.error(f"Error renaming file from {old_path} to {new_path}: {e}")
+                        final_name = downloaded_file
             else:
                 ext = os.path.splitext(downloaded_file)[1]
-                final_name = rename_name + ext
-                caption_name = rename_name
+                # Sanitize filename for disk storage while keeping original title for caption
+                final_name = sanitize_filename(rename_name + ext)
+                caption_name = rename_name  # Original title for caption
                 old_path = os.path.join(user_folder, downloaded_file)
                 new_path = os.path.join(user_folder, final_name)
 
@@ -2659,7 +2672,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 except Exception as e:
                     logger.error(f"Error renaming file from {old_path} to {new_path}: {e}")
                     final_name = downloaded_file
-                    caption_name = audio_title
+                    caption_name = audio_title  # Original title for caption
 
             audio_file = os.path.join(user_folder, final_name)
             if not os.path.exists(audio_file):
@@ -2680,7 +2693,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             tags_block = (tags_text_final.strip() + '\n') if tags_text_final and tags_text_final.strip() else ''
             bot_name = getattr(Config, 'BOT_NAME', None) or 'bot'
             bot_mention = f' @{bot_name}' if not bot_name.startswith('@') else f' {bot_name}'
-            caption_with_link = f"{caption_name}\n\n{tags_block}[🔗 Audio URL]({url}){bot_mention}"
+            # Use original audio_title for caption, not sanitized caption_name
+            caption_with_link = f"{audio_title}\n\n{tags_block}[🔗 Audio URL]({url}){bot_mention}"
             
             try:
                 audio_msg = app.send_audio(chat_id=user_id, audio=audio_file, caption=caption_with_link, reply_to_message_id=message.id)
@@ -3153,9 +3167,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             successful_uploads += 1
 
             video_id = info_dict.get("id", None)
-            video_title = info_dict.get("title", None)
-            full_video_title = info_dict.get("description", video_title)
-            video_title = sanitize_filename(video_title) if video_title else "video"
+            original_video_title = info_dict.get("title", None)  # Original title with emojis
+            full_video_title = info_dict.get("description", original_video_title)
+            video_title = sanitize_filename(original_video_title) if original_video_title else "video"  # Sanitized for file operations
 
             # --- Use new centralized function for all tags ---
             tags_text_final = generate_final_tags(url, tags_text.split(), info_dict)
@@ -3171,7 +3185,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             full_title_path = os.path.join(dir_path, "full_title.txt")
             try:
                 with open(full_title_path, "w", encoding="utf-8") as f:
-                    f.write(full_video_title if full_video_title else video_title)
+                    f.write(full_video_title if full_video_title else original_video_title)
             except Exception as e:
                 logger.error(f"Error saving full title: {e}")
 
@@ -3180,7 +3194,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
 **📋 Video Info**
 > **Number:** {idx + video_start_with}
-> **Title:** {video_title}
+> **Title:** {original_video_title}
 > **ID:** {video_id}
 """
 
@@ -3202,7 +3216,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             write_logs(message, url, downloaded_file)
 
             if rename_name == video_title:
-                caption_name = video_title
+                caption_name = original_video_title  # Original title for caption
                 # Sanitize filename for disk storage while keeping original title for caption
                 final_name = sanitize_filename(downloaded_file)
                 if final_name != downloaded_file:
@@ -3219,7 +3233,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 ext = os.path.splitext(downloaded_file)[1]
                 # Sanitize filename for disk storage while keeping original title for caption
                 final_name = sanitize_filename(rename_name + ext)
-                caption_name = rename_name
+                caption_name = rename_name  # Original title for caption
                 old_path = os.path.join(dir_path, downloaded_file)
                 new_path = os.path.join(dir_path, final_name)
 
@@ -3234,7 +3248,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 except Exception as e:
                     logger.error(f"Error renaming file from {old_path} to {new_path}: {e}")
                     final_name = downloaded_file
-                    caption_name = video_title
+                    caption_name = original_video_title  # Original title for caption
 
             user_vid_path = os.path.join(dir_path, final_name)
             if final_name.lower().endswith((".webm", ".ts")):
@@ -3406,7 +3420,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
                     try:
                         # --- TikTok: Don't Pass Title ---
-                        video_msg = send_videos(message, after_rename_abs_path, '' if force_no_title else video_title, duration, thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final)
+                        video_msg = send_videos(message, after_rename_abs_path, '' if force_no_title else original_video_title, duration, thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final)
                         try:
                             forwarded_msgs = safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
                             logger.info(f"down_and_up: forwarded_msgs result: {forwarded_msgs}")
