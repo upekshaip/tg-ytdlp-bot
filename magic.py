@@ -4317,9 +4317,17 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         if not buttons and popular:
             for height in popular:
-                size_val = minside_size_dim_map.get((pop_side, w, h))
+                quality_key = f"{height}p"
+                # Ищем размер файла для этого качества
+                size_val = None
+                for (qk, w, h), size in minside_size_dim_map.items():
+                    if qk == quality_key:
+                        size_val = size
+                        break
+                
                 if size_val is None:
                     continue
+                    
                 if is_playlist and playlist_range:
                     indices = list(range(playlist_range[0], playlist_range[1]+1))
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
