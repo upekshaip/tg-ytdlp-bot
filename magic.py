@@ -4906,9 +4906,20 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
             if not message_ids:
                 logger.warning(f"save_to_video_cache: message_ids is empty for URL: {url}, quality: {quality_key}")
                 continue
-            ids_string = ",".join(map(str, message_ids))
-            cache_ref.update({quality_key: ids_string})
-            logger.info(f"Saved to cache for URL hash {url_hash}, quality {quality_key}, msg_ids {ids_string}")
+            if len(message_ids) == 1:
+                # Одиночное видео — всегда перезаписываем
+                cache_ref.child(quality_key).set(str(message_ids[0]))
+                logger.info(f"Saved single video to cache for URL hash {url_hash}, quality {quality_key}, msg_id {message_ids[0]}")
+            else:
+                # Множественные части — объединяем
+                existing_ids_string = cache_ref.child(quality_key).get().val()
+                existing_ids = []
+                if existing_ids_string:
+                    existing_ids = [int(msg_id) for msg_id in existing_ids_string.split(',')]
+                all_ids = list(set(existing_ids + message_ids))
+                ids_string = ",".join(map(str, all_ids))
+                cache_ref.child(quality_key).set(ids_string)
+                logger.info(f"Saved multi-part video to cache for URL hash {url_hash}, quality {quality_key}, msg_ids {ids_string}")
     except Exception as e:
         logger.error(f"Failed to save to cache: {e}")
 
@@ -4922,13 +4933,17 @@ def get_cached_message_ids(url: str, quality_key: str) -> list:
     try:
         urls = [normalize_url_for_cache(url)]
         if is_youtube_url(url):
-            urls.append(normalize_url_for_cache(youtube_to_short_url(url)))
-            urls.append(normalize_url_for_cache(youtube_to_long_url(url)))
+            short_url = youtube_to_short_url(url)
+            long_url = youtube_to_long_url(url)
+            urls.append(normalize_url_for_cache(short_url))
+            urls.append(normalize_url_for_cache(long_url))
+            logger.info(f"get_cached_message_ids: original={url}, short={short_url}, long={long_url}")
         logger.info(f"get_cached_message_ids: checking URLs: {urls}")
         for u in set(urls):
             url_hash = get_url_hash(u)
             logger.info(f"get_cached_message_ids: checking hash {url_hash} for quality {quality_key}")
             ids_string = db.child(Config.VIDEO_CACHE_DB_PATH).child(url_hash).child(quality_key).get().val()
+            logger.info(f"get_cached_message_ids: raw value from Firebase: {ids_string} (type: {type(ids_string)})")
             if ids_string:
                 result = [int(msg_id) for msg_id in ids_string.split(',')]
                 logger.info(
@@ -5082,6 +5097,11 @@ def youtube_to_short_url(url: str) -> str:
             if query_str:
                 return f'{base}?{query_str}'
             return base
+    elif 'youtube.com' in parsed.netloc and parsed.path.startswith('/shorts/'):
+        # For YouTube Shorts, convert to youtu.be format
+        video_id = parsed.path.split('/')[2]  # /shorts/VIDEO_ID
+        if video_id:
+            return f'https://youtu.be/{video_id}'
     return url
 
 
@@ -5096,6 +5116,11 @@ def youtube_to_long_url(url: str) -> str:
             if qs:
                 return f'{base}&{qs}'
             return base
+    elif 'youtube.com' in parsed.netloc and parsed.path.startswith('/shorts/'):
+        # For YouTube Shorts, convert to watch format
+        video_id = parsed.path.split('/')[2]  # /shorts/VIDEO_ID
+        if video_id:
+            return f'https://www.youtube.com/watch?v={video_id}'
     return url
 
 
