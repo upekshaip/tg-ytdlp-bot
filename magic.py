@@ -30,6 +30,7 @@ from pyrogram.types import (
     ReplyParameters
 )
 from yt_dlp import YoutubeDL
+import yt_dlp
 
 from config import Config
 
@@ -557,21 +558,28 @@ def playlist_command(app, message):
     playlist_help = """
 📋 <b>How to download playlists:</b>
 
-To download playlists send its URL with *start*end ranges in the end.
+To download playlists send its URL with <code>*start*end</code> ranges in the end.
 
-💡 <b>Examples:</b>
+<b>Examples:</b>
 
-🎯 <b>Video range from playlist:</b>
+🟥 <b>Video range from playlist:</b>
 <code>https://youtu.be/playlist?list=PL...*1*5</code>
 (downloads videos from 1 to 5 inclusive)
-
-🎯 <b>Single video from playlist:</b>
+🟥 <b>Single video from playlist:</b>
 <code>https://youtu.be/playlist?list=PL...*3*3</code>
 (downloads only the 3rd video)
 
-🎯 <b>TikTok profile:</b>
+⬛️ <b>TikTok profile:</b> (need your 🍪)
 <code>https://www.tiktok.com/@username*1*10</code>
 (downloads first 10 videos from user profile)
+
+🟪 <b>Instagram stories albums:</b> (need your 🍪)
+<code>https://www.instagram.com/stories/highlights/123...*1*10</code>
+(downloads first 10 stories from album)
+
+🟦 <b>VK videos:</b>
+<code>https://vkvideo.ru/@username*1*3</code>
+(downloads first 3 videos from user profile)
 """
 
     app.send_message(user_id, playlist_help, parse_mode=enums.ParseMode.HTML)
@@ -860,7 +868,7 @@ def url_distractor(app, message):
             send_to_all(message, "🗑 Mediainfo file removed.")
             return
         elif clean_args == "all":
-            # Удаляем все файлы и выводим список удаленных
+            # Delete all files and display the list of deleted ones
             user_dir = f'./users/{str(message.chat.id)}'
             if not os.path.exists(user_dir):
                 send_to_all(message, "🗑 No files to remove.")
@@ -869,7 +877,7 @@ def url_distractor(app, message):
             removed_files = []
             allfiles = os.listdir(user_dir)
 
-            # Удаляем все файлы в папке пользователя
+            # Delete all files in the user folder
             for file in allfiles:
                 file_path = os.path.join(user_dir, file)
                 try:
@@ -887,7 +895,7 @@ def url_distractor(app, message):
                 send_to_all(message, "🗑 No files to remove.")
             return
         else:
-            # Обычная команда /clean - удаляем только медиа файлы с фильтрацией
+            # Regular command /clean - delete only media files with filtering
             remove_media(message)
             send_to_all(message, "🗑 All media files are removed.")
             return
@@ -897,7 +905,7 @@ def url_distractor(app, message):
         get_user_log(app, message)
         return
 
-    # /TAGS Command
+    # /tags Command
     if Config.TAGS_COMMAND in text:
         tags_command(app, message)
         return
@@ -1285,13 +1293,13 @@ def uncache_command(app, message):
         return
     removed_any = False
     try:
-        # Очищаем кэш по видео
+        #Clearing the cache by video
         normalized_url = normalize_url_for_cache(url)
         url_hash = get_url_hash(normalized_url)
         video_cache_path = f"{Config.VIDEO_CACHE_DB_PATH}/{url_hash}"
         db_child_by_path(db, video_cache_path).remove()
         removed_any = True
-        # Очищаем кэш по плейлисту (если есть)
+        # Clear cache by playlist (if any)
         playlist_url = get_clean_playlist_url(url)
         if playlist_url:
             playlist_normalized = normalize_url_for_cache(playlist_url)
@@ -1299,7 +1307,7 @@ def uncache_command(app, message):
             playlist_cache_path = f"{Config.PLAYLIST_CACHE_DB_PATH}/{playlist_hash}"
             db_child_by_path(db, playlist_cache_path).remove()
             removed_any = True
-            # Если есть диапазон (например, *1*5), очищаем кэш по каждому индексу
+            # If there is a range (eg *1*5), clear the cache for each index
             import re
             m = re.search(r"\*(\d+)\*(\d+)", url)
             if m:
@@ -1307,7 +1315,7 @@ def uncache_command(app, message):
                 for idx in range(start, end + 1):
                     idx_path = f"{Config.PLAYLIST_CACHE_DB_PATH}/{playlist_hash}/{idx}"
                     db_child_by_path(db, idx_path).remove()
-        # Очищаем кэш по short/long YouTube ссылкам
+        # Clear cache for short/long YouTube links
         if is_youtube_url(url):
             short_url = youtube_to_short_url(url)
             long_url = youtube_to_long_url(url)
@@ -1358,7 +1366,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
         callback_query.answer("Menu closed.")
         return
     if data == "clean":
-        # Показываем меню очистки
+        # Show the cleaning menu
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🍪 Cookies", callback_data="clean_option|cookies")],
             [InlineKeyboardButton("📃 Logs ", callback_data="clean_option|logs")],
@@ -1451,7 +1459,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
 
     # For commands that are processed only via url_distractor, create a temporary Message
     if data == "clean":
-        # Показываем меню очистки вместо прямого выполнения
+        # Show the cleaning menu instead of direct execution
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🍪 Cookies only", callback_data="clean_option|cookies")],
             [InlineKeyboardButton("📃 Logs ", callback_data="clean_option|logs")],
@@ -1560,7 +1568,7 @@ def clean_option_callback(app, callback_query):
         callback_query.answer("All files cleaned.")
         return
     elif data == "back":
-        # Возвращаемся к меню cookies
+        # Back to the cookies menu
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("📥 /download_cookie - Download my YouTube cookie",
                                   callback_data="settings__cmd__download_cookie")],
@@ -1962,7 +1970,7 @@ def truncate_caption(
     description: str,
     url: str,
     tags_text: str = '',
-    max_length: int = 1024
+    max_length: int = 1000  # Reduced from 1024 to be safe with encoding issues
 ) -> Tuple[str, str, str, str, str, bool]:
     """
     Returns: (title_html, pre_block, blockquote_content, tags_block, link_block, was_truncated)
@@ -1993,7 +2001,7 @@ def truncate_caption(
     
     was_truncated = False
     
-    # Calculate constant overhead
+    # Calculate constant overhead more accurately
     overhead = len(tags_block) + len(link_block)
     if title_html:
         overhead += len(title_html) + 2 # for '\n\n'
@@ -2004,15 +2012,26 @@ def truncate_caption(
     blockquote_overhead = len('<blockquote expandable></blockquote>') + 1 # for '\n'
     blockquote_limit = max_length - overhead - blockquote_overhead
     
-    blockquote_content = post_block_str
-    if len(blockquote_content) > blockquote_limit:
-        blockquote_content = blockquote_content[:blockquote_limit - 4] + '...'
+    # Ensure we have some space for content
+    if blockquote_limit <= 0:
+        # If no space for blockquote, truncate everything except essential parts
+        if title_html:
+            title_html = title_html[:max_length-10] + '...'
+        pre_block_str = ''
+        blockquote_content = ''
         was_truncated = True
+    else:
+        blockquote_content = post_block_str
+        if len(blockquote_content) > blockquote_limit:
+            blockquote_content = blockquote_content[:blockquote_limit - 4] + '...'
+            was_truncated = True
 
     # Final check and possible truncation of pre_block
-    if overhead + len(blockquote_content) + blockquote_overhead > max_length:
-        pre_block_limit = max_length - (overhead - len(pre_block_str) -1) - len(blockquote_content) - blockquote_overhead
-        if pre_block_limit < len(pre_block_str):
+    current_length = overhead + len(blockquote_content) + blockquote_overhead
+    if current_length > max_length:
+        # Calculate how much space we can give to pre_block
+        pre_block_limit = max_length - (overhead - len(pre_block_str) - 1) - len(blockquote_content) - blockquote_overhead
+        if pre_block_limit > 0 and pre_block_limit < len(pre_block_str):
             pre_block_str = pre_block_str[:pre_block_limit-4] + '...'
             was_truncated = True
         else: # if even with truncated pre_block it does not fit, truncate everything
@@ -2031,12 +2050,31 @@ def truncate_caption(
     if tags_block:
         cap += tags_block
     cap += link_block
-    # Final trimming taking into account HTML
-    was_truncated_final = False
+    
+    # Final safety check - ensure we never exceed max_length
     if len(cap) > max_length:
-        cap = cap[:max_length-3] + '...'
-        was_truncated_final = True
-    return title_html, pre_block_str, blockquote_content, tags_block, link_block, was_truncated or was_truncated_final
+        # Emergency truncation - keep only essential parts
+        essential_parts = []
+        if title_html:
+            essential_parts.append(title_html)
+        if tags_block:
+            essential_parts.append(tags_block.strip())
+        if link_block:
+            essential_parts.append(link_block)
+        
+        cap = '\n\n'.join(essential_parts)
+        if len(cap) > max_length:
+            # More aggressive truncation - remove HTML tags for calculation
+            plain_text = re.sub(r'<[^>]+>', '', cap)
+            if len(plain_text) > max_length:
+                # Truncate plain text and rebuild HTML
+                truncated_text = plain_text[:max_length-10] + '...'
+                cap = truncated_text
+            else:
+                cap = cap[:max_length-3] + '...'
+        was_truncated = True
+    
+    return title_html, pre_block_str, blockquote_content, tags_block, link_block, was_truncated
 
 def send_videos(
     message,
@@ -2062,7 +2100,7 @@ def send_videos(
             description=full_video_title,
             url=video_url,
             tags_text=tags_text, # Use final tags for calculation
-            max_length=1024
+            max_length=1000  # Reduced for safety
         )
         # Form HTML caption: title outside the quote, timecodes outside the quote, description in the quote, tags and link outside the quote
         cap = ''
@@ -2332,7 +2370,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     user_id = message.chat.id
     logger.info(f"down_and_audio called: url={url}, quality_key={quality_key}, video_count={video_count}, video_start_with={video_start_with}")
     
-    # Определяем плейлист не только по количеству видео, но и по наличию диапазона в URL
+    # We define a playlist not only by the number of videos, but also by the presence of a range in the URL
     original_text = message.text or message.caption or ""
     is_playlist = video_count > 1 or is_playlist_with_range(original_text)
     requested_indices = list(range(video_start_with, video_start_with + video_count)) if is_playlist else []
@@ -2504,14 +2542,12 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 'outtmpl': os.path.join(user_folder, "%(title)s.%(ext)s"),
                 'progress_hooks': [progress_hook],
             }
-            
             try:
-                with YoutubeDL(ytdl_opts) as ydl:
+                with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
                     info_dict = ydl.extract_info(url, download=False)
                 if "entries" in info_dict:
                     entries = info_dict["entries"]
                     if len(entries) > 1:  # If the video in the playlist is more than one
-                        # Use the correct index taking into account video_start_with
                         actual_index = current_index + video_start_with - 1  # -1 because indexes in entries start from 0
                         if actual_index < len(entries):
                             info_dict = entries[actual_index]
@@ -2527,7 +2563,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 except Exception as e:
                     logger.error(f"Status update error: {e}")
                 
-                with YoutubeDL(ytdl_opts) as ydl:
+                with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
                     ydl.download([url])
                 
                 try:
@@ -2536,8 +2572,14 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 except Exception as e:
                     logger.error(f"Final progress update error: {e}")
                 return info_dict
+            except yt_dlp.utils.DownloadError as e:
+                error_text = str(e)
+                send_to_user(message, f"❌ Error downloading: {error_text}\n\nPerhaps cookie authorization is required. More information: https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp")
+                logger.error(f"DownloadError: {error_text}")
+                return None
             except Exception as e:
                 logger.error(f"Audio download attempt failed: {e}")
+                send_to_user(message, f"❌ Unknown error: {e}")
                 return None
 
         if is_playlist and quality_key:
@@ -2659,7 +2701,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, [current_video_index])
                         logger.info(f"Checking the cache immediately after writing: {cached_check}")
                         playlist_indices.append(current_video_index)
-                        playlist_msg_ids.extend(msg_ids)  # Используем msg_ids вместо forwarded_msgs
+                        playlist_msg_ids.extend(msg_ids)  # We use msg_ids instead of forwarded_msgs
                     else:
                         # For single audios, save to regular cache
                         logger.info(f"down_and_audio: saving to video cache: msg_ids={msg_ids}")
@@ -2694,7 +2736,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
         if is_playlist and quality_key:
             total_sent = len(cached_videos) + successful_uploads
-            app.send_message(user_id, f"✅Playlist audio sent: {total_sent}/{len(requested_indices)} files (cache + new).", reply_to_message_id=message.id)
+            app.send_message(user_id, f"✅Playlist audio sent: {total_sent}/{len(requested_indices)} files.", reply_to_message_id=message.id)
             send_to_logger(message, f"Playlist audio sent: {total_sent}/{len(requested_indices)} files (quality={quality_key}) to user{user_id}")
 
     except Exception as e:
@@ -2729,12 +2771,20 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         set_active_download(user_id, False)
         clear_download_start_time(user_id)  # Cleaning the start time
 
+        # Clean up temporary files
+        try:
+            cleanup_user_temp_files(user_id)
+        except Exception as e:
+            logger.error(f"Error cleaning up temp files for user {user_id}: {e}")
+
         # Reset playlist errors if this was a playlist
         if playlist_name:
             with playlist_errors_lock:
                 error_key = f"{user_id}_{playlist_name}"
                 if error_key in playlist_errors:
                     del playlist_errors[error_key]
+
+
 
 # ########################################
 # Download_and_up function
@@ -2750,7 +2800,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     user_id = message.chat.id
     logger.info(f"down_and_up called: url={url}, quality_key={quality_key}, format_override={format_override}, video_count={video_count}, video_start_with={video_start_with}")
     
-    # Определяем плейлист не только по количеству видео, но и по наличию диапазона в URL
+    # We define a playlist not only by the number of videos, but also by the presence of a range in the URL
     original_text = message.text or message.caption or ""
     is_playlist = video_count > 1 or is_playlist_with_range(original_text)
     requested_indices = list(range(video_start_with, video_start_with + video_count)) if is_playlist else []
@@ -2968,18 +3018,23 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         successful_uploads = 0
 
         def try_download(url, attempt_opts):
-            nonlocal current_total_process
+            nonlocal current_total_process, error_message
             common_opts = {
                 'cookiefile': os.path.join("users", str(user_id), os.path.basename(Config.COOKIE_FILE_PATH)),
-                'playlist_items': str(current_index),  # Используем только current_index для плейлистов
+                'playlist_items': str(current_index),  # We use only current_index for playlists
                 'outtmpl': os.path.join(user_dir_name, "%(title)s.%(ext)s")
             }
+            
+            # If this is not a playlist with a range, add --no-playlist to the URL with the list parameter
+            if not is_playlist and 'list=' in url:
+                common_opts['noplaylist'] = True
+            
             is_hls = ("m3u8" in url.lower())
             if not is_hls:
                 common_opts['progress_hooks'] = [progress_func]
             ytdl_opts = {**common_opts, **attempt_opts}
             try:
-                with YoutubeDL(ytdl_opts) as ydl:
+                with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
                     info_dict = ydl.extract_info(url, download=False)
                 if "entries" in info_dict:
                     entries = info_dict["entries"]
@@ -3009,28 +3064,40 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             f"{current_total_process}\n\n> __Downloading using format: {ytdl_opts.get('format', 'default')}...__ 📥")
                 except Exception as e:
                     logger.error(f"Status update error: {e}")
-                with YoutubeDL(ytdl_opts) as ydl:
+                with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
                     if is_hls:
                         cycle_stop = threading.Event()
                         cycle_thread = start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_name, cycle_stop)
                         try:
-                            with YoutubeDL(ytdl_opts) as ydl:
+                            with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
                                 ydl.download([url])
                         finally:
                             cycle_stop.set()
                             cycle_thread.join(timeout=1)
                     else:
-                        with YoutubeDL(ytdl_opts) as ydl:
+                        with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
                             ydl.download([url])
                 try:
                     safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{full_bar}   100.0%")
                 except Exception as e:
                     logger.error(f"Final progress update error: {e}")
                 return info_dict
-            except Exception as e:
+            except yt_dlp.utils.DownloadError as e:
                 nonlocal error_message
                 error_message = str(e)
+                send_to_user(message, f"❌ Error downloading: {error_message}\n\nPerhaps cookie authorization is required. More information: https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp")
+                logger.error(f"DownloadError: {error_message}")
+                return None
+            except Exception as e:
+                error_message = str(e)
                 logger.error(f"Attempt with format {ytdl_opts.get('format', 'default')} failed: {e}")
+                
+                # Check if this is a "No videos found in playlist" error - skip it
+                if "No videos found in playlist" in str(e):
+                    logger.info(f"Skipping playlist item at index {current_index} (no video found)")
+                    return "SKIP"  # Special return value to indicate skip
+                
+                send_to_user(message, f"❌ Unknown error: {e}")
                 return None
 
         if is_playlist and quality_key:
@@ -3055,10 +3122,19 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 rename_name = None
 
             info_dict = None
+            skip_item = False
             for attempt in attempts:
-                info_dict = try_download(url, attempt)
-                if info_dict is not None:
+                result = try_download(url, attempt)
+                if result == "SKIP":
+                    skip_item = True
                     break
+                elif result is not None:
+                    info_dict = result
+                    break
+
+            if skip_item:
+                logger.info(f"Skipping item at index {current_index} (no video content)")
+                continue
 
             if info_dict is None:
                 with playlist_errors_lock:
@@ -3127,10 +3203,22 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
             if rename_name == video_title:
                 caption_name = video_title
-                final_name = downloaded_file
+                # Sanitize filename for disk storage while keeping original title for caption
+                final_name = sanitize_filename(downloaded_file)
+                if final_name != downloaded_file:
+                    old_path = os.path.join(dir_path, downloaded_file)
+                    new_path = os.path.join(dir_path, final_name)
+                    try:
+                        if os.path.exists(new_path):
+                            os.remove(new_path)
+                        os.rename(old_path, new_path)
+                    except Exception as e:
+                        logger.error(f"Error renaming file from {old_path} to {new_path}: {e}")
+                        final_name = downloaded_file
             else:
                 ext = os.path.splitext(downloaded_file)[1]
-                final_name = rename_name + ext
+                # Sanitize filename for disk storage while keeping original title for caption
+                final_name = sanitize_filename(rename_name + ext)
                 caption_name = rename_name
                 old_path = os.path.join(dir_path, downloaded_file)
                 new_path = os.path.join(dir_path, final_name)
@@ -3380,7 +3468,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
         if is_playlist and quality_key:
             total_sent = len(cached_videos) + successful_uploads
-            app.send_message(user_id, f"✅ Playlist videos sent: {total_sent}/{len(requested_indices)} files (cache + new).", reply_to_message_id=message.id)
+            app.send_message(user_id, f"✅ Playlist videos sent: {total_sent}/{len(requested_indices)} files.", reply_to_message_id=message.id)
             send_to_logger(message, f"Playlist videos sent: {total_sent}/{len(requested_indices)} files (quality={quality_key}) to user {user_id}")
 
     except Exception as e:
@@ -3390,6 +3478,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         else:
             logger.error(f"Error in video download: {e}")
             send_to_user(message, f"❌ Failed to download video: {e}")
+        
+        # Clean up temporary files on error
+        try:
+            cleanup_user_temp_files(user_id)
+        except Exception as cleanup_error:
+            logger.error(f"Error cleaning up temp files after error for user {user_id}: {cleanup_error}")
     finally:
         set_active_download(user_id, False)
         clear_download_start_time(user_id)  # Clear the download start time
@@ -3398,6 +3492,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 error_key = f"{user_id}_{playlist_name}"
                 if error_key in playlist_errors:
                     del playlist_errors[error_key]
+
+        # Clean up temporary files
+        try:
+            cleanup_user_temp_files(user_id)
+        except Exception as e:
+            logger.error(f"Error cleaning up temp files for user {user_id}: {e}")
 
         try:
             if status_msg_id:
@@ -3489,6 +3589,31 @@ def cleanup_temp_files():
         except Exception as e:
             logger.error(f"Error cleaning user directory {user_dir}: {e}")
 
+def cleanup_user_temp_files(user_id):
+    """Clean up temporary files for a specific user"""
+    user_dir = os.path.join("users", str(user_id))
+    if not os.path.exists(user_dir):
+        return
+    
+    logger.info(f"Cleaning up temporary files for user {user_id}")
+    try:
+        for filename in os.listdir(user_dir):
+            file_path = os.path.join(user_dir, filename)
+            # Remove temporary files
+            if (filename.endswith(('.part', '.ytdl', '.temp', '.tmp')) or
+                filename.startswith('yt_thumb_') or  # YouTube thumbnails
+                filename.endswith('.jpg') or  # Thumbnails
+                filename == 'full_title.txt' or  # Full title file
+                filename == 'full_description.txt'):  # Tags file
+                try:
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+                        logger.debug(f"Removed temp file: {filename}")
+                except Exception as e:
+                    logger.error(f"Failed to remove temp file {filename}: {e}")
+    except Exception as e:
+        logger.error(f"Error cleaning user directory {user_id}: {e}")
+
 # Register handlers for the most common termination signals
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
@@ -3511,6 +3636,7 @@ def get_active_download(user_id):
 def sanitize_filename(filename, max_length=150):
     """
     Sanitize filename by removing invalid characters and shortening if needed
+    Only allows letters (any language), numbers, and Linux-safe symbols
 
     Args:
         filename (str): Original filename
@@ -3526,22 +3652,49 @@ def sanitize_filename(filename, max_length=150):
     # Extract extension first
     name, ext = os.path.splitext(filename)
 
-    # Remove invalid characters (Windows and Linux safe)
+    # Remove all emoji and special Unicode characters
+    # Keep only letters (any language), numbers, spaces, dots, dashes, underscores
+    import unicodedata
+    
+    # Normalize Unicode characters
+    name = unicodedata.normalize('NFKC', name)
+    
+    # Remove all emoji and special symbols, keep only:
+    # - Letters (any language): \p{L}
+    # - Numbers: \p{N}
+    # - Spaces: \s
+    # - Safe symbols: .-_()
+    import re
+    
+    # Pattern to keep only safe characters
+    # Remove all non-alphanumeric characters except safe symbols
+    # \w includes [a-zA-Z0-9_] but we want to keep all Unicode letters
+    import unicodedata
+    
+    # Keep only letters, numbers, spaces, and safe symbols
+    cleaned_name = ''
+    for char in name:
+        if (char.isalnum() or  # letters and numbers
+            char.isspace() or  # spaces
+            char in '.-_()'):  # safe symbols
+            cleaned_name += char
+    
+    name = cleaned_name
+    
+    # Remove invalid filesystem characters (Windows and Linux safe)
     invalid_chars = r'[<>:"/\\|?*\x00-\x1f]'
     name = re.sub(invalid_chars, '', name)
-
-    # Remove emoji characters to avoid issues with ffmpeg
-    emoji_pattern = re.compile("["
-                               "\U0001F600-\U0001F64F"  # emoticons
-                               "\U0001F300-\U0001F5FF"  # symbols & pictographs
-                               "\U0001F680-\U0001F6FF"  # transport & map symbols
-                               "\U0001F1E0-\U0001F1FF"  # flags
-                               "]+", flags=re.UNICODE)
-    name = emoji_pattern.sub(r'', name)
-
-    # Replace multiple spaces with single space and strip
-    name = re.sub(r'\s+', ' ', name).strip()
-
+    
+    # Remove leading/trailing dots and spaces (not allowed in Linux)
+    name = name.strip(' .')
+    
+    # Replace multiple spaces/dots with single ones
+    name = re.sub(r'[\s.]+', ' ', name).strip()
+    
+    # If name is empty after cleaning, use default
+    if not name:
+        name = "untitled"
+    
     # Shorten if too long
     full_name = name + ext
     max_total = 100
@@ -3552,6 +3705,7 @@ def sanitize_filename(filename, max_length=150):
        else:
           name = name[:allowed]
        full_name = name + ext
+    
     return full_name
 
 
@@ -4106,7 +4260,12 @@ def is_porn(url, title, description, caption=None):
     for keyword in PORN_KEYWORDS:
         if not keyword:
             continue
-        if keyword in title_lower or keyword in description_lower or keyword in caption_lower:
+        # Split text into words and check for exact word matches
+        title_words = title_lower.split()
+        description_words = description_lower.split()
+        caption_words = caption_lower.split()
+        
+        if (keyword in title_words or keyword in description_words or keyword in caption_words):
             logger.info(f"is_porn: found match: {keyword}")
             return True
     logger.info("is_porn: no matches found")
@@ -4198,26 +4357,32 @@ def get_video_formats(url, user_id=None, playlist_start_index=1):
         cookie_file = os.path.join(user_dir, os.path.basename(Config.COOKIE_FILE_PATH))
         if os.path.exists(cookie_file):
             ytdl_opts['cookiefile'] = cookie_file
-    with YoutubeDL(ytdl_opts) as ydl:
-        info = ydl.extract_info(url, download=False)
-    if 'entries' in info and info.get('entries'):
-        return info['entries'][0]
-    return info
+    try:
+        with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+        if 'entries' in info and info.get('entries'):
+            return info['entries'][0]
+        return info
+    except yt_dlp.utils.DownloadError as e:
+        error_text = str(e)
+        return {'error': error_text}
+    except Exception as e:
+        return {'error': str(e)}
 
 
 # --- Always ask processing ---
 def sort_quality_key(quality_key):
-    """Сортировка качеств по увеличению разрешения от меньшего к большему"""
+    """Sort qualities by increasing resolution from lower to higher"""
     if quality_key == "best":
-        return 999999  # best всегда в конце
+        return 999999  # best is always at the end
     elif quality_key == "mp3":
-        return -1  # mp3 в самом начале
+        return -1  # mp3 at the very beginning
     else:
-        # Извлекаем число из строки (например, "720p" -> 720)
+        # Extract a number from a string (e.g. "720p" -> 720)
         try:
             return int(quality_key.replace('p', ''))
         except ValueError:
-            return 0  # для неизвестных форматов
+            return 0  # for unknown formats
 
 def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
     user_id = message.chat.id
@@ -4254,9 +4419,9 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             if f.get('vcodec', 'none') != 'none' and f.get('height') and f.get('width'):
                 w = f['width']
                 h = f['height']
-                # Используем функцию get_quality_by_min_side для определения качества
+                # Use the get_quality_by_min_side function to determine the quality
                 quality_key = get_quality_by_min_side(w, h)
-                if quality_key != "best":  # Исключаем best из отображения
+                if quality_key != "best":  # Exclude best from display
                     if f.get('filesize'):
                         size_mb = int(f['filesize']) // (1024*1024)
                     elif f.get('filesize_approx'):
@@ -4268,7 +4433,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
                         minside_size_dim_map[key] = size_mb
         table_lines = []
         found_quality_keys = set()
-        # Сортируем по качеству от меньшего к большему
+        # Sort by quality from lowest to highest
         for (quality_key, w, h), size_val in sorted(minside_size_dim_map.items(), key=lambda x: sort_quality_key(x[0][0])):
             found_quality_keys.add(quality_key)
             size_str = f"{round(size_val/1024, 1)}GB" if size_val >= 1024 else f"{size_val}MB"
@@ -4302,7 +4467,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         hint = "<pre language=\"info\">📹 — Choose quality for new download.\n🚀 — Instant repost. Video is already saved.</pre>"
         cap += f"\n{hint}\n"
         buttons = []
-        # Сортируем кнопки по качеству от меньшего к большему
+        # Sort buttons by quality from lowest to highest
         for quality_key in sorted(found_quality_keys, key=sort_quality_key):
             if is_playlist and playlist_range:
                 indices = list(range(playlist_range[0], playlist_range[1]+1))
@@ -4318,7 +4483,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         if not buttons and popular:
             for height in popular:
                 quality_key = f"{height}p"
-                # Ищем размер файла для этого качества
+                # Find the file size for this quality
                 size_val = None
                 for (qk, w, h), size in minside_size_dim_map.items():
                     if qk == quality_key:
@@ -4468,12 +4633,12 @@ def askq_callback(app, callback_query):
         video_count = video_end_with - video_start_with + 1
         requested_indices = list(range(video_start_with, video_start_with + video_count))
         
-        # Проверяем кэш для выбранного качества
+        # Check cache for selected quality
         cached_videos = get_cached_playlist_videos(get_clean_playlist_url(url), data, requested_indices)
         uncached_indices = [i for i in requested_indices if i not in cached_videos]
         used_quality_key = data
         
-        # Если кэша для выбранного качества нет, пробуем fallback на best
+        # If there is no cache for the selected quality, try fallback to best
         if not cached_videos and data != "best":
             logger.info(f"askq_callback: no cache for quality_key={data}, trying fallback to best")
             best_cached = get_cached_playlist_videos(get_clean_playlist_url(url), "best", requested_indices)
@@ -4484,7 +4649,7 @@ def askq_callback(app, callback_query):
                 logger.info(f"askq_callback: found cache with best quality, cached: {list(cached_videos.keys())}, uncached: {uncached_indices}")
         
         if cached_videos:
-            # Пересылаем закэшированные видео
+            # Reposting cached videos
             callback_query.answer("🚀 Found in cache! Reposting...", show_alert=False)
             for index in requested_indices:
                 if index in cached_videos:
@@ -4497,7 +4662,7 @@ def askq_callback(app, callback_query):
                     except Exception as e:
                         logger.warning(f"askq_callback: cached video for index {index} not found: {e}")
             
-            # Если есть недостающие видео - скачиваем их
+            # If there are missing videos - download them
             if uncached_indices:
                 logger.info(f"askq_callback: we start downloading the missing indexes: {uncached_indices}")
                 new_start = uncached_indices[0]
@@ -4507,7 +4672,7 @@ def askq_callback(app, callback_query):
                 if data == "mp3":
                     down_and_audio(app, original_message, url, tags, quality_key=used_quality_key, playlist_name=playlist_name, video_count=new_count, video_start_with=new_start)
                 else:
-                    # Формируем правильный формат для недостающих видео
+                    # Form the correct format for the missing videos
                     if used_quality_key == "best":
                         format_override = "bestvideo+bestaudio/best"
                     else:
@@ -4520,19 +4685,19 @@ def askq_callback(app, callback_query):
                     
                     down_and_up(app, original_message, url, playlist_name, new_count, new_start, tags_text, force_no_title=False, format_override=format_override, quality_key=used_quality_key)
             else:
-                # Все видео были в кэше
+                # All videos were in the cache
                 app.send_message(user_id, f"✅ Sent from cache: {len(cached_videos)}/{len(requested_indices)} files.", reply_to_message_id=original_message.id)
                 media_type = "Audio" if data == "mp3" else "Video"
                 log_msg = f"{media_type} playlist sent from cache to user.\nURL: {url}\nUser: {callback_query.from_user.first_name} ({user_id})"
                 send_to_logger(original_message, log_msg)
             return
         else:
-            # Если кэша нет вообще - скачиваем всё заново
+            # If there is no cache at all - download everything again
             logger.info(f"askq_callback: no cache found for any quality, starting new download")
             if data == "mp3":
                 down_and_audio(app, original_message, url, tags, quality_key=data, playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with)
             else:
-                # Формируем правильный формат для нового скачивания
+                # Form the correct format for the new download
                 if data == "best":
                     format_override = "bestvideo+bestaudio/best"
                 else:
@@ -4581,18 +4746,18 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
         down_and_audio(app, original_message, url, tags, quality_key="mp3", playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with)
         return
     
-    # Логика формирования формата с учетом реальной height
+    # Logic for forming the format with the real height
     if data == "best":
         callback_query.answer("Downloading best quality...")
         fmt = "bestvideo+bestaudio/best"
         quality_key = "best"
     else:
         try:
-            # Получаем информацию о видео для определения размеров
+            # Get information about the video to determine the sizes
             info = get_video_formats(url, user_id)
             formats = info.get('formats', [])
             
-            # Ищем формат с максимальным качеством для определения размеров
+            # Find the format with the highest quality to determine the sizes
             max_width = 0
             max_height = 0
             for f in formats:
@@ -4602,22 +4767,22 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
                     if f['height'] > max_height:
                         max_height = f['height']
             
-            # Если размеры не найдены, используем стандартную логику
+            # If the sizes are not found, use the standard logic
             if max_width == 0 or max_height == 0:
                 quality_str = data.replace('p', '')
                 quality_val = int(quality_str)
                 fmt = f"bestvideo[height<={quality_val}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
             else:
-                # Определяем качество по меньшей стороне
+                # Determine the quality by the smaller side
                 min_side_quality = get_quality_by_min_side(max_width, max_height)
                 
-                # Если выбранное качество не соответствует меньшей стороне, используем стандартную логику
+                # If the selected quality does not match the smaller side, use the standard logic
                 if data != min_side_quality:
                     quality_str = data.replace('p', '')
                     quality_val = int(quality_str)
                     fmt = f"bestvideo[height<={quality_val}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
                 else:
-                    # Используем реальную height для формирования формата
+                    # Use the real height to form the format
                     real_height = get_real_height_for_quality(data, max_width, max_height)
                     fmt = f"bestvideo[height<={real_height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={real_height}]+bestaudio/best[height<={real_height}]/best"
             
@@ -4629,7 +4794,6 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
     
     down_and_up_with_format(app, original_message, url, fmt, tags_text, quality_key=quality_key)
 
-# ... существующий code ...
 # --- an auxiliary function for downloading with the format ---
 def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None):
 
@@ -4844,7 +5008,7 @@ def normalize_url_for_cache(url: str) -> str:
         v = None
         if 'v' in query_params:
             v = query_params['v'][0]
-            # Исправление: если v содержит ? или &, берём только до этих символов
+            # Fix: If v contains ? or &, only match up to those characters
             v = v.split('?')[0].split('&')[0]
         if v:
             new_query = urlencode({'v': v}, doseq=True)
@@ -4995,7 +5159,7 @@ def get_cached_playlist_videos(playlist_url: str, quality_key: str, requested_in
                    'PLAYLIST_CACHE_DB_PATH') or not Config.PLAYLIST_CACHE_DB_PATH or Config.PLAYLIST_CACHE_DB_PATH.strip() in (
             '', '/', '.'):
         logger.error(
-            f"get_cached_playlist_videos: PLAYLIST_CACHE_DB_PATH is empty или invalid! Skipping cache read for playlist: {playlist_url}")
+            f"get_cached_playlist_videos: PLAYLIST_CACHE_DB_PATH is empty or invalid! Skipping cache read for playlist: {playlist_url}")
         return {}
     try:
         urls = [normalize_url_for_cache(strip_range_from_url(playlist_url))]
@@ -5021,7 +5185,7 @@ def get_cached_playlist_videos(playlist_url: str, quality_key: str, requested_in
             for qk in quality_keys:
                 logger.info(f"get_cached_playlist_videos: checking quality: {qk}")
 
-                # Проверяем каждый запрошенный индекс отдельно
+                # Check each requested index separately
                 for index in requested_indices:
                     index_str = str(index)
                     try:
@@ -5107,13 +5271,13 @@ def ceil_to_popular(h):
     return popular[-1]
 
 
-# --- Быстрое получение количества кэшированных видео для качества ---
+# --- Quickly get the number of cached videos for quality ---
 def get_cached_playlist_count(playlist_url: str, quality_key: str, indices: list = None) -> int:
     """
-    Возвращает количество закэшированных видео для заданного качества (по количеству ключей в базе),
-    учитывая и округлённый quality_key (ceil_to_popular).
-    Если передан список индексов, считает только их пересечение с кэшем.
-    Для больших диапазонов (>100) использует быстрый подсчет.
+    Returns the number of cached videos for the given quality (based on the number of keys in the database),
+    considering and rounded quality_key (ceil_to_popular).
+    If a list of indices is passed, it only counts their intersection with the cache.
+    For large ranges (>100), it uses a fast count.
     """
     try:
         urls = [normalize_url_for_cache(strip_range_from_url(playlist_url))]
@@ -5135,12 +5299,12 @@ def get_cached_playlist_count(playlist_url: str, quality_key: str, indices: list
             url_hash = get_url_hash(u)
             for qk in quality_keys:
                 if indices is not None:
-                    # Для больших диапазонов используем быстрый подсчет
+                    # For large ranges, we use a fast count
                     if len(indices) > 100:
                         try:
                             data = db_child_by_path(db, f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}/{qk}").get().val()
                             if data and isinstance(data, dict):
-                                # Считаем только индексы из запрошенного диапазона
+                                # Count only indices from the requested range
                                 cached_count = sum(
                                     1 for index in indices if str(index) in data and data[str(index)] is not None)
                                 logger.info(
@@ -5150,7 +5314,7 @@ def get_cached_playlist_count(playlist_url: str, quality_key: str, indices: list
                             logger.error(f"get_cached_playlist_count: error in fast count: {e}")
                             continue
                     else:
-                        # Для небольших диапазонов проверяем каждый индекс отдельно
+                        # For small ranges, check each index separately
                         for index in indices:
                             index_str = str(index)
                             val = db_child_by_path(db,
@@ -5160,14 +5324,14 @@ def get_cached_playlist_count(playlist_url: str, quality_key: str, indices: list
                                 logger.info(
                                     f"get_cached_playlist_count: found cached video for index {index} (quality={qk}): {val}")
                 else:
-                    # Получаем все данные качества и считаем непустые записи
+                    # Get all quality data and count non-empty records
                     try:
                         data = db_child_by_path(db, f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}/{qk}").get().val()
                         if data:
                             if isinstance(data, dict):
                                 cached_count = len(data)
                             elif isinstance(data, list):
-                                # Если данные в виде списка, считаем непустые элементы
+                                # If the data is a list, count non-empty elements
                                 cached_count = sum(1 for item in data if item is not None)
                             else:
                                 logger.warning(
@@ -5191,9 +5355,9 @@ def get_cached_playlist_count(playlist_url: str, quality_key: str, indices: list
 
 def get_quality_by_min_side(width: int, height: int) -> str:
     """
-    Определяет качество по меньшей стороне видео.
-    Работает как для горизонтальных, так и для вертикальных видео.
-    Например, для 1280×720 возвращает '720p', для 720×1280 тоже '720p'.
+    Determines the quality by the smaller side of the video.
+    Works for both horizontal and vertical videos.
+    For example, for 1280×720 returns '720p', for 720×1280 also '720p'.
     """
     min_side = min(width, height)
     quality_map = {
@@ -5213,20 +5377,20 @@ def get_quality_by_min_side(width: int, height: int) -> str:
 
 def get_real_height_for_quality(quality: str, width: int, height: int) -> int:
     """
-    Возвращает реальную высоту для заданного качества, учитывая ориентацию видео.
-    Например, для качества '720p' и видео 1280×720 вернет 720, для 720×1280 вернет 1280.
+    Returns the real height for the given quality, considering the video orientation.
+    For example, for quality '720p' and video 1280×720 returns 720, for 720×1280 returns 1280.
     """
     if quality == "best":
-        return height  # Для best используем реальную высоту
+        return height  # For best, we use the real height
 
     try:
         quality_val = int(quality.replace('p', ''))
-        # Определяем, какая сторона соответствует выбранному качеству
+        # Determine which side corresponds to the selected quality
         if min(width, height) == quality_val:
-            # Если меньшая сторона равна качеству, используем реальную высоту
+            # If the smaller
             return height
         else:
-            # Иначе ищем соответствующую высоту
+            # Otherwise, find the corresponding height
             quality_map = {
                 144: [144, 256],
                 240: [240, 426],
@@ -5240,7 +5404,7 @@ def get_real_height_for_quality(quality: str, width: int, height: int) -> int:
                 4320: [4320, 7680]
             }
             heights = quality_map.get(quality_val, [quality_val])
-            # Выбираем высоту, которая ближе к реальной высоте видео
+            # Select the height that is closest to the real height of the video
             return min(heights, key=lambda h: abs(h - height))
     except ValueError:
         return height
