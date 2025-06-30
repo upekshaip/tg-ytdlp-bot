@@ -88,7 +88,6 @@ class Config(object):
 📋 <b>Playlists:</b>
 • <code>URL*1*5</code> - Download videos 1-5 from playlist
 • <code>URL*1*5*My Playlist</code> - With custom name
-• <code>URL*</code> - Download entire playlist
 
 🍪 <b>Cookies & Private Content:</b>
 • Upload *.txt cookie file for private videos downloading
@@ -134,7 +133,6 @@ class Config(object):
 📋 <b>Плейлисты:</b>
 • <code>URL*1*5</code> - Скачать видео 1-5 из плейлиста
 • <code>URL*1*5*Мой плейлист</code> - С собственным названием
-• <code>URL*</code> - Скачать весь плейлист
 
 🍪 <b>Cookies и приватный контент:</b>
 • Загрузите *.txt cookie для скачивания приватных видео
