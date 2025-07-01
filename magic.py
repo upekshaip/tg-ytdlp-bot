@@ -4230,12 +4230,12 @@ def is_porn_domain(domain_parts):
 # --- a new function for checking for porn ---
 def is_porn(url, title, description, caption=None):
     """
-    Checks content for pornography by domain and keywords (substring search) in title, description and caption.
-    If the domain or subdomain is found in WHITELIST, it immediately returns False.
+    Checks content for pornography by domain and keywords (word-boundary regex search)
+    in title, description and caption. Domain whitelist has highest priority.
     """
+    # 1. Проверка домена
     clean_url = get_clean_url_for_tagging(url)
     domain_parts, _ = extract_domain_parts(clean_url)
-    #First, check WHITELIST
     for dom in domain_parts:
         if dom in Config.WHITELIST:
             logger.info(f"is_porn: domain in WHITELIST: {dom}")
@@ -4243,29 +4243,35 @@ def is_porn(url, title, description, caption=None):
     if is_porn_domain(domain_parts):
         logger.info(f"is_porn: domain match: {domain_parts}")
         return True
-    title_lower = title.lower() if title else ""
+
+    # 2. Подготовка текста
+    title_lower       = title.lower()       if title       else ""
     description_lower = description.lower() if description else ""
-    caption_lower = caption.lower() if caption else ""
-    logger.debug(f"is_porn check for url: {url}")
-    logger.debug(f"is_porn title: '{title_lower}'")
-    logger.debug(f"is_porn description: '{description_lower}'")
-    logger.debug(f"is_porn caption: '{caption_lower}'")
-    logger.debug(f"is_porn keywords being checked: {PORN_KEYWORDS}")
-    if not title_lower and not description_lower and not caption_lower:
-        logger.info("is_porn: all fields empty")
+    caption_lower     = caption.lower()     if caption     else ""
+    if not (title_lower or description_lower or caption_lower):
+        logger.info("is_porn: all text fields empty")
         return False
-    for keyword in PORN_KEYWORDS:
-        if not keyword:
-            continue
-        # Split text into words and check for exact word matches
-        title_words = title_lower.split()
-        description_words = description_lower.split()
-        caption_words = caption_lower.split()
-        
-        if (keyword in title_words or keyword in description_words or keyword in caption_words):
-            logger.info(f"is_porn: found match: {keyword}")
-            return True
-    logger.info("is_porn: no matches found")
+
+    # 3. Собираем единый текст для поиска
+    combined = " ".join([title_lower, description_lower, caption_lower])
+    logger.debug(f"is_porn combined text: '{combined}'")
+    logger.debug(f"is_porn keywords: {PORN_KEYWORDS}")
+
+    # 4. Готовим regex-паттерн со списком ключевых слов
+    kws = [re.escape(kw.lower()) for kw in PORN_KEYWORDS if kw.strip()]
+    if not kws:
+        # нет ни одного валидного ключа
+        return False
+
+    # границы слов (\b) + флаг IGNORECASE
+    pattern = re.compile(r"\b(" + "|".join(kws) + r")\b", flags=re.IGNORECASE)
+
+    # 5. Ищем совпадение
+    if pattern.search(combined):
+        logger.info(f"is_porn: keyword match (regex): {pattern.pattern}")
+        return True
+
+    logger.info("is_porn: no keyword matches found")
     return False
 
 @app.on_message(filters.command("split") & filters.private)
