@@ -1707,8 +1707,8 @@ def download_cookie(app, message):
         file_path = os.path.join(user_dir, cookie_filename)
         with open(file_path, "wb") as cf:
             cf.write(response.content)
-        send_to_user(message, "**✅ Cookie file downloaded and saved in your folder.**")
-        send_to_logger(message, f"Cookie file downloaded for user {user_id}.")
+        send_to_user(message, "**✅ YouTube cookie file downloaded and saved in your folder.**")
+        send_to_logger(message, f"YouTube cookie file downloaded for user {user_id}.")
     else:
         send_to_user(message, "❌ Cookie URL is not available!")
         send_to_logger(message, f"Failed to download cookie file for user {user_id}.")
