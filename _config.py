@@ -104,7 +104,15 @@ To download playlists send its URL with <code>*start*end</code> ranges in the en
 <code>https://vkvideo.ru/@PAGE_NAME*1*3</code>
 (downloads first 3 videos from user/group profile)
 
-⬜️ <b>Vimeo groups:</b>
+⬛️<b>Rutube channels:</b>
+<code>https://rutube.ru/channel/CHANNEL_ID/videos*2*4</code>
+(downloads videos from 2 to 4 inclusive from channel)
+
+🟪 <b>Twitch clips:</b>
+<code>https://www.twitch.tv/USERNAME/clips*1*3</code>
+(downloads first 3 clips from channel)
+
+🟦 <b>Vimeo groups:</b>
 <code>https://vimeo.com/groups/GROUP_NAME/videos*1*2</code>
 (downloads first 2 videos from group)
 
