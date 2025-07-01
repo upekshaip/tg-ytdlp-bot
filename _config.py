@@ -85,10 +85,10 @@ To download playlists send its URL with <code>*start*end</code> ranges in the en
 
 <b>Examples:</b>
 
-🟥 <b>Video range from playlist:</b>
+🟥 <b>Video range from YouTube playlist:</b>
 <code>https://youtu.be/playlist?list=PL...*1*5</code>
 (downloads videos from 1 to 5 inclusive)
-🟥 <b>Single video from playlist:</b>
+🟥 <b>Single video from YouTube playlist:</b>
 <code>https://youtu.be/playlist?list=PL...*3*3</code>
 (downloads only the 3rd video)
 
