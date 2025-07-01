@@ -3330,6 +3330,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 returned = split_video_2(dir_path, sanitize_filename(caption_name), after_rename_abs_path, int(video_size_in_bytes), max_size, duration)
                 caption_lst = returned.get("video")
                 path_lst = returned.get("path")
+                # Накапливаем все ID частей split-видео
+                split_msg_ids = []
                 for p in range(len(caption_lst)):
                     part_result = get_duration_thumb(message, dir_path, path_lst[p], sanitize_filename(caption_lst[p]))
                     if part_result is None:
@@ -3341,7 +3343,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         forwarded_msgs = safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
                         logger.info(f"down_and_up: forwarded_msgs result: {forwarded_msgs}")
                         if forwarded_msgs:
-                            logger.info(f"down_and_up: saving to cache with forwarded message IDs: {[m.id for m in forwarded_msgs]}")
+                            logger.info(f"down_and_up: collecting forwarded message IDs for split video: {[m.id for m in forwarded_msgs]}")
                             if is_playlist:
                                 # For playlists, save to playlist cache with index
                                 current_video_index = x + video_start_with
@@ -3357,10 +3359,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 playlist_indices.append(current_video_index)
                                 playlist_msg_ids.extend([m.id for m in forwarded_msgs])
                             else:
-                                # For single videos, save to regular cache
-                                save_to_video_cache(url, quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                # Накапливаем ID частей для split видео
+                                split_msg_ids.extend([m.id for m in forwarded_msgs])
                         else:
-                            logger.info(f"down_and_up: saving to cache with video_msg.id: {video_msg.id}")
+                            logger.info(f"down_and_up: collecting video_msg.id for split video: {video_msg.id}")
                             if is_playlist:
                                 # For playlists, save to playlist cache with video index
                                 current_video_index = x + video_start_with
@@ -3370,11 +3372,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 playlist_indices.append(current_video_index)
                                 playlist_msg_ids.append(video_msg.id)
                             else:
-                                # For single videos, save to regular cache
-                                save_to_video_cache(url, quality_key, [video_msg.id], original_text=message.text or message.caption or "")
+                                # Накапливаем ID частей для split видео
+                                split_msg_ids.append(video_msg.id)
                     except Exception as e:
                         logger.error(f"Error forwarding video to logger: {e}")
-                        logger.info(f"down_and_up: saving to cache with video_msg.id after error: {video_msg.id}")
+                        logger.info(f"down_and_up: collecting video_msg.id after error for split video: {video_msg.id}")
                         if is_playlist:
                             # For playlists, save to playlist cache with video index
                             current_video_index = x + video_start_with
@@ -3384,8 +3386,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             playlist_indices.append(current_video_index)
                             playlist_msg_ids.append(video_msg.id)
                         else:
-                            # For single videos, save to regular cache
-                            save_to_video_cache(url, quality_key, [video_msg.id], original_text=message.text or message.caption or "")
+                            # Накапливаем ID частей для split видео
+                            split_msg_ids.append(video_msg.id)
                     safe_edit_message_text(user_id, proc_msg_id,
                                           f"{info_text}\n\n{full_bar}   100.0%\n__Splitted part {p + 1} file uploaded__")
                     if p < len(caption_lst) - 1:
@@ -3393,6 +3395,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     os.remove(splited_thumb_dir)
                     send_mediainfo_if_enabled(user_id, path_lst[p], message)
                     os.remove(path_lst[p])
+                
+                # Сохраняем все части split-видео в кэш после завершения цикла
+                if split_msg_ids and not is_playlist:
+                    # Удаляем дубликаты
+                    split_msg_ids = list(dict.fromkeys(split_msg_ids))
+                    logger.info(f"down_and_up: saving all split video parts to cache: {split_msg_ids}")
+                    save_to_video_cache(url, quality_key, split_msg_ids, original_text=message.text or message.caption or "")
                 os.remove(thumb_dir)
                 os.remove(user_vid_path)
                 success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n\n{Config.CREDITS_MSG}"
@@ -4920,20 +4929,17 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
             if not message_ids:
                 logger.warning(f"save_to_video_cache: message_ids is empty for URL: {url}, quality: {quality_key}")
                 continue
+            
+            # Упрощенная логика для кэширования
             if len(message_ids) == 1:
-                # Одиночное видео — всегда перезаписываем
+                # Одиночное видео - сохраняем как есть
                 cache_ref.child(quality_key).set(str(message_ids[0]))
                 logger.info(f"Saved single video to cache for URL hash {url_hash}, quality {quality_key}, msg_id {message_ids[0]}")
             else:
-                # Множественные части — объединяем
-                existing_ids_string = cache_ref.child(quality_key).get().val()
-                existing_ids = []
-                if existing_ids_string:
-                    existing_ids = [int(msg_id) for msg_id in existing_ids_string.split(',')]
-                all_ids = list(set(existing_ids + message_ids))
-                ids_string = ",".join(map(str, all_ids))
+                # Split видео (множественные части) - сохраняем все ID через запятую
+                ids_string = ",".join(map(str, message_ids))
                 cache_ref.child(quality_key).set(ids_string)
-                logger.info(f"Saved multi-part video to cache for URL hash {url_hash}, quality {quality_key}, msg_ids {ids_string}")
+                logger.info(f"Saved split video to cache for URL hash {url_hash}, quality {quality_key}, msg_ids {ids_string} ({len(message_ids)} parts)")
     except Exception as e:
         logger.error(f"Failed to save to cache: {e}")
 
