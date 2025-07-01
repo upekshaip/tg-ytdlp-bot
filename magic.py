@@ -1397,6 +1397,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("#️⃣ /tags - Send your #tags", callback_data="settings__cmd__tags")],
             [InlineKeyboardButton("🆘 /help - Get instructions", callback_data="settings__cmd__help")],
             [InlineKeyboardButton("📃 /usage -Send your logs", callback_data="settings__cmd__usage")],
+            [InlineKeyboardButton("📋 /playlist - Playlist's help", callback_data="settings__cmd__playlist")],
             [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
         ])
         callback_query.edit_message_text(
