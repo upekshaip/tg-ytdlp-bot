@@ -1,5 +1,5 @@
-magic.session
-magic.session-journal
+*.session
+*.session-journal
 cookies.txt
 users
 test.py
@@ -10,5 +10,8 @@ tg-bot
 users.txt
 benv
 config.py
+config_.py
+src/config.py
 .vscode
 __pycache__
+env

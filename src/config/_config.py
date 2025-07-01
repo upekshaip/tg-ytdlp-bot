@@ -6,7 +6,7 @@ class Config(object):
     BOT_NAME = "public"
     # A name for users - Required (str)
     BOT_NAME_FOR_USERS = "Video Downloader bot by upekshaip"
-    # Add all admin id's as a list - Required (lst[int])
+    # Add all admin id's as a list - Required (lst[int]) / 1st element is the main admin
     ADMIN = [0000000000]
     # Add your telegram API ID - Required (int)
     API_ID = 0000000
