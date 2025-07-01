@@ -1,4 +1,5 @@
 # Config
+
 class Config(object):
     #######################################################    
     # Your bot name - Required (str)
