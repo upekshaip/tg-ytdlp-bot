@@ -1,4 +1,5 @@
 # Config
+
 class Config(object):
     #######################################################    
     # Your bot name - Required (str)
@@ -52,6 +53,8 @@ class Config(object):
     CHECK_COOKIE_COMMAND = "/check_cookie"
     SAVE_AS_COOKIE_COMMAND = "/save_as_cookie"
     AUDIO_COMMAND = "/audio"
+    UNCACHE_COMMAND = "/uncache"    
+    PLAYLIST_COMMAND = "/playlist"    
     FORMAT_COMMAND = "/format"
     MEDIINFO_COMMAND = "/mediainfo"
     SETTINGS_COMMAND = "/settings"
@@ -75,60 +78,145 @@ class Config(object):
     MSG2 = "This is the second message. which means my own message... 😁"
     ERROR1 = "Did not found a url link. Please enter a url with **https://** or **http://**"
     INDEX_ERROR = "You did not give a valid information. Try again..."
+    PLAYLIST_HELP_MSG = """
+📋 <b>How to download playlists:</b>
+
+To download playlists send its URL with <code>*start*end</code> ranges in the end.
+
+<b>Examples:</b>
+
+🟥 <b>Video range from playlist:</b>
+<code>https://youtu.be/playlist?list=PL...*1*5</code>
+(downloads videos from 1 to 5 inclusive)
+🟥 <b>Single video from playlist:</b>
+<code>https://youtu.be/playlist?list=PL...*3*3</code>
+(downloads only the 3rd video)
+
+⬛️ <b>TikTok profile:</b> (need your 🍪)
+<code>https://www.tiktok.com/@USERNAME*1*10</code>
+(downloads first 10 videos from user profile)
+
+🟪 <b>Instagram stories albums:</b> (need your 🍪)
+<code>https://www.instagram.com/stories/highlights/123...*1*10</code>
+(downloads first 10 stories from album)
+
+🟦 <b>VK videos:</b>
+<code>https://vkvideo.ru/@USERNAME*1*3</code>
+(downloads first 3 videos from user profile)
+
+⬜️ <b>Vimeo groups:</b>
+<code>https://vimeo.com/groups/GROUP_NAME/videos*1*2</code>
+(downloads first 2 videos from group)
+
+<tg-spoiler>🟧 <b>Pornhub videos:</b>
+<code>https://www.pornhub.org/model/MODEL_NAME*1*2</code>
+(downloads first 2 video from model profile)</tg-spoiler>
+
+and so on...
+see <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md">supported sites list</a>
+"""
     HELP_MSG = """
-    <b>This bot allows you to download videos and audio, and also work with playlists.</b><br><br>
-    • Simply send a video link and the bot will start downloading.<br>
-    • For playlists, specify the range of indexes separated by asterisks (e.g. <code>https://example.com*1*4</code>) to download videos from position 1 to 4.<br>
-    • You can set a custom playlist name by adding it after the range (e.g. <code>https://example.com*1*4*My Playlist</code>).<br><br>
-    • To change the caption of a video, reply to the video with your message – the bot will send the video with your caption.<br>
-    • To extract audio from a video, use the <b>/audio</b> command (e.g. <code>/audio https://example.com</code>).<br>
-    • Upload a cookie file to download private videos and playlists.<br>
-    • Check or update your cookie file with <b>/check_cookie</b>, <b>/download_cookie</b>, <b>/save_as_cookie</b> and <b>/cookies_from_browser</b> commands.<br>
-    • To clean your workspace on server from bad files (e.g. old cookies or media) use <b>/clean</b> command.<br>
-    • You can also use <b>/clean cookies</b>, <b>/clean logs</b>, <b>/clean tags</b>, <b>/clean format</b>, <b>/clean split</b> to remove only cookies, logs, tags, split or format file.<br>
-    • See your usage statistics and logs by sending the <b>/usage</b> command.<br>
-    • You can add tags to any link: just add #tag1#tag2 after the URL (e.g. https://youtu.be/xxxx#mytag#music). Tags will appear in the caption and are saved for navigation. See all your tags with /tags.<br>
-    • You can also use <b>/split</b> to set the maximum part size for video splitting (250MB, 500MB, 1GB, 2GB).<br><br>
-    <blockquote expandable>
-    <b>Бот позволяет скачивать видео и аудио, а также работать с плейлистами.</b><br><br>
-    • Просто отправьте ссылку на видео, и бот начнет загрузку.<br>
-    • Для плейлистов укажите диапазон индексов через символы <code>*</code> (например, <code>https://example.com*1*4</code>), чтобы загрузить видео с 1 по 4 позицию.<br>
-    • Вы можете задать своё название плейлиста, добавив его после диапазона (например, <code>https://example.com*1*4*Мой плейлист</code>).<br><br>
-    • Чтобы изменить подпись к видео, ответьте на него своим сообщением – бот отправит видео с вашей подписью.<br>
-    • Для извлечения аудио из видео используйте команду <b>/audio</b> (например, <code>/audio https://example.com</code>).<br>
-    • Загрузите файл cookie – это позволит скачивать приватные видео и плейлисты.<br>
-    • Проверьте или обновите cookie с помощью команд <b>/check_cookie</b>, <b>/download_cookie</b>, <b>/save_as_cookie</b> и <b>/cookies_from_browser</b>.<br>
-    • Чтобы очистить свою папку на сервере от лишних файлов (например от старых cookies или медиа) используйте команду <b>/clean</b>.<br>
-    • Также доступны <b>/clean cookies</b>, <b>/clean logs</b>, <b>/clean tags</b>, <b>/clean format</b>, <b>/clean split</b> — для удаления только cookies, логов, тегов, размера обрезки или файла формата.<br>
-    • Узнайте свою статистику использования и логи командой <b>/usage</b>.<br>
-    • Можно добавлять теги к любой ссылке: просто добавьте #тег1#тег2 после URL (например, https://youtu.be/xxxx#mytag#music). Теги появятся в подписи и сохраняются для навигации. Посмотреть все свои теги — командой /tags.<br>
-    • Также доступна <b>/split</b> — для выбора максимального размера части при нарезке видео (250MB, 500MB, 1GB, 2GB).<br>
-    </blockquote>
-    <br>
-    <i>Developed by</i> @upekshaip
-    <i>Contributor</i> @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl
+🎬 <b>Video Download Bot - Help</b>
+
+📥 <b>Basic Usage:</b>
+• Send any video link and the bot will download it
+• For audio extraction, use <code>/audio URL</code>
+• Reply to any video with text to change its caption
+
+📋 <b>Playlists:</b>
+• <code>URL*1*5</code> - Download videos 1-5 from playlist
+• <code>URL*1*5*My Playlist</code> - With custom name
+
+🍪 <b>Cookies & Private Content:</b>
+• Upload *.txt cookie file for private videos downloading
+• <code>/download_cookie</code> - Get my YouTube cookie
+• <code>/cookies_from_browser</code> - Extract from browser
+• <code>/check_cookie</code> - Verify your cookie
+• <code>/save_as_cookie</code> - Save text as cookie
+
+🧹 <b>Cleaning:</b>
+• <code>/clean</code> - Remove media files only
+• <code>/clean all</code> - Remove everything
+• <code>/clean cookies</code> - Remove cookie file
+• <code>/clean logs</code> - Remove logs file
+• <code>/clean tags</code> - Remove tags file
+• <code>/clean format</code> - Remove format settings
+• <code>/clean split</code> - Remove split settings
+• <code>/clean mediainfo</code> - Remove mediainfo settings
+
+⚙️ <b>Settings:</b>
+• <code>/settings</code> - Open settings menu
+• <code>/format</code> - Change video quality & format
+• <code>/split</code> - Set max part size (250MB-2GB)
+• <code>/mediainfo</code> - Enable/disable file info
+• <code>/tags</code> - View your saved tags
+
+🏷️ <b>Tags System:</b>
+• Add <code>#tag1#tag2</code> after any URL
+• Tags appear in captions and are saved
+• Use <code>/tags</code> to view all your tags
+
+📊 <b>Information:</b>
+• <code>/usage</code> - View your download history
+• <code>/help</b> - Show this help message
+
+<blockquote expandable>
+🇷🇺 <b>Бот для скачивания видео - Помощь</b>
+
+📥 <b>Основное использование:</b>
+• Отправьте ссылку на видео для загрузки
+• <code>/audio URL</code> - Извлечь аудио
+• Ответьте на видео текстом для изменения подписи
+
+📋 <b>Плейлисты:</b>
+• <code>URL*1*5</code> - Скачать видео 1-5 из плейлиста
+• <code>URL*1*5*Мой плейлист</code> - С собственным названием
+
+🍪 <b>Cookies и приватный контент:</b>
+• Загрузите *.txt cookie для скачивания приватных видео
+• <code>/download_cookie</code> - Получить мой YouTube cookie
+• <code>/cookies_from_browser</code> - Извлечь из браузера
+• <code>/check_cookie</code> - Проверить ваш cookie
+• <code>/save_as_cookie</code> - Сохранить текст как cookie
+
+🧹 <b>Очистка:</b>
+• <code>/clean</code> - Удалить только медиа файлы
+• <code>/clean all</code> - Удалить всё
+• <code>/clean cookies</code> - Удалить cookie файл
+• <code>/clean logs</code> - Удалить файл логов
+• <code>/clean tags</code> - Удалить файл тегов
+• <code>/clean format</code> - Удалить настройки формата
+• <code>/clean split</code> - Удалить настройки нарезки
+• <code>/clean mediainfo</code> - Удалить настройки mediainfo
+
+⚙️ <b>Настройки:</b>
+• <code>/settings</code> - Открыть меню настроек
+• <code>/format</code> - Изменить качество и формат
+• <code>/split</code> - Установить размер части (250MB-2GB)
+• <code>/mediainfo</code> - Включить/выключить информацию о файле
+• <code>/tags</code> - Посмотреть ваши теги
+
+🏷️ <b>Система тегов:</b>
+• Добавьте <code>#тег1#тег2</code> после любой ссылки
+• Теги появляются в подписях и сохраняются
+• <code>/tags</code> - Посмотреть все ваши теги
+
+📊 <b>Информация:</b>
+• <code>/usage</code> - История загрузок
+• <code>/help</code> - Показать эту справку
+</blockquote>
+
+👨‍💻 <i>Developer:</i> @upekshaip
+🤝 <i>Contributor:</i> @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl
     """
-    # Добавлен SAVE_AS_COOKIE_HINT для подсказки по /save_as_cookie
-    SAVE_AS_COOKIE_HINT = (
-        "Send your cookie as text.\n"
-        "Usage:\n\n"
-        "/save_as_cookie\n"
-        "```\n"
-        "# Netscape HTTP Cookie File\n"
-        "# http://curl.haxx.se/rfc/cookie_spec.html\n"
-        "# This file was generated by Cookie-Editor\n"
-        ".youtube.com  TRUE  /  FALSE  1111111111  ST-xxxxx  session_logininfo=AAAAAAAAAAAAAAAAAAA\n"
-        "```\n\n"
-    )
     #######################################################
     # Restricted content site lists
     BLACK_LIST = []
     #BLACK_LIST = ["pornhub", "phncdn.com", "xvideos", "xhcdn.com", "xhamster"]
-        # Paths to domain and keyword lists
+    # Paths to domain and keyword lists
     PORN_DOMAINS_FILE = "porn_domains.txt"
     PORN_KEYWORDS_FILE = "porn_keywords.txt"
     SUPPORTED_SITES_FILE = "supported_sites.txt"
-    # --- Whitelist of domains that are not considered porn ---
     # --- Whitelist of domains that are not considered porn ---
     WHITELIST = [
         'dailymotion.com', 'sky.com', 'xbox.com', 'youtube.com', 'youtu.be', '1tv.ru', 'x.ai'
@@ -145,4 +233,16 @@ class Config(object):
         'vk.com', 'vkvideo.ru', 'vkontakte.ru', 'tiktok.com', 'vimeo.com', 'twitch.tv',
         'instagram.com', 'dailymotion.com', 'twitter.com', 'x.com', 't.co', 'ok.ru', 'mail.ru'
         # Add here other domains where query and fragment are not needed for video uniqueness
-    ]     
+    ]
+    # Version 1.0.0 - Добавлен SAVE_AS_COOKIE_HINT для подсказки по /save_as_cookie
+    SAVE_AS_COOKIE_HINT = (
+        "Just send to bot cookie.txt file as document\n"
+        "Also you can send your cookie as plain text.\n"
+        "Usage:\n\n"
+        "/save_as_cookie\n"
+        "# Netscape HTTP Cookie File\n"
+        "# http://curl.haxx.se/rfc/cookie_spec.html\n"
+        "# This file was generated by Cookie-Editor\n"
+        ".youtube.com  TRUE  /  FALSE  1111111111  ST-xxxxx  session_logininfo=AAAAAAAAAAAAAAAAAAA\n"
+    )
+    #######################################################
