@@ -555,34 +555,7 @@ def playlist_command(app, message):
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
 
-    playlist_help = """
-📋 <b>How to download playlists:</b>
-
-To download playlists send its URL with <code>*start*end</code> ranges in the end.
-
-<b>Examples:</b>
-
-🟥 <b>Video range from playlist:</b>
-<code>https://youtu.be/playlist?list=PL...*1*5</code>
-(downloads videos from 1 to 5 inclusive)
-🟥 <b>Single video from playlist:</b>
-<code>https://youtu.be/playlist?list=PL...*3*3</code>
-(downloads only the 3rd video)
-
-⬛️ <b>TikTok profile:</b> (need your 🍪)
-<code>https://www.tiktok.com/@username*1*10</code>
-(downloads first 10 videos from user profile)
-
-🟪 <b>Instagram stories albums:</b> (need your 🍪)
-<code>https://www.instagram.com/stories/highlights/123...*1*10</code>
-(downloads first 10 stories from album)
-
-🟦 <b>VK videos:</b>
-<code>https://vkvideo.ru/@username*1*3</code>
-(downloads first 3 videos from user profile)
-"""
-
-    app.send_message(user_id, playlist_help, parse_mode=enums.ParseMode.HTML)
+    app.send_message(user_id, Config.PLAYLIST_HELP_MSG, parse_mode=enums.ParseMode.HTML)
     send_to_logger(message, "User requested playlist help.")
 
 
