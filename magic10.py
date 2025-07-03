@@ -4230,9 +4230,8 @@ def extract_youtube_id(url: str) -> str:
 
 def download_thumbnail(video_id: str, dest: str, url: str = None) -> None:
     """
-    Скачивает превью YouTube (maxresdefault/hqdefault) на диск,
-    затем ресайзит: горизонтально для обычных видео, вертикально для Shorts.
-    url — нужен для определения Shorts по ссылке.
+    Скачивает превью YouTube (maxresdefault/hqdefault) на диск в оригинальном размере.
+    url — нужен для определения Shorts по ссылке (но теперь не используется).
     """
     base = f"https://img.youtube.com/vi/{video_id}"
     img_bytes = None
@@ -4245,26 +4244,7 @@ def download_thumbnail(video_id: str, dest: str, url: str = None) -> None:
             break
     if not img_bytes:
         raise RuntimeError("Failed to download thumbnail or it is too big")
-
-    # --- Ресайз только для YouTube ---
-    if url and ("youtube.com" in url or "youtu.be" in url):
-        is_shorts = False
-        if "youtube.com/shorts/" in url or "/shorts/" in url:
-            is_shorts = True
-        # Открываем скачанную картинку
-        img = Image.open(io.BytesIO(img_bytes))
-        w, h = img.size
-        # Для Shorts — вертикальное превью
-        if is_shorts:
-            max_w, max_h = 360, 640
-        else:
-            max_w, max_h = 640, 360
-        ratio = min(max_w / w, max_h / h)
-        new_size = (int(w * ratio), int(h * ratio))
-        img = img.convert("RGB")
-        img = img.resize(new_size, Image.LANCZOS)
-        img.save(dest, "JPEG", quality=90)
-    # Для остальных сервисов — ничего не делаем, пусть ffmpeg делает превью с оригинальными пропорциями
+    # Больше ничего не делаем — сохраняем оригинальный размер!
 
 # --- global lists of domains and keywords ---
 PORN_DOMAINS = set()
@@ -5042,6 +5022,8 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
                 else:
                     # Use the real height to form the format
                     real_height = get_real_height_for_quality(data, max_width, max_height)
+                    quality_str = data.replace('p', '')
+                    quality_val = int(quality_str)
                     fmt = f"bv*[vcodec*=avc1][height<={real_height}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
             
             quality_key = data
