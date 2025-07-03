@@ -4210,16 +4210,29 @@ def download_thumbnail(video_id: str, dest: str, url: str = None) -> None:
     """
     base = f"https://img.youtube.com/vi/{video_id}"
     img_bytes = None
+    tried = []
+    max_size = 1024 * 1024  # 1 МБ
+
     for name in ("maxresdefault.jpg", "hqdefault.jpg"):
-        r = requests.get(f"{base}/{name}", timeout=10)
-        if r.status_code == 200 and len(r.content) <= 200 * 1024:
-            # Сохраняем оригинал на диск (как раньше)
-            with open(dest, "wb") as f:
-                f.write(r.content)
-            img_bytes = r.content
-            break
+        thumb_url = f"{base}/{name}"
+        try:
+            r = requests.get(thumb_url, timeout=10)
+            print(f"Trying {thumb_url}: status={r.status_code}, size={len(r.content)}")
+            if r.status_code == 200 and 10 * 1024 < len(r.content) <= max_size:
+                with open(dest, "wb") as f:
+                    f.write(r.content)
+                img_bytes = r.content
+                print(f"Thumbnail saved to {dest}")
+                break
+            else:
+                tried.append((name, r.status_code, len(r.content)))
+        except Exception as e:
+            print(f"Error downloading {thumb_url}: {e}")
+            tried.append((name, "error", str(e)))
+
     if not img_bytes:
-        raise RuntimeError("Failed to download thumbnail or it is too big")
+        print(f"Failed to download thumbnail for {video_id}. Tried: {tried}")
+        raise RuntimeError("Failed to download thumbnail or it is too big/small")
 
     # --- Определяем ориентацию ---
     is_shorts = False
@@ -4230,6 +4243,7 @@ def download_thumbnail(video_id: str, dest: str, url: str = None) -> None:
     img = Image.open(io.BytesIO(img_bytes))
     w, h = img.size
     aspect = w / h if h else 1
+    print(f"Thumbnail size: {w}x{h}, aspect={aspect:.2f}")
     if not is_shorts and aspect < 0.9:
         is_shorts = True
 
@@ -4241,10 +4255,12 @@ def download_thumbnail(video_id: str, dest: str, url: str = None) -> None:
 
     ratio = min(max_w / w, max_h / h)
     new_size = (int(w * ratio), int(h * ratio))
+    print(f"Resizing to: {new_size}")
     img = img.convert("RGB")
     img = img.resize(new_size, Image.LANCZOS)
     img.save(dest, "JPEG", quality=90)
-
+    print(f"Final thumbnail saved to {dest}")
+    
 # --- global lists of domains and keywords ---
 PORN_DOMAINS = set()
 SUPPORTED_SITES = set()
