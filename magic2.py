@@ -1,4 +1,4 @@
-# Version 2.4.0
+# Version 2.4.2
 import logging
 import math
 import os
@@ -2092,8 +2092,6 @@ def send_videos(
             video=video_abs_path,
             caption=cap,
             duration=duration,
-            width=640,
-            height=360,
             supports_streaming=True,
             thumb=thumb_file_path,
             progress=progress_bar,
@@ -2229,14 +2227,50 @@ def get_duration_thumb_(dir, video_path, thumb_name):
     thumb_dir = os.path.abspath(dir + "/" + thumb_name + ".jpg")
     clip = VideoFileClip(video_path)
     duration = (int(clip.duration))
-    clip.save_frame(thumb_dir, t=2)
+    
+    # Get original video dimensions
+    orig_w, orig_h = clip.w, clip.h
+    
+    # Determine optimal thumbnail size based on video aspect ratio
+    aspect_ratio = orig_w / orig_h
+    max_dimension = 640  # Maximum width or height
+    
+    if aspect_ratio > 1.5:  # Wide/horizontal video (16:9, etc.)
+        thumb_w = max_dimension
+        thumb_h = int(max_dimension / aspect_ratio)
+    elif aspect_ratio < 0.75:  # Tall/vertical video (9:16, etc.)
+        thumb_h = max_dimension
+        thumb_w = int(max_dimension * aspect_ratio)
+    else:  # Square-ish video (1:1, 4:3, etc.)
+        if orig_w >= orig_h:
+            thumb_w = max_dimension
+            thumb_h = int(max_dimension / aspect_ratio)
+        else:
+            thumb_h = max_dimension
+            thumb_w = int(max_dimension * aspect_ratio)
+    
+    # Ensure minimum size
+    thumb_w = max(thumb_w, 240)
+    thumb_h = max(thumb_h, 240)
+    
+    # Create thumbnail frame
+    frame = clip.get_frame(2)
+    from PIL import Image
+    
+    # Convert frame to PIL Image and resize to exact thumbnail size
+    img = Image.fromarray(frame)
+    img = img.resize((thumb_w, thumb_h), Image.Resampling.LANCZOS)
+    
+    # Save the thumbnail directly (no padding needed)
+    img.save(thumb_dir, 'JPEG', quality=85)
+    
     clip.close()
     return duration, thumb_dir
 
 def get_duration_thumb(message, dir_path, video_path, thumb_name):
     """
     Captures a thumbnail at 2 seconds into the video and retrieves video duration.
-    Forces overwriting existing thumbnail with the '-y' flag.
+    Creates thumbnail with same aspect ratio as video (no black bars).
 
     Args:
         message: The message object
@@ -2249,18 +2283,17 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
     """
     thumb_dir = os.path.abspath(os.path.join(dir_path, thumb_name + ".jpg"))
 
-    # FFMPEG Command with -y Flag to overwrite Thumbnail File
-    ffmpeg_command = [
-        "ffmpeg",
-        "-y",
-        "-i", video_path,
-        "-ss", "2",         # Seek to 2 Seconds
-        "-vframes", "1",    # Capture 1 Frame
-        thumb_dir
+    # FFPROBE COMMAND to GET Video Dimensions and Duration
+    ffprobe_size_command = [
+        "ffprobe",
+        "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=width,height",
+        "-of", "csv=s=x:p=0",
+        video_path
     ]
-
-    # FFPROBE COMMAND to GET Video Duration
-    ffprobe_command = [
+    
+    ffprobe_duration_command = [
         "ffprobe",
         "-v", "error",
         "-select_streams", "v:0",
@@ -2276,13 +2309,55 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
             send_to_all(message, f"❌ Video file not found: {os.path.basename(video_path)}")
             return None
 
+        # Get video dimensions
+        size_result = subprocess.check_output(ffprobe_size_command, stderr=subprocess.STDOUT, universal_newlines=True).strip()
+        if 'x' in size_result:
+            orig_w, orig_h = map(int, size_result.split('x'))
+        else:
+            # Fallback to default horizontal orientation
+            orig_w, orig_h = 1920, 1080
+            logger.warning(f"Could not determine video dimensions, using default: {orig_w}x{orig_h}")
+        
+        # Determine optimal thumbnail size based on video aspect ratio
+        aspect_ratio = orig_w / orig_h
+        max_dimension = 640  # Maximum width or height
+        
+        if aspect_ratio > 1.5:  # Wide/horizontal video (16:9, etc.)
+            thumb_w = max_dimension
+            thumb_h = int(max_dimension / aspect_ratio)
+        elif aspect_ratio < 0.75:  # Tall/vertical video (9:16, etc.)
+            thumb_h = max_dimension
+            thumb_w = int(max_dimension * aspect_ratio)
+        else:  # Square-ish video (1:1, 4:3, etc.)
+            if orig_w >= orig_h:
+                thumb_w = max_dimension
+                thumb_h = int(max_dimension / aspect_ratio)
+            else:
+                thumb_h = max_dimension
+                thumb_w = int(max_dimension * aspect_ratio)
+        
+        # Ensure minimum size
+        thumb_w = max(thumb_w, 240)
+        thumb_h = max(thumb_h, 240)
+        
+        # FFMPEG Command to create thumbnail with calculated dimensions
+        ffmpeg_command = [
+            "ffmpeg",
+            "-y",
+            "-i", video_path,
+            "-ss", "2",         # Seek to 2 Seconds
+            "-vframes", "1",    # Capture 1 Frame
+            "-vf", f"scale={thumb_w}:{thumb_h}",  # Scale to exact thumbnail size
+            thumb_dir
+        ]
+
         # Run ffmpeg command to create thumbnail
         ffmpeg_result = subprocess.run(ffmpeg_command, check=True, capture_output=True, text=True)
         if ffmpeg_result.returncode != 0:
             logger.error(f"Error creating thumbnail: {ffmpeg_result.stderr}")
 
         # Run ffprobe command to get duration
-        result = subprocess.check_output(ffprobe_command, stderr=subprocess.STDOUT, universal_newlines=True)
+        result = subprocess.check_output(ffprobe_duration_command, stderr=subprocess.STDOUT, universal_newlines=True)
 
         try:
             duration = int(float(result))
@@ -2294,7 +2369,7 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
         if not os.path.exists(thumb_dir):
             logger.warning(f"Thumbnail not created at {thumb_dir}, using default")
             # Create a blank thumbnail as fallback
-            create_default_thumbnail(thumb_dir)
+            create_default_thumbnail(thumb_dir, thumb_w, thumb_h)
 
         return duration, thumb_dir
     except subprocess.CalledProcessError as e:
@@ -2306,19 +2381,19 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
         send_to_all(message, f"❌ Error processing video: {e}")
         return None
 
-def create_default_thumbnail(thumb_path):
+def create_default_thumbnail(thumb_path, width=480, height=480):
     """Create a default thumbnail when normal thumbnail creation fails"""
     try:
-        # Create a 640x360 black image
+        # Create a black image with specified dimensions (square by default)
         ffmpeg_cmd = [
             "ffmpeg", "-y",
             "-f", "lavfi",
-            "-i", "color=c=black:s=640x360",
+            "-i", f"color=c=black:s={width}x{height}",
             "-frames:v", "1",
             thumb_path
         ]
         subprocess.run(ffmpeg_cmd, check=True, capture_output=True)
-        logger.info(f"Created default thumbnail at {thumb_path}")
+        logger.info(f"Created default {width}x{height} thumbnail at {thumb_path}")
     except Exception as e:
         logger.error(f"Failed to create default thumbnail: {e}")
 
@@ -3290,8 +3365,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             # Check for the existence of a preview and create a default one if needed
             if thumb_dir and not os.path.exists(thumb_dir):
                 logger.warning(f"Thumbnail not found at {thumb_dir}, creating default")
-                thumb_dir = create_default_thumbnail(os.path.join(dir_path, "default_thumb.jpg"))
-                if not thumb_dir:
+                create_default_thumbnail(os.path.join(dir_path, "default_thumb.jpg"))
+                thumb_dir = os.path.join(dir_path, "default_thumb.jpg")
+                if not os.path.exists(thumb_dir):
                     logger.warning("Failed to create default thumbnail, continuing without thumbnail")
                     thumb_dir = None
 
@@ -3396,8 +3472,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     # Check for preview existence before sending
                     if thumb_dir and not os.path.exists(thumb_dir):
                         logger.warning(f"Thumbnail not found before sending, creating default")
-                        thumb_dir = create_default_thumbnail(os.path.join(dir_path, "default_thumb.jpg"))
-                        if not thumb_dir:
+                        create_default_thumbnail(os.path.join(dir_path, "default_thumb.jpg"))
+                        thumb_dir = os.path.join(dir_path, "default_thumb.jpg")
+                        if not os.path.exists(thumb_dir):
                             logger.warning("Failed to create default thumbnail before sending, continuing without thumbnail")
                             thumb_dir = None
 
