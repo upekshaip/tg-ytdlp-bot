@@ -2257,8 +2257,9 @@ def get_duration_thumb_(dir, video_path, thumb_name):
     duration = (int(clip.duration))
     
     # Get original video dimensions
-    orig_w, orig_h = clip.w, clip.h
-    
+    #orig_w, orig_h = clip.w, clip.h
+    orig_w = int(str(clip.w).strip().split()[0]) if clip.w else 1920
+    orig_h = int(str(clip.h).strip().split()[0]) if clip.h else 1080
     # Determine optimal thumbnail size based on video aspect ratio
     aspect_ratio = orig_w / orig_h
     max_dimension = 640  # Maximum width or height
@@ -2339,8 +2340,12 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
 
         # Get video dimensions
         size_result = subprocess.check_output(ffprobe_size_command, stderr=subprocess.STDOUT, universal_newlines=True).strip()
+        #if 'x' in size_result:
+            #orig_w, orig_h = map(int, size_result.split('x'))
         if 'x' in size_result:
-            orig_w, orig_h = map(int, size_result.split('x'))
+            dimensions = size_result.split('x')
+            orig_w = int(str(dimensions[0]).strip().split()[0]) if dimensions[0] else 1920
+            orig_h = int(str(dimensions[1]).strip().split()[0]) if dimensions[1] else 1080            
         else:
             # Fallback to default horizontal orientation
             orig_w, orig_h = 1920, 1080
@@ -2388,7 +2393,8 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
         result = subprocess.check_output(ffprobe_duration_command, stderr=subprocess.STDOUT, universal_newlines=True)
 
         try:
-            duration = int(float(result))
+            #duration = int(float(result))
+            duration = int(float(str(result).strip().split()[0])) if result else 0
         except (ValueError, TypeError) as e:
             logger.error(f"Error parsing video duration: {e}, result was: {result}")
             duration = 0
@@ -3390,7 +3396,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     user_vid_path
                 ]
                 result = subprocess.check_output(ffprobe_duration_command, stderr=subprocess.STDOUT, universal_newlines=True)
-                duration = int(float(result))
+                #duration = int(float(result))
+                duration = int(float(str(result).strip().split()[0])) if result else 0
             except Exception as e:
                 logger.warning(f"Failed to get video duration: {e}")
                 duration = 0
