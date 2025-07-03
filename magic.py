@@ -361,7 +361,7 @@ app = Client(
 # #############################################################################################################################
 
 @app.on_message(filters.command("start") & filters.private)
-@reply_with_keyboard
+#@reply_with_keyboard
 def command1(app, message):
     if int(message.chat.id) in Config.ADMIN:
         send_to_user(message, "Welcome Master 🥷")
@@ -374,7 +374,7 @@ def command1(app, message):
 
 
 @app.on_message(filters.command("help"))
-@reply_with_keyboard
+#@reply_with_keyboard
 def command2(app, message):
     app.send_message(message.chat.id, (Config.HELP_MSG),
                      parse_mode=enums.ParseMode.HTML)
@@ -389,7 +389,7 @@ def create_directory(path):
 
 # Command to Set Browser Cooks
 @app.on_message(filters.command("cookies_from_browser") & filters.private)
-@reply_with_keyboard
+#@reply_with_keyboard
 def cookies_from_browser(app, message):
     user_id = message.chat.id
     # For non-admins, we check the subscription
@@ -458,7 +458,7 @@ def cookies_from_browser(app, message):
 
 # Callback Handler for Browser Selection
 @app.on_callback_query(filters.regex(r"^browser_choice\|"))
-@reply_with_keyboard
+#@reply_with_keyboard
 def browser_choice_callback(app, callback_query):
     logger.info(f"[BROWSER] callback: {callback_query.data}")
     import subprocess
@@ -520,8 +520,7 @@ def browser_choice_callback(app, callback_query):
 
 # Command to Download Audio from a Video url
 @app.on_message(filters.command("audio") & filters.private)
-@reply_with_keyboard
-
+#@reply_with_keyboard
 def audio_command_handler(app, message):
     user_id = message.chat.id
     if get_active_download(user_id):
@@ -552,7 +551,7 @@ def audio_command_handler(app, message):
 
 # /Playlist Command
 @app.on_message(filters.command("playlist") & filters.private)
-@reply_with_keyboard
+#@reply_with_keyboard
 def playlist_command(app, message):
     user_id = message.chat.id
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
@@ -564,7 +563,7 @@ def playlist_command(app, message):
 
 # Command /Format Handler
 @app.on_message(filters.command("format") & filters.private)
-@reply_with_keyboard
+#@reply_with_keyboard
 def set_format(app, message):
     user_id = message.chat.id
     # For non-admins, we check the subscription
@@ -604,7 +603,7 @@ def set_format(app, message):
 
 # Callbackquery Handler for /Format Menu Selection
 @app.on_callback_query(filters.regex(r"^format_option\|"))
-@reply_with_keyboard
+#@reply_with_keyboard
 def format_option_callback(app, callback_query):
     logger.info(f"[FORMAT] callback: {callback_query.data}")
     user_id = callback_query.from_user.id
@@ -1311,7 +1310,7 @@ def uncache_command(app, message):
 
 # ===================== /settings =====================
 @app.on_message(filters.command("settings") & filters.private)
-@reply_with_keyboard
+#@reply_with_keyboard
 def settings_command(app, message):
     user_id = message.chat.id
     # Main settings menu
@@ -1333,7 +1332,7 @@ def settings_command(app, message):
 
 
 @app.on_callback_query(filters.regex(r"^settings__menu__"))
-@reply_with_keyboard
+#@reply_with_keyboard
 def settings_menu_callback(app, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
     data = callback_query.data.split("__")[-1]
@@ -1429,7 +1428,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
 
 
 @app.on_callback_query(filters.regex(r"^settings__cmd__"))
-@reply_with_keyboard
+#@reply_with_keyboard
 def settings_cmd_callback(app, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
     data = callback_query.data.split("__")[2]
@@ -1511,7 +1510,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
 
 
 @app.on_callback_query(filters.regex(r"^clean_option\|"))
-@reply_with_keyboard
+#@reply_with_keyboard
 def clean_option_callback(app, callback_query):
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]
@@ -1582,7 +1581,7 @@ def fake_message(text, user_id, command=None):
 
 # /Mediainfo Command
 @app.on_message(filters.command("mediainfo") & filters.private)
-@reply_with_keyboard
+#@reply_with_keyboard
 def mediainfo_command(app, message):
     user_id = message.chat.id
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
@@ -1604,7 +1603,7 @@ def mediainfo_command(app, message):
 
 
 @app.on_callback_query(filters.regex(r"^mediainfo_option\|"))
-@reply_with_keyboard
+#@reply_with_keyboard
 def mediainfo_option_callback(app, callback_query):
     logger.info(f"[MEDIAINFO] callback: {callback_query.data}")
     user_id = callback_query.from_user.id
@@ -1700,7 +1699,7 @@ def save_my_cookie(app, message):
     send_to_user(message, "✅ Cookie file saved")
     send_to_logger(message, f"Cookie file saved for user {user_id}.")
 
-
+#@reply_with_keyboard
 def download_cookie(app, message):
     user_id = str(message.chat.id)
     response = requests.get(Config.COOKIE_URL)
@@ -1720,7 +1719,7 @@ def download_cookie(app, message):
 
 # Caption Editor for Videos
 @app.on_message(filters.text & filters.private)
-@reply_with_keyboard
+#@reply_with_keyboard
 def caption_editor(app, message):
     users_name = message.chat.first_name
     user_id = message.chat.id
@@ -1734,7 +1733,7 @@ def caption_editor(app, message):
 
 
 @app.on_message(filters.text & filters.private)
-@reply_with_keyboard
+#@reply_with_keyboard
 def checking_cookie_file(app, message):
     user_id = str(message.chat.id)
     cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
@@ -1755,7 +1754,7 @@ def checking_cookie_file(app, message):
 
 
 # Updating The Cookie File.
-
+#@reply_with_keyboard
 def save_as_cookie_file(app, message):
     user_id = str(message.chat.id)
     content = message.text[len(Config.SAVE_AS_COOKIE_COMMAND):].strip()
@@ -1797,8 +1796,7 @@ def save_as_cookie_file(app, message):
 
 # URL Extractor
 @app.on_message(filters.text & filters.private)
-@reply_with_keyboard
-
+#@reply_with_keyboard
 def video_url_extractor(app, message):
     global active_downloads
     check_user(message)
@@ -2053,6 +2051,7 @@ def truncate_caption(
     
     return title_html, pre_block_str, blockquote_content, tags_block, link_block, was_truncated
 
+#@reply_with_keyboard
 def send_videos(
     message,
     video_abs_path: str,
@@ -2444,6 +2443,7 @@ def write_logs(message, video_url, video_title):
 # Down_and_audio function
 # ########################################
 
+#@reply_with_keyboard
 def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None, video_count=1, video_start_with=1):
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
@@ -2886,7 +2886,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 # ########################################
 # Download_and_up function
 # ########################################
-
+#@reply_with_keyboard
 def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None):
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
@@ -4189,8 +4189,7 @@ def save_user_tags(user_id, tags):
                 f.write(tag + "\n")
 
 @app.on_message(filters.command("tags") & filters.private)
-@reply_with_keyboard
-
+#@reply_with_keyboard
 def tags_command(app, message):
     user_id = message.chat.id
     user_dir = os.path.join("users", str(user_id))
@@ -4411,8 +4410,7 @@ def is_porn(url, title, description, caption=None):
     return False
 
 @app.on_message(filters.command("split") & filters.private)
-@reply_with_keyboard
-
+#@reply_with_keyboard
 def split_command(app, message):
     user_id = message.chat.id
     # Subscription check for non-admines
@@ -4443,8 +4441,7 @@ def split_command(app, message):
     send_to_logger(message, "User opened /split menu.")
 
 @app.on_callback_query(filters.regex(r"^split_size\|"))
-@reply_with_keyboard
-
+#@reply_with_keyboard
 def split_size_callback(app, callback_query):
     logger.info(f"[SPLIT] callback: {callback_query.data}")
     user_id = callback_query.from_user.id
@@ -4508,7 +4505,6 @@ def get_video_formats(url, user_id=None, playlist_start_index=1):
     except Exception as e:
         return {'error': str(e)}
 
-
 # --- Always ask processing ---
 def sort_quality_key(quality_key):
     """Sort qualities by increasing resolution from lower to higher"""
@@ -4523,6 +4519,7 @@ def sort_quality_key(quality_key):
         except ValueError:
             return 0  # for unknown formats
 
+#@reply_with_keyboard
 def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
     user_id = message.chat.id
     proc_msg = None
@@ -4729,8 +4726,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
 
 # --- Callback Processor ---
 @app.on_callback_query(filters.regex(r"^askq\|"))
-@reply_with_keyboard
-
+#@reply_with_keyboard
 def askq_callback(app, callback_query):
     logger.info(f"[ASKQ] callback: {callback_query.data}")
     user_id = callback_query.from_user.id
@@ -5042,7 +5038,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
     
     down_and_up_with_format(app, original_message, url, fmt, tags_text, quality_key=quality_key)
 
-
+#@reply_with_keyboard
 def show_manual_quality_menu(app, callback_query):
     """Show manual quality selection menu when automatic detection fails"""
     user_id = callback_query.from_user.id
@@ -5174,6 +5170,7 @@ def show_manual_quality_menu(app, callback_query):
 
 
 # --- an auxiliary function for downloading with the format ---
+#@reply_with_keyboard
 def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None):
 
     # We extract the range and other parameters from the original user message
