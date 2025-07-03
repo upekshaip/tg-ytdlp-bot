@@ -2064,12 +2064,33 @@ def send_videos(
     full_video_title: str,
     tags_text: str = '',
 ):
+    import re
+    import os
     user_id = message.chat.id
     text = message.text or ""
     m = re.search(r'https?://[^\s\*]+', text)
     video_url = m.group(0) if m else ""
     temp_desc_path = os.path.join(os.path.dirname(video_abs_path), "full_description.txt")
     was_truncated = False
+
+    # --- Определяем размеры превью/видео ---
+    width = None
+    height = None
+    if video_url and ("youtube.com" in video_url or "youtu.be" in video_url):
+        if "youtube.com/shorts/" in video_url or "/shorts/" in video_url:
+            width, height = 360, 640
+        else:
+            width, height = 640, 360
+    else:
+        # Для остальных — определяем размеры видео динамически
+        try:
+            from moviepy.editor import VideoFileClip
+            clip = VideoFileClip(video_abs_path)
+            width, height = int(clip.w), int(clip.h)
+            clip.close()
+        except Exception:
+            width, height = None, None
+
     try:
         # Logic simplified: use tags that were already generated in down_and_up.
         # Use original title for caption, but truncated description
@@ -2090,11 +2111,14 @@ def send_videos(
         if tags_block:
             cap += tags_block
         cap += link_block
+
         video_msg = app.send_video(
             chat_id=user_id,
             video=video_abs_path,
             caption=cap,
             duration=duration,
+            width=width,
+            height=height,
             supports_streaming=True,
             thumb=thumb_file_path,
             progress=progress_bar,
