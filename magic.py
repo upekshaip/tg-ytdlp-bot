@@ -2086,10 +2086,11 @@ def send_videos(
         try:
             from moviepy.editor import VideoFileClip
             clip = VideoFileClip(video_abs_path)
-            width, height = int(clip.w), int(clip.h)
+            width = int(str(clip.w).strip().split()[0]) if clip.w else 0
+            height = int(str(clip.h).strip().split()[0]) if clip.h else 0
             clip.close()
         except Exception:
-            width, height = None, None
+            width, height = 0, 0
 
     try:
         # Logic simplified: use tags that were already generated in down_and_up.
