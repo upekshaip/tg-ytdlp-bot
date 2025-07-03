@@ -32,6 +32,8 @@ from pyrogram.types import (
 from yt_dlp import YoutubeDL
 import yt_dlp
 
+from PIL import Image
+
 from config import Config
 
 
@@ -4200,43 +4202,28 @@ def extract_youtube_id(url: str) -> str:
             return m.group(1)
     raise ValueError("Failed to extract YouTube ID")
 
-def download_thumbnail(video_id: str, dest: str, url: str = None) -> None:
-    """
-    Скачивает превью YouTube (maxresdefault/hqdefault),
-    ресайзит: горизонтально для обычных видео, вертикально для Shorts.
-    url — нужен для определения Shorts по ссылке.
-    """
-    import io
-    from PIL import Image
-    base = f"https://img.youtube.com/vi/{video_id}"
-    img_bytes = None
-    for name in ("maxresdefault.jpg", "hqdefault.jpg"):
-        r = requests.get(f"{base}/{name}", timeout=10)
-        if r.status_code == 200 and len(r.content) <= 200 * 1024:
-            img_bytes = r.content
-            break
-    if not img_bytes:
-        raise RuntimeError("Failed to download thumbnail or it is too big")
-    # --- Определяем ориентацию ---
-    is_shorts = False
-    if url and ("youtube.com/shorts/" in url or "/shorts/" in url):
-        is_shorts = True
-    # Открываем картинку и определяем соотношение сторон
-    img = Image.open(io.BytesIO(img_bytes))
-    w, h = img.size
-    aspect = w / h if h else 1
-    # Если явно не Shorts по URL, но картинка вертикальная — считаем Shorts
-    if not is_shorts and aspect < 0.9:
-        is_shorts = True
-    # --- Ресайз ---
-    if is_shorts:
-        # Вертикальный прямоугольник
-        target_w, target_h = 360, 640
-    else:
-        # Горизонтальный прямоугольник
-        target_w, target_h = 640, 360
-    img = img.resize((target_w, target_h), Image.Resampling.LANCZOS)
-    img.save(dest, "JPEG", quality=90)
+def download_thumbnail(thumbnail_path, output_path, url):
+    with Image.open(thumbnail_path) as im:
+        width, height = im.size
+
+        # Определяем тип
+        is_shorts = False
+        if url and ("youtube.com/shorts" in url or (("youtu.be/" in url or "youtube.com/" in url) and "shorts" in url)):
+            is_shorts = True
+
+        if is_shorts:
+            max_w, max_h = 360, 640
+        elif "youtube.com/watch" in url or "youtu.be/" in url:
+            max_w, max_h = 640, 360
+        else:
+            max_w, max_h = 640, 640
+
+        # Сохраняем пропорции!
+        ratio = min(max_w / width, max_h / height)
+        new_size = (int(width * ratio), int(height * ratio))
+        im = im.convert("RGB")
+        im = im.resize(new_size, Image.LANCZOS)
+        im.save(output_path, "JPEG", quality=95)
 
 # --- global lists of domains and keywords ---
 PORN_DOMAINS = set()
