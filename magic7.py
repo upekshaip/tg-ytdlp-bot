@@ -14,7 +14,6 @@ from typing import Tuple
 from urllib.parse import urlparse, parse_qs, urlunparse, unquote, urlencode
 
 import pyrebase
-import requests
 import tldextract
 from moviepy.editor import VideoFileClip
 from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
@@ -32,9 +31,11 @@ from pyrogram.types import (
 from yt_dlp import YoutubeDL
 import yt_dlp
 
-from PIL import Image
-
 from config import Config
+
+import io
+from PIL import Image
+import requests
 
 
 # --- Function for permanent reply-keyboard ---
@@ -3349,11 +3350,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             yt_id = None
                     if yt_id:
                         youtube_thumb_path = os.path.join(dir_path, f"yt_thumb_{yt_id}.jpg")
-                        # Аналогично для yt_id
-                        if not yt_id:
-                            logger.warning(f"yt_id is None or empty for url: {url}")
-                        else:
-                            logger.info(f"yt_id for thumbnail: {yt_id}")
                         download_thumbnail(yt_id, youtube_thumb_path, url)
                         if os.path.exists(youtube_thumb_path):
                             thumb_dir = youtube_thumb_path
@@ -4207,6 +4203,7 @@ def extract_youtube_id(url: str) -> str:
             return m.group(1)
     raise ValueError("Failed to extract YouTube ID")
 
+
 def download_thumbnail(video_id: str, dest: str, url: str = None) -> None:
     """
     Скачивает превью YouTube (maxresdefault/hqdefault) на диск,
@@ -4215,57 +4212,36 @@ def download_thumbnail(video_id: str, dest: str, url: str = None) -> None:
     """
     base = f"https://img.youtube.com/vi/{video_id}"
     img_bytes = None
-    tried = []
-    max_size = 1024 * 1024  # 1 МБ
-    logger.info(f"Trying {thumb_url}: status={r.status_code}, size={len(r.content)}")     
     for name in ("maxresdefault.jpg", "hqdefault.jpg"):
-        thumb_url = f"{base}/{name}"
-        try:
-            r = requests.get(thumb_url, timeout=10)
-            logger.info(f"Trying {thumb_url}: status={r.status_code}, size={len(r.content)}")
-            if r.status_code == 200 and 10 * 1024 < len(r.content) <= max_size:
-                with open(dest, "wb") as f:
-                    f.write(r.content)
-                img_bytes = r.content
-                logger.info(f"Thumbnail saved to {dest}")
-                break
-            else:
-                tried.append((name, r.status_code, len(r.content)))
-        except Exception as e:
-            logger.info(f"Error downloading {thumb_url}: {e}")
-            tried.append((name, "error", str(e)))
-
+        r = requests.get(f"{base}/{name}", timeout=10)
+        if r.status_code == 200 and len(r.content) <= 1024 * 1024:
+            with open(dest, "wb") as f:
+                f.write(r.content)
+            img_bytes = r.content
+            break
     if not img_bytes:
-        logger.info(f"Failed to download thumbnail for {video_id}. Tried: {tried}")
-        raise RuntimeError("Failed to download thumbnail or it is too big/small")
+        raise RuntimeError("Failed to download thumbnail or it is too big")
 
-    # --- Определяем ориентацию ---
-    is_shorts = False
-    if url and ("youtube.com/shorts/" in url or "/shorts/" in url):
-        is_shorts = True
+    # --- Ресайз только для YouTube ---
+    if url and ("youtube.com" in url or "youtu.be" in url):
+        is_shorts = False
+        if "youtube.com/shorts/" in url or "/shorts/" in url:
+            is_shorts = True
+        # Открываем скачанную картинку
+        img = Image.open(io.BytesIO(img_bytes))
+        w, h = img.size
+        # Для Shorts — вертикальное превью
+        if is_shorts:
+            max_w, max_h = 360, 640
+        else:
+            max_w, max_h = 640, 360
+        ratio = min(max_w / w, max_h / h)
+        new_size = (int(w * ratio), int(h * ratio))
+        img = img.convert("RGB")
+        img = img.resize(new_size, Image.LANCZOS)
+        img.save(dest, "JPEG", quality=90)
+    # Для остальных сервисов — ничего не делаем, пусть ffmpeg делает превью с оригинальными пропорциями
 
-    # Открываем картинку и определяем соотношение сторон
-    img = Image.open(io.BytesIO(img_bytes))
-    w, h = img.size
-    aspect = w / h if h else 1
-    logger.info(f"Thumbnail size: {w}x{h}, aspect={aspect:.2f}")
-    if not is_shorts and aspect < 0.9:
-        is_shorts = True
-
-    # --- Ресайз ---
-    if is_shorts:
-        max_w, max_h = 360, 640
-    else:
-        max_w, max_h = 640, 360
-
-    ratio = min(max_w / w, max_h / h)
-    new_size = (int(w * ratio), int(h * ratio))
-    logger.info(f"Resizing to: {new_size}")
-    img = img.convert("RGB")
-    img = img.resize(new_size, Image.LANCZOS)
-    img.save(dest, "JPEG", quality=90)
-    logger.info(f"Final thumbnail saved to {dest}")
-    
 # --- global lists of domains and keywords ---
 PORN_DOMAINS = set()
 SUPPORTED_SITES = set()
@@ -4559,11 +4535,6 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         if ("youtube.com" in url or "youtu.be" in url) and video_id:
             thumb_path = os.path.join(user_dir, f"yt_thumb_{video_id}.jpg")
             try:
-                # Перед вызовом download_thumbnail
-                if not video_id:
-                    logger.warning(f"video_id is None or empty for url: {url}")
-                else:
-                    logger.info(f"video_id for thumbnail: {video_id}")
                 download_thumbnail(video_id, thumb_path, url)
             except Exception:
                 thumb_path = None
