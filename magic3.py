@@ -3331,11 +3331,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     break
 
             after_rename_abs_path = os.path.abspath(user_vid_path)
-            # --- New block: if YouTube, download preview ---
+            # --- YouTube thumbnail logic (priority over ffmpeg) ---
             youtube_thumb_path = None
             thumb_dir = None
-            try:
-                if ("youtube.com" in url or "youtu.be" in url):
+            duration = 0
+            
+            # Try to download YouTube thumbnail first
+            if ("youtube.com" in url or "youtu.be" in url):
+                try:
                     yt_id = video_id or None
                     if not yt_id:
                         try:
@@ -3344,23 +3347,38 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             yt_id = None
                     if yt_id:
                         youtube_thumb_path = os.path.join(dir_path, f"yt_thumb_{yt_id}.jpg")
-                        download_thumbnail(yt_id, youtube_thumb_path)
-                        thumb_dir = youtube_thumb_path
+                        download_thumbnail(yt_id, youtube_thumb_path, url)
+                        if os.path.exists(youtube_thumb_path):
+                            thumb_dir = youtube_thumb_path
+                            logger.info(f"Using YouTube thumbnail: {youtube_thumb_path}")
+                except Exception as e:
+                    logger.warning(f"YouTube thumbnail download failed: {e}")
+            
+            # Get video duration (always needed)
+            try:
+                ffprobe_duration_command = [
+                    "ffprobe", "-v", "error", "-select_streams", "v:0",
+                    "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1",
+                    user_vid_path
+                ]
+                result = subprocess.check_output(ffprobe_duration_command, stderr=subprocess.STDOUT, universal_newlines=True)
+                duration = int(float(result))
             except Exception as e:
-                logger.warning(f"YouTube thumbnail error: {e}")
-            # --- End of block ---
-            # If thumb_dir is not defined - use ffmpeg preview
-
-            result = get_duration_thumb(message, dir_path, user_vid_path, sanitize_filename(caption_name))
-            if result is None:
-                logger.warning("Failed to get video duration and thumbnail, continuing without thumbnail")
+                logger.warning(f"Failed to get video duration: {e}")
                 duration = 0
-                if not youtube_thumb_path:
+            
+            # Use ffmpeg thumbnail only as fallback (when YouTube thumbnail failed)
+            if not thumb_dir:
+                result = get_duration_thumb(message, dir_path, user_vid_path, sanitize_filename(caption_name))
+                if result is None:
+                    logger.warning("Failed to create ffmpeg thumbnail fallback")
                     thumb_dir = None
-            else:
-                duration, thumb_dir_default = result
-                if not youtube_thumb_path:
-                    thumb_dir = thumb_dir_default
+                else:
+                    duration_from_ffmpeg, thumb_dir_ffmpeg = result
+                    thumb_dir = thumb_dir_ffmpeg
+                    if duration == 0:  # Use duration from ffmpeg if we couldn't get it with ffprobe
+                        duration = duration_from_ffmpeg
+                    logger.info(f"Using ffmpeg thumbnail fallback: {thumb_dir}")
             
             # Check for the existence of a preview and create a default one if needed
             if thumb_dir and not os.path.exists(thumb_dir):
@@ -4182,18 +4200,43 @@ def extract_youtube_id(url: str) -> str:
             return m.group(1)
     raise ValueError("Failed to extract YouTube ID")
 
-def download_thumbnail(video_id: str, dest: str) -> None:
+def download_thumbnail(video_id: str, dest: str, url: str = None) -> None:
     """
-    Trying to download maxressdefault.jpg, then hqdefault.jpg.
+    Скачивает превью YouTube (maxresdefault/hqdefault),
+    ресайзит: горизонтально для обычных видео, вертикально для Shorts.
+    url — нужен для определения Shorts по ссылке.
     """
+    import io
+    from PIL import Image
     base = f"https://img.youtube.com/vi/{video_id}"
+    img_bytes = None
     for name in ("maxresdefault.jpg", "hqdefault.jpg"):
         r = requests.get(f"{base}/{name}", timeout=10)
         if r.status_code == 200 and len(r.content) <= 200 * 1024:
-            with open(dest, "wb") as f:
-                f.write(r.content)
-            return
-    raise RuntimeError("Failed to download thumbnail or it is too big")
+            img_bytes = r.content
+            break
+    if not img_bytes:
+        raise RuntimeError("Failed to download thumbnail or it is too big")
+    # --- Определяем ориентацию ---
+    is_shorts = False
+    if url and ("youtube.com/shorts/" in url or "/shorts/" in url):
+        is_shorts = True
+    # Открываем картинку и определяем соотношение сторон
+    img = Image.open(io.BytesIO(img_bytes))
+    w, h = img.size
+    aspect = w / h if h else 1
+    # Если явно не Shorts по URL, но картинка вертикальная — считаем Shorts
+    if not is_shorts and aspect < 0.9:
+        is_shorts = True
+    # --- Ресайз ---
+    if is_shorts:
+        # Вертикальный прямоугольник
+        target_w, target_h = 360, 640
+    else:
+        # Горизонтальный прямоугольник
+        target_w, target_h = 640, 360
+    img = img.resize((target_w, target_h), Image.Resampling.LANCZOS)
+    img.save(dest, "JPEG", quality=90)
 
 # --- global lists of domains and keywords ---
 PORN_DOMAINS = set()
@@ -4488,7 +4531,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         if ("youtube.com" in url or "youtu.be" in url) and video_id:
             thumb_path = os.path.join(user_dir, f"yt_thumb_{video_id}.jpg")
             try:
-                download_thumbnail(video_id, thumb_path)
+                download_thumbnail(video_id, thumb_path, url)
             except Exception:
                 thumb_path = None
         # --- Table with qualities and sizes ---
