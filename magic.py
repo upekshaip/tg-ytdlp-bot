@@ -361,7 +361,7 @@ app = Client(
 # #############################################################################################################################
 
 @app.on_message(filters.command("start") & filters.private)
-#@reply_with_keyboard
+@reply_with_keyboard
 def command1(app, message):
     if int(message.chat.id) in Config.ADMIN:
         send_to_user(message, "Welcome Master 🥷")
@@ -374,7 +374,7 @@ def command1(app, message):
 
 
 @app.on_message(filters.command("help"))
-#@reply_with_keyboard
+@reply_with_keyboard
 def command2(app, message):
     app.send_message(message.chat.id, (Config.HELP_MSG),
                      parse_mode=enums.ParseMode.HTML)
