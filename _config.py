@@ -227,7 +227,8 @@ see <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md">sup
     SUPPORTED_SITES_FILE = "supported_sites.txt"
     # --- Whitelist of domains that are not considered porn ---
     WHITELIST = [
-        'dailymotion.com', 'sky.com', 'xbox.com', 'youtube.com', 'youtu.be', '1tv.ru', 'x.ai'
+        'dailymotion.com', 'sky.com', 'xbox.com', 'youtube.com', 'youtu.be', '1tv.ru', 'x.ai',
+        'twitch.tv', 'www.twitch.tv', 'vimeo.com', 'facebook.com'
         # Other secure domains can be added
     ]
     # TikTok Domain List
