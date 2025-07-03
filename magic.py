@@ -686,7 +686,7 @@ def format_option_callback(app, callback_query):
     elif data == "bv4320":
         chosen_format = "bv*[vcodec*=avc1][height<=4320]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
     elif data == "bestvideo":
-        chosen_format = "bestvideo+bestaudio/best"
+        chosen_format = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best"
     elif data == "best":
         chosen_format = "best"
     else:
@@ -1884,7 +1884,7 @@ def video_url_extractor(app, message):
                 quality_key = "2160p"
             elif "height<=4320" in saved_format:
                 quality_key = "4320p"
-            elif "bestvideo+bestaudio" in saved_format:
+            elif "bestvideo+bestaudio" in saved_format or "bv*[vcodec*=avc1]+ba" in saved_format:
                 quality_key = "bestvideo"
             elif saved_format == "best":
                 quality_key = "best"
@@ -2925,7 +2925,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             # if use_default_format is True, then do not take from format.txt, but use default ones
             if use_default_format:
                 attempts = [
-                    {'format': 'bestvideo+bestaudio/best', 'prefer_ffmpeg': True, 'merge_output_format': 'mp4', 'extract_flat': False},
+                    {'format': 'bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best', 'prefer_ffmpeg': True, 'merge_output_format': 'mp4', 'extract_flat': False},
                     {'format': 'best', 'prefer_ffmpeg': False, 'extract_flat': False}
                 ]
             else:
@@ -2940,7 +2940,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     attempts = [
                         {'format': 'bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
                         'prefer_ffmpeg': True, 'merge_output_format': 'mp4', 'extract_flat': False},
-                        {'format': 'bestvideo+bestaudio/best',
+                        {'format': 'bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best',
                         'prefer_ffmpeg': True, 'merge_output_format': 'mp4', 'extract_flat': False},
                         {'format': 'best', 'prefer_ffmpeg': False, 'extract_flat': False}
                     ]
@@ -4520,6 +4520,13 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
                 icon = "🚀" if quality_key in cached_qualities else "📹"
                 button_text = f"{icon} Best Quality"
             buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
+            
+            # Add "Try Another Qualities" button when no automatic qualities detected
+            buttons.append(InlineKeyboardButton("🎛 Try Another Qualities", callback_data=f"askq|try_manual"))
+            
+            # Add explanation when automatic quality detection fails
+            autodiscovery_note = "<blockquote>⚠️ Available qualities could not be automatically detected. You can manually force a specific quality.</blockquote>"
+            cap += f"\n{autodiscovery_note}\n"
         # --- Form rows of 3 buttons ---
         keyboard_rows = []
         for i in range(0, len(buttons), 3):
@@ -4596,6 +4603,105 @@ def askq_callback(app, callback_query):
     if data == "cancel":
         callback_query.message.delete()
         callback_query.answer("Menu closed.")
+        return
+    
+    # Handle manual quality selection menu
+    if data == "try_manual":
+        show_manual_quality_menu(app, callback_query)
+        return
+    
+    if data == "manual_back":
+        # Extract URL and tags to regenerate the original menu
+        original_message = callback_query.message.reply_to_message
+        if not original_message:
+            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            callback_query.message.delete()
+            return
+        
+        url = None
+        if callback_query.message.caption_entities:
+            for entity in callback_query.message.caption_entities:
+                if entity.type == enums.MessageEntityType.TEXT_LINK and entity.url:
+                    url = entity.url
+                    break
+        if not url and callback_query.message.reply_to_message:
+            url_match = re.search(r'https?://[^\s\*#]+', callback_query.message.reply_to_message.text)
+            if url_match:
+                url = url_match.group(0)
+        
+        if url:
+            tags = []
+            caption_text = callback_query.message.caption
+            if caption_text:
+                tag_matches = re.findall(r'#\S+', caption_text)
+                if tag_matches:
+                    tags = tag_matches
+            callback_query.message.delete()
+            ask_quality_menu(app, original_message, url, tags)
+        else:
+            callback_query.answer("❌ Error: URL not found.", show_alert=True)
+            callback_query.message.delete()
+        return
+    
+    # Handle manual quality selection
+    if data.startswith("manual_"):
+        quality = data.replace("manual_", "")
+        callback_query.answer(f"Downloading {quality}...")
+        
+        original_message = callback_query.message.reply_to_message
+        if not original_message:
+            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            callback_query.message.delete()
+            return
+        
+        url = None
+        if callback_query.message.caption_entities:
+            for entity in callback_query.message.caption_entities:
+                if entity.type == enums.MessageEntityType.TEXT_LINK and entity.url:
+                    url = entity.url
+                    break
+        if not url and callback_query.message.reply_to_message:
+            url_match = re.search(r'https?://[^\s\*#]+', callback_query.message.reply_to_message.text)
+            if url_match:
+                url = url_match.group(0)
+        
+        if not url:
+            callback_query.answer("❌ Error: URL not found.", show_alert=True)
+            callback_query.message.delete()
+            return
+        
+        tags = []
+        caption_text = callback_query.message.caption
+        if caption_text:
+            tag_matches = re.findall(r'#\S+', caption_text)
+            if tag_matches:
+                tags = tag_matches
+        tags_text = ' '.join(tags)
+        
+        callback_query.message.delete()
+        
+        # Force use specific quality format like in /format command
+        if quality == "best":
+            format_override = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best"
+        elif quality == "mp3":
+            down_and_audio(app, original_message, url, tags, quality_key="mp3")
+            return
+        else:
+            try:
+                quality_str = quality.replace('p', '')
+                quality_val = int(quality_str)
+                format_override = f"bv*[vcodec*=avc1][height<={quality_val}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+            except ValueError:
+                format_override = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best"
+        
+        # Handle playlists
+        original_text = original_message.text or original_message.caption or ""
+        if is_playlist_with_range(original_text):
+            _, video_start_with, video_end_with, playlist_name, _, _, _ = extract_url_range_tags(original_text)
+            video_count = video_end_with - video_start_with + 1
+            down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=quality)
+        else:
+            down_and_up_with_format(app, original_message, url, format_override, tags_text, quality_key=quality)
         return
 
     original_message = callback_query.message.reply_to_message
@@ -4675,16 +4781,17 @@ def askq_callback(app, callback_query):
                 if data == "mp3":
                     down_and_audio(app, original_message, url, tags, quality_key=used_quality_key, playlist_name=playlist_name, video_count=new_count, video_start_with=new_start)
                 else:
-                    # Form the correct format for the missing videos
-                    if used_quality_key == "best":
-                        format_override = "bestvideo+bestaudio/best"
-                    else:
-                        try:
+                    try:
+                        # Form the correct format for the missing videos
+                        if used_quality_key == "best":
+                            format_override = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+                        else:
                             quality_str = used_quality_key.replace('p', '')
                             quality_val = int(quality_str)
-                            format_override = f"bestvideo[height<={quality_val}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
-                        except ValueError:
-                            format_override = "bestvideo+bestaudio/best"
+                            format_override = f"bv*[vcodec*=avc1][height<={quality_val}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+                    except Exception as e:
+                        logger.error(f"askq_callback: error forming format: {e}")
+                        format_override = "bestvideo+bestaudio/best"
                     
                     down_and_up(app, original_message, url, playlist_name, new_count, new_start, tags_text, force_no_title=False, format_override=format_override, quality_key=used_quality_key)
             else:
@@ -4700,16 +4807,16 @@ def askq_callback(app, callback_query):
             if data == "mp3":
                 down_and_audio(app, original_message, url, tags, quality_key=data, playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with)
             else:
-                # Form the correct format for the new download
-                if data == "best":
-                    format_override = "bestvideo+bestaudio/best"
-                else:
-                    try:
+                try:
+                    # Form the correct format for the new download
+                    if data == "best":
+                        format_override = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+                    else:
                         quality_str = data.replace('p', '')
                         quality_val = int(quality_str)
-                        format_override = f"bestvideo[height<={quality_val}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
-                    except ValueError:
-                        format_override = "bestvideo+bestaudio/best"
+                        format_override = f"bv*[vcodec*=avc1][height<={quality_val}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+                except ValueError:
+                    format_override = "bestvideo+bestaudio/best"
                 
                 down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=data)
             return
@@ -4752,7 +4859,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
     # Logic for forming the format with the real height
     if data == "best":
         callback_query.answer("Downloading best quality...")
-        fmt = "bestvideo+bestaudio/best"
+        fmt = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best"
         quality_key = "best"
     else:
         try:
@@ -4774,7 +4881,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
             if max_width == 0 or max_height == 0:
                 quality_str = data.replace('p', '')
                 quality_val = int(quality_str)
-                fmt = f"bestvideo[height<={quality_val}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
+                fmt = f"bv*[vcodec*=avc1][height<={quality_val}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
             else:
                 # Determine the quality by the smaller side
                 min_side_quality = get_quality_by_min_side(max_width, max_height)
@@ -4783,11 +4890,11 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
                 if data != min_side_quality:
                     quality_str = data.replace('p', '')
                     quality_val = int(quality_str)
-                    fmt = f"bestvideo[height<={quality_val}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
+                    fmt = f"bv*[vcodec*=avc1][height<={quality_val}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
                 else:
                     # Use the real height to form the format
                     real_height = get_real_height_for_quality(data, max_width, max_height)
-                    fmt = f"bestvideo[height<={real_height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={real_height}]+bestaudio/best[height<={real_height}]/best"
+                    fmt = f"bv*[vcodec*=avc1][height<={real_height}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
             
             quality_key = data
             callback_query.answer(f"Downloading {data}...")
@@ -4796,6 +4903,137 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
             return
     
     down_and_up_with_format(app, original_message, url, fmt, tags_text, quality_key=quality_key)
+
+
+def show_manual_quality_menu(app, callback_query):
+    """Show manual quality selection menu when automatic detection fails"""
+    user_id = callback_query.from_user.id
+    
+    # Extract URL and tags from the callback
+    original_message = callback_query.message.reply_to_message
+    if not original_message:
+        callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+        callback_query.message.delete()
+        return
+    
+    url = None
+    if callback_query.message.caption_entities:
+        for entity in callback_query.message.caption_entities:
+            if entity.type == enums.MessageEntityType.TEXT_LINK and entity.url:
+                url = entity.url
+                break
+    if not url and callback_query.message.reply_to_message:
+        url_match = re.search(r'https?://[^\s\*#]+', callback_query.message.reply_to_message.text)
+        if url_match:
+            url = url_match.group(0)
+    
+    if not url:
+        callback_query.answer("❌ Error: URL not found.", show_alert=True)
+        callback_query.message.delete()
+        return
+    
+    tags = []
+    caption_text = callback_query.message.caption
+    if caption_text:
+        tag_matches = re.findall(r'#\S+', caption_text)
+        if tag_matches:
+            tags = tag_matches
+    tags_text = ' '.join(tags)
+    
+    # Check if it's a playlist
+    original_text = original_message.text or original_message.caption or ""
+    is_playlist = is_playlist_with_range(original_text)
+    playlist_range = None
+    if is_playlist:
+        _, video_start_with, video_end_with, _, _, _, _ = extract_url_range_tags(original_text)
+        playlist_range = (video_start_with, video_end_with)
+        cached_qualities = get_cached_playlist_qualities(get_clean_playlist_url(url))
+    else:
+        cached_qualities = get_cached_qualities(url)
+    
+    # Create manual quality buttons
+    manual_qualities = ["144p", "240p", "360p", "480p", "720p", "1080p", "1440p", "2160p", "4320p"]
+    buttons = []
+    
+    for quality in manual_qualities:
+        if is_playlist and playlist_range:
+            indices = list(range(playlist_range[0], playlist_range[1]+1))
+            n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality, indices)
+            total = len(indices)
+            icon = "🚀" if n_cached > 0 else "📹"
+            postfix = f" ({n_cached}/{total})" if total > 1 else ""
+            button_text = f"{icon} {quality}{postfix}"
+        else:
+            icon = "🚀" if quality in cached_qualities else "📹"
+            button_text = f"{icon} {quality}"
+        buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|manual_{quality}"))
+    
+    # Add Best Quality button
+    if is_playlist and playlist_range:
+        indices = list(range(playlist_range[0], playlist_range[1]+1))
+        n_cached = get_cached_playlist_count(get_clean_playlist_url(url), "best", indices)
+        total = len(indices)
+        icon = "🚀" if n_cached > 0 else "📹"
+        postfix = f" ({n_cached}/{total})" if total > 1 else ""
+        button_text = f"{icon} Best Quality{postfix}"
+    else:
+        icon = "🚀" if "best" in cached_qualities else "📹"
+        button_text = f"{icon} Best Quality"
+    buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|manual_best"))
+    
+    # Form rows of 3 buttons
+    keyboard_rows = []
+    for i in range(0, len(buttons), 3):
+        keyboard_rows.append(buttons[i:i+3])
+    
+    # Add mp3 button
+    quality_key = "mp3"
+    if is_playlist and playlist_range:
+        indices = list(range(playlist_range[0], playlist_range[1]+1))
+        n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
+        total = len(indices)
+        icon = "🚀" if n_cached > 0 else "🎵"
+        postfix = f" ({n_cached}/{total})" if total > 1 else ""
+        button_text = f"{icon} audio (mp3){postfix}"
+    else:
+        icon = "🚀" if quality_key in cached_qualities else "🎵"
+        button_text = f"{icon} audio (mp3)"
+    keyboard_rows.append([InlineKeyboardButton(button_text, callback_data=f"askq|manual_{quality_key}")])
+    
+    # Add Back and Cancel buttons
+    keyboard_rows.append([
+        InlineKeyboardButton("🔙 Back", callback_data="askq|manual_back"),
+        InlineKeyboardButton("❌ Cancel", callback_data="askq|cancel")
+    ])
+    
+    keyboard = InlineKeyboardMarkup(keyboard_rows)
+    
+    # Get video title for caption
+    try:
+        info = get_video_formats(url, user_id)
+        title = info.get('title', 'Video')
+        video_title = title
+    except:
+        video_title = "Video"
+    
+    # Form caption
+    cap = f"<b>{video_title}</b>\n"
+    if tags_text:
+        cap += f"{tags_text}\n"
+    cap += f"\n<b>🎛 Manual Quality Selection</b>\n"
+    cap += f"\n<i>Choose quality manually since automatic detection failed:</i>\n"
+    
+    # Update the message
+    try:
+        if callback_query.message.photo:
+            callback_query.edit_message_caption(caption=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+        else:
+            callback_query.edit_message_text(text=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+        callback_query.answer("Manual quality selection menu opened.")
+    except Exception as e:
+        logger.error(f"Error showing manual quality menu: {e}")
+        callback_query.answer("❌ Error opening manual quality menu.", show_alert=True)
+
 
 # --- an auxiliary function for downloading with the format ---
 def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None):
