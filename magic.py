@@ -1,4 +1,5 @@
 # Version 2.4.3
+import hashlib
 import logging
 import math
 import os
@@ -2112,24 +2113,78 @@ def send_videos(
             cap += tags_block
         cap += link_block
 
-        video_msg = app.send_video(
-            chat_id=user_id,
-            video=video_abs_path,
-            caption=cap,
-            duration=duration,
-            width=width,
-            height=height,
-            supports_streaming=True,
-            thumb=thumb_file_path,
-            progress=progress_bar,
-            progress_args=(
-                user_id,
-                msg_id,
-                f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n\n__Uploading Video... 📤__"
-            ),
-            reply_to_message_id=message.id,
-            parse_mode=enums.ParseMode.HTML
-        )
+        try:
+            # Сначала пробуем отправить с полным caption
+            video_msg = app.send_video(
+                chat_id=user_id,
+                video=video_abs_path,
+                caption=cap,
+                duration=duration,
+                width=width,
+                height=height,
+                supports_streaming=True,
+                thumb=thumb_file_path,
+                progress=progress_bar,
+                progress_args=(
+                    user_id,
+                    msg_id,
+                    f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n\n__Uploading Video... 📤__"
+                ),
+                reply_to_message_id=message.id,
+                parse_mode=enums.ParseMode.HTML
+            )
+        except Exception as e:
+            if "MEDIA_CAPTION_TOO_LONG" in str(e):
+                logger.info("Caption too long, trying with minimal caption")
+                # Если caption слишком длинный, пробуем отправить только с основной информацией
+                minimal_cap = ''
+                if title_html:
+                    minimal_cap += title_html + '\n\n'
+                minimal_cap += link_block
+                
+                try:
+                    # Пробуем отправить с минимальным caption
+                    video_msg = app.send_video(
+                        chat_id=user_id,
+                        video=video_abs_path,
+                        caption=minimal_cap,
+                        duration=duration,
+                        width=width,
+                        height=height,
+                        supports_streaming=True,
+                        thumb=thumb_file_path,
+                        progress=progress_bar,
+                        progress_args=(
+                            user_id,
+                            msg_id,
+                            f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n\n__Uploading Video... 📤__"
+                        ),
+                        reply_to_message_id=message.id,
+                        parse_mode=enums.ParseMode.HTML
+                    )
+                except Exception as e:
+                    logger.error(f"Error sending video with minimal caption: {e}")
+                    # Если даже минимальный caption не работает, отправляем без caption
+                    video_msg = app.send_video(
+                        chat_id=user_id,
+                        video=video_abs_path,
+                        duration=duration,
+                        width=width,
+                        height=height,
+                        supports_streaming=True,
+                        thumb=thumb_file_path,
+                        progress=progress_bar,
+                        progress_args=(
+                            user_id,
+                            msg_id,
+                            f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n\n__Uploading Video... 📤__"
+                        ),
+                        reply_to_message_id=message.id,
+                        parse_mode=enums.ParseMode.HTML
+                    )
+            else:
+                # Если ошибка не связана с длиной caption, пробрасываем её дальше
+                raise e
         if was_truncated and full_video_title:
             with open(temp_desc_path, "w", encoding="utf-8") as f:
                 f.write(full_video_title)
@@ -2251,7 +2306,9 @@ def split_video_2(dir, video_name, video_path, video_size, max_size, duration):
         return split_vid_dict
 
 def get_duration_thumb_(dir, video_path, thumb_name):
-    thumb_dir = os.path.abspath(dir + "/" + thumb_name + ".jpg")
+    # Generate a short unique name for the thumbnail
+    thumb_hash = hashlib.md5(thumb_name.encode()).hexdigest()[:10]
+    thumb_dir = os.path.abspath(os.path.join(dir, thumb_hash + ".jpg"))
     clip = VideoFileClip(video_path)
     duration = (int(clip.duration))
     
@@ -2309,7 +2366,9 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
     Returns:
         tuple: (duration, thumbnail_path) or None if error
     """
-    thumb_dir = os.path.abspath(os.path.join(dir_path, thumb_name + ".jpg"))
+    # Generate a short unique name for the thumbnail
+    thumb_hash = hashlib.md5(thumb_name.encode()).hexdigest()[:10]
+    thumb_dir = os.path.abspath(os.path.join(dir_path, thumb_hash + ".jpg"))
 
     # FFPROBE COMMAND to GET Video Dimensions and Duration
     ffprobe_size_command = [
@@ -2630,7 +2689,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                'extractaudio': True,
                'playlist_items': str(current_index + video_start_with),
                'cookiefile': cookie_file,
-               'outtmpl': os.path.join(user_folder, "%(title)s.%(ext)s"),
+               'outtmpl': os.path.join(user_folder, "%(title).50s.%(ext)s"),
                'progress_hooks': [progress_hook],
                'extractor_args': {
                   'generic': ['impersonate=chrome']
@@ -3133,7 +3192,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             common_opts = {
                 'cookiefile': os.path.join("users", str(user_id), os.path.basename(Config.COOKIE_FILE_PATH)),
                 'playlist_items': str(current_index),  # We use only current_index for playlists
-                'outtmpl': os.path.join(user_dir_name, "%(title)s.%(ext)s"),
+                'outtmpl': os.path.join(user_dir_name, "%(title).50s.%(ext)s"),
                 'postprocessors': [
                 {
                    'key': 'EmbedThumbnail'   # эквивалент --embed-thumbnail
