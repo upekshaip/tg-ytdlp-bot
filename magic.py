@@ -1,4 +1,5 @@
-# Version 2.4.0
+# Version 2.4.3
+import hashlib
 import logging
 import math
 import os
@@ -14,7 +15,6 @@ from typing import Tuple
 from urllib.parse import urlparse, parse_qs, urlunparse, unquote, urlencode
 
 import pyrebase
-import requests
 import tldextract
 from moviepy.editor import VideoFileClip
 from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
@@ -33,6 +33,10 @@ from yt_dlp import YoutubeDL
 import yt_dlp
 
 from config import Config
+
+import io
+from PIL import Image
+import requests
 
 
 # --- Function for permanent reply-keyboard ---
@@ -386,7 +390,7 @@ def create_directory(path):
 
 # Command to Set Browser Cooks
 @app.on_message(filters.command("cookies_from_browser") & filters.private)
-@reply_with_keyboard
+#@reply_with_keyboard
 def cookies_from_browser(app, message):
     user_id = message.chat.id
     # For non-admins, we check the subscription
@@ -455,7 +459,7 @@ def cookies_from_browser(app, message):
 
 # Callback Handler for Browser Selection
 @app.on_callback_query(filters.regex(r"^browser_choice\|"))
-@reply_with_keyboard
+#@reply_with_keyboard
 def browser_choice_callback(app, callback_query):
     logger.info(f"[BROWSER] callback: {callback_query.data}")
     import subprocess
@@ -517,8 +521,7 @@ def browser_choice_callback(app, callback_query):
 
 # Command to Download Audio from a Video url
 @app.on_message(filters.command("audio") & filters.private)
-@reply_with_keyboard
-
+#@reply_with_keyboard
 def audio_command_handler(app, message):
     user_id = message.chat.id
     if get_active_download(user_id):
@@ -549,7 +552,7 @@ def audio_command_handler(app, message):
 
 # /Playlist Command
 @app.on_message(filters.command("playlist") & filters.private)
-@reply_with_keyboard
+#@reply_with_keyboard
 def playlist_command(app, message):
     user_id = message.chat.id
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
@@ -561,7 +564,7 @@ def playlist_command(app, message):
 
 # Command /Format Handler
 @app.on_message(filters.command("format") & filters.private)
-@reply_with_keyboard
+#@reply_with_keyboard
 def set_format(app, message):
     user_id = message.chat.id
     # For non-admins, we check the subscription
@@ -601,7 +604,7 @@ def set_format(app, message):
 
 # Callbackquery Handler for /Format Menu Selection
 @app.on_callback_query(filters.regex(r"^format_option\|"))
-@reply_with_keyboard
+#@reply_with_keyboard
 def format_option_callback(app, callback_query):
     logger.info(f"[FORMAT] callback: {callback_query.data}")
     user_id = callback_query.from_user.id
@@ -686,7 +689,7 @@ def format_option_callback(app, callback_query):
     elif data == "bv4320":
         chosen_format = "bv*[vcodec*=avc1][height<=4320]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
     elif data == "bestvideo":
-        chosen_format = "bestvideo+bestaudio/best"
+        chosen_format = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best"
     elif data == "best":
         chosen_format = "best"
     else:
@@ -1308,7 +1311,7 @@ def uncache_command(app, message):
 
 # ===================== /settings =====================
 @app.on_message(filters.command("settings") & filters.private)
-@reply_with_keyboard
+#@reply_with_keyboard
 def settings_command(app, message):
     user_id = message.chat.id
     # Main settings menu
@@ -1330,7 +1333,7 @@ def settings_command(app, message):
 
 
 @app.on_callback_query(filters.regex(r"^settings__menu__"))
-@reply_with_keyboard
+#@reply_with_keyboard
 def settings_menu_callback(app, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
     data = callback_query.data.split("__")[-1]
@@ -1397,6 +1400,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("#️⃣ /tags - Send your #tags", callback_data="settings__cmd__tags")],
             [InlineKeyboardButton("🆘 /help - Get instructions", callback_data="settings__cmd__help")],
             [InlineKeyboardButton("📃 /usage -Send your logs", callback_data="settings__cmd__usage")],
+            [InlineKeyboardButton("📋 /playlist - Playlist's help", callback_data="settings__cmd__playlist")],
             [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
         ])
         callback_query.edit_message_text(
@@ -1425,7 +1429,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
 
 
 @app.on_callback_query(filters.regex(r"^settings__cmd__"))
-@reply_with_keyboard
+#@reply_with_keyboard
 def settings_cmd_callback(app, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
     data = callback_query.data.split("__")[2]
@@ -1507,7 +1511,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
 
 
 @app.on_callback_query(filters.regex(r"^clean_option\|"))
-@reply_with_keyboard
+#@reply_with_keyboard
 def clean_option_callback(app, callback_query):
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]
@@ -1578,7 +1582,7 @@ def fake_message(text, user_id, command=None):
 
 # /Mediainfo Command
 @app.on_message(filters.command("mediainfo") & filters.private)
-@reply_with_keyboard
+#@reply_with_keyboard
 def mediainfo_command(app, message):
     user_id = message.chat.id
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
@@ -1600,7 +1604,7 @@ def mediainfo_command(app, message):
 
 
 @app.on_callback_query(filters.regex(r"^mediainfo_option\|"))
-@reply_with_keyboard
+#@reply_with_keyboard
 def mediainfo_option_callback(app, callback_query):
     logger.info(f"[MEDIAINFO] callback: {callback_query.data}")
     user_id = callback_query.from_user.id
@@ -1696,7 +1700,7 @@ def save_my_cookie(app, message):
     send_to_user(message, "✅ Cookie file saved")
     send_to_logger(message, f"Cookie file saved for user {user_id}.")
 
-
+#@reply_with_keyboard
 def download_cookie(app, message):
     user_id = str(message.chat.id)
     response = requests.get(Config.COOKIE_URL)
@@ -1707,8 +1711,8 @@ def download_cookie(app, message):
         file_path = os.path.join(user_dir, cookie_filename)
         with open(file_path, "wb") as cf:
             cf.write(response.content)
-        send_to_user(message, "**✅ Cookie file downloaded and saved in your folder.**")
-        send_to_logger(message, f"Cookie file downloaded for user {user_id}.")
+        send_to_user(message, "**✅ YouTube cookie file downloaded and saved in your folder.**")
+        send_to_logger(message, f"YouTube cookie file downloaded for user {user_id}.")
     else:
         send_to_user(message, "❌ Cookie URL is not available!")
         send_to_logger(message, f"Failed to download cookie file for user {user_id}.")
@@ -1716,7 +1720,7 @@ def download_cookie(app, message):
 
 # Caption Editor for Videos
 @app.on_message(filters.text & filters.private)
-@reply_with_keyboard
+#@reply_with_keyboard
 def caption_editor(app, message):
     users_name = message.chat.first_name
     user_id = message.chat.id
@@ -1730,7 +1734,7 @@ def caption_editor(app, message):
 
 
 @app.on_message(filters.text & filters.private)
-@reply_with_keyboard
+#@reply_with_keyboard
 def checking_cookie_file(app, message):
     user_id = str(message.chat.id)
     cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
@@ -1751,7 +1755,7 @@ def checking_cookie_file(app, message):
 
 
 # Updating The Cookie File.
-
+#@reply_with_keyboard
 def save_as_cookie_file(app, message):
     user_id = str(message.chat.id)
     content = message.text[len(Config.SAVE_AS_COOKIE_COMMAND):].strip()
@@ -1793,8 +1797,7 @@ def save_as_cookie_file(app, message):
 
 # URL Extractor
 @app.on_message(filters.text & filters.private)
-@reply_with_keyboard
-
+#@reply_with_keyboard
 def video_url_extractor(app, message):
     global active_downloads
     check_user(message)
@@ -1883,7 +1886,7 @@ def video_url_extractor(app, message):
                 quality_key = "2160p"
             elif "height<=4320" in saved_format:
                 quality_key = "4320p"
-            elif "bestvideo+bestaudio" in saved_format:
+            elif "bestvideo+bestaudio" in saved_format or "bv*[vcodec*=avc1]+ba" in saved_format:
                 quality_key = "bestvideo"
             elif saved_format == "best":
                 quality_key = "best"
@@ -2049,6 +2052,7 @@ def truncate_caption(
     
     return title_html, pre_block_str, blockquote_content, tags_block, link_block, was_truncated
 
+#@reply_with_keyboard
 def send_videos(
     message,
     video_abs_path: str,
@@ -2060,12 +2064,34 @@ def send_videos(
     full_video_title: str,
     tags_text: str = '',
 ):
+    import re
+    import os
     user_id = message.chat.id
     text = message.text or ""
     m = re.search(r'https?://[^\s\*]+', text)
     video_url = m.group(0) if m else ""
     temp_desc_path = os.path.join(os.path.dirname(video_abs_path), "full_description.txt")
     was_truncated = False
+
+    # --- Определяем размеры превью/видео ---
+    width = None
+    height = None
+    if video_url and ("youtube.com" in video_url or "youtu.be" in video_url):
+        if "youtube.com/shorts/" in video_url or "/shorts/" in video_url:
+            width, height = 360, 640
+        else:
+            width, height = 640, 360
+    else:
+        # Для остальных — определяем размеры видео динамически
+        try:
+            from moviepy.editor import VideoFileClip
+            clip = VideoFileClip(video_abs_path)
+            width = int(str(clip.w).strip().split()[0]) if clip.w else 0
+            height = int(str(clip.h).strip().split()[0]) if clip.h else 0
+            clip.close()
+        except Exception:
+            width, height = 0, 0
+
     try:
         # Logic simplified: use tags that were already generated in down_and_up.
         # Use original title for caption, but truncated description
@@ -2086,24 +2112,79 @@ def send_videos(
         if tags_block:
             cap += tags_block
         cap += link_block
-        video_msg = app.send_video(
-            chat_id=user_id,
-            video=video_abs_path,
-            caption=cap,
-            duration=duration,
-            width=640,
-            height=360,
-            supports_streaming=True,
-            thumb=thumb_file_path,
-            progress=progress_bar,
-            progress_args=(
-                user_id,
-                msg_id,
-                f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n\n__Uploading Video... 📤__"
-            ),
-            reply_to_message_id=message.id,
-            parse_mode=enums.ParseMode.HTML
-        )
+
+        try:
+            # Сначала пробуем отправить с полным caption
+            video_msg = app.send_video(
+                chat_id=user_id,
+                video=video_abs_path,
+                caption=cap,
+                duration=duration,
+                width=width,
+                height=height,
+                supports_streaming=True,
+                thumb=thumb_file_path,
+                progress=progress_bar,
+                progress_args=(
+                    user_id,
+                    msg_id,
+                    f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n\n__Uploading Video... 📤__"
+                ),
+                reply_to_message_id=message.id,
+                parse_mode=enums.ParseMode.HTML
+            )
+        except Exception as e:
+            if "MEDIA_CAPTION_TOO_LONG" in str(e):
+                logger.info("Caption too long, trying with minimal caption")
+                # Если caption слишком длинный, пробуем отправить только с основной информацией
+                minimal_cap = ''
+                if title_html:
+                    minimal_cap += title_html + '\n\n'
+                minimal_cap += link_block
+                
+                try:
+                    # Пробуем отправить с минимальным caption
+                    video_msg = app.send_video(
+                        chat_id=user_id,
+                        video=video_abs_path,
+                        caption=minimal_cap,
+                        duration=duration,
+                        width=width,
+                        height=height,
+                        supports_streaming=True,
+                        thumb=thumb_file_path,
+                        progress=progress_bar,
+                        progress_args=(
+                            user_id,
+                            msg_id,
+                            f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n\n__Uploading Video... 📤__"
+                        ),
+                        reply_to_message_id=message.id,
+                        parse_mode=enums.ParseMode.HTML
+                    )
+                except Exception as e:
+                    logger.error(f"Error sending video with minimal caption: {e}")
+                    # Если даже минимальный caption не работает, отправляем без caption
+                    video_msg = app.send_video(
+                        chat_id=user_id,
+                        video=video_abs_path,
+                        duration=duration,
+                        width=width,
+                        height=height,
+                        supports_streaming=True,
+                        thumb=thumb_file_path,
+                        progress=progress_bar,
+                        progress_args=(
+                            user_id,
+                            msg_id,
+                            f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n\n__Uploading Video... 📤__"
+                        ),
+                        reply_to_message_id=message.id,
+                        parse_mode=enums.ParseMode.HTML
+                    )
+            else:
+                # Если ошибка не связана с длиной caption, пробрасываем её дальше
+                raise e
         if was_truncated and full_video_title:
             with open(temp_desc_path, "w", encoding="utf-8") as f:
                 f.write(full_video_title)
@@ -2225,17 +2306,56 @@ def split_video_2(dir, video_name, video_path, video_size, max_size, duration):
         return split_vid_dict
 
 def get_duration_thumb_(dir, video_path, thumb_name):
-    thumb_dir = os.path.abspath(dir + "/" + thumb_name + ".jpg")
+    # Generate a short unique name for the thumbnail
+    thumb_hash = hashlib.md5(thumb_name.encode()).hexdigest()[:10]
+    thumb_dir = os.path.abspath(os.path.join(dir, thumb_hash + ".jpg"))
     clip = VideoFileClip(video_path)
     duration = (int(clip.duration))
-    clip.save_frame(thumb_dir, t=2)
+    
+    # Get original video dimensions
+    #orig_w, orig_h = clip.w, clip.h
+    orig_w = int(str(clip.w).strip().split()[0]) if clip.w else 1920
+    orig_h = int(str(clip.h).strip().split()[0]) if clip.h else 1080
+    # Determine optimal thumbnail size based on video aspect ratio
+    aspect_ratio = orig_w / orig_h
+    max_dimension = 640  # Maximum width or height
+    
+    if aspect_ratio > 1.5:  # Wide/horizontal video (16:9, etc.)
+        thumb_w = max_dimension
+        thumb_h = int(max_dimension / aspect_ratio)
+    elif aspect_ratio < 0.75:  # Tall/vertical video (9:16, etc.)
+        thumb_h = max_dimension
+        thumb_w = int(max_dimension * aspect_ratio)
+    else:  # Square-ish video (1:1, 4:3, etc.)
+        if orig_w >= orig_h:
+            thumb_w = max_dimension
+            thumb_h = int(max_dimension / aspect_ratio)
+        else:
+            thumb_h = max_dimension
+            thumb_w = int(max_dimension * aspect_ratio)
+    
+    # Ensure minimum size
+    thumb_w = max(thumb_w, 240)
+    thumb_h = max(thumb_h, 240)
+    
+    # Create thumbnail frame
+    frame = clip.get_frame(2)
+    from PIL import Image
+    
+    # Convert frame to PIL Image and resize to exact thumbnail size
+    img = Image.fromarray(frame)
+    img = img.resize((thumb_w, thumb_h), Image.Resampling.LANCZOS)
+    
+    # Save the thumbnail directly (no padding needed)
+    img.save(thumb_dir, 'JPEG', quality=85)
+    
     clip.close()
     return duration, thumb_dir
 
 def get_duration_thumb(message, dir_path, video_path, thumb_name):
     """
     Captures a thumbnail at 2 seconds into the video and retrieves video duration.
-    Forces overwriting existing thumbnail with the '-y' flag.
+    Creates thumbnail with same aspect ratio as video (no black bars).
 
     Args:
         message: The message object
@@ -2246,20 +2366,21 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
     Returns:
         tuple: (duration, thumbnail_path) or None if error
     """
-    thumb_dir = os.path.abspath(os.path.join(dir_path, thumb_name + ".jpg"))
+    # Generate a short unique name for the thumbnail
+    thumb_hash = hashlib.md5(thumb_name.encode()).hexdigest()[:10]
+    thumb_dir = os.path.abspath(os.path.join(dir_path, thumb_hash + ".jpg"))
 
-    # FFMPEG Command with -y Flag to overwrite Thumbnail File
-    ffmpeg_command = [
-        "ffmpeg",
-        "-y",
-        "-i", video_path,
-        "-ss", "2",         # Seek to 2 Seconds
-        "-vframes", "1",    # Capture 1 Frame
-        thumb_dir
+    # FFPROBE COMMAND to GET Video Dimensions and Duration
+    ffprobe_size_command = [
+        "ffprobe",
+        "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=width,height",
+        "-of", "csv=s=x:p=0",
+        video_path
     ]
-
-    # FFPROBE COMMAND to GET Video Duration
-    ffprobe_command = [
+    
+    ffprobe_duration_command = [
         "ffprobe",
         "-v", "error",
         "-select_streams", "v:0",
@@ -2275,16 +2396,63 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
             send_to_all(message, f"❌ Video file not found: {os.path.basename(video_path)}")
             return None
 
+        # Get video dimensions
+        size_result = subprocess.check_output(ffprobe_size_command, stderr=subprocess.STDOUT, universal_newlines=True).strip()
+        #if 'x' in size_result:
+            #orig_w, orig_h = map(int, size_result.split('x'))
+        if 'x' in size_result:
+            dimensions = size_result.split('x')
+            orig_w = int(str(dimensions[0]).strip().split()[0]) if dimensions[0] else 1920
+            orig_h = int(str(dimensions[1]).strip().split()[0]) if dimensions[1] else 1080            
+        else:
+            # Fallback to default horizontal orientation
+            orig_w, orig_h = 1920, 1080
+            logger.warning(f"Could not determine video dimensions, using default: {orig_w}x{orig_h}")
+        
+        # Determine optimal thumbnail size based on video aspect ratio
+        aspect_ratio = orig_w / orig_h
+        max_dimension = 640  # Maximum width or height
+        
+        if aspect_ratio > 1.5:  # Wide/horizontal video (16:9, etc.)
+            thumb_w = max_dimension
+            thumb_h = int(max_dimension / aspect_ratio)
+        elif aspect_ratio < 0.75:  # Tall/vertical video (9:16, etc.)
+            thumb_h = max_dimension
+            thumb_w = int(max_dimension * aspect_ratio)
+        else:  # Square-ish video (1:1, 4:3, etc.)
+            if orig_w >= orig_h:
+                thumb_w = max_dimension
+                thumb_h = int(max_dimension / aspect_ratio)
+            else:
+                thumb_h = max_dimension
+                thumb_w = int(max_dimension * aspect_ratio)
+        
+        # Ensure minimum size
+        thumb_w = max(thumb_w, 240)
+        thumb_h = max(thumb_h, 240)
+        
+        # FFMPEG Command to create thumbnail with calculated dimensions
+        ffmpeg_command = [
+            "ffmpeg",
+            "-y",
+            "-i", video_path,
+            "-ss", "2",         # Seek to 2 Seconds
+            "-vframes", "1",    # Capture 1 Frame
+            "-vf", f"scale={thumb_w}:{thumb_h}",  # Scale to exact thumbnail size
+            thumb_dir
+        ]
+
         # Run ffmpeg command to create thumbnail
         ffmpeg_result = subprocess.run(ffmpeg_command, check=True, capture_output=True, text=True)
         if ffmpeg_result.returncode != 0:
             logger.error(f"Error creating thumbnail: {ffmpeg_result.stderr}")
 
         # Run ffprobe command to get duration
-        result = subprocess.check_output(ffprobe_command, stderr=subprocess.STDOUT, universal_newlines=True)
+        result = subprocess.check_output(ffprobe_duration_command, stderr=subprocess.STDOUT, universal_newlines=True)
 
         try:
-            duration = int(float(result))
+            #duration = int(float(result))
+            duration = int(float(str(result).strip().split()[0])) if result else 0
         except (ValueError, TypeError) as e:
             logger.error(f"Error parsing video duration: {e}, result was: {result}")
             duration = 0
@@ -2293,7 +2461,7 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
         if not os.path.exists(thumb_dir):
             logger.warning(f"Thumbnail not created at {thumb_dir}, using default")
             # Create a blank thumbnail as fallback
-            create_default_thumbnail(thumb_dir)
+            create_default_thumbnail(thumb_dir, thumb_w, thumb_h)
 
         return duration, thumb_dir
     except subprocess.CalledProcessError as e:
@@ -2305,19 +2473,19 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
         send_to_all(message, f"❌ Error processing video: {e}")
         return None
 
-def create_default_thumbnail(thumb_path):
+def create_default_thumbnail(thumb_path, width=480, height=480):
     """Create a default thumbnail when normal thumbnail creation fails"""
     try:
-        # Create a 640x360 black image
+        # Create a black image with specified dimensions (square by default)
         ffmpeg_cmd = [
             "ffmpeg", "-y",
             "-f", "lavfi",
-            "-i", "color=c=black:s=640x360",
+            "-i", f"color=c=black:s={width}x{height}",
             "-frames:v", "1",
             thumb_path
         ]
         subprocess.run(ffmpeg_cmd, check=True, capture_output=True)
-        logger.info(f"Created default thumbnail at {thumb_path}")
+        logger.info(f"Created default {width}x{height} thumbnail at {thumb_path}")
     except Exception as e:
         logger.error(f"Failed to create default thumbnail: {e}")
 
@@ -2334,6 +2502,7 @@ def write_logs(message, video_url, video_title):
 # Down_and_audio function
 # ########################################
 
+#@reply_with_keyboard
 def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None, video_count=1, video_start_with=1):
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
@@ -2503,19 +2672,33 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         def try_download_audio(url, current_index):
             nonlocal current_total_process
             ytdl_opts = {
-                'format': 'ba',
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '192',
-                }],
-                'prefer_ffmpeg': True,
-                'extractaudio': True,
-                'playlist_items': str(current_index + video_start_with),
-                'cookiefile': cookie_file,
-                'outtmpl': os.path.join(user_folder, "%(title)s.%(ext)s"),
-                'progress_hooks': [progress_hook],
-            }
+               'format': 'ba',
+               'postprocessors': [{
+                  'key': 'FFmpegExtractAudio',
+                  'preferredcodec': 'mp3',
+                  'preferredquality': '192',
+               },
+               {
+                  'key': 'EmbedThumbnail'   # эквивалент --embed-thumbnail
+               },
+               {
+                  'key': 'FFmpegMetadata'   # эквивалент --add-metadata
+               }                  
+                ],
+               'prefer_ffmpeg': True,
+               'extractaudio': True,
+               'playlist_items': str(current_index + video_start_with),
+               'cookiefile': cookie_file,
+               'outtmpl': os.path.join(user_folder, "%(title).50s.%(ext)s"),
+               'progress_hooks': [progress_hook],
+               'extractor_args': {
+                  'generic': ['impersonate=chrome']
+               },
+               'referer': url,
+               'geo_bypass': True,
+               'check_certificate': False,
+               'live_from_start': True,
+            }   
             try:
                 with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
                     info_dict = ydl.extract_info(url, download=False)
@@ -2776,7 +2959,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 # ########################################
 # Download_and_up function
 # ########################################
-
+#@reply_with_keyboard
 def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None):
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
@@ -2924,7 +3107,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             # if use_default_format is True, then do not take from format.txt, but use default ones
             if use_default_format:
                 attempts = [
-                    {'format': 'bestvideo+bestaudio/best', 'prefer_ffmpeg': True, 'merge_output_format': 'mp4', 'extract_flat': False},
+                    {'format': 'bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best', 'prefer_ffmpeg': True, 'merge_output_format': 'mp4', 'extract_flat': False},
                     {'format': 'best', 'prefer_ffmpeg': False, 'extract_flat': False}
                 ]
             else:
@@ -2939,7 +3122,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     attempts = [
                         {'format': 'bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
                         'prefer_ffmpeg': True, 'merge_output_format': 'mp4', 'extract_flat': False},
-                        {'format': 'bestvideo+bestaudio/best',
+                        {'format': 'bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best',
                         'prefer_ffmpeg': True, 'merge_output_format': 'mp4', 'extract_flat': False},
                         {'format': 'best', 'prefer_ffmpeg': False, 'extract_flat': False}
                     ]
@@ -3009,7 +3192,22 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             common_opts = {
                 'cookiefile': os.path.join("users", str(user_id), os.path.basename(Config.COOKIE_FILE_PATH)),
                 'playlist_items': str(current_index),  # We use only current_index for playlists
-                'outtmpl': os.path.join(user_dir_name, "%(title)s.%(ext)s")
+                'outtmpl': os.path.join(user_dir_name, "%(title).50s.%(ext)s"),
+                'postprocessors': [
+                {
+                   'key': 'EmbedThumbnail'   # эквивалент --embed-thumbnail
+                },
+                {
+                   'key': 'FFmpegMetadata'   # эквивалент --add-metadata
+                }                  
+                ],                
+                'extractor_args': {
+                   'generic': ['impersonate=chrome']
+                },
+                'referer': url,
+                'geo_bypass': True,
+                'check_certificate': False,
+                'live_from_start': True
             }
             
             # If this is not a playlist with a range, add --no-playlist to the URL with the list parameter
@@ -3255,11 +3453,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     break
 
             after_rename_abs_path = os.path.abspath(user_vid_path)
-            # --- New block: if YouTube, download preview ---
+            # --- YouTube thumbnail logic (priority over ffmpeg) ---
             youtube_thumb_path = None
             thumb_dir = None
-            try:
-                if ("youtube.com" in url or "youtu.be" in url):
+            duration = 0
+            
+            # Try to download YouTube thumbnail first
+            if ("youtube.com" in url or "youtu.be" in url):
+                try:
                     yt_id = video_id or None
                     if not yt_id:
                         try:
@@ -3268,29 +3469,46 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             yt_id = None
                     if yt_id:
                         youtube_thumb_path = os.path.join(dir_path, f"yt_thumb_{yt_id}.jpg")
-                        download_thumbnail(yt_id, youtube_thumb_path)
-                        thumb_dir = youtube_thumb_path
+                        download_thumbnail(yt_id, youtube_thumb_path, url)
+                        if os.path.exists(youtube_thumb_path):
+                            thumb_dir = youtube_thumb_path
+                            logger.info(f"Using YouTube thumbnail: {youtube_thumb_path}")
+                except Exception as e:
+                    logger.warning(f"YouTube thumbnail download failed: {e}")
+            
+            # Get video duration (always needed)
+            try:
+                ffprobe_duration_command = [
+                    "ffprobe", "-v", "error", "-select_streams", "v:0",
+                    "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1",
+                    user_vid_path
+                ]
+                result = subprocess.check_output(ffprobe_duration_command, stderr=subprocess.STDOUT, universal_newlines=True)
+                #duration = int(float(result))
+                duration = int(float(str(result).strip().split()[0])) if result else 0
             except Exception as e:
-                logger.warning(f"YouTube thumbnail error: {e}")
-            # --- End of block ---
-            # If thumb_dir is not defined - use ffmpeg preview
-
-            result = get_duration_thumb(message, dir_path, user_vid_path, sanitize_filename(caption_name))
-            if result is None:
-                logger.warning("Failed to get video duration and thumbnail, continuing without thumbnail")
+                logger.warning(f"Failed to get video duration: {e}")
                 duration = 0
-                if not youtube_thumb_path:
+            
+            # Use ffmpeg thumbnail only as fallback (when YouTube thumbnail failed)
+            if not thumb_dir:
+                result = get_duration_thumb(message, dir_path, user_vid_path, sanitize_filename(caption_name))
+                if result is None:
+                    logger.warning("Failed to create ffmpeg thumbnail fallback")
                     thumb_dir = None
-            else:
-                duration, thumb_dir_default = result
-                if not youtube_thumb_path:
-                    thumb_dir = thumb_dir_default
+                else:
+                    duration_from_ffmpeg, thumb_dir_ffmpeg = result
+                    thumb_dir = thumb_dir_ffmpeg
+                    if duration == 0:  # Use duration from ffmpeg if we couldn't get it with ffprobe
+                        duration = duration_from_ffmpeg
+                    logger.info(f"Using ffmpeg thumbnail fallback: {thumb_dir}")
             
             # Check for the existence of a preview and create a default one if needed
             if thumb_dir and not os.path.exists(thumb_dir):
                 logger.warning(f"Thumbnail not found at {thumb_dir}, creating default")
-                thumb_dir = create_default_thumbnail(os.path.join(dir_path, "default_thumb.jpg"))
-                if not thumb_dir:
+                create_default_thumbnail(os.path.join(dir_path, "default_thumb.jpg"))
+                thumb_dir = os.path.join(dir_path, "default_thumb.jpg")
+                if not os.path.exists(thumb_dir):
                     logger.warning("Failed to create default thumbnail, continuing without thumbnail")
                     thumb_dir = None
 
@@ -3395,8 +3613,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     # Check for preview existence before sending
                     if thumb_dir and not os.path.exists(thumb_dir):
                         logger.warning(f"Thumbnail not found before sending, creating default")
-                        thumb_dir = create_default_thumbnail(os.path.join(dir_path, "default_thumb.jpg"))
-                        if not thumb_dir:
+                        create_default_thumbnail(os.path.join(dir_path, "default_thumb.jpg"))
+                        thumb_dir = os.path.join(dir_path, "default_thumb.jpg")
+                        if not os.path.exists(thumb_dir):
                             logger.warning("Failed to create default thumbnail before sending, continuing without thumbnail")
                             thumb_dir = None
 
@@ -4058,8 +4277,7 @@ def save_user_tags(user_id, tags):
                 f.write(tag + "\n")
 
 @app.on_message(filters.command("tags") & filters.private)
-@reply_with_keyboard
-
+#@reply_with_keyboard
 def tags_command(app, message):
     user_id = message.chat.id
     user_dir = os.path.join("users", str(user_id))
@@ -4104,18 +4322,24 @@ def extract_youtube_id(url: str) -> str:
             return m.group(1)
     raise ValueError("Failed to extract YouTube ID")
 
-def download_thumbnail(video_id: str, dest: str) -> None:
+
+def download_thumbnail(video_id: str, dest: str, url: str = None) -> None:
     """
-    Trying to download maxressdefault.jpg, then hqdefault.jpg.
+    Скачивает превью YouTube (maxresdefault/hqdefault) на диск в оригинальном размере.
+    url — нужен для определения Shorts по ссылке (но теперь не используется).
     """
     base = f"https://img.youtube.com/vi/{video_id}"
+    img_bytes = None
     for name in ("maxresdefault.jpg", "hqdefault.jpg"):
         r = requests.get(f"{base}/{name}", timeout=10)
-        if r.status_code == 200 and len(r.content) <= 200 * 1024:
+        if r.status_code == 200 and len(r.content) <= 1024 * 1024:
             with open(dest, "wb") as f:
                 f.write(r.content)
-            return
-    raise RuntimeError("Failed to download thumbnail or it is too big")
+            img_bytes = r.content
+            break
+    if not img_bytes:
+        raise RuntimeError("Failed to download thumbnail or it is too big")
+    # Больше ничего не делаем — сохраняем оригинальный размер!
 
 # --- global lists of domains and keywords ---
 PORN_DOMAINS = set()
@@ -4229,12 +4453,12 @@ def is_porn_domain(domain_parts):
 # --- a new function for checking for porn ---
 def is_porn(url, title, description, caption=None):
     """
-    Checks content for pornography by domain and keywords (substring search) in title, description and caption.
-    If the domain or subdomain is found in WHITELIST, it immediately returns False.
+    Checks content for pornography by domain and keywords (word-boundary regex search)
+    in title, description and caption. Domain whitelist has highest priority.
     """
+    # 1. Проверка домена
     clean_url = get_clean_url_for_tagging(url)
     domain_parts, _ = extract_domain_parts(clean_url)
-    #First, check WHITELIST
     for dom in domain_parts:
         if dom in Config.WHITELIST:
             logger.info(f"is_porn: domain in WHITELIST: {dom}")
@@ -4242,34 +4466,39 @@ def is_porn(url, title, description, caption=None):
     if is_porn_domain(domain_parts):
         logger.info(f"is_porn: domain match: {domain_parts}")
         return True
-    title_lower = title.lower() if title else ""
+
+    # 2. Подготовка текста
+    title_lower       = title.lower()       if title       else ""
     description_lower = description.lower() if description else ""
-    caption_lower = caption.lower() if caption else ""
-    logger.debug(f"is_porn check for url: {url}")
-    logger.debug(f"is_porn title: '{title_lower}'")
-    logger.debug(f"is_porn description: '{description_lower}'")
-    logger.debug(f"is_porn caption: '{caption_lower}'")
-    logger.debug(f"is_porn keywords being checked: {PORN_KEYWORDS}")
-    if not title_lower and not description_lower and not caption_lower:
-        logger.info("is_porn: all fields empty")
+    caption_lower     = caption.lower()     if caption     else ""
+    if not (title_lower or description_lower or caption_lower):
+        logger.info("is_porn: all text fields empty")
         return False
-    for keyword in PORN_KEYWORDS:
-        if not keyword:
-            continue
-        # Split text into words and check for exact word matches
-        title_words = title_lower.split()
-        description_words = description_lower.split()
-        caption_words = caption_lower.split()
-        
-        if (keyword in title_words or keyword in description_words or keyword in caption_words):
-            logger.info(f"is_porn: found match: {keyword}")
-            return True
-    logger.info("is_porn: no matches found")
+
+    # 3. Собираем единый текст для поиска
+    combined = " ".join([title_lower, description_lower, caption_lower])
+    logger.debug(f"is_porn combined text: '{combined}'")
+    logger.debug(f"is_porn keywords: {PORN_KEYWORDS}")
+
+    # 4. Готовим regex-паттерн со списком ключевых слов
+    kws = [re.escape(kw.lower()) for kw in PORN_KEYWORDS if kw.strip()]
+    if not kws:
+        # нет ни одного валидного ключа
+        return False
+
+    # границы слов (\b) + флаг IGNORECASE
+    pattern = re.compile(r"\b(" + "|".join(kws) + r")\b", flags=re.IGNORECASE)
+
+    # 5. Ищем совпадение
+    if pattern.search(combined):
+        logger.info(f"is_porn: keyword match (regex): {pattern.pattern}")
+        return True
+
+    logger.info("is_porn: no keyword matches found")
     return False
 
 @app.on_message(filters.command("split") & filters.private)
-@reply_with_keyboard
-
+#@reply_with_keyboard
 def split_command(app, message):
     user_id = message.chat.id
     # Subscription check for non-admines
@@ -4300,8 +4529,7 @@ def split_command(app, message):
     send_to_logger(message, "User opened /split menu.")
 
 @app.on_callback_query(filters.regex(r"^split_size\|"))
-@reply_with_keyboard
-
+#@reply_with_keyboard
 def split_size_callback(app, callback_query):
     logger.info(f"[SPLIT] callback: {callback_query.data}")
     user_id = callback_query.from_user.id
@@ -4346,7 +4574,14 @@ def get_video_formats(url, user_id=None, playlist_start_index=1):
         'no_warnings': True,
         'extract_flat': False,
         'simulate': True,
-        'playlist_items': str(playlist_start_index),
+        'playlist_items': str(playlist_start_index),    
+        'extractor_args': {
+            'generic': ['impersonate=chrome']
+        },
+        'referer': url,
+        'geo_bypass': True,
+        'check_certificate': False,
+        'live_from_start': True
     }
     if user_id is not None:
         user_dir = os.path.join("users", str(user_id))
@@ -4365,7 +4600,6 @@ def get_video_formats(url, user_id=None, playlist_start_index=1):
     except Exception as e:
         return {'error': str(e)}
 
-
 # --- Always ask processing ---
 def sort_quality_key(quality_key):
     """Sort qualities by increasing resolution from lower to higher"""
@@ -4380,6 +4614,7 @@ def sort_quality_key(quality_key):
         except ValueError:
             return 0  # for unknown formats
 
+#@reply_with_keyboard
 def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
     user_id = message.chat.id
     proc_msg = None
@@ -4404,7 +4639,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         if ("youtube.com" in url or "youtu.be" in url) and video_id:
             thumb_path = os.path.join(user_dir, f"yt_thumb_{video_id}.jpg")
             try:
-                download_thumbnail(video_id, thumb_path)
+                download_thumbnail(video_id, thumb_path, url)
             except Exception:
                 thumb_path = None
         # --- Table with qualities and sizes ---
@@ -4513,6 +4748,13 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
                 icon = "🚀" if quality_key in cached_qualities else "📹"
                 button_text = f"{icon} Best Quality"
             buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
+            
+            # Add "Try Another Qualities" button when no automatic qualities detected
+            buttons.append(InlineKeyboardButton("🎛 Force Quality", callback_data=f"askq|try_manual"))
+            
+            # Add explanation when automatic quality detection fails
+            autodiscovery_note = "<blockquote>⚠️ Available qualities could not be automatically detected. You can manually force a specific quality.</blockquote>"
+            cap += f"\n{autodiscovery_note}\n"
         # --- Form rows of 3 buttons ---
         keyboard_rows = []
         for i in range(0, len(buttons), 3):
@@ -4579,8 +4821,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
 
 # --- Callback Processor ---
 @app.on_callback_query(filters.regex(r"^askq\|"))
-@reply_with_keyboard
-
+#@reply_with_keyboard
 def askq_callback(app, callback_query):
     logger.info(f"[ASKQ] callback: {callback_query.data}")
     user_id = callback_query.from_user.id
@@ -4589,6 +4830,105 @@ def askq_callback(app, callback_query):
     if data == "cancel":
         callback_query.message.delete()
         callback_query.answer("Menu closed.")
+        return
+    
+    # Handle manual quality selection menu
+    if data == "try_manual":
+        show_manual_quality_menu(app, callback_query)
+        return
+    
+    if data == "manual_back":
+        # Extract URL and tags to regenerate the original menu
+        original_message = callback_query.message.reply_to_message
+        if not original_message:
+            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            callback_query.message.delete()
+            return
+        
+        url = None
+        if callback_query.message.caption_entities:
+            for entity in callback_query.message.caption_entities:
+                if entity.type == enums.MessageEntityType.TEXT_LINK and entity.url:
+                    url = entity.url
+                    break
+        if not url and callback_query.message.reply_to_message:
+            url_match = re.search(r'https?://[^\s\*#]+', callback_query.message.reply_to_message.text)
+            if url_match:
+                url = url_match.group(0)
+        
+        if url:
+            tags = []
+            caption_text = callback_query.message.caption
+            if caption_text:
+                tag_matches = re.findall(r'#\S+', caption_text)
+                if tag_matches:
+                    tags = tag_matches
+            callback_query.message.delete()
+            ask_quality_menu(app, original_message, url, tags)
+        else:
+            callback_query.answer("❌ Error: URL not found.", show_alert=True)
+            callback_query.message.delete()
+        return
+    
+    # Handle manual quality selection
+    if data.startswith("manual_"):
+        quality = data.replace("manual_", "")
+        callback_query.answer(f"Downloading {quality}...")
+        
+        original_message = callback_query.message.reply_to_message
+        if not original_message:
+            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            callback_query.message.delete()
+            return
+        
+        url = None
+        if callback_query.message.caption_entities:
+            for entity in callback_query.message.caption_entities:
+                if entity.type == enums.MessageEntityType.TEXT_LINK and entity.url:
+                    url = entity.url
+                    break
+        if not url and callback_query.message.reply_to_message:
+            url_match = re.search(r'https?://[^\s\*#]+', callback_query.message.reply_to_message.text)
+            if url_match:
+                url = url_match.group(0)
+        
+        if not url:
+            callback_query.answer("❌ Error: URL not found.", show_alert=True)
+            callback_query.message.delete()
+            return
+        
+        tags = []
+        caption_text = callback_query.message.caption
+        if caption_text:
+            tag_matches = re.findall(r'#\S+', caption_text)
+            if tag_matches:
+                tags = tag_matches
+        tags_text = ' '.join(tags)
+        
+        callback_query.message.delete()
+        
+        # Force use specific quality format like in /format command
+        if quality == "best":
+            format_override = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best"
+        elif quality == "mp3":
+            down_and_audio(app, original_message, url, tags, quality_key="mp3")
+            return
+        else:
+            try:
+                quality_str = quality.replace('p', '')
+                quality_val = int(quality_str)
+                format_override = f"bv*[vcodec*=avc1][height<={quality_val}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+            except ValueError:
+                format_override = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best"
+        
+        # Handle playlists
+        original_text = original_message.text or original_message.caption or ""
+        if is_playlist_with_range(original_text):
+            _, video_start_with, video_end_with, playlist_name, _, _, _ = extract_url_range_tags(original_text)
+            video_count = video_end_with - video_start_with + 1
+            down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=quality)
+        else:
+            down_and_up_with_format(app, original_message, url, format_override, tags_text, quality_key=quality)
         return
 
     original_message = callback_query.message.reply_to_message
@@ -4668,16 +5008,17 @@ def askq_callback(app, callback_query):
                 if data == "mp3":
                     down_and_audio(app, original_message, url, tags, quality_key=used_quality_key, playlist_name=playlist_name, video_count=new_count, video_start_with=new_start)
                 else:
-                    # Form the correct format for the missing videos
-                    if used_quality_key == "best":
-                        format_override = "bestvideo+bestaudio/best"
-                    else:
-                        try:
+                    try:
+                        # Form the correct format for the missing videos
+                        if used_quality_key == "best":
+                            format_override = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+                        else:
                             quality_str = used_quality_key.replace('p', '')
                             quality_val = int(quality_str)
-                            format_override = f"bestvideo[height<={quality_val}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
-                        except ValueError:
-                            format_override = "bestvideo+bestaudio/best"
+                            format_override = f"bv*[vcodec*=avc1][height<={quality_val}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+                    except Exception as e:
+                        logger.error(f"askq_callback: error forming format: {e}")
+                        format_override = "bestvideo+bestaudio/best"
                     
                     down_and_up(app, original_message, url, playlist_name, new_count, new_start, tags_text, force_no_title=False, format_override=format_override, quality_key=used_quality_key)
             else:
@@ -4693,16 +5034,16 @@ def askq_callback(app, callback_query):
             if data == "mp3":
                 down_and_audio(app, original_message, url, tags, quality_key=data, playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with)
             else:
-                # Form the correct format for the new download
-                if data == "best":
-                    format_override = "bestvideo+bestaudio/best"
-                else:
-                    try:
+                try:
+                    # Form the correct format for the new download
+                    if data == "best":
+                        format_override = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+                    else:
                         quality_str = data.replace('p', '')
                         quality_val = int(quality_str)
-                        format_override = f"bestvideo[height<={quality_val}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
-                    except ValueError:
-                        format_override = "bestvideo+bestaudio/best"
+                        format_override = f"bv*[vcodec*=avc1][height<={quality_val}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+                except ValueError:
+                    format_override = "bestvideo+bestaudio/best"
                 
                 down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=data)
             return
@@ -4745,7 +5086,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
     # Logic for forming the format with the real height
     if data == "best":
         callback_query.answer("Downloading best quality...")
-        fmt = "bestvideo+bestaudio/best"
+        fmt = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best"
         quality_key = "best"
     else:
         try:
@@ -4767,7 +5108,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
             if max_width == 0 or max_height == 0:
                 quality_str = data.replace('p', '')
                 quality_val = int(quality_str)
-                fmt = f"bestvideo[height<={quality_val}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
+                fmt = f"bv*[vcodec*=avc1][height<={quality_val}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
             else:
                 # Determine the quality by the smaller side
                 min_side_quality = get_quality_by_min_side(max_width, max_height)
@@ -4776,11 +5117,13 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
                 if data != min_side_quality:
                     quality_str = data.replace('p', '')
                     quality_val = int(quality_str)
-                    fmt = f"bestvideo[height<={quality_val}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
+                    fmt = f"bv*[vcodec*=avc1][height<={quality_val}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
                 else:
                     # Use the real height to form the format
                     real_height = get_real_height_for_quality(data, max_width, max_height)
-                    fmt = f"bestvideo[height<={real_height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={real_height}]+bestaudio/best[height<={real_height}]/best"
+                    quality_str = data.replace('p', '')
+                    quality_val = int(quality_str)
+                    fmt = f"bv*[vcodec*=avc1][height<={real_height}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
             
             quality_key = data
             callback_query.answer(f"Downloading {data}...")
@@ -4790,7 +5133,139 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
     
     down_and_up_with_format(app, original_message, url, fmt, tags_text, quality_key=quality_key)
 
+#@reply_with_keyboard
+def show_manual_quality_menu(app, callback_query):
+    """Show manual quality selection menu when automatic detection fails"""
+    user_id = callback_query.from_user.id
+    
+    # Extract URL and tags from the callback
+    original_message = callback_query.message.reply_to_message
+    if not original_message:
+        callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+        callback_query.message.delete()
+        return
+    
+    url = None
+    if callback_query.message.caption_entities:
+        for entity in callback_query.message.caption_entities:
+            if entity.type == enums.MessageEntityType.TEXT_LINK and entity.url:
+                url = entity.url
+                break
+    if not url and callback_query.message.reply_to_message:
+        url_match = re.search(r'https?://[^\s\*#]+', callback_query.message.reply_to_message.text)
+        if url_match:
+            url = url_match.group(0)
+    
+    if not url:
+        callback_query.answer("❌ Error: URL not found.", show_alert=True)
+        callback_query.message.delete()
+        return
+    
+    tags = []
+    caption_text = callback_query.message.caption
+    if caption_text:
+        tag_matches = re.findall(r'#\S+', caption_text)
+        if tag_matches:
+            tags = tag_matches
+    tags_text = ' '.join(tags)
+    
+    # Check if it's a playlist
+    original_text = original_message.text or original_message.caption or ""
+    is_playlist = is_playlist_with_range(original_text)
+    playlist_range = None
+    if is_playlist:
+        _, video_start_with, video_end_with, _, _, _, _ = extract_url_range_tags(original_text)
+        playlist_range = (video_start_with, video_end_with)
+        cached_qualities = get_cached_playlist_qualities(get_clean_playlist_url(url))
+    else:
+        cached_qualities = get_cached_qualities(url)
+    
+    # Create manual quality buttons
+    manual_qualities = ["144p", "240p", "360p", "480p", "720p", "1080p", "1440p", "2160p", "4320p"]
+    buttons = []
+    
+    for quality in manual_qualities:
+        if is_playlist and playlist_range:
+            indices = list(range(playlist_range[0], playlist_range[1]+1))
+            n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality, indices)
+            total = len(indices)
+            icon = "🚀" if n_cached > 0 else "📹"
+            postfix = f" ({n_cached}/{total})" if total > 1 else ""
+            button_text = f"{icon} {quality}{postfix}"
+        else:
+            icon = "🚀" if quality in cached_qualities else "📹"
+            button_text = f"{icon} {quality}"
+        buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|manual_{quality}"))
+    
+    # Add Best Quality button
+    if is_playlist and playlist_range:
+        indices = list(range(playlist_range[0], playlist_range[1]+1))
+        n_cached = get_cached_playlist_count(get_clean_playlist_url(url), "best", indices)
+        total = len(indices)
+        icon = "🚀" if n_cached > 0 else "📹"
+        postfix = f" ({n_cached}/{total})" if total > 1 else ""
+        button_text = f"{icon} Best Quality{postfix}"
+    else:
+        icon = "🚀" if "best" in cached_qualities else "📹"
+        button_text = f"{icon} Best Quality"
+    buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|manual_best"))
+    
+    # Form rows of 3 buttons
+    keyboard_rows = []
+    for i in range(0, len(buttons), 3):
+        keyboard_rows.append(buttons[i:i+3])
+    
+    # Add mp3 button
+    quality_key = "mp3"
+    if is_playlist and playlist_range:
+        indices = list(range(playlist_range[0], playlist_range[1]+1))
+        n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
+        total = len(indices)
+        icon = "🚀" if n_cached > 0 else "🎵"
+        postfix = f" ({n_cached}/{total})" if total > 1 else ""
+        button_text = f"{icon} audio (mp3){postfix}"
+    else:
+        icon = "🚀" if quality_key in cached_qualities else "🎵"
+        button_text = f"{icon} audio (mp3)"
+    keyboard_rows.append([InlineKeyboardButton(button_text, callback_data=f"askq|manual_{quality_key}")])
+    
+    # Add Back and Cancel buttons
+    keyboard_rows.append([
+        InlineKeyboardButton("🔙 Back", callback_data="askq|manual_back"),
+        InlineKeyboardButton("❌ Cancel", callback_data="askq|cancel")
+    ])
+    
+    keyboard = InlineKeyboardMarkup(keyboard_rows)
+    
+    # Get video title for caption
+    try:
+        info = get_video_formats(url, user_id)
+        title = info.get('title', 'Video')
+        video_title = title
+    except:
+        video_title = "Video"
+    
+    # Form caption
+    cap = f"<b>{video_title}</b>\n"
+    if tags_text:
+        cap += f"{tags_text}\n"
+    cap += f"\n<b>🎛 Manual Quality Selection</b>\n"
+    cap += f"\n<i>Choose quality manually since automatic detection failed:</i>\n"
+    
+    # Update the message
+    try:
+        if callback_query.message.photo:
+            callback_query.edit_message_caption(caption=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+        else:
+            callback_query.edit_message_text(text=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+        callback_query.answer("Manual quality selection menu opened.")
+    except Exception as e:
+        logger.error(f"Error showing manual quality menu: {e}")
+        callback_query.answer("❌ Error opening manual quality menu.", show_alert=True)
+
+
 # --- an auxiliary function for downloading with the format ---
+#@reply_with_keyboard
 def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None):
 
     # We extract the range and other parameters from the original user message

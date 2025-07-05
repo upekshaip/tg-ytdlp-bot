@@ -85,10 +85,10 @@ To download playlists send its URL with <code>*start*end</code> ranges in the en
 
 <b>Examples:</b>
 
-🟥 <b>Video range from playlist:</b>
+🟥 <b>Video range from YouTube playlist:</b>
 <code>https://youtu.be/playlist?list=PL...*1*5</code>
 (downloads videos from 1 to 5 inclusive)
-🟥 <b>Single video from playlist:</b>
+🟥 <b>Single video from YouTube playlist:</b>
 <code>https://youtu.be/playlist?list=PL...*3*3</code>
 (downloads only the 3rd video)
 
@@ -101,16 +101,24 @@ To download playlists send its URL with <code>*start*end</code> ranges in the en
 (downloads first 10 stories from album)
 
 🟦 <b>VK videos:</b>
-<code>https://vkvideo.ru/@USERNAME*1*3</code>
-(downloads first 3 videos from user profile)
+<code>https://vkvideo.ru/@PAGE_NAME*1*3</code>
+(downloads first 3 videos from user/group profile)
 
-⬜️ <b>Vimeo groups:</b>
+⬛️<b>Rutube channels:</b>
+<code>https://rutube.ru/channel/CHANNEL_ID/videos*2*4</code>
+(downloads videos from 2 to 4 inclusive from channel)
+
+🟪 <b>Twitch clips:</b>
+<code>https://www.twitch.tv/USERNAME/clips*1*3</code>
+(downloads first 3 clips from channel)
+
+🟦 <b>Vimeo groups:</b>
 <code>https://vimeo.com/groups/GROUP_NAME/videos*1*2</code>
 (downloads first 2 videos from group)
 
-<tg-spoiler>🟧 <b>Pornhub videos:</b>
+🟧 <b>Pornhub models:</b>
 <code>https://www.pornhub.org/model/MODEL_NAME*1*2</code>
-(downloads first 2 video from model profile)</tg-spoiler>
+(downloads first 2 video from model profile)
 
 and so on...
 see <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md">supported sites list</a>
@@ -219,7 +227,8 @@ see <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md">sup
     SUPPORTED_SITES_FILE = "supported_sites.txt"
     # --- Whitelist of domains that are not considered porn ---
     WHITELIST = [
-        'dailymotion.com', 'sky.com', 'xbox.com', 'youtube.com', 'youtu.be', '1tv.ru', 'x.ai'
+        'dailymotion.com', 'sky.com', 'xbox.com', 'youtube.com', 'youtu.be', '1tv.ru', 'x.ai',
+        'twitch.tv', 'www.twitch.tv', 'vimeo.com', 'facebook.com'
         # Other secure domains can be added
     ]
     # TikTok Domain List
