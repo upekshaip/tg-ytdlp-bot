@@ -2688,7 +2688,6 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                'prefer_ffmpeg': True,
                'extractaudio': True,
                'playlist_items': str(current_index + video_start_with),
-               'cookiefile': cookie_file,
                'outtmpl': os.path.join(user_folder, "%(title).50s.%(ext)s"),
                'progress_hooks': [progress_hook],
                'extractor_args': {
@@ -2698,7 +2697,14 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                'geo_bypass': True,
                'check_certificate': False,
                'live_from_start': True,
-            }   
+            }
+            
+            # Проверяем, нужно ли использовать --no-cookies для данного домена
+            if is_no_cookie_domain(url):
+                ytdl_opts['cookiefile'] = None  # Эквивалент --no-cookies
+                logger.info(f"Using --no-cookies for domain: {url}")
+            else:
+                ytdl_opts['cookiefile'] = cookie_file   
             try:
                 with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
                     info_dict = ydl.extract_info(url, download=False)
@@ -3190,7 +3196,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         def try_download(url, attempt_opts):
             nonlocal current_total_process, error_message
             common_opts = {
-                'cookiefile': os.path.join("users", str(user_id), os.path.basename(Config.COOKIE_FILE_PATH)),
                 'playlist_items': str(current_index),  # We use only current_index for playlists
                 'outtmpl': os.path.join(user_dir_name, "%(title).50s.%(ext)s"),
                 'postprocessors': [
@@ -3209,6 +3214,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 'check_certificate': False,
                 'live_from_start': True
             }
+            
+            # Проверяем, нужно ли использовать --no-cookies для данного домена
+            if is_no_cookie_domain(url):
+                common_opts['cookiefile'] = None  # Эквивалент --no-cookies
+                logger.info(f"Using --no-cookies for domain: {url}")
+            else:
+                common_opts['cookiefile'] = os.path.join("users", str(user_id), os.path.basename(Config.COOKIE_FILE_PATH))
             
             # If this is not a playlist with a range, add --no-playlist to the URL with the list parameter
             if not is_playlist and 'list=' in url:
@@ -4586,7 +4598,11 @@ def get_video_formats(url, user_id=None, playlist_start_index=1):
     if user_id is not None:
         user_dir = os.path.join("users", str(user_id))
         cookie_file = os.path.join(user_dir, os.path.basename(Config.COOKIE_FILE_PATH))
-        if os.path.exists(cookie_file):
+        # Проверяем, нужно ли использовать --no-cookies для данного домена
+        if is_no_cookie_domain(url):
+            ytdl_opts['cookiefile'] = None  # Эквивалент --no-cookies
+            logger.info(f"Using --no-cookies for domain in get_video_formats: {url}")
+        elif os.path.exists(cookie_file):
             ytdl_opts['cookiefile'] = cookie_file
     try:
         with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
@@ -5901,6 +5917,31 @@ def get_real_height_for_quality(quality: str, width: int, height: int) -> int:
             return min(heights, key=lambda h: abs(h - height))
     except ValueError:
         return height
+
+
+def is_no_cookie_domain(url: str) -> bool:
+    """
+    Проверяет, является ли домен из списка NO_COOKIE_DOMAINS.
+    Для таких доменов нужно использовать --no-cookies вместо --cookies.
+    """
+    try:
+        parsed_url = urlparse(url)
+        domain = parsed_url.netloc.lower()
+        
+        # Убираем www. если есть
+        if domain.startswith('www.'):
+            domain = domain[4:]
+            
+        # Проверяем домен и его поддомены
+        for no_cookie_domain in Config.NO_COOKIE_DOMAINS:
+            if domain == no_cookie_domain or domain.endswith('.' + no_cookie_domain):
+                logger.info(f"URL {url} matches NO_COOKIE_DOMAINS pattern: {no_cookie_domain}")
+                return True
+                
+        return False
+    except Exception as e:
+        logger.error(f"Error checking NO_COOKIE_DOMAINS for URL {url}: {e}")
+        return False
 
 
 app.run()
