@@ -231,6 +231,10 @@ see <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md">sup
         'twitch.tv', 'www.twitch.tv', 'vimeo.com', 'facebook.com'
         # Other secure domains can be added
     ]
+    NO_COOKIE_DOMAINS = [
+        'dailymotion.com'
+        # Other secure domains can be added
+    ]    
     # TikTok Domain List
     TIKTOK_DOMAINS = [
         'tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com',
