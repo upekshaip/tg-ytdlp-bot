@@ -90,10 +90,10 @@ To download playlists send its URL with <code>*start*end</code> ranges in the en
 
 <b>Examples:</b>
 
-🟥 <b>Video range from YouTube playlist:</b>
+🟥 <b>Video range from YouTube playlist:</b> (need 🍪)
 <code>https://youtu.be/playlist?list=PL...*1*5</code>
 (downloads videos from 1 to 5 inclusive)
-🟥 <b>Single video from YouTube playlist:</b>
+🟥 <b>Single video from YouTube playlist:</b> (need 🍪)
 <code>https://youtu.be/playlist?list=PL...*3*3</code>
 (downloads only the 3rd video)
 
@@ -101,7 +101,7 @@ To download playlists send its URL with <code>*start*end</code> ranges in the en
 <code>https://www.tiktok.com/@USERNAME*1*10</code>
 (downloads first 10 videos from user profile)
 
-🟪 <b>Instagram stories albums:</b> (need your 🍪)
+🟪 <b>Instagram stories:</b> (need your 🍪)
 <code>https://www.instagram.com/stories/USERNAME*1*3</code>
 (downloads first 3 stories)
 <code>https://www.instagram.com/stories/highlights/123...*1*10</code>
