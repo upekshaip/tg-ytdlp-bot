@@ -19,14 +19,19 @@ class Config(object):
     # Add main channel to subscribe - Required (int)
     SUBSCRIBE_CHANNEL = -0000000000000
     # Add subscription channel - Required (str)
-    SUBSCRIBE_CHANNEL_URL = "https://t.me/upekshaip"
+    SUBSCRIBE_CHANNEL_URL = "https://t.me/YOUR_CHANNEL_NAME"
     # Download timeout in seconds (2 hours = 7200 seconds)
     DOWNLOAD_TIMEOUT = 7200
     # Cookie file URL
     # EX: "https://path/to/your/cookie-file.txt"
     COOKIE_URL = ""
+    YOUTUBE_COOKIE_URL = ""
+    INSTAGRAM_COOKIE_URL = ""
+    TWITTER_COOKIE_URL = ""
+    TIKTOK_COOKIE_URL = ""
+    FACEBOOK_COOKIE_URL = ""
     # Do not chanege this
-    COOKIE_FILE_PATH = "cookies.txt"
+    COOKIE_FILE_PATH = "cookies/cookie.txt"
     # Do not chanege this
     PIC_FILE_PATH = "pic.jpg"
     #######################################################
