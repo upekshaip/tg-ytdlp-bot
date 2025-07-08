@@ -102,6 +102,8 @@ To download playlists send its URL with <code>*start*end</code> ranges in the en
 (downloads first 10 videos from user profile)
 
 🟪 <b>Instagram stories albums:</b> (need your 🍪)
+<code>https://www.instagram.com/stories/USERNAME*1*3</code>
+(downloads first 3 stories)
 <code>https://www.instagram.com/stories/highlights/123...*1*10</code>
 (downloads first 10 stories from album)
 
