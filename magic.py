@@ -1702,20 +1702,98 @@ def save_my_cookie(app, message):
 
 #@reply_with_keyboard
 def download_cookie(app, message):
+    """
+    Shows a menu with buttons to download cookie files from different services.
+    """
     user_id = str(message.chat.id)
-    response = requests.get(Config.COOKIE_URL)
-    if response.status_code == 200:
-        user_dir = os.path.join("users", user_id)
-        create_directory(user_dir)
-        cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
-        file_path = os.path.join(user_dir, cookie_filename)
-        with open(file_path, "wb") as cf:
-            cf.write(response.content)
-        send_to_user(message, "**✅ YouTube cookie file downloaded and saved in your folder.**")
-        send_to_logger(message, f"YouTube cookie file downloaded for user {user_id}.")
-    else:
-        send_to_user(message, "❌ Cookie URL is not available!")
-        send_to_logger(message, f"Failed to download cookie file for user {user_id}.")
+    
+    # Buttons for services
+    buttons = [
+        [InlineKeyboardButton("📺 YouTube", callback_data="download_cookie|youtube")],
+        [InlineKeyboardButton("📷 Instagram", callback_data="download_cookie|instagram")],
+        [InlineKeyboardButton("🐦 Twitter/X", callback_data="download_cookie|twitter")],
+        [InlineKeyboardButton("🎵 TikTok", callback_data="download_cookie|tiktok")],
+        [InlineKeyboardButton("📘 Facebook", callback_data="download_cookie|facebook")]
+    ]
+    keyboard = InlineKeyboardMarkup(buttons)
+    text = """
+🍪 **Download Cookie Files**
+
+Choose a service to download the cookie file:
+
+• **YouTube** - for youtube.com and youtu.be
+• **Instagram** - for instagram.com
+• **Twitter/X** - for twitter.com and x.com
+• **TikTok** - for tiktok.com
+• **Facebook** - for facebook.com and fb.com
+
+Cookie files will be saved as cookie.txt in your folder.
+"""
+    app.send_message(
+        chat_id=user_id,
+        text=text,
+        reply_markup=keyboard,
+        reply_to_message_id=message.id
+    )
+
+@app.on_callback_query(filters.regex(r"^download_cookie\|"))
+#@reply_with_keyboard
+def download_cookie_callback(app, callback_query):
+    user_id = callback_query.from_user.id
+    data = callback_query.data.split("|")[1]
+
+    if data == "youtube":
+        download_and_save_cookie(app, callback_query, Config.YOUTUBE_COOKIE_URL, "youtube")
+    elif data == "instagram":
+        download_and_save_cookie(app, callback_query, Config.INSTAGRAM_COOKIE_URL, "instagram")
+    elif data == "twitter":
+        download_and_save_cookie(app, callback_query, Config.TWITTER_COOKIE_URL, "twitter")
+    elif data == "tiktok":
+        download_and_save_cookie(app, callback_query, Config.TIKTOK_COOKIE_URL, "tiktok")
+    elif data == "facebook":
+        download_and_save_cookie(app, callback_query, Config.FACEBOOK_COOKIE_URL, "facebook")
+
+def download_and_save_cookie(app, callback_query, url, service):
+    user_id = str(callback_query.from_user.id)
+    
+    # Check if URL is not empty
+    if not url:
+        send_to_user(callback_query.message, f"❌ {service.capitalize()} Cookie URL is not configured!")
+        send_to_logger(callback_query.message, f"{service.capitalize()} Cookie URL not configured for user {user_id}.")
+        return
+    
+    try:
+        response = requests.get(url, timeout=30)
+        if response.status_code == 200:
+            # Check if the file extension is .txt
+            if not url.lower().endswith('.txt'):
+                send_to_user(callback_query.message, f"❌ {service.capitalize()} Cookie URL must point to a .txt file!")
+                send_to_logger(callback_query.message, f"{service.capitalize()} Cookie URL is not a .txt file for user {user_id}.")
+                return
+            
+            # Check the file size (maximum 100KB)
+            content_size = len(response.content)
+            if content_size > 100 * 1024:  # 100KB in bytes
+                send_to_user(callback_query.message, f"❌ {service.capitalize()} Cookie file is too large! Maximum size is 100KB, got {content_size // 1024}KB.")
+                send_to_logger(callback_query.message, f"{service.capitalize()} Cookie file too large ({content_size} bytes) for user {user_id}.")
+                return
+            
+            # Save the file in the user's folder as cookie.txt
+            user_dir = os.path.join("users", user_id)
+            create_directory(user_dir)
+            cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
+            file_path = os.path.join(user_dir, cookie_filename)
+            with open(file_path, "wb") as cf:
+                cf.write(response.content)
+                
+            send_to_user(callback_query.message, f"**✅ {service.capitalize()} cookie file downloaded and saved as cookie.txt in your folder.**")
+            send_to_logger(callback_query.message, f"{service.capitalize()} cookie file downloaded for user {user_id}.")
+        else:
+            send_to_user(callback_query.message, f"❌ {service.capitalize()} Cookie URL is not available! (Status: {response.status_code})")
+            send_to_logger(callback_query.message, f"Failed to download {service.capitalize()} cookie file for user {user_id}. Status: {response.status_code}")
+    except requests.exceptions.RequestException as e:
+        send_to_user(callback_query.message, f"❌ Error downloading {service.capitalize()} cookie file: {str(e)}")
+        send_to_logger(callback_query.message, f"Error downloading {service.capitalize()} cookie file for user {user_id}: {str(e)}")
 
 
 # Caption Editor for Videos
@@ -2630,7 +2708,25 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 if error_key in playlist_errors:
                     del playlist_errors[error_key]
 
-        cookie_file = os.path.join(user_folder, os.path.basename(Config.COOKIE_FILE_PATH))
+        # Проверяем наличие cookie.txt в папке пользователя
+        user_cookie_path = os.path.join(user_folder, "cookie.txt")
+        if os.path.exists(user_cookie_path):
+            cookie_file = user_cookie_path
+        else:
+            # Если нет в папке пользователя, копируем из глобальной папки
+            global_cookie_path = Config.COOKIE_FILE_PATH
+            if os.path.exists(global_cookie_path):
+                try:
+                    create_directory(user_folder)
+                    import shutil
+                    shutil.copy2(global_cookie_path, user_cookie_path)
+                    logger.info(f"Copied global cookie file to user {user_id} folder for audio download")
+                    cookie_file = user_cookie_path
+                except Exception as e:
+                    logger.error(f"Failed to copy global cookie file for user {user_id}: {e}")
+                    cookie_file = None
+            else:
+                cookie_file = None
         last_update = 0
         current_total_process = ""
         successful_uploads = 0
@@ -2737,8 +2833,15 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 return info_dict
             except yt_dlp.utils.DownloadError as e:
                 error_text = str(e)
-                send_to_user(message, f"❌ Error downloading: {error_text}\n\nPerhaps cookie authorization is required. More information: https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp")
                 logger.error(f"DownloadError: {error_text}")
+                # Send full error message with instructions immediately
+                send_to_all(
+                    message,
+                    f"❌ Error downloading: {error_text}\n────────────────\n"
+                    "> Check [here](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) if your site supported\n"
+                    "> You may need `cookie` for downloading this audio. First, clean your workspace via **/clean** command\n"
+                    "> For Youtube - get `cookie` via **/download_cookie** command. For any other supported site - send your own cookie ([guide1](https://t.me/c/2303231066/18)) ([guide2](https://t.me/c/2303231066/22)) and after that send your audio link again."
+                )
                 return None
             except Exception as e:
                 logger.error(f"Audio download attempt failed: {e}")
@@ -2773,12 +2876,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     error_key = f"{user_id}_{playlist_name}"
                     if error_key not in playlist_errors:
                         playlist_errors[error_key] = True
-                        send_to_all(
-                            message,
-                            f"❌ Failed to download audio: Check if your site is supported\n"
-                            "> You may need `cookie` for downloading this audio. First, clean your workspace via **/clean** command\n"
-                            "> For Youtube - get `cookie` via **/download_cookie** command. For any other supported site - send your own cookie and after that send your audio link again."
-                        )
+
                 break
 
             successful_uploads += 1
@@ -3220,7 +3318,26 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 common_opts['cookiefile'] = None  # Эквивалент --no-cookies
                 logger.info(f"Using --no-cookies for domain: {url}")
             else:
-                common_opts['cookiefile'] = os.path.join("users", str(user_id), os.path.basename(Config.COOKIE_FILE_PATH))
+                # Проверяем наличие cookie.txt в папке пользователя
+                user_cookie_path = os.path.join("users", str(user_id), "cookie.txt")
+                if os.path.exists(user_cookie_path):
+                    common_opts['cookiefile'] = user_cookie_path
+                else:
+                    # Если нет в папке пользователя, копируем из глобальной папки
+                    global_cookie_path = Config.COOKIE_FILE_PATH
+                    if os.path.exists(global_cookie_path):
+                        try:
+                            user_dir = os.path.join("users", str(user_id))
+                            create_directory(user_dir)
+                            import shutil
+                            shutil.copy2(global_cookie_path, user_cookie_path)
+                            logger.info(f"Copied global cookie file to user {user_id} folder")
+                            common_opts['cookiefile'] = user_cookie_path
+                        except Exception as e:
+                            logger.error(f"Failed to copy global cookie file for user {user_id}: {e}")
+                            common_opts['cookiefile'] = None
+                    else:
+                        common_opts['cookiefile'] = None
             
             # If this is not a playlist with a range, add --no-playlist to the URL with the list parameter
             if not is_playlist and 'list=' in url:
@@ -3282,8 +3399,15 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             except yt_dlp.utils.DownloadError as e:
                 nonlocal error_message
                 error_message = str(e)
-                send_to_user(message, f"❌ Error downloading: {error_message}\n\nPerhaps cookie authorization is required. More information: https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp")
                 logger.error(f"DownloadError: {error_message}")
+                # Send full error message with instructions immediately
+                send_to_all(
+                    message,
+                    f"❌ Error downloading: {error_message}\n────────────────\n"
+                    "> Check [here](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) if your site supported\n"
+                    "> You may need `cookie` for downloading this video. First, clean your workspace via **/clean** command\n"
+                    "> For Youtube - get `cookie` via **/download_cookie** command. For any other supported site - send your own cookie ([guide1](https://t.me/c/2303231066/18)) ([guide2](https://t.me/c/2303231066/22)) and after that send your video link again."
+                )
                 return None
             except Exception as e:
                 error_message = str(e)
@@ -3338,13 +3462,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     error_key = f"{user_id}_{playlist_name}"
                     if error_key not in playlist_errors:
                         playlist_errors[error_key] = True
-                        send_to_all(
-                            message,
-                            f"❌ Failed to download video: {error_message}\n────────────────\n"
-                            "> Check [here](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) if your site supported\n"
-                            "> You may need `cookie` for downloading this video. First, clean your workspace via **/clean** command\n"
-                            "> For Youtube - get `cookie` via **/download_cookie** command. For any other supported site - send your own cookie ([guide1](https://t.me/c/2303231066/18)) ([guide2](https://t.me/c/2303231066/22)) and after that send your video link again."
-                        )
+
                 break
 
             successful_uploads += 1
@@ -4597,12 +4715,31 @@ def get_video_formats(url, user_id=None, playlist_start_index=1):
     }
     if user_id is not None:
         user_dir = os.path.join("users", str(user_id))
-        cookie_file = os.path.join(user_dir, os.path.basename(Config.COOKIE_FILE_PATH))
+        # Проверяем наличие cookie.txt в папке пользователя
+        user_cookie_path = os.path.join(user_dir, "cookie.txt")
+        if os.path.exists(user_cookie_path):
+            cookie_file = user_cookie_path
+        else:
+            # Если нет в папке пользователя, копируем из глобальной папки
+            global_cookie_path = Config.COOKIE_FILE_PATH
+            if os.path.exists(global_cookie_path):
+                try:
+                    create_directory(user_dir)
+                    import shutil
+                    shutil.copy2(global_cookie_path, user_cookie_path)
+                    logger.info(f"Copied global cookie file to user {user_id} folder for format detection")
+                    cookie_file = user_cookie_path
+                except Exception as e:
+                    logger.error(f"Failed to copy global cookie file for user {user_id}: {e}")
+                    cookie_file = None
+            else:
+                cookie_file = None
+        
         # Проверяем, нужно ли использовать --no-cookies для данного домена
         if is_no_cookie_domain(url):
             ytdl_opts['cookiefile'] = None  # Эквивалент --no-cookies
             logger.info(f"Using --no-cookies for domain in get_video_formats: {url}")
-        elif os.path.exists(cookie_file):
+        elif cookie_file:
             ytdl_opts['cookiefile'] = cookie_file
     try:
         with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
