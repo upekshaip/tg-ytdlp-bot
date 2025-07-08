@@ -2844,8 +2844,17 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 )
                 return None
             except Exception as e:
+                error_text = str(e)
                 logger.error(f"Audio download attempt failed: {e}")
-                send_to_user(message, f"❌ Unknown error: {e}")
+                
+                # Check if this is a "No videos found in playlist" error
+                if "No videos found in playlist" in error_text or "Story might have expired" in error_text:
+                    error_message = f"❌ No content found at index {current_index + video_start_with}"
+                    send_to_all(message, error_message)
+                    logger.info(f"Skipping item at index {current_index} (no content found)")
+                    return "SKIP"
+                else:
+                    send_to_user(message, f"❌ Unknown error: {e}")
                 return None
 
         if is_playlist and quality_key:
@@ -3413,8 +3422,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 error_message = str(e)
                 logger.error(f"Attempt with format {ytdl_opts.get('format', 'default')} failed: {e}")
                 
-                # Check if this is a "No videos found in playlist" error - skip it
+                # Check if this is a "No videos found in playlist" error
                 if "No videos found in playlist" in str(e):
+                    error_message = f"❌ No videos found in playlist at index {current_index + 1}."
+                    send_to_all(message, error_message)
                     logger.info(f"Skipping playlist item at index {current_index} (no video found)")
                     return "SKIP"  # Special return value to indicate skip
                 
