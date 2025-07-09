@@ -5024,6 +5024,7 @@ def askq_callback(app, callback_query):
             embed_url,
             reply_to_message_id=original_message.id
         )
+        send_to_logger(original_message, f"Quick Embed: {embed_url}")
         callback_query.message.delete()
         return
     
