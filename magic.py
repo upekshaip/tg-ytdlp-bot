@@ -4922,8 +4922,8 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         # --- Form rows of 3 buttons ---
         keyboard_rows = []
         
-        # Add Quick Embed button for supported services at the top
-        if is_instagram_url(url) or is_twitter_url(url) or is_reddit_url(url):
+        # Add Quick Embed button for supported services at the top (but not for ranges)
+        if (is_instagram_url(url) or is_twitter_url(url) or is_reddit_url(url)) and not is_playlist_with_range(original_text):
             keyboard_rows.append([InlineKeyboardButton("🚀 Quick Embed", callback_data="askq|quick_embed")])
         for i in range(0, len(buttons), 3):
             keyboard_rows.append(buttons[i:i+3])
