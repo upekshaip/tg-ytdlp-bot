@@ -1,4 +1,4 @@
-# Version 2.4.3
+# Version 2.5.0
 import hashlib
 import logging
 import math
@@ -4921,6 +4921,10 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             cap += f"\n{autodiscovery_note}\n"
         # --- Form rows of 3 buttons ---
         keyboard_rows = []
+        
+        # Add Quick Embed button for supported services at the top
+        if is_instagram_url(url) or is_twitter_url(url) or is_reddit_url(url):
+            keyboard_rows.append([InlineKeyboardButton("🚀 Quick Embed", callback_data="askq|quick_embed")])
         for i in range(0, len(buttons), 3):
             keyboard_rows.append(buttons[i:i+3])
         # --- button mp3 ---
@@ -4994,6 +4998,33 @@ def askq_callback(app, callback_query):
     if data == "cancel":
         callback_query.message.delete()
         callback_query.answer("Menu closed.")
+        return
+        
+    if data == "quick_embed":
+        # Get original URL from the reply message
+        original_message = callback_query.message.reply_to_message
+        if not original_message:
+            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            return
+            
+        url = original_message.text
+        if not url:
+            callback_query.answer("❌ Error: URL not found.", show_alert=True)
+            return
+            
+        # Transform URL
+        embed_url = transform_to_embed_url(url)
+        if embed_url == url:
+            callback_query.answer("❌ This URL cannot be embedded.", show_alert=True)
+            return
+            
+        # Send transformed URL
+        app.send_message(
+            callback_query.message.chat.id,
+            embed_url,
+            reply_to_message_id=original_message.id
+        )
+        callback_query.message.delete()
         return
     
     # Handle manual quality selection menu
@@ -6090,6 +6121,35 @@ def is_no_cookie_domain(url: str) -> bool:
     except Exception as e:
         logger.error(f"Error checking NO_COOKIE_DOMAINS for URL {url}: {e}")
         return False
+
+
+def is_instagram_url(url: str) -> bool:
+    """Check if URL is from Instagram"""
+    return any(domain in url.lower() for domain in ['instagram.com', 'www.instagram.com'])
+
+
+def is_twitter_url(url: str) -> bool:
+    """Check if URL is from Twitter/X"""
+    return any(domain in url.lower() for domain in ['twitter.com', 'www.twitter.com', 'x.com', 'www.x.com'])
+
+
+def is_reddit_url(url: str) -> bool:
+    """Check if URL is from Reddit"""
+    return any(domain in url.lower() for domain in ['reddit.com', 'www.reddit.com'])
+
+
+def transform_to_embed_url(url: str) -> str:
+    """Transform URL to embeddable format"""
+    if is_instagram_url(url):
+        # Replace instagram.com with ddinstagram.com
+        return url.replace('instagram.com', 'instagramez.com').replace('www.instagramez.com', 'instagramez.com')
+    elif is_twitter_url(url):
+        # Replace twitter.com/x.com with fxtwitter.com
+        return url.replace('twitter.com', 'fxtwitter.com').replace('x.com', 'fxtwitter.com').replace('www.fxtwitter.com', 'fxtwitter.com')
+    elif is_reddit_url(url):
+        # Replace reddit.com with rxddit.com
+        return url.replace('reddit.com', 'rxddit.com').replace('www.rxddit.com', 'rxddit.com')
+    return url
 
 
 app.run()
