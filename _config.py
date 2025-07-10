@@ -21,7 +21,10 @@ class Config(object):
     # Add subscription channel - Required (str)
     SUBSCRIBE_CHANNEL_URL = "https://t.me/YOUR_CHANNEL_NAME"
     # Download timeout in seconds (2 hours = 7200 seconds)
-    DOWNLOAD_TIMEOUT = 7200
+    DOWNLOAD_TIMEOUT = 7200 # in seconds
+    MAX_SUB_QUALITY = 720 # 720p
+    MAX_SUB_DURATION = 3600 # in seconds
+    MAX_SUB_SIZE = 500 # in MB      
     # Cookie file URL
     # EX: "https://path/to/your/cookie-file.txt"
     COOKIE_URL = ""
@@ -55,6 +58,7 @@ class Config(object):
     #######################################################
     # Commands
     DOWNLOAD_COOKIE_COMMAND = "/download_cookie"
+    SUBS_COMMAND = "/subs"
     CHECK_COOKIE_COMMAND = "/check_cookie"
     SAVE_AS_COOKIE_COMMAND = "/save_as_cookie"
     AUDIO_COMMAND = "/audio"
