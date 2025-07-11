@@ -132,10 +132,10 @@ python3 magic.py
    sudo apt install fonts-noto-core             # – Noto Sans, Noto Serif, … base fonts Google Noto
    sudo apt install fonts-noto-extra            # – extra fonts (including arabic)
    sudo apt install fonts-kacst fonts-kacst-one # – KACST arabic fonts
-   sudo apt install fonts-noto-cjk             # – Chinese-Japanese-Korean characters
+   sudo apt install fonts-noto-cjk              # – Chinese-Japanese-Korean characters
    ```
 
-   For Amri arabic:
+   For Amiri arabic:
    ```sh
    git clone https://github.com/aliftype/amiri.git
    sudo mkdir -p /usr/share/fonts/truetype/amiri
