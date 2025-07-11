@@ -83,7 +83,7 @@ If you prefer local deployment rather than docker container, you should use this
 #### Install `git` and `python3` (example for Ubuntu/Debian)
 ```sh
 sudo apt update
-sudo apt install git python3.10 python3-pip python3.10-venv
+sudo apt install git python3.10 python3-pip python3.10-venv fonts-noto-cjk
 ```
 #### Setting up `config.py`
 ```sh
