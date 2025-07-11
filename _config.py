@@ -19,14 +19,22 @@ class Config(object):
     # Add main channel to subscribe - Required (int)
     SUBSCRIBE_CHANNEL = -0000000000000
     # Add subscription channel - Required (str)
-    SUBSCRIBE_CHANNEL_URL = "https://t.me/upekshaip"
+    SUBSCRIBE_CHANNEL_URL = "https://t.me/YOUR_CHANNEL_NAME"
     # Download timeout in seconds (2 hours = 7200 seconds)
-    DOWNLOAD_TIMEOUT = 7200
+    DOWNLOAD_TIMEOUT = 7200 # in seconds
+    MAX_SUB_QUALITY = 720 # 720p
+    MAX_SUB_DURATION = 3600 # in seconds
+    MAX_SUB_SIZE = 500 # in MB      
     # Cookie file URL
     # EX: "https://path/to/your/cookie-file.txt"
     COOKIE_URL = ""
+    YOUTUBE_COOKIE_URL = ""
+    INSTAGRAM_COOKIE_URL = ""
+    TWITTER_COOKIE_URL = ""
+    TIKTOK_COOKIE_URL = ""
+    FACEBOOK_COOKIE_URL = ""
     # Do not chanege this
-    COOKIE_FILE_PATH = "cookies.txt"
+    COOKIE_FILE_PATH = "cookies/cookie.txt"
     # Do not chanege this
     PIC_FILE_PATH = "pic.jpg"
     #######################################################
@@ -50,6 +58,7 @@ class Config(object):
     #######################################################
     # Commands
     DOWNLOAD_COOKIE_COMMAND = "/download_cookie"
+    SUBS_COMMAND = "/subs"
     CHECK_COOKIE_COMMAND = "/check_cookie"
     SAVE_AS_COOKIE_COMMAND = "/save_as_cookie"
     AUDIO_COMMAND = "/audio"
@@ -85,10 +94,10 @@ To download playlists send its URL with <code>*start*end</code> ranges in the en
 
 <b>Examples:</b>
 
-🟥 <b>Video range from YouTube playlist:</b>
+🟥 <b>Video range from YouTube playlist:</b> (need 🍪)
 <code>https://youtu.be/playlist?list=PL...*1*5</code>
 (downloads videos from 1 to 5 inclusive)
-🟥 <b>Single video from YouTube playlist:</b>
+🟥 <b>Single video from YouTube playlist:</b> (need 🍪)
 <code>https://youtu.be/playlist?list=PL...*3*3</code>
 (downloads only the 3rd video)
 
@@ -96,7 +105,9 @@ To download playlists send its URL with <code>*start*end</code> ranges in the en
 <code>https://www.tiktok.com/@USERNAME*1*10</code>
 (downloads first 10 videos from user profile)
 
-🟪 <b>Instagram stories albums:</b> (need your 🍪)
+🟪 <b>Instagram stories:</b> (need your 🍪)
+<code>https://www.instagram.com/stories/USERNAME*1*3</code>
+(downloads first 3 stories)
 <code>https://www.instagram.com/stories/highlights/123...*1*10</code>
 (downloads first 10 stories from album)
 
@@ -231,6 +242,10 @@ see <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md">sup
         'twitch.tv', 'www.twitch.tv', 'vimeo.com', 'facebook.com'
         # Other secure domains can be added
     ]
+    NO_COOKIE_DOMAINS = [
+        'dailymotion.com'
+        # Other secure domains can be added
+    ]    
     # TikTok Domain List
     TIKTOK_DOMAINS = [
         'tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com',

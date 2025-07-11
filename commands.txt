@@ -15,6 +15,7 @@ audio - + URL - Download video as audio (mp3)
 tags - Get all your #tags
 help - See help instructions
 usage - Get your logs
+subs - Enable/disable subtitle embedding for videos.
 
 ---
 
@@ -28,3 +29,4 @@ unblock_user - Unblock user
 all_users - Get all users
 all_blocked - Get all blocked users
 all_unblocked - Get all unblocked users
+uncache - Clear cached subtitle language data.
