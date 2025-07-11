@@ -83,7 +83,7 @@ If you prefer local deployment rather than docker container, you should use this
 #### Install `git` and `python3` (example for Ubuntu/Debian)
 ```sh
 sudo apt update
-sudo apt install git python3.10 python3-pip python3.10-venv fonts-noto-cjk
+sudo apt install git python3.10 python3-pip python3.10-venv
 ```
 #### Setting up `config.py`
 ```sh
@@ -121,6 +121,31 @@ python3 magic.py
    Verify the installation:
    ```sh
    ffmpeg -version
+   ```
+
+   If you need to support extra languages such as arabic, chinese, japanese, korean - you also need to install this language packs:
+   ```sh
+   sudo apt update
+   sudo add-apt-repository universe
+   sudo apt update
+
+   sudo apt install fonts-noto-core             # – Noto Sans, Noto Serif, … base fonts Google Noto
+   sudo apt install fonts-noto-extra            # – extra fonts (including arabic)
+   sudo apt install fonts-kacst fonts-kacst-one # – KACST arabic fonts
+   sudo apt install fonts-noto-cjk             # – Chinese-Japanese-Korean characters
+   ```
+
+   For Amri arabic:
+   ```sh
+   git clone https://github.com/aliftype/amiri.git
+   sudo mkdir -p /usr/share/fonts/truetype/amiri
+   sudo cp amiri/fonts/*.ttf /usr/share/fonts/truetype/amiri/
+   ```
+   
+   Update font cache
+   ```sh
+   sudo fc-cache -fv
+   fc-list | grep -i amiri
    ```
 </details> 
 
