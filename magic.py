@@ -3955,7 +3955,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
             try:
                 safe_edit_message_text(user_id, proc_msg_id,
-                    f"{info_text}\n{full_bar}   100.0%\n__Downloaded video.\n📤 Processing for upload...__")
+                    f"{info_text}\n{full_bar}   100.0%\n__☑️ Downloaded video.\n📤 Processing for upload...__")
             except Exception as e:
                 logger.error(f"Status update error after download: {e}")
 
