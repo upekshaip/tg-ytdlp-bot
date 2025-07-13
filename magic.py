@@ -4285,7 +4285,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                                 app.edit_message_text(
                                                     chat_id=user_id,
                                                     message_id=status_msg.id,
-                                                    text=f"Embedding subtitles...\n{bar} {percent}%\nETA: {eta} min"
+                                                    text=f"🔥 Embedding subtitles...\n{bar} {percent}%\nETA: {eta} min"
                                                 )
                                             except Exception as e:
                                                 logger.error(f"Failed to update subtitle progress: {e}")
