@@ -1,4 +1,4 @@
-# Version 3.0.1 # embedded subtitles
+# Version 3.0.2 # embedded subtitles
 import glob
 import hashlib
 import io
@@ -2609,7 +2609,7 @@ def send_videos(
                 progress_args=(
                     user_id,
                     msg_id,
-                    f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n\n__Uploading Video... 📤__"
+                    f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n\n__📤 Uploading Video...__"
                 ),
                 reply_to_message_id=message.id,
                 parse_mode=enums.ParseMode.HTML
@@ -2638,7 +2638,7 @@ def send_videos(
                         progress_args=(
                             user_id,
                             msg_id,
-                            f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n\n__Uploading Video... 📤__"
+                            f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n__📤 Uploading Video...__"
                         ),
                         reply_to_message_id=message.id,
                         parse_mode=enums.ParseMode.HTML
@@ -2658,7 +2658,7 @@ def send_videos(
                         progress_args=(
                             user_id,
                             msg_id,
-                            f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n\n__Uploading Video... 📤__"
+                            f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n__📤 Uploading Video...__"
                         ),
                         reply_to_message_id=message.id,
                         parse_mode=enums.ParseMode.HTML
@@ -3027,7 +3027,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 send_to_logger(message, f"Playlist audio sent from cache (quality={quality_key}) to user{user_id}")
                 return
             else:
-                app.send_message(user_id, f"♻️ {len(cached_videos)}/{len(requested_indices)} audio sent from cache, downloading missing ones...", reply_to_message_id=message.id)
+                app.send_message(user_id, f"📥 {len(cached_videos)}/{len(requested_indices)} audio sent from cache, downloading missing ones...", reply_to_message_id=message.id)
     elif quality_key and not is_playlist:
         cached_ids = get_cached_message_ids(url, quality_key)
         if cached_ids:
@@ -3069,9 +3069,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 minutes = (wait_time % 3600) // 60
                 seconds = wait_time % 60
                 time_str = f"{hours}h {minutes}m {seconds}s"
-                proc_msg = app.send_message(user_id, f"⚠️ Telegram has limited message sending.\n\n⏳ Please wait: {time_str}\n\nTo update timer send URL again 2 times.")
+                proc_msg = app.send_message(user_id, f"⚠️ Telegram has limited message sending.\n⏳ Please wait: {time_str}\nTo update timer send URL again 2 times.")
         else:
-            proc_msg = app.send_message(user_id, "⚠️ Telegram has limited message sending.\n\n⏳ Please wait: \n\nTo update timer send URL again 2 times.")
+            proc_msg = app.send_message(user_id, "⚠️ Telegram has limited message sending.\n⏳ Please wait: \nTo update timer send URL again 2 times.")
 
         # We are trying to replace with "Download started"
         try:
@@ -3093,9 +3093,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             return
 
         # If there is no flood error, send a normal message (only once)
-        proc_msg = app.send_message(user_id, "Processing... ♻️", reply_to_message_id=message.id)
+        proc_msg = app.send_message(user_id, "🔄 Processing...", reply_to_message_id=message.id)
         proc_msg_id = proc_msg.id
-        status_msg = app.send_message(user_id, "🎧 Audio is processing...")
+        status_msg = app.send_message(user_id, "🎙️ Audio is processing...")
         hourglass_msg = app.send_message(user_id, "⏳ Please wait...")
         status_msg_id = status_msg.id
         hourglass_msg_id = hourglass_msg.id
@@ -3156,7 +3156,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 blocks = int(percent // 10)
                 bar = "🟩" * blocks + "⬜️" * (10 - blocks)
                 try:
-                    safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\nDownloading audio:\n{bar}   {percent:.1f}%")
+                    safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n📥 Downloading audio:\n{bar}   {percent:.1f}%")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
@@ -3164,7 +3164,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 try:
                     full_bar = "🟩" * 10
                     safe_edit_message_text(user_id, proc_msg_id,
-                        f"{current_total_process}\nDownloading audio:\n{full_bar}   100.0%\nDownload finished, processing audio...")
+                        f"{current_total_process}\n📥 Downloading audio:\n{full_bar}   100.0%\nDownload finished, processing audio...")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
@@ -3228,7 +3228,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
                 try:
                     safe_edit_message_text(user_id, proc_msg_id,
-                        f"{current_total_process}\n\n> __Downloading audio using format: ba...__ 📥")
+                        f"{current_total_process}\n> __📥 Downloading audio using format: ba...__")
                 except Exception as e:
                     logger.error(f"Status update error: {e}")
                 
@@ -3362,7 +3362,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
             try:
                 full_bar = "🟩" * 10
-                safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\nUploading audio file...\n{full_bar}   100.0%")
+                safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n📤 Uploading audio file...\n{full_bar}   100.0%")
             except Exception as e:
                 logger.error(f"Error updating upload status: {e}")
 
@@ -3373,7 +3373,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             bot_name = getattr(Config, 'BOT_NAME', None) or 'bot'
             bot_mention = f' @{bot_name}' if not bot_name.startswith('@') else f' {bot_name}'
             # Use original audio_title for caption, not sanitized caption_name
-            caption_with_link = f"{audio_title}\n\n{tags_block}[🔗 Audio URL]({url}){bot_mention}"
+            caption_with_link = f"{audio_title}\n{tags_block}[🔗 Audio URL]({url}){bot_mention}"
             
             try:
                 audio_msg = app.send_audio(chat_id=user_id, audio=audio_file, caption=caption_with_link, reply_to_message_id=message.id)
@@ -3416,9 +3416,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 threading.Event().wait(2)
 
         if successful_uploads == len(indices_to_download):
-            success_msg = f"✅ Audio successfully downloaded and sent - {len(indices_to_download)} files uploaded.\n\n{Config.CREDITS_MSG}"
+            success_msg = f"✅ Audio successfully downloaded and sent - {len(indices_to_download)} files uploaded.\n{Config.CREDITS_MSG}"
         else:
-            success_msg = f"⚠️ Partially completed - {successful_uploads}/{len(indices_to_download)} audio files uploaded.\n\n{Config.CREDITS_MSG}"
+            success_msg = f"⚠️ Partially completed - {successful_uploads}/{len(indices_to_download)} audio files uploaded.\n{Config.CREDITS_MSG}"
             
         try:
             safe_edit_message_text(user_id, proc_msg_id, success_msg)
@@ -3519,7 +3519,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 send_to_logger(message, f"Playlist videos sent from cache (quality={quality_key}) to user {user_id}")
                 return
             else:
-                app.send_message(user_id, f"♻️ {len(cached_videos)}/{len(requested_indices)} videos sent from cache, downloading missing ones...", reply_to_message_id=message.id)
+                app.send_message(user_id, f"📥 {len(cached_videos)}/{len(requested_indices)} videos sent from cache, downloading missing ones...", reply_to_message_id=message.id)
     elif quality_key and not is_playlist:
         found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
         subs_enabled = is_subs_enabled(user_id)
@@ -3528,6 +3528,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         if not need_subs:
             cached_ids = get_cached_message_ids(url, quality_key)
             if cached_ids:
+                found_type = None
                 try:
                     app.forward_messages(
                         chat_id=user_id,
@@ -3572,9 +3573,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 minutes = (wait_time % 3600) // 60
                 seconds = wait_time % 60
                 time_str = f"{hours}h {minutes}m {seconds}s"
-                proc_msg = app.send_message(user_id, f"⚠️ Telegram has limited message sending.\n\n⏳ Please wait: {time_str}\n\nTo update timer send URL again 2 times.")
+                proc_msg = app.send_message(user_id, f"⚠️ Telegram has limited message sending.\n⏳ Please wait: {time_str}\nTo update timer send URL again 2 times.")
         else:
-            proc_msg = app.send_message(user_id, "⚠️ Telegram has limited message sending.\n\n⏳ Please wait: \n\nTo update timer send URL again 2 times.")
+            proc_msg = app.send_message(user_id, "⚠️ Telegram has limited message sending.\n⏳ Please wait: \nTo update timer send URL again 2 times.")
 
         # We are trying to replace with "Download started"
         try:
@@ -3598,7 +3599,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             return
 
         # If there is no flood error, send a normal message
-        proc_msg = app.send_message(user_id, "Processing... ♻️", reply_to_message_id=message.id)
+        proc_msg = app.send_message(user_id, "🔄 Processing...", reply_to_message_id=message.id)
         proc_msg_id = proc_msg.id
         error_message = ""
         status_msg = None
@@ -3698,7 +3699,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             processing_messages = []
                             download_started_messages = []
                             for msg in messages:
-                                if msg.text == "Processing... ♻️":
+                                if msg.text == "🔄 Processing...":
                                     processing_messages.append(msg.id)
                                 elif msg.text == "Download started":
                                     download_started_messages.append(msg.id)
@@ -3825,10 +3826,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 try:
                     if is_hls:
                         safe_edit_message_text(user_id, proc_msg_id,
-                            f"{current_total_process}\n\n__Detected HLS stream. Downloading...__ 📥")
+                            f"{current_total_process}\n__Detected HLS stream.\n📥 Downloading...__")
                     else:
                         safe_edit_message_text(user_id, proc_msg_id,
-                            f"{current_total_process}\n\n> __Downloading using format: {ytdl_opts.get('format', 'default')}...__ 📥")
+                            f"{current_total_process}\n> __📥 Downloading using format: {ytdl_opts.get('format', 'default')}...__")
                 except Exception as e:
                     logger.error(f"Status update error: {e}")
                 with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
@@ -3886,7 +3887,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 **📶 Total Progress**
 > **Video:** {idx + 1} / {len(indices_to_download)}
 """
-
             current_total_process = total_process
 
             # Determine rename_name based on the incoming playlist_name:
@@ -3947,7 +3947,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
             info_text = f"""
 {total_process}
-
 **📋 Video Info**
 > **Number:** {idx + video_start_with}
 > **Title:** {original_video_title}
@@ -3956,7 +3955,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
             try:
                 safe_edit_message_text(user_id, proc_msg_id,
-                    f"{info_text}\n\n{full_bar}   100.0%\n\n__Downloaded video. Processing for upload...__ ♻️")
+                    f"{info_text}\n{full_bar}   100.0%\n__Downloaded video.\n📤 Processing for upload...__")
             except Exception as e:
                 logger.error(f"Status update error after download: {e}")
 
@@ -4010,7 +4009,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             if final_name.lower().endswith((".webm", ".ts")):
                 try:
                     safe_edit_message_text(user_id, proc_msg_id,
-                        f"{info_text}\n\n{full_bar}   100.0%\nConverting video using ffmpeg... ⏳")
+                        f"{info_text}\n{full_bar}   100.0%\nConverting video using ffmpeg... ⏳")
                 except Exception as e:
                     logger.error(f"Error updating status before conversion: {e}")
 
@@ -4102,7 +4101,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             max_size = get_user_split_size(user_id)  # 1.95 GB - close to Telegram's 2GB limit with 50MB safety margin
             if int(video_size_in_bytes) > max_size:
                 safe_edit_message_text(user_id, proc_msg_id,
-                    f"{info_text}\n\n{full_bar}   100.0%\n__⚠️ Your video size ({video_size}) is too large.__\n__Splitting file...__ ✂️")
+                    f"{info_text}\n{full_bar}   100.0%\n__⚠️ Your video size ({video_size}) is too large.__\n__Splitting file...__ ✂️")
                 returned = split_video_2(dir_path, sanitize_filename(caption_name), after_rename_abs_path, int(video_size_in_bytes), max_size, duration)
                 caption_lst = returned.get("video")
                 path_lst = returned.get("path")
@@ -4115,6 +4114,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     part_duration, splited_thumb_dir = part_result
                     # --- TikTok: Don't Pass Title ---
                     video_msg = send_videos(message, path_lst[p], '' if force_no_title else caption_lst[p], part_duration, splited_thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final)
+                    found_type = None
                     try:
                         forwarded_msgs = safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
                         logger.info(f"down_and_up: forwarded_msgs result: {forwarded_msgs}")
@@ -4186,7 +4186,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             # Accumulate IDs of parts for split video
                             split_msg_ids.append(video_msg.id)
                     safe_edit_message_text(user_id, proc_msg_id,
-                                          f"{info_text}\n\n{full_bar}   100.0%\n__Splitted part {p + 1} file uploaded__")
+                                          f"{info_text}\n{full_bar}   100.0%\n__📤 Splitted part {p + 1} file uploaded__")
                     if p < len(caption_lst) - 1:
                         threading.Event().wait(2)
                     os.remove(splited_thumb_dir)
@@ -4208,7 +4208,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         logger.info("Split video with subtitles is not cached!")
                 os.remove(thumb_dir)
                 os.remove(user_vid_path)
-                success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n\n{Config.CREDITS_MSG}"
+                success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n{Config.CREDITS_MSG}"
                 safe_edit_message_text(user_id, proc_msg_id, success_msg)
                 send_to_logger(message, "Video upload completed with file splitting.")
                 break
@@ -4276,7 +4276,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     }
                                     
                                     if check_subs_limits(real_info, quality_key):
-                                        status_msg = app.send_message(user_id, "⚠️ Embedding subtitles may take a long time (up to 1 min per 1 min of video)!\n\nEmbedding subtitles... ⏳")
+                                        status_msg = app.send_message(user_id, "⚠️ Embedding subtitles may take a long time (up to 1 min per 1 min of video)!\n🔥 Burning subtitles...")
                                         def tg_update_callback(progress, eta):
                                             blocks = int(progress * 10)
                                             bar = '🟩' * blocks + '⬜️' * (10 - blocks)
@@ -4326,6 +4326,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             clear_subs_check_cache()
                         video_msg = send_videos(message, after_rename_abs_path, '' if force_no_title else original_video_title, duration, thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final)
                         
+                        found_type = None
                         try:
                             forwarded_msgs = safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
                             logger.info(f"down_and_up: forwarded_msgs result: {forwarded_msgs}")
@@ -4412,7 +4413,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 else:
                                     logger.info("Video with subtitles (subs.txt found) is not cached!")
                         safe_edit_message_text(user_id, proc_msg_id,
-                            f"{info_text}\n{full_bar}   100.0%\n\n**🎞 Video duration:** __{TimeFormatter(duration * 1000)}__\n\n1 file uploaded.")
+                            f"{info_text}\n{full_bar}   100.0%\n**🎞 Video duration:** __{TimeFormatter(duration * 1000)}__\n1 file uploaded.")
                         send_mediainfo_if_enabled(user_id, after_rename_abs_path, message)
                         os.remove(after_rename_abs_path)
                         if thumb_dir and os.path.exists(thumb_dir):
@@ -4424,7 +4425,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         send_to_all(message, f"❌ Error sending video: {str(e)}")
                         continue
         if successful_uploads == len(indices_to_download):
-            success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n\n{Config.CREDITS_MSG}"
+            success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n{Config.CREDITS_MSG}"
             safe_edit_message_text(user_id, proc_msg_id, success_msg)
             send_to_logger(message, success_msg)
 
@@ -4933,7 +4934,7 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
 
                 # Use safe_edit_message_text and check if message exists
                 result = safe_edit_message_text(user_id, proc_msg_id,
-                    f"{current_total_process}\nDownloading HLS stream: {frag_text}\n{bar}")
+                    f"{current_total_process}\n📥 Downloading HLS stream: {frag_text}\n{bar}")
 
                 # If message was deleted (returns None), stop animation
                 if result is None and counter > 2:  # Allow first few attempts to fail
@@ -5395,8 +5396,12 @@ def sort_quality_key(quality_key):
 def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
     user_id = message.chat.id
     proc_msg = None
+    found_type = None
     try:
-        proc_msg = app.send_message(user_id, "Processing... ♻️", reply_to_message_id=message.id, reply_markup=get_main_reply_keyboard())
+        # Проверяем, включены ли субтитры
+        subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
+        processing_text = "🔄 Processing... (wait 6 sec)" if subs_enabled else "🔄 Processing..."
+        proc_msg = app.send_message(user_id, processing_text, reply_to_message_id=message.id, reply_markup=get_main_reply_keyboard())
         original_text = message.text or message.caption or ""
         is_playlist = is_playlist_with_range(original_text)
         playlist_range = None
@@ -5470,7 +5475,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
                         'filesize_approx': size_val * 1024 * 1024 if size_val else None
                     }
                     if check_subs_limits(temp_info, quality_key):
-                        subs_available = "🎬"
+                        subs_available = "💬"
             
             if is_playlist and playlist_range:
                 indices = list(range(playlist_range[0], playlist_range[1]+1))
@@ -5506,13 +5511,13 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             found_type = check_subs_availability(url, user_id, return_type=True)
             need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
             if need_subs:
-                subs_hint = "\n🎬 — Subs are available with chosen language."
+                subs_hint = "\n💬 — Subs are available with chosen language."
                 show_repost_hint = False  # 🚀 не показываем, если сабы реально есть и нужны
             else:
                 subs_warn = "\n⚠️ WARNING: Subtitles for selected language were not found and will not be embedded."
 
-        repost_line = "🚀 — Instant repost. Video is already saved." if show_repost_hint else ""
-        hint = "<pre language=\"info\">📹 — Choose quality for new download.\n" + repost_line + subs_hint + subs_warn + "</pre>"
+        repost_line = "\n🚀 — Instant repost. Video is already saved." if show_repost_hint else ""
+        hint = "<pre language=\"info\">📹 — Choose quality for new download." + repost_line + subs_hint + subs_warn + "</pre>"
         cap += f"\n{hint}\n"
         buttons = []
         # Sort buttons by quality from lowest to highest
@@ -5539,7 +5544,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
                         'filesize_approx': size_val * 1024 * 1024 if size_val else None
                     }
                     if check_subs_limits(temp_info, quality_key):
-                        subs_available = "🎬"
+                        subs_available = "💬"
             
             if is_playlist and playlist_range:
                 indices = list(range(playlist_range[0], playlist_range[1]+1))
@@ -5580,7 +5585,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
                             'filesize_approx': size_val * 1024 * 1024 if size_val else None
                         }
                         if check_subs_limits(temp_info, quality_key):
-                            subs_available = "🎬"
+                            subs_available = "💬"
                 
                 if is_playlist and playlist_range:
                     indices = list(range(playlist_range[0], playlist_range[1]+1))
@@ -5629,13 +5634,26 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             indices = list(range(playlist_range[0], playlist_range[1]+1))
             n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
             total = len(indices)
-            icon = "🚀" if n_cached > 0 else "🎵"
+            icon = "🚀" if n_cached > 0 else "🎧"
             postfix = f" ({n_cached}/{total})" if total > 1 else ""
             button_text = f"{icon} audio (mp3){postfix}"
         else:
-            icon = "🚀" if quality_key in cached_qualities else "🎵"
+            icon = "🚀" if quality_key in cached_qualities else "🎧"
             button_text = f"{icon} audio (mp3)"
         keyboard_rows.append([InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}")])
+        
+        # --- button subtitles only ---
+        # Показываем кнопку только если включены субтитры и это YouTube
+        subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
+        if subs_enabled and is_youtube_url(url):
+            # Проверяем наличие субтитров
+            found_type = check_subs_availability(url, user_id, return_type=True)
+            auto_mode = get_user_subs_auto_mode(user_id)
+            need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
+            
+            if need_subs:
+                keyboard_rows.append([InlineKeyboardButton("💬 Subtitles Only", callback_data="askq|subs_only")])
+        
         keyboard_rows.append([InlineKeyboardButton("🔙 Cancel", callback_data="askq|cancel")])
         keyboard = InlineKeyboardMarkup(keyboard_rows)
         # cap already contains a hint and a table
@@ -5657,7 +5675,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         minutes = (wait_time % 3600) // 60
         seconds = wait_time % 60
         time_str = f"{hours}h {minutes}m {seconds}s"
-        flood_msg = f"⚠️ Telegram has limited message sending.\n\n⏳ Please wait: {time_str}\n\nTo update timer send URL again 2 times."
+        flood_msg = f"⚠️ Telegram has limited message sending.\n⏳ Please wait: {time_str}\nTo update timer send URL again 2 times."
         if proc_msg:
             try:
                 app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=flood_msg)
@@ -5765,7 +5783,7 @@ def askq_callback(app, callback_query):
     # Handle manual quality selection
     if data.startswith("manual_"):
         quality = data.replace("manual_", "")
-        callback_query.answer(f"Downloading {quality}...")
+        callback_query.answer(f"📥 Downloading {quality}...")
         
         original_message = callback_query.message.reply_to_message
         if not original_message:
@@ -5949,6 +5967,7 @@ def askq_callback(app, callback_query):
         message_ids = get_cached_message_ids(url, data)
         if message_ids:
             callback_query.answer("🚀 Found in cache! Forwarding instantly...", show_alert=False)
+            found_type = None
             try:
                 app.forward_messages(
                     chat_id=user_id,
@@ -5979,7 +5998,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
     user_id = callback_query.from_user.id
     tags = tags_text.split() if tags_text else []
     if data == "mp3":
-        callback_query.answer("Downloading audio...")
+        callback_query.answer("🎧 Downloading audio...")
         # Extract playlist parameters from the original message
         full_string = original_message.text or original_message.caption or ""
         _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
@@ -5987,9 +6006,18 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
         down_and_audio(app, original_message, url, tags, quality_key="mp3", playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with)
         return
     
+    if data == "subs_only":
+        callback_query.answer("💬 Downloading subtitles only...")
+        # Extract playlist parameters from the original message
+        full_string = original_message.text or original_message.caption or ""
+        _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
+        video_count = video_end_with - video_start_with + 1
+        download_subtitles_only(app, original_message, url, tags, playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with)
+        return
+    
     # Logic for forming the format with the real height
     if data == "best":
-        callback_query.answer("Downloading best quality...")
+        callback_query.answer("📥 Downloading best quality...")
         fmt = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best"
         quality_key = "best"
     else:
@@ -6030,7 +6058,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
                     fmt = f"bv*[vcodec*=avc1][height<={real_height}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
             
             quality_key = data
-            callback_query.answer(f"Downloading {data}...")
+            callback_query.answer(f"📥 Downloading {data}...")
         except ValueError:
             callback_query.answer("Unknown quality.")
             return
@@ -6125,13 +6153,23 @@ def show_manual_quality_menu(app, callback_query):
         indices = list(range(playlist_range[0], playlist_range[1]+1))
         n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
         total = len(indices)
-        icon = "🚀" if n_cached > 0 else "🎵"
+        icon = "🚀" if n_cached > 0 else "🎧"
         postfix = f" ({n_cached}/{total})" if total > 1 else ""
         button_text = f"{icon} audio (mp3){postfix}"
     else:
-        icon = "🚀" if quality_key in cached_qualities else "🎵"
+        icon = "🚀" if quality_key in cached_qualities else "🎧"
         button_text = f"{icon} audio (mp3)"
     keyboard_rows.append([InlineKeyboardButton(button_text, callback_data=f"askq|manual_{quality_key}")])
+    
+    # Add subtitles only button if enabled
+    subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
+    if subs_enabled and is_youtube_url(url):
+        found_type = check_subs_availability(url, user_id, return_type=True)
+        auto_mode = get_user_subs_auto_mode(user_id)
+        need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
+        
+        if need_subs:
+            keyboard_rows.append([InlineKeyboardButton("💬 Subtitles Only", callback_data="askq|subs_only")])
     
     # Add Back and Cancel buttons
     keyboard_rows.append([
@@ -6254,6 +6292,7 @@ def get_url_hash(url: str) -> str:
 
 def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bool = False, original_text: str = None, user_id: int = None):
     """Saves message IDs to cache for two YouTube link variants (long/short) at once."""
+    
     if user_id is not None:
         found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
         subs_enabled = is_subs_enabled(user_id)
@@ -6894,7 +6933,7 @@ def subs_command(app, message):
 
     app.send_message(
         message.chat.id,
-        f"<b>🎬 Subtitle settings</b>\n\n{status_text}\n\nSelect subtitle language:\n\n"
+        f"<b>💬 Subtitle settings</b>\n\n{status_text}\n\nSelect subtitle language:\n\n"
         "<blockquote>❗️WARNING: due to high CPU impact this function is very slow (near real-time) and limited to:\n"
         "- 720p max quality\n"
         "- 1 hour max duration\n"
@@ -6922,7 +6961,7 @@ def subs_page_callback(app, callback_query):
         status_text = f"{lang_info['flag']} Selected language: {lang_info['name']}{auto_text}"
     
     callback_query.edit_message_text(
-        f"**🎬 Subtitle settings**\n\n{status_text}\n\nSelect subtitle language:",
+        f"**💬 Subtitle settings**\n\n{status_text}\n\nSelect subtitle language:",
         reply_markup=get_language_keyboard(page, user_id=user_id)
     )
     callback_query.answer()
@@ -6979,7 +7018,7 @@ def subs_auto_callback(app, callback_query):
         
         # We update the message from the new menu
         callback_query.edit_message_text(
-            f"**🎬 Subtitle settings**\n\n{status_text}\n\nSelect subtitle language:",
+            f"**💬 Subtitle settings**\n\n{status_text}\n\nSelect subtitle language:",
             reply_markup=get_language_keyboard(page=page, user_id=user_id)
         )
         
@@ -7190,6 +7229,98 @@ def download_subtitles_ytdlp(url, user_id, video_dir):
         logger.error(f"Error downloading subtitles: {e}")
         return None
 
+def download_subtitles_only(app, message, url, tags, playlist_name=None, video_count=1, video_start_with=1):
+    """
+    Скачивает и отправляет только файл субтитров без видео
+    """
+    user_id = message.chat.id
+    user_dir = os.path.join("users", str(user_id))
+    create_directory(user_dir)
+    
+    try:
+        # Check if subtitles are enabled
+        subs_lang = get_user_subs_language(user_id)
+        if not subs_lang or subs_lang == "OFF":
+            app.send_message(user_id, "❌ Subtitles are disabled. Use /subs to configure.")
+            return
+        
+        # Check if this is YouTube
+        if not is_youtube_url(url):
+            app.send_message(user_id, "❌ Subtitle downloading is only supported for YouTube.")
+            return
+        
+        # Check subtitle availability
+        auto_mode = get_user_subs_auto_mode(user_id)
+        found_type = check_subs_availability(url, user_id, return_type=True)
+        need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
+        
+        if not need_subs:
+            app.send_message(user_id, "❌ Subtitles for selected language not found.")
+            return
+        
+        # Send message about download start
+        status_msg = app.send_message(user_id, "💬 Downloading subtitles...", reply_to_message_id=message.id)
+        
+        # Download subtitles
+        subs_path = download_subtitles_ytdlp(url, user_id, user_dir)
+        
+        if subs_path and os.path.exists(subs_path):
+            # Process subtitle file
+            subs_path = ensure_utf8_srt(subs_path)
+            if subs_path:
+                subs_path = force_fix_arabic_encoding(subs_path)
+            
+            if subs_path and os.path.exists(subs_path) and os.path.getsize(subs_path) > 0:
+                # Get video information for caption
+                try:
+                    info = get_video_formats(url, user_id)
+                    title = info.get('title', 'Video')
+                except:
+                    title = "Video"
+                
+                # Form caption
+                caption = f"<b>💬 Subtitles</b>\n\n"
+                caption += f"<b>Video:</b> {title}\n"
+                caption += f"<b>Language:</b> {subs_lang}\n"
+                caption += f"<b>Type:</b> {'Auto-generated' if auto_mode else 'Manual'}\n"
+                
+                if tags:
+                    caption += f"\n<b>Tags:</b> {' '.join(tags)}"
+                
+                # Send subtitle file
+                sent_msg = app.send_document(
+                    chat_id=user_id,
+                    document=subs_path,
+                    caption=caption,
+                    reply_to_message_id=message.id,
+                    parse_mode=enums.ParseMode.HTML
+                )
+                # Пересылаем это сообщение в лог-канал
+                safe_forward_messages(Config.LOGS_ID, user_id, [sent_msg.id])
+                send_to_logger(message, "💬 Subtitles SRT-file sent to user.")
+                # Remove temporary file
+                try:
+                    os.remove(subs_path)
+                except Exception as e:
+                    logger.error(f"Error deleting temporary subtitle file: {e}")
+                
+                # Delete status message
+                try:
+                    app.delete_messages(user_id, status_msg.id)
+                except:
+                    pass
+            else:
+                app.edit_message_text(user_id, status_msg.id, "❌ Error processing subtitle file.")
+        else:
+            app.edit_message_text(user_id, status_msg.id, "❌ Failed to download subtitles.")
+            
+    except Exception as e:
+        logger.error(f"Error downloading subtitles: {e}")
+        try:
+            app.edit_message_text(user_id, status_msg.id, f"❌ Error: {str(e)}")
+        except:
+            app.send_message(user_id, f"❌ Error downloading subtitles: {str(e)}")
+
 def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, message=None):
     """
     Burning (hardcode) subtitles in a video file, if there is any .SRT file and subs.txt
@@ -7270,9 +7401,10 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
         
         total_time = get_duration(video_path)
         
-        # Field of subtitles
+        # Field of subtitles with improved styling
         subs_path_escaped = subs_path.replace("'", "'\\''")
-        filter_arg = f"subtitles='{subs_path_escaped}'"
+        # Добавляем полупрозрачную черную обводку как на YouTube и улучшенное отображение субтитров
+        filter_arg = f"subtitles='{subs_path_escaped}':force_style='FontSize=24,PrimaryColour=&Hffffff,OutlineColour=&H000000,BackColour=&H80000000,Outline=2,Shadow=1,MarginV=25'"
         cmd = [
             'ffmpeg',
             '-y',
@@ -7378,13 +7510,15 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
         if os.path.exists(subs_path):
             try:
                 if app is not None and message is not None:
-                    app.send_document(
+                    sent_msg = app.send_document(
                         chat_id=user_id,
                         document=subs_path,
-                        caption="<blockquote>🎬 Subtitles srt-file</blockquote>",
+                        caption="<blockquote>💬 Subtitles SRT-file</blockquote>",
                         reply_to_message_id=message.id,
                         parse_mode=enums.ParseMode.HTML
                     )
+                    safe_forward_messages(Config.LOGS_ID, user_id, [sent_msg.id])
+                    send_to_logger(message, "💬 Subtitles SRT-file sent to user.") 
             except Exception as e:
                 logger.error(f"Ошибка при отправке srt-файла: {e}")
             try:
