@@ -4276,7 +4276,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     }
                                     
                                     if check_subs_limits(real_info, quality_key):
-                                        status_msg = app.send_message(user_id, "⚠️ Embedding subtitles may take a long time (up to 1 min per 1 min of video)!\n🔥 Burning subtitles...")
+                                        status_msg = app.send_message(user_id, "⚠️ Embedding subtitles may take a long time (up to 1 min per 1 min of video)!\n🔥 Starting to burn subtitles...")
                                         def tg_update_callback(progress, eta):
                                             blocks = int(progress * 10)
                                             bar = '🟩' * blocks + '⬜️' * (10 - blocks)
