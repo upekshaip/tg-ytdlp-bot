@@ -20,7 +20,7 @@ from urllib.parse import urlparse, parse_qs, urlunparse, unquote, urlencode
 import traceback
 import pyrebase
 import tldextract
-from moviepy.editor import VideoFileClip
+#from moviepy.editor import VideoFileClip
 from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 from pyrogram import Client, filters
 from pyrogram import enums
@@ -2562,13 +2562,9 @@ def send_videos(
     else:
         # For the rest - define the size of the video dynamically
         try:
-            from moviepy.editor import VideoFileClip
-            clip = VideoFileClip(video_abs_path)
-            width = int(str(clip.w).strip().split()[0]) if clip.w else 0
-            height = int(str(clip.h).strip().split()[0]) if clip.h else 0
-            clip.close()
+            width, height, _ = get_video_info_ffprobe(video_abs_path)
         except Exception as e:
-            logger.error(f"[MOVIEPY BYPASS] Ошибка при обработке видео {video_abs_path}: {e}")
+            logger.error(f"[FFPROBE BYPASS] Ошибка при обработке видео {video_abs_path}: {e}")
             import traceback
             logger.error(traceback.format_exc())
             width, height = 0, 0
@@ -2791,11 +2787,10 @@ def get_duration_thumb_(dir, video_path, thumb_name):
     thumb_hash = hashlib.md5(thumb_name.encode()).hexdigest()[:10]
     thumb_dir = os.path.abspath(os.path.join(dir, thumb_hash + ".jpg"))
     try:
-        clip = VideoFileClip(video_path)
-        duration = int(clip.duration)
-        clip.close()
+        _, _, duration = get_video_info_ffprobe(video_path)
+        duration = int(duration)
     except Exception as e:
-        logger.error(f"[MOVIEPY BYPASS] Ошибка при обработке видео {video_path}: {e}")
+        logger.error(f"[FFPROBE BYPASS] Ошибка при обработке видео {video_path}: {e}")
         import traceback
         logger.error(traceback.format_exc())
         duration = 0
@@ -4241,13 +4236,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
                             # Get the real size of the video
                             try:
-                                clip = VideoFileClip(after_rename_abs_path)
-                                width = int(clip.w)
-                                height = int(clip.h)
-                                clip.close()
+                                width, height, _ = get_video_info_ffprobe(after_rename_abs_path)
                                 real_file_size = min(width, height)
                             except Exception as e:
-                                logger.error(f"[MOVIEPY BYPASS] Ошибка при обработке видео {after_rename_abs_path}: {e}")
+                                logger.error(f"[FFPROBE BYPASS] Ошибка при обработке видео {after_rename_abs_path}: {e}")
                                 import traceback
                                 logger.error(traceback.format_exc())
                                 width, height = 0, 0
@@ -5214,8 +5206,8 @@ def is_porn(url, title, description, caption=None):
     # 1. Checking the domain
     clean_url = get_clean_url_for_tagging(url)
     domain_parts, _ = extract_domain_parts(clean_url)
-    for dom in domain_parts:
-        if dom in Config.WHITELIST:
+    for dom in Config.WHITELIST:
+        if dom in domain_parts:
             logger.info(f"is_porn: domain in WHITELIST: {dom}")
             return False
     if is_porn_domain(domain_parts):
@@ -7418,6 +7410,27 @@ def download_subtitles_only(app, message, url, tags, playlist_name=None, video_c
         except:
             app.send_message(user_id, f"❌ Error downloading subtitles: {str(e)}")
 
+
+def get_video_info_ffprobe(video_path):
+    import json
+    try:
+        result = subprocess.run([
+            'ffprobe', '-v', 'error',
+            '-select_streams', 'v:0',
+            '-show_entries', 'stream=width,height',
+            '-show_entries', 'format=duration',
+            '-of', 'json', video_path
+        ], capture_output=True, text=True)
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            width = data['streams'][0]['width'] if data['streams'] else 0
+            height = data['streams'][0]['height'] if data['streams'] else 0
+            duration = float(data['format']['duration']) if 'format' in data and 'duration' in data['format'] else 0
+            return width, height, duration
+    except Exception as e:
+        logger.error(f'ffprobe error: {e}')
+    return 0, 0, 0
+
 def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, message=None):
     """
     Burning (hardcode) subtitles in a video file, if there is any .SRT file and subs.txt
@@ -7441,20 +7454,32 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
             return False
         
         video_dir = os.path.dirname(video_path)
-        try:
-            clip = VideoFileClip(video_path)
-            width, height = clip.size
-            clip.close()
-        except Exception as e:
-            logger.error(f"[MOVIEPY BYPASS] Ошибка при обработке видео {video_path}: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-            width, height = 0, 0
         
-        if min(width, height) > Config.MAX_SUB_QUALITY:
-            logger.info(f"Video too large for subtitles: {width}x{height}")
+        # Получаем параметры видео через ffprobe
+        width, height, total_time = get_video_info_ffprobe(video_path)
+        if width == 0 or height == 0:
+            logger.error(f"Не удалось определить разрешение видео через ffprobe: width={width}, height={height}")
             return False
-        
+        original_size = os.path.getsize(video_path)
+
+        # Проверка длительности видео
+        if total_time and total_time > Config.MAX_SUB_DURATION:
+            logger.info(f"Video duration too long for subtitles: {total_time} сек")
+            return False
+
+        # Проверка размера файла
+        original_size_mb = original_size / (1024 * 1024)
+        if original_size_mb > Config.MAX_SUB_SIZE:
+            logger.info(f"Video file too large for subtitles: {original_size_mb:.2f} MB")
+            return False
+
+        # Проверка качества видео по наименьшей стороне
+        # Логируем параметры видео перед проверкой качества
+        logger.info(f"Проверка качества: width={width}, height={height}, min_side={min(width, height)}, лимит={Config.MAX_SUB_QUALITY}")
+        if min(width, height) > Config.MAX_SUB_QUALITY:
+            logger.info(f"Video quality too high for subtitles: {width}x{height}, min side: {min(width, height)}p > {Config.MAX_SUB_QUALITY}p")
+            return False
+
         # --- Simplified search: take any .SRT file in the folder ---
         srt_files = [f for f in os.listdir(video_dir) if f.lower().endswith('.srt')]
         if not srt_files:
@@ -7495,8 +7520,6 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
             except Exception as e:
                 logger.error(f"ffprobe error: {e}")
             return None
-        
-        total_time = get_duration(video_path)
         
         # Field of subtitles with improved styling
         subs_path_escaped = subs_path.replace("'", "'\\''")
