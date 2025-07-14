@@ -7674,7 +7674,7 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
         # Field of subtitles with improved styling
         subs_path_escaped = subs_path.replace("'", "'\\''")
         # Добавляем полупрозрачную черную обводку как на YouTube и улучшенное отображение субтитров
-        filter_arg = f"subtitles='{subs_path_escaped}':force_style='FontSize=24,PrimaryColour=&Hffffff,OutlineColour=&H000000,BackColour=&H80000000,Outline=2,Shadow=1,MarginV=25'"
+        filter_arg = f"subtitles='{subs_path_escaped}':force_style='FontSize=16,PrimaryColour=&Hffffff,OutlineColour=&H000000,BackColour=&H80000000,Outline=2,Shadow=1,MarginV=25'"
         cmd = [
             'ffmpeg',
             '-y',
