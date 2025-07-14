@@ -162,6 +162,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 • <code>/clean format</code> - Remove format settings
 • <code>/clean split</code> - Remove split settings
 • <code>/clean mediainfo</code> - Remove mediainfo settings
+• <code>/clean sub</code> - Remove subtitle files
 
 ⚙️ <b>Settings:</b>
 • <code>/settings</code> - Open settings menu
@@ -178,6 +179,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 📊 <b>Information:</b>
 • <code>/usage</code> - View your download history
 • <code>/help</b> - Show this help message
+• <code>/sub</code> - Turn on/off subtitles
 
 <blockquote expandable>🇷🇺 <b>Бот для скачивания видео - Помощь</b>
 (нажми, чтобы развернуть 👇)
@@ -207,6 +209,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 • <code>/clean format</code> - Удалить настройки формата
 • <code>/clean split</code> - Удалить настройки нарезки
 • <code>/clean mediainfo</code> - Удалить настройки mediainfo
+• <code>/clean sub</code> - Удалить файлы субтитров
 
 ⚙️ <b>Настройки:</b>
 • <code>/settings</code> - Открыть меню настроек
@@ -223,6 +226,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 📊 <b>Информация:</b>
 • <code>/usage</code> - История загрузок
 • <code>/help</code> - Показать эту справку
+• <code>/sub</code> - Включить/выключить субтитры
 </blockquote>
 👨‍💻 <i>Developer:</i> @upekshaip <a href="https://github.com/upekshaip/tg-ytdlp-bot">[🛠 github]</a>
 🤝 <i>Contributor:</i> @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl <a href="https://github.com/chelaxian/tg-ytdlp-bot">[🛠 github]</a>
