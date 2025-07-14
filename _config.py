@@ -162,7 +162,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 • <code>/clean format</code> - Remove format settings
 • <code>/clean split</code> - Remove split settings
 • <code>/clean mediainfo</code> - Remove mediainfo settings
-• <code>/clean sub</code> - Remove subtitle files
+• <code>/clean sub</code> - Remove subtitle settings
 
 ⚙️ <b>Settings:</b>
 • <code>/settings</code> - Open settings menu
@@ -209,7 +209,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 • <code>/clean format</code> - Удалить настройки формата
 • <code>/clean split</code> - Удалить настройки нарезки
 • <code>/clean mediainfo</code> - Удалить настройки mediainfo
-• <code>/clean sub</code> - Удалить файлы субтитров
+• <code>/clean sub</code> - Удалить настройки субтитров
 
 ⚙️ <b>Настройки:</b>
 • <code>/settings</code> - Открыть меню настроек
