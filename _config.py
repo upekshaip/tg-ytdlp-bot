@@ -170,6 +170,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 • <code>/split</code> - Set max part size (250MB-2GB)
 • <code>/mediainfo</code> - Enable/disable file info
 • <code>/tags</code> - View your saved tags
+• <code>/sub</code> - Turn on/off subtitles
 
 🏷️ <b>Tags System:</b>
 • Add <code>#tag1#tag2</code> after any URL
@@ -179,7 +180,6 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 📊 <b>Information:</b>
 • <code>/usage</code> - View your download history
 • <code>/help</b> - Show this help message
-• <code>/sub</code> - Turn on/off subtitles
 
 <blockquote expandable>🇷🇺 <b>Бот для скачивания видео - Помощь</b>
 (нажми, чтобы развернуть 👇)
@@ -217,6 +217,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 • <code>/split</code> - Установить размер части (250MB-2GB)
 • <code>/mediainfo</code> - Включить/выключить информацию о файле
 • <code>/tags</code> - Посмотреть ваши теги
+• <code>/sub</code> - Включить/выключить субтитры
 
 🏷️ <b>Система тегов:</b>
 • Добавьте <code>#тег1#тег2</code> после любой ссылки
@@ -226,7 +227,6 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 📊 <b>Информация:</b>
 • <code>/usage</code> - История загрузок
 • <code>/help</code> - Показать эту справку
-• <code>/sub</code> - Включить/выключить субтитры
 </blockquote>
 👨‍💻 <i>Developer:</i> @upekshaip <a href="https://github.com/upekshaip/tg-ytdlp-bot">[🛠 github]</a>
 🤝 <i>Contributor:</i> @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl <a href="https://github.com/chelaxian/tg-ytdlp-bot">[🛠 github]</a>
