@@ -628,7 +628,7 @@ base_db = firebase.database()
 # Additional check: Execute a test GET request to the root node
 try:
     test_data = base_db.get(idToken)
-    logger.info("Test GET operation succeeded. Data:", test_data.val())
+    logger.info("Test GET operation succeeded. Data: %s", test_data.val())
 except Exception as e:
     logger.error("Test GET operation failed:", e)
 
@@ -665,7 +665,7 @@ _format = {"ID": "0", "timestamp": math.floor(time.time())}
 try:
     # Try writing data to the path: bot/tgytdlp_bot/users/0
     result = db.child(f"{db_path}/users/0").set(_format)
-    logger.info("Data written successfully. Result:", result)
+    logger.info("Data written successfully. Result: %s", result)
 except Exception as e:
     logger.error("Error writing data to Firebase:", e)
     raise
@@ -682,7 +682,7 @@ def token_refresher():
             new_idToken = new_user["idToken"]
             db.token = new_idToken
             user = new_user
-            logger.info("Firebase idToken refreshed successfully. New token (first 20 chars):", new_idToken[:20])
+            logger.info("Firebase idToken refreshed successfully. New token (first 20 chars): %s", new_idToken[:20])
         except Exception as e:
             logger.error("Error refreshing Firebase idToken:", e)
 
