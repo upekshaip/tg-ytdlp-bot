@@ -5388,7 +5388,6 @@ def sort_quality_key(quality_key):
 def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
     user_id = message.chat.id
     proc_msg = None
-    found_type = None
     
     # Очищаем кэш субтитров перед проверкой, чтобы избежать проблем с кэшированием
     clear_subs_check_cache()
@@ -5420,79 +5419,223 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             except Exception:
                 thumb_path = None
         # --- Table with qualities and sizes ---
-        popular = [144, 240, 360, 480, 540, 576, 720, 1080, 1440, 2160, 4320]
-        # popular_sizes = [[256,144],[426,240],[640,360],[854,480],[960,540],[1024,576],[1280,720],[1920,1080],[2560,1440],[3840,2160],[7680,4320]]
-        minside_size_dim_map = {}
-        for f in info.get('formats', []):
-            if f.get('vcodec', 'none') != 'none' and f.get('height') and f.get('width'):
-                w = f['width']
-                h = f['height']
-                # Use the get_quality_by_min_side function to determine the quality
-                quality_key = get_quality_by_min_side(w, h)
-                if quality_key != "best":  # Exclude best from display
-                    if f.get('filesize'):
-                        size_mb = int(f['filesize']) // (1024*1024)
-                    elif f.get('filesize_approx'):
-                        size_mb = int(f['filesize_approx']) // (1024*1024)
-                    else:
-                        size_mb = None
-                    if size_mb:
-                        key = (quality_key, w, h)
-                        minside_size_dim_map[key] = size_mb
-        table_lines = []
+        table_block = ''
         found_quality_keys = set()
-        # Sort by quality from lowest to highest
-        for (quality_key, w, h), size_val in sorted(minside_size_dim_map.items(), key=lambda x: sort_quality_key(x[0][0])):
-            found_quality_keys.add(quality_key)
-            size_str = f"{round(size_val/1024, 1)}GB" if size_val >= 1024 else f"{size_val}MB"
-            dim_str = f" ({w}×{h})"
-            scissors = ""
-            if get_user_split_size(user_id):
-                video_bytes = size_val * 1024 * 1024
-                if video_bytes > get_user_split_size(user_id):
-                    n_parts = (video_bytes + get_user_split_size(user_id) - 1) // get_user_split_size(user_id)
-                    scissors = f" ✂️{n_parts}"
-            
-            # Check the availability of subtitles for this quality
-            subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
-            auto_mode = get_user_subs_auto_mode(user_id)
-            subs_available = ""
+        if ("youtube.com" in url or "youtu.be" in url):
+            quality_map = {}
+            for f in info.get('formats', []):
+                if f.get('vcodec', 'none') != 'none' and f.get('height') and f.get('width'):
+                    w = f['width']
+                    h = f['height']
+                    quality_key = get_quality_by_min_side(w, h)
+                    if quality_key == "best":
+                        continue
+                    filesize = f.get('filesize') or f.get('filesize_approx')
+                    if quality_key not in quality_map or (filesize and filesize > (quality_map[quality_key].get('filesize') or 0)):
+                        quality_map[quality_key] = f
+            table_lines = []
+            for q in sorted(quality_map.keys(), key=sort_quality_key):
+                f = quality_map[q]
+                w = f.get('width')
+                h = f.get('height')
+                filesize = f.get('filesize') or f.get('filesize_approx')
+                if filesize:
+                    if filesize >= 1024*1024*1024:
+                        size_str = f"{round(filesize/1024/1024/1024, 2)}GB"
+                    else:
+                        size_str = f"{round(filesize/1024/1024, 1)}MB"
+                else:
+                    size_str = '—'
+                dim_str = f" ({w}×{h})" if w and h else ''
+                scissors = ""
+                if get_user_split_size(user_id) and filesize:
+                    video_bytes = filesize
+                    if video_bytes > get_user_split_size(user_id):
+                        n_parts = (video_bytes + get_user_split_size(user_id) - 1) // get_user_split_size(user_id)
+                        scissors = f" ✂️{n_parts}"
+                # Check the availability of subtitles for this quality
+                subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
+                auto_mode = get_user_subs_auto_mode(user_id)
+                subs_available = ""
+                if subs_enabled and is_youtube_url(url) and w is not None and h is not None and min(int(w), int(h)) <= Config.MAX_SUB_QUALITY:
+                    found_type = check_subs_availability(url, user_id, q, return_type=True)
+                    if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
+                        temp_info = {
+                            'duration': info.get('duration'),
+                            'filesize': filesize,
+                            'filesize_approx': filesize
+                        }
+                        if check_subs_limits(temp_info, q):
+                            subs_available = "💬"
+                # Кэш/иконка
+                if is_playlist and playlist_range:
+                    indices = list(range(playlist_range[0], playlist_range[1]+1))
+                    n_cached = get_cached_playlist_count(get_clean_playlist_url(url), q, indices)
+                    total = len(indices)
+                    postfix = f" ({n_cached}/{total})"
+                    is_cached = n_cached > 0
+                else:
+                    is_cached = q in cached_qualities
+                    postfix = ""
+                need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
+                emoji = "🚀" if is_cached and not need_subs else "📹"
+                table_lines.append(f"{emoji}{q}{subs_available}:  {size_str}{dim_str}{scissors}{postfix}")
+                found_quality_keys.add(q)
+            table_block = "\n".join(table_lines)
+        else:
+            # --- Старая логика для не-YouTube ---
+            minside_size_dim_map = {}
+            for f in info.get('formats', []):
+                if f.get('vcodec', 'none') != 'none' and f.get('height') and f.get('width'):
+                    w = f['width']
+                    h = f['height']
+                    quality_key = get_quality_by_min_side(w, h)
+                    if quality_key != "best":
+                        # Примерный размер: если есть filesize — используем, иначе считаем по bitrate*duration, иначе '—'
+                        if f.get('filesize'):
+                            size_mb = int(f['filesize']) // (1024*1024)
+                        elif f.get('filesize_approx'):
+                            size_mb = int(f['filesize_approx']) // (1024*1024)
+                        elif f.get('tbr') and info.get('duration'):
+                            size_mb = int(float(f['tbr']) * float(info['duration']) * 125 / (1024*1024))
+                        else:
+                            size_mb = None
+                        if size_mb:
+                            key = (quality_key, w, h)
+                            minside_size_dim_map[key] = size_mb
+            table_lines = []
+            for (quality_key, w, h), size_val in sorted(minside_size_dim_map.items(), key=lambda x: sort_quality_key(x[0][0])):
+                found_quality_keys.add(quality_key)
+                size_str = f"{round(size_val/1024, 1)}GB" if size_val and size_val >= 1024 else (f"{size_val}MB" if size_val else '—')
+                dim_str = f" ({w}×{h})"
+                scissors = ""
+                if get_user_split_size(user_id) and size_val:
+                    video_bytes = size_val * 1024 * 1024
+                    if video_bytes > get_user_split_size(user_id):
+                        n_parts = (video_bytes + get_user_split_size(user_id) - 1) // get_user_split_size(user_id)
+                        scissors = f" ✂️{n_parts}"
+                emoji = "📹"
+                table_lines.append(f"{emoji}{quality_key}:  {size_str}{dim_str}{scissors}")
+            table_block = "\n".join(table_lines)
 
-            if subs_enabled and is_youtube_url(url) and w is not None and h is not None and min(int(w), int(h)) <= Config.MAX_SUB_QUALITY:
-                # Проверяем наличие субтитров нужного типа
-                # check_subs_availability должен возвращать тип найденных субтитров: "normal", "auto", None
-                found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
-                    # Только если найден нужный тип
-                    temp_info = {
-                        'duration': info.get('duration'),
-                        'filesize': size_val * 1024 * 1024 if size_val else None,
-                        'filesize_approx': size_val * 1024 * 1024 if size_val else None
-                    }
-                    if check_subs_limits(temp_info, quality_key):
-                        subs_available = "💬"
-            
-            if is_playlist and playlist_range:
-                indices = list(range(playlist_range[0], playlist_range[1]+1))
-                n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
-                total = len(indices)
-                postfix = f" ({n_cached}/{total})"
-                is_cached = n_cached > 0
-            else:
-                is_cached = quality_key in cached_qualities
-                postfix = ""
-            need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-            emoji = "🚀" if is_cached and not need_subs else "📹"
-            table_lines.append(f"{emoji}{quality_key}{subs_available}:  {size_str}{dim_str}{scissors}{postfix}")
-        table_block = "\n".join(table_lines)
         # --- Forming caption ---
         cap = f"<b>{title}</b>\n"
+        # --- YouTube расширенный блок ---
+        if ("youtube.com" in url or "youtu.be" in url):
+            uploader = info.get('uploader') or ''
+            channel_url = info.get('channel_url') or ''
+            view_count = info.get('view_count')
+            like_count = info.get('like_count')
+            channel_follower_count = info.get('channel_follower_count')
+            duration = info.get('duration')
+            upload_date = info.get('upload_date')
+            title_val = info.get('title') or ''
+            # Форматирование
+            duration_str = TimeFormatter(duration*1000) if duration else ''
+            upload_date_str = ''
+            if upload_date and len(str(upload_date)) == 8:
+                try:
+                    dt = datetime.strptime(str(upload_date), '%Y%m%d')
+                    upload_date_str = dt.strftime('%d.%m.%Y')
+                except Exception:
+                    upload_date_str = str(upload_date)
+            # Эмодзи
+            views_str = f'👁 {view_count:,}' if view_count is not None else ''
+            likes_str = f'❤️ {like_count:,}' if like_count is not None else ''
+            subs_str = f'👥 {channel_follower_count:,}' if channel_follower_count is not None else ''
+            # Первая строка: канал и подписчики
+            meta_lines = []
+            if uploader:
+                ch_line = f"📺 <b>{uploader}</b>\n"
+                if subs_str:
+                    ch_line += f"<blockquote>{subs_str}</blockquote>\n"
+                meta_lines.append(ch_line)
+            # Вторая строка: название
+            t_line = ''
+            if title_val:
+                t_line = f"<b>{title_val}</b>"
+            if t_line:
+                meta_lines.append(t_line)
+            # Третья строка: дата + длительность (в цитате)
+            date_dur_line = ''
+            if upload_date_str:
+                date_dur_line += f"📅 {upload_date_str}"
+            if duration_str:
+                if date_dur_line:
+                    date_dur_line += f"  ⏱️ {duration_str}"
+                else:
+                    date_dur_line = f"⏱️ {duration_str}"
+            if date_dur_line:
+                meta_lines.append(f"<blockquote>{date_dur_line}</blockquote>")
+            # Четвёртая строка: просмотры + лайки (в цитате)
+            stat_line = ''
+            if views_str:
+                stat_line += views_str
+            if likes_str:
+                if stat_line:
+                    stat_line += f"  {likes_str}"
+                else:
+                    stat_line = likes_str
+            if stat_line:
+                meta_lines.append(f"<blockquote>{stat_line}</blockquote>")
+            # Собираем блок
+            meta_block = '\n'.join(meta_lines)
+            cap = meta_block + '\n\n'
+        else:
+            cap = ''
+        # --- Таблица качеств ---
+        if table_block:
+            cap += f"<blockquote>{table_block}</blockquote>\n"
+        # --- Теги ---
         if tags_text:
             cap += f"{tags_text}\n"
-        # Block with qualities
-        if table_block:
-            cap += f"\n<blockquote>{table_block}</blockquote>\n"
-        # Hint as a separate code block at the very bottom
+        # --- Ссылки в самом низу ---
+        if ("youtube.com" in url or "youtu.be" in url):
+            webpage_url = info.get('webpage_url') or ''
+            video_url_link = f'<a href="{webpage_url}">[VIDEO]</a>' if webpage_url else ''
+            channel_url_link = f'<a href="{channel_url}">[CHANNEL]</a>' if channel_url else ''
+            thumbnail_url = info.get('thumbnail') or ''
+            thumb_link = f'<a href="{thumbnail_url}">[Thumbnail]</a>' if thumbnail_url else ''
+            links = '  '.join([x for x in [video_url_link, channel_url_link, thumb_link] if x])
+            if links:
+                cap += f"\n{links}"
+        # --- Обрезка по лимиту ---
+        if len(cap) > 1024:
+            # Обрезаем по приоритету: лайки, подписчики, просмотры, дата, длительность, название, канал
+            # 1. Лайки
+            cap1 = cap.replace(likes_str, '') if likes_str else cap
+            if len(cap1) <= 1024:
+                cap = cap1
+            else:
+                # 2. Подписчики
+                cap2 = cap1.replace(subs_str, '') if subs_str else cap1
+                if len(cap2) <= 1024:
+                    cap = cap2
+                else:
+                    # 3. Просмотры
+                    cap3 = cap2.replace(views_str, '') if views_str else cap2
+                    if len(cap3) <= 1024:
+                        cap = cap3
+                    else:
+                        # 4. Дата
+                        cap4 = cap3.replace(upload_date_str, '') if upload_date_str else cap3
+                        if len(cap4) <= 1024:
+                            cap = cap4
+                        else:
+                            # 5. Длительность
+                            cap5 = cap4.replace(duration_str, '') if duration_str else cap4
+                            if len(cap5) <= 1024:
+                                cap = cap5
+                            else:
+                                # 6. Название
+                                cap6 = cap5.replace(title_val, '') if title_val else cap5
+                                if len(cap6) <= 1024:
+                                    cap = cap6
+                                else:
+                                    # 7. Канал
+                                    cap7 = cap6.replace(uploader, '') if uploader else cap6
+                                    cap = cap7[:1021] + '...'
+        # --- Hint ---
         subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
         auto_mode = get_user_subs_auto_mode(user_id)
         subs_lang = get_user_subs_language(user_id)
@@ -5506,66 +5649,36 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             found_type = check_subs_availability(url, user_id, return_type=True)
             need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
             if need_subs:
-                subs_hint = "\n💬 — Subs are available with chosen language."
+                subs_hint = "\n💬 — Subtitles are available"
                 show_repost_hint = False  # 🚀 не показываем, если сабы реально есть и нужны
             else:
-                subs_warn = "\n⚠️ WARNING: Subtitles for selected language were not found and will not be embedded."
+                subs_warn = "\n⚠️ Subs not found & won't embed"
 
-        repost_line = "\n🚀 — Instant repost. Video is already saved." if show_repost_hint else ""
-        hint = "<pre language=\"info\">📹 — Choose quality for new download." + repost_line + subs_hint + subs_warn + "</pre>"
+        repost_line = "\n🚀 — Instant repost from cache" if show_repost_hint else ""
+        hint = "<pre language=\"info\">📹 — Choose download quality" + repost_line + subs_hint + subs_warn + "</pre>"
         cap += f"\n{hint}\n"
         buttons = []
         # Sort buttons by quality from lowest to highest
-        for quality_key in sorted(found_quality_keys, key=sort_quality_key):
-            # Check the availability of subtitles for this quality
-            subs_available = ""
-            subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
-            auto_mode = get_user_subs_auto_mode(user_id)
-            subs_available = ""
-            # First, we are looking for size_val for this quality
-            size_val = None
-            for (qk, w, h), size in minside_size_dim_map.items():
-                if qk == quality_key:
-                    size_val = size
-                    break
-            # Check the restrictions only if the size is found and does not exceed the limit
-            if subs_enabled and is_youtube_url(url) and w is not None and h is not None and min(int(w), int(h)) <= Config.MAX_SUB_QUALITY:
-                # Проверяем наличие субтитров нужного типа
-                found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
-                    temp_info = {
-                        'duration': info.get('duration'),
-                        'filesize': size_val * 1024 * 1024 if size_val else None,
-                        'filesize_approx': size_val * 1024 * 1024 if size_val else None
-                    }
-                    if check_subs_limits(temp_info, quality_key):
-                        subs_available = "💬"
-            
-            if is_playlist and playlist_range:
-                indices = list(range(playlist_range[0], playlist_range[1]+1))
-                n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
-                total = len(indices)
-                icon = "🚀" if n_cached > 0 else "📹"
-                postfix = f" ({n_cached}/{total})" if total > 1 else ""
-                button_text = f"{icon}{quality_key}{subs_available}{postfix}"
-            else:
-                need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-                icon = "🚀" if quality_key in cached_qualities and not need_subs else "📹"
-                button_text = f"{icon}{quality_key}{subs_available}"
-            buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
-        if not buttons and popular:
-            for height in popular:
-                quality_key = f"{height}p"
-                # Find the file size for this quality
-                size_val = None
-                for (qk, w, h), size in minside_size_dim_map.items():
-                    if qk == quality_key:
-                        size_val = size
-                        break
-                
-                if size_val is None:
-                    continue
-                    
+        if ("youtube.com" in url or "youtu.be" in url):
+            for quality_key in sorted(quality_map.keys(), key=sort_quality_key):
+                f = quality_map[quality_key]
+                w = f.get('width')
+                h = f.get('height')
+                filesize = f.get('filesize') or f.get('filesize_approx')
+                if filesize:
+                    if filesize >= 1024*1024*1024:
+                        size_str = f"{round(filesize/1024/1024/1024, 2)}GB"
+                    else:
+                        size_str = f"{round(filesize/1024/1024, 1)}MB"
+                else:
+                    size_str = '—'
+                dim_str = f" ({w}×{h})" if w and h else ''
+                scissors = ""
+                if get_user_split_size(user_id) and filesize:
+                    video_bytes = filesize
+                    if video_bytes > get_user_split_size(user_id):
+                        n_parts = (video_bytes + get_user_split_size(user_id) - 1) // get_user_split_size(user_id)
+                        scissors = f" ✂️{n_parts}"
                 # Check the availability of subtitles for this quality
                 subs_available = ""
                 subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
@@ -5576,8 +5689,8 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
                     if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
                         temp_info = {
                             'duration': info.get('duration'),
-                            'filesize': size_val * 1024 * 1024 if size_val else None,
-                            'filesize_approx': size_val * 1024 * 1024 if size_val else None
+                            'filesize': filesize,
+                            'filesize_approx': filesize
                         }
                         if check_subs_limits(temp_info, quality_key):
                             subs_available = "💬"
@@ -5594,6 +5707,43 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
                     icon = "🚀" if quality_key in cached_qualities and not need_subs else "📹"
                     button_text = f"{icon}{quality_key}{subs_available}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
+        else:
+            popular = [144, 240, 360, 480, 540, 576, 720, 1080, 1440, 2160, 4320]
+            for height in popular:
+                quality_key = f"{height}p"
+                size_val = None
+                w = h = None
+                for (qk, ww, hh), size in minside_size_dim_map.items():
+                    if qk == quality_key:
+                        size_val = size
+                        w = ww
+                        h = hh
+                        break
+                if size_val is None:
+                    continue
+                size_str = f"{round(size_val/1024, 1)}GB" if size_val and size_val >= 1024 else (f"{size_val}MB" if size_val else '—')
+                dim_str = f" ({w}×{h})" if w and h else ''
+                scissors = ""
+                if get_user_split_size(user_id) and size_val:
+                    video_bytes = size_val * 1024 * 1024
+                    if video_bytes > get_user_split_size(user_id):
+                        n_parts = (video_bytes + get_user_split_size(user_id) - 1) // get_user_split_size(user_id)
+                        scissors = f" ✂️{n_parts}"
+
+                
+                if is_playlist and playlist_range:
+                    indices = list(range(playlist_range[0], playlist_range[1]+1))
+                    n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
+                    total = len(indices)
+                    icon = "🚀" if n_cached > 0 else "📹"
+                    postfix = f" ({n_cached}/{total})" if total > 1 else ""
+                    button_text = f"{icon}{quality_key}{postfix}"
+                else:
+                    
+                    icon = "🚀" if quality_key in cached_qualities else "📹"
+                    button_text = f"{icon}{quality_key}"
+                buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
+
         if not buttons:
             quality_key = "best"
             
@@ -6757,7 +6907,7 @@ def get_cached_playlist_count(playlist_url: str, quality_key: str, indices: list
                         for index in indices:
                             index_str = str(index)
                             val = db_child_by_path(db,
-                                                   f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}/{qk}/{index_str}").get().val()
+                                                  f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}/{qk}/{index_str}").get().val()
                             if val is not None:
                                 cached_count += 1
                                 logger.info(
