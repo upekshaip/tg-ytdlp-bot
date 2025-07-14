@@ -179,8 +179,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 • <code>/usage</code> - View your download history
 • <code>/help</b> - Show this help message
 
-<blockquote expandable>
-🇷🇺 <b>Бот для скачивания видео - Помощь</b>
+<blockquote expandable>🇷🇺 <b>Бот для скачивания видео - Помощь</b>
 (нажми, чтобы развернуть 👇)
 
 📥 <b>Основное использование:</b>
