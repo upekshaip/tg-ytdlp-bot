@@ -181,6 +181,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 
 <blockquote expandable>
 🇷🇺 <b>Бот для скачивания видео - Помощь</b>
+(нажми, чтобы развернуть 👇)
 
 📥 <b>Основное использование:</b>
 • Отправьте ссылку на видео для загрузки
@@ -224,7 +225,6 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 • <code>/usage</code> - История загрузок
 • <code>/help</code> - Показать эту справку
 </blockquote>
-
 👨‍💻 <i>Developer:</i> @upekshaip <a href="https://github.com/upekshaip/tg-ytdlp-bot">[🛠 github]</a>
 🤝 <i>Contributor:</i> @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl <a href="https://github.com/chelaxian/tg-ytdlp-bot">[🛠 github]</a>
     """
