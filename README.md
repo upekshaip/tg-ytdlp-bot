@@ -122,6 +122,31 @@ python3 magic.py
    ```sh
    ffmpeg -version
    ```
+
+   If you need to support extra languages such as arabic, chinese, japanese, korean - you also need to install this language packs:
+   ```sh
+   sudo apt update
+   sudo add-apt-repository universe
+   sudo apt update
+
+   sudo apt install fonts-noto-core             # – Noto Sans, Noto Serif, … base fonts Google Noto
+   sudo apt install fonts-noto-extra            # – extra fonts (including arabic)
+   sudo apt install fonts-kacst fonts-kacst-one # – KACST arabic fonts
+   sudo apt install fonts-noto-cjk              # – Chinese-Japanese-Korean characters
+   ```
+
+   For Amiri arabic:
+   ```sh
+   git clone https://github.com/aliftype/amiri.git
+   sudo mkdir -p /usr/share/fonts/truetype/amiri
+   sudo cp amiri/fonts/*.ttf /usr/share/fonts/truetype/amiri/
+   ```
+   
+   Update font cache
+   ```sh
+   sudo fc-cache -fv
+   fc-list | grep -i amiri
+   ```
 </details> 
 
 ---
@@ -216,6 +241,8 @@ Then select the desired option from the menu.
 - **/download_cookie** - Download the cookie file.
 - **/save_as_cookie** - Save text as cookie (or upload TXT-doc).
 - **/cookies_from_browser** - Get cookies from browser (if supported).
+- **/subs** - Enable/disable subtitle embedding for videos.
+
 
 ## Admin Commands
 
@@ -236,6 +263,7 @@ Then select the desired option from the menu.
 - **/all_users** - Get all users.
 - **/all_blocked** - Get all blocked users.
 - **/all_unblocked** - Get all unblocked users.
+- **/uncache** - Clear cached subtitle language data.
 
 ---
 
@@ -330,7 +358,9 @@ Response:
 • Upload a cookie file to download private videos and playlists. \
 • Check or update your cookie file with **/check_cookie**, **/download_cookie**, **/save_as_cookie** and **/cookies_from_browser** commands. \
 • To clean your workspace on server from bad files (e.g. old cookies or media) use **/clean** command (might be helpfull for get rid of errors). \
-• See your usage statistics and logs by sending the **/usage** command.
+• See your usage statistics and logs by sending the **/usage** command. \
+• Control subtitle embedding with **/subs** command - enable or disable automatic subtitle burning into videos. \
+• Clear cached subtitle language data with **/uncache** command if you experience issues with subtitle detection.
 
 ---
 

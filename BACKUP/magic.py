@@ -1,23 +1,19 @@
-# Version 3.0.2 # embedded subtitles
-import glob
+# Version 2.5.0
 import hashlib
-import io
 import logging
 import math
 import os
 import re
-import requests
 import shutil
 import subprocess
-# import sys
+#import sys
 import threading
 import time
 from datetime import datetime
-from PIL import Image
 from types import SimpleNamespace
 from typing import Tuple
 from urllib.parse import urlparse, parse_qs, urlunparse, unquote, urlencode
-import traceback
+
 import pyrebase
 import tldextract
 from moviepy.editor import VideoFileClip
@@ -38,349 +34,9 @@ import yt_dlp
 
 from config import Config
 
-import chardet
-
-def ensure_utf8_srt(srt_path):
-    """
-    УЛЬТИМАТИВНАЯ функция для исправления любых кодировок и кракозябр.
-    Принудительно перекодирует файл в UTF-8, пробуя все возможные кодировки.
-    """
-    import chardet
-    
-    if not os.path.isfile(srt_path):
-        logger.error(f"Файл {srt_path} не существует!")
-        return None
-    if os.path.getsize(srt_path) == 0:
-        logger.error(f"Файл {srt_path} пустой!")
-        return None
-
-    # Читаем сырые байты
-    with open(srt_path, 'rb') as f:
-        raw = f.read()
-        if not raw:
-            logger.error(f"Файл {srt_path} пустой (raw)!")
-            return None
-
-    # Определяем кодировку через chardet
-    result = chardet.detect(raw)
-    detected_encoding = result['encoding'] or 'utf-8'
-    confidence = result.get('confidence', 0)
-    logger.info(f"Определена кодировка файла {srt_path}: {detected_encoding} (confidence: {confidence:.2f})")
-
-    # Список кодировок для принудительного тестирования (в порядке приоритета)
-    encodings_to_try = [
-        'utf-8',
-        'utf-8-sig',  # UTF-8 с BOM
-        'cp1256',     # Arabic Windows
-        'iso-8859-6', # Arabic ISO
-        'cp1252',     # Western European
-        'iso-8859-1', # Latin-1
-        'cp1250',     # Central European
-        'cp1251',     # Cyrillic
-        'cp874',      # Thai
-        'tis-620',    # Thai
-        'big5',       # Traditional Chinese
-        'gbk',        # Simplified Chinese
-        'shift_jis',  # Japanese
-        'euc-kr',     # Korean
-        'utf-16',
-        'utf-16le',
-        'utf-16be',
-    ]
-
-    # Добавляем обнаруженную кодировку в начало списка
-    if detected_encoding.lower() not in [enc.lower() for enc in encodings_to_try]:
-        encodings_to_try.insert(0, detected_encoding)
-
-    # Пробуем декодировать с каждой кодировкой
-    decoded_text = None
-    successful_encoding = None
-    
-    for encoding in encodings_to_try:
-        try:
-            decoded_text = raw.decode(encoding)
-            successful_encoding = encoding
-            logger.info(f"Успешно декодировано с кодировкой: {encoding}")
-            break
-        except (UnicodeDecodeError, LookupError) as e:
-            logger.debug(f"Не удалось декодировать с {encoding}: {e}")
-            continue
-
-    # Если ни одна кодировка не сработала, используем force decode
-    if decoded_text is None:
-        logger.warning("Все кодировки не сработали, использую force decode")
-        decoded_text = raw.decode('utf-8', errors='replace')
-        successful_encoding = 'utf-8 (force)'
-
-    # Проверяем, есть ли в тексте кракозябры (символы замены)
-    if '' in decoded_text or '?' in decoded_text:
-        logger.warning(f"Обнаружены символы замены в тексте, кодировка {successful_encoding} может быть неправильной")
-        
-        # Пробуем ещё раз с другими кодировками, игнорируя уже испробованные
-        for encoding in ['cp1256', 'iso-8859-6', 'cp1252', 'utf-8-sig']:
-            if encoding not in [enc.lower() for enc in encodings_to_try[:len(encodings_to_try)//2]]:
-                try:
-                    test_text = raw.decode(encoding)
-                    if '' not in test_text and '?' not in test_text:
-                        decoded_text = test_text
-                        successful_encoding = encoding
-                        logger.info(f"Найдена лучшая кодировка: {encoding}")
-                        break
-                except:
-                    continue
-
-    # Записываем результат в UTF-8
-    try:
-        with open(srt_path, 'w', encoding='utf-8') as f:
-            f.write(decoded_text)
-        logger.info(f"Файл {srt_path} успешно перекодирован в UTF-8 (исходная кодировка: {successful_encoding})")
-        return srt_path
-    except Exception as e:
-        logger.error(f"Ошибка при записи файла {srt_path}: {e}")
-        return None
-
-def force_fix_arabic_encoding(srt_path):
-    """
-    ПРИНУДИТЕЛЬНО исправляет любые кракозябры в субтитрах.
-    Используется как последняя линия обороны.
-    """
-    if not os.path.exists(srt_path):
-        return None
-    
-    try:
-        with open(srt_path, 'rb') as f:
-            raw = f.read()
-        
-        # Специальные кодировки для арабского
-        arabic_encodings = ['cp1256', 'iso-8859-6', 'utf-8', 'utf-8-sig']
-        
-        best_text = None
-        best_encoding = None
-        min_replacement_chars = float('inf')
-        
-        for encoding in arabic_encodings:
-            try:
-                text = raw.decode(encoding)
-                replacement_count = text.count('') + text.count('?')
-                if replacement_count < min_replacement_chars:
-                    min_replacement_chars = replacement_count
-                    best_text = text
-                    best_encoding = encoding
-            except:
-                continue
-        
-        if best_text is None:
-            # Если ничего не сработало, используем force decode
-            best_text = raw.decode('utf-8', errors='replace')
-            best_encoding = 'utf-8 (force)'
-        
-        # Записываем исправленный файл
-        with open(srt_path, 'w', encoding='utf-8') as f:
-            f.write(best_text)
-        
-        logger.info(f"Принудительно исправлена кодировка файла {srt_path} с {best_encoding}")
-        return srt_path
-        
-    except Exception as e:
-        logger.error(f"Ошибка при принудительном исправлении кодировки {srt_path}: {e}")
-        return None
-
-# Dictionary of languages with their emoji flags and native names
-LANGUAGES = {
-    "ar": {"flag": "🇸🇦", "name": "العربية"},
-    "be": {"flag": "🇧🇾", "name": "Беларуская"},
-    "bg": {"flag": "🇧🇬", "name": "Български"},
-    "bn": {"flag": "🇧🇩", "name": "বাংলা"},
-    "cs": {"flag": "🇨🇿", "name": "Čeština"},
-    "da": {"flag": "🇩🇰", "name": "Dansk"},
-    "de": {"flag": "🇩🇪", "name": "Deutsch"},
-    "el": {"flag": "🇬🇷", "name": "Ελληνικά"},
-    "en": {"flag": "🇬🇧", "name": "English"},
-    "en-US": {"flag": "🇺🇸", "name": "English (US)"},
-    "en-GB": {"flag": "🇬🇧", "name": "English (UK)"},
-    "es": {"flag": "🇪🇸", "name": "Español"},
-    "es-419": {"flag": "🇲🇽", "name": "Español (Latinoamérica)"},
-    "et": {"flag": "🇪🇪", "name": "Eesti"},
-    "fa": {"flag": "🇮🇷", "name": "فارسی"},
-    "fi": {"flag": "🇫🇮", "name": "Suomi"},
-    "fr": {"flag": "🇫🇷", "name": "Français"},
-    "he": {"flag": "🇮🇱", "name": "עברית"},
-    "hi": {"flag": "🇮🇳", "name": "हिन्दी"},
-    "hr": {"flag": "🇭🇷", "name": "Hrvatski"},
-    "hu": {"flag": "🇭🇺", "name": "Magyar"},
-    "hy": {"flag": "🇦🇲", "name": "Հայերեն"},
-    "id": {"flag": "🇮🇩", "name": "Bahasa Indonesia"},
-    "it": {"flag": "🇮🇹", "name": "Italiano"},
-    "ja": {"flag": "🇯🇵", "name": "日本語"},
-    "kk": {"flag": "🇰🇿", "name": "Қазақ тілі"},
-    "ko": {"flag": "🇰🇷", "name": "한국어"},
-    "lt": {"flag": "🇱🇹", "name": "Lietuvių"},
-    "lv": {"flag": "🇱🇻", "name": "Latviešu"},
-    "nl": {"flag": "🇳🇱", "name": "Nederlands"},
-    "no": {"flag": "🇳🇴", "name": "Norsk"},
-    "pl": {"flag": "🇵🇱", "name": "Polski"},
-    "pt": {"flag": "🇵🇹", "name": "Português"},
-    "pt-BR": {"flag": "🇧🇷", "name": "Português (Brasil)"},
-    "ro": {"flag": "🇷🇴", "name": "Română"},
-    "ru": {"flag": "🇷🇺", "name": "Русский"},
-    "sk": {"flag": "🇸🇰", "name": "Slovenčina"},
-    "sl": {"flag": "🇸🇮", "name": "Slovenščina"},
-    "sr": {"flag": "🇷🇸", "name": "Српски"},
-    "sv": {"flag": "🇸🇪", "name": "Svenska"},
-    "th": {"flag": "🇹🇭", "name": "ไทย"},
-    "tr": {"flag": "🇹🇷", "name": "Türkçe"},
-    "uk": {"flag": "🇺🇦", "name": "Українська"},
-    "vi": {"flag": "🇻🇳", "name": "Tiếng Việt"},
-    "zh": {"flag": "🇨🇳", "name": "中文"},
-    "zh-Hans": {"flag": "🇨🇳", "name": "中文(简体)"},
-    "zh-Hant": {"flag": "🇹🇼", "name": "中文(繁體)"}
-}
-
-ITEMS_PER_PAGE = 10  # Number of languages per page
-
-def get_user_subs_language(user_id):
-    """Get user's preferred subtitle language"""
-    user_dir = os.path.join("users", str(user_id))
-    subs_file = os.path.join(user_dir, "subs.txt")
-    if os.path.exists(subs_file):
-        with open(subs_file, "r", encoding="utf-8") as f:
-            return f.read().strip()
-    return None
-
-def is_subs_enabled(user_id):
-    lang = get_user_subs_language(user_id)
-    return lang is not None and lang != "OFF"
-
-def save_user_subs_language(user_id, lang_code):
-    """Save user's subtitle language preference"""
-    user_dir = os.path.join("users", str(user_id))
-    create_directory(user_dir)
-    subs_file = os.path.join(user_dir, "subs.txt")
-    if lang_code in ["OFF", None]:
-        if os.path.exists(subs_file):
-            os.remove(subs_file)
-        subs_auto_file = os.path.join(user_dir, "subs_auto.txt")
-        if os.path.exists(subs_auto_file):
-            os.remove(subs_auto_file)
-        clear_subs_check_cache()
-    else:
-        with open(subs_file, "w", encoding="utf-8") as f:
-            f.write(lang_code)
-    clear_subs_check_cache()
-
-def get_user_subs_auto_mode(user_id):
-    """Get user's AUTO mode setting for subtitles"""
-    user_dir = os.path.join("users", str(user_id))
-    auto_file = os.path.join(user_dir, "subs_auto.txt")
-    if os.path.exists(auto_file):
-        with open(auto_file, "r", encoding="utf-8") as f:
-            return f.read().strip() == "ON"
-    return False
-
-def save_user_subs_auto_mode(user_id, auto_enabled):
-    """Save user's AUTO mode setting for subtitles"""
-    user_dir = os.path.join("users", str(user_id))
-    create_directory(user_dir)
-    auto_file = os.path.join(user_dir, "subs_auto.txt")
-    if auto_enabled:
-        with open(auto_file, "w", encoding="utf-8") as f:
-            f.write("ON")
-    else:
-        if os.path.exists(auto_file):
-            os.remove(auto_file)
-    clear_subs_check_cache()
-
-def get_available_subs_languages(url, user_id=None, auto_only=False):
-    """Get available subtitle languages for a video"""
-    try:
-        ytdl_opts = {
-            'quiet': True,
-            'no_warnings': True,
-            'extract_flat': True,
-            'writesubtitles': True,
-            'listsubtitles': True
-        }
-        
-        if user_id:
-            user_dir = os.path.join("users", str(user_id))
-            cookie_file = os.path.join(user_dir, "cookie.txt")
-            if os.path.exists(cookie_file):
-                ytdl_opts['cookiefile'] = cookie_file
-
-        with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            available_langs = []
-            if auto_only:
-                # Только автосубтитры
-                if 'automatic_captions' in info and info['automatic_captions']:
-                    available_langs.extend(list(info['automatic_captions'].keys()))
-                    logger.info(f"Found auto captions: {list(info['automatic_captions'].keys())}")
-                else:
-                    logger.info("No automatic captions found")
-            else:
-                # Только обычные субтитры
-                if 'subtitles' in info:
-                    available_langs.extend(list(info['subtitles'].keys()))
-                    logger.info(f"Found subtitles: {list(info['subtitles'].keys())}")
-                else:
-                    logger.info("No subtitles found")
-            result = list(set(available_langs))  # Remove duplicates
-            logger.info(f"get_available_subs_languages: auto_only={auto_only}, result={result}")
-            return result
-    except Exception as e:
-        logger.error(f"Error getting available subtitles: {e}")
-    return []
-
-def get_language_keyboard(page=0, user_id=None):
-    """Generate keyboard with language buttons in 2 columns"""
-    keyboard = []
-    
-    # Calculate total pages
-    total_languages = len(LANGUAGES)
-    total_pages = math.ceil(total_languages / ITEMS_PER_PAGE)
-    
-    # Get languages for current page
-    start_idx = page * ITEMS_PER_PAGE
-    end_idx = start_idx + ITEMS_PER_PAGE
-    current_page_langs = list(LANGUAGES.items())[start_idx:end_idx]
-    
-    # Get current language and auto mode
-    current_lang = get_user_subs_language(user_id) if user_id else None
-    auto_mode = get_user_subs_auto_mode(user_id) if user_id else False
-    
-    # Add language buttons in 2 columns
-    for i in range(0, len(current_page_langs), 2):
-        row = []
-        for j in range(2):
-            if i + j < len(current_page_langs):
-                lang_code, lang_info = current_page_langs[i + j]
-                # Add checkmark if this is the selected language
-                checkmark = "✅ " if lang_code == current_lang else ""
-                button_text = f"{checkmark}{lang_info['flag']} {lang_info['name']}"
-                row.append(InlineKeyboardButton(
-                    button_text,
-                    callback_data=f"subs_lang|{lang_code}"
-                ))
-        keyboard.append(row)
-    
-    # Navigation row
-    nav_row = []
-    if page > 0:
-        nav_row.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"subs_page|{page-1}"))
-    if page < total_pages - 1:
-        nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"subs_page|{page+1}"))
-    if nav_row:
-        keyboard.append(nav_row)
-    
-    # Special options row (always at bottom)
-    auto_emoji = "✅" if auto_mode else "☑️"
-    keyboard.append([
-        InlineKeyboardButton("🚫 OFF", callback_data="subs_lang|OFF"),
-        InlineKeyboardButton(f"{auto_emoji} AUTO-GEN", callback_data=f"subs_auto|toggle|{page}")
-    ])
-    
-    return InlineKeyboardMarkup(keyboard)
-
+import io
+from PIL import Image
+import requests
 
 
 # --- Function for permanent reply-keyboard ---
@@ -448,7 +104,7 @@ def reply_with_keyboard(func):
 # --- Example of using wrapper for any handler ---
 # @reply_with_keyboard
 # def your_handler(...):
-# ...
+#     ...
 
 # --- New function for cleaning URL only for tags ---
 def get_clean_url_for_tagging(url: str) -> str:
@@ -628,7 +284,7 @@ base_db = firebase.database()
 # Additional check: Execute a test GET request to the root node
 try:
     test_data = base_db.get(idToken)
-    logger.info("Test GET operation succeeded. Data: %s", test_data.val())
+    logger.info("Test GET operation succeeded. Data:", test_data.val())
 except Exception as e:
     logger.error("Test GET operation failed:", e)
 
@@ -665,7 +321,7 @@ _format = {"ID": "0", "timestamp": math.floor(time.time())}
 try:
     # Try writing data to the path: bot/tgytdlp_bot/users/0
     result = db.child(f"{db_path}/users/0").set(_format)
-    logger.info("Data written successfully. Result: %s", result)
+    logger.info("Data written successfully. Result:", result)
 except Exception as e:
     logger.error("Error writing data to Firebase:", e)
     raise
@@ -682,7 +338,7 @@ def token_refresher():
             new_idToken = new_user["idToken"]
             db.token = new_idToken
             user = new_user
-            logger.info("Firebase idToken refreshed successfully. New token (first 20 chars): %s", new_idToken[:20])
+            logger.info("Firebase idToken refreshed successfully. New token (first 20 chars):", new_idToken[:20])
         except Exception as e:
             logger.error("Error refreshing Firebase idToken:", e)
 
@@ -734,7 +390,7 @@ def create_directory(path):
 
 # Command to Set Browser Cooks
 @app.on_message(filters.command("cookies_from_browser") & filters.private)
-# @reply_with_keyboard
+#@reply_with_keyboard
 def cookies_from_browser(app, message):
     user_id = message.chat.id
     # For non-admins, we check the subscription
@@ -803,7 +459,7 @@ def cookies_from_browser(app, message):
 
 # Callback Handler for Browser Selection
 @app.on_callback_query(filters.regex(r"^browser_choice\|"))
-# @reply_with_keyboard
+#@reply_with_keyboard
 def browser_choice_callback(app, callback_query):
     logger.info(f"[BROWSER] callback: {callback_query.data}")
     import subprocess
@@ -865,7 +521,7 @@ def browser_choice_callback(app, callback_query):
 
 # Command to Download Audio from a Video url
 @app.on_message(filters.command("audio") & filters.private)
-# @reply_with_keyboard
+#@reply_with_keyboard
 def audio_command_handler(app, message):
     user_id = message.chat.id
     if get_active_download(user_id):
@@ -896,7 +552,7 @@ def audio_command_handler(app, message):
 
 # /Playlist Command
 @app.on_message(filters.command("playlist") & filters.private)
-# @reply_with_keyboard
+#@reply_with_keyboard
 def playlist_command(app, message):
     user_id = message.chat.id
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
@@ -908,7 +564,7 @@ def playlist_command(app, message):
 
 # Command /Format Handler
 @app.on_message(filters.command("format") & filters.private)
-# @reply_with_keyboard
+#@reply_with_keyboard
 def set_format(app, message):
     user_id = message.chat.id
     # For non-admins, we check the subscription
@@ -948,7 +604,7 @@ def set_format(app, message):
 
 # Callbackquery Handler for /Format Menu Selection
 @app.on_callback_query(filters.regex(r"^format_option\|"))
-# @reply_with_keyboard
+#@reply_with_keyboard
 def format_option_callback(app, callback_query):
     logger.info(f"[FORMAT] callback: {callback_query.data}")
     user_id = callback_query.from_user.id
@@ -1120,11 +776,6 @@ def url_distractor(app, message):
         save_as_cookie_file(app, message)
         return
 
-    # /Subs Command
-    if text.startswith(Config.SUBS_COMMAND):
-        subs_command(app, message)
-        return
-
     # /Download_cookie Command
     if text == Config.DOWNLOAD_COOKIE_COMMAND:
         download_cookie(app, message)
@@ -1192,17 +843,11 @@ def url_distractor(app, message):
             remove_media(message, only=["mediainfo.txt"])
             send_to_all(message, "🗑 Mediainfo file removed.")
             return
-        elif clean_args == "subs":
-            remove_media(message, only=["subs.txt"])
-            send_to_all(message, "🗑 Subtitle settings removed.")
-            clear_subs_check_cache()
-            return
         elif clean_args == "all":
             # Delete all files and display the list of deleted ones
             user_dir = f'./users/{str(message.chat.id)}'
             if not os.path.exists(user_dir):
                 send_to_all(message, "🗑 No files to remove.")
-                clear_subs_check_cache()
                 return
 
             removed_files = []
@@ -1229,7 +874,6 @@ def url_distractor(app, message):
             # Regular command /clean - delete only media files with filtering
             remove_media(message)
             send_to_all(message, "🗑 All media files are removed.")
-            clear_subs_check_cache()
             return
 
     # /USAGE Command
@@ -1258,8 +902,6 @@ def url_distractor(app, message):
     # If the Message Contains a URL, Launch The Video Download Function.
     if ("https://" in text) or ("http://" in text):
         if not is_user_blocked(message):
-            # Очищаем кэш субтитров перед обработкой нового URL
-            clear_subs_check_cache()
             video_url_extractor(app, message)
         return
 
@@ -1315,7 +957,6 @@ def url_distractor(app, message):
         return
 
     logger.info(f"{user_id} No matching command processed.")
-    clear_subs_check_cache()
 
 
 # Check the USAGE of the BOT
@@ -1708,7 +1349,6 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("#️⃣ Tags", callback_data="clean_option|tags")],
             [InlineKeyboardButton("📼 Format", callback_data="clean_option|format")],
             [InlineKeyboardButton("✂️ Split", callback_data="clean_option|split")],
-            [InlineKeyboardButton("💬 Subtitles", callback_data="clean_option|subs")],
             [InlineKeyboardButton("📊 Mediainfo", callback_data="clean_option|mediainfo")],
             [InlineKeyboardButton("🗑  All files", callback_data="clean_option|all")],
             [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
@@ -1745,7 +1385,6 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("📊 /mediainfo - Turn ON / OFF MediaInfo", callback_data="settings__cmd__mediainfo")],
             [InlineKeyboardButton("✂️ /split - Change split video part size", callback_data="settings__cmd__split")],
             [InlineKeyboardButton("🎧 /audio - Download video as audio", callback_data="settings__cmd__audio")],
-            [InlineKeyboardButton("💬 /subs - Subtitles language settings", callback_data="settings__cmd__subs")],
             [InlineKeyboardButton("📋 /playlist - How to download playlists", callback_data="settings__cmd__playlist")],
             [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
         ])
@@ -1805,7 +1444,6 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("📼 Format", callback_data="clean_option|format")],
             [InlineKeyboardButton("✂️ Split", callback_data="clean_option|split")],
             [InlineKeyboardButton("📊 Mediainfo", callback_data="clean_option|mediainfo")],
-            [InlineKeyboardButton("💬 Subtitles", callback_data="clean_option|subs")],
             [InlineKeyboardButton("🗑  All files", callback_data="clean_option|all")],
             [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__cookies")]
         ])
@@ -1838,13 +1476,6 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         set_format(app, fake_message("/format", user_id, command=["format"]))
         callback_query.answer("Command executed.")
         return
-        
-    # /Subs Command
-    if data == "subs":
-        subs_command(app, fake_message("/subs", user_id))
-        callback_query.answer("Command executed.")
-        return
-
     if data == "mediainfo":
         mediainfo_command(app, fake_message("/mediainfo", user_id))
         callback_query.answer("Command executed.")
@@ -1909,10 +1540,6 @@ def clean_option_callback(app, callback_query):
         url_distractor(app, fake_message("/clean mediainfo", user_id))
         callback_query.answer("mediainfo cleaned.")
         return
-    elif data == "subs":
-        url_distractor(app, fake_message("/clean subs", user_id))
-        callback_query.answer("Subtitle settings cleaned.")
-        return
     elif data == "all":
         url_distractor(app, fake_message("/clean all", user_id))
         callback_query.answer("All files cleaned.")
@@ -1948,9 +1575,6 @@ def fake_message(text, user_id, command=None):
     m.first_name = m.chat.first_name
     m.reply_to_message = None
     m.id = 0
-    m.from_user = SimpleNamespace()
-    m.from_user.id = user_id
-    m.from_user.first_name = m.chat.first_name
     if command is not None:
         m.command = command
     return m
@@ -2067,38 +1691,14 @@ def send_mediainfo_if_enabled(user_id, file_path, message):
 @reply_with_keyboard
 def save_my_cookie(app, message):
     user_id = str(message.chat.id)
-    # Check file size
-    if message.document.file_size > 100 * 1024:
-        send_to_all(message, "❌ The file is too large. Maximum size is 100 KB.")
-        return
-    # Check extension
-    if not message.document.file_name.lower().endswith('.txt'):
-        send_to_all(message, "❌ Only files of the following format are allowed .txt.")
-        return
-    # Download the file to a temporary folder to check the contents
-    import tempfile
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = os.path.join(tmpdir, message.document.file_name)
-        app.download_media(message, file_name=tmp_path)
-        try:
-            with open(tmp_path, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read(4096)  # read only the first 4 KB
-                if '# Netscape HTTP Cookie File' not in content:
-                    send_to_all(message, "❌ The file does not look like cookie.txt (there is no line '# Netscape HTTP Cookie File').")
-                    return
-        except Exception as e:
-            send_to_all(message, f"❌ Error reading file: {e}")
-            return
-        # If all checks are passed - save the file to the user's folder
-        user_folder = f"./users/{user_id}"
-        create_directory(user_folder)
-        cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
-        cookie_file_path = os.path.join(user_folder, cookie_filename)
-        import shutil
-        shutil.copyfile(tmp_path, cookie_file_path)
+    # We determine the path to the user folder (for example, "./users/1234567)
+    user_folder = f"./users/{user_id}"
+    create_directory(user_folder)
+    cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
+    cookie_file_path = os.path.join(user_folder, cookie_filename)
+    app.download_media(message, file_name=cookie_file_path)
     send_to_user(message, "✅ Cookie file saved")
     send_to_logger(message, f"Cookie file saved for user {user_id}.")
-
 
 #@reply_with_keyboard
 def download_cookie(app, message):
@@ -2551,7 +2151,7 @@ def send_videos(
     temp_desc_path = os.path.join(os.path.dirname(video_abs_path), "full_description.txt")
     was_truncated = False
 
-    # --- Define the size of the preview/video ---
+    # --- Определяем размеры превью/видео ---
     width = None
     height = None
     if video_url and ("youtube.com" in video_url or "youtu.be" in video_url):
@@ -2560,17 +2160,14 @@ def send_videos(
         else:
             width, height = 640, 360
     else:
-        # For the rest - define the size of the video dynamically
+        # Для остальных — определяем размеры видео динамически
         try:
             from moviepy.editor import VideoFileClip
             clip = VideoFileClip(video_abs_path)
             width = int(str(clip.w).strip().split()[0]) if clip.w else 0
             height = int(str(clip.h).strip().split()[0]) if clip.h else 0
             clip.close()
-        except Exception as e:
-            logger.error(f"[MOVIEPY BYPASS] Ошибка при обработке видео {video_abs_path}: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
+        except Exception:
             width, height = 0, 0
 
     try:
@@ -2595,7 +2192,7 @@ def send_videos(
         cap += link_block
 
         try:
-            # First try sending with full caption
+            # Сначала пробуем отправить с полным caption
             video_msg = app.send_video(
                 chat_id=user_id,
                 video=video_abs_path,
@@ -2609,7 +2206,7 @@ def send_videos(
                 progress_args=(
                     user_id,
                     msg_id,
-                    f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n\n__📤 Uploading Video...__"
+                    f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n\n__Uploading Video... 📤__"
                 ),
                 reply_to_message_id=message.id,
                 parse_mode=enums.ParseMode.HTML
@@ -2617,14 +2214,14 @@ def send_videos(
         except Exception as e:
             if "MEDIA_CAPTION_TOO_LONG" in str(e):
                 logger.info("Caption too long, trying with minimal caption")
-                # If the caption is too long, try sending only with the main information
+                # Если caption слишком длинный, пробуем отправить только с основной информацией
                 minimal_cap = ''
                 if title_html:
                     minimal_cap += title_html + '\n\n'
                 minimal_cap += link_block
                 
                 try:
-                    # Try sending with minimal caption
+                    # Пробуем отправить с минимальным caption
                     video_msg = app.send_video(
                         chat_id=user_id,
                         video=video_abs_path,
@@ -2638,14 +2235,14 @@ def send_videos(
                         progress_args=(
                             user_id,
                             msg_id,
-                            f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n__📤 Uploading Video...__"
+                            f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n\n__Uploading Video... 📤__"
                         ),
                         reply_to_message_id=message.id,
                         parse_mode=enums.ParseMode.HTML
                     )
                 except Exception as e:
                     logger.error(f"Error sending video with minimal caption: {e}")
-                    # If even the minimal caption does not work, send without caption
+                    # Если даже минимальный caption не работает, отправляем без caption
                     video_msg = app.send_video(
                         chat_id=user_id,
                         video=video_abs_path,
@@ -2658,13 +2255,13 @@ def send_videos(
                         progress_args=(
                             user_id,
                             msg_id,
-                            f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n__📤 Uploading Video...__"
+                            f"{info_text}\n**Video duration:** __{TimeFormatter(duration*1000)}__\n\n__Uploading Video... 📤__"
                         ),
                         reply_to_message_id=message.id,
                         parse_mode=enums.ParseMode.HTML
                     )
             else:
-                # If the error is not related to the length of the caption, pass it further 
+                # Если ошибка не связана с длиной caption, пробрасываем её дальше
                 raise e
         if was_truncated and full_video_title:
             with open(temp_desc_path, "w", encoding="utf-8") as f:
@@ -2790,15 +2387,8 @@ def get_duration_thumb_(dir, video_path, thumb_name):
     # Generate a short unique name for the thumbnail
     thumb_hash = hashlib.md5(thumb_name.encode()).hexdigest()[:10]
     thumb_dir = os.path.abspath(os.path.join(dir, thumb_hash + ".jpg"))
-    try:
-        clip = VideoFileClip(video_path)
-        duration = int(clip.duration)
-        clip.close()
-    except Exception as e:
-        logger.error(f"[MOVIEPY BYPASS] Ошибка при обработке видео {video_path}: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        duration = 0
+    clip = VideoFileClip(video_path)
+    duration = (int(clip.duration))
     
     # Get original video dimensions
     #orig_w, orig_h = clip.w, clip.h
@@ -2990,7 +2580,7 @@ def write_logs(message, video_url, video_title):
 # Down_and_audio function
 # ########################################
 
-# @reply_with_keyboard
+#@reply_with_keyboard
 def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None, video_count=1, video_start_with=1):
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
@@ -3027,7 +2617,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 send_to_logger(message, f"Playlist audio sent from cache (quality={quality_key}) to user{user_id}")
                 return
             else:
-                app.send_message(user_id, f"📥 {len(cached_videos)}/{len(requested_indices)} audio sent from cache, downloading missing ones...", reply_to_message_id=message.id)
+                app.send_message(user_id, f"♻️ {len(cached_videos)}/{len(requested_indices)} audio sent from cache, downloading missing ones...", reply_to_message_id=message.id)
     elif quality_key and not is_playlist:
         cached_ids = get_cached_message_ids(url, quality_key)
         if cached_ids:
@@ -3069,9 +2659,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 minutes = (wait_time % 3600) // 60
                 seconds = wait_time % 60
                 time_str = f"{hours}h {minutes}m {seconds}s"
-                proc_msg = app.send_message(user_id, f"⚠️ Telegram has limited message sending.\n⏳ Please wait: {time_str}\nTo update timer send URL again 2 times.")
+                proc_msg = app.send_message(user_id, f"⚠️ Telegram has limited message sending.\n\n⏳ Please wait: {time_str}\n\nTo update timer send URL again 2 times.")
         else:
-            proc_msg = app.send_message(user_id, "⚠️ Telegram has limited message sending.\n⏳ Please wait: \nTo update timer send URL again 2 times.")
+            proc_msg = app.send_message(user_id, "⚠️ Telegram has limited message sending.\n\n⏳ Please wait: \n\nTo update timer send URL again 2 times.")
 
         # We are trying to replace with "Download started"
         try:
@@ -3093,9 +2683,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             return
 
         # If there is no flood error, send a normal message (only once)
-        proc_msg = app.send_message(user_id, "🔄 Processing...", reply_to_message_id=message.id)
+        proc_msg = app.send_message(user_id, "Processing... ♻️", reply_to_message_id=message.id)
         proc_msg_id = proc_msg.id
-        status_msg = app.send_message(user_id, "🎙️ Audio is processing...")
+        status_msg = app.send_message(user_id, "🎧 Audio is processing...")
         hourglass_msg = app.send_message(user_id, "⏳ Please wait...")
         status_msg_id = status_msg.id
         hourglass_msg_id = hourglass_msg.id
@@ -3118,12 +2708,12 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 if error_key in playlist_errors:
                     del playlist_errors[error_key]
 
-        # Check if cookie.txt exists in the user's folder
+        # Проверяем наличие cookie.txt в папке пользователя
         user_cookie_path = os.path.join(user_folder, "cookie.txt")
         if os.path.exists(user_cookie_path):
             cookie_file = user_cookie_path
         else:
-            # If not in the user's folder, copy from the global folder
+            # Если нет в папке пользователя, копируем из глобальной папки
             global_cookie_path = Config.COOKIE_FILE_PATH
             if os.path.exists(global_cookie_path):
                 try:
@@ -3156,7 +2746,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 blocks = int(percent // 10)
                 bar = "🟩" * blocks + "⬜️" * (10 - blocks)
                 try:
-                    safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n📥 Downloading audio:\n{bar}   {percent:.1f}%")
+                    safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\nDownloading audio:\n{bar}   {percent:.1f}%")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
@@ -3164,7 +2754,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 try:
                     full_bar = "🟩" * 10
                     safe_edit_message_text(user_id, proc_msg_id,
-                        f"{current_total_process}\n📥 Downloading audio:\n{full_bar}   100.0%\nDownload finished, processing audio...")
+                        f"{current_total_process}\nDownloading audio:\n{full_bar}   100.0%\nDownload finished, processing audio...")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
@@ -3185,10 +2775,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                   'preferredquality': '192',
                },
                {
-                  'key': 'EmbedThumbnail'   # equivalent to --embed-thumbnail
+                  'key': 'EmbedThumbnail'   # эквивалент --embed-thumbnail
                },
                {
-                  'key': 'FFmpegMetadata'   # equivalent to --add-metadata
+                  'key': 'FFmpegMetadata'   # эквивалент --add-metadata
                }                  
                 ],
                'prefer_ffmpeg': True,
@@ -3205,9 +2795,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                'live_from_start': True,
             }
             
-            # Check if we need to use --no-cookies for this domain
+            # Проверяем, нужно ли использовать --no-cookies для данного домена
             if is_no_cookie_domain(url):
-                ytdl_opts['cookiefile'] = None  # Equivalent to --no-cookies
+                ytdl_opts['cookiefile'] = None  # Эквивалент --no-cookies
                 logger.info(f"Using --no-cookies for domain: {url}")
             else:
                 ytdl_opts['cookiefile'] = cookie_file   
@@ -3228,7 +2818,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
                 try:
                     safe_edit_message_text(user_id, proc_msg_id,
-                        f"{current_total_process}\n> __📥 Downloading audio using format: ba...__")
+                        f"{current_total_process}\n\n> __Downloading audio using format: ba...__ 📥")
                 except Exception as e:
                     logger.error(f"Status update error: {e}")
                 
@@ -3247,10 +2837,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 # Send full error message with instructions immediately
                 send_to_all(
                     message,
-                    "> Check [here](https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites) if your site supported\n"
+                    f"❌ Error downloading: {error_text}\n────────────────\n"
+                    "> Check [here](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) if your site supported\n"
                     "> You may need `cookie` for downloading this audio. First, clean your workspace via **/clean** command\n"
-                    "> For Youtube - get `cookie` via **/download_cookie** command. For any other supported site - send your own cookie ([guide1](https://t.me/c/2303231066/18)) ([guide2](https://t.me/c/2303231066/22)) and after that send your audio link again.\n"
-                    f"────────────────\n❌ Error downloading: {error_text}"
+                    "> For Youtube - get `cookie` via **/download_cookie** command. For any other supported site - send your own cookie ([guide1](https://t.me/c/2303231066/18)) ([guide2](https://t.me/c/2303231066/22)) and after that send your audio link again."
                 )
                 return None
             except Exception as e:
@@ -3362,7 +2952,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
             try:
                 full_bar = "🟩" * 10
-                safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n📤 Uploading audio file...\n{full_bar}   100.0%")
+                safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\nUploading audio file...\n{full_bar}   100.0%")
             except Exception as e:
                 logger.error(f"Error updating upload status: {e}")
 
@@ -3373,7 +2963,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             bot_name = getattr(Config, 'BOT_NAME', None) or 'bot'
             bot_mention = f' @{bot_name}' if not bot_name.startswith('@') else f' {bot_name}'
             # Use original audio_title for caption, not sanitized caption_name
-            caption_with_link = f"{audio_title}\n{tags_block}[🔗 Audio URL]({url}){bot_mention}"
+            caption_with_link = f"{audio_title}\n\n{tags_block}[🔗 Audio URL]({url}){bot_mention}"
             
             try:
                 audio_msg = app.send_audio(chat_id=user_id, audio=audio_file, caption=caption_with_link, reply_to_message_id=message.id)
@@ -3398,7 +2988,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     else:
                         # For single audios, save to regular cache
                         logger.info(f"down_and_audio: saving to video cache: msg_ids={msg_ids}")
-                        save_to_video_cache(url, quality_key, msg_ids, original_text=message.text or message.caption or "", user_id=user_id)
+                        save_to_video_cache(url, quality_key, msg_ids, original_text=message.text or message.caption or "")
             except Exception as send_error:
                 logger.error(f"Error sending audio: {send_error}")
                 send_to_user(message, f"❌ Failed to send audio: {send_error}")
@@ -3416,9 +3006,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 threading.Event().wait(2)
 
         if successful_uploads == len(indices_to_download):
-            success_msg = f"✅ Audio successfully downloaded and sent - {len(indices_to_download)} files uploaded.\n{Config.CREDITS_MSG}"
+            success_msg = f"✅ Audio successfully downloaded and sent - {len(indices_to_download)} files uploaded.\n\n{Config.CREDITS_MSG}"
         else:
-            success_msg = f"⚠️ Partially completed - {successful_uploads}/{len(indices_to_download)} audio files uploaded.\n{Config.CREDITS_MSG}"
+            success_msg = f"⚠️ Partially completed - {successful_uploads}/{len(indices_to_download)} audio files uploaded.\n\n{Config.CREDITS_MSG}"
             
         try:
             safe_edit_message_text(user_id, proc_msg_id, success_msg)
@@ -3519,36 +3109,23 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 send_to_logger(message, f"Playlist videos sent from cache (quality={quality_key}) to user {user_id}")
                 return
             else:
-                app.send_message(user_id, f"📥 {len(cached_videos)}/{len(requested_indices)} videos sent from cache, downloading missing ones...", reply_to_message_id=message.id)
+                app.send_message(user_id, f"♻️ {len(cached_videos)}/{len(requested_indices)} videos sent from cache, downloading missing ones...", reply_to_message_id=message.id)
     elif quality_key and not is_playlist:
-        found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-        subs_enabled = is_subs_enabled(user_id)
-        auto_mode = get_user_subs_auto_mode(user_id)
-        need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-        if not need_subs:
-            cached_ids = get_cached_message_ids(url, quality_key)
-            if cached_ids:
-                found_type = None
-                try:
-                    app.forward_messages(
-                        chat_id=user_id,
-                        from_chat_id=Config.LOGS_ID,
-                        message_ids=cached_ids
-                    )
-                    app.send_message(user_id, "✅ Video sent from cache.", reply_to_message_id=message.id)
-                    send_to_logger(message, f"Video sent from cache (quality={quality_key}) to user {user_id}")
-                    return
-                except Exception as e:
-                    logger.error(f"Error reposting video from cache: {e}")
-                    found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                    subs_enabled = is_subs_enabled(user_id)
-                    auto_mode = get_user_subs_auto_mode(user_id)
-                    need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-                    if not need_subs:
-                        save_to_video_cache(url, quality_key, [], clear=True)
-                    else:
-                        logger.info("Video with subs (subs.txt found) is not cached!")
-                    app.send_message(user_id, "⚠️ Unable to get video from cache, starting new download...", reply_to_message_id=message.id)
+        cached_ids = get_cached_message_ids(url, quality_key)
+        if cached_ids:
+            try:
+                app.forward_messages(
+                    chat_id=user_id,
+                    from_chat_id=Config.LOGS_ID,
+                    message_ids=cached_ids
+                )
+                app.send_message(user_id, "✅ Video sent from cache.", reply_to_message_id=message.id)
+                send_to_logger(message, f"Video sent from cache (quality={quality_key}) to user {user_id}")
+                return
+            except Exception as e:
+                logger.error(f"Error reposting video from cache: {e}")
+                save_to_video_cache(url, quality_key, [], clear=True)
+                app.send_message(user_id, "⚠️ Unable to get video from cache, starting new download...", reply_to_message_id=message.id)
     else:
         logger.info(f"down_and_up: quality_key is None, skipping cache check")
 
@@ -3573,9 +3150,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 minutes = (wait_time % 3600) // 60
                 seconds = wait_time % 60
                 time_str = f"{hours}h {minutes}m {seconds}s"
-                proc_msg = app.send_message(user_id, f"⚠️ Telegram has limited message sending.\n⏳ Please wait: {time_str}\nTo update timer send URL again 2 times.")
+                proc_msg = app.send_message(user_id, f"⚠️ Telegram has limited message sending.\n\n⏳ Please wait: {time_str}\n\nTo update timer send URL again 2 times.")
         else:
-            proc_msg = app.send_message(user_id, "⚠️ Telegram has limited message sending.\n⏳ Please wait: \nTo update timer send URL again 2 times.")
+            proc_msg = app.send_message(user_id, "⚠️ Telegram has limited message sending.\n\n⏳ Please wait: \n\nTo update timer send URL again 2 times.")
 
         # We are trying to replace with "Download started"
         try:
@@ -3599,7 +3176,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             return
 
         # If there is no flood error, send a normal message
-        proc_msg = app.send_message(user_id, "🔄 Processing...", reply_to_message_id=message.id)
+        proc_msg = app.send_message(user_id, "Processing... ♻️", reply_to_message_id=message.id)
         proc_msg_id = proc_msg.id
         error_message = ""
         status_msg = None
@@ -3643,7 +3220,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             # if use_default_format is True, then do not take from format.txt, but use default ones
             if use_default_format:
                 attempts = [
-                    {'format': 'bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best', 'prefer_ffmpeg': True, 'merge_output_format': output_format, 'extract_flat': False},
+                    {'format': 'bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best', 'prefer_ffmpeg': True, 'merge_output_format': 'mp4', 'extract_flat': False},
                     {'format': 'best', 'prefer_ffmpeg': False, 'extract_flat': False}
                 ]
             else:
@@ -3653,17 +3230,17 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     if custom_format.lower() == "best":
                         attempts = [{'format': custom_format, 'prefer_ffmpeg': False}]
                     else:
-                        attempts = [{'format': custom_format, 'prefer_ffmpeg': True, 'merge_output_format': output_format}]
+                        attempts = [{'format': custom_format, 'prefer_ffmpeg': True, 'merge_output_format': 'mp4'}]
                 else:
                     attempts = [
                         {'format': 'bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best',
-                        'prefer_ffmpeg': True, 'merge_output_format': output_format, 'extract_flat': False},
+                        'prefer_ffmpeg': True, 'merge_output_format': 'mp4', 'extract_flat': False},
                         {'format': 'bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best',
-                        'prefer_ffmpeg': True, 'merge_output_format': output_format, 'extract_flat': False},
+                        'prefer_ffmpeg': True, 'merge_output_format': 'mp4', 'extract_flat': False},
                         {'format': 'best', 'prefer_ffmpeg': False, 'extract_flat': False}
                     ]
 
-        status_msg = app.send_message(user_id, "📽 Video is processing...")
+        status_msg = app.send_message(user_id, "📹 Video is processing...")
         hourglass_msg = app.send_message(user_id, "⌛️")
         # We save ID status messages
         status_msg_id = status_msg.id
@@ -3699,7 +3276,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             processing_messages = []
                             download_started_messages = []
                             for msg in messages:
-                                if msg.text == "🔄 Processing...":
+                                if msg.text == "Processing... ♻️":
                                     processing_messages.append(msg.id)
                                 elif msg.text == "Download started":
                                     download_started_messages.append(msg.id)
@@ -3730,10 +3307,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 'outtmpl': os.path.join(user_dir_name, "%(title).50s.%(ext)s"),
                 'postprocessors': [
                 {
-                   'key': 'EmbedThumbnail'   # equivalent to --embed-thumbnail
+                   'key': 'EmbedThumbnail'   # эквивалент --embed-thumbnail
                 },
                 {
-                   'key': 'FFmpegMetadata'   # equivalent to --add-metadata
+                   'key': 'FFmpegMetadata'   # эквивалент --add-metadata
                 }                  
                 ],                
                 'extractor_args': {
@@ -3745,39 +3322,17 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 'live_from_start': True
             }
             
-            # Check subtitle availability for YouTube videos (but don't download them here)
-            if is_youtube_url(url):
-                subs_lang = get_user_subs_language(user_id)
-                auto_mode = get_user_subs_auto_mode(user_id)
-                if subs_lang and subs_lang not in ["OFF"]:
-                    # Check availability with AUTO mode
-                    available_langs = get_available_subs_languages(url, user_id, auto_only=auto_mode)
-                    # Flexible check: search for an exact match or any language from the group
-                    lang_prefix = subs_lang.split('-')[0]
-                    found = False
-                    for l in available_langs:
-                        if l == subs_lang or l.startswith(subs_lang + '-') or l.startswith(subs_lang + '.') \
-                           or l == lang_prefix or l.startswith(lang_prefix + '-') or l.startswith(lang_prefix + '.'):
-                            found = True
-                            break
-                    if not found:
-                        app.send_message(
-                            user_id,
-                            f"⚠️ Subtitles for {LANGUAGES[subs_lang]['flag']} {LANGUAGES[subs_lang]['name']} not found for this video. Download without subtitles.",
-                            reply_to_message_id=message.id
-                        )
-            
-            # Check if we need to use --no-cookies for this domain
+            # Проверяем, нужно ли использовать --no-cookies для данного домена
             if is_no_cookie_domain(url):
-                common_opts['cookiefile'] = None  # Equivalent to --no-cookies
+                common_opts['cookiefile'] = None  # Эквивалент --no-cookies
                 logger.info(f"Using --no-cookies for domain: {url}")
             else:
-                # Check if cookie.txt exists in the user's folder
+                # Проверяем наличие cookie.txt в папке пользователя
                 user_cookie_path = os.path.join("users", str(user_id), "cookie.txt")
                 if os.path.exists(user_cookie_path):
                     common_opts['cookiefile'] = user_cookie_path
                 else:
-                    # If not in the user's folder, copy from the global folder
+                    # Если нет в папке пользователя, копируем из глобальной папки
                     global_cookie_path = Config.COOKIE_FILE_PATH
                     if os.path.exists(global_cookie_path):
                         try:
@@ -3826,10 +3381,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 try:
                     if is_hls:
                         safe_edit_message_text(user_id, proc_msg_id,
-                            f"{current_total_process}\n__Detected HLS stream.\n📥 Downloading...__")
+                            f"{current_total_process}\n\n__Detected HLS stream. Downloading...__ 📥")
                     else:
                         safe_edit_message_text(user_id, proc_msg_id,
-                            f"{current_total_process}\n> __📥 Downloading using format: {ytdl_opts.get('format', 'default')}...__")
+                            f"{current_total_process}\n\n> __Downloading using format: {ytdl_opts.get('format', 'default')}...__ 📥")
                 except Exception as e:
                     logger.error(f"Status update error: {e}")
                 with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
@@ -3856,11 +3411,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 logger.error(f"DownloadError: {error_message}")
                 # Send full error message with instructions immediately
                 send_to_all(
-                    message,                   
-                    "> Check [here](https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites) if your site supported\n"
+                    message,
+                    f"❌ Error downloading: {error_message}\n────────────────\n"
+                    "> Check [here](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) if your site supported\n"
                     "> You may need `cookie` for downloading this video. First, clean your workspace via **/clean** command\n"
-                    "> For Youtube - get `cookie` via **/download_cookie** command. For any other supported site - send your own cookie ([guide1](https://t.me/c/2303231066/18)) ([guide2](https://t.me/c/2303231066/22)) and after that send your video link again.\n"
-                    f"────────────────\n❌ Error downloading: {error_message}"
+                    "> For Youtube - get `cookie` via **/download_cookie** command. For any other supported site - send your own cookie ([guide1](https://t.me/c/2303231066/18)) ([guide2](https://t.me/c/2303231066/22)) and after that send your video link again."
                 )
                 return None
             except Exception as e:
@@ -3887,6 +3442,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 **📶 Total Progress**
 > **Video:** {idx + 1} / {len(indices_to_download)}
 """
+
             current_total_process = total_process
 
             # Determine rename_name based on the incoming playlist_name:
@@ -3947,6 +3503,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
             info_text = f"""
 {total_process}
+
 **📋 Video Info**
 > **Number:** {idx + video_start_with}
 > **Title:** {original_video_title}
@@ -3955,7 +3512,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
             try:
                 safe_edit_message_text(user_id, proc_msg_id,
-                    f"{info_text}\n{full_bar}   100.0%\n__☑️ Downloaded video.\n📤 Processing for upload...__")
+                    f"{info_text}\n\n{full_bar}   100.0%\n\n__Downloaded video. Processing for upload...__ ♻️")
             except Exception as e:
                 logger.error(f"Status update error after download: {e}")
 
@@ -4009,7 +3566,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             if final_name.lower().endswith((".webm", ".ts")):
                 try:
                     safe_edit_message_text(user_id, proc_msg_id,
-                        f"{info_text}\n{full_bar}   100.0%\nConverting video using ffmpeg... ⏳")
+                        f"{info_text}\n\n{full_bar}   100.0%\nConverting video using ffmpeg... ⏳")
                 except Exception as e:
                     logger.error(f"Error updating status before conversion: {e}")
 
@@ -4101,11 +3658,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             max_size = get_user_split_size(user_id)  # 1.95 GB - close to Telegram's 2GB limit with 50MB safety margin
             if int(video_size_in_bytes) > max_size:
                 safe_edit_message_text(user_id, proc_msg_id,
-                    f"{info_text}\n{full_bar}   100.0%\n__⚠️ Your video size ({video_size}) is too large.__\n__Splitting file...__ ✂️")
+                    f"{info_text}\n\n{full_bar}   100.0%\n__⚠️ Your video size ({video_size}) is too large.__\n__Splitting file...__ ✂️")
                 returned = split_video_2(dir_path, sanitize_filename(caption_name), after_rename_abs_path, int(video_size_in_bytes), max_size, duration)
                 caption_lst = returned.get("video")
                 path_lst = returned.get("path")
-                # Accumulate all IDs of split video parts
+                # Накапливаем все ID частей split-видео
                 split_msg_ids = []
                 for p in range(len(caption_lst)):
                     part_result = get_duration_thumb(message, dir_path, path_lst[p], sanitize_filename(caption_lst[p]))
@@ -4114,7 +3671,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     part_duration, splited_thumb_dir = part_result
                     # --- TikTok: Don't Pass Title ---
                     video_msg = send_videos(message, path_lst[p], '' if force_no_title else caption_lst[p], part_duration, splited_thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final)
-                    found_type = None
                     try:
                         forwarded_msgs = safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
                         logger.info(f"down_and_up: forwarded_msgs result: {forwarded_msgs}")
@@ -4129,40 +3685,26 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         rounded_quality_key = f"{ceil_to_popular(int(quality_key[:-1]))}p"
                                 except Exception:
                                     pass
-                                found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                                subs_enabled = is_subs_enabled(user_id)
-                                auto_mode = get_user_subs_auto_mode(user_id)
-                                need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-                                if not need_subs:
-                                    save_to_playlist_cache(get_clean_playlist_url(url), rounded_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
-                                else:
-                                    logger.info("Video with subtitles (subs.txt found) is not cached!")
+                                save_to_playlist_cache(get_clean_playlist_url(url), rounded_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
                                 cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), rounded_quality_key, [current_video_index])
                                 logger.info(f"Checking the cache immediately after writing: {cached_check}")
                                 playlist_indices.append(current_video_index)
                                 playlist_msg_ids.extend([m.id for m in forwarded_msgs])
                             else:
-                                # Accumulate IDs of parts for split video
+                                # Накапливаем ID частей для split видео
                                 split_msg_ids.extend([m.id for m in forwarded_msgs])
                         else:
                             logger.info(f"down_and_up: collecting video_msg.id for split video: {video_msg.id}")
                             if is_playlist:
                                 # For playlists, save to playlist cache with video index
                                 current_video_index = x + video_start_with
-                                found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                                subs_enabled = is_subs_enabled(user_id)
-                                auto_mode = get_user_subs_auto_mode(user_id)
-                                need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-                                if not need_subs:
-                                    save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
-                                else:
-                                    logger.info("Video with subtitles (subs.txt found) is not cached!")
+                                save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
                                 cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, [current_video_index])
                                 logger.info(f"Checking the cache immediately after writing: {cached_check}")
                                 playlist_indices.append(current_video_index)
                                 playlist_msg_ids.append(video_msg.id)
                             else:
-                                # Accumulate IDs of parts for split video
+                                # Накапливаем ID частей для split видео
                                 split_msg_ids.append(video_msg.id)
                     except Exception as e:
                         logger.error(f"Error forwarding video to logger: {e}")
@@ -4170,45 +3712,31 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         if is_playlist:
                             # For playlists, save to playlist cache with video index
                             current_video_index = x + video_start_with
-                            found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                            subs_enabled = is_subs_enabled(user_id)
-                            auto_mode = get_user_subs_auto_mode(user_id)
-                            need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-                            if not need_subs:
-                                save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
-                            else:
-                                logger.info("Video with subtitles (subs.txt found) is not cached!")
+                            save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
                             cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, [current_video_index])
                             logger.info(f"Checking the cache immediately after writing: {cached_check}")
                             playlist_indices.append(current_video_index)
                             playlist_msg_ids.append(video_msg.id)
                         else:
-                            # Accumulate IDs of parts for split video
+                            # Накапливаем ID частей для split видео
                             split_msg_ids.append(video_msg.id)
                     safe_edit_message_text(user_id, proc_msg_id,
-                                          f"{info_text}\n{full_bar}   100.0%\n__📤 Splitted part {p + 1} file uploaded__")
+                                          f"{info_text}\n\n{full_bar}   100.0%\n__Splitted part {p + 1} file uploaded__")
                     if p < len(caption_lst) - 1:
                         threading.Event().wait(2)
                     os.remove(splited_thumb_dir)
                     send_mediainfo_if_enabled(user_id, path_lst[p], message)
                     os.remove(path_lst[p])
                 
-                # Save all parts of split video to cache after the loop is completed
+                # Сохраняем все части split-видео в кэш после завершения цикла
                 if split_msg_ids and not is_playlist:
-                    # Remove duplicates
+                    # Удаляем дубликаты
                     split_msg_ids = list(dict.fromkeys(split_msg_ids))
                     logger.info(f"down_and_up: saving all split video parts to cache: {split_msg_ids}")
-                    found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                    subs_enabled = is_subs_enabled(user_id)
-                    auto_mode = get_user_subs_auto_mode(user_id)
-                    need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-                    if not need_subs:
-                        save_to_video_cache(url, quality_key, split_msg_ids, original_text=message.text or message.caption or "")
-                    else:
-                        logger.info("Split video with subtitles is not cached!")
+                    save_to_video_cache(url, quality_key, split_msg_ids, original_text=message.text or message.caption or "")
                 os.remove(thumb_dir)
                 os.remove(user_vid_path)
-                success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n{Config.CREDITS_MSG}"
+                success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n\n{Config.CREDITS_MSG}"
                 safe_edit_message_text(user_id, proc_msg_id, success_msg)
                 send_to_logger(message, "Video upload completed with file splitting.")
                 break
@@ -4234,99 +3762,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
                     try:
                         # --- TikTok: Don't Pass Title ---
-                        # Embed subtitles if needed (only for single videos, not playlists)
-                        is_playlist_mode = video_count > 1 or is_playlist_with_range(original_text)
-                        if not is_playlist_mode:
-                            # Check the limits for subtitles
-                            subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
-                            # Get the real size of the video
-                            try:
-                                clip = VideoFileClip(after_rename_abs_path)
-                                width = int(clip.w)
-                                height = int(clip.h)
-                                clip.close()
-                                real_file_size = min(width, height)
-                            except Exception as e:
-                                logger.error(f"[MOVIEPY BYPASS] Ошибка при обработке видео {after_rename_abs_path}: {e}")
-                                import traceback
-                                logger.error(traceback.format_exc())
-                                width, height = 0, 0
-                                real_file_size = 0
-                            auto_mode = get_user_subs_auto_mode(user_id)
-                            if subs_enabled and is_youtube_url(url) and min(width, height) <= Config.MAX_SUB_QUALITY:
-                                found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                                if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
-                                    
-                                    # Сначала скачиваем субтитры отдельно
-                                    video_dir = os.path.dirname(after_rename_abs_path)
-                                    subs_path = download_subtitles_ytdlp(url, user_id, video_dir)
-                                    
-                                    if not subs_path:
-                                        app.send_message(user_id, "⚠️ Failed to download subtitles", reply_to_message_id=message.id)
-                                        continue
-                                    
-                                    # Get the real size of the file after downloading
-                                    real_file_size = os.path.getsize(after_rename_abs_path) if os.path.exists(after_rename_abs_path) else 0
-                                    
-                                    # Create info_dict with real data
-                                    real_info = {
-                                        'duration': duration,  # Real duration
-                                        'filesize': real_file_size,  # Real file size
-                                        'filesize_approx': real_file_size
-                                    }
-                                    
-                                    if check_subs_limits(real_info, quality_key):
-                                        status_msg = app.send_message(user_id, "⚠️ Embedding subtitles may take a long time (up to 1 min per 1 min of video)!\n🔥 Starting to burn subtitles...")
-                                        def tg_update_callback(progress, eta):
-                                            blocks = int(progress * 10)
-                                            bar = '🟩' * blocks + '⬜️' * (10 - blocks)
-                                            percent = int(progress * 100)
-                                            try:
-                                                app.edit_message_text(
-                                                    chat_id=user_id,
-                                                    message_id=status_msg.id,
-                                                    text=f"🔥 Embedding subtitles...\n{bar} {percent}%\nETA: {eta} min"
-                                                )
-                                            except Exception as e:
-                                                logger.error(f"Failed to update subtitle progress: {e}")
-                                        # Embed subtitles and get the result
-                                        embed_result = embed_subs_to_video(after_rename_abs_path, user_id, tg_update_callback, app=app, message=message)
-                                        try:
-                                            if embed_result:
-                                                app.edit_message_text(
-                                                    chat_id=user_id,
-                                                    message_id=status_msg.id,
-                                                    text="Subtitles successfully embedded! ✅"
-                                                )
-                                            else:
-                                                # Check if there are subtitle files
-                                                video_dir = os.path.dirname(after_rename_abs_path)
-                                                video_name = os.path.splitext(os.path.basename(after_rename_abs_path))[0]
-                                                subs_files = glob.glob(os.path.join(video_dir, f"{video_name}*.srt"))
-                                                
-                                                if not subs_files:
-                                                    app.edit_message_text(
-                                                        chat_id=user_id,
-                                                        message_id=status_msg.id,
-                                                        text="⚠️ Subtitles not found for this video"
-                                                    )
-                                                else:
-                                                    app.edit_message_text(
-                                                        chat_id=user_id,
-                                                        message_id=status_msg.id,
-                                                        text="⚠️ Subtitles not embedded: exceeded size/duration limits"
-                                                    )
-                                        except Exception as e:
-                                            logger.error(f"Failed to update subtitle progress (final): {e}")
-                                    else:
-                                        app.send_message(user_id, "ℹ️ Subtitles cannot be embedded due to limits (quality/duration/size)", reply_to_message_id=message.id)
-                                else:
-                                    app.send_message(user_id, "ℹ️ Subtitles are not available for the selected language", reply_to_message_id=message.id)
-                            # Clear
-                            clear_subs_check_cache()
                         video_msg = send_videos(message, after_rename_abs_path, '' if force_no_title else original_video_title, duration, thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final)
-                        
-                        found_type = None
                         try:
                             forwarded_msgs = safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
                             logger.info(f"down_and_up: forwarded_msgs result: {forwarded_msgs}")
@@ -4335,85 +3771,43 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 if is_playlist:
                                     # For playlists, save to playlist cache with video index
                                     current_video_index = x + video_start_with
-                                    found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                                    subs_enabled = is_subs_enabled(user_id)
-                                    auto_mode = get_user_subs_auto_mode(user_id)
-                                    need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-                                    if not need_subs:
-                                        save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
-                                    else:
-                                        logger.info("Video with subtitles (subs.txt found) is not cached!")
+                                    save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
                                     cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, [current_video_index])
                                     logger.info(f"Checking the cache immediately after writing: {cached_check}")
                                     playlist_indices.append(current_video_index)
                                     playlist_msg_ids.extend([m.id for m in forwarded_msgs])
                                 else:
                                     # For single videos, save to regular cache
-                                    found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                                    subs_enabled = is_subs_enabled(user_id)
-                                    auto_mode = get_user_subs_auto_mode(user_id)
-                                    need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-                                    if not need_subs:
-                                        save_to_video_cache(url, quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
-                                    else:
-                                        logger.info("Video with subtitles (subs.txt found) is not cached!")
+                                    save_to_video_cache(url, quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
                             else:
                                 logger.info(f"down_and_up: saving to cache with video_msg.id: {video_msg.id}")
                                 if is_playlist:
                                     # For playlists, save to playlist cache with video index
                                     current_video_index = x + video_start_with
-                                    found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                                    subs_enabled = is_subs_enabled(user_id)
-                                    auto_mode = get_user_subs_auto_mode(user_id)
-                                    need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-                                    if not need_subs:
-                                        save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
-                                    else:
-                                        logger.info("Video with subtitles (subs.txt found) is not cached!")
+                                    save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
                                     cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, [current_video_index])
                                     logger.info(f"Checking the cache immediately after writing: {cached_check}")
                                     playlist_indices.append(current_video_index)
                                     playlist_msg_ids.append(video_msg.id)
                                 else:
-                                    found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                                    subs_enabled = is_subs_enabled(user_id)
-                                    auto_mode = get_user_subs_auto_mode(user_id)
-                                    need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-                                    if not need_subs:
-                                        # For single videos, save to regular cache
-                                        save_to_video_cache(url, quality_key, [video_msg.id], original_text=message.text or message.caption or "")
-                                    else:
-                                        logger.info("Video with subtitles (subs.txt found) is not cached!")
+                                    # For single videos, save to regular cache
+                                    save_to_video_cache(url, quality_key, [video_msg.id], original_text=message.text or message.caption or "")
                         except Exception as e:
                             logger.error(f"Error forwarding video to logger: {e}")
                             logger.info(f"down_and_up: saving to cache with video_msg.id after error: {video_msg.id}")
                             if is_playlist:
                                 # For playlists, save to playlist cache with video index
                                 current_video_index = x + video_start_with
-                                found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                                subs_enabled = is_subs_enabled(user_id)
-                                auto_mode = get_user_subs_auto_mode(user_id)
-                                need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-                                if not need_subs:
-                                    save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
-                                else:
-                                    logger.info("Video with subtitles (subs.txt found) is not cached!")
+                                save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
                                 cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, [current_video_index])
                                 logger.info(f"Checking the cache immediately after writing: {cached_check}")
                                 playlist_indices.append(current_video_index)
                                 playlist_msg_ids.append(video_msg.id)
                             else:
                                 # For single videos, save to regular cache
-                                found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                                subs_enabled = is_subs_enabled(user_id)
-                                auto_mode = get_user_subs_auto_mode(user_id)
-                                need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-                                if not need_subs:
-                                    save_to_video_cache(url, quality_key, [video_msg.id], original_text=message.text or message.caption or "")
-                                else:
-                                    logger.info("Video with subtitles (subs.txt found) is not cached!")
+                                save_to_video_cache(url, quality_key, [video_msg.id], original_text=message.text or message.caption or "")
                         safe_edit_message_text(user_id, proc_msg_id,
-                            f"{info_text}\n{full_bar}   100.0%\n**🎞 Video duration:** __{TimeFormatter(duration * 1000)}__\n1 file uploaded.")
+                            f"{info_text}\n{full_bar}   100.0%\n\n**🎞 Video duration:** __{TimeFormatter(duration * 1000)}__\n\n1 file uploaded.")
                         send_mediainfo_if_enabled(user_id, after_rename_abs_path, message)
                         os.remove(after_rename_abs_path)
                         if thumb_dir and os.path.exists(thumb_dir):
@@ -4421,11 +3815,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         threading.Event().wait(2)
                     except Exception as e:
                         logger.error(f"Error sending video: {e}")
-                        logger.error(traceback.format_exc())
                         send_to_all(message, f"❌ Error sending video: {str(e)}")
                         continue
         if successful_uploads == len(indices_to_download):
-            success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n{Config.CREDITS_MSG}"
+            success_msg = f"**✅ Upload complete** - {video_count} files uploaded.\n\n{Config.CREDITS_MSG}"
             safe_edit_message_text(user_id, proc_msg_id, success_msg)
             send_to_logger(message, success_msg)
 
@@ -4472,14 +3865,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
         # --- ADDED: summary of cache after cycle ---
         if is_playlist and playlist_indices and playlist_msg_ids:
-            found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-            subs_enabled = is_subs_enabled(user_id)
-            auto_mode = get_user_subs_auto_mode(user_id)
-            need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-            if not need_subs:
-                save_to_playlist_cache(get_clean_playlist_url(url), quality_key, playlist_indices, playlist_msg_ids, original_text=message.text or message.caption or "")
-            else:
-                logger.info("Video with subtitles (subs.txt found) is not cached!")
+            save_to_playlist_cache(get_clean_playlist_url(url), quality_key, playlist_indices, playlist_msg_ids, original_text=message.text or message.caption or "")
             cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, playlist_indices)
             summary = "\n".join([f"Index {idx}: msg_id={cached_check.get(idx, '-')}" for idx in playlist_indices])
             logger.info(f"[SUMMARY] Playlist cache (quality {quality_key}):\n{summary}")
@@ -4570,7 +3956,7 @@ def cleanup_user_temp_files(user_id):
         for filename in os.listdir(user_dir):
             file_path = os.path.join(user_dir, filename)
             # Remove temporary files
-            if (filename.endswith(('.part', '.ytdl', '.temp', '.tmp', '.srt')) or  # Added .srt for subtitles
+            if (filename.endswith(('.part', '.ytdl', '.temp', '.tmp')) or
                 filename.startswith('yt_thumb_') or  # YouTube thumbnails
                 filename.endswith('.jpg') or  # Thumbnails
                 filename == 'full_title.txt' or  # Full title file
@@ -4934,7 +4320,7 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
 
                 # Use safe_edit_message_text and check if message exists
                 result = safe_edit_message_text(user_id, proc_msg_id,
-                    f"{current_total_process}\n📥 Downloading HLS stream: {frag_text}\n{bar}")
+                    f"{current_total_process}\nDownloading HLS stream: {frag_text}\n{bar}")
 
                 # If message was deleted (returns None), stop animation
                 if result is None and counter > 2:  # Allow first few attempts to fail
@@ -5032,7 +4418,7 @@ def save_user_tags(user_id, tags):
                 f.write(tag + "\n")
 
 @app.on_message(filters.command("tags") & filters.private)
-# @reply_with_keyboard
+#@reply_with_keyboard
 def tags_command(app, message):
     user_id = message.chat.id
     user_dir = os.path.join("users", str(user_id))
@@ -5080,8 +4466,8 @@ def extract_youtube_id(url: str) -> str:
 
 def download_thumbnail(video_id: str, dest: str, url: str = None) -> None:
     """
-    Downloads YouTube (Maxresdefault/Hqdefault) to the disk in the original size.
-    URL - it is needed to determine Shorts by link (but now it is not used).
+    Скачивает превью YouTube (maxresdefault/hqdefault) на диск в оригинальном размере.
+    url — нужен для определения Shorts по ссылке (но теперь не используется).
     """
     base = f"https://img.youtube.com/vi/{video_id}"
     img_bytes = None
@@ -5094,7 +4480,7 @@ def download_thumbnail(video_id: str, dest: str, url: str = None) -> None:
             break
     if not img_bytes:
         raise RuntimeError("Failed to download thumbnail or it is too big")
-    # We do nothing else - we keep the original size!
+    # Больше ничего не делаем — сохраняем оригинальный размер!
 
 # --- global lists of domains and keywords ---
 PORN_DOMAINS = set()
@@ -5211,7 +4597,7 @@ def is_porn(url, title, description, caption=None):
     Checks content for pornography by domain and keywords (word-boundary regex search)
     in title, description and caption. Domain whitelist has highest priority.
     """
-    # 1. Checking the domain
+    # 1. Проверка домена
     clean_url = get_clean_url_for_tagging(url)
     domain_parts, _ = extract_domain_parts(clean_url)
     for dom in domain_parts:
@@ -5222,7 +4608,7 @@ def is_porn(url, title, description, caption=None):
         logger.info(f"is_porn: domain match: {domain_parts}")
         return True
 
-    # 2. Preparation of the text
+    # 2. Подготовка текста
     title_lower       = title.lower()       if title       else ""
     description_lower = description.lower() if description else ""
     caption_lower     = caption.lower()     if caption     else ""
@@ -5230,21 +4616,21 @@ def is_porn(url, title, description, caption=None):
         logger.info("is_porn: all text fields empty")
         return False
 
-    # 3. We collect a single text for search
+    # 3. Собираем единый текст для поиска
     combined = " ".join([title_lower, description_lower, caption_lower])
     logger.debug(f"is_porn combined text: '{combined}'")
     logger.debug(f"is_porn keywords: {PORN_KEYWORDS}")
 
-    # 4. Preparing a regex pattern with a list of keywords
+    # 4. Готовим regex-паттерн со списком ключевых слов
     kws = [re.escape(kw.lower()) for kw in PORN_KEYWORDS if kw.strip()]
     if not kws:
-        # There is not a single valid key
+        # нет ни одного валидного ключа
         return False
 
-    # The boundaries of words (\ b) + flag ignorecase
+    # границы слов (\b) + флаг IGNORECASE
     pattern = re.compile(r"\b(" + "|".join(kws) + r")\b", flags=re.IGNORECASE)
 
-    # 5. We are looking for a coincidence
+    # 5. Ищем совпадение
     if pattern.search(combined):
         logger.info(f"is_porn: keyword match (regex): {pattern.pattern}")
         return True
@@ -5253,7 +4639,7 @@ def is_porn(url, title, description, caption=None):
     return False
 
 @app.on_message(filters.command("split") & filters.private)
-# @reply_with_keyboard
+#@reply_with_keyboard
 def split_command(app, message):
     user_id = message.chat.id
     # Subscription check for non-admines
@@ -5284,7 +4670,7 @@ def split_command(app, message):
     send_to_logger(message, "User opened /split menu.")
 
 @app.on_callback_query(filters.regex(r"^split_size\|"))
-# @reply_with_keyboard
+#@reply_with_keyboard
 def split_size_callback(app, callback_query):
     logger.info(f"[SPLIT] callback: {callback_query.data}")
     user_id = callback_query.from_user.id
@@ -5340,12 +4726,12 @@ def get_video_formats(url, user_id=None, playlist_start_index=1):
     }
     if user_id is not None:
         user_dir = os.path.join("users", str(user_id))
-        # Check the availability of cookie.txt in the user folder
+        # Проверяем наличие cookie.txt в папке пользователя
         user_cookie_path = os.path.join(user_dir, "cookie.txt")
         if os.path.exists(user_cookie_path):
             cookie_file = user_cookie_path
         else:
-            # If not in the user folder, we copy from the global folder
+            # Если нет в папке пользователя, копируем из глобальной папки
             global_cookie_path = Config.COOKIE_FILE_PATH
             if os.path.exists(global_cookie_path):
                 try:
@@ -5360,9 +4746,9 @@ def get_video_formats(url, user_id=None, playlist_start_index=1):
             else:
                 cookie_file = None
         
-        # We check whether to use —no-Cookies for this domain
+        # Проверяем, нужно ли использовать --no-cookies для данного домена
         if is_no_cookie_domain(url):
-            ytdl_opts['cookiefile'] = None  # Equivalent-No-Cookies
+            ytdl_opts['cookiefile'] = None  # Эквивалент --no-cookies
             logger.info(f"Using --no-cookies for domain in get_video_formats: {url}")
         elif cookie_file:
             ytdl_opts['cookiefile'] = cookie_file
@@ -5392,19 +4778,12 @@ def sort_quality_key(quality_key):
         except ValueError:
             return 0  # for unknown formats
 
-# @reply_with_keyboard
+#@reply_with_keyboard
 def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
     user_id = message.chat.id
     proc_msg = None
-    found_type = None
-    
-    # Очищаем кэш субтитров перед проверкой, чтобы избежать проблем с кэшированием
-    clear_subs_check_cache()
     try:
-        # Проверяем, включены ли субтитры
-        subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
-        processing_text = "🔄 Processing... (wait 6 sec)" if subs_enabled else "🔄 Processing..."
-        proc_msg = app.send_message(user_id, processing_text, reply_to_message_id=message.id, reply_markup=get_main_reply_keyboard())
+        proc_msg = app.send_message(user_id, "Processing... ♻️", reply_to_message_id=message.id, reply_markup=get_main_reply_keyboard())
         original_text = message.text or message.caption or ""
         is_playlist = is_playlist_with_range(original_text)
         playlist_range = None
@@ -5460,26 +4839,6 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
                 if video_bytes > get_user_split_size(user_id):
                     n_parts = (video_bytes + get_user_split_size(user_id) - 1) // get_user_split_size(user_id)
                     scissors = f" ✂️{n_parts}"
-            
-            # Check the availability of subtitles for this quality
-            subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
-            auto_mode = get_user_subs_auto_mode(user_id)
-            subs_available = ""
-
-            if subs_enabled and is_youtube_url(url) and w is not None and h is not None and min(int(w), int(h)) <= Config.MAX_SUB_QUALITY:
-                # Проверяем наличие субтитров нужного типа
-                # check_subs_availability должен возвращать тип найденных субтитров: "normal", "auto", None
-                found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
-                    # Только если найден нужный тип
-                    temp_info = {
-                        'duration': info.get('duration'),
-                        'filesize': size_val * 1024 * 1024 if size_val else None,
-                        'filesize_approx': size_val * 1024 * 1024 if size_val else None
-                    }
-                    if check_subs_limits(temp_info, quality_key):
-                        subs_available = "💬"
-            
             if is_playlist and playlist_range:
                 indices = list(range(playlist_range[0], playlist_range[1]+1))
                 n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
@@ -5489,9 +4848,8 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             else:
                 is_cached = quality_key in cached_qualities
                 postfix = ""
-            need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-            emoji = "🚀" if is_cached and not need_subs else "📹"
-            table_lines.append(f"{emoji}{quality_key}{subs_available}:  {size_str}{dim_str}{scissors}{postfix}")
+            emoji = "🚀" if is_cached else "📹"
+            table_lines.append(f"{emoji}  {quality_key}:  {size_str}{dim_str}{scissors}{postfix}")
         table_block = "\n".join(table_lines)
         # --- Forming caption ---
         cap = f"<b>{title}</b>\n"
@@ -5501,65 +4859,21 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         if table_block:
             cap += f"\n<blockquote>{table_block}</blockquote>\n"
         # Hint as a separate code block at the very bottom
-        subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
-        auto_mode = get_user_subs_auto_mode(user_id)
-        subs_lang = get_user_subs_language(user_id)
-
-        # Проверяем наличие субтитров нужного типа для выбранного языка
-        subs_hint = ""
-        subs_warn = ""
-        show_repost_hint = True
-
-        if subs_enabled and is_youtube_url(url):
-            found_type = check_subs_availability(url, user_id, return_type=True)
-            need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
-            if need_subs:
-                subs_hint = "\n💬 — Subs are available with chosen language."
-                show_repost_hint = False  # 🚀 не показываем, если сабы реально есть и нужны
-            else:
-                subs_warn = "\n⚠️ WARNING: Subtitles for selected language were not found and will not be embedded."
-
-        repost_line = "\n🚀 — Instant repost. Video is already saved." if show_repost_hint else ""
-        hint = "<pre language=\"info\">📹 — Choose quality for new download." + repost_line + subs_hint + subs_warn + "</pre>"
+        hint = "<pre language=\"info\">📹 — Choose quality for new download.\n🚀 — Instant repost. Video is already saved.</pre>"
         cap += f"\n{hint}\n"
         buttons = []
         # Sort buttons by quality from lowest to highest
         for quality_key in sorted(found_quality_keys, key=sort_quality_key):
-            # Check the availability of subtitles for this quality
-            subs_available = ""
-            subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
-            auto_mode = get_user_subs_auto_mode(user_id)
-            subs_available = ""
-            # First, we are looking for size_val for this quality
-            size_val = None
-            for (qk, w, h), size in minside_size_dim_map.items():
-                if qk == quality_key:
-                    size_val = size
-                    break
-            # Check the restrictions only if the size is found and does not exceed the limit
-            if subs_enabled and is_youtube_url(url) and w is not None and h is not None and min(int(w), int(h)) <= Config.MAX_SUB_QUALITY:
-                # Проверяем наличие субтитров нужного типа
-                found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
-                    temp_info = {
-                        'duration': info.get('duration'),
-                        'filesize': size_val * 1024 * 1024 if size_val else None,
-                        'filesize_approx': size_val * 1024 * 1024 if size_val else None
-                    }
-                    if check_subs_limits(temp_info, quality_key):
-                        subs_available = "💬"
-            
             if is_playlist and playlist_range:
                 indices = list(range(playlist_range[0], playlist_range[1]+1))
                 n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
                 total = len(indices)
                 icon = "🚀" if n_cached > 0 else "📹"
                 postfix = f" ({n_cached}/{total})" if total > 1 else ""
-                button_text = f"{icon}{quality_key}{subs_available}{postfix}"
+                button_text = f"{icon} {quality_key}{postfix}"
             else:
-                need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-                icon = "🚀" if quality_key in cached_qualities and not need_subs else "📹"
-                button_text = f"{icon}{quality_key}{subs_available}"
+                icon = "🚀" if quality_key in cached_qualities else "📹"
+                button_text = f"{icon} {quality_key}"
             buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         if not buttons and popular:
             for height in popular:
@@ -5574,47 +4888,29 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
                 if size_val is None:
                     continue
                     
-                # Check the availability of subtitles for this quality
-                subs_available = ""
-                subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
-                auto_mode = get_user_subs_auto_mode(user_id)
-                if subs_enabled and is_youtube_url(url) and w is not None and h is not None and min(int(w), int(h)) <= Config.MAX_SUB_QUALITY:
-                    # Проверяем наличие субтитров нужного типа
-                    found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                    if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
-                        temp_info = {
-                            'duration': info.get('duration'),
-                            'filesize': size_val * 1024 * 1024 if size_val else None,
-                            'filesize_approx': size_val * 1024 * 1024 if size_val else None
-                        }
-                        if check_subs_limits(temp_info, quality_key):
-                            subs_available = "💬"
-                
                 if is_playlist and playlist_range:
                     indices = list(range(playlist_range[0], playlist_range[1]+1))
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
                     total = len(indices)
                     icon = "🚀" if n_cached > 0 else "📹"
                     postfix = f" ({n_cached}/{total})" if total > 1 else ""
-                    button_text = f"{icon}{quality_key}{subs_available}{postfix}"
+                    button_text = f"{icon} {quality_key}{postfix}"
                 else:
-                    need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-                    icon = "🚀" if quality_key in cached_qualities and not need_subs else "📹"
-                    button_text = f"{icon}{quality_key}{subs_available}"
+                    icon = "🚀" if quality_key in cached_qualities else "📹"
+                    button_text = f"{icon} {quality_key}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         if not buttons:
             quality_key = "best"
-            
             if is_playlist and playlist_range:
                 indices = list(range(playlist_range[0], playlist_range[1]+1))
                 n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
                 total = len(indices)
                 icon = "🚀" if n_cached > 0 else "📹"
                 postfix = f" ({n_cached}/{total})" if total > 1 else ""
-                button_text = f"{icon}Best Quality{postfix}"
+                button_text = f"{icon} Best Quality{postfix}"
             else:
                 icon = "🚀" if quality_key in cached_qualities else "📹"
-                button_text = f"{icon}Best Quality"
+                button_text = f"{icon} Best Quality"
             buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
             
             # Add "Try Another Qualities" button when no automatic qualities detected
@@ -5637,26 +4933,13 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             indices = list(range(playlist_range[0], playlist_range[1]+1))
             n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
             total = len(indices)
-            icon = "🚀" if n_cached > 0 else "🎧"
+            icon = "🚀" if n_cached > 0 else "🎵"
             postfix = f" ({n_cached}/{total})" if total > 1 else ""
             button_text = f"{icon} audio (mp3){postfix}"
         else:
-            icon = "🚀" if quality_key in cached_qualities else "🎧"
+            icon = "🚀" if quality_key in cached_qualities else "🎵"
             button_text = f"{icon} audio (mp3)"
         keyboard_rows.append([InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}")])
-        
-        # --- button subtitles only ---
-        # Показываем кнопку только если включены субтитры и это YouTube
-        subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
-        if subs_enabled and is_youtube_url(url):
-            # Проверяем наличие субтитров
-            found_type = check_subs_availability(url, user_id, return_type=True)
-            auto_mode = get_user_subs_auto_mode(user_id)
-            need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
-            
-            if need_subs:
-                keyboard_rows.append([InlineKeyboardButton("💬 Subtitles Only", callback_data="askq|subs_only")])
-        
         keyboard_rows.append([InlineKeyboardButton("🔙 Cancel", callback_data="askq|cancel")])
         keyboard = InlineKeyboardMarkup(keyboard_rows)
         # cap already contains a hint and a table
@@ -5678,7 +4961,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         minutes = (wait_time % 3600) // 60
         seconds = wait_time % 60
         time_str = f"{hours}h {minutes}m {seconds}s"
-        flood_msg = f"⚠️ Telegram has limited message sending.\n⏳ Please wait: {time_str}\nTo update timer send URL again 2 times."
+        flood_msg = f"⚠️ Telegram has limited message sending.\n\n⏳ Please wait: {time_str}\n\nTo update timer send URL again 2 times."
         if proc_msg:
             try:
                 app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=flood_msg)
@@ -5706,7 +4989,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
 
 # --- Callback Processor ---
 @app.on_callback_query(filters.regex(r"^askq\|"))
-# @reply_with_keyboard
+#@reply_with_keyboard
 def askq_callback(app, callback_query):
     logger.info(f"[ASKQ] callback: {callback_query.data}")
     user_id = callback_query.from_user.id
@@ -5786,7 +5069,7 @@ def askq_callback(app, callback_query):
     # Handle manual quality selection
     if data.startswith("manual_"):
         quality = data.replace("manual_", "")
-        callback_query.answer(f"📥 Downloading {quality}...")
+        callback_query.answer(f"Downloading {quality}...")
         
         original_message = callback_query.message.reply_to_message
         if not original_message:
@@ -5837,7 +5120,7 @@ def askq_callback(app, callback_query):
         # Handle playlists
         original_text = original_message.text or original_message.caption or ""
         if is_playlist_with_range(original_text):
-            _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(original_text)
+            _, video_start_with, video_end_with, playlist_name, _, _, _ = extract_url_range_tags(original_text)
             video_count = video_end_with - video_start_with + 1
             down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=quality)
         else:
@@ -5961,39 +5244,26 @@ def askq_callback(app, callback_query):
                 down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=data)
             return
     # --- other logic for single files ---
-    found_type = check_subs_availability(url, user_id, data, return_type=True)
-    subs_enabled = is_subs_enabled(user_id)
-    auto_mode = get_user_subs_auto_mode(user_id)
-    need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-    if not need_subs:
-
-        message_ids = get_cached_message_ids(url, data)
-        if message_ids:
-            callback_query.answer("🚀 Found in cache! Forwarding instantly...", show_alert=False)
-            found_type = None
-            try:
-                app.forward_messages(
-                    chat_id=user_id,
-                    from_chat_id=Config.LOGS_ID,
-                    message_ids=message_ids
-                )
-                app.send_message(user_id, "✅ Video successfully sent from cache.", reply_to_message_id=original_message.id)
-                media_type = "Audio" if data == "mp3" else "Video"
-                log_msg = f"{media_type} sent from cache to user.\nURL: {url}\nUser: {callback_query.from_user.first_name} ({user_id})"
-                send_to_logger(original_message, log_msg)
-                return
-            except Exception as e:
-                found_type = check_subs_availability(url, user_id, data, return_type=True)
-                subs_enabled = is_subs_enabled(user_id)
-                auto_mode = get_user_subs_auto_mode(user_id)
-                need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-                if not need_subs:
-                    save_to_video_cache(url, data, [], clear=True)
-                else:
-                    logger.info("Video with subtitles (real subs found and needed) is not cached!")
-                app.send_message(user_id, "⚠️ Failed to get video from cache, starting a new download...", reply_to_message_id=original_message.id)
-                askq_callback_logic(app, callback_query, data, original_message, url, tags_text)
+    message_ids = get_cached_message_ids(url, data)
+    if message_ids:
+        callback_query.answer("🚀 Found in cache! Forwarding instantly...", show_alert=False)
+        try:
+            app.forward_messages(
+                chat_id=user_id,
+                from_chat_id=Config.LOGS_ID,
+                message_ids=message_ids
+            )
+            app.send_message(user_id, "✅ Video successfully sent from cache.", reply_to_message_id=original_message.id)
+            media_type = "Audio" if data == "mp3" else "Video"
+            log_msg = f"{media_type} sent from cache to user.\nURL: {url}\nUser: {callback_query.from_user.first_name} ({user_id})"
+            send_to_logger(original_message, log_msg)
             return
+        except Exception as e:
+            logger.error(f"Error forwarding from cache: {e}")
+            save_to_video_cache(url, data, [], clear=True)
+            app.send_message(user_id, "⚠️ Failed to get video from cache, starting a new download...", reply_to_message_id=original_message.id)
+            askq_callback_logic(app, callback_query, data, original_message, url, tags_text)
+        return
     askq_callback_logic(app, callback_query, data, original_message, url, tags_text)
 
 
@@ -6001,7 +5271,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
     user_id = callback_query.from_user.id
     tags = tags_text.split() if tags_text else []
     if data == "mp3":
-        callback_query.answer("🎧 Downloading audio...")
+        callback_query.answer("Downloading audio...")
         # Extract playlist parameters from the original message
         full_string = original_message.text or original_message.caption or ""
         _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
@@ -6009,18 +5279,9 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
         down_and_audio(app, original_message, url, tags, quality_key="mp3", playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with)
         return
     
-    if data == "subs_only":
-        callback_query.answer("💬 Downloading subtitles only...")
-        # Extract playlist parameters from the original message
-        full_string = original_message.text or original_message.caption or ""
-        _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
-        video_count = video_end_with - video_start_with + 1
-        download_subtitles_only(app, original_message, url, tags, playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with)
-        return
-    
     # Logic for forming the format with the real height
     if data == "best":
-        callback_query.answer("📥 Downloading best quality...")
+        callback_query.answer("Downloading best quality...")
         fmt = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best"
         quality_key = "best"
     else:
@@ -6061,18 +5322,18 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
                     fmt = f"bv*[vcodec*=avc1][height<={real_height}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo[height<={quality_val}]+bestaudio/best[height<={quality_val}]/best"
             
             quality_key = data
-            callback_query.answer(f"📥 Downloading {data}...")
+            callback_query.answer(f"Downloading {data}...")
         except ValueError:
             callback_query.answer("Unknown quality.")
             return
     
     down_and_up_with_format(app, original_message, url, fmt, tags_text, quality_key=quality_key)
 
-# @reply_with_keyboard
+#@reply_with_keyboard
 def show_manual_quality_menu(app, callback_query):
     """Show manual quality selection menu when automatic detection fails"""
     user_id = callback_query.from_user.id
-    subs_available = ""
+    
     # Extract URL and tags from the callback
     original_message = callback_query.message.reply_to_message
     if not original_message:
@@ -6126,23 +5387,23 @@ def show_manual_quality_menu(app, callback_query):
             total = len(indices)
             icon = "🚀" if n_cached > 0 else "📹"
             postfix = f" ({n_cached}/{total})" if total > 1 else ""
-            button_text = f"{icon}{quality}{postfix}"
+            button_text = f"{icon} {quality}{postfix}"
         else:
             icon = "🚀" if quality in cached_qualities else "📹"
-            button_text = f"{icon}{quality}"
+            button_text = f"{icon} {quality}"
         buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|manual_{quality}"))
-
-    # Best Quality
+    
+    # Add Best Quality button
     if is_playlist and playlist_range:
         indices = list(range(playlist_range[0], playlist_range[1]+1))
         n_cached = get_cached_playlist_count(get_clean_playlist_url(url), "best", indices)
         total = len(indices)
         icon = "🚀" if n_cached > 0 else "📹"
         postfix = f" ({n_cached}/{total})" if total > 1 else ""
-        button_text = f"{icon}Best Quality{postfix}"
+        button_text = f"{icon} Best Quality{postfix}"
     else:
         icon = "🚀" if "best" in cached_qualities else "📹"
-        button_text = f"{icon}Best Quality"
+        button_text = f"{icon} Best Quality"
     buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|manual_best"))
     
     # Form rows of 3 buttons
@@ -6156,23 +5417,13 @@ def show_manual_quality_menu(app, callback_query):
         indices = list(range(playlist_range[0], playlist_range[1]+1))
         n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
         total = len(indices)
-        icon = "🚀" if n_cached > 0 else "🎧"
+        icon = "🚀" if n_cached > 0 else "🎵"
         postfix = f" ({n_cached}/{total})" if total > 1 else ""
         button_text = f"{icon} audio (mp3){postfix}"
     else:
-        icon = "🚀" if quality_key in cached_qualities else "🎧"
+        icon = "🚀" if quality_key in cached_qualities else "🎵"
         button_text = f"{icon} audio (mp3)"
     keyboard_rows.append([InlineKeyboardButton(button_text, callback_data=f"askq|manual_{quality_key}")])
-    
-    # Add subtitles only button if enabled
-    subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
-    if subs_enabled and is_youtube_url(url):
-        found_type = check_subs_availability(url, user_id, return_type=True)
-        auto_mode = get_user_subs_auto_mode(user_id)
-        need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
-        
-        if need_subs:
-            keyboard_rows.append([InlineKeyboardButton("💬 Subtitles Only", callback_data="askq|subs_only")])
     
     # Add Back and Cancel buttons
     keyboard_rows.append([
@@ -6210,7 +5461,7 @@ def show_manual_quality_menu(app, callback_query):
 
 
 # --- an auxiliary function for downloading with the format ---
-# @reply_with_keyboard
+#@reply_with_keyboard
 def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None):
 
     # We extract the range and other parameters from the original user message
@@ -6293,17 +5544,8 @@ def get_url_hash(url: str) -> str:
     return hashlib.md5(url.encode()).hexdigest()
 
 
-def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bool = False, original_text: str = None, user_id: int = None):
+def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bool = False, original_text: str = None):
     """Saves message IDs to cache for two YouTube link variants (long/short) at once."""
-    
-    if user_id is not None:
-        found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-        subs_enabled = is_subs_enabled(user_id)
-        auto_mode = get_user_subs_auto_mode(user_id)
-        need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-        if need_subs:
-            logger.info("Video with subtitles is not cached!")
-            return
     logger.info(
         f"save_to_video_cache called: url={url}, quality_key={quality_key}, message_ids={message_ids}, clear={clear}, original_text={original_text}")
     if not quality_key:
@@ -6332,13 +5574,13 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
                 logger.warning(f"save_to_video_cache: message_ids is empty for URL: {url}, quality: {quality_key}")
                 continue
             
-            # Simplified logic for caching
+            # Упрощенная логика для кэширования
             if len(message_ids) == 1:
-                # Single video - we keep as it is
+                # Одиночное видео - сохраняем как есть
                 cache_ref.child(quality_key).set(str(message_ids[0]))
                 logger.info(f"Saved single video to cache for URL hash {url_hash}, quality {quality_key}, msg_id {message_ids[0]}")
             else:
-                # SPLIT Video (multiple parts) - keep all the ID through a comma
+                # Split видео (множественные части) - сохраняем все ID через запятую
                 ids_string = ",".join(map(str, message_ids))
                 cache_ref.child(quality_key).set(ids_string)
                 logger.info(f"Saved split video to cache for URL hash {url_hash}, quality {quality_key}, msg_ids {ids_string} ({len(message_ids)} parts)")
@@ -6859,18 +6101,18 @@ def get_real_height_for_quality(quality: str, width: int, height: int) -> int:
 
 def is_no_cookie_domain(url: str) -> bool:
     """
-    Checks whether the domain is from the list no_cookie_domains.
-    For such domains, you need to use —no-Cookies instead of-Cookies.
+    Проверяет, является ли домен из списка NO_COOKIE_DOMAINS.
+    Для таких доменов нужно использовать --no-cookies вместо --cookies.
     """
     try:
         parsed_url = urlparse(url)
         domain = parsed_url.netloc.lower()
         
-        # We remove www. If there is
+        # Убираем www. если есть
         if domain.startswith('www.'):
             domain = domain[4:]
             
-        # Check the domain and its subdomain
+        # Проверяем домен и его поддомены
         for no_cookie_domain in Config.NO_COOKIE_DOMAINS:
             if domain == no_cookie_domain or domain.endswith('.' + no_cookie_domain):
                 logger.info(f"URL {url} matches NO_COOKIE_DOMAINS pattern: {no_cookie_domain}")
@@ -6910,726 +6152,5 @@ def transform_to_embed_url(url: str) -> str:
         return url.replace('reddit.com', 'rxddit.com').replace('www.rxddit.com', 'rxddit.com')
     return url
 
-
-@app.on_message(filters.command("subs") & filters.private)
-@reply_with_keyboard
-def subs_command(app, message):
-    """Handle /subs command - show language selection menu"""
-    user_id = message.from_user.id
-    if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
-        return
-
-    # Enable AUTO-GEN by default if not enabled before
-    if not get_user_subs_auto_mode(user_id):
-        save_user_subs_auto_mode(user_id, True)
-
-    current_lang = get_user_subs_language(user_id)
-    auto_mode = get_user_subs_auto_mode(user_id)
-
-    # Create status text
-    if current_lang == "OFF" or current_lang is None:
-        status_text = "🚫 Subtitles are disabled"
-    else:
-        lang_info = LANGUAGES.get(current_lang, {"name": current_lang, "flag": "🌐"})
-        auto_text = " (auto-subs)" if auto_mode else ""
-        status_text = f"{lang_info['flag']} Selected language: {lang_info['name']}{auto_text}"
-
-    app.send_message(
-        message.chat.id,
-        f"<b>💬 Subtitle settings</b>\n\n{status_text}\n\nSelect subtitle language:\n\n"
-        "<blockquote>❗️WARNING: due to high CPU impact this function is very slow (near real-time) and limited to:\n"
-        "- 720p max quality\n"
-        "- 1.5 hour max duration\n"
-        "- 500mb max video size</blockquote>",
-        reply_markup=get_language_keyboard(page=0, user_id=user_id),
-        parse_mode=enums.ParseMode.HTML
-    )
-    send_to_logger(message, "User opened /subs menu.")
-
-
-@app.on_callback_query(filters.regex(r"^subs_page\|"))
-def subs_page_callback(app, callback_query):
-    """Handle page navigation in subtitle language selection menu"""
-    page = int(callback_query.data.split("|")[1])
-    user_id = callback_query.from_user.id
-    current_lang = get_user_subs_language(user_id)
-    auto_mode = get_user_subs_auto_mode(user_id)
-    
-    # Create status text
-    if current_lang == "OFF" or current_lang is None:
-        status_text = "🚫 Subtitles are disabled"
-    else:
-        lang_info = LANGUAGES.get(current_lang, {"name": current_lang, "flag": "🌐"})
-        auto_text = " (auto-subs)" if auto_mode else ""
-        status_text = f"{lang_info['flag']} Selected language: {lang_info['name']}{auto_text}"
-    
-    callback_query.edit_message_text(
-        f"**💬 Subtitle settings**\n\n{status_text}\n\nSelect subtitle language:",
-        reply_markup=get_language_keyboard(page, user_id=user_id)
-    )
-    callback_query.answer()
-
-
-@app.on_callback_query(filters.regex(r"^subs_lang\|"))
-def subs_lang_callback(app, callback_query):
-    """Handle language selection in subtitle language menu"""
-    lang_code = callback_query.data.split("|")[1]
-    user_id = callback_query.from_user.id
-    
-    save_user_subs_language(user_id, lang_code)
-    
-    if lang_code == "OFF":
-        status = "🚫 Subtitles are disabled"
-    else:
-        status = f"✅ Subtitle language set: {LANGUAGES[lang_code]['flag']} {LANGUAGES[lang_code]['name']}"
-    
-    callback_query.edit_message_text(status)
-    callback_query.answer("Subtitle language settings updated.")
-    send_to_logger(callback_query.message, f"User set subtitle language to: {lang_code}")
-
-@app.on_callback_query(filters.regex(r"^subs_auto\|"))
-def subs_auto_callback(app, callback_query):
-    """Handle AUTO-GEN mode toggle in subtitle language menu"""
-    parts = callback_query.data.split("|")
-    action = parts[1]
-    page = int(parts[2]) if len(parts) > 2 else 0  # <- Here!
-    user_id = callback_query.from_user.id
-    
-    if action == "toggle":
-        current_auto = get_user_subs_auto_mode(user_id)
-        new_auto = not current_auto
-        save_user_subs_auto_mode(user_id, new_auto)
-        
-        # We show the notification to the user
-        auto_text = "enabled" if new_auto else "disabled"
-        notification = f"✅ Auto-subs mode {auto_text}"
-        
-        # We answer only by notification, do not close the menu
-        callback_query.answer(notification, show_alert=False)
-        
-        # We update the menu with the new Auto state
-        current_lang = get_user_subs_language(user_id)
-        auto_mode = get_user_subs_auto_mode(user_id)
-        
-        # Create status text
-        if current_lang == "OFF" or current_lang is None:
-            status_text = "🚫 Subtitles are disabled"
-        else:
-            lang_info = LANGUAGES.get(current_lang, {"name": current_lang, "flag": "🌐"})
-            auto_text = " (auto-subs)" if auto_mode else ""
-            status_text = f"{lang_info['flag']} Selected language: {lang_info['name']}{auto_text}"
-        
-        # We update the message from the new menu
-        callback_query.edit_message_text(
-            f"**💬 Subtitle settings**\n\n{status_text}\n\nSelect subtitle language:",
-            reply_markup=get_language_keyboard(page=page, user_id=user_id)
-        )
-        
-        send_to_logger(callback_query.message, f"User toggled AUTO-GEN mode to: {new_auto}")
-
-
-
-# Cache for subtitles checks
-_subs_check_cache = {}
-
-def clear_subs_check_cache():
-    """Cleans the cache of subtitle checks"""
-    global _subs_check_cache
-    _subs_check_cache.clear()
-    logger.info("Subs check cache cleared")
-
-def check_subs_availability(url, user_id, quality_key=None, return_type=False):
-    """
-    Checks the availability of subtitles for the language chosen by the user.
-    Если return_type=True, возвращает "normal", "auto" или None.
-    Если return_type=False, возвращает True/False (есть ли вообще какие-то сабы).
-    """
-    try:
-        cache_key = f"{url}_{user_id}_{return_type}"
-        if cache_key in _subs_check_cache:
-            return _subs_check_cache[cache_key]
-
-        subs_lang = get_user_subs_language(user_id)
-        if not subs_lang or subs_lang == "OFF":
-            _subs_check_cache[cache_key] = False if not return_type else None
-            return False if not return_type else None
-
-        # Проверяем обычные субтитры
-        available_normal = get_available_subs_languages(url, user_id, auto_only=False)
-        has_normal = lang_match(subs_lang, available_normal) is not None
-        logger.info(f"check_subs_availability: normal subs - available={available_normal}, has_normal={has_normal}")
-
-        # Проверяем автосгенерированные субтитры
-        available_auto = get_available_subs_languages(url, user_id, auto_only=True)
-        has_auto = lang_match(subs_lang, available_auto) is not None
-        logger.info(f"check_subs_availability: auto subs - available={available_auto}, has_auto={has_auto}")
-
-        if return_type:
-            result = "normal" if has_normal else "auto" if has_auto else None
-        else:
-            result = has_normal or has_auto
-
-        _subs_check_cache[cache_key] = result
-        return result
-
-    except Exception as e:
-        logger.error(f"Error checking subtitle availability: {e}")
-        return False if not return_type else None
-
-def lang_match(user_lang, available_langs):
-    # user_lang: for example, 'en', 'en -us', 'zh', 'pt'
-    # AVAILABLE_LANGS: a list of all available languages, for example ['en -us', 'EN-GB', 'FR', 'PT-BR']
-    logger.info(f"lang_match: user_lang='{user_lang}', available_langs={available_langs}")
-    
-    if user_lang in available_langs:
-        logger.info(f"lang_match: exact match found: {user_lang}")
-        return user_lang
-    
-    # If the basic language is chosen, we look for any prefix with this
-    if '-' not in user_lang:
-        for lang in available_langs:
-            if lang.startswith(user_lang + '-'):
-                logger.info(f"lang_match: prefix match found: {lang} for {user_lang}")
-                return lang
-    
-    # If a language with a hyphen is chosen, we are looking for a basic
-    if '-' in user_lang:
-        base = user_lang.split('-')[0]
-        if base in available_langs:
-            logger.info(f"lang_match: base match found: {base} for {user_lang}")
-            return base
-    
-    # If the base is selected, we are looking for a duplicate code (ru-RU, EN-EN, etc.)
-    if '-' not in user_lang:
-        for lang in available_langs:
-            if lang.lower() == f'{user_lang.lower()}-{user_lang.lower()}':
-                logger.info(f"lang_match: duplicate match found: {lang} for {user_lang}")
-                return lang
-    
-    # NEW: Look for auto-translated subtitles (e.g., 'ru-en' for user_lang='ru')
-    if '-' not in user_lang:
-        for lang in available_langs:
-            if '-' in lang:
-                parts = lang.split('-')
-                if len(parts) == 2 and parts[0] == user_lang:
-                    logger.info(f"lang_match: auto-translated match found: {lang} for {user_lang}")
-                    return lang
-    
-    logger.info(f"lang_match: no match found for {user_lang}")
-    return None
-
-def check_subs_limits(info_dict, quality_key=None):
-    """
-    Checks restrictions for embedding subtitles
-    Returns True if subtitles can be built, false if limits are exceeded
-    """
-    try:
-        # We get the parameters from the config
-        max_quality = Config.MAX_SUB_QUALITY
-        max_duration = Config.MAX_SUB_DURATION
-        max_size = Config.MAX_SUB_SIZE
-        
-        # Check the quality of the video (is made - check only the duration and size)
-        # if quality_key and quality_key != "best" and quality_key != "mp3":
-        # try:
-        # quality_height = int(quality_key.replace('p', ''))
-        # if quality_height > max_quality:
-        # logger.info(f"Subtitle embedding skipped: quality {quality_height}p exceeds limit {max_quality}p")
-        # return False
-        # except ValueError:
-        # pass # If it is not possible to extract the height, we skip quality check
-        
-        # Check the duration
-        duration = info_dict.get('duration')
-        if duration and duration > max_duration:
-            logger.info(f"Subtitle embedding skipped: duration {duration}s exceeds limit {max_duration}s")
-            return False
-        
-        # Check the file size (only if it is accurately known)
-        filesize = info_dict.get('filesize') or info_dict.get('filesize_approx')
-        if filesize and filesize > 0:  # Check that the size is larger than 0
-            size_mb = filesize // (1024 * 1024)
-            if size_mb > max_size:
-                logger.info(f"Subtitle embedding skipped: size {size_mb}MB exceeds limit {max_size}MB")
-                return False
-        
-        return True
-    except Exception as e:
-        logger.error(f"Error checking subtitle limits: {e}")
-        return False
-
-
-def download_subtitles_ytdlp(url, user_id, video_dir):
-    """
-    Отдельно скачивает субтитры для видео через yt-dlp с проверкой языка
-    """
-    max_retries = 2  # Увеличиваем количество попыток
-    
-    for attempt in range(max_retries):
-        try:
-            subs_lang = get_user_subs_language(user_id)
-            auto_mode = get_user_subs_auto_mode(user_id)
-            
-            if not subs_lang or subs_lang == "OFF":
-                return None
-                
-            # Настройки для скачивания субтитров
-            subs_opts = {
-                'skip_download': True,  # Не скачиваем видео, только субтитры
-                'outtmpl': os.path.join(video_dir, "%(title).50s.%(ext)s"),
-                'subtitlesformat': 'srt',
-            }
-            
-            if auto_mode:
-                subs_opts.update({
-                    'writeautomaticsub': True,
-                    'writesubtitles': False,
-                })
-            else:
-                subs_opts.update({
-                    'writeautomaticsub': False,
-                    'writesubtitles': True,
-                })
-                
-            # Добавляем cookie файл если есть
-            user_cookie_path = os.path.join("users", str(user_id), "cookie.txt")
-            if os.path.exists(user_cookie_path):
-                subs_opts['cookiefile'] = user_cookie_path
-            else:
-                global_cookie_path = Config.COOKIE_FILE_PATH
-                if os.path.exists(global_cookie_path):
-                    subs_opts['cookiefile'] = global_cookie_path
-                else:
-                    subs_opts['cookiefile'] = None
-            
-            # Проверяем доступность субтитров
-            available_langs = get_available_subs_languages(url, user_id, auto_only=auto_mode)
-            if not available_langs:
-                logger.info(f"No subtitles available for {subs_lang}")
-                return None
-                
-            # Ищем подходящий язык используя функцию lang_match
-            found_lang = lang_match(subs_lang, available_langs)
-            
-            if not found_lang:
-                logger.info(f"Language {subs_lang} not found in available languages: {available_langs}")
-                return None
-                
-            # Добавляем найденный язык в настройки
-            subs_opts['subtitleslangs'] = [found_lang]
-                
-            # Скачиваем субтитры
-            with yt_dlp.YoutubeDL(subs_opts) as ydl:
-                ydl.download([url])
-                
-            # Ищем скачанный файл субтитров
-            srt_files = [f for f in os.listdir(video_dir) if f.lower().endswith('.srt')]
-            if srt_files:
-                subs_path = os.path.join(video_dir, srt_files[0])
-                logger.info(f"Subtitles downloaded: {subs_path}")
-                
-                # Проверяем, что файл содержит символы выбранного языка
-                if os.path.exists(subs_path) and os.path.getsize(subs_path) > 0:
-                    try:
-                        with open(subs_path, 'r', encoding='utf-8', errors='ignore') as f:
-                            content = f.read()
-                        
-                        # Проверяем наличие символов выбранного языка
-                        has_language_chars = False
-                        
-                        if subs_lang == 'ru':  # Русский
-                            # Проверяем наличие русских символов (кириллица)
-                            russian_chars = 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя'
-                            has_language_chars = any(char.lower() in russian_chars for char in content if char.isalpha())
-                        elif subs_lang == 'en':  # Английский
-                            # Проверяем наличие английских символов
-                            english_chars = 'abcdefghijklmnopqrstuvwxyz'
-                            has_language_chars = any(char.lower() in english_chars for char in content if char.isalpha())
-                        elif subs_lang == 'es':  # Испанский
-                            # Проверяем наличие испанских символов
-                            spanish_chars = 'abcdefghijklmnopqrstuvwxyzñáéíóúü'
-                            has_language_chars = any(char.lower() in spanish_chars for char in content if char.isalpha())
-                        elif subs_lang == 'fr':  # Французский
-                            # Проверяем наличие французских символов
-                            french_chars = 'abcdefghijklmnopqrstuvwxyzàâäéèêëïîôöùûüÿç'
-                            has_language_chars = any(char.lower() in french_chars for char in content if char.isalpha())
-                        elif subs_lang == 'de':  # Немецкий
-                            # Проверяем наличие немецких символов
-                            german_chars = 'abcdefghijklmnopqrstuvwxyzäöüß'
-                            has_language_chars = any(char.lower() in german_chars for char in content if char.isalpha())
-                        elif subs_lang == 'it':  # Итальянский
-                            # Проверяем наличие итальянских символов
-                            italian_chars = 'abcdefghijklmnopqrstuvwxyzàèéìíîòóù'
-                            has_language_chars = any(char.lower() in italian_chars for char in content if char.isalpha())
-                        elif subs_lang == 'pt':  # Португальский
-                            # Проверяем наличие португальских символов
-                            portuguese_chars = 'abcdefghijklmnopqrstuvwxyzàáâãçéêíóôõú'
-                            has_language_chars = any(char.lower() in portuguese_chars for char in content if char.isalpha())
-                        elif subs_lang == 'ja':  # Японский
-                            # Проверяем наличие японских символов (хирагана, катакана, кандзи)
-                            has_language_chars = any(ord(char) > 127 for char in content if char.isalpha())
-                        elif subs_lang == 'ko':  # Корейский
-                            # Проверяем наличие корейских символов
-                            has_language_chars = any(ord(char) > 127 for char in content if char.isalpha())
-                        elif subs_lang == 'zh':  # Китайский
-                            # Проверяем наличие китайских символов
-                            has_language_chars = any(ord(char) > 127 for char in content if char.isalpha())
-                        elif subs_lang == 'ar':  # Арабский
-                            # Проверяем наличие арабских символов
-                            has_language_chars = any(ord(char) > 127 for char in content if char.isalpha())
-                        else:
-                            # Для других языков проверяем наличие любых символов выше ASCII
-                            has_language_chars = any(ord(char) > 127 for char in content if char.isalpha())
-                        
-                        # Также проверяем наличие таймкодов
-                        has_timestamps = '-->' in content
-                        
-                        # Проверяем, что файл содержит И символы языка, И таймкоды
-                        if has_language_chars and has_timestamps:
-                            logger.info(f"Subtitles file contains {subs_lang} characters and timestamps, size: {os.path.getsize(subs_path)} bytes")
-                            return subs_path
-                        else:
-                            if not has_language_chars:
-                                logger.warning(f"Subtitles file doesn't contain {subs_lang} characters, attempt {attempt + 1}/{max_retries}")
-                            if not has_timestamps:
-                                logger.warning(f"Subtitles file doesn't contain timestamps, attempt {attempt + 1}/{max_retries}")
-                            
-                            if attempt < max_retries - 1:
-                                time.sleep(3)  # Увеличиваем паузу между попытками
-                                continue
-                            else:
-                                logger.error(f"Failed to download valid subtitles after {max_retries} attempts")
-                                return None
-                                
-                    except Exception as e:
-                        logger.error(f"Error reading subtitle file: {e}")
-                        if attempt < max_retries - 1:
-                            time.sleep(3)
-                            continue
-                        else:
-                            return None
-                
-                return subs_path
-                
-            return None
-            
-        except Exception as e:
-            logger.error(f"Error downloading subtitles (attempt {attempt + 1}/{max_retries}): {e}")
-            if attempt < max_retries - 1:
-                time.sleep(3)  # Пауза перед повторной попыткой
-                continue
-            return None
-    
-    return None
-
-def download_subtitles_only(app, message, url, tags, playlist_name=None, video_count=1, video_start_with=1):
-    """
-    Скачивает и отправляет только файл субтитров без видео
-    """
-    user_id = message.chat.id
-    user_dir = os.path.join("users", str(user_id))
-    create_directory(user_dir)
-    
-    try:
-        # Check if subtitles are enabled
-        subs_lang = get_user_subs_language(user_id)
-        if not subs_lang or subs_lang == "OFF":
-            app.send_message(user_id, "❌ Subtitles are disabled. Use /subs to configure.")
-            return
-        
-        # Check if this is YouTube
-        if not is_youtube_url(url):
-            app.send_message(user_id, "❌ Subtitle downloading is only supported for YouTube.")
-            return
-        
-        # Check subtitle availability
-        auto_mode = get_user_subs_auto_mode(user_id)
-        
-        # Очищаем кэш перед проверкой, чтобы избежать проблем с кэшированием
-        clear_subs_check_cache()
-        
-        found_type = check_subs_availability(url, user_id, return_type=True)
-        need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
-        
-        if not need_subs:
-            app.send_message(user_id, "❌ Subtitles for selected language not found.")
-            return
-        
-        # Send message about download start
-        status_msg = app.send_message(user_id, "💬 Downloading subtitles...", reply_to_message_id=message.id)
-        
-        # Download subtitles
-        subs_path = download_subtitles_ytdlp(url, user_id, user_dir)
-        
-        if subs_path and os.path.exists(subs_path):
-            # Process subtitle file
-            subs_path = ensure_utf8_srt(subs_path)
-            if subs_path:
-                subs_path = force_fix_arabic_encoding(subs_path)
-            
-            if subs_path and os.path.exists(subs_path) and os.path.getsize(subs_path) > 0:
-                # Get video information for caption
-                try:
-                    info = get_video_formats(url, user_id)
-                    title = info.get('title', 'Video')
-                except:
-                    title = "Video"
-                
-                # Form caption
-                caption = f"<b>💬 Subtitles</b>\n\n"
-                caption += f"<b>Video:</b> {title}\n"
-                caption += f"<b>Language:</b> {subs_lang}\n"
-                caption += f"<b>Type:</b> {'Auto-generated' if auto_mode else 'Manual'}\n"
-                
-                if tags:
-                    caption += f"\n<b>Tags:</b> {' '.join(tags)}"
-                
-                # Send subtitle file
-                sent_msg = app.send_document(
-                    chat_id=user_id,
-                    document=subs_path,
-                    caption=caption,
-                    reply_to_message_id=message.id,
-                    parse_mode=enums.ParseMode.HTML
-                )
-                # Пересылаем это сообщение в лог-канал
-                safe_forward_messages(Config.LOGS_ID, user_id, [sent_msg.id])
-                send_to_logger(message, "💬 Subtitles SRT-file sent to user.")
-                # Remove temporary file
-                try:
-                    os.remove(subs_path)
-                except Exception as e:
-                    logger.error(f"Error deleting temporary subtitle file: {e}")
-                
-                # Delete status message
-                try:
-                    app.delete_messages(user_id, status_msg.id)
-                except:
-                    pass
-            else:
-                app.edit_message_text(user_id, status_msg.id, "❌ Error processing subtitle file.")
-        else:
-            app.edit_message_text(user_id, status_msg.id, "❌ Failed to download subtitles.")
-            
-    except Exception as e:
-        logger.error(f"Error downloading subtitles: {e}")
-        try:
-            app.edit_message_text(user_id, status_msg.id, f"❌ Error: {str(e)}")
-        except:
-            app.send_message(user_id, f"❌ Error downloading subtitles: {str(e)}")
-
-def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, message=None):
-    """
-    Burning (hardcode) subtitles in a video file, if there is any .SRT file and subs.txt
-    tg_update_callback (Progress: Float, ETA: StR) - Function for updating the status in Telegram
-    """
-    try:
-        if not video_path or not os.path.exists(video_path):
-            logger.error(f"Video file not found: {video_path}")
-            return False
-        
-        user_dir = os.path.join("users", str(user_id))
-        subs_file = os.path.join(user_dir, "subs.txt")
-        if not os.path.exists(subs_file):
-            logger.info(f"No subs.txt for user {user_id}, skipping embed_subs_to_video")
-            return False
-        
-        with open(subs_file, "r", encoding="utf-8") as f:
-            subs_lang = f.read().strip()
-        if not subs_lang or subs_lang == "OFF":
-            logger.info(f"Subtitles disabled for user {user_id}")
-            return False
-        
-        video_dir = os.path.dirname(video_path)
-        try:
-            clip = VideoFileClip(video_path)
-            width, height = clip.size
-            clip.close()
-        except Exception as e:
-            logger.error(f"[MOVIEPY BYPASS] Ошибка при обработке видео {video_path}: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-            width, height = 0, 0
-        
-        if min(width, height) > Config.MAX_SUB_QUALITY:
-            logger.info(f"Video too large for subtitles: {width}x{height}")
-            return False
-        
-        # --- Simplified search: take any .SRT file in the folder ---
-        srt_files = [f for f in os.listdir(video_dir) if f.lower().endswith('.srt')]
-        if not srt_files:
-            logger.info(f"No .srt files found in {video_dir}")
-            return False
-        
-        subs_path = os.path.join(video_dir, srt_files[0])
-        if not os.path.exists(subs_path):
-            logger.error(f"Subtitle file not found: {subs_path}")
-            return False
-
-        # Всегда приводим .SRT к UTF-8
-        subs_path = ensure_utf8_srt(subs_path)
-        if not subs_path or not os.path.exists(subs_path) or os.path.getsize(subs_path) == 0:
-            logger.error(f"Subtitle file after ensure_utf8_srt is missing or empty: {subs_path}")
-            return False
-
-        # Принудительно исправляем арабские кракозябры
-        subs_path = force_fix_arabic_encoding(subs_path)
-        if not subs_path or not os.path.exists(subs_path) or os.path.getsize(subs_path) == 0:
-            logger.error(f"Subtitle file after force_fix_arabic_encoding is missing or empty: {subs_path}")
-            return False
-        
-        video_base = os.path.splitext(os.path.basename(video_path))[0]
-        output_path = os.path.join(video_dir, f"{video_base}_with_subs_temp.mp4")
-        
-        # We get the duration of the video via FFPRobe
-        def get_duration(path):
-            try:
-                import json
-                result = subprocess.run([
-                    'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                    '-of', 'json', path
-                ], capture_output=True, text=True)
-                if result.returncode == 0:
-                    data = json.loads(result.stdout)
-                    return float(data['format']['duration'])
-            except Exception as e:
-                logger.error(f"ffprobe error: {e}")
-            return None
-        
-        total_time = get_duration(video_path)
-        
-        # Field of subtitles with improved styling
-        subs_path_escaped = subs_path.replace("'", "'\\''")
-        # Добавляем полупрозрачную черную обводку как на YouTube и улучшенное отображение субтитров
-        filter_arg = f"subtitles='{subs_path_escaped}':force_style='FontSize=24,PrimaryColour=&Hffffff,OutlineColour=&H000000,BackColour=&H80000000,Outline=2,Shadow=1,MarginV=25'"
-        cmd = [
-            'ffmpeg',
-            '-y',
-            '-i', video_path,
-            '-vf', filter_arg,
-            '-c:a', 'copy',
-            output_path
-        ]
-        
-        logger.info(f"Running ffmpeg command: {' '.join(cmd)}")
-        
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            bufsize=1
-        )
-        progress = 0.0
-        last_update = time.time()
-        eta = "?"
-        time_pattern = re.compile(r'time=([0-9:.]+)')
-        
-        while True:
-            line = proc.stdout.readline()
-            if not line:
-                break
-            logger.info(line.strip())
-            match = time_pattern.search(line)
-            if match and total_time:
-                t = match.group(1)
-                # Transform T (hh: mm: ss.xx) in seconds
-                h, m, s = 0, 0, 0.0
-                parts = t.split(':')
-                if len(parts) == 3:
-                    h, m, s = int(parts[0]), int(parts[1]), float(parts[2])
-                elif len(parts) == 2:
-                    m, s = int(parts[0]), float(parts[1])
-                elif len(parts) == 1:
-                    s = float(parts[0])
-                cur_sec = h * 3600 + m * 60 + s
-                progress = min(cur_sec / total_time, 1.0)
-                # ETA
-                if progress > 0:
-                    elapsed = time.time() - last_update
-                    eta_sec = int((1.0 - progress) * (elapsed / progress)) if progress > 0 else 0
-                    eta = f"{eta_sec//60}:{eta_sec%60:02d}"
-                # Update every 10 seconds or with a change in progress> 1%
-                if tg_update_callback and (time.time() - last_update > 10 or progress >= 1.0):
-                    tg_update_callback(progress, eta)
-                    last_update = time.time()
-        
-        proc.wait()
-        
-        if proc.returncode != 0:
-            logger.error(f"FFmpeg error: process exited with code {proc.returncode}")
-            if os.path.exists(output_path):
-                os.remove(output_path)
-            return False
-        
-        # Проверяем, что файл существует и не пустой
-        if not os.path.exists(output_path):
-            logger.error("Output file does not exist after ffmpeg")
-            return False
-        
-        # Ждём немного, чтобы файл точно завершил запись
-        time.sleep(1)
-        
-        output_size = os.path.getsize(output_path)
-        original_size = os.path.getsize(video_path)
-        
-        if output_size == 0:
-            logger.error("Output file is empty")
-            if os.path.exists(output_path):
-                os.remove(output_path)
-            return False
-        
-        # Проверяем, что итоговый файл не слишком мал (должен быть хотя бы 50% от оригинала)
-        if output_size < original_size * 0.5:
-            logger.error(f"Output file too small: {output_size} bytes (original: {original_size} bytes)")
-            if os.path.exists(output_path):
-                os.remove(output_path)
-            return False
-        
-        # Безопасно заменяем файл
-        backup_path = video_path + ".backup"
-        try:
-            os.rename(video_path, backup_path)  # Создаём backup
-            os.rename(output_path, video_path)   # Переименовываем результат
-            os.remove(backup_path)               # Удаляем backup
-        except Exception as e:
-            logger.error(f"Error replacing video file: {e}")
-            # Восстанавливаем исходный файл
-            if os.path.exists(backup_path):
-                os.rename(backup_path, video_path)
-            if os.path.exists(output_path):
-                os.remove(output_path)
-            return False
-        
-        # Отправляем .srt пользователю перед удалением
-        if os.path.exists(subs_path):
-            try:
-                if app is not None and message is not None:
-                    sent_msg = app.send_document(
-                        chat_id=user_id,
-                        document=subs_path,
-                        caption="<blockquote>💬 Subtitles SRT-file</blockquote>",
-                        reply_to_message_id=message.id,
-                        parse_mode=enums.ParseMode.HTML
-                    )
-                    safe_forward_messages(Config.LOGS_ID, user_id, [sent_msg.id])
-                    send_to_logger(message, "💬 Subtitles SRT-file sent to user.") 
-            except Exception as e:
-                logger.error(f"Ошибка при отправке srt-файла: {e}")
-            try:
-                os.remove(subs_path)
-            except Exception as e:
-                logger.error(f"Ошибка при удалении srt-файла: {e}")
-        
-        logger.info("Successfully burned-in subtitles")
-        return True
-        
-    except Exception as e:
-        logger.error(f"Error in embed_subs_to_video: {str(e)}")
-        import traceback
-        logger.error(traceback.format_exc())
-        return False
 
 app.run()
