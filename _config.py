@@ -23,7 +23,7 @@ class Config(object):
     # Download timeout in seconds (2 hours = 7200 seconds)
     DOWNLOAD_TIMEOUT = 7200 # in seconds
     MAX_SUB_QUALITY = 720 # 720p
-    MAX_SUB_DURATION = 3600 # in seconds
+    MAX_SUB_DURATION = 5400 # in seconds
     MAX_SUB_SIZE = 500 # in MB      
     # Cookie file URL
     # EX: "https://path/to/your/cookie-file.txt"
@@ -132,7 +132,7 @@ To download playlists send its URL with <code>*start*end</code> ranges in the en
 (downloads first 2 video from model profile)
 
 and so on...
-see <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md">supported sites list</a>
+see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/supportedsites.md">supported sites list</a>
 """
     HELP_MSG = """
 🎬 <b>Video Download Bot - Help</b>
