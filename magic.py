@@ -816,7 +816,10 @@ def browser_choice_callback(app, callback_query):
     cookie_file = os.path.join(user_dir, "cookie.txt")
 
     if data == "cancel":
-        callback_query.edit_message_text("🔚 Browser selection canceled.")
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
         callback_query.answer("✅ Browser choice updated.")
         send_to_logger(callback_query.message, "Browser selection canceled.")
         return
@@ -863,6 +866,37 @@ def browser_choice_callback(app, callback_query):
 
     callback_query.answer("✅ Browser choice updated.")
 
+def check_playlist_range_limits(url, video_start_with, video_end_with, app, message):
+    """
+    Проверяет лимиты диапазона скачивания для плейлистов, TikTok и Instagram.
+    Для одиночных видео всегда возвращает True.
+    Если диапазон превышает лимит — отправляет предупреждение и возвращает False.
+    """
+    # Если одиночное видео (нет диапазона) — всегда True
+    if video_start_with == 1 and video_end_with == 1:
+        return True
+
+    url_l = str(url).lower() if url else ''
+    if 'tiktok.com' in url_l:
+        max_count = Config.MAX_TIKTOK_COUNT
+        service = 'TikTok'
+    elif 'instagram.com' in url_l:
+        max_count = Config.MAX_TIKTOK_COUNT
+        service = 'Instagram'
+    else:
+        max_count = Config.MAX_PLAYLIST_COUNT
+        service = 'playlist'
+
+    count = video_end_with - video_start_with + 1
+    if count > max_count:
+        app.send_message(
+            message.chat.id,
+            f"❗️ Range limit exceeded for {service}: {count} (maximum {max_count}).\nReduce the range and try again.",
+            reply_to_message_id=getattr(message, 'id', None)
+        )
+        return False
+    return True
+
 # Command to Download Audio from a Video url
 @app.on_message(filters.command("audio") & filters.private)
 # @reply_with_keyboard
@@ -890,6 +924,10 @@ def audio_command_handler(app, message):
     full_string = message.text or message.caption or ""
     _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
     video_count = video_end_with - video_start_with + 1
+    
+    # Проверка лимита диапазона
+    if not check_playlist_range_limits(url, video_start_with, video_end_with, app, message):
+        return
     
     down_and_audio(app, message, url, tags, quality_key="mp3", playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with)
 
@@ -956,7 +994,10 @@ def format_option_callback(app, callback_query):
 
     # If you press the Cancel button
     if data == "cancel":
-        callback_query.edit_message_text("🔚 Format selection canceled.")
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
         callback_query.answer("✅ Format choice updated.")
         send_to_logger(callback_query.message, "Format selection canceled.")
         return
@@ -1612,6 +1653,7 @@ def check_runtime(message):
     pass
 
 
+
 def uncache_command(app, message):
     """
     Admin command to clear cache for a specific URL
@@ -1675,11 +1717,15 @@ def settings_command(app, message):
     user_id = message.chat.id
     # Main settings menu
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🧹 CLEAN", callback_data="settings__menu__clean")],
-        [InlineKeyboardButton("🍪 COOKIES", callback_data="settings__menu__cookies")],
-        [InlineKeyboardButton("🎞 MEDIA", callback_data="settings__menu__media")],
-        [InlineKeyboardButton("📖 INFO", callback_data="settings__menu__logs")],
-        [InlineKeyboardButton("🔙 Close", callback_data="settings__menu__close")]
+        [
+            InlineKeyboardButton("🧹 CLEAN", callback_data="settings__menu__clean"),
+            InlineKeyboardButton("🍪 COOKIES", callback_data="settings__menu__cookies"),
+        ],
+        [
+            InlineKeyboardButton("🎞 MEDIA", callback_data="settings__menu__media"),
+            InlineKeyboardButton("📖 INFO", callback_data="settings__menu__logs"),
+        ],
+        [InlineKeyboardButton("🔙 Cancel", callback_data="settings__menu__cancel")]
     ])
     app.send_message(
         user_id,
@@ -1696,21 +1742,32 @@ def settings_command(app, message):
 def settings_menu_callback(app, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
     data = callback_query.data.split("__")[-1]
-    if data == "close":
-        callback_query.message.delete()
+    if data == "cancel":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
         callback_query.answer("Menu closed.")
         return
     if data == "clean":
         # Show the cleaning menu
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🍪 Cookies", callback_data="clean_option|cookies")],
-            [InlineKeyboardButton("📃 Logs ", callback_data="clean_option|logs")],
-            [InlineKeyboardButton("#️⃣ Tags", callback_data="clean_option|tags")],
-            [InlineKeyboardButton("📼 Format", callback_data="clean_option|format")],
-            [InlineKeyboardButton("✂️ Split", callback_data="clean_option|split")],
-            [InlineKeyboardButton("💬 Subtitles", callback_data="clean_option|subs")],
-            [InlineKeyboardButton("📊 Mediainfo", callback_data="clean_option|mediainfo")],
-            [InlineKeyboardButton("🗑  All files", callback_data="clean_option|all")],
+            [
+                InlineKeyboardButton("🍪 Cookies only", callback_data="clean_option|cookies"),
+                InlineKeyboardButton("📃 Logs ", callback_data="clean_option|logs"),
+            ],
+            [
+                InlineKeyboardButton("#️⃣ Tags", callback_data="clean_option|tags"),
+                InlineKeyboardButton("📼 Format", callback_data="clean_option|format"),
+            ],
+            [
+                InlineKeyboardButton("✂️ Split", callback_data="clean_option|split"),
+                InlineKeyboardButton("📊 Mediainfo", callback_data="clean_option|mediainfo"),
+            ],
+            [
+                InlineKeyboardButton("💬 Subtitles", callback_data="clean_option|subs"),
+                InlineKeyboardButton("🗑  All files", callback_data="clean_option|all"),
+            ],
             [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
         ])
         callback_query.edit_message_text(
@@ -1722,13 +1779,13 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
         return
     if data == "cookies":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📥 /download_cookie - Download my YouTube cookie",
+            [InlineKeyboardButton("📥 /download_cookie - Download my 5 cookies",
                                   callback_data="settings__cmd__download_cookie")],
-            [InlineKeyboardButton("🌐 /cookies_from_browser - Get cookies from browser",
+            [InlineKeyboardButton("🌐 /cookies_from_browser - Get browser's YT-cookie",
                                   callback_data="settings__cmd__cookies_from_browser")],
-            [InlineKeyboardButton("🔎 /check_cookie - Check cookie file in your folder",
+            [InlineKeyboardButton("🔎 /check_cookie - Check your cookie file",
                                   callback_data="settings__cmd__check_cookie")],
-            [InlineKeyboardButton("🔖 /save_as_cookie - Send text to save as cookie",
+            [InlineKeyboardButton("🔖 /save_as_cookie - Upload your cookie",
                                   callback_data="settings__cmd__save_as_cookie")],
             [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
         ])
@@ -1774,11 +1831,15 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
     if data == "back":
         # Return to main menu
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🧹 CLEAN", callback_data="settings__menu__clean")],
-            [InlineKeyboardButton("🍪 COOKIES", callback_data="settings__menu__cookies")],
-            [InlineKeyboardButton("🎞 MEDIA", callback_data="settings__menu__media")],
-            [InlineKeyboardButton("📖 INFO", callback_data="settings__menu__logs")],
-            [InlineKeyboardButton("🔙 Close", callback_data="settings__menu__close")]
+            [
+                InlineKeyboardButton("🧹 CLEAN", callback_data="settings__menu__clean"),
+                InlineKeyboardButton("🍪 COOKIES", callback_data="settings__menu__cookies"),
+            ],
+            [
+                InlineKeyboardButton("🎞 MEDIA", callback_data="settings__menu__media"),
+                InlineKeyboardButton("📖 INFO", callback_data="settings__menu__logs"),
+            ],
+            [InlineKeyboardButton("🔙 Cancel", callback_data="settings__menu__cancel")]
         ])
         callback_query.edit_message_text(
             "<b>Bot Settings</b>\n\nChoose a category:",
@@ -1799,15 +1860,23 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
     if data == "clean":
         # Show the cleaning menu instead of direct execution
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🍪 Cookies only", callback_data="clean_option|cookies")],
-            [InlineKeyboardButton("📃 Logs ", callback_data="clean_option|logs")],
-            [InlineKeyboardButton("#️⃣ Tags", callback_data="clean_option|tags")],
-            [InlineKeyboardButton("📼 Format", callback_data="clean_option|format")],
-            [InlineKeyboardButton("✂️ Split", callback_data="clean_option|split")],
-            [InlineKeyboardButton("📊 Mediainfo", callback_data="clean_option|mediainfo")],
-            [InlineKeyboardButton("💬 Subtitles", callback_data="clean_option|subs")],
-            [InlineKeyboardButton("🗑  All files", callback_data="clean_option|all")],
-            [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__cookies")]
+            [
+                InlineKeyboardButton("🍪 Cookies only", callback_data="clean_option|cookies"),
+                InlineKeyboardButton("📃 Logs ", callback_data="clean_option|logs"),
+            ],
+            [
+                InlineKeyboardButton("#️⃣ Tags", callback_data="clean_option|tags"),
+                InlineKeyboardButton("📼 Format", callback_data="clean_option|format"),
+            ],
+            [
+                InlineKeyboardButton("✂️ Split", callback_data="clean_option|split"),
+                InlineKeyboardButton("📊 Mediainfo", callback_data="clean_option|mediainfo"),
+            ],
+            [
+                InlineKeyboardButton("💬 Subtitles", callback_data="clean_option|subs"),
+                InlineKeyboardButton("🗑  All files", callback_data="clean_option|all"),
+            ],
+            [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
         ])
         callback_query.edit_message_text(
             "<b>🧹 Clean Options</b>\n\nChoose what to clean:",
@@ -1966,9 +2035,8 @@ def mediainfo_command(app, message):
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
     buttons = [
-        [InlineKeyboardButton("✅ ON", callback_data="mediainfo_option|on")],
-        [InlineKeyboardButton("❌ OFF", callback_data="mediainfo_option|off")],
-        [InlineKeyboardButton("🔙 Cancel", callback_data="mediainfo_option|cancel")]
+        [InlineKeyboardButton("✅ ON", callback_data="mediainfo_option|on"), InlineKeyboardButton("❌ OFF", callback_data="mediainfo_option|off")],
+        [InlineKeyboardButton("🔙 Cancel", callback_data="mediainfo_option|cancel")],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
     app.send_message(
@@ -1989,7 +2057,10 @@ def mediainfo_option_callback(app, callback_query):
     create_directory(user_dir)
     mediainfo_file = os.path.join(user_dir, "mediainfo.txt")
     if callback_query.data == "mediainfo_option|cancel":
-        callback_query.edit_message_text("🔚 MediaInfo: cancelled.")
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
         callback_query.answer("Menu closed.")
         send_to_logger(callback_query.message, "MediaInfo: cancelled.")
         return
@@ -2109,11 +2180,21 @@ def download_cookie(app, message):
     
     # Buttons for services
     buttons = [
-        [InlineKeyboardButton("📺 YouTube", callback_data="download_cookie|youtube")],
-        [InlineKeyboardButton("📷 Instagram", callback_data="download_cookie|instagram")],
-        [InlineKeyboardButton("🐦 Twitter/X", callback_data="download_cookie|twitter")],
-        [InlineKeyboardButton("🎵 TikTok", callback_data="download_cookie|tiktok")],
-        [InlineKeyboardButton("📘 Facebook", callback_data="download_cookie|facebook")]
+        [
+            InlineKeyboardButton("📺 YouTube", callback_data="download_cookie|youtube"),
+            InlineKeyboardButton("📷 Instagram", callback_data="download_cookie|instagram"),
+        ],
+        [
+            InlineKeyboardButton("🐦 Twitter/X", callback_data="download_cookie|twitter"),
+            InlineKeyboardButton("🎵 TikTok", callback_data="download_cookie|tiktok"),
+        ],
+        [
+            InlineKeyboardButton("📘 Facebook", callback_data="download_cookie|facebook"),
+            InlineKeyboardButton("📝 Your Own", callback_data="download_cookie|own"),
+        ],
+        [
+            InlineKeyboardButton("🔙 Cancel", callback_data="download_cookie|cancel"),
+        ],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
     text = """
@@ -2152,6 +2233,20 @@ def download_cookie_callback(app, callback_query):
         download_and_save_cookie(app, callback_query, Config.TIKTOK_COOKIE_URL, "tiktok")
     elif data == "facebook":
         download_and_save_cookie(app, callback_query, Config.FACEBOOK_COOKIE_URL, "facebook")
+    elif data == "own":
+        app.answer_callback_query(callback_query.id)
+        app.send_message(
+            callback_query.message.chat.id,
+            Config.SAVE_AS_COOKIE_HINT,
+            reply_to_message_id=callback_query.message.id if hasattr(callback_query.message, 'id') else None
+        )
+    elif data == "cancel":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        callback_query.answer("Menu closed.")
+        return
 
 def download_and_save_cookie(app, callback_query, url, service):
     user_id = str(callback_query.from_user.id)
@@ -2320,6 +2415,10 @@ def video_url_extractor(app, message):
     if tag_error:
         wrong, example = tag_error
         app.send_message(user_id, f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}", reply_to_message_id=message.id)
+        return
+    
+    # Проверка лимита диапазона
+    if not check_playlist_range_limits(url, video_start_with, video_end_with, app, message):
         return
     
     if url:
@@ -5280,8 +5379,11 @@ def split_size_callback(app, callback_query):
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]
     if data == "cancel":
-        callback_query.edit_message_text("🔚 Split size selection canceled.")
-        callback_query.answer("✅ Split choice updated.")
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        callback_query.answer("Menu closed.")
         send_to_logger(callback_query.message, "Split selection canceled.")
         return
     try:
@@ -5389,6 +5491,13 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
     
     # Очищаем кэш субтитров перед проверкой, чтобы избежать проблем с кэшированием
     clear_subs_check_cache()
+    # --- Проверка лимита диапазона для Always Ask Menu ---
+    original_text = message.text or message.caption or ""
+    is_playlist = is_playlist_with_range(original_text)
+    if is_playlist:
+        _, video_start_with, video_end_with, _, _, _, _ = extract_url_range_tags(original_text)
+        if not check_playlist_range_limits(url, video_start_with, video_end_with, app, message):
+            return
     try:
         # Проверяем, включены ли субтитры
         subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
@@ -5588,15 +5697,15 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         if tags_text:
             cap += f"{tags_text}\n"
         # --- Ссылки в самом низу ---
-        if ("youtube.com" in url or "youtu.be" in url):
-            webpage_url = info.get('webpage_url') or ''
-            video_url_link = f'<a href="{webpage_url}">[VIDEO]</a>' if webpage_url else ''
-            channel_url_link = f'<a href="{channel_url}">[CHANNEL]</a>' if channel_url else ''
-            thumbnail_url = info.get('thumbnail') or ''
-            thumb_link = f'<a href="{thumbnail_url}">[Thumbnail]</a>' if thumbnail_url else ''
-            links = '  '.join([x for x in [video_url_link, channel_url_link, thumb_link] if x])
-            if links:
-                cap += f"\n{links}"
+        #if ("youtube.com" in url or "youtu.be" in url):
+            #webpage_url = info.get('webpage_url') or ''
+            #video_url_link = f'<a href="{webpage_url}">[VIDEO]</a>' if webpage_url else ''
+            #channel_url_link = f'<a href="{channel_url}">[CHANNEL]</a>' if channel_url else ''
+            #thumbnail_url = info.get('thumbnail') or ''
+            #thumb_link = f'<a href="{thumbnail_url}">[Thumbnail]</a>' if thumbnail_url else ''
+            #links = '  '.join([x for x in [channel_url_link, thumb_link] if x])
+            #if links:
+                #cap += f"\n{links}"
         # --- Обрезка по лимиту ---
         if len(cap) > 1024:
             # Обрезаем по приоритету: лайки, подписчики, просмотры, дата, длительность, название, канал
@@ -5800,7 +5909,12 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         keyboard_rows.append([InlineKeyboardButton("🔙 Cancel", callback_data="askq|cancel")])
         keyboard = InlineKeyboardMarkup(keyboard_rows)
         # cap already contains a hint and a table
-        app.delete_messages(user_id, proc_msg.id)
+        try:
+            app.delete_messages(user_id, proc_msg.id)
+        except Exception as e:
+            if 'MESSAGE_ID_INVALID' not in str(e):
+                logger.warning(f"Failed to delete message: {e}")
+            app.edit_message_reply_markup(chat_id=user_id, message_id=proc_msg.id, reply_markup=None)
         proc_msg = None
         if thumb_path and os.path.exists(thumb_path):
             app.send_photo(user_id, thumb_path, caption=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_to_message_id=message.id)
@@ -5853,7 +5967,10 @@ def askq_callback(app, callback_query):
     data = callback_query.data.split("|")[1]
 
     if data == "cancel":
-        callback_query.message.delete()
+        try:
+            app.delete_messages(user_id, callback_query.message.id)
+        except Exception:
+            app.edit_message_reply_markup(chat_id=user_id, message_id=callback_query.message.id, reply_markup=None)
         callback_query.answer("Menu closed.")
         return
         
@@ -5882,7 +5999,7 @@ def askq_callback(app, callback_query):
             reply_to_message_id=original_message.id
         )
         send_to_logger(original_message, f"Quick Embed: {embed_url}")
-        callback_query.message.delete()
+        app.delete_messages(user_id, callback_query.message.id)
         return
     
     # Handle manual quality selection menu
@@ -5895,7 +6012,7 @@ def askq_callback(app, callback_query):
         original_message = callback_query.message.reply_to_message
         if not original_message:
             callback_query.answer("❌ Error: Original message not found.", show_alert=True)
-            callback_query.message.delete()
+            app.delete_messages(user_id, callback_query.message.id)
             return
         
         url = None
@@ -5916,11 +6033,11 @@ def askq_callback(app, callback_query):
                 tag_matches = re.findall(r'#\S+', caption_text)
                 if tag_matches:
                     tags = tag_matches
-            callback_query.message.delete()
+            app.delete_messages(user_id, callback_query.message.id)
             ask_quality_menu(app, original_message, url, tags)
         else:
             callback_query.answer("❌ Error: URL not found.", show_alert=True)
-            callback_query.message.delete()
+            app.delete_messages(user_id, callback_query.message.id)
         return
     
     # Handle manual quality selection
@@ -5931,7 +6048,7 @@ def askq_callback(app, callback_query):
         original_message = callback_query.message.reply_to_message
         if not original_message:
             callback_query.answer("❌ Error: Original message not found.", show_alert=True)
-            callback_query.message.delete()
+            app.delete_messages(user_id, callback_query.message.id)
             return
         
         url = None
@@ -5947,14 +6064,14 @@ def askq_callback(app, callback_query):
         
         if not url:
             callback_query.answer("❌ Error: URL not found.", show_alert=True)
-            callback_query.message.delete()
+            app.delete_messages(user_id, callback_query.message.id)
             return
         
         # Новый способ: всегда извлекаем теги из исходного сообщения пользователя
         original_text = original_message.text or original_message.caption or ""
         _, _, _, _, tags, tags_text, _ = extract_url_range_tags(original_text)
         
-        callback_query.message.delete()
+        app.delete_messages(user_id, callback_query.message.id)
         
         # Force use specific quality format like in /format command
         if quality == "best":
@@ -5983,7 +6100,7 @@ def askq_callback(app, callback_query):
     original_message = callback_query.message.reply_to_message
     if not original_message:
         callback_query.answer("❌ Error: Original message not found. It might have been deleted. Please send the link again.", show_alert=True)
-        callback_query.message.delete()
+        app.delete_messages(user_id, callback_query.message.id)
         return
 
     url = None
@@ -5998,14 +6115,14 @@ def askq_callback(app, callback_query):
             url = url_match.group(0)
     if not url:
         callback_query.answer("❌ Error: Original URL not found. Please send the link again.", show_alert=True)
-        callback_query.message.delete()
+        app.delete_messages(user_id, callback_query.message.id)
         return
 
     # Извлекаем теги из исходного сообщения пользователя
     original_text = original_message.text or original_message.caption or ""
     _, _, _, _, tags, tags_text, _ = extract_url_range_tags(original_text)
 
-    callback_query.message.delete()
+    app.delete_messages(user_id, callback_query.message.id)
 
     original_text = original_message.text or original_message.caption or ""
     if is_playlist_with_range(original_text):
@@ -7260,16 +7377,6 @@ def check_subs_limits(info_dict, quality_key=None):
         max_quality = Config.MAX_SUB_QUALITY
         max_duration = Config.MAX_SUB_DURATION
         max_size = Config.MAX_SUB_SIZE
-        
-        # Check the quality of the video (is made - check only the duration and size)
-        # if quality_key and quality_key != "best" and quality_key != "mp3":
-        # try:
-        # quality_height = int(quality_key.replace('p', ''))
-        # if quality_height > max_quality:
-        # logger.info(f"Subtitle embedding skipped: quality {quality_height}p exceeds limit {max_quality}p")
-        # return False
-        # except ValueError:
-        # pass # If it is not possible to extract the height, we skip quality check
         
         # Check the duration
         duration = info_dict.get('duration')
