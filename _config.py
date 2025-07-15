@@ -25,6 +25,8 @@ class Config(object):
     MAX_SUB_QUALITY = 720 # 720p
     MAX_SUB_DURATION = 5400 # in seconds
     MAX_SUB_SIZE = 500 # in MB      
+    MAX_PLAYLIST_COUNT = 50
+    MAX_TIKTOK_COUNT = 500        
     # Cookie file URL
     # EX: "https://path/to/your/cookie-file.txt"
     COOKIE_URL = ""
