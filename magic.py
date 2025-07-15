@@ -5761,7 +5761,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             buttons.append(InlineKeyboardButton("🎛 Force Quality", callback_data=f"askq|try_manual"))
             
             # Add explanation when automatic quality detection fails
-            autodiscovery_note = "<blockquote>⚠️ Available qualities could not be automatically detected. You can manually force a specific quality.</blockquote>"
+            autodiscovery_note = "<blockquote>⚠️ Qualities not auto-detected\nYou can manually force quality.</blockquote>"
             cap += f"\n{autodiscovery_note}\n"
         # --- Form rows of 3 buttons ---
         keyboard_rows = []
