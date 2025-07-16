@@ -791,7 +791,7 @@ def cookies_from_browser(app, message):
         buttons.append([button])
 
     # Add a close button
-    buttons.append([InlineKeyboardButton("🔙 close", callback_data="browser_choice|close")])
+    buttons.append([InlineKeyboardButton("🔚 Close", callback_data="browser_choice|close")])
     keyboard = InlineKeyboardMarkup(buttons)
 
     app.send_message(
@@ -810,7 +810,7 @@ def browser_choice_callback(app, callback_query):
     import subprocess
 
     user_id = callback_query.from_user.id
-    data = callback_query.data.split("|")[1]  # E.G. "Chromium", "Firefox", or "Cancel"
+    data = callback_query.data.split("|")[1]  # E.G. "Chromium", "Firefox", or "Close"
     # Path to the User's Directory, E.G. "./users/1234567"
     user_dir = os.path.join(".", "users", str(user_id))
     create_directory(user_dir)
@@ -975,7 +975,7 @@ def set_format(app, message):
             [InlineKeyboardButton("📈Bestvideo+Bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
             # [InlineKeyboardButton("📉best (no ffmpeg) (bad)", callback_data="format_option|best")],
             [InlineKeyboardButton("🎚 Custom (enter your own)", callback_data="format_option|custom")],
-            [InlineKeyboardButton("🔙 close", callback_data="format_option|close"), InlineKeyboardButton("❌ Close", callback_data="format_option|close")]
+            [InlineKeyboardButton("🔚 Close", callback_data="format_option|close")]
         ])
         app.send_message(
             user_id,
@@ -993,7 +993,7 @@ def format_option_callback(app, callback_query):
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]
 
-    # If you press the Cancel button
+    # If you press the close button
     if data == "close":
         try:
             callback_query.message.delete()
@@ -1030,7 +1030,7 @@ def format_option_callback(app, callback_query):
                 InlineKeyboardButton("2160p (3840×2160)", callback_data="format_option|bv2160"),
                 InlineKeyboardButton("4320p (7680×4320)", callback_data="format_option|bv4320")
             ],
-            [InlineKeyboardButton("🔙 Back", callback_data="format_option|back"), InlineKeyboardButton("❌ Close", callback_data="format_option|close")]
+            [InlineKeyboardButton("🔙 Back", callback_data="format_option|back"), InlineKeyboardButton("🔚 Close", callback_data="format_option|close")]
         ])
         callback_query.edit_message_text("Select your desired resolution:", reply_markup=full_res_keyboard)
         callback_query.answer()
@@ -1047,7 +1047,7 @@ def format_option_callback(app, callback_query):
             [InlineKeyboardButton("📈Bestvideo+Bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
             # [InlineKeyboardButton("📉best (no ffmpeg) (bad)", callback_data="format_option|best")],
             [InlineKeyboardButton("🎚 Custom (enter your own)", callback_data="format_option|custom")],
-            [InlineKeyboardButton("🔙 close", callback_data="format_option|close")]
+            [InlineKeyboardButton("🔚 close", callback_data="format_option|close")]
         ])
         callback_query.edit_message_text("Select a format option or send a custom one using `/format <format_string>`:",
                                          reply_markup=main_keyboard)
@@ -1726,7 +1726,7 @@ def settings_command(app, message):
             InlineKeyboardButton("🎞 MEDIA", callback_data="settings__menu__media"),
             InlineKeyboardButton("📖 INFO", callback_data="settings__menu__logs"),
         ],
-        [InlineKeyboardButton("🔙 close", callback_data="settings__menu__close")]
+        [InlineKeyboardButton("🔚 Close", callback_data="settings__menu__close")]
     ])
     app.send_message(
         user_id,
@@ -1840,7 +1840,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
                 InlineKeyboardButton("🎞 MEDIA", callback_data="settings__menu__media"),
                 InlineKeyboardButton("📖 INFO", callback_data="settings__menu__logs"),
             ],
-            [InlineKeyboardButton("🔙 close", callback_data="settings__menu__close")]
+            [InlineKeyboardButton("🔚 Close", callback_data="settings__menu__close")]
         ])
         callback_query.edit_message_text(
             "<b>Bot Settings</b>\n\nChoose a category:",
@@ -2037,7 +2037,7 @@ def mediainfo_command(app, message):
     create_directory(user_dir)
     buttons = [
         [InlineKeyboardButton("✅ ON", callback_data="mediainfo_option|on"), InlineKeyboardButton("❌ OFF", callback_data="mediainfo_option|off")],
-        [InlineKeyboardButton("🔙 close", callback_data="mediainfo_option|close")],
+        [InlineKeyboardButton("🔚 Close", callback_data="mediainfo_option|close")],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
     app.send_message(
@@ -2194,7 +2194,7 @@ def download_cookie(app, message):
             InlineKeyboardButton("📝 Your Own", callback_data="download_cookie|own"),
         ],
         [
-            InlineKeyboardButton("🔙 close", callback_data="download_cookie|close"),
+            InlineKeyboardButton("🔚 Close", callback_data="download_cookie|close"),
         ],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
@@ -5368,7 +5368,7 @@ def split_command(app, message):
                 text, size = sizes[i + j]
                 row.append(InlineKeyboardButton(text, callback_data=f"split_size|{size}"))
         buttons.append(row)
-    buttons.append([InlineKeyboardButton("🔙 close", callback_data="split_size|close"), InlineKeyboardButton("❌ Close", callback_data="split_size|close")])
+    buttons.append([InlineKeyboardButton("🔚 close", callback_data="split_size|close")])
     keyboard = InlineKeyboardMarkup(buttons)
     app.send_message(user_id, "Choose max part size for video splitting:", reply_markup=keyboard)
     send_to_logger(message, "User opened /split menu.")
@@ -5907,7 +5907,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             if need_subs:
                 keyboard_rows.append([InlineKeyboardButton("💬 Subtitles Only", callback_data="askq|subs_only")])
         
-        keyboard_rows.append([InlineKeyboardButton("🔙 close", callback_data="askq|close"), InlineKeyboardButton("❌ Close", callback_data="askq|close")])
+        keyboard_rows.append([InlineKeyboardButton("🔚 close", callback_data="askq|close")])
         keyboard = InlineKeyboardMarkup(keyboard_rows)
         # cap already contains a hint and a table
         try:
@@ -6424,10 +6424,10 @@ def show_manual_quality_menu(app, callback_query):
         if need_subs:
             keyboard_rows.append([InlineKeyboardButton("💬 Subtitles Only", callback_data="askq|subs_only")])
     
-    # Add Back and Cancel buttons
+    # Add Back and close buttons
     keyboard_rows.append([
         InlineKeyboardButton("🔙 Back", callback_data="askq|manual_back"),
-        InlineKeyboardButton("❌ Close", callback_data="askq|close")
+        InlineKeyboardButton("🔚 Close", callback_data="askq|close")
     ])
     
     keyboard = InlineKeyboardMarkup(keyboard_rows)
