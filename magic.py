@@ -380,8 +380,13 @@ def get_language_keyboard(page=0, user_id=None):
         InlineKeyboardButton("🚫 OFF", callback_data="subs_lang|OFF"),
         InlineKeyboardButton(f"{auto_emoji} AUTO-GEN", callback_data=f"subs_auto|toggle|{page}")
     ])
+    # Кнопка Close
+    keyboard.append([
+        InlineKeyboardButton("🔚 Close", callback_data="subs_lang_close|close")
+    ])
 
     return InlineKeyboardMarkup(keyboard)
+
 
 
 # --- Function for permanent reply-keyboard ---
@@ -705,6 +710,17 @@ app = Client(
 
 # #############################################################################################################################
 # #############################################################################################################################
+@app.on_callback_query(filters.regex(r"^subs_lang_close\|"))
+def subs_lang_close_callback(app, callback_query):
+    data = callback_query.data.split("|")[1]
+    if data == "close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        callback_query.answer("Subtitle language menu closed.")
+        send_to_logger(callback_query.message, "Subtitle language menu closed.")
+        return
 
 @app.on_message(filters.command("start") & filters.private)
 @reply_with_keyboard
@@ -722,10 +738,25 @@ def command1(app, message):
 @app.on_message(filters.command("help"))
 @reply_with_keyboard
 def command2(app, message):
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔚 Close", callback_data="help_msg|close")]
+    ])
     app.send_message(message.chat.id, (Config.HELP_MSG),
-                     parse_mode=enums.ParseMode.HTML)
+                     parse_mode=enums.ParseMode.HTML,
+                     reply_markup=keyboard)
     send_to_logger(message, f"Send help txt to user")
 
+@app.on_callback_query(filters.regex(r"^help_msg\|"))
+def help_msg_callback(app, callback_query):
+    data = callback_query.data.split("|")[1]
+    if data == "close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        callback_query.answer("Help closed.")
+        send_to_logger(callback_query.message, "Help message closed.")
+        return
 
 def create_directory(path):
     # Create The Directory (And All Intermediate Directories) IF Its Not Exist.
@@ -895,6 +926,11 @@ def check_playlist_range_limits(url, video_start_with, video_end_with, app, mess
             f"❗️ Range limit exceeded for {service}: {count} (maximum {max_count}).\nReduce the range and try again.",
             reply_to_message_id=getattr(message, 'id', None)
         )
+        # Отправляем уведомление в лог-канал
+        app.send_message(
+            Config.LOGS_ID,
+            f"❗️ Range limit exceeded for {service}: {count} (maximum {max_count})\nUser ID: {message.chat.id}",
+        )
         return False
     return True
 
@@ -941,9 +977,23 @@ def playlist_command(app, message):
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
 
-    app.send_message(user_id, Config.PLAYLIST_HELP_MSG, parse_mode=enums.ParseMode.HTML)
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔚 Close", callback_data="playlist_help|close")]
+    ])
+    app.send_message(user_id, Config.PLAYLIST_HELP_MSG, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
     send_to_logger(message, "User requested playlist help.")
 
+@app.on_callback_query(filters.regex(r"^playlist_help\|"))
+def playlist_help_callback(app, callback_query):
+    data = callback_query.data.split("|")[1]
+    if data == "close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        callback_query.answer("Playlist help closed.")
+        send_to_logger(callback_query.message, "Playlist help closed.")
+        return
 
 # Command /Format Handler
 @app.on_message(filters.command("format") & filters.private)
@@ -1522,13 +1572,34 @@ def get_user_log(app, message):
         with open(log_path, 'w', encoding="utf-8") as f:
             f.write(str(txt_format))
 
-        send_to_all(message, f"Total: **{total}**\n**{user_id}** - logs (Last 10):\n \n \n{format_str}")
+        # Вместо send_to_all отправляем с кнопкой Close
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔚 Close", callback_data="userlogs_close|close")]
+        ])
+        app.send_message(
+            message.chat.id,
+            f"Total: **{total}**\n**{user_id}** - logs (Last 10):\n \n \n{format_str}",
+            reply_markup=keyboard
+        )
         app.send_document(message.chat.id, log_path,
                           caption=f"{user_id} - all logs")
         app.send_document(Config.LOGS_ID, log_path,
                           caption=f"{user_id} - all logs")
     except:
         send_to_all(message, "**❌ User did not download any content yet...** Not exist in logs")
+
+
+@app.on_callback_query(filters.regex(r"^userlogs_close\|"))
+def userlogs_close_callback(app, callback_query):
+    data = callback_query.data.split("|")[1]
+    if data == "close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        callback_query.answer("Logs message closed.")
+        send_to_logger(callback_query.message, "User logs message closed.")
+        return
 
 
 # Get All Kinds of Users (Users/ Blocked/ Unblocked)
@@ -1850,6 +1921,17 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
         callback_query.answer()
         return
 
+@app.on_callback_query(filters.regex(r"^audio_hint\|"))
+def audio_hint_callback(app, callback_query):
+    data = callback_query.data.split("|")[1]
+    if data == "close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        callback_query.answer("Audio hint closed.")
+        send_to_logger(callback_query.message, "Audio hint closed.")
+        return
 
 @app.on_callback_query(filters.regex(r"^settings__cmd__"))
 #@reply_with_keyboard
@@ -1899,8 +1981,11 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         callback_query.answer("Command executed.")
         return
     if data == "save_as_cookie":
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔚 Close", callback_data="save_as_cookie_hint|close")]
+        ])
         app.send_message(user_id, Config.SAVE_AS_COOKIE_HINT, reply_to_message_id=callback_query.message.id,
-                         parse_mode=enums.ParseMode.HTML)
+                         parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
         callback_query.answer("Hint sent.")
         return
     if data == "format":
@@ -1924,10 +2009,13 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         callback_query.answer("Command executed.")
         return
     if data == "audio":
-        # We just send a hint on how to use it
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔚 Close", callback_data="audio_hint|close")]
+        ])
         app.send_message(user_id,
                          "Download only audio from video source.\nUsage: /audio + URL (ex. /audio https://youtu.be/abc123)",
-                         reply_to_message_id=callback_query.message.id)
+                         reply_to_message_id=callback_query.message.id,
+                         reply_markup=keyboard)
         callback_query.answer("Hint sent.")
         return
     if data == "tags":
@@ -2236,10 +2324,14 @@ def download_cookie_callback(app, callback_query):
         download_and_save_cookie(app, callback_query, Config.FACEBOOK_COOKIE_URL, "facebook")
     elif data == "own":
         app.answer_callback_query(callback_query.id)
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔚 Close", callback_data="save_as_cookie_hint|close")]
+        ])
         app.send_message(
             callback_query.message.chat.id,
             Config.SAVE_AS_COOKIE_HINT,
-            reply_to_message_id=callback_query.message.id if hasattr(callback_query.message, 'id') else None
+            reply_to_message_id=callback_query.message.id if hasattr(callback_query.message, 'id') else None,
+            reply_markup=keyboard
         )
     elif data == "close":
         try:
@@ -2247,6 +2339,18 @@ def download_cookie_callback(app, callback_query):
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
         callback_query.answer("Menu closed.")
+        return
+
+@app.on_callback_query(filters.regex(r"^save_as_cookie_hint\|"))
+def save_as_cookie_hint_callback(app, callback_query):
+    data = callback_query.data.split("|")[1]
+    if data == "close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        callback_query.answer("Cookie hint closed.")
+        send_to_logger(callback_query.message, "Save as cookie hint closed.")
         return
 
 def download_and_save_cookie(app, callback_query, url, service):
@@ -5141,15 +5245,30 @@ def tags_command(app, message):
         return
     # We form posts by 4096 characters
     msg = ''
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔚 Close", callback_data="tags_close|close")]
+    ])
     for tag in tags:
         if len(msg) + len(tag) + 1 > 4096:
-            app.send_message(user_id, msg, reply_to_message_id=message.id)
+            app.send_message(user_id, msg, reply_to_message_id=message.id, reply_markup=keyboard)
             send_to_logger(message, msg)
             msg = ''
         msg += tag + '\n'
     if msg:
-        app.send_message(user_id, msg, reply_to_message_id=message.id)
+        app.send_message(user_id, msg, reply_to_message_id=message.id, reply_markup=keyboard)
         send_to_logger(message, msg)
+
+@app.on_callback_query(filters.regex(r"^tags_close\|"))
+def tags_close_callback(app, callback_query):
+    data = callback_query.data.split("|")[1]
+    if data == "close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        callback_query.answer("Tags message closed.")
+        send_to_logger(callback_query.message, "Tags message closed.")
+        return
 
 def extract_youtube_id(url: str) -> str:
     """
@@ -5368,7 +5487,7 @@ def split_command(app, message):
                 text, size = sizes[i + j]
                 row.append(InlineKeyboardButton(text, callback_data=f"split_size|{size}"))
         buttons.append(row)
-    buttons.append([InlineKeyboardButton("🔚 close", callback_data="split_size|close")])
+    buttons.append([InlineKeyboardButton("🔚 Close", callback_data="split_size|close")])
     keyboard = InlineKeyboardMarkup(buttons)
     app.send_message(user_id, "Choose max part size for video splitting:", reply_markup=keyboard)
     send_to_logger(message, "User opened /split menu.")
@@ -5907,7 +6026,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             if need_subs:
                 keyboard_rows.append([InlineKeyboardButton("💬 Subtitles Only", callback_data="askq|subs_only")])
         
-        keyboard_rows.append([InlineKeyboardButton("🔚 close", callback_data="askq|close")])
+        keyboard_rows.append([InlineKeyboardButton("🔚 Close", callback_data="askq|close")])
         keyboard = InlineKeyboardMarkup(keyboard_rows)
         # cap already contains a hint and a table
         try:
