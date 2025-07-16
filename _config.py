@@ -278,7 +278,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
         ".youtube.com  TRUE  /  FALSE  33333  ST-xxxxx  session_logininfo=CCC\n"
         "</pre>\n"
         "<blockquote>"
-        "Instructions:\n"
+        "<b><u>Instructions:</u></b>\n"
         "https://t.me/c/2303231066/18 \n"
         "https://t.me/c/2303231066/22 "
         "</blockquote>"
