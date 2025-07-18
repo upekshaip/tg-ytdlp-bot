@@ -2307,14 +2307,7 @@ def download_cookie(app, message):
     text = """
 🍪 **Download Cookie Files**
 
-Choose a service to download the cookie file:
-
-• **YouTube** - for youtube.com and youtu.be
-• **Instagram** - for instagram.com
-• **Twitter/X** - for twitter.com and x.com
-• **TikTok** - for tiktok.com
-• **Facebook** - for facebook.com and fb.com
-
+Choose a service to download the cookie file.
 Cookie files will be saved as cookie.txt in your folder.
 """
     app.send_message(
