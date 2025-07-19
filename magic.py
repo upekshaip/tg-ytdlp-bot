@@ -1,4 +1,4 @@
-# Version 3.0.2 # embedded subtitles
+# Version 3.0.4 # embedded subtitles + close buttons
 import glob
 import hashlib
 import io
@@ -20,7 +20,7 @@ from urllib.parse import urlparse, parse_qs, urlunparse, unquote, urlencode
 import traceback
 import pyrebase
 import tldextract
-from moviepy.editor import VideoFileClip
+#from moviepy.editor import VideoFileClip
 from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 from pyrogram import Client, filters
 from pyrogram import enums
@@ -332,29 +332,31 @@ def get_available_subs_languages(url, user_id=None, auto_only=False):
     return []
 
 def get_language_keyboard(page=0, user_id=None):
-    """Generate keyboard with language buttons in 2 columns"""
+    """Generate keyboard with language buttons in 3 columns"""
     keyboard = []
-    
-    # Calculate total pages
-    total_languages = len(LANGUAGES)
-    total_pages = math.ceil(total_languages / ITEMS_PER_PAGE)
-    
-    # Get languages for current page
-    start_idx = page * ITEMS_PER_PAGE
-    end_idx = start_idx + ITEMS_PER_PAGE
-    current_page_langs = list(LANGUAGES.items())[start_idx:end_idx]
-    
-    # Get current language and auto mode
+    LANGS_PER_ROW = 3
+    ROWS_PER_PAGE = 5  # например, 5 строк по 3 = 15 языков на страницу
+
+    # Получаем все языки
+    all_langs = list(LANGUAGES.items())
+    total_languages = len(all_langs)
+    total_pages = math.ceil(total_languages / (LANGS_PER_ROW * ROWS_PER_PAGE))
+
+    # Срез для текущей страницы
+    start_idx = page * LANGS_PER_ROW * ROWS_PER_PAGE
+    end_idx = start_idx + LANGS_PER_ROW * ROWS_PER_PAGE
+    current_page_langs = all_langs[start_idx:end_idx]
+
+    # Текущий язык и авто-режим
     current_lang = get_user_subs_language(user_id) if user_id else None
     auto_mode = get_user_subs_auto_mode(user_id) if user_id else False
-    
-    # Add language buttons in 2 columns
-    for i in range(0, len(current_page_langs), 2):
+
+    # Формируем кнопки по 3 в ряд
+    for i in range(0, len(current_page_langs), LANGS_PER_ROW):
         row = []
-        for j in range(2):
+        for j in range(LANGS_PER_ROW):
             if i + j < len(current_page_langs):
                 lang_code, lang_info = current_page_langs[i + j]
-                # Add checkmark if this is the selected language
                 checkmark = "✅ " if lang_code == current_lang else ""
                 button_text = f"{checkmark}{lang_info['flag']} {lang_info['name']}"
                 row.append(InlineKeyboardButton(
@@ -362,8 +364,8 @@ def get_language_keyboard(page=0, user_id=None):
                     callback_data=f"subs_lang|{lang_code}"
                 ))
         keyboard.append(row)
-    
-    # Navigation row
+
+    # Навигация
     nav_row = []
     if page > 0:
         nav_row.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"subs_page|{page-1}"))
@@ -371,14 +373,18 @@ def get_language_keyboard(page=0, user_id=None):
         nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"subs_page|{page+1}"))
     if nav_row:
         keyboard.append(nav_row)
-    
-    # Special options row (always at bottom)
+
+    # Спец. опции
     auto_emoji = "✅" if auto_mode else "☑️"
     keyboard.append([
         InlineKeyboardButton("🚫 OFF", callback_data="subs_lang|OFF"),
         InlineKeyboardButton(f"{auto_emoji} AUTO-GEN", callback_data=f"subs_auto|toggle|{page}")
     ])
-    
+    # Кнопка Close
+    keyboard.append([
+        InlineKeyboardButton("🔚 Close", callback_data="subs_lang_close|close")
+    ])
+
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -704,6 +710,17 @@ app = Client(
 
 # #############################################################################################################################
 # #############################################################################################################################
+@app.on_callback_query(filters.regex(r"^subs_lang_close\|"))
+def subs_lang_close_callback(app, callback_query):
+    data = callback_query.data.split("|")[1]
+    if data == "close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        callback_query.answer("Subtitle language menu closed.")
+        send_to_logger(callback_query.message, "Subtitle language menu closed.")
+        return
 
 @app.on_message(filters.command("start") & filters.private)
 @reply_with_keyboard
@@ -721,10 +738,25 @@ def command1(app, message):
 @app.on_message(filters.command("help"))
 @reply_with_keyboard
 def command2(app, message):
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔚 Close", callback_data="help_msg|close")]
+    ])
     app.send_message(message.chat.id, (Config.HELP_MSG),
-                     parse_mode=enums.ParseMode.HTML)
+                     parse_mode=enums.ParseMode.HTML,
+                     reply_markup=keyboard)
     send_to_logger(message, f"Send help txt to user")
 
+@app.on_callback_query(filters.regex(r"^help_msg\|"))
+def help_msg_callback(app, callback_query):
+    data = callback_query.data.split("|")[1]
+    if data == "close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        callback_query.answer("Help closed.")
+        send_to_logger(callback_query.message, "Help message closed.")
+        return
 
 def create_directory(path):
     # Create The Directory (And All Intermediate Directories) IF Its Not Exist.
@@ -789,8 +821,8 @@ def cookies_from_browser(app, message):
         button = InlineKeyboardButton(f"✅ {display_name}", callback_data=f"browser_choice|{browser}")
         buttons.append([button])
 
-    # Add a cancel button
-    buttons.append([InlineKeyboardButton("🔙 Cancel", callback_data="browser_choice|cancel")])
+    # Add a close button
+    buttons.append([InlineKeyboardButton("🔚 Close", callback_data="browser_choice|close")])
     keyboard = InlineKeyboardMarkup(buttons)
 
     app.send_message(
@@ -809,16 +841,19 @@ def browser_choice_callback(app, callback_query):
     import subprocess
 
     user_id = callback_query.from_user.id
-    data = callback_query.data.split("|")[1]  # E.G. "Chromium", "Firefox", or "Cancel"
+    data = callback_query.data.split("|")[1]  # E.G. "Chromium", "Firefox", or "Close"
     # Path to the User's Directory, E.G. "./users/1234567"
     user_dir = os.path.join(".", "users", str(user_id))
     create_directory(user_dir)
     cookie_file = os.path.join(user_dir, "cookie.txt")
 
-    if data == "cancel":
-        callback_query.edit_message_text("🔚 Browser selection canceled.")
+    if data == "close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
         callback_query.answer("✅ Browser choice updated.")
-        send_to_logger(callback_query.message, "Browser selection canceled.")
+        send_to_logger(callback_query.message, "Browser selection closed.")
         return
 
     browser_option = data
@@ -863,6 +898,42 @@ def browser_choice_callback(app, callback_query):
 
     callback_query.answer("✅ Browser choice updated.")
 
+def check_playlist_range_limits(url, video_start_with, video_end_with, app, message):
+    """
+    Проверяет лимиты диапазона скачивания для плейлистов, TikTok и Instagram.
+    Для одиночных видео всегда возвращает True.
+    Если диапазон превышает лимит — отправляет предупреждение и возвращает False.
+    """
+    # Если одиночное видео (нет диапазона) — всегда True
+    if video_start_with == 1 and video_end_with == 1:
+        return True
+
+    url_l = str(url).lower() if url else ''
+    if 'tiktok.com' in url_l:
+        max_count = Config.MAX_TIKTOK_COUNT
+        service = 'TikTok'
+    elif 'instagram.com' in url_l:
+        max_count = Config.MAX_TIKTOK_COUNT
+        service = 'Instagram'
+    else:
+        max_count = Config.MAX_PLAYLIST_COUNT
+        service = 'playlist'
+
+    count = video_end_with - video_start_with + 1
+    if count > max_count:
+        app.send_message(
+            message.chat.id,
+            f"❗️ Range limit exceeded for {service}: {count} (maximum {max_count}).\nReduce the range and try again.",
+            reply_to_message_id=getattr(message, 'id', None)
+        )
+        # Отправляем уведомление в лог-канал
+        app.send_message(
+            Config.LOGS_ID,
+            f"❗️ Range limit exceeded for {service}: {count} (maximum {max_count})\nUser ID: {message.chat.id}",
+        )
+        return False
+    return True
+
 # Command to Download Audio from a Video url
 @app.on_message(filters.command("audio") & filters.private)
 # @reply_with_keyboard
@@ -891,6 +962,10 @@ def audio_command_handler(app, message):
     _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
     video_count = video_end_with - video_start_with + 1
     
+    # Проверка лимита диапазона
+    if not check_playlist_range_limits(url, video_start_with, video_end_with, app, message):
+        return
+    
     down_and_audio(app, message, url, tags, quality_key="mp3", playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with)
 
 
@@ -902,9 +977,23 @@ def playlist_command(app, message):
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
 
-    app.send_message(user_id, Config.PLAYLIST_HELP_MSG, parse_mode=enums.ParseMode.HTML)
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔚 Close", callback_data="playlist_help|close")]
+    ])
+    app.send_message(user_id, Config.PLAYLIST_HELP_MSG, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
     send_to_logger(message, "User requested playlist help.")
 
+@app.on_callback_query(filters.regex(r"^playlist_help\|"))
+def playlist_help_callback(app, callback_query):
+    data = callback_query.data.split("|")[1]
+    if data == "close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        callback_query.answer("Playlist help closed.")
+        send_to_logger(callback_query.message, "Playlist help closed.")
+        return
 
 # Command /Format Handler
 @app.on_message(filters.command("format") & filters.private)
@@ -936,7 +1025,7 @@ def set_format(app, message):
             [InlineKeyboardButton("📈Bestvideo+Bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
             # [InlineKeyboardButton("📉best (no ffmpeg) (bad)", callback_data="format_option|best")],
             [InlineKeyboardButton("🎚 Custom (enter your own)", callback_data="format_option|custom")],
-            [InlineKeyboardButton("🔙 Cancel", callback_data="format_option|cancel")]
+            [InlineKeyboardButton("🔚 Close", callback_data="format_option|close")]
         ])
         app.send_message(
             user_id,
@@ -954,17 +1043,27 @@ def format_option_callback(app, callback_query):
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]
 
-    # If you press the Cancel button
-    if data == "cancel":
-        callback_query.edit_message_text("🔚 Format selection canceled.")
+    # If you press the close button
+    if data == "close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
         callback_query.answer("✅ Format choice updated.")
-        send_to_logger(callback_query.message, "Format selection canceled.")
+        send_to_logger(callback_query.message, "Format selection closed.")
         return
 
     # If the Custom button is pressed
     if data == "custom":
-        callback_query.edit_message_text(
-            "To use a custom format, send the command in the following form:\n\n`/format bestvideo+bestaudio/best`\n\nReplace `bestvideo+bestaudio/best` with your desired format string."
+        # Отправка сообщения с кнопкой Close
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔚 Close", callback_data="format_custom|close")]
+        ])
+        app.send_message(
+            user_id,
+            "To use a custom format, send the command in the following form:\n\n`/format bestvideo+bestaudio/best`\n\nReplace `bestvideo+bestaudio/best` with your desired format string.",
+            reply_to_message_id=callback_query.message.id,
+            reply_markup=keyboard
         )
         callback_query.answer("Hint sent.")
         send_to_logger(callback_query.message, "Custom format hint sent.")
@@ -988,7 +1087,7 @@ def format_option_callback(app, callback_query):
                 InlineKeyboardButton("2160p (3840×2160)", callback_data="format_option|bv2160"),
                 InlineKeyboardButton("4320p (7680×4320)", callback_data="format_option|bv4320")
             ],
-            [InlineKeyboardButton("🔙 Back", callback_data="format_option|back")]
+            [InlineKeyboardButton("🔙 Back", callback_data="format_option|back"), InlineKeyboardButton("🔚 Close", callback_data="format_option|close")]
         ])
         callback_query.edit_message_text("Select your desired resolution:", reply_markup=full_res_keyboard)
         callback_query.answer()
@@ -1005,7 +1104,7 @@ def format_option_callback(app, callback_query):
             [InlineKeyboardButton("📈Bestvideo+Bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
             # [InlineKeyboardButton("📉best (no ffmpeg) (bad)", callback_data="format_option|best")],
             [InlineKeyboardButton("🎚 Custom (enter your own)", callback_data="format_option|custom")],
-            [InlineKeyboardButton("🔙 Cancel", callback_data="format_option|cancel")]
+            [InlineKeyboardButton("🔚 close", callback_data="format_option|close")]
         ])
         callback_query.edit_message_text("Select a format option or send a custom one using `/format <format_string>`:",
                                          reply_markup=main_keyboard)
@@ -1058,7 +1157,18 @@ def format_option_callback(app, callback_query):
         send_to_logger(callback_query.message, "Format set to ALWAYS_ASK.")
         return
 
-
+# Обработчик callback для закрытия сообщения
+@app.on_callback_query(filters.regex(r"^format_custom\|"))
+def format_custom_callback(app, callback_query):
+    data = callback_query.data.split("|")[1]
+    if data == "close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        callback_query.answer("Custom format menu closed.")
+        send_to_logger(callback_query.message, "Custom format menu closed")
+        return
 # ####################################################################################
 
 # Checking user is Blocked or not
@@ -1480,13 +1590,34 @@ def get_user_log(app, message):
         with open(log_path, 'w', encoding="utf-8") as f:
             f.write(str(txt_format))
 
-        send_to_all(message, f"Total: **{total}**\n**{user_id}** - logs (Last 10):\n \n \n{format_str}")
+        # Вместо send_to_all отправляем с кнопкой Close
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔚 Close", callback_data="userlogs_close|close")]
+        ])
+        app.send_message(
+            message.chat.id,
+            f"Total: **{total}**\n**{user_id}** - logs (Last 10):\n \n \n{format_str}",
+            reply_markup=keyboard
+        )
         app.send_document(message.chat.id, log_path,
                           caption=f"{user_id} - all logs")
         app.send_document(Config.LOGS_ID, log_path,
                           caption=f"{user_id} - all logs")
     except:
         send_to_all(message, "**❌ User did not download any content yet...** Not exist in logs")
+
+
+@app.on_callback_query(filters.regex(r"^userlogs_close\|"))
+def userlogs_close_callback(app, callback_query):
+    data = callback_query.data.split("|")[1]
+    if data == "close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        callback_query.answer("Logs message closed.")
+        send_to_logger(callback_query.message, "User logs message closed.")
+        return
 
 
 # Get All Kinds of Users (Users/ Blocked/ Unblocked)
@@ -1612,6 +1743,7 @@ def check_runtime(message):
     pass
 
 
+
 def uncache_command(app, message):
     """
     Admin command to clear cache for a specific URL
@@ -1675,11 +1807,15 @@ def settings_command(app, message):
     user_id = message.chat.id
     # Main settings menu
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🧹 CLEAN", callback_data="settings__menu__clean")],
-        [InlineKeyboardButton("🍪 COOKIES", callback_data="settings__menu__cookies")],
-        [InlineKeyboardButton("🎞 MEDIA", callback_data="settings__menu__media")],
-        [InlineKeyboardButton("📖 INFO", callback_data="settings__menu__logs")],
-        [InlineKeyboardButton("🔙 Close", callback_data="settings__menu__close")]
+        [
+            InlineKeyboardButton("🧹 CLEAN", callback_data="settings__menu__clean"),
+            InlineKeyboardButton("🍪 COOKIES", callback_data="settings__menu__cookies"),
+        ],
+        [
+            InlineKeyboardButton("🎞 MEDIA", callback_data="settings__menu__media"),
+            InlineKeyboardButton("📖 INFO", callback_data="settings__menu__logs"),
+        ],
+        [InlineKeyboardButton("🔚 Close", callback_data="settings__menu__close")]
     ])
     app.send_message(
         user_id,
@@ -1697,20 +1833,31 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
     data = callback_query.data.split("__")[-1]
     if data == "close":
-        callback_query.message.delete()
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
         callback_query.answer("Menu closed.")
         return
     if data == "clean":
         # Show the cleaning menu
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🍪 Cookies", callback_data="clean_option|cookies")],
-            [InlineKeyboardButton("📃 Logs ", callback_data="clean_option|logs")],
-            [InlineKeyboardButton("#️⃣ Tags", callback_data="clean_option|tags")],
-            [InlineKeyboardButton("📼 Format", callback_data="clean_option|format")],
-            [InlineKeyboardButton("✂️ Split", callback_data="clean_option|split")],
-            [InlineKeyboardButton("💬 Subtitles", callback_data="clean_option|subs")],
-            [InlineKeyboardButton("📊 Mediainfo", callback_data="clean_option|mediainfo")],
-            [InlineKeyboardButton("🗑  All files", callback_data="clean_option|all")],
+            [
+                InlineKeyboardButton("🍪 Cookies only", callback_data="clean_option|cookies"),
+                InlineKeyboardButton("📃 Logs ", callback_data="clean_option|logs"),
+            ],
+            [
+                InlineKeyboardButton("#️⃣ Tags", callback_data="clean_option|tags"),
+                InlineKeyboardButton("📼 Format", callback_data="clean_option|format"),
+            ],
+            [
+                InlineKeyboardButton("✂️ Split", callback_data="clean_option|split"),
+                InlineKeyboardButton("📊 Mediainfo", callback_data="clean_option|mediainfo"),
+            ],
+            [
+                InlineKeyboardButton("💬 Subtitles", callback_data="clean_option|subs"),
+                InlineKeyboardButton("🗑  All files", callback_data="clean_option|all"),
+            ],
             [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
         ])
         callback_query.edit_message_text(
@@ -1722,13 +1869,13 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
         return
     if data == "cookies":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📥 /download_cookie - Download my YouTube cookie",
+            [InlineKeyboardButton("📥 /download_cookie - Download my 5 cookies",
                                   callback_data="settings__cmd__download_cookie")],
-            [InlineKeyboardButton("🌐 /cookies_from_browser - Get cookies from browser",
+            [InlineKeyboardButton("🌐 /cookies_from_browser - Get browser's YT-cookie",
                                   callback_data="settings__cmd__cookies_from_browser")],
-            [InlineKeyboardButton("🔎 /check_cookie - Check cookie file in your folder",
+            [InlineKeyboardButton("🔎 /check_cookie - Validate your cookie file",
                                   callback_data="settings__cmd__check_cookie")],
-            [InlineKeyboardButton("🔖 /save_as_cookie - Send text to save as cookie",
+            [InlineKeyboardButton("🔖 /save_as_cookie - Upload custom cookie",
                                   callback_data="settings__cmd__save_as_cookie")],
             [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
         ])
@@ -1774,11 +1921,15 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
     if data == "back":
         # Return to main menu
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🧹 CLEAN", callback_data="settings__menu__clean")],
-            [InlineKeyboardButton("🍪 COOKIES", callback_data="settings__menu__cookies")],
-            [InlineKeyboardButton("🎞 MEDIA", callback_data="settings__menu__media")],
-            [InlineKeyboardButton("📖 INFO", callback_data="settings__menu__logs")],
-            [InlineKeyboardButton("🔙 Close", callback_data="settings__menu__close")]
+            [
+                InlineKeyboardButton("🧹 CLEAN", callback_data="settings__menu__clean"),
+                InlineKeyboardButton("🍪 COOKIES", callback_data="settings__menu__cookies"),
+            ],
+            [
+                InlineKeyboardButton("🎞 MEDIA", callback_data="settings__menu__media"),
+                InlineKeyboardButton("📖 INFO", callback_data="settings__menu__logs"),
+            ],
+            [InlineKeyboardButton("🔚 Close", callback_data="settings__menu__close")]
         ])
         callback_query.edit_message_text(
             "<b>Bot Settings</b>\n\nChoose a category:",
@@ -1788,6 +1939,17 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
         callback_query.answer()
         return
 
+@app.on_callback_query(filters.regex(r"^audio_hint\|"))
+def audio_hint_callback(app, callback_query):
+    data = callback_query.data.split("|")[1]
+    if data == "close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        callback_query.answer("Audio hint closed.")
+        send_to_logger(callback_query.message, "Audio hint closed.")
+        return
 
 @app.on_callback_query(filters.regex(r"^settings__cmd__"))
 #@reply_with_keyboard
@@ -1799,15 +1961,23 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
     if data == "clean":
         # Show the cleaning menu instead of direct execution
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🍪 Cookies only", callback_data="clean_option|cookies")],
-            [InlineKeyboardButton("📃 Logs ", callback_data="clean_option|logs")],
-            [InlineKeyboardButton("#️⃣ Tags", callback_data="clean_option|tags")],
-            [InlineKeyboardButton("📼 Format", callback_data="clean_option|format")],
-            [InlineKeyboardButton("✂️ Split", callback_data="clean_option|split")],
-            [InlineKeyboardButton("📊 Mediainfo", callback_data="clean_option|mediainfo")],
-            [InlineKeyboardButton("💬 Subtitles", callback_data="clean_option|subs")],
-            [InlineKeyboardButton("🗑  All files", callback_data="clean_option|all")],
-            [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__cookies")]
+            [
+                InlineKeyboardButton("🍪 Cookies only", callback_data="clean_option|cookies"),
+                InlineKeyboardButton("📃 Logs ", callback_data="clean_option|logs"),
+            ],
+            [
+                InlineKeyboardButton("#️⃣ Tags", callback_data="clean_option|tags"),
+                InlineKeyboardButton("📼 Format", callback_data="clean_option|format"),
+            ],
+            [
+                InlineKeyboardButton("✂️ Split", callback_data="clean_option|split"),
+                InlineKeyboardButton("📊 Mediainfo", callback_data="clean_option|mediainfo"),
+            ],
+            [
+                InlineKeyboardButton("💬 Subtitles", callback_data="clean_option|subs"),
+                InlineKeyboardButton("🗑  All files", callback_data="clean_option|all"),
+            ],
+            [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
         ])
         callback_query.edit_message_text(
             "<b>🧹 Clean Options</b>\n\nChoose what to clean:",
@@ -1829,8 +1999,11 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         callback_query.answer("Command executed.")
         return
     if data == "save_as_cookie":
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔚 Close", callback_data="save_as_cookie_hint|close")]
+        ])
         app.send_message(user_id, Config.SAVE_AS_COOKIE_HINT, reply_to_message_id=callback_query.message.id,
-                         parse_mode=enums.ParseMode.HTML)
+                         parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
         callback_query.answer("Hint sent.")
         return
     if data == "format":
@@ -1854,10 +2027,13 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         callback_query.answer("Command executed.")
         return
     if data == "audio":
-        # We just send a hint on how to use it
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔚 Close", callback_data="audio_hint|close")]
+        ])
         app.send_message(user_id,
-                         "Download only audio from video source.\nUsage: /audio + URL (ex. /audio https://youtu.be/abc123)",
-                         reply_to_message_id=callback_query.message.id)
+                         "Download only audio from video source.\n\nUsage: /audio + URL \n\n(ex. /audio https://youtu.be/abc123)\n(ex. /audio https://youtu.be/playlist?list=abc123*1*10)",
+                         reply_to_message_id=callback_query.message.id,
+                         reply_markup=keyboard)
         callback_query.answer("Hint sent.")
         return
     if data == "tags":
@@ -1920,13 +2096,13 @@ def clean_option_callback(app, callback_query):
     elif data == "back":
         # Back to the cookies menu
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📥 /download_cookie - Download my YouTube cookie",
+            [InlineKeyboardButton("📥 /download_cookie - Download my 5 cookies",
                                   callback_data="settings__cmd__download_cookie")],
-            [InlineKeyboardButton("🌐 /cookies_from_browser - Get cookies from browser",
+            [InlineKeyboardButton("🌐 /cookies_from_browser - Get browser's YT-cookie",
                                   callback_data="settings__cmd__cookies_from_browser")],
-            [InlineKeyboardButton("🔎 /check_cookie - Check cookie file in your folder",
+            [InlineKeyboardButton("🔎 /check_cookie - Validate your cookie file",
                                   callback_data="settings__cmd__check_cookie")],
-            [InlineKeyboardButton("🔖 /save_as_cookie - Send text to save as cookie",
+            [InlineKeyboardButton("🔖 /save_as_cookie - Upload custom cookie",
                                   callback_data="settings__cmd__save_as_cookie")],
             [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
         ])
@@ -1966,9 +2142,8 @@ def mediainfo_command(app, message):
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
     buttons = [
-        [InlineKeyboardButton("✅ ON", callback_data="mediainfo_option|on")],
-        [InlineKeyboardButton("❌ OFF", callback_data="mediainfo_option|off")],
-        [InlineKeyboardButton("🔙 Cancel", callback_data="mediainfo_option|cancel")]
+        [InlineKeyboardButton("✅ ON", callback_data="mediainfo_option|on"), InlineKeyboardButton("❌ OFF", callback_data="mediainfo_option|off")],
+        [InlineKeyboardButton("🔚 Close", callback_data="mediainfo_option|close")],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
     app.send_message(
@@ -1988,10 +2163,13 @@ def mediainfo_option_callback(app, callback_query):
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
     mediainfo_file = os.path.join(user_dir, "mediainfo.txt")
-    if callback_query.data == "mediainfo_option|cancel":
-        callback_query.edit_message_text("🔚 MediaInfo: cancelled.")
+    if callback_query.data == "mediainfo_option|close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
         callback_query.answer("Menu closed.")
-        send_to_logger(callback_query.message, "MediaInfo: cancelled.")
+        send_to_logger(callback_query.message, "MediaInfo: closed.")
         return
     if data == "on":
         with open(mediainfo_file, "w", encoding="utf-8") as f:
@@ -2109,24 +2287,27 @@ def download_cookie(app, message):
     
     # Buttons for services
     buttons = [
-        [InlineKeyboardButton("📺 YouTube", callback_data="download_cookie|youtube")],
-        [InlineKeyboardButton("📷 Instagram", callback_data="download_cookie|instagram")],
-        [InlineKeyboardButton("🐦 Twitter/X", callback_data="download_cookie|twitter")],
-        [InlineKeyboardButton("🎵 TikTok", callback_data="download_cookie|tiktok")],
-        [InlineKeyboardButton("📘 Facebook", callback_data="download_cookie|facebook")]
+        [
+            InlineKeyboardButton("📺 YouTube", callback_data="download_cookie|youtube"),
+            InlineKeyboardButton("📷 Instagram", callback_data="download_cookie|instagram"),
+        ],
+        [
+            InlineKeyboardButton("🐦 Twitter/X", callback_data="download_cookie|twitter"),
+            InlineKeyboardButton("🎵 TikTok", callback_data="download_cookie|tiktok"),
+        ],
+        [
+            InlineKeyboardButton("📘 Facebook", callback_data="download_cookie|facebook"),
+            InlineKeyboardButton("📝 Your Own", callback_data="download_cookie|own"),
+        ],
+        [
+            InlineKeyboardButton("🔚 Close", callback_data="download_cookie|close"),
+        ],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
     text = """
 🍪 **Download Cookie Files**
 
-Choose a service to download the cookie file:
-
-• **YouTube** - for youtube.com and youtu.be
-• **Instagram** - for instagram.com
-• **Twitter/X** - for twitter.com and x.com
-• **TikTok** - for tiktok.com
-• **Facebook** - for facebook.com and fb.com
-
+Choose a service to download the cookie file.
 Cookie files will be saved as cookie.txt in your folder.
 """
     app.send_message(
@@ -2152,6 +2333,36 @@ def download_cookie_callback(app, callback_query):
         download_and_save_cookie(app, callback_query, Config.TIKTOK_COOKIE_URL, "tiktok")
     elif data == "facebook":
         download_and_save_cookie(app, callback_query, Config.FACEBOOK_COOKIE_URL, "facebook")
+    elif data == "own":
+        app.answer_callback_query(callback_query.id)
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔚 Close", callback_data="save_as_cookie_hint|close")]
+        ])
+        app.send_message(
+            callback_query.message.chat.id,
+            Config.SAVE_AS_COOKIE_HINT,
+            reply_to_message_id=callback_query.message.id if hasattr(callback_query.message, 'id') else None,
+            reply_markup=keyboard
+        )
+    elif data == "close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        callback_query.answer("Menu closed.")
+        return
+
+@app.on_callback_query(filters.regex(r"^save_as_cookie_hint\|"))
+def save_as_cookie_hint_callback(app, callback_query):
+    data = callback_query.data.split("|")[1]
+    if data == "close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        callback_query.answer("Cookie hint closed.")
+        send_to_logger(callback_query.message, "Save as cookie hint closed.")
+        return
 
 def download_and_save_cookie(app, callback_query, url, service):
     user_id = str(callback_query.from_user.id)
@@ -2320,6 +2531,10 @@ def video_url_extractor(app, message):
     if tag_error:
         wrong, example = tag_error
         app.send_message(user_id, f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}", reply_to_message_id=message.id)
+        return
+    
+    # Проверка лимита диапазона
+    if not check_playlist_range_limits(url, video_start_with, video_end_with, app, message):
         return
     
     if url:
@@ -2562,13 +2777,9 @@ def send_videos(
     else:
         # For the rest - define the size of the video dynamically
         try:
-            from moviepy.editor import VideoFileClip
-            clip = VideoFileClip(video_abs_path)
-            width = int(str(clip.w).strip().split()[0]) if clip.w else 0
-            height = int(str(clip.h).strip().split()[0]) if clip.h else 0
-            clip.close()
+            width, height, _ = get_video_info_ffprobe(video_abs_path)
         except Exception as e:
-            logger.error(f"[MOVIEPY BYPASS] Ошибка при обработке видео {video_abs_path}: {e}")
+            logger.error(f"[FFPROBE BYPASS] Ошибка при обработке видео {video_abs_path}: {e}")
             import traceback
             logger.error(traceback.format_exc())
             width, height = 0, 0
@@ -2791,11 +3002,10 @@ def get_duration_thumb_(dir, video_path, thumb_name):
     thumb_hash = hashlib.md5(thumb_name.encode()).hexdigest()[:10]
     thumb_dir = os.path.abspath(os.path.join(dir, thumb_hash + ".jpg"))
     try:
-        clip = VideoFileClip(video_path)
-        duration = int(clip.duration)
-        clip.close()
+        _, _, duration = get_video_info_ffprobe(video_path)
+        duration = int(duration)
     except Exception as e:
-        logger.error(f"[MOVIEPY BYPASS] Ошибка при обработке видео {video_path}: {e}")
+        logger.error(f"[FFPROBE BYPASS] Ошибка при обработке видео {video_path}: {e}")
         import traceback
         logger.error(traceback.format_exc())
         duration = 0
@@ -3928,7 +4138,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             video_title = sanitize_filename(original_video_title) if original_video_title else "video"  # Sanitized for file operations
 
             # --- Use new centralized function for all tags ---
-            tags_text_final = generate_final_tags(url, tags_text.split(), info_dict)
+            tags_list = tags_text.split() if tags_text else []
+            tags_text_final = generate_final_tags(url, tags_list, info_dict)
             save_user_tags(user_id, tags_text_final.split())
 
            # If rename_name is not set, set it equal to video_title
@@ -4241,13 +4452,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
                             # Get the real size of the video
                             try:
-                                clip = VideoFileClip(after_rename_abs_path)
-                                width = int(clip.w)
-                                height = int(clip.h)
-                                clip.close()
+                                width, height, _ = get_video_info_ffprobe(after_rename_abs_path)
                                 real_file_size = min(width, height)
                             except Exception as e:
-                                logger.error(f"[MOVIEPY BYPASS] Ошибка при обработке видео {after_rename_abs_path}: {e}")
+                                logger.error(f"[FFPROBE BYPASS] Ошибка при обработке видео {after_rename_abs_path}: {e}")
                                 import traceback
                                 logger.error(traceback.format_exc())
                                 width, height = 0, 0
@@ -4989,25 +5197,22 @@ def extract_url_range_tags(text: str):
         after_playlist = after_range[playlist_match.end():]
     else:
         after_playlist = after_range
+    # Новый способ: ищем все #теги по всему тексту (многострочно)
     tags = []
     tags_text = ''
     error_tag = None
     error_tag_example = None
-    tag_part = after_playlist.strip()
-    if tag_part:
-        for raw in re.finditer(r'#([^#\s]+)', tag_part):
-            tag = raw.group(1)
-            # We check that the tag consists only of the permitted characters
-            if not re.fullmatch(r'[\w\d_]+', tag, re.UNICODE):
-                error_tag = tag
-                # For example, show the user how the corrected tag would look like
-                example = re.sub(r'[^\w\d_]', '_', tag, flags=re.UNICODE)
-                error_tag_example = f'#{example}'
-                break  # Interrupt the check after the first error
-            tags.append(f'#{tag}')
-        # We form Tags_text with spaces between tags
-        tags_text = ' '.join(tags)
-    # Return the motorcade with an error if it was found
+    # Собираем все #теги из всего текста (многострочно)
+    for raw in re.finditer(r'#([^#\s]+)', text, re.UNICODE):
+        tag = raw.group(1)
+        if not re.fullmatch(r'[\w\d_]+', tag, re.UNICODE):
+            error_tag = tag
+            example = re.sub(r'[^\w\d_]', '_', tag, flags=re.UNICODE)
+            error_tag_example = f'#{example}'
+            break
+        tags.append(f'#{tag}')
+    tags_text = ' '.join(tags)
+    # Возвращаем ошибку, если есть
     return url, video_start_with, video_end_with, playlist_name, tags, tags_text, (error_tag, error_tag_example) if error_tag else None
 
 def save_user_tags(user_id, tags):
@@ -5051,15 +5256,30 @@ def tags_command(app, message):
         return
     # We form posts by 4096 characters
     msg = ''
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔚 Close", callback_data="tags_close|close")]
+    ])
     for tag in tags:
         if len(msg) + len(tag) + 1 > 4096:
-            app.send_message(user_id, msg, reply_to_message_id=message.id)
+            app.send_message(user_id, msg, reply_to_message_id=message.id, reply_markup=keyboard)
             send_to_logger(message, msg)
             msg = ''
         msg += tag + '\n'
     if msg:
-        app.send_message(user_id, msg, reply_to_message_id=message.id)
+        app.send_message(user_id, msg, reply_to_message_id=message.id, reply_markup=keyboard)
         send_to_logger(message, msg)
+
+@app.on_callback_query(filters.regex(r"^tags_close\|"))
+def tags_close_callback(app, callback_query):
+    data = callback_query.data.split("|")[1]
+    if data == "close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        callback_query.answer("Tags message closed.")
+        send_to_logger(callback_query.message, "Tags message closed.")
+        return
 
 def extract_youtube_id(url: str) -> str:
     """
@@ -5214,8 +5434,8 @@ def is_porn(url, title, description, caption=None):
     # 1. Checking the domain
     clean_url = get_clean_url_for_tagging(url)
     domain_parts, _ = extract_domain_parts(clean_url)
-    for dom in domain_parts:
-        if dom in Config.WHITELIST:
+    for dom in Config.WHITELIST:
+        if dom in domain_parts:
             logger.info(f"is_porn: domain in WHITELIST: {dom}")
             return False
     if is_porn_domain(domain_parts):
@@ -5278,7 +5498,7 @@ def split_command(app, message):
                 text, size = sizes[i + j]
                 row.append(InlineKeyboardButton(text, callback_data=f"split_size|{size}"))
         buttons.append(row)
-    buttons.append([InlineKeyboardButton("🔙 Cancel", callback_data="split_size|cancel")])
+    buttons.append([InlineKeyboardButton("🔚 Close", callback_data="split_size|close")])
     keyboard = InlineKeyboardMarkup(buttons)
     app.send_message(user_id, "Choose max part size for video splitting:", reply_markup=keyboard)
     send_to_logger(message, "User opened /split menu.")
@@ -5289,10 +5509,13 @@ def split_size_callback(app, callback_query):
     logger.info(f"[SPLIT] callback: {callback_query.data}")
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]
-    if data == "cancel":
-        callback_query.edit_message_text("🔚 Split size selection canceled.")
-        callback_query.answer("✅ Split choice updated.")
-        send_to_logger(callback_query.message, "Split selection canceled.")
+    if data == "close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        callback_query.answer("Menu closed.")
+        send_to_logger(callback_query.message, "Split selection closed.")
         return
     try:
         size = int(data)
@@ -5396,10 +5619,16 @@ def sort_quality_key(quality_key):
 def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
     user_id = message.chat.id
     proc_msg = None
-    found_type = None
     
     # Очищаем кэш субтитров перед проверкой, чтобы избежать проблем с кэшированием
     clear_subs_check_cache()
+    # --- Проверка лимита диапазона для Always Ask Menu ---
+    original_text = message.text or message.caption or ""
+    is_playlist = is_playlist_with_range(original_text)
+    if is_playlist:
+        _, video_start_with, video_end_with, _, _, _, _ = extract_url_range_tags(original_text)
+        if not check_playlist_range_limits(url, video_start_with, video_end_with, app, message):
+            return
     try:
         # Проверяем, включены ли субтитры
         subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
@@ -5428,79 +5657,223 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             except Exception:
                 thumb_path = None
         # --- Table with qualities and sizes ---
-        popular = [144, 240, 360, 480, 540, 576, 720, 1080, 1440, 2160, 4320]
-        # popular_sizes = [[256,144],[426,240],[640,360],[854,480],[960,540],[1024,576],[1280,720],[1920,1080],[2560,1440],[3840,2160],[7680,4320]]
-        minside_size_dim_map = {}
-        for f in info.get('formats', []):
-            if f.get('vcodec', 'none') != 'none' and f.get('height') and f.get('width'):
-                w = f['width']
-                h = f['height']
-                # Use the get_quality_by_min_side function to determine the quality
-                quality_key = get_quality_by_min_side(w, h)
-                if quality_key != "best":  # Exclude best from display
-                    if f.get('filesize'):
-                        size_mb = int(f['filesize']) // (1024*1024)
-                    elif f.get('filesize_approx'):
-                        size_mb = int(f['filesize_approx']) // (1024*1024)
-                    else:
-                        size_mb = None
-                    if size_mb:
-                        key = (quality_key, w, h)
-                        minside_size_dim_map[key] = size_mb
-        table_lines = []
+        table_block = ''
         found_quality_keys = set()
-        # Sort by quality from lowest to highest
-        for (quality_key, w, h), size_val in sorted(minside_size_dim_map.items(), key=lambda x: sort_quality_key(x[0][0])):
-            found_quality_keys.add(quality_key)
-            size_str = f"{round(size_val/1024, 1)}GB" if size_val >= 1024 else f"{size_val}MB"
-            dim_str = f" ({w}×{h})"
-            scissors = ""
-            if get_user_split_size(user_id):
-                video_bytes = size_val * 1024 * 1024
-                if video_bytes > get_user_split_size(user_id):
-                    n_parts = (video_bytes + get_user_split_size(user_id) - 1) // get_user_split_size(user_id)
-                    scissors = f" ✂️{n_parts}"
-            
-            # Check the availability of subtitles for this quality
-            subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
-            auto_mode = get_user_subs_auto_mode(user_id)
-            subs_available = ""
+        if ("youtube.com" in url or "youtu.be" in url):
+            quality_map = {}
+            for f in info.get('formats', []):
+                if f.get('vcodec', 'none') != 'none' and f.get('height') and f.get('width'):
+                    w = f['width']
+                    h = f['height']
+                    quality_key = get_quality_by_min_side(w, h)
+                    if quality_key == "best":
+                        continue
+                    filesize = f.get('filesize') or f.get('filesize_approx')
+                    if quality_key not in quality_map or (filesize and filesize > (quality_map[quality_key].get('filesize') or 0)):
+                        quality_map[quality_key] = f
+            table_lines = []
+            for q in sorted(quality_map.keys(), key=sort_quality_key):
+                f = quality_map[q]
+                w = f.get('width')
+                h = f.get('height')
+                filesize = f.get('filesize') or f.get('filesize_approx')
+                if filesize:
+                    if filesize >= 1024*1024*1024:
+                        size_str = f"{round(filesize/1024/1024/1024, 2)}GB"
+                    else:
+                        size_str = f"{round(filesize/1024/1024, 1)}MB"
+                else:
+                    size_str = '—'
+                dim_str = f" ({w}×{h})" if w and h else ''
+                scissors = ""
+                if get_user_split_size(user_id) and filesize:
+                    video_bytes = filesize
+                    if video_bytes > get_user_split_size(user_id):
+                        n_parts = (video_bytes + get_user_split_size(user_id) - 1) // get_user_split_size(user_id)
+                        scissors = f" ✂️{n_parts}"
+                # Check the availability of subtitles for this quality
+                subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
+                auto_mode = get_user_subs_auto_mode(user_id)
+                subs_available = ""
+                if subs_enabled and is_youtube_url(url) and w is not None and h is not None and min(int(w), int(h)) <= Config.MAX_SUB_QUALITY:
+                    found_type = check_subs_availability(url, user_id, q, return_type=True)
+                    if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
+                        temp_info = {
+                            'duration': info.get('duration'),
+                            'filesize': filesize,
+                            'filesize_approx': filesize
+                        }
+                        if check_subs_limits(temp_info, q):
+                            subs_available = "💬"
+                # Кэш/иконка
+                if is_playlist and playlist_range:
+                    indices = list(range(playlist_range[0], playlist_range[1]+1))
+                    n_cached = get_cached_playlist_count(get_clean_playlist_url(url), q, indices)
+                    total = len(indices)
+                    postfix = f" ({n_cached}/{total})"
+                    is_cached = n_cached > 0
+                else:
+                    is_cached = q in cached_qualities
+                    postfix = ""
+                need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
+                emoji = "🚀" if is_cached and not need_subs else "📹"
+                table_lines.append(f"{emoji}{q}{subs_available}:  {size_str}{dim_str}{scissors}{postfix}")
+                found_quality_keys.add(q)
+            table_block = "\n".join(table_lines)
+        else:
+            # --- Старая логика для не-YouTube ---
+            minside_size_dim_map = {}
+            for f in info.get('formats', []):
+                if f.get('vcodec', 'none') != 'none' and f.get('height') and f.get('width'):
+                    w = f['width']
+                    h = f['height']
+                    quality_key = get_quality_by_min_side(w, h)
+                    if quality_key != "best":
+                        # Примерный размер: если есть filesize — используем, иначе считаем по bitrate*duration, иначе '—'
+                        if f.get('filesize'):
+                            size_mb = int(f['filesize']) // (1024*1024)
+                        elif f.get('filesize_approx'):
+                            size_mb = int(f['filesize_approx']) // (1024*1024)
+                        elif f.get('tbr') and info.get('duration'):
+                            size_mb = int(float(f['tbr']) * float(info['duration']) * 125 / (1024*1024))
+                        else:
+                            size_mb = None
+                        if size_mb:
+                            key = (quality_key, w, h)
+                            minside_size_dim_map[key] = size_mb
+            table_lines = []
+            for (quality_key, w, h), size_val in sorted(minside_size_dim_map.items(), key=lambda x: sort_quality_key(x[0][0])):
+                found_quality_keys.add(quality_key)
+                size_str = f"{round(size_val/1024, 1)}GB" if size_val and size_val >= 1024 else (f"{size_val}MB" if size_val else '—')
+                dim_str = f" ({w}×{h})"
+                scissors = ""
+                if get_user_split_size(user_id) and size_val:
+                    video_bytes = size_val * 1024 * 1024
+                    if video_bytes > get_user_split_size(user_id):
+                        n_parts = (video_bytes + get_user_split_size(user_id) - 1) // get_user_split_size(user_id)
+                        scissors = f" ✂️{n_parts}"
+                emoji = "📹"
+                table_lines.append(f"{emoji}{quality_key}:  {size_str}{dim_str}{scissors}")
+            table_block = "\n".join(table_lines)
 
-            if subs_enabled and is_youtube_url(url) and w is not None and h is not None and min(int(w), int(h)) <= Config.MAX_SUB_QUALITY:
-                # Проверяем наличие субтитров нужного типа
-                # check_subs_availability должен возвращать тип найденных субтитров: "normal", "auto", None
-                found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
-                    # Только если найден нужный тип
-                    temp_info = {
-                        'duration': info.get('duration'),
-                        'filesize': size_val * 1024 * 1024 if size_val else None,
-                        'filesize_approx': size_val * 1024 * 1024 if size_val else None
-                    }
-                    if check_subs_limits(temp_info, quality_key):
-                        subs_available = "💬"
-            
-            if is_playlist and playlist_range:
-                indices = list(range(playlist_range[0], playlist_range[1]+1))
-                n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
-                total = len(indices)
-                postfix = f" ({n_cached}/{total})"
-                is_cached = n_cached > 0
-            else:
-                is_cached = quality_key in cached_qualities
-                postfix = ""
-            need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-            emoji = "🚀" if is_cached and not need_subs else "📹"
-            table_lines.append(f"{emoji}{quality_key}{subs_available}:  {size_str}{dim_str}{scissors}{postfix}")
-        table_block = "\n".join(table_lines)
         # --- Forming caption ---
         cap = f"<b>{title}</b>\n"
+        # --- YouTube расширенный блок ---
+        if ("youtube.com" in url or "youtu.be" in url):
+            uploader = info.get('uploader') or ''
+            channel_url = info.get('channel_url') or ''
+            view_count = info.get('view_count')
+            like_count = info.get('like_count')
+            channel_follower_count = info.get('channel_follower_count')
+            duration = info.get('duration')
+            upload_date = info.get('upload_date')
+            title_val = info.get('title') or ''
+            # Форматирование
+            duration_str = TimeFormatter(duration*1000) if duration else ''
+            upload_date_str = ''
+            if upload_date and len(str(upload_date)) == 8:
+                try:
+                    dt = datetime.strptime(str(upload_date), '%Y%m%d')
+                    upload_date_str = dt.strftime('%d.%m.%Y')
+                except Exception:
+                    upload_date_str = str(upload_date)
+            # Эмодзи
+            views_str = f'👁 {view_count:,}' if view_count is not None else ''
+            likes_str = f'❤️ {like_count:,}' if like_count is not None else ''
+            subs_str = f'👥 {channel_follower_count:,}' if channel_follower_count is not None else ''
+            # Первая строка: канал и подписчики
+            meta_lines = []
+            if uploader:
+                ch_line = f"📺 <b>{uploader}</b>\n"
+                if subs_str:
+                    ch_line += f"<blockquote>{subs_str}</blockquote>\n"
+                meta_lines.append(ch_line)
+            # Вторая строка: название
+            t_line = ''
+            if title_val:
+                t_line = f"<b>{title_val}</b>"
+            if t_line:
+                meta_lines.append(t_line)
+            # Третья строка: дата + длительность (в цитате)
+            date_dur_line = ''
+            if upload_date_str:
+                date_dur_line += f"📅 {upload_date_str}"
+            if duration_str:
+                if date_dur_line:
+                    date_dur_line += f"  ⏱️ {duration_str}"
+                else:
+                    date_dur_line = f"⏱️ {duration_str}"
+            if date_dur_line:
+                meta_lines.append(f"<blockquote>{date_dur_line}</blockquote>")
+            # Четвёртая строка: просмотры + лайки (в цитате)
+            stat_line = ''
+            if views_str:
+                stat_line += views_str
+            if likes_str:
+                if stat_line:
+                    stat_line += f"  {likes_str}"
+                else:
+                    stat_line = likes_str
+            if stat_line:
+                meta_lines.append(f"<blockquote>{stat_line}</blockquote>")
+            # Собираем блок
+            meta_block = '\n'.join(meta_lines)
+            cap = meta_block + '\n\n'
+        else:
+            cap = ''
+        # --- Таблица качеств ---
+        if table_block:
+            cap += f"<blockquote>{table_block}</blockquote>\n"
+        # --- Теги ---
         if tags_text:
             cap += f"{tags_text}\n"
-        # Block with qualities
-        if table_block:
-            cap += f"\n<blockquote>{table_block}</blockquote>\n"
-        # Hint as a separate code block at the very bottom
+        # --- Ссылки в самом низу ---
+        #if ("youtube.com" in url or "youtu.be" in url):
+            #webpage_url = info.get('webpage_url') or ''
+            #video_url_link = f'<a href="{webpage_url}">[VIDEO]</a>' if webpage_url else ''
+            #channel_url_link = f'<a href="{channel_url}">[CHANNEL]</a>' if channel_url else ''
+            #thumbnail_url = info.get('thumbnail') or ''
+            #thumb_link = f'<a href="{thumbnail_url}">[Thumbnail]</a>' if thumbnail_url else ''
+            #links = '  '.join([x for x in [channel_url_link, thumb_link] if x])
+            #if links:
+                #cap += f"\n{links}"
+        # --- Обрезка по лимиту ---
+        if len(cap) > 1024:
+            # Обрезаем по приоритету: лайки, подписчики, просмотры, дата, длительность, название, канал
+            # 1. Лайки
+            cap1 = cap.replace(likes_str, '') if likes_str else cap
+            if len(cap1) <= 1024:
+                cap = cap1
+            else:
+                # 2. Подписчики
+                cap2 = cap1.replace(subs_str, '') if subs_str else cap1
+                if len(cap2) <= 1024:
+                    cap = cap2
+                else:
+                    # 3. Просмотры
+                    cap3 = cap2.replace(views_str, '') if views_str else cap2
+                    if len(cap3) <= 1024:
+                        cap = cap3
+                    else:
+                        # 4. Дата
+                        cap4 = cap3.replace(upload_date_str, '') if upload_date_str else cap3
+                        if len(cap4) <= 1024:
+                            cap = cap4
+                        else:
+                            # 5. Длительность
+                            cap5 = cap4.replace(duration_str, '') if duration_str else cap4
+                            if len(cap5) <= 1024:
+                                cap = cap5
+                            else:
+                                # 6. Название
+                                cap6 = cap5.replace(title_val, '') if title_val else cap5
+                                if len(cap6) <= 1024:
+                                    cap = cap6
+                                else:
+                                    # 7. Канал
+                                    cap7 = cap6.replace(uploader, '') if uploader else cap6
+                                    cap = cap7[:1021] + '...'
+        # --- Hint ---
         subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
         auto_mode = get_user_subs_auto_mode(user_id)
         subs_lang = get_user_subs_language(user_id)
@@ -5514,66 +5887,36 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             found_type = check_subs_availability(url, user_id, return_type=True)
             need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
             if need_subs:
-                subs_hint = "\n💬 — Subs are available with chosen language."
+                subs_hint = "\n💬 — Subtitles are available"
                 show_repost_hint = False  # 🚀 не показываем, если сабы реально есть и нужны
             else:
-                subs_warn = "\n⚠️ WARNING: Subtitles for selected language were not found and will not be embedded."
+                subs_warn = "\n⚠️ Subs not found & won't embed"
 
-        repost_line = "\n🚀 — Instant repost. Video is already saved." if show_repost_hint else ""
-        hint = "<pre language=\"info\">📹 — Choose quality for new download." + repost_line + subs_hint + subs_warn + "</pre>"
+        repost_line = "\n🚀 — Instant repost from cache" if show_repost_hint else ""
+        hint = "<pre language=\"info\">📹 — Choose download quality" + repost_line + subs_hint + subs_warn + "</pre>"
         cap += f"\n{hint}\n"
         buttons = []
         # Sort buttons by quality from lowest to highest
-        for quality_key in sorted(found_quality_keys, key=sort_quality_key):
-            # Check the availability of subtitles for this quality
-            subs_available = ""
-            subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
-            auto_mode = get_user_subs_auto_mode(user_id)
-            subs_available = ""
-            # First, we are looking for size_val for this quality
-            size_val = None
-            for (qk, w, h), size in minside_size_dim_map.items():
-                if qk == quality_key:
-                    size_val = size
-                    break
-            # Check the restrictions only if the size is found and does not exceed the limit
-            if subs_enabled and is_youtube_url(url) and w is not None and h is not None and min(int(w), int(h)) <= Config.MAX_SUB_QUALITY:
-                # Проверяем наличие субтитров нужного типа
-                found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
-                    temp_info = {
-                        'duration': info.get('duration'),
-                        'filesize': size_val * 1024 * 1024 if size_val else None,
-                        'filesize_approx': size_val * 1024 * 1024 if size_val else None
-                    }
-                    if check_subs_limits(temp_info, quality_key):
-                        subs_available = "💬"
-            
-            if is_playlist and playlist_range:
-                indices = list(range(playlist_range[0], playlist_range[1]+1))
-                n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
-                total = len(indices)
-                icon = "🚀" if n_cached > 0 else "📹"
-                postfix = f" ({n_cached}/{total})" if total > 1 else ""
-                button_text = f"{icon}{quality_key}{subs_available}{postfix}"
-            else:
-                need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-                icon = "🚀" if quality_key in cached_qualities and not need_subs else "📹"
-                button_text = f"{icon}{quality_key}{subs_available}"
-            buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
-        if not buttons and popular:
-            for height in popular:
-                quality_key = f"{height}p"
-                # Find the file size for this quality
-                size_val = None
-                for (qk, w, h), size in minside_size_dim_map.items():
-                    if qk == quality_key:
-                        size_val = size
-                        break
-                
-                if size_val is None:
-                    continue
-                    
+        if ("youtube.com" in url or "youtu.be" in url):
+            for quality_key in sorted(quality_map.keys(), key=sort_quality_key):
+                f = quality_map[quality_key]
+                w = f.get('width')
+                h = f.get('height')
+                filesize = f.get('filesize') or f.get('filesize_approx')
+                if filesize:
+                    if filesize >= 1024*1024*1024:
+                        size_str = f"{round(filesize/1024/1024/1024, 2)}GB"
+                    else:
+                        size_str = f"{round(filesize/1024/1024, 1)}MB"
+                else:
+                    size_str = '—'
+                dim_str = f" ({w}×{h})" if w and h else ''
+                scissors = ""
+                if get_user_split_size(user_id) and filesize:
+                    video_bytes = filesize
+                    if video_bytes > get_user_split_size(user_id):
+                        n_parts = (video_bytes + get_user_split_size(user_id) - 1) // get_user_split_size(user_id)
+                        scissors = f" ✂️{n_parts}"
                 # Check the availability of subtitles for this quality
                 subs_available = ""
                 subs_enabled = get_user_subs_language(user_id) not in [None, "OFF"]
@@ -5584,8 +5927,8 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
                     if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
                         temp_info = {
                             'duration': info.get('duration'),
-                            'filesize': size_val * 1024 * 1024 if size_val else None,
-                            'filesize_approx': size_val * 1024 * 1024 if size_val else None
+                            'filesize': filesize,
+                            'filesize_approx': filesize
                         }
                         if check_subs_limits(temp_info, quality_key):
                             subs_available = "💬"
@@ -5602,6 +5945,43 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
                     icon = "🚀" if quality_key in cached_qualities and not need_subs else "📹"
                     button_text = f"{icon}{quality_key}{subs_available}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
+        else:
+            popular = [144, 240, 360, 480, 540, 576, 720, 1080, 1440, 2160, 4320]
+            for height in popular:
+                quality_key = f"{height}p"
+                size_val = None
+                w = h = None
+                for (qk, ww, hh), size in minside_size_dim_map.items():
+                    if qk == quality_key:
+                        size_val = size
+                        w = ww
+                        h = hh
+                        break
+                if size_val is None:
+                    continue
+                size_str = f"{round(size_val/1024, 1)}GB" if size_val and size_val >= 1024 else (f"{size_val}MB" if size_val else '—')
+                dim_str = f" ({w}×{h})" if w and h else ''
+                scissors = ""
+                if get_user_split_size(user_id) and size_val:
+                    video_bytes = size_val * 1024 * 1024
+                    if video_bytes > get_user_split_size(user_id):
+                        n_parts = (video_bytes + get_user_split_size(user_id) - 1) // get_user_split_size(user_id)
+                        scissors = f" ✂️{n_parts}"
+
+                
+                if is_playlist and playlist_range:
+                    indices = list(range(playlist_range[0], playlist_range[1]+1))
+                    n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
+                    total = len(indices)
+                    icon = "🚀" if n_cached > 0 else "📹"
+                    postfix = f" ({n_cached}/{total})" if total > 1 else ""
+                    button_text = f"{icon}{quality_key}{postfix}"
+                else:
+                    
+                    icon = "🚀" if quality_key in cached_qualities else "📹"
+                    button_text = f"{icon}{quality_key}"
+                buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
+
         if not buttons:
             quality_key = "best"
             
@@ -5621,7 +6001,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             buttons.append(InlineKeyboardButton("🎛 Force Quality", callback_data=f"askq|try_manual"))
             
             # Add explanation when automatic quality detection fails
-            autodiscovery_note = "<blockquote>⚠️ Available qualities could not be automatically detected. You can manually force a specific quality.</blockquote>"
+            autodiscovery_note = "<blockquote>⚠️ Qualities not auto-detected\nYou can manually force quality.</blockquote>"
             cap += f"\n{autodiscovery_note}\n"
         # --- Form rows of 3 buttons ---
         keyboard_rows = []
@@ -5657,10 +6037,15 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             if need_subs:
                 keyboard_rows.append([InlineKeyboardButton("💬 Subtitles Only", callback_data="askq|subs_only")])
         
-        keyboard_rows.append([InlineKeyboardButton("🔙 Cancel", callback_data="askq|cancel")])
+        keyboard_rows.append([InlineKeyboardButton("🔚 Close", callback_data="askq|close")])
         keyboard = InlineKeyboardMarkup(keyboard_rows)
         # cap already contains a hint and a table
-        app.delete_messages(user_id, proc_msg.id)
+        try:
+            app.delete_messages(user_id, proc_msg.id)
+        except Exception as e:
+            if 'MESSAGE_ID_INVALID' not in str(e):
+                logger.warning(f"Failed to delete message: {e}")
+            app.edit_message_reply_markup(chat_id=user_id, message_id=proc_msg.id, reply_markup=None)
         proc_msg = None
         if thumb_path and os.path.exists(thumb_path):
             app.send_photo(user_id, thumb_path, caption=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_to_message_id=message.id)
@@ -5712,8 +6097,11 @@ def askq_callback(app, callback_query):
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]
 
-    if data == "cancel":
-        callback_query.message.delete()
+    if data == "close":
+        try:
+            app.delete_messages(user_id, callback_query.message.id)
+        except Exception:
+            app.edit_message_reply_markup(chat_id=user_id, message_id=callback_query.message.id, reply_markup=None)
         callback_query.answer("Menu closed.")
         return
         
@@ -5742,7 +6130,7 @@ def askq_callback(app, callback_query):
             reply_to_message_id=original_message.id
         )
         send_to_logger(original_message, f"Quick Embed: {embed_url}")
-        callback_query.message.delete()
+        app.delete_messages(user_id, callback_query.message.id)
         return
     
     # Handle manual quality selection menu
@@ -5755,7 +6143,7 @@ def askq_callback(app, callback_query):
         original_message = callback_query.message.reply_to_message
         if not original_message:
             callback_query.answer("❌ Error: Original message not found.", show_alert=True)
-            callback_query.message.delete()
+            app.delete_messages(user_id, callback_query.message.id)
             return
         
         url = None
@@ -5776,11 +6164,11 @@ def askq_callback(app, callback_query):
                 tag_matches = re.findall(r'#\S+', caption_text)
                 if tag_matches:
                     tags = tag_matches
-            callback_query.message.delete()
+            app.delete_messages(user_id, callback_query.message.id)
             ask_quality_menu(app, original_message, url, tags)
         else:
             callback_query.answer("❌ Error: URL not found.", show_alert=True)
-            callback_query.message.delete()
+            app.delete_messages(user_id, callback_query.message.id)
         return
     
     # Handle manual quality selection
@@ -5791,7 +6179,7 @@ def askq_callback(app, callback_query):
         original_message = callback_query.message.reply_to_message
         if not original_message:
             callback_query.answer("❌ Error: Original message not found.", show_alert=True)
-            callback_query.message.delete()
+            app.delete_messages(user_id, callback_query.message.id)
             return
         
         url = None
@@ -5807,18 +6195,14 @@ def askq_callback(app, callback_query):
         
         if not url:
             callback_query.answer("❌ Error: URL not found.", show_alert=True)
-            callback_query.message.delete()
+            app.delete_messages(user_id, callback_query.message.id)
             return
         
-        tags = []
-        caption_text = callback_query.message.caption
-        if caption_text:
-            tag_matches = re.findall(r'#\S+', caption_text)
-            if tag_matches:
-                tags = tag_matches
-        tags_text = ' '.join(tags)
+        # Новый способ: всегда извлекаем теги из исходного сообщения пользователя
+        original_text = original_message.text or original_message.caption or ""
+        _, _, _, _, tags, tags_text, _ = extract_url_range_tags(original_text)
         
-        callback_query.message.delete()
+        app.delete_messages(user_id, callback_query.message.id)
         
         # Force use specific quality format like in /format command
         if quality == "best":
@@ -5847,7 +6231,7 @@ def askq_callback(app, callback_query):
     original_message = callback_query.message.reply_to_message
     if not original_message:
         callback_query.answer("❌ Error: Original message not found. It might have been deleted. Please send the link again.", show_alert=True)
-        callback_query.message.delete()
+        app.delete_messages(user_id, callback_query.message.id)
         return
 
     url = None
@@ -5862,18 +6246,14 @@ def askq_callback(app, callback_query):
             url = url_match.group(0)
     if not url:
         callback_query.answer("❌ Error: Original URL not found. Please send the link again.", show_alert=True)
-        callback_query.message.delete()
+        app.delete_messages(user_id, callback_query.message.id)
         return
 
-    tags = []
-    caption_text = callback_query.message.caption
-    if caption_text:
-        tag_matches = re.findall(r'#\S+', caption_text)
-        if tag_matches:
-            tags = tag_matches
-    tags_text = ' '.join(tags)
+    # Извлекаем теги из исходного сообщения пользователя
+    original_text = original_message.text or original_message.caption or ""
+    _, _, _, _, tags, tags_text, _ = extract_url_range_tags(original_text)
 
-    callback_query.message.delete()
+    app.delete_messages(user_id, callback_query.message.id)
 
     original_text = original_message.text or original_message.caption or ""
     if is_playlist_with_range(original_text):
@@ -6174,10 +6554,10 @@ def show_manual_quality_menu(app, callback_query):
         if need_subs:
             keyboard_rows.append([InlineKeyboardButton("💬 Subtitles Only", callback_data="askq|subs_only")])
     
-    # Add Back and Cancel buttons
+    # Add Back and close buttons
     keyboard_rows.append([
         InlineKeyboardButton("🔙 Back", callback_data="askq|manual_back"),
-        InlineKeyboardButton("❌ Cancel", callback_data="askq|cancel")
+        InlineKeyboardButton("🔚 Close", callback_data="askq|close")
     ])
     
     keyboard = InlineKeyboardMarkup(keyboard_rows)
@@ -6765,7 +7145,7 @@ def get_cached_playlist_count(playlist_url: str, quality_key: str, indices: list
                         for index in indices:
                             index_str = str(index)
                             val = db_child_by_path(db,
-                                                   f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}/{qk}/{index_str}").get().val()
+                                                  f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}/{qk}/{index_str}").get().val()
                             if val is not None:
                                 cached_count += 1
                                 logger.info(
@@ -7129,16 +7509,6 @@ def check_subs_limits(info_dict, quality_key=None):
         max_duration = Config.MAX_SUB_DURATION
         max_size = Config.MAX_SUB_SIZE
         
-        # Check the quality of the video (is made - check only the duration and size)
-        # if quality_key and quality_key != "best" and quality_key != "mp3":
-        # try:
-        # quality_height = int(quality_key.replace('p', ''))
-        # if quality_height > max_quality:
-        # logger.info(f"Subtitle embedding skipped: quality {quality_height}p exceeds limit {max_quality}p")
-        # return False
-        # except ValueError:
-        # pass # If it is not possible to extract the height, we skip quality check
-        
         # Check the duration
         duration = info_dict.get('duration')
         if duration and duration > max_duration:
@@ -7418,6 +7788,27 @@ def download_subtitles_only(app, message, url, tags, playlist_name=None, video_c
         except:
             app.send_message(user_id, f"❌ Error downloading subtitles: {str(e)}")
 
+
+def get_video_info_ffprobe(video_path):
+    import json
+    try:
+        result = subprocess.run([
+            'ffprobe', '-v', 'error',
+            '-select_streams', 'v:0',
+            '-show_entries', 'stream=width,height',
+            '-show_entries', 'format=duration',
+            '-of', 'json', video_path
+        ], capture_output=True, text=True)
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            width = data['streams'][0]['width'] if data['streams'] else 0
+            height = data['streams'][0]['height'] if data['streams'] else 0
+            duration = float(data['format']['duration']) if 'format' in data and 'duration' in data['format'] else 0
+            return width, height, duration
+    except Exception as e:
+        logger.error(f'ffprobe error: {e}')
+    return 0, 0, 0
+
 def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, message=None):
     """
     Burning (hardcode) subtitles in a video file, if there is any .SRT file and subs.txt
@@ -7441,20 +7832,32 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
             return False
         
         video_dir = os.path.dirname(video_path)
-        try:
-            clip = VideoFileClip(video_path)
-            width, height = clip.size
-            clip.close()
-        except Exception as e:
-            logger.error(f"[MOVIEPY BYPASS] Ошибка при обработке видео {video_path}: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-            width, height = 0, 0
         
-        if min(width, height) > Config.MAX_SUB_QUALITY:
-            logger.info(f"Video too large for subtitles: {width}x{height}")
+        # Получаем параметры видео через ffprobe
+        width, height, total_time = get_video_info_ffprobe(video_path)
+        if width == 0 or height == 0:
+            logger.error(f"Не удалось определить разрешение видео через ffprobe: width={width}, height={height}")
             return False
-        
+        original_size = os.path.getsize(video_path)
+
+        # Проверка длительности видео
+        if total_time and total_time > Config.MAX_SUB_DURATION:
+            logger.info(f"Video duration too long for subtitles: {total_time} сек")
+            return False
+
+        # Проверка размера файла
+        original_size_mb = original_size / (1024 * 1024)
+        if original_size_mb > Config.MAX_SUB_SIZE:
+            logger.info(f"Video file too large for subtitles: {original_size_mb:.2f} MB")
+            return False
+
+        # Проверка качества видео по наименьшей стороне
+        # Логируем параметры видео перед проверкой качества
+        logger.info(f"Проверка качества: width={width}, height={height}, min_side={min(width, height)}, лимит={Config.MAX_SUB_QUALITY}")
+        if min(width, height) > Config.MAX_SUB_QUALITY:
+            logger.info(f"Video quality too high for subtitles: {width}x{height}, min side: {min(width, height)}p > {Config.MAX_SUB_QUALITY}p")
+            return False
+
         # --- Simplified search: take any .SRT file in the folder ---
         srt_files = [f for f in os.listdir(video_dir) if f.lower().endswith('.srt')]
         if not srt_files:
@@ -7496,12 +7899,10 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
                 logger.error(f"ffprobe error: {e}")
             return None
         
-        total_time = get_duration(video_path)
-        
         # Field of subtitles with improved styling
         subs_path_escaped = subs_path.replace("'", "'\\''")
         # Добавляем полупрозрачную черную обводку как на YouTube и улучшенное отображение субтитров
-        filter_arg = f"subtitles='{subs_path_escaped}':force_style='FontSize=24,PrimaryColour=&Hffffff,OutlineColour=&H000000,BackColour=&H80000000,Outline=2,Shadow=1,MarginV=25'"
+        filter_arg = f"subtitles='{subs_path_escaped}':force_style='FontSize=16,PrimaryColour=&Hffffff,OutlineColour=&H000000,BackColour=&H80000000,Outline=2,Shadow=1,MarginV=25'"
         cmd = [
             'ffmpeg',
             '-y',
