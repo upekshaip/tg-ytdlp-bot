@@ -4462,7 +4462,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 real_file_size = 0
                             auto_mode = get_user_subs_auto_mode(user_id)
                             if subs_enabled and is_youtube_url(url) and min(width, height) <= Config.MAX_SUB_QUALITY:
-                                found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
+                                #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
                                 if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
                                     
                                     # Сначала скачиваем субтитры отдельно
