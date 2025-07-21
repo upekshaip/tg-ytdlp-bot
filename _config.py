@@ -246,7 +246,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
     # --- Whitelist of domains that are not considered porn ---
     WHITELIST = [
         'dailymotion.com', 'sky.com', 'xbox.com', 'youtube.com', 'youtu.be', '1tv.ru', 'x.ai',
-        'twitch.tv', 'www.twitch.tv', 'vimeo.com', 'facebook.com'
+        'twitch.tv', 'vimeo.com', 'facebook.com', 'tiktok.com', 'instagram.com', 'fb.com', 'ig.me'
         # Other secure domains can be added
     ]
     NO_COOKIE_DOMAINS = [
@@ -261,7 +261,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
     ]
     # Added CLEAN_QUERY array for domains where query and fragment can be safely cleared
     CLEAN_QUERY = [
-        'vk.com', 'vkvideo.ru', 'vkontakte.ru', 'tiktok.com', 'vimeo.com', 'twitch.tv',
+        'vk.com', 'vkvideo.ru', 'vkontakte.ru', 'tiktok.com', 'vimeo.com', 'twitch.tv', 'ig,me',
         'instagram.com', 'dailymotion.com', 'twitter.com', 'x.com', 't.co', 'ok.ru', 'mail.ru'
         # Add here other domains where query and fragment are not needed for video uniqueness
     ]
