@@ -20,6 +20,7 @@ class Config(object):
     SUBSCRIBE_CHANNEL = -0000000000000
     # Add subscription channel - Required (str)
     SUBSCRIBE_CHANNEL_URL = "https://t.me/YOUR_CHANNEL_NAME"
+    MAX_FILE_SIZE_GB = 10  # GiB
     # Download timeout in seconds (2 hours = 7200 seconds)
     DOWNLOAD_TIMEOUT = 7200 # in seconds
     MAX_SUB_QUALITY = 720 # 720p
