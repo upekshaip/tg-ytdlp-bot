@@ -4394,6 +4394,78 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
         anim_thread = start_hourglass_animation(user_id, hourglass_msg_id, stop_anim)
 
+        # Получаем info_dict для оценки размера выбранного качества
+        try:
+            ydl_opts = {'quiet': True}
+            user_cookie_path = os.path.join("users", str(user_id), "cookie.txt")
+            if os.path.exists(user_cookie_path):
+                ydl_opts['cookiefile'] = user_cookie_path
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                pre_info = ydl.extract_info(url, download=False)
+            if 'entries' in pre_info and isinstance(pre_info['entries'], list) and pre_info['entries']:
+                pre_info = pre_info['entries'][0]
+        except Exception as e:
+            logger.warning(f"Failed to extract info for size check: {e}")
+            pre_info = {}
+
+        # Найти формат для выбранного quality_key
+        selected_format = None
+        for f in pre_info.get('formats', []):
+            w = f.get('width')
+            h = f.get('height')
+            if w and h:
+                qk = get_quality_by_min_side(w, h)
+                if str(qk) == str(quality_key):
+                    selected_format = f
+                    break
+
+        # Если не нашли формат — ОСТАНАВЛИВАЕМ скачивание!
+        #if not selected_format:
+            #logger.warning(f"[SIZE CHECK] Could not determine format for quality_key={quality_key}. Download will not start.")
+            #app.send_message(
+                #user_id,
+                #"Unable to determine the file size for the selected quality. Please try another quality or check your cookies.",
+                #reply_to_message_id=message.id
+            #)
+            #return
+
+        # Проверяем лимит
+        #from _config import Config
+        BYTES_IN_GIB = 1024 ** 3
+        max_size_gb = getattr(Config, 'MAX_FILE_SIZE', 10)
+        max_size_bytes = int(max_size_gb * BYTES_IN_GIB)
+        # Получаем размер файла
+        filesize = selected_format.get('filesize') or selected_format.get('filesize_approx')
+        if not filesize:
+            # fallback на оценку
+            tbr = selected_format.get('tbr')
+            duration = selected_format.get('duration')
+            if tbr and duration:
+                filesize = float(tbr) * float(duration) * 125
+            else:
+                width = selected_format.get('width')
+                height = selected_format.get('height')
+                duration = selected_format.get('duration')
+                if width and height and duration:
+                    filesize = int(width) * int(height) * float(duration) * 0.07
+                else:
+                    filesize = 0
+
+        allowed = check_file_size_limit(selected_format, max_size_bytes=max_size_bytes)
+        logger.info(f"[SIZE CHECK] quality_key={quality_key}, determined size={filesize/(1024**3):.2f} GB, limit={max_size_gb} GB, allowed={allowed}")
+
+        if not allowed:
+            app.send_message(
+                user_id,
+                f"❌ The file size exceeds the {max_size_gb} GB limit. Please select a smaller file within the allowed size.",
+                reply_to_message_id=message.id
+            )
+            send_to_logger(message, f"❌ The file size exceeds the {max_size_gb} GB limit. Please select a smaller file within the allowed size.")
+            logger.warning(f"[SIZE CHECK] Download for quality_key={quality_key} was blocked due to size limit.")
+            return
+        else:
+            logger.info(f"[SIZE CHECK] Download for quality_key={quality_key} is allowed and will proceed.")
+
         current_total_process = ""
         last_update = 0
         full_bar = "🟩" * 10
@@ -8028,6 +8100,38 @@ def lang_match(user_lang, available_langs):
     logger.info(f"lang_match: no match found for {user_lang}")
     return None
 
+def check_file_size_limit(info_dict, max_size_bytes=None):
+    """
+    Проверяет, не превышает ли размер файла глобальный лимит.
+    Возвращает True, если размер в пределах лимита, иначе False.
+    """
+    if max_size_bytes is None:
+        max_size_gb = getattr(Config, 'MAX_FILE_SIZE_GB', 10)  # GiB
+        max_size_bytes = int(max_size_gb * 1024 ** 3)
+
+    filesize = info_dict.get('filesize') or info_dict.get('filesize_approx')
+    if filesize and filesize > 0:
+        size_bytes = int(filesize)
+    else:
+        # Try to estimate by bitrate (kbit/s) and duration (s)
+        tbr = info_dict.get('tbr')
+        duration = info_dict.get('duration')
+        if tbr and duration:
+            size_bytes = float(tbr) * float(duration) * 125  # kbit/s -> bytes
+        else:
+            # Very rough estimate by resolution and duration
+            width = info_dict.get('width')
+            height = info_dict.get('height')
+            duration = info_dict.get('duration')
+            if width and height and duration:
+                size_bytes = int(width) * int(height) * float(duration) * 0.07
+            else:
+                # Could not estimate, allow download
+                return True
+
+    return size_bytes <= max_size_bytes
+
+    
 def check_subs_limits(info_dict, quality_key=None):
     """
     Checks restrictions for embedding subtitles
@@ -8302,5 +8406,6 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
         import traceback
         logger.error(traceback.format_exc())
         return False
+
 
 app.run()
