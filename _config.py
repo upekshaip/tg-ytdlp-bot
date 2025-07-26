@@ -42,7 +42,10 @@ class Config(object):
     PIC_FILE_PATH = "pic.jpg"
     FIREBASE_CACHE_FILE = "dump.json"
     RELOAD_CACHE_COMMAND = "/reload_cache"
+    AUTO_CACHE_COMMAND = "/auto_cache"
+    RELOAD_CACHE_EVERY = 4 # in hours
     DOWNLOAD_FIREBASE_SCRIPT_PATH = "download_firebase.py"
+    AUTO_CACHE_RELOAD_ENABLED = True # Enable/disable automatic cache reloading
     #######################################################
     # Firebase initialization
     # your firebase DB path
