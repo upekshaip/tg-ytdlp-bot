@@ -2,6 +2,7 @@
 import glob
 import hashlib
 import io
+import json
 import logging
 import math
 import os
@@ -10,7 +11,7 @@ import requests
 import shutil
 import subprocess
 import random
-# import sys
+import sys
 import threading
 import time
 from datetime import datetime
@@ -40,6 +41,73 @@ import yt_dlp
 from config import Config
 
 import chardet
+
+# Глобальная переменная для локального кэша Firebase
+firebase_cache = {}
+
+def load_firebase_cache():
+    """Загружает локальный кэш Firebase из JSON файла"""
+    global firebase_cache
+    try:
+        cache_file = getattr(Config, 'FIREBASE_CACHE_FILE', 'firebase_cache.json')
+        if os.path.exists(cache_file):
+            with open(cache_file, "r", encoding="utf-8") as f:
+                firebase_cache = json.load(f)
+            print(f"✅ Firebase cache loaded: {len(firebase_cache)} root nodes")
+        else:
+            print(f"⚠️ Firebase cache file not found, starting with empty cache: {cache_file}")
+            firebase_cache = {}
+    except Exception as e:
+        print(f"❌ Failed to load firebase cache: {e}")
+        firebase_cache = {}
+
+def reload_firebase_cache():
+    """Перезагружает локальный кэш Firebase из JSON файла"""
+    global firebase_cache
+    try:
+        cache_file = getattr(Config, 'FIREBASE_CACHE_FILE', 'firebase_cache.json')
+        if os.path.exists(cache_file):
+            with open(cache_file, "r", encoding="utf-8") as f:
+                firebase_cache = json.load(f)
+            print(f"✅ Firebase cache reloaded: {len(firebase_cache)} root nodes")
+            return True
+        else:
+            print(f"⚠️ Firebase cache file not found: {cache_file}")
+            return False
+    except Exception as e:
+        print(f"❌ Failed to reload firebase cache: {e}")
+        return False
+
+
+
+# Загружаем кэш при импорте модуля
+load_firebase_cache()
+
+def get_from_local_cache(path_parts):
+    """
+    Получает данные из локального кэша по пути, разделенному на части
+    Например: get_from_local_cache(['bot', 'video_cache', 'hash123', '720p'])
+    """
+    global firebase_cache
+    current = firebase_cache
+    for part in path_parts:
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        else:
+            log_firebase_access_attempt(path_parts, success=False)
+            return None
+    
+    log_firebase_access_attempt(path_parts, success=True)
+    return current
+
+def log_firebase_access_attempt(path_parts, success=True):
+    """
+    Логирует попытки обращения к локальному кэшу (для отслеживания оставшихся .get() вызовов)
+    """
+    # Показываем путь в формате JSON для локального кэша
+    path_str = ' -> '.join(path_parts)  # Например: "bot -> video_cache -> playlists -> url_hash -> quality"
+    status = "SUCCESS" if success else "MISS"
+    print(f"🔥 Firebase access attempt: {path_str} -> {status}")
 
 def ensure_utf8_srt(srt_path):
     """
@@ -1208,6 +1276,35 @@ app = Client(
 
 # #############################################################################################################################
 # #############################################################################################################################
+
+@app.on_message(filters.command("reload_cache") & filters.private)
+def reload_firebase_cache_command(app, message):
+    """Обработчик команды для перезагрузки локального кэша Firebase"""
+    if int(message.chat.id) not in Config.ADMIN:
+        send_to_user(message, "❌ Access denied. Admin only.")
+        return
+    try:
+        # 1. Сначала запускаем download_firebase.py по пути из конфига
+        script_path = getattr(Config, "DOWNLOAD_FIREBASE_SCRIPT_PATH", "download_firebase.py")
+        send_to_user(message, f"⏳ Downloading fresh Firebase dump using {script_path} ...")
+        result = subprocess.run([sys.executable, script_path], capture_output=True, text=True)
+        if result.returncode != 0:
+            send_to_user(message, f"❌ Error running {script_path}:\n{result.stdout}\n{result.stderr}")
+            send_to_logger(message, f"Error running {script_path}: {result.stdout}\n{result.stderr}")
+            return
+        # 2. Теперь подгружаем кэш
+        success = reload_firebase_cache()
+        if success:
+            send_to_user(message, "✅ Firebase cache reloaded successfully!")
+            send_to_logger(message, "Firebase cache reloaded by admin.")
+        else:
+            cache_file = getattr(Config, 'FIREBASE_CACHE_FILE', 'firebase_cache.json')
+            send_to_user(message, f"❌ Failed to reload Firebase cache. Check if {cache_file} exists.")
+    except Exception as e:
+        send_to_user(message, f"❌ Error reloading cache: {str(e)}")
+        send_to_logger(message, f"Error reloading Firebase cache: {str(e)}")
+
+
 @app.on_callback_query(filters.regex(r"^subs_lang_close\|"))
 def subs_lang_close_callback(app, callback_query):
     data = callback_query.data.split("|")[1]
@@ -1906,6 +2003,11 @@ def url_distractor(app, message):
         # /uncache Command - Clear cache for URL
         if Config.UNCACHE_COMMAND in text:
             uncache_command(app, message)
+            return
+
+        # /reload_cache Command - Reload cache for URL
+        if Config.RELOAD_CACHE_COMMAND in text:
+            reload_firebase_cache_command(app, message)
             return
 
     # Reframed processing for all users (admins and ordinary users)
@@ -7366,8 +7468,12 @@ def get_cached_message_ids(url: str, quality_key: str) -> list:
         for u in set(urls):
             url_hash = get_url_hash(u)
             logger.info(f"get_cached_message_ids: checking hash {url_hash} for quality {quality_key}")
-            ids_string = db.child(Config.VIDEO_CACHE_DB_PATH).child(url_hash).child(quality_key).get().val()
-            logger.info(f"get_cached_message_ids: raw value from Firebase: {ids_string} (type: {type(ids_string)})")
+            
+            # Используем локальный кэш вместо Firebase
+            path_parts = ["bot", "video_cache", url_hash, quality_key]
+            ids_string = get_from_local_cache(path_parts)
+            
+            logger.info(f"get_cached_message_ids: raw value from local cache: {ids_string} (type: {type(ids_string)})")
             if ids_string:
                 result = [int(msg_id) for msg_id in ids_string.split(',')]
                 logger.info(
@@ -7386,8 +7492,12 @@ def get_cached_qualities(url: str) -> set:
     """He gets all the castle qualities for the URL."""
     try:
         url_hash = get_url_hash(normalize_url_for_cache(url))
-        data = db.child(Config.VIDEO_CACHE_DB_PATH).child(url_hash).get().val()
-        if data:
+        
+        # Используем локальный кэш вместо Firebase
+        path_parts = ["bot", "video_cache", url_hash]
+        data = get_from_local_cache(path_parts)
+        
+        if data and isinstance(data, dict):
             return set(data.keys())
         return set()
     except Exception as e:
@@ -7604,12 +7714,6 @@ def get_cached_playlist_videos(playlist_url: str, quality_key: str, requested_in
     if not quality_key:
         logger.warning(f"get_cached_playlist_videos: quality_key is empty for playlist: {playlist_url}")
         return {}
-    if not hasattr(Config,
-                   'PLAYLIST_CACHE_DB_PATH') or not Config.PLAYLIST_CACHE_DB_PATH or Config.PLAYLIST_CACHE_DB_PATH.strip() in (
-            '', '/', '.'):
-        logger.error(
-            f"get_cached_playlist_videos: PLAYLIST_CACHE_DB_PATH is empty or invalid! Skipping cache read for playlist: {playlist_url}")
-        return {}
     try:
         urls = [normalize_url_for_cache(strip_range_from_url(playlist_url))]
         if is_youtube_url(playlist_url):
@@ -7634,25 +7738,23 @@ def get_cached_playlist_videos(playlist_url: str, quality_key: str, requested_in
             for qk in quality_keys:
                 logger.info(f"get_cached_playlist_videos: checking quality: {qk}")
 
-                # Check each requested index separately
-                for index in requested_indices:
-                    index_str = str(index)
-                    try:
-                        cache_path = f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}/{qk}/{index_str}"
-                        msg_id = db_child_by_path(db, cache_path).get().val()
-                        if msg_id is not None:
-                            found[index] = int(msg_id)
-                            logger.info(
-                                f"get_cached_playlist_videos: found cached video for index {index} (quality={qk}): {msg_id}")
-                    except Exception as e:
-                        logger.error(
-                            f"get_cached_playlist_videos: error reading cache for url_hash={url_hash}, quality={qk}, index={index}: {e}")
-                        continue
-
-                if found:
-                    logger.info(
-                        f"get_cached_playlist_videos: returning cached videos for indices {list(found.keys())}: {found}")
-                    return found
+                # Новый путь для поиска в дампе!
+                arr = get_from_local_cache(["bot", "video_cache", "playlists", url_hash, qk])
+                if isinstance(arr, list):
+                    for index in requested_indices:
+                        try:
+                            if index < len(arr) and arr[index]:
+                                found[index] = int(arr[index])
+                                logger.info(
+                                    f"get_cached_playlist_videos: found cached video for index {index} (quality={qk}): {arr[index]}")
+                        except Exception as e:
+                            logger.error(
+                                f"get_cached_playlist_videos: error reading cache for url_hash={url_hash}, quality={qk}, index={index}: {e}")
+                            continue
+                    if found:
+                        logger.info(
+                            f"get_cached_playlist_videos: returning cached videos for indices {list(found.keys())}: {found}")
+                        return found
 
         logger.info(f"get_cached_playlist_videos: no cache found for any URL/quality variant, returning empty dict")
         return {}
@@ -7667,9 +7769,8 @@ def get_cached_playlist_qualities(playlist_url: str) -> set:
     """Gets all available qualities for a cached playlist."""
     try:
         url_hash = get_url_hash(normalize_url_for_cache(strip_range_from_url(playlist_url)))
-        # Get all the quality keys inside the url_hash folder
-        data = db_child_by_path(db, f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}").get().val()
-        if data:
+        data = get_from_local_cache(["bot", "video_cache", "playlists", url_hash])
+        if data and isinstance(data, dict):
             return set(data.keys())
         return set()
     except Exception as e:
@@ -7747,45 +7848,36 @@ def get_cached_playlist_count(playlist_url: str, quality_key: str, indices: list
         for u in set(urls):
             url_hash = get_url_hash(u)
             for qk in quality_keys:
+                arr = get_from_local_cache(["bot", "video_cache", "playlists", url_hash, qk])
+                if not isinstance(arr, list):
+                    continue
                 if indices is not None:
                     # For large ranges, we use a fast count
                     if len(indices) > 100:
                         try:
-                            data = db_child_by_path(db, f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}/{qk}").get().val()
-                            if data and isinstance(data, dict):
-                                # Count only indices from the requested range
-                                cached_count = sum(
-                                    1 for index in indices if str(index) in data and data[str(index)] is not None)
-                                logger.info(
-                                    f"get_cached_playlist_count: fast count for large range: {cached_count} cached videos")
-                                return cached_count
+                            cached_count = sum(1 for index in indices if index < len(arr) and arr[index] is not None)
+                            logger.info(
+                                f"get_cached_playlist_count: fast count for large range: {cached_count} cached videos")
+                            return cached_count
                         except Exception as e:
                             logger.error(f"get_cached_playlist_count: error in fast count: {e}")
                             continue
                     else:
                         # For small ranges, check each index separately
                         for index in indices:
-                            index_str = str(index)
-                            val = db_child_by_path(db,
-                                                  f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}/{qk}/{index_str}").get().val()
-                            if val is not None:
-                                cached_count += 1
-                                logger.info(
-                                    f"get_cached_playlist_count: found cached video for index {index} (quality={qk}): {val}")
-                else:
-                    # Get all quality data and count non-empty records
-                    try:
-                        data = db_child_by_path(db, f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}/{qk}").get().val()
-                        if data:
-                            if isinstance(data, dict):
-                                cached_count = len(data)
-                            elif isinstance(data, list):
-                                # If the data is a list, count non-empty elements
-                                cached_count = sum(1 for item in data if item is not None)
-                            else:
-                                logger.warning(
-                                    f"get_cached_playlist_count: unexpected data type for url_hash={url_hash}, quality={qk}, type={type(data)}")
+                            try:
+                                if index < len(arr) and arr[index] is not None:
+                                    cached_count += 1
+                                    logger.info(
+                                        f"get_cached_playlist_count: found cached video for index {index} (quality={qk}): {arr[index]}")
+                            except Exception as e:
+                                logger.error(
+                                    f"get_cached_playlist_count: error reading cache for url_hash={url_hash}, quality={qk}, index={index}: {e}")
                                 continue
+                else:
+                    # Count all non-empty records
+                    try:
+                        cached_count = sum(1 for item in arr if item is not None)
                     except Exception as e:
                         logger.error(
                             f"get_cached_playlist_count: error reading cache for url_hash={url_hash}, quality={qk}: {e}")
@@ -7800,7 +7892,6 @@ def get_cached_playlist_count(playlist_url: str, quality_key: str, indices: list
     except Exception as e:
         logger.error(f"get_cached_playlist_count error: {e}")
         return 0
-
 
 def get_quality_by_min_side(width: int, height: int) -> str:
     """
