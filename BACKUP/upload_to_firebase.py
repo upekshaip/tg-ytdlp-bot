@@ -13,7 +13,7 @@ FIREBASE_CONFIG = {
     "appId": "YOUR_NEW_APP_ID"
 }
 
-FIREBASE_USER = "chelaxian@gmail.com"
+FIREBASE_USER = "YOUR_EMAIL@gmail.com"
 FIREBASE_PASSWORD = "YOUR_PASSWORD"
 
 firebase = pyrebase.initialize_app(FIREBASE_CONFIG)
