@@ -4466,7 +4466,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     else:
                         filesize = 0
 
-                allowed = check_file_size_limit(selected_format, max_size_bytes=max_size_bytes)
+            allowed = check_file_size_limit(selected_format, max_size_bytes=max_size_bytes)
         
         # Безопасное логирование размера файла
         if filesize > 0:
@@ -5483,11 +5483,11 @@ def sanitize_filename(filename, max_length=150):
     full_name = name + ext
     max_total = 100
     if len(full_name) > max_total:
-       allowed = max_total - len(ext)
-       if allowed > 3:
-          name = name[:allowed-3] + "..."
+       max_name_length = max_total - len(ext)
+       if max_name_length > 3:
+          name = name[:max_name_length-3] + "..."
        else:
-          name = name[:allowed]
+          name = name[:max_name_length]
        full_name = name + ext
     
     return full_name
