@@ -1,4 +1,4 @@
-# Version 3.0.4 # embedded subtitles + close buttons
+# Version 3.1.0 # save firebase-cache localy to prevent exceeding no-cost limits on google firebase
 import glob
 import hashlib
 import io
