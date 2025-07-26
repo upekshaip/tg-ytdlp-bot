@@ -4008,6 +4008,12 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
             successful_uploads += 1
 
+            # Check if info_dict is None before accessing it
+            if info_dict is None:
+                logger.error("info_dict is None, cannot proceed with audio processing")
+                send_to_user(message, "❌ Failed to extract audio information")
+                break
+
             audio_title = info_dict.get("title", "audio")
             audio_title = sanitize_filename(audio_title)
             
@@ -4402,7 +4408,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 ydl_opts['cookiefile'] = user_cookie_path
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 pre_info = ydl.extract_info(url, download=False)
-            if 'entries' in pre_info and isinstance(pre_info['entries'], list) and pre_info['entries']:
+            # Проверяем, что pre_info не None
+            if pre_info is None:
+                logger.warning("pre_info is None, skipping size check")
+                pre_info = {}
+            elif 'entries' in pre_info and isinstance(pre_info['entries'], list) and pre_info['entries']:
                 pre_info = pre_info['entries'][0]
         except Exception as e:
             logger.warning(f"Failed to extract info for size check: {e}")
@@ -4435,24 +4445,35 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         max_size_gb = getattr(Config, 'MAX_FILE_SIZE', 10)
         max_size_bytes = int(max_size_gb * BYTES_IN_GIB)
         # Получаем размер файла
-        filesize = selected_format.get('filesize') or selected_format.get('filesize_approx')
-        if not filesize:
-            # fallback на оценку
-            tbr = selected_format.get('tbr')
-            duration = selected_format.get('duration')
-            if tbr and duration:
-                filesize = float(tbr) * float(duration) * 125
-            else:
-                width = selected_format.get('width')
-                height = selected_format.get('height')
+        if selected_format is None:
+            logger.warning("selected_format is None, skipping size check")
+            filesize = 0
+            allowed = True  # Разрешаем скачивание если не можем определить размер
+        else:
+            filesize = selected_format.get('filesize') or selected_format.get('filesize_approx')
+            if not filesize:
+                # fallback на оценку
+                tbr = selected_format.get('tbr')
                 duration = selected_format.get('duration')
-                if width and height and duration:
-                    filesize = int(width) * int(height) * float(duration) * 0.07
+                if tbr and duration:
+                    filesize = float(tbr) * float(duration) * 125
                 else:
-                    filesize = 0
+                    width = selected_format.get('width')
+                    height = selected_format.get('height')
+                    duration = selected_format.get('duration')
+                    if width and height and duration:
+                        filesize = int(width) * int(height) * float(duration) * 0.07
+                    else:
+                        filesize = 0
 
-        allowed = check_file_size_limit(selected_format, max_size_bytes=max_size_bytes)
-        logger.info(f"[SIZE CHECK] quality_key={quality_key}, determined size={filesize/(1024**3):.2f} GB, limit={max_size_gb} GB, allowed={allowed}")
+                allowed = check_file_size_limit(selected_format, max_size_bytes=max_size_bytes)
+        
+        # Безопасное логирование размера файла
+        if filesize > 0:
+            size_gb = filesize/(1024**3)
+            logger.info(f"[SIZE CHECK] quality_key={quality_key}, determined size={size_gb:.2f} GB, limit={max_size_gb} GB, allowed={allowed}")
+        else:
+            logger.info(f"[SIZE CHECK] quality_key={quality_key}, size unknown, limit={max_size_gb} GB, allowed={allowed}")
 
         if not allowed:
             app.send_message(
@@ -4612,7 +4633,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         # If there is only one video in the playlist, just download it
                         info_dict = entries[0]  # Just take the first video
 
-                if ("m3u8" in url.lower()) or (info_dict.get("protocol") == "m3u8_native"):
+                if ("m3u8" in url.lower()) or (info_dict and info_dict.get("protocol") == "m3u8_native"):
                     is_hls = True
                     # if "format" in ytdl_opts:
                     # del ytdl_opts["format"]
@@ -7244,15 +7265,17 @@ def generate_final_tags(url, user_tags, info_dict):
                 final_tags.append(channel_tag)
                 seen.add(channel_tag.lower())
     # 4. #porn if defined by title, description or caption
-    video_title = info_dict.get("title")
-    video_description = info_dict.get("description")
+    video_title = info_dict.get("title") if info_dict else None
+    video_description = info_dict.get("description") if info_dict else None
     video_caption = info_dict.get("caption") if info_dict else None
     if is_porn(url, video_title, video_description, video_caption):
         if '#porn' not in seen:
             final_tags.append('#porn')
             seen.add('#porn')
     result = ' '.join(final_tags)
-    logger.info(f"Generated final tags for '{info_dict.get('title', 'N/A')}': \"{result}\"")
+    # Check if info_dict is None before accessing it
+    title = info_dict.get('title', 'N/A') if info_dict else 'N/A'
+    logger.info(f"Generated final tags for '{title}': \"{result}\"")
     return result
 
 # --- new functions for caching ---
@@ -8109,6 +8132,11 @@ def check_file_size_limit(info_dict, max_size_bytes=None):
         max_size_gb = getattr(Config, 'MAX_FILE_SIZE_GB', 10)  # GiB
         max_size_bytes = int(max_size_gb * 1024 ** 3)
 
+    # Check if info_dict is None
+    if info_dict is None:
+        logger.warning("check_file_size_limit: info_dict is None, allowing download")
+        return True
+
     filesize = info_dict.get('filesize') or info_dict.get('filesize_approx')
     if filesize and filesize > 0:
         size_bytes = int(filesize)
@@ -8138,6 +8166,11 @@ def check_subs_limits(info_dict, quality_key=None):
     Returns True if subtitles can be built, false if limits are exceeded
     """
     try:
+        # Check if info_dict is None
+        if info_dict is None:
+            logger.warning("check_subs_limits: info_dict is None, allowing subtitle embedding")
+            return True
+            
         # We get the parameters from the config
         max_quality = Config.MAX_SUB_QUALITY
         max_duration = Config.MAX_SUB_DURATION
