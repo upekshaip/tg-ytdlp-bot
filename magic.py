@@ -4682,14 +4682,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             except Exception as e:
                 error_message = str(e)
                 logger.error(f"Attempt with format {ytdl_opts.get('format', 'default')} failed: {e}")
-                
+				
                 # Check if this is a "No videos found in playlist" error
                 if "No videos found in playlist" in str(e):
                     error_message = f"❌ No videos found in playlist at index {current_index + 1}."
                     send_to_all(message, error_message)
-                    logger.info(f"Skipping playlist item at index {current_index} (no video found)")
-                    return "SKIP"  # Special return value to indicate skip
-                
+                    logger.info(f"Stopping download: playlist item at index {current_index} (no video found)")
+                    return "STOP"  # Новое специальное значение для полной остановки
+
                 send_to_user(message, f"❌ Unknown error: {e}")
                 return None
 
@@ -4715,14 +4715,22 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
             info_dict = None
             skip_item = False
+            stop_all = False
             for attempt in attempts:
                 result = try_download(url, attempt)
-                if result == "SKIP":
+                if result == "STOP":
+                    stop_all = True
+                    break
+                elif result == "SKIP":
                     skip_item = True
                     break
                 elif result is not None:
                     info_dict = result
                     break
+
+            if stop_all:
+                logger.info(f"Stopping all downloads due to playlist error at index {current_index}")
+                break
 
             if skip_item:
                 logger.info(f"Skipping item at index {current_index} (no video content)")
