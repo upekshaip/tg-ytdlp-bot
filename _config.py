@@ -15,7 +15,7 @@ class Config(object):
     # Add your telegram bot token (str)
     BOT_TOKEN = ""
     # Add telegram Log channel Id - Required (int)
-    LOGS_ID = -0000000000000
+    LOGS_ID = -0000000000000 
     # Add main channel to subscribe - Required (int)
     SUBSCRIBE_CHANNEL = -0000000000000
     # Add subscription channel - Required (str)
@@ -40,6 +40,12 @@ class Config(object):
     COOKIE_FILE_PATH = "cookies/cookie.txt"
     # Do not chanege this
     PIC_FILE_PATH = "pic.jpg"
+    FIREBASE_CACHE_FILE = "dump.json"
+    RELOAD_CACHE_COMMAND = "/reload_cache"
+    AUTO_CACHE_COMMAND = "/auto_cache"
+    RELOAD_CACHE_EVERY = 4 # in hours
+    DOWNLOAD_FIREBASE_SCRIPT_PATH = "download_firebase.py"
+    AUTO_CACHE_RELOAD_ENABLED = True # Enable/disable automatic cache reloading
     #######################################################
     # Firebase initialization
     # your firebase DB path
