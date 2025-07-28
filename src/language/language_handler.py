@@ -9,20 +9,12 @@ class LanguageHandler:
     def __init__(self):
         pass
 
-    def check_language(self, message: Message):
+    def check_language(self, obj: Message | CallbackQuery):
         """
         Check the language of the user and return the appropriate language code.
         """
-        lang = message.from_user.language_code
-        if lang not in Lang.LANGUAGES:
-            lang = "en"
-        return lang
-    
-    def check_language(self, query: CallbackQuery):
-        """
-        Check the language of the user and return the appropriate language code.
-        """
-        lang = query.from_user.language_code
+        lang = "en"  # Default language
+        lang = obj.from_user.language_code
         if lang not in Lang.LANGUAGES:
             lang = "en"
         return lang

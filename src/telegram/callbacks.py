@@ -13,7 +13,7 @@ class TelegramCallbacks:
         self.process = Process(app)
 
     async def check_callbacks(self, query: CallbackQuery):
-        lang = LanguageHandler().check_language(query=query)
+        lang = LanguageHandler().check_language(query)
         user_id = query.from_user.id
 
         if query.data.startswith(Config.START_COMMAND):

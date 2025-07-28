@@ -14,3 +14,4 @@ tldextract
 pymediainfo
 pillow
 chardet
+# pyrogram

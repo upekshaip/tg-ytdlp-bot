@@ -13,7 +13,7 @@ class TelegramCommands:
         self.process = Process(app)
 
     async def check_commands(self, message: Message):
-        lang = LanguageHandler().check_language(message=message)
+        lang = LanguageHandler().check_language(message)
         user_id = message.from_user.id
 
 
