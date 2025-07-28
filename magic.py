@@ -2314,7 +2314,7 @@ def get_user_details(app, message):
         return
 
     #data_dict = get_from_local_cache([Config.BOT_DB_PATH, path])
-    data_dict = get_from_local_cache(["bot", "tgytdlp_bot", "logs", path])
+    data_dict = get_from_local_cache(["bot", "tgytdlp_bot", path])
     if not data_dict:
         send_to_all(message, f"❌ No data found in cache for `{path}`")
         return
