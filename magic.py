@@ -2330,7 +2330,7 @@ def get_user_details(app, message):
     display_list = modified_lst[-20:] if len(modified_lst) > 20 else modified_lst
 
     now = datetime.fromtimestamp(math.floor(time.time()))
-    txt_format = f"{Config.BOT_NAME} {path}\nTotal {path}: {len(modified_lst)}\nCurrent time: {now}\n\n" + '\n'.join(txt_lst)
+    txt_format = f"{Config.BOT_NAME_FOR_USERS} {path}\nTotal {path}: {len(modified_lst)}\nCurrent time: {now}\n\n" + '\n'.join(txt_lst)
     mod = f"__Total Users: {len(modified_lst)}__\nLast 20 {path}:\n\n" + '\n'.join(display_list)
 
     file = f"{path}.txt"
@@ -2338,8 +2338,8 @@ def get_user_details(app, message):
         f.write(txt_format)
 
     send_to_all(message, mod)
-    app.send_document(message.chat.id, f"./{file}", caption=f"{Config.BOT_NAME} - all {path}")
-    app.send_document(Config.LOGS_ID, f"./{file}", caption=f"{Config.BOT_NAME} - all {path}")
+    app.send_document(message.chat.id, f"./{file}", caption=f"{Config.BOT_NAME_FOR_USERS} - all {path}")
+    app.send_document(Config.LOGS_ID, f"./{file}", caption=f"{Config.BOT_NAME_FOR_USERS} - all {path}")
     logger.info(mod)
 
 # Block User
