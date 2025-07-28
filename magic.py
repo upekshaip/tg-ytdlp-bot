@@ -2313,7 +2313,8 @@ def get_user_details(app, message):
         send_to_all(message, "❌ Invalid command")
         return
 
-    data_dict = get_from_local_cache([Config.BOT_DB_PATH, path])
+    #data_dict = get_from_local_cache([Config.BOT_DB_PATH, path])
+    data_dict = get_from_local_cache(["bot", "tgytdlp_bot", "logs", path])
     if not data_dict:
         send_to_all(message, f"❌ No data found in cache for `{path}`")
         return
@@ -7496,8 +7497,9 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
 
         for u in set(urls):
             url_hash = get_url_hash(u)
+            path_parts_local = ["bot", "video_cache", "playlists", url_hash]
             path_parts = [Config.VIDEO_CACHE_DB_PATH, url_hash]
-
+            
             # === CLEAR MODE ===
             if clear:
                 logger.info(f"Clearing cache for URL hash {url_hash}, quality {quality_key}")
@@ -7509,7 +7511,7 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
                 continue
 
             # === LOCAL CACHE CHECK ===
-            existing = get_from_local_cache(path_parts + [quality_key])
+            existing = get_from_local_cache(path_parts_local + [quality_key])
             if existing is not None:
                 logger.info(f"Cache already exists for URL hash {url_hash}, quality {quality_key}, skipping save.")
                 continue  # skip writing if already cached locally
@@ -7779,11 +7781,13 @@ def save_to_playlist_cache(playlist_url: str, quality_key: str, video_indices: l
                 continue
 
             for i, msg_id in zip(video_indices, message_ids):
+                
+                path_parts_local = ["bot", "video_cache", "playlists", url_hash, quality_key, str(i)]
                 path_parts = [Config.PLAYLIST_CACHE_DB_PATH, url_hash, quality_key, str(i)]
-                already_cached = get_from_local_cache(path_parts)
+                already_cached = get_from_local_cache(path_parts_local)
 
                 if already_cached:
-                    logger.info(f"Playlist part already cached: {path_parts}, skipping")
+                    logger.info(f"Playlist part already cached: {path_parts_local}, skipping")
                     continue
 
                 db_child_by_path(db, "/".join(path_parts)).set(str(msg_id))
