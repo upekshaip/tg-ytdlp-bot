@@ -6,7 +6,7 @@ class Config(object):
     BOT_NAME = "public"
     # A name for users - Required (str)
     BOT_NAME_FOR_USERS = "Video Downloader bot by upekshaip"
-    # Add all admin id's as a list - Required (lst[int]) / 1st element is the main admin
+    # Add all admin id's as a list - Required (lst[int])
     ADMIN = [0000000000]
     # Add your telegram API ID - Required (int)
     API_ID = 0000000
@@ -15,20 +15,37 @@ class Config(object):
     # Add your telegram bot token (str)
     BOT_TOKEN = ""
     # Add telegram Log channel Id - Required (int)
-    LOGS_ID = -0000000000000
+    LOGS_ID = -0000000000000 
     # Add main channel to subscribe - Required (int)
     SUBSCRIBE_CHANNEL = -0000000000000
     # Add subscription channel - Required (str)
-    SUBSCRIBE_CHANNEL_URL = "https://t.me/upekshaip"
+    SUBSCRIBE_CHANNEL_URL = "https://t.me/YOUR_CHANNEL_NAME"
+    MAX_FILE_SIZE_GB = 10  # GiB
     # Download timeout in seconds (2 hours = 7200 seconds)
-    DOWNLOAD_TIMEOUT = 7200
+    DOWNLOAD_TIMEOUT = 7200 # in seconds
+    MAX_SUB_QUALITY = 720 # 720p
+    MAX_SUB_DURATION = 5400 # in seconds
+    MAX_SUB_SIZE = 500 # in MB      
+    MAX_PLAYLIST_COUNT = 50
+    MAX_TIKTOK_COUNT = 500        
     # Cookie file URL
     # EX: "https://path/to/your/cookie-file.txt"
     COOKIE_URL = ""
+    YOUTUBE_COOKIE_URL = ""
+    INSTAGRAM_COOKIE_URL = ""
+    TWITTER_COOKIE_URL = ""
+    TIKTOK_COOKIE_URL = ""
+    FACEBOOK_COOKIE_URL = ""
     # Do not chanege this
-    COOKIE_FILE_PATH = "cookies.txt"
+    COOKIE_FILE_PATH = "cookies/cookie.txt"
     # Do not chanege this
     PIC_FILE_PATH = "pic.jpg"
+    FIREBASE_CACHE_FILE = "dump.json"
+    RELOAD_CACHE_COMMAND = "/reload_cache"
+    AUTO_CACHE_COMMAND = "/auto_cache"
+    RELOAD_CACHE_EVERY = 4 # in hours
+    DOWNLOAD_FIREBASE_SCRIPT_PATH = "download_firebase.py"
+    AUTO_CACHE_RELOAD_ENABLED = True # Enable/disable automatic cache reloading
     #######################################################
     # Firebase initialization
     # your firebase DB path
@@ -50,6 +67,7 @@ class Config(object):
     #######################################################
     # Commands
     DOWNLOAD_COOKIE_COMMAND = "/download_cookie"
+    SUBS_COMMAND = "/subs"
     CHECK_COOKIE_COMMAND = "/check_cookie"
     SAVE_AS_COOKIE_COMMAND = "/save_as_cookie"
     AUDIO_COMMAND = "/audio"
@@ -85,10 +103,10 @@ To download playlists send its URL with <code>*start*end</code> ranges in the en
 
 <b>Examples:</b>
 
-🟥 <b>Video range from playlist:</b>
+🟥 <b>Video range from YouTube playlist:</b> (need 🍪)
 <code>https://youtu.be/playlist?list=PL...*1*5</code>
 (downloads videos from 1 to 5 inclusive)
-🟥 <b>Single video from playlist:</b>
+🟥 <b>Single video from YouTube playlist:</b> (need 🍪)
 <code>https://youtu.be/playlist?list=PL...*3*3</code>
 (downloads only the 3rd video)
 
@@ -96,24 +114,36 @@ To download playlists send its URL with <code>*start*end</code> ranges in the en
 <code>https://www.tiktok.com/@USERNAME*1*10</code>
 (downloads first 10 videos from user profile)
 
-🟪 <b>Instagram stories albums:</b> (need your 🍪)
+🟪 <b>Instagram stories:</b> (need your 🍪)
+<code>https://www.instagram.com/stories/USERNAME*1*3</code>
+(downloads first 3 stories)
 <code>https://www.instagram.com/stories/highlights/123...*1*10</code>
 (downloads first 10 stories from album)
 
 🟦 <b>VK videos:</b>
-<code>https://vkvideo.ru/@USERNAME*1*3</code>
-(downloads first 3 videos from user profile)
+<code>https://vkvideo.ru/@PAGE_NAME*1*3</code>
+(downloads first 3 videos from user/group profile)
 
-⬜️ <b>Vimeo groups:</b>
+⬛️<b>Rutube channels:</b>
+<code>https://rutube.ru/channel/CHANNEL_ID/videos*2*4</code>
+(downloads videos from 2 to 4 inclusive from channel)
+
+🟪 <b>Twitch clips:</b>
+<code>https://www.twitch.tv/USERNAME/clips*1*3</code>
+(downloads first 3 clips from channel)
+
+🟦 <b>Vimeo groups:</b>
 <code>https://vimeo.com/groups/GROUP_NAME/videos*1*2</code>
 (downloads first 2 videos from group)
 
-<tg-spoiler>🟧 <b>Pornhub videos:</b>
+🟧 <b>Pornhub models:</b>
 <code>https://www.pornhub.org/model/MODEL_NAME*1*2</code>
-(downloads first 2 video from model profile)</tg-spoiler>
+(downloads first 2 video from model profile)
+<code>https://www.pornhub.com/video/search?search=YOUR_PROMPT*1*3</code>
+(downloads first 3 video from search results by your prompt)
 
 and so on...
-see <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md">supported sites list</a>
+see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/supportedsites.md">supported sites list</a>
 """
     HELP_MSG = """
 🎬 <b>Video Download Bot - Help</b>
@@ -143,6 +173,7 @@ see <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md">sup
 • <code>/clean format</code> - Remove format settings
 • <code>/clean split</code> - Remove split settings
 • <code>/clean mediainfo</code> - Remove mediainfo settings
+• <code>/clean sub</code> - Remove subtitle settings
 
 ⚙️ <b>Settings:</b>
 • <code>/settings</code> - Open settings menu
@@ -150,6 +181,7 @@ see <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md">sup
 • <code>/split</code> - Set max part size (250MB-2GB)
 • <code>/mediainfo</code> - Enable/disable file info
 • <code>/tags</code> - View your saved tags
+• <code>/sub</code> - Turn on/off subtitles
 
 🏷️ <b>Tags System:</b>
 • Add <code>#tag1#tag2</code> after any URL
@@ -160,8 +192,8 @@ see <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md">sup
 • <code>/usage</code> - View your download history
 • <code>/help</b> - Show this help message
 
-<blockquote expandable>
-🇷🇺 <b>Бот для скачивания видео - Помощь</b>
+<blockquote expandable>🇷🇺 <b>Бот для скачивания видео - Помощь</b>
+(нажми, чтобы развернуть 👇)
 
 📥 <b>Основное использование:</b>
 • Отправьте ссылку на видео для загрузки
@@ -188,6 +220,7 @@ see <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md">sup
 • <code>/clean format</code> - Удалить настройки формата
 • <code>/clean split</code> - Удалить настройки нарезки
 • <code>/clean mediainfo</code> - Удалить настройки mediainfo
+• <code>/clean sub</code> - Удалить настройки субтитров
 
 ⚙️ <b>Настройки:</b>
 • <code>/settings</code> - Открыть меню настроек
@@ -195,6 +228,7 @@ see <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md">sup
 • <code>/split</code> - Установить размер части (250MB-2GB)
 • <code>/mediainfo</code> - Включить/выключить информацию о файле
 • <code>/tags</code> - Посмотреть ваши теги
+• <code>/sub</code> - Включить/выключить субтитры
 
 🏷️ <b>Система тегов:</b>
 • Добавьте <code>#тег1#тег2</code> после любой ссылки
@@ -205,9 +239,8 @@ see <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md">sup
 • <code>/usage</code> - История загрузок
 • <code>/help</code> - Показать эту справку
 </blockquote>
-
-👨‍💻 <i>Developer:</i> @upekshaip
-🤝 <i>Contributor:</i> @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl
+👨‍💻 <i>Developer:</i> @upekshaip <a href="https://github.com/upekshaip/tg-ytdlp-bot">[🛠 github]</a>
+🤝 <i>Contributor:</i> @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl <a href="https://github.com/chelaxian/tg-ytdlp-bot">[🛠 github]</a>
     """
     #######################################################
     # Restricted content site lists
@@ -219,9 +252,14 @@ see <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md">sup
     SUPPORTED_SITES_FILE = "supported_sites.txt"
     # --- Whitelist of domains that are not considered porn ---
     WHITELIST = [
-        'dailymotion.com', 'sky.com', 'xbox.com', 'youtube.com', 'youtu.be', '1tv.ru', 'x.ai'
+        'dailymotion.com', 'sky.com', 'xbox.com', 'youtube.com', 'youtu.be', '1tv.ru', 'x.ai',
+        'twitch.tv', 'vimeo.com', 'facebook.com', 'tiktok.com', 'instagram.com', 'fb.com', 'ig.me'
         # Other secure domains can be added
     ]
+    NO_COOKIE_DOMAINS = [
+        'dailymotion.com'
+        # Other secure domains can be added
+    ]    
     # TikTok Domain List
     TIKTOK_DOMAINS = [
         'tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com',
@@ -230,19 +268,42 @@ see <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md">sup
     ]
     # Added CLEAN_QUERY array for domains where query and fragment can be safely cleared
     CLEAN_QUERY = [
-        'vk.com', 'vkvideo.ru', 'vkontakte.ru', 'tiktok.com', 'vimeo.com', 'twitch.tv',
-        'instagram.com', 'dailymotion.com', 'twitter.com', 'x.com', 't.co', 'ok.ru', 'mail.ru'
+        'vk.com', 'vkvideo.ru', 'vkontakte.ru',
+        'tiktok.com', 'vimeo.com', 'twitch.tv',
+        'instagram.com', 'ig.me', 'dailymotion.com',
+        'twitter.com', 'x.com',
+        'ok.ru', 'mail.ru', 'my.mail.ru',
+        'rutube.ru', 'youku.com', 'bilibili.com',
+        'tv.kakao.com', 'tudou.com', 'coub.com',
+        'fb.watch', '9gag.com', 'streamable.com',
+        'veoh.com', 'archive.org', 'ted.com',
+        'mediasetplay.mediaset.it', 'ndr.de', 'zdf.de', 'arte.tv',
+        'video.yandex.ru', 'video.sibnet.ru', 'pladform.ru', 'pikabu.ru',
+        'redtube.com', 'youporn.com', 'xhamster.com',
+        'spankbang.com', 'xnxx.com', 'xvideos.com',
+        'bitchute.com', 'rumble.com', 'peertube.tv',
+        'aparat.com', 'nicovideo.jp', 
+        'disk.yandex.net', 'streaming.disk.yandex.net',
         # Add here other domains where query and fragment are not needed for video uniqueness
     ]
     # Version 1.0.0 - Добавлен SAVE_AS_COOKIE_HINT для подсказки по /save_as_cookie
     SAVE_AS_COOKIE_HINT = (
-        "Just send to bot cookie.txt file as document\n"
-        "Also you can send your cookie as plain text.\n"
-        "Usage:\n\n"
+        "Just save your cookie as <b><u>cookie.txt</u></b> and send it to bot as a document.\n\n"
+        "You can also send cookies as plain text with <b><u>/save_as_cookie</u></b> command.\n"
+        "<b>Usage of <b><u>/save_as_cookie</u></b>:</b>\n\n"
+        "<pre>"
         "/save_as_cookie\n"
         "# Netscape HTTP Cookie File\n"
         "# http://curl.haxx.se/rfc/cookie_spec.html\n"
         "# This file was generated by Cookie-Editor\n"
-        ".youtube.com  TRUE  /  FALSE  1111111111  ST-xxxxx  session_logininfo=AAAAAAAAAAAAAAAAAAA\n"
+        ".youtube.com  TRUE  /  FALSE  111  ST-xxxxx  session_logininfo=AAA\n"
+        ".youtube.com  TRUE  /  FALSE  222  ST-xxxxx  session_logininfo=BBB\n"
+        ".youtube.com  TRUE  /  FALSE  33333  ST-xxxxx  session_logininfo=CCC\n"
+        "</pre>\n"
+        "<blockquote>"
+        "<b><u>Instructions:</u></b>\n"
+        "https://t.me/c/2303231066/18 \n"
+        "https://t.me/c/2303231066/22 "
+        "</blockquote>"
     )
     #######################################################
