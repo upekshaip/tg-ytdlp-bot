@@ -197,13 +197,13 @@ Usage example:
 The **/format** command allows users to set a custom download format for their videos. Users can either supply a custom format string or choose from a preset menu.
 
 **Main Menu Options:**
-- 💻<=4k (best for desktop TG app)
-- 📱<=FullHD (best for mobile TG app)
+- ❓ Always Ask (menu + buttons)
+- **🎛 Others (144p - 4320p)** – opens a full resolution menu (see below)
+- 💻4k (best for PC/Mac Telegram)
+- 📱FullHD (best for mobile Telegram)
 - 📈bestvideo+bestaudio (MAX quality)
-- 📉best (no ffmpeg)
-- **Others** – opens a full resolution menu (see below)
-- 🎚 custom – for entering a custom format string
-- 🔙 Cancel – cancels the selection
+- **🎚 Custom (enter your own)** – for entering a custom format string
+- 🔙 Close – cancels the selection
 
 **Full Resolution Menu (triggered by "Others"):**
 - 144p (256×144)
@@ -264,7 +264,8 @@ Then select the desired option from the menu.
 - **/all_blocked** - Get all blocked users.
 - **/all_unblocked** - Get all unblocked users.
 - **/uncache** - Clear cached subtitle language data.
-
+- **/reload_cache** - Reload cache from firebase to local json file
+- **/auto_cache** - Toggle turn ON/OFF mode of auto reloading of cache every N hours. 
 ---
 
 ## Settings Menu (`/settings`)
@@ -360,7 +361,9 @@ Response:
 • To clean your workspace on server from bad files (e.g. old cookies or media) use **/clean** command (might be helpfull for get rid of errors). \
 • See your usage statistics and logs by sending the **/usage** command. \
 • Control subtitle embedding with **/subs** command - enable or disable automatic subtitle burning into videos. \
-• Clear cached subtitle language data with **/uncache** command if you experience issues with subtitle detection.
+• Clear cached subtitle language data with **/uncache** command if you experience issues with subtitle detection. \
+• Reload cache from firebase to local json file with **/reload_cache** command. \
+• Toggle turn ON/OFF mode of auto reloading of cache every **N** hours with **/auto_cache** command. 
 
 ---
 

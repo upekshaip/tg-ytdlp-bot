@@ -1,5 +1,6 @@
 # Version 3.1.0 # save firebase-cache localy to prevent exceeding no-cost limits on google firebase
 import glob
+from datetime import datetime, timedelta
 import hashlib
 import io
 import json
@@ -50,7 +51,7 @@ auto_cache_enabled = getattr(Config, 'AUTO_CACHE_RELOAD_ENABLED', True)
 auto_cache_thread = None
 
 def load_firebase_cache():
-    """Загружает локальный кэш Firebase из JSON файла"""
+    """Load local Firebase cache from JSON file."""
     global firebase_cache
     try:
         cache_file = getattr(Config, 'FIREBASE_CACHE_FILE', 'firebase_cache.json')
@@ -82,72 +83,73 @@ def reload_firebase_cache():
         print(f"❌ Failed to reload firebase cache: {e}")
         return False
 
+
+def get_next_reload_time(interval_hours: int) -> datetime:
+    """
+    Возвращает datetime следующей точки перезагрузки,
+    выровненной по N-часовому шагу от 00:00.
+    """
+    now = datetime.now()
+    # Сегодняшняя граница “полночь”
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    seconds_since_midnight = (now - midnight).total_seconds()
+    interval_seconds = interval_hours * 3600
+    # Сколько полных интервалов уже прошло с полуночи
+    intervals_passed = int(seconds_since_midnight // interval_seconds)
+    # Следующий = полночь + (intervals_passed + 1) * шаг
+    return midnight + timedelta(seconds=(intervals_passed + 1) * interval_seconds)
+
 def auto_reload_firebase_cache():
-    """Автоматически загружает кэш Firebase с указанным интервалом"""
+    """Поток, который каждые N часов перезагружает локальный кэш."""
     global auto_cache_enabled
+
+    interval_hours = getattr(Config, 'RELOAD_CACHE_EVERY', 4)
     while auto_cache_enabled:
+        next_exec = get_next_reload_time(interval_hours)
+        now = datetime.now()
+        wait_seconds = (next_exec - now).total_seconds()
+        print(
+            f"⏳ Waiting until {next_exec.strftime('%Y-%m-%d %H:%M:%S')} "
+            f"to reload Firebase cache ({wait_seconds/3600:.2f} hours)"
+        )
+        # «Умный» sleep
+        end_time = time.time() + wait_seconds
+        while auto_cache_enabled and time.time() < end_time:
+            time.sleep(min(1, end_time - time.time()))
+        if not auto_cache_enabled:
+            print("🛑 Auto Firebase cache reloader stopped by admin")
+            return
+        # Запускаем перезагрузку
         try:
-            # Получаем интервал из конфигурации (по умолчанию 4 часа)
-            reload_interval = getattr(Config, 'RELOAD_CACHE_EVERY', 4) * 3600  # конвертируем часы в секунды
-            
-            # Ждём указанный интервал, проверяя каждую секунду, не отключили ли автозагрузку
-            for _ in range(reload_interval):
-                if not auto_cache_enabled:
-                    print("🛑 Auto Firebase cache reloader stopped by admin")
-                    return
-                time.sleep(1)
-            
-            if not auto_cache_enabled:
-                print("🛑 Auto Firebase cache reloader stopped by admin")
-                return
-                
-            print(f"🔄 Auto-reloading Firebase cache (every {reload_interval//3600} hours)...")
-            
-            # 1. Сначала запускаем скрипт для скачивания свежего дампа
-            script_path = getattr(Config, "DOWNLOAD_FIREBASE_SCRIPT_PATH", "download_firebase.py")
-            print(f"⏳ Downloading fresh Firebase dump using {script_path} ...")
-            
-            result = subprocess.run([sys.executable, script_path], capture_output=True, text=True)
-            if result.returncode != 0:
-                print(f"❌ Error running {script_path}:\n{result.stdout}\n{result.stderr}")
-                continue
-            
-            # 2. Теперь подгружаем кэш в память
-            success = reload_firebase_cache()
-            if success:
-                print(f"✅ Firebase cache auto-reloaded successfully at {datetime.now()}")
-                # Отправляем уведомление в лог-канал, если есть доступ к app
-                try:
-                    if 'app' in globals() and app:
-                        safe_send_message(Config.LOGS_ID, f"🔄 Firebase cache auto-reloaded successfully at {datetime.now()}")
-                except Exception as e:
-                    print(f"⚠️ Could not send log message: {e}")
-            else:
-                print(f"❌ Failed to auto-reload Firebase cache at {datetime.now()}")
-                
+            user_id = (
+                Config.ADMIN[0]
+                if isinstance(Config.ADMIN, (list, tuple))
+                else Config.ADMIN
+            )
+            print(f"🔄 Triggering /reload_cache as admin (user_id={user_id})")
+            msg = fake_message("/reload_cache", user_id)
+            reload_firebase_cache_command(app, msg)
         except Exception as e:
-            print(f"❌ Error in auto-reload Firebase cache: {e}")
-            # Ждём 1 час перед повторной попыткой в случае ошибки
-            for _ in range(3600):
-                if not auto_cache_enabled:
-                    print("🛑 Auto Firebase cache reloader stopped by admin")
-                    return
-                time.sleep(1)
-    
-    print("🛑 Auto Firebase cache reloader stopped")
+            print(f"❌ Error running auto reload_cache: {e}")
+            import traceback; traceback.print_exc()
 
 def start_auto_cache_reloader():
-    """Запускает поток для автоматической загрузки кэша"""
+    """Стартует поток авто‑перезагрузки."""
     global auto_cache_thread, auto_cache_enabled
     if auto_cache_enabled and auto_cache_thread is None:
-        auto_cache_thread = threading.Thread(target=auto_reload_firebase_cache, daemon=True)
+        auto_cache_thread = threading.Thread(
+            target=auto_reload_firebase_cache,
+            daemon=True
+        )
         auto_cache_thread.start()
-        print(f"🚀 Auto Firebase cache reloader started (every {getattr(Config, 'RELOAD_CACHE_EVERY', 4)} hours)")
-        return auto_cache_thread
-    return None
+        print(
+            f"🚀 Auto Firebase cache reloader started "
+            f"(every {getattr(Config, 'RELOAD_CACHE_EVERY', 4)}h from 00:00)"
+        )
+    return auto_cache_thread
 
 def stop_auto_cache_reloader():
-    """Останавливает автоматическую загрузку кэша"""
+    """Останавливает поток авто‑перезагрузки."""
     global auto_cache_enabled, auto_cache_thread
     auto_cache_enabled = False
     if auto_cache_thread and auto_cache_thread.is_alive():
@@ -155,15 +157,14 @@ def stop_auto_cache_reloader():
     auto_cache_thread = None
 
 def toggle_auto_cache_reloader():
-    """Переключает состояние автоматической загрузки кэша"""
+    """Переключает режим авто‑перезагрузки."""
     global auto_cache_enabled
     auto_cache_enabled = not auto_cache_enabled
     if auto_cache_enabled:
         start_auto_cache_reloader()
-        return True
     else:
         stop_auto_cache_reloader()
-        return False
+    return auto_cache_enabled
 
 # Загружаем кэш при импорте модуля
 load_firebase_cache()
@@ -1249,55 +1250,36 @@ def check_disk_space(path, required_bytes):
         return True
 
 
-# Firebase Initialization with Authentication
+# Initialize Firebase
 firebase = pyrebase.initialize_app(Config.FIREBASE_CONF)
-
-# Create auth object from pyrebase
 auth = firebase.auth()
 
-# Sign in using email and password (ensure these credentials are set in your Config)
+# Authenticate user
 try:
     user = auth.sign_in_with_email_and_password(Config.FIREBASE_USER, Config.FIREBASE_PASSWORD)
-    # Debug: Print essential details of the user object
-    logger.info("User signed in successfully.")
-    logger.info(f"User email: {user.get('email')}")
-    logger.info(f"User localId: {user.get('localId')}")
-    # If available, check email verification status
-    if "emailVerified" in user:
-        logger.info(f"Email verified: {user['emailVerified']}")
-    else:
-        logger.info("Email verification status not available in user object.")
+    logger.info("✅ Firebase signed in")
 except Exception as e:
-    logger.error(f"Error during Firebase authentication: {e}")
+    logger.error(f"❌ Firebase authentication error: {e}")
     raise
 
-# Debug: Print a portion of idToken
-idToken = user.get("idToken")
-if idToken:
-    logger.info(f"Firebase idToken (first 20 chars): {idToken[:20]}")
-else:
-    logger.error("No idToken received!")
-    raise Exception("idToken is empty.")
+# Extract idToken
+id_token = user.get("idToken")
+if not id_token:
+    raise Exception("idToken is missing")
 
-# Get the base database object
+# Setup database with authentication
 base_db = firebase.database()
 
-# Additional check: Execute a test GET request to the root node
-try:
-    test_data = base_db.get(idToken)
-    logger.info("Test GET operation succeeded. Data: %s", test_data.val())
-except Exception as e:
-    logger.error("Test GET operation failed:", e)
-
-
-# Define a wrapper class to automatically pass the idToken for all database operations
 class AuthedDB:
     def __init__(self, db, token):
         self.db = db
         self.token = token
 
-    def child(self, path):
-        return AuthedDB(self.db.child(path), self.token)
+    def child(self, *path_parts):
+        db_ref = self.db
+        for part in path_parts:
+            db_ref = db_ref.child(part)
+        return AuthedDB(db_ref, self.token)
 
     def set(self, data, *args, **kwargs):
         return self.db.set(data, self.token, *args, **kwargs)
@@ -1313,38 +1295,35 @@ class AuthedDB:
 
     def remove(self, *args, **kwargs):
         return self.db.remove(self.token, *args, **kwargs)
+	    
 
+# Create authed db wrapper
+db = AuthedDB(base_db, id_token)
 
-# Let's use the rstrip() method directly in the f-string to form the correct path
-db = AuthedDB(base_db, user["idToken"])
-db_path = Config.BOT_DB_PATH.rstrip("/")
-_format = {"ID": "0", "timestamp": math.floor(time.time())}
+# Optional write to verify it's working
 try:
-    # Try writing data to the path: bot/tgytdlp_bot/users/0
-    result = db.child(f"{db_path}/users/0").set(_format)
-    logger.info("Data written successfully. Result: %s", result)
+    db_path = Config.BOT_DB_PATH.rstrip("/")
+    payload = {"ID": "0", "timestamp": math.floor(time.time())}
+    db.child(f"{db_path}/users/0").set(payload)
+    logger.info("✅ Initial Firebase write successful")
 except Exception as e:
-    logger.error("Error writing data to Firebase:", e)
+    logger.error(f"❌ Error writing to Firebase: {e}")
     raise
 
-
-# Function to periodically refresh the idToken using the refreshToken
+# Background thread to refresh idToken every 50 minutes
 def token_refresher():
     global db, user
     while True:
-        # Sleep for 50 minutes (3000 seconds)
-        time.sleep(3000)
+        time.sleep(3000)  # 50 minutes
         try:
             new_user = auth.refresh(user["refreshToken"])
-            new_idToken = new_user["idToken"]
-            db.token = new_idToken
+            new_id_token = new_user["idToken"]
+            db.token = new_id_token
             user = new_user
-            logger.info("Firebase idToken refreshed successfully. New token (first 20 chars): %s", new_idToken[:20])
+            logger.info("🔁 Firebase token refreshed")
         except Exception as e:
-            logger.error("Error refreshing Firebase idToken:", e)
+            logger.error(f"❌ Token refresh error: {e}")
 
-
-# Start the token refresher thread as a daemon
 token_thread = threading.Thread(target=token_refresher, daemon=True)
 token_thread.start()
 
@@ -1389,39 +1368,36 @@ def reload_firebase_cache_command(app, message):
         send_to_user(message, f"❌ Error reloading cache: {str(e)}")
         send_to_logger(message, f"Error reloading Firebase cache: {str(e)}")
 
+
 def auto_cache_command(app, message):
-    """Обработчик команды для управления автоматической загрузкой кэша Firebase"""
+    """Обработчик команды для управления автоматической загрузкой кэша Firebase."""
     if int(message.chat.id) not in Config.ADMIN:
         send_to_user(message, "❌ Access denied. Admin only.")
         return
-    
-    global auto_cache_enabled
-    
-    try:
-        # Переключаем состояние
-        new_state = toggle_auto_cache_reloader()
-        
-        if new_state:
-            status = "✅ ENABLED"
-            action = "started"
-            interval = getattr(Config, 'RELOAD_CACHE_EVERY', 4)
-            send_to_user(message, f"🔄 Auto Firebase cache reloading {action}!\n\n"
-                                f"📊 Status: {status}\n"
-                                f"⏰ Interval: Every {interval} hours\n"
-                                f"📝 Next reload: ~{interval} hours from now")
-            send_to_logger(message, f"Auto Firebase cache reloading {action} by admin.")
-        else:
-            status = "❌ DISABLED"
-            action = "stopped"
-            send_to_user(message, f"🛑 Auto Firebase cache reloading {action}!\n\n"
-                                f"📊 Status: {status}\n"
-                                f"💡 Use /auto_cache again to re-enable")
-            send_to_logger(message, f"Auto Firebase cache reloading {action} by admin.")
-            
-    except Exception as e:
-        send_to_user(message, f"❌ Error toggling auto cache: {str(e)}")
-        send_to_logger(message, f"Error toggling auto Firebase cache: {str(e)}")
 
+    new_state = toggle_auto_cache_reloader()
+    interval = getattr(Config, 'RELOAD_CACHE_EVERY', 4)
+
+    if new_state:
+        next_exec = get_next_reload_time(interval)
+        delta_min = int((next_exec - datetime.now()).total_seconds() // 60)
+        send_to_user(
+            message,
+            "🔄 Auto Firebase cache reloading started!\n\n"
+            f"📊 Status: ✅ ENABLED\n"
+            f"⏰ Schedule: every {interval} hours from 00:00\n"
+            f"🕒 Next reload: {next_exec.strftime('%H:%M')} (in {delta_min} minutes)"
+        )
+        send_to_logger(message, f"Auto reload started; next at {next_exec}")
+    else:
+        send_to_user(
+            message,
+            "🛑 Auto Firebase cache reloading stopped!\n\n"
+            "📊 Status: ❌ DISABLED\n"
+            "💡 Use /auto_cache again to re-enable"
+        )
+        send_to_logger(message, "Auto reload stopped by admin.")
+        
 
 @app.on_callback_query(filters.regex(r"^subs_lang_close\|"))
 def subs_lang_close_callback(app, callback_query):
@@ -2273,61 +2249,41 @@ def send_promo_message(app, message):
 # Getting the User Logs
 
 def get_user_log(app, message):
-    user_id = message.chat.id
-    if int(message.chat.id) in Config.ADMIN:
-        user_id = message.chat.id
-        if Config.GET_USER_LOGS_COMMAND in message.text:
-            user_id = message.text.split(Config.GET_USER_LOGS_COMMAND + " ")[1]
+    user_id = str(message.chat.id)
+    if int(message.chat.id) in Config.ADMIN and Config.GET_USER_LOGS_COMMAND in message.text:
+        user_id = message.text.split(Config.GET_USER_LOGS_COMMAND + " ")[1]
 
-    try:
-        db_data = db.child("bot").child("tgytdlp_bot").child("logs").child(user_id).get().each()
-        lst = [user.val() for user in db_data]
-        data = []
-        data_tg = []
-        least_10 = []
-
-        for l in lst:
-            ts = datetime.fromtimestamp(int(l["timestamp"]))
-            row = f"""{ts} | {l["ID"]} | {l["name"]} | {l["title"]} | {l["urls"]}"""
-            row_2 = f"""**{ts}** | `{l["ID"]}` | **{l["name"]}** | {l["title"]} | {l["urls"]}"""
-            data.append(row)
-            data_tg.append(row_2)
-        total = len(data_tg)
-        if total > 10:
-            for i in range(10):
-                info = data_tg[(total - 10) + i]
-                least_10.append(info)
-            least_10.sort(key=str.lower)
-            format_str = '\n \n'.join(least_10)
-        else:
-            data_tg.sort(key=str.lower)
-            format_str = '\n \n'.join(data_tg)
-        data.sort(key=str.lower)
-        now = datetime.fromtimestamp(math.floor(time.time()))
-        txt_format = f"Logs of {Config.BOT_NAME_FOR_USERS}\nUser: {user_id}\nTotal logs: {total}\nCurrent time: {now}\n \n" + \
-                     '\n'.join(data)
-
-        user_dir = os.path.join("users", str(message.chat.id))
-        create_directory(user_dir)
-        log_path = os.path.join(user_dir, "logs.txt")
-        with open(log_path, 'w', encoding="utf-8") as f:
-            f.write(str(txt_format))
-
-        # Вместо send_to_all отправляем с кнопкой Close
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚 Close", callback_data="userlogs_close|close")]
-        ])
-        app.send_message(
-            message.chat.id,
-            f"Total: **{total}**\n**{user_id}** - logs (Last 10):\n \n \n{format_str}",
-            reply_markup=keyboard
-        )
-        app.send_document(message.chat.id, log_path,
-                          caption=f"{user_id} - all logs")
-        app.send_document(Config.LOGS_ID, log_path,
-                          caption=f"{user_id} - all logs")
-    except:
+    logs_dict = get_from_local_cache(["bot", "tgytdlp_bot", "logs", user_id])
+    if not logs_dict:
         send_to_all(message, "**❌ User did not download any content yet...** Not exist in logs")
+        return
+
+    logs = list(logs_dict.values())
+    data, data_tg = [], []
+
+    for l in logs:
+        ts = datetime.fromtimestamp(int(l["timestamp"]))
+        row = f"{ts} | {l['ID']} | {l['name']} | {l['title']} | {l['urls']}"
+        row_2 = f"**{ts}** | `{l['ID']}` | **{l['name']}`** | {l['title']} | {l['urls']}"
+        data.append(row)
+        data_tg.append(row_2)
+
+    total = len(data_tg)
+    least_10 = sorted(data_tg[-10:], key=str.lower) if total > 10 else sorted(data_tg, key=str.lower)
+    format_str = "\n\n".join(least_10)
+    now = datetime.fromtimestamp(math.floor(time.time()))
+    txt_format = f"Logs of {Config.BOT_NAME_FOR_USERS}\nUser: {user_id}\nTotal logs: {total}\nCurrent time: {now}\n\n" + '\n'.join(sorted(data, key=str.lower))
+
+    user_dir = os.path.join("users", str(message.chat.id))
+    os.makedirs(user_dir, exist_ok=True)
+    log_path = os.path.join(user_dir, "logs.txt")
+    with open(log_path, 'w', encoding="utf-8") as f:
+        f.write(txt_format)
+
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔚 Close", callback_data="userlogs_close|close")]])
+    app.send_message(message.chat.id, f"Total: **{total}**\n**{user_id}** - logs (Last 10):\n\n{format_str}", reply_markup=keyboard)
+    app.send_document(message.chat.id, log_path, caption=f"{user_id} - all logs")
+    app.send_document(Config.LOGS_ID, log_path, caption=f"{user_id} - all logs")
 
 
 @app.on_callback_query(filters.regex(r"^userlogs_close\|"))
@@ -2346,59 +2302,45 @@ def userlogs_close_callback(app, callback_query):
 # Get All Kinds of Users (Users/ Blocked/ Unblocked)
 
 def get_user_details(app, message):
-    global path
-    command = message.text.split(Config.GET_USER_DETAILS_COMMAND)[1]
-    if command == "_blocked":
-        path = "blocked_users"
-    if command == "_unblocked":
-        path = "unblocked_users"
-    if command == "_users":
-        path = "users"
-    modified_lst = []
-    txt_lst = []
-    raw_data = db.child(
-        f"{Config.BOT_DB_PATH}/{path}").get().each()
-    data_users = [user.val() for user in raw_data]
-    for user in data_users:
+    command = message.text.split(Config.GET_USER_DETAILS_COMMAND)[1].strip()
+    path_map = {
+        "_blocked": "blocked_users",
+        "_unblocked": "unblocked_users",
+        "_users": "users"
+    }
+    path = path_map.get(command)
+    if not path:
+        send_to_all(message, "❌ Invalid command")
+        return
+
+    data_dict = get_from_local_cache([Config.BOT_DB_PATH, path])
+    if not data_dict:
+        send_to_all(message, f"❌ No data found in cache for `{path}`")
+        return
+
+    modified_lst, txt_lst = [], []
+    for user in data_dict.values():
         if user["ID"] != "0":
-            id = user["ID"]
             ts = datetime.fromtimestamp(int(user["timestamp"]))
-            txt_format = f"TS: {ts} | ID: {id}"
-            id = f"TS: **{ts}** | ID: `{id}`"
-            modified_lst.append(id)
-            txt_lst.append(txt_format)
+            txt_lst.append(f"TS: {ts} | ID: {user['ID']}")
+            modified_lst.append(f"TS: **{ts}** | ID: `{user['ID']}`")
 
     modified_lst.sort(key=str.lower)
     txt_lst.sort(key=str.lower)
-    no_of_users_to_display = 20
-    if len(modified_lst) <= no_of_users_to_display:
-        mod = f"__Total Users: {len(modified_lst)}__\nLast {str(no_of_users_to_display)} " + \
-              path + \
-              f":\n \n" + \
-              '\n'.join(modified_lst)
-    else:
-        temp = []
-        for j in range(no_of_users_to_display):
-            temp.append(modified_lst[((j + 1) * -1)])
-        temp.sort(key=str.lower)
-        mod = f"__Total Users: {len(modified_lst)}__\nLast {str(no_of_users_to_display)} " + \
-              path + \
-              f":\n \n" + '\n'.join(temp)
+    display_list = modified_lst[-20:] if len(modified_lst) > 20 else modified_lst
 
     now = datetime.fromtimestamp(math.floor(time.time()))
-    txt_format = f"{Config.BOT_NAME} {path}\nTotal {path}: {len(modified_lst)}\nCurrent time: {now}\n \n" + '\n'.join(
-        txt_lst)
-    file = path + '.txt'
+    txt_format = f"{Config.BOT_NAME} {path}\nTotal {path}: {len(modified_lst)}\nCurrent time: {now}\n\n" + '\n'.join(txt_lst)
+    mod = f"__Total Users: {len(modified_lst)}__\nLast 20 {path}:\n\n" + '\n'.join(display_list)
+
+    file = f"{path}.txt"
     with open(file, 'w', encoding="utf-8") as f:
-        f.write(str(txt_format))
+        f.write(txt_format)
+
     send_to_all(message, mod)
-    app.send_document(message.chat.id, "./" + file,
-                      caption=f"{Config.BOT_NAME} - all {path}")
-    app.send_document(Config.LOGS_ID, "./" + file,
-                      caption=f"{Config.BOT_NAME} - all {path}")
-
+    app.send_document(message.chat.id, f"./{file}", caption=f"{Config.BOT_NAME} - all {path}")
+    app.send_document(Config.LOGS_ID, f"./{file}", caption=f"{Config.BOT_NAME} - all {path}")
     logger.info(mod)
-
 
 # Block User
 
@@ -7521,7 +7463,7 @@ def get_url_hash(url: str) -> str:
 
 
 def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bool = False, original_text: str = None, user_id: int = None):
-    """Saves message IDs to cache for two YouTube link variants (long/short) at once."""
+    """Saves message IDs to Firebase video cache after checking local cache to avoid duplication."""
     found_type = None
     if user_id is not None:
         found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
@@ -7531,47 +7473,60 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
         if need_subs:
             logger.info("Video with subtitles is not cached!")
             return
-    logger.info(
-        f"save_to_video_cache called: url={url}, quality_key={quality_key}, message_ids={message_ids}, clear={clear}, original_text={original_text}")
+
+    logger.info(f"save_to_video_cache called: url={url}, quality_key={quality_key}, message_ids={message_ids}, clear={clear}, original_text={original_text}")
+
     if not quality_key:
         logger.warning(f"save_to_video_cache: quality_key is empty, skipping cache save for URL: {url}")
         return
-    # Check if this is a playlist with range - if so, skip cache
+
     if original_text and is_playlist_with_range(original_text):
         logger.info(f"Playlist with range detected, skipping cache save for URL: {url}")
         return
 
     try:
         urls = [normalize_url_for_cache(url)]
-        # If it's YouTube, add both options
         if is_youtube_url(url):
-            urls.append(normalize_url_for_cache(youtube_to_short_url(url)))
-            urls.append(normalize_url_for_cache(youtube_to_long_url(url)))
+            urls += [
+                normalize_url_for_cache(youtube_to_short_url(url)),
+                normalize_url_for_cache(youtube_to_long_url(url))
+            ]
+        
         logger.info(f"save_to_video_cache: normalized URLs: {urls}")
+
         for u in set(urls):
             url_hash = get_url_hash(u)
-            cache_ref = db.child(Config.VIDEO_CACHE_DB_PATH).child(url_hash)
+            path_parts = [Config.VIDEO_CACHE_DB_PATH, url_hash]
+
+            # === CLEAR MODE ===
             if clear:
-                cache_ref.child(quality_key).remove()
-                logger.info(f"Cache cleared for URL hash {url_hash}, quality {quality_key}")
+                logger.info(f"Clearing cache for URL hash {url_hash}, quality {quality_key}")
+                db.child(*path_parts).child(quality_key).remove()
                 continue
+
             if not message_ids:
                 logger.warning(f"save_to_video_cache: message_ids is empty for URL: {url}, quality: {quality_key}")
                 continue
-            
-            # Simplified logic for caching
+
+            # === LOCAL CACHE CHECK ===
+            existing = get_from_local_cache(path_parts + [quality_key])
+            if existing is not None:
+                logger.info(f"Cache already exists for URL hash {url_hash}, quality {quality_key}, skipping save.")
+                continue  # skip writing if already cached locally
+
+            cache_ref = db.child(*path_parts)
+
             if len(message_ids) == 1:
-                # Single video - we keep as it is
                 cache_ref.child(quality_key).set(str(message_ids[0]))
-                logger.info(f"Saved single video to cache for URL hash {url_hash}, quality {quality_key}, msg_id {message_ids[0]}")
+                logger.info(f"Saved single video to cache: hash={url_hash}, quality={quality_key}, msg_id={message_ids[0]}")
             else:
-                # SPLIT Video (multiple parts) - keep all the ID through a comma
                 ids_string = ",".join(map(str, message_ids))
                 cache_ref.child(quality_key).set(ids_string)
-                logger.info(f"Saved split video to cache for URL hash {url_hash}, quality {quality_key}, msg_ids {ids_string} ({len(message_ids)} parts)")
-    except Exception as e:
-        logger.error(f"Failed to save to cache: {e}")
+                logger.info(f"Saved split video to cache: hash={url_hash}, quality={quality_key}, msg_ids={ids_string}")
 
+    except Exception as e:
+        logger.error(f"Failed to save to video cache: {e}")
+        
 
 def get_cached_message_ids(url: str, quality_key: str) -> list:
     """Searches cache for both versions of YouTube link (long/short)."""
@@ -7791,45 +7746,56 @@ def save_to_playlist_cache(playlist_url: str, quality_key: str, video_indices: l
                            clear: bool = False, original_text: str = None):
     logger.info(
         f"save_to_playlist_cache called: playlist_url={playlist_url}, quality_key={quality_key}, video_indices={video_indices}, message_ids={message_ids}, clear={clear}")
+    
     if not quality_key:
-        logger.warning(
-            f"save_to_playlist_cache: quality_key is empty, skipping cache save for playlist: {playlist_url}")
+        logger.warning(f"quality_key is empty, skipping cache save for playlist: {playlist_url}")
         return
-    if not hasattr(Config,
-                   'PLAYLIST_CACHE_DB_PATH') or not Config.PLAYLIST_CACHE_DB_PATH or Config.PLAYLIST_CACHE_DB_PATH.strip() in (
-            '', '/', '.'):
-        logger.error(
-            f"save_to_playlist_cache: PLAYLIST_CACHE_DB_PATH is empty or invalid! Skipping cache write for playlist: {playlist_url}")
+
+    if not hasattr(Config, 'PLAYLIST_CACHE_DB_PATH') or not Config.PLAYLIST_CACHE_DB_PATH or Config.PLAYLIST_CACHE_DB_PATH.strip() in ('', '/', '.'):
+        logger.error(f"PLAYLIST_CACHE_DB_PATH is invalid, skipping write for: {playlist_url}")
         return
+
     try:
+        # Нормализуем URL (без диапазона) и формируем все варианты ссылок
         urls = [normalize_url_for_cache(strip_range_from_url(playlist_url))]
         if is_youtube_url(playlist_url):
-            urls.append(normalize_url_for_cache(strip_range_from_url(youtube_to_short_url(playlist_url))))
-            urls.append(normalize_url_for_cache(strip_range_from_url(youtube_to_long_url(playlist_url))))
-        logger.info(f"save_to_playlist_cache: normalized URLs: {urls}")
+            urls.extend([
+                normalize_url_for_cache(strip_range_from_url(youtube_to_short_url(playlist_url))),
+                normalize_url_for_cache(strip_range_from_url(youtube_to_long_url(playlist_url))),
+            ])
+        logger.info(f"Normalized playlist URLs: {urls}")
+
         for u in set(urls):
             url_hash = get_url_hash(u)
-            logger.info(f"save_to_playlist_cache: using URL hash: {url_hash}")
+            logger.info(f"Using playlist URL hash: {url_hash}")
+
             if clear:
-                # Delete the entire quality branch
                 db_child_by_path(db, f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}/{quality_key}").remove()
-                logger.info(f"Playlist cache cleared for URL hash {url_hash}, quality {quality_key}")
+                logger.info(f"Cleared playlist cache for hash={url_hash}, quality={quality_key}")
                 continue
+
             if not message_ids or not video_indices:
-                logger.warning(
-                    f"save_to_playlist_cache: message_ids or video_indices is empty for playlist: {playlist_url}, quality: {quality_key}")
+                logger.warning(f"message_ids or video_indices is empty for playlist: {playlist_url}, quality: {quality_key}")
                 continue
+
             for i, msg_id in zip(video_indices, message_ids):
-                cache_path = f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}/{quality_key}/{str(i)}"
-                logger.info(f"save_to_playlist_cache: saving to path: {cache_path}, msg_id: {msg_id}")
-                db_child_by_path(db, cache_path).set(str(msg_id))
-            logger.info(
-                f"Saved to playlist cache for URL hash {url_hash}, quality {quality_key}, indices: {video_indices}, msg_ids: {message_ids}")
+                path_parts = [Config.PLAYLIST_CACHE_DB_PATH, url_hash, quality_key, str(i)]
+                already_cached = get_from_local_cache(path_parts)
+
+                if already_cached:
+                    logger.info(f"Playlist part already cached: {path_parts}, skipping")
+                    continue
+
+                db_child_by_path(db, "/".join(path_parts)).set(str(msg_id))
+                logger.info(f"Saved to playlist cache: path={path_parts}, msg_id={msg_id}")
+
+        logger.info(f"✅ Saved to playlist cache for hash={url_hash}, quality={quality_key}, indices={video_indices}, message_ids={message_ids}")
+
     except Exception as e:
         logger.error(f"Failed to save to playlist cache: {e}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
-
+        
 
 def get_cached_playlist_videos(playlist_url: str, quality_key: str, requested_indices: list) -> dict:
     logger.info(
@@ -7929,7 +7895,7 @@ def strip_range_from_url(url: str) -> str:
 
 
 def db_child_by_path(db, path):
-    for part in path.split("/"):
+    for part in path.strip("/").split("/"):
         db = db.child(part)
     return db
 
