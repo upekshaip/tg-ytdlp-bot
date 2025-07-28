@@ -197,13 +197,13 @@ Usage example:
 The **/format** command allows users to set a custom download format for their videos. Users can either supply a custom format string or choose from a preset menu.
 
 **Main Menu Options:**
-- 💻<=4k (best for desktop TG app)
-- 📱<=FullHD (best for mobile TG app)
+- ❓ Always Ask (menu + buttons)
+- **🎛 Others (144p - 4320p)** – opens a full resolution menu (see below)
+- 💻4k (best for PC/Mac Telegram)
+- 📱FullHD (best for mobile Telegram)
 - 📈bestvideo+bestaudio (MAX quality)
-- 📉best (no ffmpeg)
-- **Others** – opens a full resolution menu (see below)
-- 🎚 custom – for entering a custom format string
-- 🔙 Cancel – cancels the selection
+- **🎚 Custom (enter your own)** – for entering a custom format string
+- 🔙 Close – cancels the selection
 
 **Full Resolution Menu (triggered by "Others"):**
 - 144p (256×144)
