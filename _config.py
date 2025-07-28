@@ -5,7 +5,7 @@ class Config(object):
     # Your bot name - Required (str)
     BOT_NAME = "NAME_YOUR_BOT"
     # A name for users - Required (str)
-    BOT_NAME_FOR_USERS = "tgytdlp_bot"
+    BOT_NAME_FOR_USERS = "tg-ytdlp-bot" #name in database
     # Add all admin id's as a list - Required (lst[int])
     ADMIN = [0000000000]
     # Add your telegram API ID - Required (int)
