@@ -3,9 +3,9 @@
 class Config(object):
     #######################################################    
     # Your bot name - Required (str)
-    BOT_NAME = "public"
+    BOT_NAME = "NAME_YOUR_BOT"
     # A name for users - Required (str)
-    BOT_NAME_FOR_USERS = "Video Downloader bot by upekshaip"
+    BOT_NAME_FOR_USERS = "tgytdlp_bot"
     # Add all admin id's as a list - Required (lst[int])
     ADMIN = [0000000000]
     # Add your telegram API ID - Required (int)
@@ -49,7 +49,7 @@ class Config(object):
     #######################################################
     # Firebase initialization
     # your firebase DB path
-    BOT_DB_PATH = f"bot/{BOT_NAME}/"
+    BOT_DB_PATH = f"bot/{BOT_NAME_FOR_USERS}/"
     VIDEO_CACHE_DB_PATH = f"bot/video_cache"
     PLAYLIST_CACHE_DB_PATH = f"bot/video_cache/playlists"
     # Firebase Config - Required (str for all)
