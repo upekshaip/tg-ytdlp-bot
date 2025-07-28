@@ -268,8 +268,22 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
     ]
     # Added CLEAN_QUERY array for domains where query and fragment can be safely cleared
     CLEAN_QUERY = [
-        'vk.com', 'vkvideo.ru', 'vkontakte.ru', 'tiktok.com', 'vimeo.com', 'twitch.tv', 'ig,me',
-        'instagram.com', 'dailymotion.com', 'twitter.com', 'x.com', 't.co', 'ok.ru', 'mail.ru'
+        'vk.com', 'vkvideo.ru', 'vkontakte.ru',
+        'tiktok.com', 'vimeo.com', 'twitch.tv',
+        'instagram.com', 'ig.me', 'dailymotion.com',
+        'twitter.com', 'x.com',
+        'ok.ru', 'mail.ru', 'my.mail.ru',
+        'rutube.ru', 'youku.com', 'bilibili.com',
+        'tv.kakao.com', 'tudou.com', 'coub.com',
+        'fb.watch', '9gag.com', 'streamable.com',
+        'veoh.com', 'archive.org', 'ted.com',
+        'mediasetplay.mediaset.it', 'ndr.de', 'zdf.de', 'arte.tv',
+        'video.yandex.ru', 'video.sibnet.ru', 'pladform.ru', 'pikabu.ru',
+        'redtube.com', 'youporn.com', 'xhamster.com',
+        'spankbang.com', 'xnxx.com', 'xvideos.com',
+        'bitchute.com', 'rumble.com', 'peertube.tv',
+        'aparat.com', 'nicovideo.jp', 
+        'disk.yandex.net', 'streaming.disk.yandex.net',
         # Add here other domains where query and fragment are not needed for video uniqueness
     ]
     # Version 1.0.0 - Добавлен SAVE_AS_COOKIE_HINT для подсказки по /save_as_cookie
