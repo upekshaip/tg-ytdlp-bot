@@ -29,4 +29,6 @@ unblock_user - Unblock user
 all_users - Get all users
 all_blocked - Get all blocked users
 all_unblocked - Get all unblocked users
-uncache - Clear cached subtitle language data.
+uncache - Clear cached subtitle language data
+reload_cache - Reload cache from firebase to local json file
+auto_cache - Toggle turn ON/OFF mode of auto reloading of cache every N hours. 
