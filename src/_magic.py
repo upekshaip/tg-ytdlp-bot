@@ -39,7 +39,7 @@ from pyrogram.types import (
 from yt_dlp import YoutubeDL
 import yt_dlp
 
-from config._config import Config
+from config.config import Config
 
 import chardet
 
@@ -67,7 +67,8 @@ def load_firebase_cache():
         firebase_cache = {}
 
 def reload_firebase_cache():
-    """Перезагружает локальный кэш Firebase из JSON файла"""
+    """Перезагружает локальный кэш Firebase из JSON файла
+    en: Reloads the local Firebase cache from a JSON file."""
     global firebase_cache
     try:
         cache_file = getattr(Config, 'FIREBASE_CACHE_FILE', 'firebase_cache.json')
@@ -88,6 +89,8 @@ def get_next_reload_time(interval_hours: int) -> datetime:
     """
     Возвращает datetime следующей точки перезагрузки,
     выровненной по N-часовому шагу от 00:00.
+    en: Returns the datetime of the next reload time,
+    aligned to the N-hour step from midnight.
     """
     now = datetime.now()
     # Сегодняшняя граница “полночь”
@@ -100,7 +103,8 @@ def get_next_reload_time(interval_hours: int) -> datetime:
     return midnight + timedelta(seconds=(intervals_passed + 1) * interval_seconds)
 
 def auto_reload_firebase_cache():
-    """Поток, который каждые N часов перезагружает локальный кэш."""
+    """Поток, который каждые N часов перезагружает локальный кэш.
+    en: Thread that reloads the local Firebase cache every N hours."""
     global auto_cache_enabled
 
     interval_hours = getattr(Config, 'RELOAD_CACHE_EVERY', 4)
@@ -134,7 +138,10 @@ def auto_reload_firebase_cache():
             import traceback; traceback.print_exc()
 
 def start_auto_cache_reloader():
-    """Стартует поток авто‑перезагрузки."""
+    """Стартует поток авто‑перезагрузки.
+    en: Starts the auto-reload thread.
+    """
+
     global auto_cache_thread, auto_cache_enabled
     if auto_cache_enabled and auto_cache_thread is None:
         auto_cache_thread = threading.Thread(
@@ -149,7 +156,8 @@ def start_auto_cache_reloader():
     return auto_cache_thread
 
 def stop_auto_cache_reloader():
-    """Останавливает поток авто‑перезагрузки."""
+    """Останавливает поток авто‑перезагрузки.
+    en: Stops the auto-reload thread."""
     global auto_cache_enabled, auto_cache_thread
     auto_cache_enabled = False
     if auto_cache_thread and auto_cache_thread.is_alive():
@@ -157,7 +165,8 @@ def stop_auto_cache_reloader():
     auto_cache_thread = None
 
 def toggle_auto_cache_reloader():
-    """Переключает режим авто‑перезагрузки."""
+    """Переключает режим авто‑перезагрузки.
+    en: Toggles the auto-reload mode."""
     global auto_cache_enabled
     auto_cache_enabled = not auto_cache_enabled
     if auto_cache_enabled:
@@ -173,6 +182,8 @@ def get_from_local_cache(path_parts):
     """
     Получает данные из локального кэша по пути, разделенному на части
     Например: get_from_local_cache(['bot', 'video_cache', 'hash123', '720p'])
+    en: Gets data from the local cache by path split into parts.
+
     """
     global firebase_cache
     current = firebase_cache
@@ -199,6 +210,8 @@ def ensure_utf8_srt(srt_path):
     """
     УЛЬТИМАТИВНАЯ функция для исправления любых кодировок и кракозябр.
     Принудительно перекодирует файл в UTF-8, пробуя все возможные кодировки.
+    en: Ultimate function to fix any encoding issues and garbled text.
+    Forcefully re-encodes the file to UTF-8, trying all possible encodings.
     """
     import chardet
     
