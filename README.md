@@ -447,3 +447,20 @@ To restrict access to your database only to authenticated users, update your sec
 ```
 
 These rules allow read and write operations only if the request contains a valid `idToken`—meaning the user is authenticated.
+
+### 5. Autostart service
+
+To create auto-start service for this bot - copy text from this file https://github.com/chelaxian/tg-ytdlp-bot/blob/main/etc/systemd/system/tg-ytdlp-bot.service and paste it to 
+```bash
+/etc/systemd/system/tg-ytdlp-bot.service
+```
+do not forget to change path in service to yoyr actual path
+
+reload systemctl and enable/start service
+```bash
+systemctl daemon-reexec
+systemctl daemon-reload
+systemctl enable tg-ytdlp-bot.service
+systemctl restart tg-ytdlp-bot.service
+journalctl -u tg-ytdlp-bot -f
+```
