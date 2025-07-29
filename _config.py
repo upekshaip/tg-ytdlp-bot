@@ -139,8 +139,8 @@ To download playlists send its URL with <code>*start*end</code> ranges in the en
 🟧 <b>Pornhub models:</b>
 <code>https://www.pornhub.org/model/MODEL_NAME*1*2</code>
 (downloads first 2 video from model profile)
-<code>https://www.pornhub.com/video/search?search=YOUR_PROMPT*1*3</code>
-(downloads first 3 video from search results by your prompt)
+<code>https://www.pornhub.com/video/search?search=YOUR+SEARCH+PROMPT*1*3</code>
+(downloads first 3 video from search results by your+search+prompt)
 
 and so on...
 see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/supportedsites.md">supported sites list</a>
