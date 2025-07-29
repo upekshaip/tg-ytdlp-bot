@@ -1,5 +1,6 @@
 # Version 3.1.0 # save firebase-cache localy to prevent exceeding no-cost limits on google firebase
 import glob
+from sdnotify import SystemdNotifier
 from datetime import datetime, timedelta
 import hashlib
 import io
@@ -42,6 +43,32 @@ import yt_dlp
 from config import Config
 
 import chardet
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('bot.log')
+    ]
+)
+logger = logging.getLogger(__name__)
+
+notifier = SystemdNotifier()
+
+def watchdog_loop():
+    while True:
+        notifier.notify("WATCHDOG=1")
+        logger.info("[Watchdog] Sent WATCHDOG=1")
+        time.sleep(30)  # Frequency is less than WatchdogSec
+
+# Start watchdog thread
+threading.Thread(target=watchdog_loop, daemon=True).start()
+
+# At the beginning of initialization
+notifier.notify("READY=1")
+logger.info("[Watchdog] Sent READY=1")
 
 # Global variable for local cache Firebase
 firebase_cache = {}
@@ -1162,18 +1189,6 @@ def is_playlist_with_range(text: str) -> bool:
     # Look for patterns like *1*3, 1*1000, *5*10, or just * for full playlist
     range_pattern = r'\*[0-9]+\*[0-9]+|[0-9]+\*[0-9]+|\*'
     return bool(re.search(range_pattern, text))
-
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('bot.log')
-    ]
-)
-logger = logging.getLogger(__name__)
 
 # ###############################################################################################
 # Global starting point list (do not modify)
