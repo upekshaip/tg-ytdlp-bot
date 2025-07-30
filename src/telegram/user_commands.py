@@ -5,13 +5,14 @@ from helpers.process import Process
 from language.languages import Languages as Lang
 from language.language_handler import LanguageHandler
 from config.config import Config
-
+from telegram.keyboards import TelegramKeyboards
 
 class TelegramUserCommands:
     """A class to handle only user commands in the Telegram bot."""
     def __init__(self, app: Client):
         self.app = app
         self.process = Process(app)
+        self.keyboards = TelegramKeyboards()
 
     async def check_commands(self, message: Message):
         lang = LanguageHandler().check_language(message)
@@ -26,3 +27,6 @@ class TelegramUserCommands:
         elif message.text.startswith(Config.HELP_COMMAND):
             await self.app.send_message(user_id, Lang.HELP_MESSAGE[lang])
         
+        # Language command
+        elif message.text.startswith(Config.LANGUAGE_COMMAND):
+            await self.app.send_message(user_id, Lang.LANGUAGE_MESSAGE[lang], reply_markup=self.keyboards.language_selection_keyboard())

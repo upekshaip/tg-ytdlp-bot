@@ -2,6 +2,7 @@ from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery
 from telegram.user_commands import TelegramUserCommands
 from telegram.admin_commands import TelegramAdminCommands
+from telegram.callbacks import TelegramCallbacks
 from config.config import Config
 
 class MessageHandler:
@@ -9,6 +10,7 @@ class MessageHandler:
         self.app = app
         self.user_commands = TelegramUserCommands(app)
         self.admin_commands = TelegramAdminCommands(app)
+        self.callbacks = TelegramCallbacks(app)
     
     
     def register_handlers(self):
@@ -34,4 +36,4 @@ class MessageHandler:
         # Callback Query (admins and users)
         @self.app.on_callback_query()
         async def handle_callback(client: Client, query: CallbackQuery):
-            pass  # Add logic
+            await self.callbacks.check_callbacks(query)

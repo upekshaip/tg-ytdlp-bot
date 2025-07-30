@@ -3,7 +3,7 @@ git+https://github.com/KurimuzonAkuma/pyrogram.git#egg=kurigram
 urllib3==1.26.20
 requests<3,>=2.8.1
 Pyrebase4==4.8.0
-TgCrypto>=1.2.5
+TgCrypto
 #yt-dlp>=2023.10.13
 yt-dlp[default,curl-cffi]
 ffmpeg

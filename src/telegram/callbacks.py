@@ -11,9 +11,11 @@ class TelegramCallbacks:
     def __init__(self, app: Client):
         self.app = app
         self.process = Process(app)
+        self.language_handler = LanguageHandler()
+
 
     async def check_callbacks(self, query: CallbackQuery):
-        lang = LanguageHandler().check_language(query)
+        lang = self.language_handler.check_language(query)
         user_id = query.from_user.id
 
         if query.data.startswith(Config.START_COMMAND):
@@ -21,3 +23,6 @@ class TelegramCallbacks:
 
         elif query.data.startswith(Config.HELP_COMMAND):
             await self.app.send_message(user_id, Lang.WELCOME_MESSAGE[lang])
+
+        elif query.data.startswith("lang_"):
+            await self.language_handler.update_language(user_id, query.data.split("_")[1], query)

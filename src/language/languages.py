@@ -6,6 +6,24 @@ class Languages(object):
     """
     LANGUAGES = ["en", "es", "pt-br", "de", "ru", "uk"]
 
+    LANGUAGE_MESSAGE = {
+        "en": "🌐 Please select your language:",
+        "es": "🌐 Por favor, selecciona tu idioma:",
+        "pt-br": "🌐 Por favor, selecione seu idioma:",
+        "de": "🌐 Bitte wähle deine Sprache:",
+        "ru": "🌐 Пожалуйста, выберите ваш язык:",
+        "uk": "🌐 Будь ласка, виберіть вашу мову:"
+    }
+    
+    LANGUAGE_SELECTED_MESSAGE = {
+        "en": "Language selected:",
+        "es": "Idioma seleccionado:",
+        "pt-br": "Idioma selecionado:",
+        "de": "Sprache ausgewählt:",
+        "ru": "Язык выбран:",
+        "uk": "Мову вибрано:"
+    }
+
     
     # Yes and No
     YES = {
