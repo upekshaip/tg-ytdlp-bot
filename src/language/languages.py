@@ -24,6 +24,24 @@ class Languages(object):
         "uk": "Мову вибрано:"
     }
 
+    PROCESSING_MESSAGE = {
+        "en": "⏳ Please wait. Processing your video...",
+        "es": "⏳ Por favor, espera. Procesando tu video...",
+        "pt-br": "⏳ Por favor, aguarde. Processando seu vídeo...",
+        "de": "⏳ Bitte warten. Verarbeite dein Video...",
+        "ru": "⏳ Пожалуйста, подождите. Обработка вашего видео...",
+        "uk": "⏳ Будь ласка, зачекайте. Обробка вашого відео..."
+    }
+
+    VIDEO_FORMATS_MESSAGE = {
+        "en": "📹 Available video formats:",
+        "es": "📹 Formatos de video disponibles:",
+        "pt-br": "📹 Formatos de vídeo disponíveis:",
+        "de": "📹 Verfügbare Videoformate:",
+        "ru": "📹 Доступные форматы видео:",
+        "uk": "📹 Доступні формати відео:"
+    }
+
     
     # Yes and No
     YES = {

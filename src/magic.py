@@ -1,9 +1,5 @@
 from config.config import Config
-from pyrogram import Client, filters, enums
-import asyncio
-from language.languages import Languages as Lang
-# from pyrogram.types import Message, CallbackQuery
-# from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from pyrogram import Client
 from telegram.message_handler import MessageHandler
 
 app = Client(

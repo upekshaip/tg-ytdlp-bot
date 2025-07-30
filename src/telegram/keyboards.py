@@ -29,3 +29,22 @@ class TelegramKeyboards:
             [InlineKeyboardButton("🌐 Auto Detect", callback_data=f"lang_auto")]
         ])
         return keybord
+    
+    def video_format_keyboard(self, formats, url_id):
+        buttons = []
+        for fmt in formats:
+            format_id = fmt.get("format_id", "unknown")
+            ext = fmt.get("ext", "unknown")
+            height = fmt.get("height", "unknown")
+            width = fmt.get("width", "unknown")
+            fps = fmt.get("fps", "unknown")
+            filesize = fmt.get("filesize", "unknown")
+            format_note = fmt.get("format_note", "")
+
+            button_text = f"{height}p {fps}fps"
+            buttons.append(InlineKeyboardButton(button_text, callback_data=f"vid_{url_id}_{format_id}"))
+
+        # Group buttons into rows of 3
+        keyboard_rows = [buttons[i:i+3] for i in range(0, len(buttons), 3)]
+        keyboard = InlineKeyboardMarkup(keyboard_rows)
+        return keyboard
