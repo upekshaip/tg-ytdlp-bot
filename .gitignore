@@ -15,3 +15,4 @@ src/config.py
 .vscode
 __pycache__
 env
+*.log
