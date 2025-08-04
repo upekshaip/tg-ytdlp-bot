@@ -5,7 +5,8 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/root/Telegram/tg-ytdlp-bot
+#WorkingDirectory=/root/Telegram/tg-ytdlp-bot #example
+WorkingDirectory=/PATH/TO/YOUR/FOLDER/tg-ytdlp-bot
 
 # Run inside bash with virtual environment activated
 #ExecStart=/root/Telegram/tg-ytdlp-bot/venv/bin/python3 /root/Telegram/tg-ytdlp-bot/magic.py #example
