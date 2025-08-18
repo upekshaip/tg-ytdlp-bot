@@ -288,10 +288,6 @@ systemctl restart tg-ytdlp-bot
 journalctl -u tg-ytdlp-bot -f
 ```
 
-Notes:
-- The restore tool also recognizes legacy backup files with seconds (`.backup_YYYYMMDD_HHMMSS`) and groups them by minute.
-- Existing files will be overwritten by restored versions; missing directories will be created automatically.
-
 ## Link Command Pattern Spec
 
 - **`https://example.com`** \
