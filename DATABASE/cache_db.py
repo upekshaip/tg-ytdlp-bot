@@ -28,6 +28,7 @@ reload_interval_hours = getattr(Config, 'RELOAD_CACHE_EVERY', 4)
 _thread_lock = threading.RLock()
 
 ###################################################
+
 def get_from_local_cache(path_parts):
     """
     Receives data from a local cache along the way, divided into parts
@@ -45,6 +46,18 @@ def get_from_local_cache(path_parts):
     log_firebase_access_attempt(path_parts, success=True)
     return current
 
+def log_firebase_access_attempt(path_parts, success=True):
+    """
+    Logs attempts to turn to a local cache (to track the remaining .get () calls)
+    """
+    # Show the path in JSON format for local cache
+    path_str = ' -> '.join(path_parts)  # For example: "bot -> video_cache -> playlists -> url_hash -> quality"
+    status = "SUCCESS" if success else "MISS"
+    try:
+        logger.info(f"Firebase local-cache access: {path_str} -> {status}")
+    except Exception:
+        # Fallback to stdout if logger is not usable for any reason during early init
+        print(f"Firebase local-cache access: {path_str} -> {status}")
 
 def load_firebase_cache():
     """Load local Firebase cache from JSON file."""
