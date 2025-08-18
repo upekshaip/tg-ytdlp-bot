@@ -110,22 +110,58 @@ def restore_backup(indices: Dict[str, BackupIndex], ts: str) -> Tuple[int, int]:
 def curses_menu(stdscr, items: List[BackupIndex]) -> int:
     curses.curs_set(0)
     current_row = 0
+    scroll = 0
     while True:
         stdscr.clear()
-        stdscr.addstr(0, 0, "Select a backup to restore (Arrow keys to navigate, Enter to select, q to quit)")
-        for idx, bi in enumerate(items):
+        h, w = stdscr.getmaxyx()
+        # Minimal size check
+        if h < 5 or w < 30:
+            msg = "Terminal too small. Resize and press any key..."
+            stdscr.addstr(0, 0, msg[: max(0, w - 1)])
+            stdscr.refresh()
+            stdscr.getch()
+            continue
+        # Title
+        title = "Select a backup to restore (Arrow keys: navigate, Enter: select, q: quit)"
+        stdscr.addstr(0, 0, title[: max(0, w - 1)])
+        # Compute visible window for items
+        max_rows = h - 3  # rows available for list
+        # Ensure current_row is within [scroll, scroll + max_rows)
+        if current_row < scroll:
+            scroll = current_row
+        elif current_row >= scroll + max_rows:
+            scroll = current_row - max_rows + 1
+        start = max(0, scroll)
+        end = min(len(items), start + max_rows)
+        # Draw items within window
+        for vis_idx, idx in enumerate(range(start, end)):
+            bi = items[idx]
             label = f"[{bi.human}]  files: {bi.count()}  (id: {bi.ts})"
+            line_y = vis_idx + 2
+            line_x = 2
+            text = label[: max(0, w - line_x - 1)]
             if idx == current_row:
                 stdscr.attron(curses.A_REVERSE)
-                stdscr.addstr(idx + 2, 2, label)
+                stdscr.addstr(line_y, line_x, text)
                 stdscr.attroff(curses.A_REVERSE)
             else:
-                stdscr.addstr(idx + 2, 2, label)
+                stdscr.addstr(line_y, line_x, text)
+        # Footer / hint
+        footer = f"Items: {len(items)}  Selected: {current_row + 1 if items else 0}/{len(items)}"
+        stdscr.addstr(h - 1, 0, footer[: max(0, w - 1)])
+        stdscr.refresh()
+        # Keys
         key = stdscr.getch()
         if key in (curses.KEY_UP, ord('k')):
-            current_row = (current_row - 1) % len(items)
+            if items:
+                current_row = (current_row - 1) % len(items)
         elif key in (curses.KEY_DOWN, ord('j')):
-            current_row = (current_row + 1) % len(items)
+            if items:
+                current_row = (current_row + 1) % len(items)
+        elif key in (curses.KEY_PPAGE,):  # Page Up
+            current_row = max(0, current_row - max_rows)
+        elif key in (curses.KEY_NPAGE,):  # Page Down
+            current_row = min(len(items) - 1, current_row + max_rows)
         elif key in (curses.KEY_ENTER, 10, 13):
             return current_row
         elif key in (ord('q'), ord('Q')):
