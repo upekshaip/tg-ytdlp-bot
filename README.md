@@ -104,6 +104,9 @@ If you need to support extra languages such as arabic, chinese, japanese, korean
    sudo apt install fonts-noto-extra            # – extra fonts (including arabic)
    sudo apt install fonts-kacst fonts-kacst-one # – KACST arabic fonts
    sudo apt install fonts-noto-cjk              # – Chinese-Japanese-Korean characters
+   sudo apt install fonts-indic                 # – extra indian fonts
+
+   sudo apt install fonts-noto-color-emoji fontconfig libass9
    ```
 
    For Amiri arabic:
