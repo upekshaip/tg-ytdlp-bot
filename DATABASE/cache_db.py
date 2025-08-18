@@ -146,40 +146,56 @@ def auto_reload_firebase_cache():
             # Interval changed; recompute loop without running job
             continue
         # Run the refresh by triggering /reload_cache command as admin
-        try:
-            print("🔄 Triggering /reload_cache as admin...")
-            # Get first admin ID
-            admin_id = Config.ADMIN[0] if isinstance(Config.ADMIN, (list, tuple)) else Config.ADMIN
-            print(f"🔄 Triggering /reload_cache as admin (user_id={admin_id})")
-            
-            # Create fake message and run command
-            from types import SimpleNamespace
-            msg = SimpleNamespace()
-            msg.chat = SimpleNamespace()
-            msg.chat.id = admin_id
-            msg.chat.first_name = "Admin"
-            msg.text = "/reload_cache"
-            msg.first_name = msg.chat.first_name
-            msg.reply_to_message = None
-            msg.id = 0
-            msg.from_user = SimpleNamespace()
-            msg.from_user.id = admin_id
-            msg.from_user.first_name = msg.chat.first_name
-            
-            # Import and run the command handler
-            from COMMANDS.admin_cmd import reload_firebase_cache_command
-            reload_firebase_cache_command(get_app(), msg)
-            
-            print("✅ Auto /reload_cache command executed successfully!")
-        except Exception as e:
-            print(f"❌ Error running auto reload_cache: {e}")
-            import traceback; traceback.print_exc()
+        max_retries = 3
+        retry_delay = 60  # 1 minute between retries
+        
+        for attempt in range(max_retries):
+            try:
+                print(f"🔄 Triggering /reload_cache as admin (attempt {attempt + 1}/{max_retries})...")
+                # Get first admin ID
+                admin_id = Config.ADMIN[0] if isinstance(Config.ADMIN, (list, tuple)) else Config.ADMIN
+                print(f"🔄 Triggering /reload_cache as admin (user_id={admin_id})")
+                
+                # Create fake message and run command
+                from types import SimpleNamespace
+                msg = SimpleNamespace()
+                msg.chat = SimpleNamespace()
+                msg.chat.id = admin_id
+                msg.chat.first_name = "Admin"
+                msg.text = "/reload_cache"
+                msg.first_name = msg.chat.first_name
+                msg.reply_to_message = None
+                msg.id = 0
+                msg.from_user = SimpleNamespace()
+                msg.from_user.id = admin_id
+                msg.from_user.first_name = msg.chat.first_name
+                
+                # Import and run the command handler
+                from COMMANDS.admin_cmd import reload_firebase_cache_command
+                reload_firebase_cache_command(get_app(), msg)
+                
+                print("✅ Auto /reload_cache command executed successfully!")
+                break  # Success, exit retry loop
+                
+            except Exception as e:
+                print(f"❌ Error running auto reload_cache (attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    print(f"⏳ Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                else:
+                    print("❌ All retry attempts failed")
+                    import traceback; traceback.print_exc()
 
 def start_auto_cache_reloader():
     """Start the auto-reload background thread (idempotent)."""
     global auto_cache_thread, auto_cache_enabled
     with _thread_lock:
-        if auto_cache_enabled and (auto_cache_thread is None or not auto_cache_thread.is_alive()):
+        # Check if thread is already running
+        if auto_cache_thread is not None and auto_cache_thread.is_alive():
+            print("🔄 Auto Firebase cache reloader is already running")
+            return auto_cache_thread
+            
+        if auto_cache_enabled:
             auto_cache_thread = threading.Thread(
                 target=auto_reload_firebase_cache,
                 daemon=True
@@ -267,9 +283,7 @@ def set_reload_interval_hours(new_hours: int) -> bool:
         if running:
             stop_auto_cache_reloader()
             # preserve enabled state and start again
-            auto_cache_enabled_flag = True
-            # set enabled back to True and start
-            globals()['auto_cache_enabled'] = True
+            auto_cache_enabled = True
             start_auto_cache_reloader()
     return True
 
