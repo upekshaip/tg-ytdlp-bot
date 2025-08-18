@@ -69,9 +69,6 @@ Edit your configuration before deployment.
 python3 -m venv venv
 source venv/bin/activate
 pip install --no-cache-dir -r requirements.txt
-pip uninstall urllib3 -y
-pip install --no-cache-dir --force-reinstall "urllib3==1.26.20"
-pip install --no-deps moviepy==1.0.3
 ```
 ---
 ### Installing ffmpeg (example for Ubuntu/Debian)
