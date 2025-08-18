@@ -14,8 +14,9 @@ from datetime import datetime
 
 # Configuration
 REPO_URL = "https://github.com/chelaxian/tg-ytdlp-bot.git"
+# Use explicit branch
 BRANCH = "newdesign"
-#BRANCH = "main"
+# BRANCH = "main"
 
 # Files and directories that MUST NOT be updated
 EXCLUDED_FILES = [
@@ -29,6 +30,8 @@ EXCLUDED_FILES = [
     "magic.session-journal",  # Session journal
     "dump.json",         # Firebase dump
     "script.sh",         # Script for updating porn lists
+    #"update_from_repo.py",  # Do not overwrite the updater itself
+    #"update.sh",             # Do not overwrite the update shell script
 ]
 
 EXCLUDED_DIRS = [
