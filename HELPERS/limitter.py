@@ -183,7 +183,7 @@ def check_playlist_range_limits(url, video_start_with, video_end_with, app, mess
         app.send_message(
             message.chat.id,
             f"❗️ Range limit exceeded for {service}: {count} (maximum {max_count}).\nReduce the range and try again.",
-            reply_to_message_id=getattr(message, 'id', None)
+            reply_to_message_id=message.id
         )
         # We send a notification to the log channel
         app.send_message(

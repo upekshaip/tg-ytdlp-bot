@@ -4,6 +4,7 @@ import time
 import logging
 from types import SimpleNamespace
 from HELPERS.app_instance import get_app
+from pyrogram.types import ReplyParameters
 
 # Configure local logger
 logger = logging.getLogger(__name__)
@@ -33,10 +34,14 @@ def fake_message(text, user_id, command=None):
 
 # Helper function for safe message sending with flood wait handling
 def safe_send_message(chat_id, text, **kwargs):
-    # Add reply_to_message_id if message is passed
-    if 'reply_to_message_id' not in kwargs and 'message' in kwargs:
-        kwargs['reply_to_message_id'] = kwargs['message'].id
-        del kwargs['message']
+    # Normalize reply parameters
+    if 'reply_parameters' not in kwargs:
+        if 'reply_to_message_id' in kwargs and kwargs['reply_to_message_id'] is not None:
+            kwargs['reply_parameters'] = ReplyParameters(message_id=kwargs['reply_to_message_id'])
+            del kwargs['reply_to_message_id']
+        elif 'message' in kwargs and getattr(kwargs['message'], 'id', None) is not None:
+            kwargs['reply_parameters'] = ReplyParameters(message_id=kwargs['message'].id)
+            del kwargs['message']
     max_retries = 3
     retry_delay = 5
     for attempt in range(max_retries):

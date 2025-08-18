@@ -2,13 +2,13 @@
 # Command to Set Browser Cooks
 from pyrogram import filters
 from CONFIG.config import Config
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 
 from HELPERS.app_instance import get_app
 
 from HELPERS.decorators import reply_with_keyboard
 from HELPERS.limitter import is_user_in_channel
-from HELPERS.logger import send_to_logger, logger, send_to_user
+from HELPERS.logger import send_to_logger, logger, send_to_user, send_to_all
 from HELPERS.filesystem_hlp import create_directory
 import subprocess
 import os
@@ -214,7 +214,7 @@ def download_cookie_callback(app, callback_query):
         app.send_message(
             callback_query.message.chat.id,
             Config.SAVE_AS_COOKIE_HINT,
-            reply_to_message_id=callback_query.message.id if hasattr(callback_query.message, 'id') else None,
+            reply_parameters=ReplyParameters(message_id=callback_query.message.id if hasattr(callback_query.message, 'id') else None),
             reply_markup=keyboard
         )
     elif data == "close":
@@ -293,7 +293,7 @@ Cookie files will be saved as cookie.txt in your folder.
         chat_id=user_id,
         text=text,
         reply_markup=keyboard,
-        reply_to_message_id=message.id
+        reply_parameters=ReplyParameters(message_id=message.id)
     )
 
 

@@ -3,6 +3,8 @@ import yt_dlp
 import requests
 import time
 import re
+import random
+import json
 from HELPERS.app_instance import get_app
 from HELPERS.filesystem_hlp import create_directory
 from HELPERS.decorators import reply_with_keyboard
@@ -13,7 +15,7 @@ from DOWN_AND_UP.yt_dlp_hook import get_video_formats
 from URL_PARSERS.youtube import is_youtube_url
 import math
 from pyrogram import filters, enums
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 from CONFIG.config import Config
 import os
 
@@ -988,7 +990,7 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
             # return
         
         # Send message about download start
-        status_msg = app.send_message(user_id, "💬 Downloading subtitles...", reply_to_message_id=message.id)
+        status_msg = app.send_message(user_id, "💬 Downloading subtitles...", reply_parameters=ReplyParameters(message_id=message.id))
         
         # Download subtitles
         subs_path = download_subtitles_ytdlp(url, user_id, user_dir, available_langs)
@@ -1021,7 +1023,7 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
                     chat_id=user_id,
                     document=subs_path,
                     caption=caption,
-                    reply_to_message_id=message.id,
+                    reply_parameters=ReplyParameters(message_id=message.id),
                     parse_mode=enums.ParseMode.HTML
                 )
                 # We send this message to the log channel

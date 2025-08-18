@@ -29,6 +29,36 @@ _thread_lock = threading.RLock()
 
 ###################################################
 
+def get_from_local_cache(path_parts):
+    """
+    Safely read a value from the in-memory firebase_cache by path parts.
+    Example: ["bot", "video_cache", url_hash, "best"]
+    Returns the nested value or None if any part is missing.
+    """
+    try:
+        node = firebase_cache
+        for part in path_parts:
+            if isinstance(node, dict):
+                node = node.get(part)
+            elif isinstance(node, list):
+                # Allow numeric indexing for list nodes
+                try:
+                    idx = int(part)
+                except Exception:
+                    return None
+                if 0 <= idx < len(node):
+                    node = node[idx]
+                else:
+                    return None
+            else:
+                return None
+            if node is None:
+                return None
+        return node
+    except Exception as e:
+        logger.error(f"get_from_local_cache error: {e}")
+        return None
+
 def load_firebase_cache():
     """Load local Firebase cache from JSON file."""
     global firebase_cache

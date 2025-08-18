@@ -222,6 +222,14 @@ The bot maintains a local JSON cache (dump) of Firebase data. A background reloa
   - The value is also persisted to `CONFIG/config.py` by updating `RELOAD_CACHE_EVERY = N`
   - The background thread is safely restarted so the new interval takes effect right away
 
+<<<<<<< HEAD
+=======
+Your current default interval comes from `CONFIG/config.py`:
+```python
+RELOAD_CACHE_EVERY = 24  # in hours
+```
+
+>>>>>>> 6e6b9b0 (update project)
 ---
 
 ## Updating the bot (updater scripts)
@@ -233,6 +241,12 @@ You can update only Python files from the `main` branch of `chelaxian/tg-ytdlp-b
 - Make backups of changed files with suffix `.backup_YYYYMMDD_HHMM` and move them into `_backup/` (original structure preserved)
 - Ask for confirmation before applying changes
 
+<<<<<<< HEAD
+=======
+### Requirements
+- Git and Python 3 must be installed
+
+>>>>>>> 6e6b9b0 (update project)
 ### One-command update (recommended)
 ```bash
 ./update.sh
@@ -295,6 +309,7 @@ Notes:
 
 ## Link Command Pattern Spec
 
+<<<<<<< HEAD
 - **`https://example.com`** \
   Download the video with its original name. \
   If it is a playlist, only the first video is downloaded. 
@@ -303,6 +318,16 @@ Notes:
   Download a specified range of videos from the playlist with their original names. 
 
 - **`https://example.com*1*3*name`**  \
+=======
+- **`https://blabla.blaa`** \
+  Download the video with its original name. \
+  If it is a playlist, only the first video is downloaded. 
+
+- **`https://blabla.blaa*1*3`**  \
+  Download a specified range of videos from the playlist with their original names. 
+
+- **`https://blabla.blaa*1*3*name`**  \
+>>>>>>> 6e6b9b0 (update project)
   Download a specified range of videos from the playlist with a custom name. \
   Videos will be named as: 
   - `name - Part 1` 
@@ -347,6 +372,27 @@ Response:
 ```
 ---
 
+<<<<<<< HEAD
+=======
+## Auto-Cleaning User Directories with Crontab
+
+To prevent your server from filling up with downloaded files, you can set up a crontab task that runs every 24 hours and deletes all files in user directories (except for `cookie.txt` and `logs.txt`).
+
+For example, add the following line to your crontab:
+
+```bash
+0 0 * * * /usr/bin/find /root/Telegram/tg-ytdlp-bot/users -type f ! -name "cookie.txt" ! -name "logs.txt" -delete
+```
+
+**Explanation:**
+- `0 0 * * *` – Executes the command every day at midnight.
+- `/usr/bin/find /CHANGE/ME/TO/REAL/PATH/TO/tg-ytdlp-bot/users -type f` – Searches for all files under the users directory.
+- `! -name "cookie.txt" ! -name "logs.txt"` – Excludes `cookie.txt` and `logs.txt` files from deletion.
+- `-delete` – Deletes the files found.
+
+---
+
+>>>>>>> 6e6b9b0 (update project)
 ## Firebase Setup for Telegram Bot
 
 This section describes how to create a Firebase project, set up the Realtime Database with authentication, create a test user, and integrate Firebase into your Telegram bot.
