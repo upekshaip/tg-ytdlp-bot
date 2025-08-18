@@ -1,0 +1,26 @@
+[Unit]
+Description=Telegram YouTube-DLP Bot
+After=network.target
+
+[Service]
+Type=simple
+User=root
+#WorkingDirectory=/root/Telegram/tg-ytdlp-bot #example
+WorkingDirectory=/PATH/TO/YOUR/FOLDER/tg-ytdlp-bot
+
+# Run inside bash with virtual environment activated
+#ExecStart=/root/Telegram/tg-ytdlp-bot/venv/bin/python3 /root/Telegram/tg-ytdlp-bot/magic.py #example
+ExecStart=/PATH/TO/YOUR/FOLDER/tg-ytdlp-bot/venv/bin/python3 /PATH/TO/YOUR/FOLDER/tg-ytdlp-bot/magic.py
+
+Restart=always                  # Restart always
+RestartSec=5                    # Pause 5 seconds before restarting
+StartLimitIntervalSec=30        # Time interval for monitoring the failure rate
+StartLimitBurst=10              # Maximum 10 restarts in 30 seconds
+WatchdogSec=60                  # systemd-watchdog: 60 sec
+NotifyAccess=main               # Receive notifications from the master PID
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
