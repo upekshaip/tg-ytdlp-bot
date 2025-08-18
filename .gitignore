@@ -49,3 +49,4 @@ users.txt
 # Configs with secrets (do not commit)
 CONFIG/config.py
 config.py
+_arabic_fonts_amiri/
