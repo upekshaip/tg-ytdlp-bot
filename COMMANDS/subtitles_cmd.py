@@ -122,7 +122,7 @@ LANGUAGES = {
     "ig": {"flag": "🇳🇬", "name": "Igbo"}
 }
 
-ITEMS_PER_PAGE = 10  # Number of languages per page
+#ITEMS_PER_PAGE = 10  # Number of languages per page
 
 #############################################################################################################################
 
@@ -1103,7 +1103,7 @@ def get_language_keyboard(page=0, user_id=None):
     """Generate keyboard with language buttons in 3 columns"""
     keyboard = []
     LANGS_PER_ROW = 3
-    ROWS_PER_PAGE = 6  # eg 6 lines of 3 = 18 languages per page
+    ROWS_PER_PAGE = 7  # eg 7 lines of 3 = 21 languages per page
 
     # We get all languages
     all_langs = list(LANGUAGES.items())
