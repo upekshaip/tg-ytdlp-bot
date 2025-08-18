@@ -255,12 +255,6 @@ python3 update_from_repo.py --show-excluded   # show excluded files/folders
 python3 update_from_repo.py                   # interactive update (prompts for confirmation)
 ```
 
-Notes:
-- Only `.py` files are updated; `CONFIG/config.py` is not touched.
-- Backups are automatically moved to `_backup/` with their relative paths.
-- The updater targets the `main` branch by default.
-- If you maintain your own local modifications, review backups in `_backup/` and adjust as needed.
-
 ---
 
 ## Restoring from backups
