@@ -2,6 +2,7 @@
 
 # Updater script for tg-ytdlp-bot
 # Run from the bot folder (where magic.py is located)
+# Note: backups created with minute-level timestamp (.backup_YYYYMMDD_HHMM)
 
 echo "🚀 tg-ytdlp-bot updater"
 echo "=================================="
