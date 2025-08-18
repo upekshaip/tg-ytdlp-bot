@@ -73,7 +73,53 @@ LANGUAGES = {
     "vi": {"flag": "🇻🇳", "name": "Tiếng Việt"},
     "zh": {"flag": "🇨🇳", "name": "中文"},
     "zh-Hans": {"flag": "🇨🇳", "name": "中文(简体)"},
-    "zh-Hant": {"flag": "🇹🇼", "name": "中文(繁體)"}
+    "zh-Hant": {"flag": "🇹🇼", "name": "中文(繁體)"},
+    # Additional YouTube-supported languages
+    "te": {"flag": "🇮🇳", "name": "తెలుగు"},
+    "ta": {"flag": "🇮🇳", "name": "தமிழ்"},
+    "mr": {"flag": "🇮🇳", "name": "मराठी"},
+    "kn": {"flag": "🇮🇳", "name": "ಕನ್ನಡ"},
+    "ml": {"flag": "🇮🇳", "name": "മലയാളം"},
+    "gu": {"flag": "🇮🇳", "name": "ગુજરાતી"},
+    "pa": {"flag": "🇮🇳", "name": "ਪੰਜਾਬੀ"},
+    "ur": {"flag": "🇵🇰", "name": "اردو"},
+    "ne": {"flag": "🇳🇵", "name": "नेपाली"},
+    "si": {"flag": "🇱🇰", "name": "සිංහල"},
+    "my": {"flag": "🇲🇲", "name": "မြန်မာ"},
+    "km": {"flag": "🇰🇭", "name": "ភាសាខ្មែរ"},
+    "lo": {"flag": "🇱🇦", "name": "ລາວ"},
+    "ms": {"flag": "🇲🇾", "name": "Bahasa Melayu"},
+    "fil": {"flag": "🇵🇭", "name": "Filipino"},
+    "am": {"flag": "🇪🇹", "name": "አማርኛ"},
+    "az": {"flag": "🇦🇿", "name": "Azərbaycan"},
+    "ka": {"flag": "🇬🇪", "name": "ქართული"},
+    "ky": {"flag": "🇰🇬", "name": "Кыргызча"},
+    "uz": {"flag": "🇺🇿", "name": "Oʻzbekcha"},
+    "tg": {"flag": "🇹🇯", "name": "Тоҷикӣ"},
+    "tk": {"flag": "🇹🇲", "name": "Türkmen"},
+    "mn": {"flag": "🇲🇳", "name": "Монгол"},
+    "ps": {"flag": "🇦🇫", "name": "پښتو"},
+    "or": {"flag": "🇮🇳", "name": "ଓଡ଼ିଆ"},
+    "as": {"flag": "🇮🇳", "name": "অসমীয়া"},
+    "ca": {"flag": "🇪🇸", "name": "Català"},
+    "gl": {"flag": "🇪🇸", "name": "Galego"},
+    "eu": {"flag": "🇪🇸", "name": "Euskara"},
+    "af": {"flag": "🇿🇦", "name": "Afrikaans"},
+    "sq": {"flag": "🇦🇱", "name": "Shqip"},
+    "mk": {"flag": "🇲🇰", "name": "Македонски"},
+    "bs": {"flag": "🇧🇦", "name": "Bosanski"},
+    "is": {"flag": "🇮🇸", "name": "Íslenska"},
+    "ga": {"flag": "🇮🇪", "name": "Gaeilge"},
+    "cy": {"flag": "🇬🇧", "name": "Cymraeg"},
+    "gd": {"flag": "🇬🇧", "name": "Gàidhlig"},
+    "lb": {"flag": "🇱🇺", "name": "Lëtzebuergesch"},
+    "mt": {"flag": "🇲🇹", "name": "Malti"},
+    "sw": {"flag": "🇰🇪", "name": "Kiswahili"},
+    "zu": {"flag": "🇿🇦", "name": "isiZulu"},
+    "xh": {"flag": "🇿🇦", "name": "isiXhosa"},
+    "ha": {"flag": "🇳🇬", "name": "Hausa"},
+    "yo": {"flag": "🇳🇬", "name": "Yorùbá"},
+    "ig": {"flag": "🇳🇬", "name": "Igbo"}
 }
 
 ITEMS_PER_PAGE = 10  # Number of languages per page
@@ -1057,7 +1103,7 @@ def get_language_keyboard(page=0, user_id=None):
     """Generate keyboard with language buttons in 3 columns"""
     keyboard = []
     LANGS_PER_ROW = 3
-    ROWS_PER_PAGE = 5  # eg 5 lines of 3 = 15 languages per page
+    ROWS_PER_PAGE = 6  # eg 6 lines of 3 = 18 languages per page
 
     # We get all languages
     all_langs = list(LANGUAGES.items())
