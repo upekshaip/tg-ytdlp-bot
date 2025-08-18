@@ -57,7 +57,7 @@ sudo apt install git python3.10 python3-pip python3.10-venv
 #### Setting up `config.py`
 ```sh
 git clone https://github.com/upekshaip/tg-ytdlp-bot.git
-cd tg-ytdlp-bot
+cd tg-ytdlp-bot/CONFIG
 sudo mv _config.py config.py
 nano config.py
 ```
@@ -231,11 +231,11 @@ RELOAD_CACHE_EVERY = 24  # in hours
 
 ## Updating the bot (updater scripts)
 
-You can update only Python files from the `newdesign` branch of `chelaxian/tg-ytdlp-bot` using provided scripts. The updater will:
+You can update only Python files from the `main` branch of `chelaxian/tg-ytdlp-bot` using provided scripts. The updater will:
 - Clone the repository to a temporary directory
 - Update only `*.py` files in your working directory
 - Preserve your `CONFIG/config.py` and other excluded files/directories
-- Make backups of changed files with suffix `.backup_YYYYMMDD_HHMMSS` and move them into `_backup/` (original structure preserved)
+- Make backups of changed files with suffix `.backup_YYYYMMDD_HHMM` and move them into `_backup/` (original structure preserved)
 - Ask for confirmation before applying changes
 
 ### Requirements
@@ -261,8 +261,45 @@ python3 update_from_repo.py                   # interactive update (prompts for 
 Notes:
 - Only `.py` files are updated; `CONFIG/config.py` is not touched.
 - Backups are automatically moved to `_backup/` with their relative paths.
-- The updater targets the `newdesign` branch by default.
+- The updater targets the `main` branch by default.
 - If you maintain your own local modifications, review backups in `_backup/` and adjust as needed.
+
+---
+
+## Restoring from backups
+
+When the updater changes files, it creates backups and moves them into the `_backup/` folder, preserving the original directory structure. Backup filenames have a suffix `.backup_YYYYMMDD_HHMM` (minute-level). The restore tool allows you to revert to a selected backup index.
+
+### Interactive restore (recommended)
+```bash
+python3 restore_from_backup.py
+```
+- Use Arrow keys (or j/k) to navigate, PgUp/PgDn for paging, Enter to select, q to quit.
+- The list shows grouped backups by minute: `[YYYY-MM-DD HH:MM:SS] files: N (id: YYYYMMDD_HHMM)`.
+- After confirmation, all files from that backup are restored to the project root, with the `.backup_YYYYMMDD_HHMM` suffix stripped.
+
+### List available backups
+```bash
+python3 restore_from_backup.py --list
+```
+Outputs available backup IDs (newest first) with file counts.
+
+### Non-interactive restore by ID
+```bash
+python3 restore_from_backup.py --timestamp YYYYMMDD_HHMM
+```
+Restores all files for the specified backup ID.
+
+### After restore
+If you run the bot as a service, restart it:
+```bash
+systemctl restart tg-ytdlp-bot
+journalctl -u tg-ytdlp-bot -f
+```
+
+Notes:
+- The restore tool also recognizes legacy backup files with seconds (`.backup_YYYYMMDD_HHMMSS`) and groups them by minute.
+- Existing files will be overwritten by restored versions; missing directories will be created automatically.
 
 ## Link Command Pattern Spec
 
