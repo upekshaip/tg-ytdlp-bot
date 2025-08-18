@@ -27,17 +27,23 @@ from datetime import datetime
 from typing import Dict, List, Tuple
 
 BACKUP_ROOT = "_backup"
-SUFFIX_RE = re.compile(r"^(?P<name>.+)\.backup_(?P<ts>\d{8}_\d{6})$")
+# Support both second-level and minute-level suffixes
+SUFFIX_SEC_RE = re.compile(r"^(?P<name>.+)\.backup_(?P<ts>\d{8}_\d{6})$")
+SUFFIX_MIN_RE = re.compile(r"^(?P<name>.+)\.backup_(?P<tsm>\d{8}_\d{4})$")
+
+# Keep original constant for compatibility
+SUFFIX_RE = SUFFIX_SEC_RE
 
 class BackupIndex:
     def __init__(self, ts: str):
-        self.ts = ts  # YYYYMMDD_HHMMSS
+        self.ts = ts  # ID string (YYYYMMDD_HHMM or YYYYMMDD_HHMMSS)
         self.files: List[Tuple[str, str]] = []  # (rel_dir, filename_with_suffix)
 
     @property
     def human(self) -> str:
         try:
-            dt = datetime.strptime(self.ts, "%Y%m%d_%H%M%S")
+            fmt = "%Y%m%d_%H%M%S" if len(self.ts.replace('_','')) == 14 else "%Y%m%d_%H%M"
+            dt = datetime.strptime(self.ts, fmt)
             return dt.strftime("%Y-%m-%d %H:%M:%S")
         except Exception:
             return self.ts
@@ -55,10 +61,18 @@ def scan_backups() -> Dict[str, BackupIndex]:
         rel_dir = os.path.relpath(root, BACKUP_ROOT)
         rel_dir = "" if rel_dir == "." else rel_dir
         for fname in files:
-            m = SUFFIX_RE.match(fname)
-            if not m:
+            m = SUFFIX_SEC_RE.match(fname)
+            ts = None
+            if m:
+                ts = m.group("ts")
+                # normalize to minute-level id for grouping
+                ts = ts[:-2]  # drop seconds -> YYYYMMDD_HHMM
+            else:
+                m2 = SUFFIX_MIN_RE.match(fname)
+                if m2:
+                    ts = m2.group("tsm")
+            if not ts:
                 continue
-            ts = m.group("ts")
             if ts not in indices:
                 indices[ts] = BackupIndex(ts)
             indices[ts].files.append((rel_dir, fname))
@@ -70,7 +84,8 @@ def list_indices(indices: Dict[str, BackupIndex]) -> List[BackupIndex]:
     # sort by timestamp descending (newest first)
     def key(bi: BackupIndex):
         try:
-            return datetime.strptime(bi.ts, "%Y%m%d_%H%M%S")
+            fmt = "%Y%m%d_%H%M%S" if len(bi.ts.replace('_','')) == 14 else "%Y%m%d_%H%M"
+            return datetime.strptime(bi.ts, fmt)
         except Exception:
             return datetime.min
     arr.sort(key=key, reverse=True)
@@ -86,17 +101,21 @@ def restore_backup(indices: Dict[str, BackupIndex], ts: str) -> Tuple[int, int]:
     restored = 0
     errors = 0
     for rel_dir, fname in bi.files:
-        m = SUFFIX_RE.match(fname)
-        if not m:
-            continue
+        # Match any known suffix and derive original name
+        m = SUFFIX_SEC_RE.match(fname)
+        if m:
+            dest_name = m.group("name")
+        else:
+            m2 = SUFFIX_MIN_RE.match(fname)
+            if m2:
+                dest_name = m2.group("name")
+            else:
+                continue
         src = os.path.join(BACKUP_ROOT, rel_dir, fname)
-        # Original filename without suffix
-        dest_name = m.group("name")
         dest_dir = rel_dir  # same relative directory as in backup
         dest_path = os.path.join(dest_dir, dest_name) if dest_dir else dest_name
         try:
             os.makedirs(os.path.dirname(dest_path) or ".", exist_ok=True)
-            # Copy file contents
             with open(src, 'rb') as fsrc, open(dest_path, 'wb') as fdst:
                 fdst.write(fsrc.read())
             restored += 1
