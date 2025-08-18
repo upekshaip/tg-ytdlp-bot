@@ -71,7 +71,9 @@ def backup_file(file_path):
     """Create a backup copy of a file"""
     try:
         if os.path.exists(file_path):
-            backup_path = f"{file_path}.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            # Use minute-level timestamp to group all backups within a minute
+            backup_ts = datetime.now().strftime('%Y%m%d_%H%M')
+            backup_path = f"{file_path}.backup_{backup_ts}"
             shutil.copy2(file_path, backup_path)
             log(f"Backup created: {backup_path}")
             return backup_path
