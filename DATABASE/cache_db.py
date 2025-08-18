@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 from CONFIG.config import Config
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger, send_to_user, send_to_logger
-from HELPERS.safe_messeger import fake_message
+
 from DATABASE.firebase_init import db
 # NOTE: To avoid circular imports during module load, import URL_PARSERS modules lazily inside functions.
 from HELPERS.qualifier import ceil_to_popular
@@ -145,16 +145,34 @@ def auto_reload_firebase_cache():
         if interval_hours_local != max(1, int(reload_interval_hours)):
             # Interval changed; recompute loop without running job
             continue
-        # Run the refresh
+        # Run the refresh by triggering /reload_cache command as admin
         try:
-            print("🔄 Downloading and reloading Firebase cache dump...")
-            success = _download_and_reload_cache()
-            if success:
-                print("✅ Firebase cache refreshed successfully!")
-            else:
-                print("❌ Firebase cache refresh failed")
+            print("🔄 Triggering /reload_cache as admin...")
+            # Get first admin ID
+            admin_id = Config.ADMIN[0] if isinstance(Config.ADMIN, (list, tuple)) else Config.ADMIN
+            print(f"🔄 Triggering /reload_cache as admin (user_id={admin_id})")
+            
+            # Create fake message and run command
+            from types import SimpleNamespace
+            msg = SimpleNamespace()
+            msg.chat = SimpleNamespace()
+            msg.chat.id = admin_id
+            msg.chat.first_name = "Admin"
+            msg.text = "/reload_cache"
+            msg.first_name = msg.chat.first_name
+            msg.reply_to_message = None
+            msg.id = 0
+            msg.from_user = SimpleNamespace()
+            msg.from_user.id = admin_id
+            msg.from_user.first_name = msg.chat.first_name
+            
+            # Import and run the command handler
+            from COMMANDS.admin_cmd import reload_firebase_cache_command
+            reload_firebase_cache_command(get_app(), msg)
+            
+            print("✅ Auto /reload_cache command executed successfully!")
         except Exception as e:
-            print(f"❌ Error running auto refresh: {e}")
+            print(f"❌ Error running auto reload_cache: {e}")
             import traceback; traceback.print_exc()
 
 def start_auto_cache_reloader():
