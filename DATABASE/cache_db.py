@@ -28,36 +28,23 @@ reload_interval_hours = getattr(Config, 'RELOAD_CACHE_EVERY', 4)
 _thread_lock = threading.RLock()
 
 ###################################################
-
 def get_from_local_cache(path_parts):
     """
-    Safely read a value from the in-memory firebase_cache by path parts.
-    Example: ["bot", "video_cache", url_hash, "best"]
-    Returns the nested value or None if any part is missing.
+    Receives data from a local cache along the way, divided into parts
+    For example: get_from_local_cache (['Bot', 'Video_cache', 'Hash123', '720p'])
     """
-    try:
-        node = firebase_cache
-        for part in path_parts:
-            if isinstance(node, dict):
-                node = node.get(part)
-            elif isinstance(node, list):
-                # Allow numeric indexing for list nodes
-                try:
-                    idx = int(part)
-                except Exception:
-                    return None
-                if 0 <= idx < len(node):
-                    node = node[idx]
-                else:
-                    return None
-            else:
-                return None
-            if node is None:
-                return None
-        return node
-    except Exception as e:
-        logger.error(f"get_from_local_cache error: {e}")
-        return None
+    global firebase_cache
+    current = firebase_cache
+    for part in path_parts:
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        else:
+            log_firebase_access_attempt(path_parts, success=False)
+            return None
+    
+    log_firebase_access_attempt(path_parts, success=True)
+    return current
+
 
 def load_firebase_cache():
     """Load local Firebase cache from JSON file."""
