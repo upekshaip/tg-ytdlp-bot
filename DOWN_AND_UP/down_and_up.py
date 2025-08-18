@@ -351,7 +351,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 return
             if d.get("status") == "downloading":
                 downloaded = d.get("downloaded_bytes", 0)
-                total = d.get("total_bytes", 0)
+                # yt-dlp may provide only total_bytes_estimate for some sites
+                total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
                 percent = (downloaded / total * 100) if total else 0
                 blocks = int(percent // 10)
                 bar = "🟩" * blocks + "⬜️" * (10 - blocks)
