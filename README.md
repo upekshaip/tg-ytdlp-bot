@@ -238,9 +238,6 @@ You can update only Python files from the `main` branch of `chelaxian/tg-ytdlp-b
 - Make backups of changed files with suffix `.backup_YYYYMMDD_HHMM` and move them into `_backup/` (original structure preserved)
 - Ask for confirmation before applying changes
 
-### Requirements
-- Git and Python 3 must be installed
-
 ### One-command update (recommended)
 ```bash
 ./update.sh
