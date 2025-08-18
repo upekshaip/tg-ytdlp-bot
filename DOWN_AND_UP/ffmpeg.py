@@ -317,18 +317,6 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
         except UnicodeDecodeError:
             # Fallback with error handling
             size_result = subprocess.check_output(ffprobe_size_command, stderr=subprocess.STDOUT, encoding='utf-8', errors='replace').decode('utf-8', errors='replace').strip()
-<<<<<<< HEAD
-        # if 'x' in size_result:
-            # orig_w, orig_h = map(int, size_result.split('x'))
-        if 'x' in size_result:
-            dimensions = size_result.split('x')
-            orig_w = int(str(dimensions[0]).strip().split()[0]) if dimensions[0] else 1920
-            orig_h = int(str(dimensions[1]).strip().split()[0]) if dimensions[1] else 1080            
-        else:
-            # Fallback to default horizontal orientation
-            orig_w, orig_h = 1920, 1080
-            logger.warning(f"Could not determine video dimensions, using default: {orig_w}x{orig_h}")
-=======
         # Robust parse of dimensions like "1920x1080"; tolerate any trailing garbage
         dims_match = re.search(r"(\d+)\s*x\s*(\d+)", size_result)
         if dims_match:
@@ -342,7 +330,6 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
             # Fallback to default horizontal orientation
             orig_w, orig_h = 1920, 1080
             logger.warning(f"Could not determine video dimensions from '{size_result}', using default: {orig_w}x{orig_h}")
->>>>>>> 6e6b9b0 (update project)
         
         # Determine optimal thumbnail size based on video aspect ratio
         aspect_ratio = orig_w / orig_h
@@ -390,10 +377,6 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
             result = subprocess.check_output(ffprobe_duration_command, stderr=subprocess.STDOUT, encoding='utf-8', errors='replace').decode('utf-8', errors='replace')
 
         try:
-<<<<<<< HEAD
-            # duration = int(float(result))
-            duration = int(float(str(result).strip().split()[0])) if result else 0
-=======
             # Extract duration robustly from any stdout (handle proxychains noise)
             text = str(result)
             # Prefer last numeric in the output as ffprobe prints duration alone
@@ -402,7 +385,6 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
                 duration = int(float(matches[-1]))
             else:
                 raise ValueError("No numeric duration found in ffprobe output")
->>>>>>> 6e6b9b0 (update project)
         except (ValueError, TypeError) as e:
             logger.error(f"Error parsing video duration: {e}, result was: {result}")
             duration = 0
@@ -763,11 +745,7 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
                         chat_id=user_id,
                         document=subs_path,
                         caption="<blockquote>💬 Subtitles SRT-file</blockquote>",
-<<<<<<< HEAD
-                        reply_to_message_id=message.id,
-=======
                         reply_parameters=enums.ReplyParameters(message_id=message.id) if hasattr(enums, 'ReplyParameters') else None,
->>>>>>> 6e6b9b0 (update project)
                         parse_mode=enums.ParseMode.HTML
                     )
                     safe_forward_messages(Config.LOGS_ID, user_id, [sent_msg.id])

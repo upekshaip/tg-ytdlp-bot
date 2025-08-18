@@ -29,6 +29,8 @@ runtime.log
 users/
 cookies/
 _backup/
+_cursor/
+_arabic_fonts_amiri/
 *.backup_*
 dump.json
 firebase_cache.json
@@ -45,8 +47,8 @@ test.py
 torrent.py
 bot_sample.py
 users.txt
+script.sh
 
 # Configs with secrets (do not commit)
 CONFIG/config.py
 config.py
-_arabic_fonts_amiri/

@@ -12,8 +12,4 @@ firebase-admin
 
 # Только для yt-dlp — разрешить пре-релизы и переустановить «с нуля»
 --pre
-<<<<<<< HEAD
 yt-dlp[default,curl-cffi]
-=======
-yt-dlp[default,curl-cffi]
->>>>>>> 6e6b9b0 (update project)

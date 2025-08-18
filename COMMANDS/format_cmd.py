@@ -80,11 +80,7 @@ def format_option_callback(app, callback_query):
         app.send_message(
             user_id,
             "To use a custom format, send the command in the following form:\n\n<code>/format bestvideo+bestaudio/best</code>\n\nReplace <code>bestvideo+bestaudio/best</code> with your desired format string.",
-<<<<<<< HEAD
-            reply_to_message_id=callback_query.message.id,
-=======
             reply_parameters=ReplyParameters(message_id=callback_query.message.id),
->>>>>>> 6e6b9b0 (update project)
             reply_markup=keyboard
         )
         callback_query.answer("Hint sent.")
