@@ -29,6 +29,36 @@ _thread_lock = threading.RLock()
 
 ###################################################
 
+def get_from_local_cache(path_parts):
+    """
+    Receives data from a local cache along the way, divided into parts
+    For example: get_from_local_cache (['Bot', 'Video_cache', 'Hash123', '720p'])
+    """
+    global firebase_cache
+    current = firebase_cache
+    for part in path_parts:
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        else:
+            log_firebase_access_attempt(path_parts, success=False)
+            return None
+    
+    log_firebase_access_attempt(path_parts, success=True)
+    return current
+
+def log_firebase_access_attempt(path_parts, success=True):
+    """
+    Logs attempts to turn to a local cache (to track the remaining .get () calls)
+    """
+    # Show the path in JSON format for local cache
+    path_str = ' -> '.join(path_parts)  # For example: "bot -> video_cache -> playlists -> url_hash -> quality"
+    status = "SUCCESS" if success else "MISS"
+    try:
+        logger.info(f"Firebase local-cache access: {path_str} -> {status}")
+    except Exception:
+        # Fallback to stdout if logger is not usable for any reason during early init
+        print(f"Firebase local-cache access: {path_str} -> {status}")
+
 def load_firebase_cache():
     """Load local Firebase cache from JSON file."""
     global firebase_cache

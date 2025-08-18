@@ -104,6 +104,9 @@ If you need to support extra languages such as arabic, chinese, japanese, korean
    sudo apt install fonts-noto-extra            # – extra fonts (including arabic)
    sudo apt install fonts-kacst fonts-kacst-one # – KACST arabic fonts
    sudo apt install fonts-noto-cjk              # – Chinese-Japanese-Korean characters
+   sudo apt install fonts-indic                 # – extra indian fonts
+
+   sudo apt install fonts-noto-color-emoji fontconfig libass9
    ```
 
    For Amiri arabic:
@@ -222,6 +225,11 @@ The bot maintains a local JSON cache (dump) of Firebase data. A background reloa
   - The value is also persisted to `CONFIG/config.py` by updating `RELOAD_CACHE_EVERY = N`
   - The background thread is safely restarted so the new interval takes effect right away
 
+Your current default interval comes from `CONFIG/config.py`:
+```python
+RELOAD_CACHE_EVERY = 24  # in hours
+```
+
 ---
 
 ## Updating the bot (updater scripts)
@@ -232,6 +240,9 @@ You can update only Python files from the `main` branch of `chelaxian/tg-ytdlp-b
 - Preserve your `CONFIG/config.py` and other excluded files/directories
 - Make backups of changed files with suffix `.backup_YYYYMMDD_HHMM` and move them into `_backup/` (original structure preserved)
 - Ask for confirmation before applying changes
+
+### Requirements
+- Git and Python 3 must be installed
 
 ### One-command update (recommended)
 ```bash
@@ -345,6 +356,24 @@ Response:
 #tag123
 ...
 ```
+---
+
+## Auto-Cleaning User Directories with Crontab
+
+To prevent your server from filling up with downloaded files, you can set up a crontab task that runs every 24 hours and deletes all files in user directories (except for `cookie.txt` and `logs.txt`).
+
+For example, add the following line to your crontab:
+
+```bash
+0 0 * * * /usr/bin/find /root/Telegram/tg-ytdlp-bot/users -type f ! -name "cookie.txt" ! -name "logs.txt" -delete
+```
+
+**Explanation:**
+- `0 0 * * *` – Executes the command every day at midnight.
+- `/usr/bin/find /CHANGE/ME/TO/REAL/PATH/TO/tg-ytdlp-bot/users -type f` – Searches for all files under the users directory.
+- `! -name "cookie.txt" ! -name "logs.txt"` – Excludes `cookie.txt` and `logs.txt` files from deletion.
+- `-delete` – Deletes the files found.
+
 ---
 
 ## Firebase Setup for Telegram Bot

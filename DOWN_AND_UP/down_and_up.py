@@ -33,6 +33,8 @@ from DATABASE.cache_db import get_cached_playlist_videos, get_cached_message_ids
 from HELPERS.qualifier import get_quality_by_min_side
 from HELPERS.logger import send_to_all  # Импорт в самом конце для гарантии видимости
 from HELPERS.safe_messeger import safe_forward_messages  # Дублирующий импорт для устранения ошибки видимости
+from pyrogram import enums
+from pyrogram.types import ReplyParameters
 
 # Get app instance for decorators
 app = get_app()
@@ -60,7 +62,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         subs_path = download_subtitles_ytdlp(url, user_id, video_dir, available_langs)
                                     
         if not subs_path:
-            app.send_message(user_id, "⚠️ Failed to download subtitles", reply_to_message_id=message.id)
+            app.send_message(user_id, "⚠️ Failed to download subtitles", reply_parameters=ReplyParameters(message_id=message.id))
             #continue
 
     # We define a playlist not only by the number of videos, but also by the presence of a range in the URL
@@ -85,11 +87,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     except Exception as e:
                         logger.error(f"down_and_up: error reposting cached video index={index}: {e}")
             if len(uncached_indices) == 0:
-                app.send_message(user_id, f"✅ Playlist videos sent from cache ({len(cached_videos)}/{len(requested_indices)} files).", reply_to_message_id=message.id)
+                app.send_message(user_id, f"✅ Playlist videos sent from cache ({len(cached_videos)}/{len(requested_indices)} files).", reply_parameters=ReplyParameters(message_id=message.id))
                 send_to_logger(message, f"Playlist videos sent from cache (quality={quality_key}) to user {user_id}")
                 return
             else:
-                app.send_message(user_id, f"📥 {len(cached_videos)}/{len(requested_indices)} videos sent from cache, downloading missing ones...", reply_to_message_id=message.id)
+                app.send_message(user_id, f"📥 {len(cached_videos)}/{len(requested_indices)} videos sent from cache, downloading missing ones...", reply_parameters=ReplyParameters(message_id=message.id))
     elif quality_key and not is_playlist:
         #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
         subs_enabled = is_subs_enabled(user_id)
@@ -105,7 +107,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         from_chat_id=Config.LOGS_ID,
                         message_ids=cached_ids
                     )
-                    app.send_message(user_id, "✅ Video sent from cache.", reply_to_message_id=message.id)
+                    app.send_message(user_id, "✅ Video sent from cache.", reply_parameters=ReplyParameters(message_id=message.id))
                     send_to_logger(message, f"Video sent from cache (quality={quality_key}) to user {user_id}")
                     return
                 except Exception as e:
@@ -118,7 +120,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         save_to_video_cache(url, quality_key, [], clear=True)
                     else:
                         logger.info("Video with subs (subs.txt found) is not cached!")
-                    app.send_message(user_id, "⚠️ Unable to get video from cache, starting new download...", reply_to_message_id=message.id)
+                    app.send_message(user_id, "⚠️ Unable to get video from cache, starting new download...", reply_parameters=ReplyParameters(message_id=message.id))
     else:
         logger.info(f"down_and_up: quality_key is None, skipping cache check")
 
@@ -169,7 +171,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             return
 
         # If there is no flood error, send a normal message
-        proc_msg = app.send_message(user_id, "🔄 Processing...", reply_to_message_id=message.id)
+        proc_msg = app.send_message(user_id, "🔄 Processing...", reply_parameters=ReplyParameters(message_id=message.id))
         proc_msg_id = proc_msg.id
         error_message = ""
         status_msg = None
@@ -326,7 +328,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             app.send_message(
                 user_id,
                 f"❌ The file size exceeds the {max_size_gb} GB limit. Please select a smaller file within the allowed size.",
-                reply_to_message_id=message.id
+                reply_parameters=ReplyParameters(message_id=message.id)
             )
             send_to_logger(message, f"❌ The file size exceeds the {max_size_gb} GB limit. Please select a smaller file within the allowed size.")
             logger.warning(f"[SIZE CHECK] Download for quality_key={quality_key} was blocked due to size limit.")
@@ -349,7 +351,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 return
             if d.get("status") == "downloading":
                 downloaded = d.get("downloaded_bytes", 0)
-                total = d.get("total_bytes", 0)
+                # yt-dlp may provide only total_bytes_estimate for some sites
+                total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
                 percent = (downloaded / total * 100) if total else 0
                 blocks = int(percent // 10)
                 bar = "🟩" * blocks + "⬜️" * (10 - blocks)
@@ -425,7 +428,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         app.send_message(
                             user_id,
                             f"⚠️ Subtitles for {LANGUAGES[subs_lang]['flag']} {LANGUAGES[subs_lang]['name']} not found for this video. Download without subtitles.",
-                            reply_to_message_id=message.id
+                            reply_parameters=ReplyParameters(message_id=message.id)
                         )
             
             # Check if we need to use --no-cookies for this domain
@@ -959,7 +962,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     subs_path = download_subtitles_ytdlp(url, user_id, video_dir, available_langs)
                                     
                                     if not subs_path:
-                                        app.send_message(user_id, "⚠️ Failed to download subtitles", reply_to_message_id=message.id)
+                                        app.send_message(user_id, "⚠️ Failed to download subtitles", reply_parameters=ReplyParameters(message_id=message.id))
                                         #continue
                                     
                                     # Get the real size of the file after downloading
@@ -1020,9 +1023,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         except Exception as e:
                                             logger.error(f"Failed to update subtitle progress (final): {e}")
                                     else:
-                                        app.send_message(user_id, "ℹ️ Subtitles cannot be embedded due to limits (quality/duration/size)", reply_to_message_id=message.id)
+                                        app.send_message(user_id, "ℹ️ Subtitles cannot be embedded due to limits (quality/duration/size)", reply_parameters=ReplyParameters(message_id=message.id))
                                 else:
-                                    app.send_message(user_id, "ℹ️ Subtitles are not available for the selected language", reply_to_message_id=message.id)
+                                    app.send_message(user_id, "ℹ️ Subtitles are not available for the selected language", reply_parameters=ReplyParameters(message_id=message.id))
                             
                             # Clean up subtitle files after embedding attempt
                             try:
@@ -1142,7 +1145,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
         if is_playlist and quality_key:
             total_sent = len(cached_videos) + successful_uploads
-            app.send_message(user_id, f"✅ Playlist videos sent: {total_sent}/{len(requested_indices)} files.", reply_to_message_id=message.id)
+            app.send_message(user_id, f"✅ Playlist videos sent: {total_sent}/{len(requested_indices)} files.", reply_parameters=ReplyParameters(message_id=message.id))
             send_to_logger(message, f"Playlist videos sent: {total_sent}/{len(requested_indices)} files (quality={quality_key}) to user {user_id}")
 
     except Exception as e:

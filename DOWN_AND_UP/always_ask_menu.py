@@ -4,7 +4,7 @@ import re
 from datetime import datetime
 from pyrogram import filters, enums
 from pyrogram.errors import FloodWait
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 
 from HELPERS.app_instance import get_app
 from HELPERS.decorators import get_main_reply_keyboard
@@ -77,7 +77,7 @@ def askq_callback(app, callback_query):
         app.send_message(
             callback_query.message.chat.id,
             embed_url,
-            reply_to_message_id=original_message.id
+            reply_parameters=ReplyParameters(message_id=original_message.id)
         )
         send_to_logger(original_message, f"Quick Embed: {embed_url}")
         app.delete_messages(user_id, callback_query.message.id)
@@ -266,7 +266,7 @@ def askq_callback(app, callback_query):
                     down_and_up(app, original_message, url, playlist_name, new_count, new_start, tags_text, force_no_title=False, format_override=format_override, quality_key=used_quality_key)
             else:
                 # All videos were in the cache
-                app.send_message(user_id, f"✅ Sent from cache: {len(cached_videos)}/{len(requested_indices)} files.", reply_to_message_id=original_message.id)
+                app.send_message(user_id, f"✅ Sent from cache: {len(cached_videos)}/{len(requested_indices)} files.", reply_parameters=ReplyParameters(message_id=original_message.id))
                 media_type = "Audio" if data == "mp3" else "Video"
                 log_msg = f"{media_type} playlist sent from cache to user.\nURL: {url}\nUser: {callback_query.from_user.first_name} ({user_id})"
                 send_to_logger(original_message, log_msg)
@@ -312,7 +312,7 @@ def askq_callback(app, callback_query):
                     from_chat_id=Config.LOGS_ID,
                     message_ids=message_ids
                 )
-                app.send_message(user_id, "✅ Video successfully sent from cache.", reply_to_message_id=original_message.id)
+                app.send_message(user_id, "✅ Video successfully sent from cache.", reply_parameters=ReplyParameters(message_id=original_message.id))
                 media_type = "Audio" if data == "mp3" else "Video"
                 log_msg = f"{media_type} sent from cache to user.\nURL: {url}\nUser: {callback_query.from_user.first_name} ({user_id})"
                 send_to_logger(original_message, log_msg)
@@ -326,7 +326,7 @@ def askq_callback(app, callback_query):
                     save_to_video_cache(url, data, [], clear=True)
                 else:
                     logger.info("Video with subtitles (real subs found and needed) is not cached!")
-                app.send_message(user_id, "⚠️ Failed to get video from cache, starting a new download...", reply_to_message_id=original_message.id)
+                app.send_message(user_id, "⚠️ Failed to get video from cache, starting a new download...", reply_parameters=ReplyParameters(message_id=original_message.id))
                 askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs)
             return
     askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs)
@@ -506,7 +506,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
         # Check if subtitles are included
         subs_enabled = is_subs_enabled(user_id)
         processing_text = "🔄 Processing... (wait 6 sec)" if subs_enabled else "🔄 Processing..."
-        proc_msg = app.send_message(user_id, processing_text, reply_to_message_id=message.id, reply_markup=get_main_reply_keyboard())
+        proc_msg = app.send_message(user_id, processing_text, reply_parameters=ReplyParameters(message_id=message.id), reply_markup=get_main_reply_keyboard())
         original_text = message.text or message.caption or ""
         is_playlist = is_playlist_with_range(original_text)
         playlist_range = None
@@ -921,9 +921,9 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             app.edit_message_reply_markup(chat_id=user_id, message_id=proc_msg.id, reply_markup=None)
         proc_msg = None
         if thumb_path and os.path.exists(thumb_path):
-            app.send_photo(user_id, thumb_path, caption=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_to_message_id=message.id)
+            app.send_photo(user_id, thumb_path, caption=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_parameters=ReplyParameters(message_id=message.id))
         else:
-            app.send_message(user_id, cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_to_message_id=message.id)
+            app.send_message(user_id, cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_parameters=ReplyParameters(message_id=message.id))
         send_to_logger(message, f"Always Ask menu sent for {url}")
     except FloodWait as e:
         wait_time = e.value
@@ -945,7 +945,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
                     logger.warning(f"Failed to edit message: {e}")
             proc_msg = None
         else:
-            app.send_message(user_id, flood_msg, reply_to_message_id=message.id)
+            app.send_message(user_id, flood_msg, reply_parameters=ReplyParameters(message_id=message.id))
         return
     except Exception as e:
         error_text = f"❌ Error retrieving video information:\n{e}\n> Try the /clean command and try again. If the error persists, YouTube requires authorization. Update cookies.txt via /download_cookie or /cookies_from_browser and try again."
@@ -953,12 +953,12 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1):
             if proc_msg:
                 result = app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=error_text)
                 if result is None:
-                    app.send_message(user_id, error_text, reply_to_message_id=message.id)
+                    app.send_message(user_id, error_text, reply_parameters=ReplyParameters(message_id=message.id))
             else:
-                app.send_message(user_id, error_text, reply_to_message_id=message.id)
+                app.send_message(user_id, error_text, reply_parameters=ReplyParameters(message_id=message.id))
         except Exception as e2:
             logger.error(f"Error sending error message: {e2}")
-            app.send_message(user_id, error_text, reply_to_message_id=message.id)
+            app.send_message(user_id, error_text, reply_parameters=ReplyParameters(message_id=message.id))
         send_to_logger(message, f"Always Ask menu error for {url}: {e}")
         return
 
@@ -1044,7 +1044,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
     # This mistake should have already been caught earlier, but for safety
     if tag_error:
         wrong, example = tag_error
-        app.send_message(message.chat.id, f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}", reply_to_message_id=message.id)
+        app.send_message(message.chat.id, f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}", reply_parameters=ReplyParameters(message_id=message.id))
         return
 
     video_count = video_end_with - video_start_with + 1

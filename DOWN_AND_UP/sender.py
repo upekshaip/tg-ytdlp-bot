@@ -1,5 +1,6 @@
 # @reply_with_keyboard
 from pyrogram import enums
+from pyrogram.types import ReplyParameters
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger
 from HELPERS.download_status import progress_bar
@@ -60,6 +61,11 @@ def send_videos(
             tags_text=tags_text, # Use final tags for calculation
             max_length=1000  # Reduced for safety
         )
+        # Define spoiler flag for porn-tagged content
+        try:
+            is_spoiler = bool(re.search(r"(?i)(?:^|\s)#porn(?:\s|$)", tags_text or ""))
+        except Exception:
+            is_spoiler = False
         # Form HTML caption: title outside the quote, timecodes outside the quote, description in the quote, tags and link outside the quote
         cap = ''
         if title_html:
@@ -82,13 +88,14 @@ def send_videos(
                 height=height,
                 supports_streaming=True,
                 thumb=thumb_file_path,
+                has_spoiler=is_spoiler,
                 progress=progress_bar,
                 progress_args=(
                     user_id,
                     msg_id,
                     f"{info_text}\n<b>Video duration:</b> <i>{TimeFormatter(duration*1000)}</i>\n\n<i>📤 Uploading Video...</i>"
                 ),
-                reply_to_message_id=message.id,
+                reply_parameters=ReplyParameters(message_id=message.id),
                 parse_mode=enums.ParseMode.HTML
             )
         except Exception as e:
@@ -111,13 +118,14 @@ def send_videos(
                         height=height,
                         supports_streaming=True,
                         thumb=thumb_file_path,
+                        has_spoiler=is_spoiler,
                         progress=progress_bar,
                         progress_args=(
                             user_id,
                             msg_id,
                             f"{info_text}\n<b>Video duration:</b> <i>{TimeFormatter(duration*1000)}</i>\n<i>📤 Uploading Video...</i>"
                         ),
-                        reply_to_message_id=message.id,
+                        reply_parameters=ReplyParameters(message_id=message.id),
                         parse_mode=enums.ParseMode.HTML
                     )
                 except Exception as e:
@@ -131,13 +139,14 @@ def send_videos(
                         height=height,
                         supports_streaming=True,
                         thumb=thumb_file_path,
+                        has_spoiler=is_spoiler,
                         progress=progress_bar,
                         progress_args=(
                             user_id,
                             msg_id,
                             f"{info_text}\n<b>Video duration:</b> <i>{TimeFormatter(duration*1000)}</i>\n<i>📤 Uploading Video...</i>"
                         ),
-                        reply_to_message_id=message.id,
+                        reply_parameters=ReplyParameters(message_id=message.id),
                         parse_mode=enums.ParseMode.HTML
                     )
             else:
@@ -152,7 +161,7 @@ def send_videos(
                     chat_id=user_id,
                     document=temp_desc_path,
                     caption="<blockquote>📝 if you want to change video caption - reply to video with new text</blockquote>",
-                    reply_to_message_id=message.id,
+                    reply_parameters=ReplyParameters(message_id=message.id),
                     parse_mode=enums.ParseMode.HTML
                 )
                 safe_forward_messages(Config.LOGS_ID, user_id, [user_doc_msg.id])

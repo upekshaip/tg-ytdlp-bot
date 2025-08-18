@@ -133,6 +133,9 @@ def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
     hourglass_thread.start()
     return hourglass_thread
 
+# Cache for throttling upload progress edits per message
+_last_upload_update_ts = {}
+
 # Helper function to start cycle progress animation
 def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_name, cycle_stop):
     """
@@ -204,7 +207,19 @@ def progress_bar(*args):
     if len(args) < 8:
         return
     current, total, speed, eta, file_size, user_id, msg_id, status_text = args[:8]
+    # Throttle to avoid flood: update at most once per second per message
+    now = time.time()
+    key = (user_id, msg_id)
+    last_ts = _last_upload_update_ts.get(key, 0)
+    if now - last_ts < 1.0 and current < total:
+        return
+    # Build a simple progress bar
     try:
-        app.edit_message_text(user_id, msg_id, status_text)
+        percent = (current / total * 100) if total else 0
+        blocks = int(percent // 10)
+        bar = "🟩" * blocks + "⬜️" * (10 - blocks)
+        text = f"{status_text}\n{bar}   {percent:.1f}%"
+        app.edit_message_text(user_id, msg_id, text)
+        _last_upload_update_ts[key] = now
     except Exception as e:
         logger.error(f"Error updating progress: {e}")

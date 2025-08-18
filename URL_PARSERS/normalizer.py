@@ -2,6 +2,7 @@ import re
 from urllib.parse import urlparse, parse_qs, urlunparse, urlencode, unquote
 from URL_PARSERS.tiktok import get_clean_url_for_tagging
 from HELPERS.logger import logger
+from CONFIG.config import Config
 
 def normalize_url_for_cache(url: str) -> str:
     """

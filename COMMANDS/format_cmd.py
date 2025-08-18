@@ -2,11 +2,12 @@
 # Command /Format Handler
 from pyrogram import filters
 from CONFIG.config import Config
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 
 from HELPERS.app_instance import get_app
 from HELPERS.logger import send_to_logger, logger
 from HELPERS.filesystem_hlp import create_directory
+from HELPERS.limitter import is_user_in_channel
 from urllib.parse import urlparse
 import os
 
@@ -79,7 +80,7 @@ def format_option_callback(app, callback_query):
         app.send_message(
             user_id,
             "To use a custom format, send the command in the following form:\n\n<code>/format bestvideo+bestaudio/best</code>\n\nReplace <code>bestvideo+bestaudio/best</code> with your desired format string.",
-            reply_to_message_id=callback_query.message.id,
+            reply_parameters=ReplyParameters(message_id=callback_query.message.id),
             reply_markup=keyboard
         )
         callback_query.answer("Hint sent.")

@@ -1,7 +1,7 @@
 # ===================== /settings =====================
 from pyrogram import filters
 from CONFIG.config import Config
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ReplyParameters
 from pyrogram import enums
 from HELPERS.logger import send_to_logger
 
@@ -53,7 +53,7 @@ def settings_command(app, message):
         "<b>Bot Settings</b>\n\nChoose a category:",
         reply_markup=keyboard,
         parse_mode=enums.ParseMode.HTML,
-        reply_to_message_id=message.id
+        reply_parameters=ReplyParameters(message_id=message.id)
     )
     send_to_logger(message, "Opened /settings menu")
 
@@ -224,7 +224,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔚 Close", callback_data="save_as_cookie_hint|close")]
         ])
-        app.send_message(user_id, Config.SAVE_AS_COOKIE_HINT, reply_to_message_id=callback_query.message.id,
+        app.send_message(user_id, Config.SAVE_AS_COOKIE_HINT, reply_parameters=ReplyParameters(message_id=callback_query.message.id),
                          parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
         callback_query.answer("Hint sent.")
         return
@@ -254,7 +254,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         ])
         app.send_message(user_id,
                          "Download only audio from video source.\n\nUsage: /audio + URL \n\n(ex. /audio https://youtu.be/abc123)\n(ex. /audio https://youtu.be/playlist?list=abc123*1*10)",
-                         reply_to_message_id=callback_query.message.id,
+                         reply_parameters=ReplyParameters(message_id=callback_query.message.id),
                          reply_markup=keyboard)
         callback_query.answer("Hint sent.")
         return
