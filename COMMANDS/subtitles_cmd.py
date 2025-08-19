@@ -73,10 +73,56 @@ LANGUAGES = {
     "vi": {"flag": "🇻🇳", "name": "Tiếng Việt"},
     "zh": {"flag": "🇨🇳", "name": "中文"},
     "zh-Hans": {"flag": "🇨🇳", "name": "中文(简体)"},
-    "zh-Hant": {"flag": "🇹🇼", "name": "中文(繁體)"}
+    "zh-Hant": {"flag": "🇹🇼", "name": "中文(繁體)"},
+    # Additional YouTube-supported languages
+    "te": {"flag": "🇮🇳", "name": "తెలుగు"},
+    "ta": {"flag": "🇮🇳", "name": "தமிழ்"},
+    "mr": {"flag": "🇮🇳", "name": "मराठी"},
+    "kn": {"flag": "🇮🇳", "name": "ಕನ್ನಡ"},
+    "ml": {"flag": "🇮🇳", "name": "മലയാളം"},
+    "gu": {"flag": "🇮🇳", "name": "ગુજરાતી"},
+    "pa": {"flag": "🇮🇳", "name": "ਪੰਜਾਬੀ"},
+    "ur": {"flag": "🇵🇰", "name": "اردو"},
+    "ne": {"flag": "🇳🇵", "name": "नेपाली"},
+    "si": {"flag": "🇱🇰", "name": "සිංහල"},
+    "my": {"flag": "🇲🇲", "name": "မြန်မာ"},
+    "km": {"flag": "🇰🇭", "name": "ភាសាខ្មែរ"},
+    "lo": {"flag": "🇱🇦", "name": "ລາວ"},
+    "ms": {"flag": "🇲🇾", "name": "Bahasa Melayu"},
+    "fil": {"flag": "🇵🇭", "name": "Filipino"},
+    "am": {"flag": "🇪🇹", "name": "አማርኛ"},
+    "az": {"flag": "🇦🇿", "name": "Azərbaycan"},
+    "ka": {"flag": "🇬🇪", "name": "ქართული"},
+    "ky": {"flag": "🇰🇬", "name": "Кыргызча"},
+    "uz": {"flag": "🇺🇿", "name": "Oʻzbekcha"},
+    "tg": {"flag": "🇹🇯", "name": "Тоҷикӣ"},
+    "tk": {"flag": "🇹🇲", "name": "Türkmen"},
+    "mn": {"flag": "🇲🇳", "name": "Монгол"},
+    "ps": {"flag": "🇦🇫", "name": "پښتو"},
+    "or": {"flag": "🇮🇳", "name": "ଓଡ଼ିଆ"},
+    "as": {"flag": "🇮🇳", "name": "অসমীয়া"},
+    "ca": {"flag": "🇪🇸", "name": "Català"},
+    "gl": {"flag": "🇪🇸", "name": "Galego"},
+    "eu": {"flag": "🇪🇸", "name": "Euskara"},
+    "af": {"flag": "🇿🇦", "name": "Afrikaans"},
+    "sq": {"flag": "🇦🇱", "name": "Shqip"},
+    "mk": {"flag": "🇲🇰", "name": "Македонски"},
+    "bs": {"flag": "🇧🇦", "name": "Bosanski"},
+    "is": {"flag": "🇮🇸", "name": "Íslenska"},
+    "ga": {"flag": "🇮🇪", "name": "Gaeilge"},
+    "cy": {"flag": "🇬🇧", "name": "Cymraeg"},
+    "gd": {"flag": "🇬🇧", "name": "Gàidhlig"},
+    "lb": {"flag": "🇱🇺", "name": "Lëtzebuergesch"},
+    "mt": {"flag": "🇲🇹", "name": "Malti"},
+    "sw": {"flag": "🇰🇪", "name": "Kiswahili"},
+    "zu": {"flag": "🇿🇦", "name": "isiZulu"},
+    "xh": {"flag": "🇿🇦", "name": "isiXhosa"},
+    "ha": {"flag": "🇳🇬", "name": "Hausa"},
+    "yo": {"flag": "🇳🇬", "name": "Yorùbá"},
+    "ig": {"flag": "🇳🇬", "name": "Igbo"}
 }
 
-ITEMS_PER_PAGE = 10  # Number of languages per page
+#ITEMS_PER_PAGE = 10  # Number of languages per page
 
 #############################################################################################################################
 
@@ -90,7 +136,7 @@ def subs_command(app, message):
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
 
-    # Enable AUTO-GEN by default if not enabled before
+    # Enable AUTO/TRANS by default if not enabled before
     if not get_user_subs_auto_mode(user_id):
         save_user_subs_auto_mode(user_id, True)
 
@@ -160,7 +206,7 @@ def subs_lang_callback(app, callback_query):
 
 @app.on_callback_query(filters.regex(r"^subs_auto\|"))
 def subs_auto_callback(app, callback_query):
-    """Handle AUTO-GEN mode toggle in subtitle language menu"""
+    """Handle AUTO/TRANS mode toggle in subtitle language menu"""
     parts = callback_query.data.split("|")
     action = parts[1]
     page = int(parts[2]) if len(parts) > 2 else 0  # <- Here!
@@ -196,7 +242,7 @@ def subs_auto_callback(app, callback_query):
             reply_markup=get_language_keyboard(page=page, user_id=user_id)
         )
         
-        send_to_logger(callback_query.message, f"User toggled AUTO-GEN mode to: {new_auto}")
+        send_to_logger(callback_query.message, f"User toggled AUTO/TRANS mode to: {new_auto}")
 
 @app.on_callback_query(filters.regex(r"^subs_lang_close\|"))
 def subs_lang_close_callback(app, callback_query):
@@ -1013,7 +1059,7 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
                 caption = f"<b>💬 Subtitles</b>\n\n"
                 caption += f"<b>Video:</b> {title}\n"
                 caption += f"<b>Language:</b> {subs_lang}\n"
-                caption += f"<b>Type:</b> {'Auto-generated' if auto_mode else 'Manual'}\n"
+                caption += f"<b>Type:</b> {'AUTO/TRANSerated' if auto_mode else 'Manual'}\n"
                 
                 if tags:
                     caption += f"\n<b>Tags:</b> {' '.join(tags)}"
@@ -1057,7 +1103,7 @@ def get_language_keyboard(page=0, user_id=None):
     """Generate keyboard with language buttons in 3 columns"""
     keyboard = []
     LANGS_PER_ROW = 3
-    ROWS_PER_PAGE = 5  # eg 5 lines of 3 = 15 languages per page
+    ROWS_PER_PAGE = 7  # eg 7 lines of 3 = 21 languages per page
 
     # We get all languages
     all_langs = list(LANGUAGES.items())
@@ -1100,7 +1146,7 @@ def get_language_keyboard(page=0, user_id=None):
     auto_emoji = "✅" if auto_mode else "☑️"
     keyboard.append([
         InlineKeyboardButton("🚫 OFF", callback_data="subs_lang|OFF"),
-        InlineKeyboardButton(f"{auto_emoji} AUTO-GEN", callback_data=f"subs_auto|toggle|{page}")
+        InlineKeyboardButton(f"{auto_emoji} AUTO/TRANS", callback_data=f"subs_auto|toggle|{page}")
     ])
     # Close button
     keyboard.append([

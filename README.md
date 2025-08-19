@@ -69,9 +69,6 @@ Edit your configuration before deployment.
 python3 -m venv venv
 source venv/bin/activate
 pip install --no-cache-dir -r requirements.txt
-pip uninstall urllib3 -y
-pip install --no-cache-dir --force-reinstall "urllib3==1.26.20"
-pip install --no-deps moviepy==1.0.3
 ```
 ---
 ### Installing ffmpeg (example for Ubuntu/Debian)
@@ -104,6 +101,9 @@ If you need to support extra languages such as arabic, chinese, japanese, korean
    sudo apt install fonts-noto-extra            # – extra fonts (including arabic)
    sudo apt install fonts-kacst fonts-kacst-one # – KACST arabic fonts
    sudo apt install fonts-noto-cjk              # – Chinese-Japanese-Korean characters
+   sudo apt install fonts-indic                 # – extra indian fonts
+
+   sudo apt install fonts-noto-color-emoji fontconfig libass9
    ```
 
    For Amiri arabic:
@@ -238,9 +238,6 @@ You can update only Python files from the `main` branch of `chelaxian/tg-ytdlp-b
 - Make backups of changed files with suffix `.backup_YYYYMMDD_HHMM` and move them into `_backup/` (original structure preserved)
 - Ask for confirmation before applying changes
 
-### Requirements
-- Git and Python 3 must be installed
-
 ### One-command update (recommended)
 ```bash
 ./update.sh
@@ -257,12 +254,6 @@ journalctl -u tg-ytdlp-bot -f
 python3 update_from_repo.py --show-excluded   # show excluded files/folders
 python3 update_from_repo.py                   # interactive update (prompts for confirmation)
 ```
-
-Notes:
-- Only `.py` files are updated; `CONFIG/config.py` is not touched.
-- Backups are automatically moved to `_backup/` with their relative paths.
-- The updater targets the `main` branch by default.
-- If you maintain your own local modifications, review backups in `_backup/` and adjust as needed.
 
 ---
 
@@ -296,10 +287,6 @@ If you run the bot as a service, restart it:
 systemctl restart tg-ytdlp-bot
 journalctl -u tg-ytdlp-bot -f
 ```
-
-Notes:
-- The restore tool also recognizes legacy backup files with seconds (`.backup_YYYYMMDD_HHMMSS`) and groups them by minute.
-- Existing files will be overwritten by restored versions; missing directories will be created automatically.
 
 ## Link Command Pattern Spec
 

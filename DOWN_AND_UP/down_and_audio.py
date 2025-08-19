@@ -190,7 +190,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 return
             if d.get("status") == "downloading":
                 downloaded = d.get("downloaded_bytes", 0)
-                total = d.get("total_bytes", 0)
+                total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
                 percent = (downloaded / total * 100) if total else 0
                 blocks = int(percent // 10)
                 bar = "🟩" * blocks + "⬜️" * (10 - blocks)

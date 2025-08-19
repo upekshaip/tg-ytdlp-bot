@@ -9,6 +9,7 @@ from HELPERS.caption import truncate_caption
 from DOWN_AND_UP.ffmpeg import get_video_info_ffprobe
 from HELPERS.safe_messeger import safe_forward_messages
 from CONFIG.config import Config
+import time
 
 # Get app instance for decorators
 app = get_app()
@@ -77,12 +78,11 @@ def send_videos(
             cap += tags_block
         cap += link_block
 
-        try:
-            # First try sending with full caption
-            video_msg = app.send_video(
+        def _try_send_video(caption_text: str):
+            return app.send_video(
                 chat_id=user_id,
                 video=video_abs_path,
-                caption=cap,
+                caption=caption_text,
                 duration=duration,
                 width=width,
                 height=height,
@@ -98,6 +98,40 @@ def send_videos(
                 reply_parameters=ReplyParameters(message_id=message.id),
                 parse_mode=enums.ParseMode.HTML
             )
+
+        def _fallback_send_document(caption_text: str):
+            return app.send_document(
+                chat_id=user_id,
+                document=video_abs_path,
+                caption=caption_text,
+                thumb=thumb_file_path,
+                progress=progress_bar,
+                progress_args=(
+                    user_id,
+                    msg_id,
+                    f"{info_text}\n<b>Video duration:</b> <i>{TimeFormatter(duration*1000)}</i>\n\n<i>📤 Uploading file...</i>"
+                ),
+                reply_parameters=ReplyParameters(message_id=message.id),
+                parse_mode=enums.ParseMode.HTML
+            )
+
+        try:
+            # Первая попытка с полным описанием, с ограничением на количество ретраев по таймауту
+            attempts_left = 3
+            while True:
+                try:
+                    video_msg = _try_send_video(cap)
+                    break
+                except Exception as e:
+                    if "Request timed out" in str(e) or isinstance(e, TimeoutError):
+                        attempts_left -= 1
+                        if attempts_left <= 0:
+                            logger.warning("send_video timed out repeatedly; falling back to send_document")
+                            video_msg = _fallback_send_document(cap)
+                            break
+                        time.sleep(2)
+                        continue
+                    raise
         except Exception as e:
             if "MEDIA_CAPTION_TOO_LONG" in str(e):
                 logger.info("Caption too long, trying with minimal caption")
@@ -108,47 +142,32 @@ def send_videos(
                 minimal_cap += link_block
                 
                 try:
-                    # Try sending with minimal caption
-                    video_msg = app.send_video(
-                        chat_id=user_id,
-                        video=video_abs_path,
-                        caption=minimal_cap,
-                        duration=duration,
-                        width=width,
-                        height=height,
-                        supports_streaming=True,
-                        thumb=thumb_file_path,
-                        has_spoiler=is_spoiler,
-                        progress=progress_bar,
-                        progress_args=(
-                            user_id,
-                            msg_id,
-                            f"{info_text}\n<b>Video duration:</b> <i>{TimeFormatter(duration*1000)}</i>\n<i>📤 Uploading Video...</i>"
-                        ),
-                        reply_parameters=ReplyParameters(message_id=message.id),
-                        parse_mode=enums.ParseMode.HTML
-                    )
+                    # Попытка с коротким описанием и ограниченными ретраями по таймауту
+                    attempts_left = 2
+                    while True:
+                        try:
+                            video_msg = _try_send_video(minimal_cap)
+                            break
+                        except Exception as e2:
+                            if "Request timed out" in str(e2) or isinstance(e2, TimeoutError):
+                                attempts_left -= 1
+                                if attempts_left <= 0:
+                                    logger.warning("send_video (minimal caption) timed out; fallback to send_document")
+                                    video_msg = _fallback_send_document(minimal_cap)
+                                    break
+                                time.sleep(2)
+                                continue
+                            raise
                 except Exception as e:
                     logger.error(f"Error sending video with minimal caption: {e}")
-                    # If even the minimal caption does not work, send without caption
-                    video_msg = app.send_video(
-                        chat_id=user_id,
-                        video=video_abs_path,
-                        duration=duration,
-                        width=width,
-                        height=height,
-                        supports_streaming=True,
-                        thumb=thumb_file_path,
-                        has_spoiler=is_spoiler,
-                        progress=progress_bar,
-                        progress_args=(
-                            user_id,
-                            msg_id,
-                            f"{info_text}\n<b>Video duration:</b> <i>{TimeFormatter(duration*1000)}</i>\n<i>📤 Uploading Video...</i>"
-                        ),
-                        reply_parameters=ReplyParameters(message_id=message.id),
-                        parse_mode=enums.ParseMode.HTML
-                    )
+                    # Последний фолбэк — без описания, с документом при таймауте
+                    try:
+                        video_msg = _try_send_video("")
+                    except Exception as e3:
+                        if "Request timed out" in str(e3) or isinstance(e3, TimeoutError):
+                            video_msg = _fallback_send_document("")
+                        else:
+                            raise
             else:
                 # If the error is not related to the length of the caption, pass it further
                 raise e

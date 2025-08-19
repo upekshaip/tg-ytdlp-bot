@@ -60,13 +60,49 @@ def cookies_from_browser(app, message):
         if exists:
             installed_browsers.append(browser)
 
-    # If there are no installed browsers, send a message about it
+    # If there are no installed browsers, fallback: download from COOKIE_URL
     if not installed_browsers:
-        app.send_message(
-            user_id,
-            "❌ No supported browsers found on the server. Please install one of the supported browsers or use manual cookie upload."
-        )
-        send_to_logger(message, "No installed browsers found.")
+        fallback_url = getattr(Config, "COOKIE_URL", None)
+        if not fallback_url:
+            app.send_message(
+                user_id,
+                "❌ No supported browsers found and no COOKIE_URL configured. Use /download_cookie or upload cookie.txt."
+            )
+            send_to_logger(message, "No installed browsers found. COOKIE_URL is not configured.")
+            return
+
+        user_dir = os.path.join(".", "users", str(user_id))
+        create_directory(user_dir)
+        cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
+        cookie_file_path = os.path.join(user_dir, cookie_filename)
+
+        try:
+            ok, status, content, err = _download_content(fallback_url, timeout=30)
+            if ok:
+                # basic validation
+                if not fallback_url.lower().endswith('.txt'):
+                    app.send_message(user_id, "❌ Fallback COOKIE_URL must point to a .txt file.")
+                    send_to_logger(message, "COOKIE_URL does not end with .txt (hidden)")
+                    return
+                if len(content or b"") > 100 * 1024:
+                    app.send_message(user_id, "❌ Fallback cookie file is too large (>100KB).")
+                    send_to_logger(message, "Fallback cookie too large (source hidden)")
+                    return
+                with open(cookie_file_path, "wb") as f:
+                    f.write(content)
+                app.send_message(user_id, "✅ Cookie file downloaded via fallback and saved as cookie.txt")
+                send_to_logger(message, "Fallback COOKIE_URL used successfully (source hidden)")
+            else:
+                if status is not None:
+                    app.send_message(user_id, f"❌ Fallback cookie source unavailable (status {status}). Try /download_cookie or upload cookie.txt.")
+                    send_to_logger(message, f"Fallback COOKIE_URL failed: status={status} (hidden)")
+                else:
+                    app.send_message(user_id, "❌ Error downloading fallback cookie. Try /download_cookie or upload cookie.txt.")
+                    safe_err = _sanitize_error_detail(err or "", fallback_url)
+                    send_to_logger(message, f"Fallback COOKIE_URL error: {safe_err}")
+        except Exception as e:
+            app.send_message(user_id, "❌ Unexpected error during fallback cookie download.")
+            send_to_logger(message, f"Fallback COOKIE_URL unexpected error: {type(e).__name__}: {e}")
         return
 
     # Create buttons only for installed browsers
