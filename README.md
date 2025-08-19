@@ -73,7 +73,7 @@ pip install --no-cache-dir -r requirements.txt
 ---
 ### Installing ffmpeg (example for Ubuntu/Debian)
       
-   you also need to install `ffmpeg`
+   you also need to install `ffmpeg` https://github.com/btbn/ffmpeg-builds/releases
    **ffmpeg** is essential since **yt-dlp** relies on it for merging streams (and in some cases for transcoding or extracting thumbnails). Also ffmpeg is needed for embedding subtitles and for slpitting bigger that 2gb videos into parts. To install ffmpeg on a Debian-based system, run:
 
    ```sh
