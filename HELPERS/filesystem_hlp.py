@@ -73,7 +73,7 @@ def cleanup_temp_files():
             user_path = os.path.join("users", user_dir)
             if os.path.isdir(user_path):
                 for filename in os.listdir(user_path):
-                    if filename.endswith(('.part', '.ytdl', '.temp', '.tmp')):
+                    if filename.endswith(('.part', '.ytdl', '.temp', '.tmp', '.json', '.jsonl', '.srt', '.vtt', '.ass', '.ssa')):
                         try:
                             os.remove(os.path.join(user_path, filename))
                         except Exception as e:
@@ -101,7 +101,7 @@ def cleanup_user_temp_files(user_id):
         for filename in os.listdir(user_dir):
             file_path = os.path.join(user_dir, filename)
             # Remove temporary files
-            if (filename.endswith(('.part', '.ytdl', '.temp', '.tmp')) or  # Removed .srt - subtitles are handled separately
+            if (filename.endswith(('.part', '.ytdl', '.temp', '.tmp', '.json', '.jsonl', '.srt', '.vtt', '.ass', '.ssa')) or  # Removed .srt - subtitles are handled separately
                 filename.startswith('yt_thumb_') or  # YouTube thumbnails
                 filename.endswith('.jpg') or  # Thumbnails
                 filename == 'full_title.txt' or  # Full title file
@@ -127,7 +127,7 @@ def cleanup_subtitle_files(user_id):
         for filename in os.listdir(user_dir):
             file_path = os.path.join(user_dir, filename)
             # Remove subtitle files
-            if filename.endswith(('.srt', '.vtt', '.ass', '.ssa')):
+            if filename.endswith(('.srt', '.vtt', '.ass', '.ssa', '.json', '.jsonl')):
                 try:
                     if os.path.isfile(file_path):
                         os.remove(file_path)
@@ -192,7 +192,8 @@ def remove_media(message, only=None):
     allfiles = os.listdir(dir)
     file_extensions = [
         '.mp4', '.mkv', '.mp3', '.m4a', '.jpg', '.jpeg', '.part', '.ytdl',
-        '.txt', '.ts', '.m3u8', '.webm', '.wmv', '.avi', '.mpeg', '.wav'
+        '.txt', '.ts', '.m3u8', '.webm', '.wmv', '.avi', '.mpeg', '.wav',
+        '.json', '.jsonl', '.srt', '.vtt', '.ass', '.ssa',
     ]
     for extension in file_extensions:
         if isinstance(extension, tuple):

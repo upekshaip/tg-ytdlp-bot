@@ -18,6 +18,7 @@ from pyrogram import filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 from CONFIG.config import Config
 import os
+import glob
 
 # Get app instance for decorators
 app = get_app()
@@ -122,6 +123,133 @@ LANGUAGES = {
     "ig": {"flag": "🇳🇬", "name": "Igbo"}
 }
 
+
+# Fallback flag for unknown/region languages
+DEFAULT_FLAG = "🌐"
+
+# Fallback flags for many 2-letter language codes not present in LANGUAGES
+LANG_FALLBACK_FLAGS = {
+    "aa": "🇩🇯",  # Afar → Djibouti
+    "ab": "🇬🇪",  # Abkhaz → Georgia
+    "ak": "🇬🇭",  # Akan → Ghana
+    "am": "🇪🇹",
+    "as": "🇮🇳",
+    "ay": "🇧🇴",
+    "ba": "🇷🇺",
+    "bho": "🇮🇳",
+    "bo": "🇨🇳",
+    "br": "🇫🇷",
+    "ceb": "🇵🇭",
+    "co": "🇫🇷",
+    "crs": "🇸🇨",
+    "cy": "🇬🇧",
+    "da": "🇩🇰",
+    "dz": "🇧🇹",
+    "gd": "🇬🇧",
+    "gv": "🇮🇲",
+    "ha": "🇳🇬",
+    "haw": "🇺🇸",
+    "hmn": "🌐",
+    "ht": "🇭🇹",
+    "ig": "🇳🇬",
+    "iu": "🇨🇦",
+    "jv": "🇮🇩",
+    "kk": "🇰🇿",
+    "kl": "🇬🇱",
+    "km": "🇰🇭",
+    "kn": "🇮🇳",
+    "ky": "🇰🇬",
+    "lb": "🇱🇺",
+    "lg": "🇺🇬",
+    "ln": "🇨🇩",
+    "lo": "🇱🇦",
+    "lt": "🇱🇹",
+    "lv": "🇱🇻",
+    "mk": "🇲🇰",
+    "mn": "🇲🇳",
+    "mt": "🇲🇹",
+    "ne": "🇳🇵",
+    "ny": "🇲🇼",
+    "oc": "🇫🇷",
+    "om": "🇪🇹",
+    "or": "🇮🇳",
+    "os": "🇷🇺",
+    "pa": "🇮🇳",
+    "ps": "🇦🇫",
+    "qu": "🇵🇪",
+    "rn": "🇧🇮",
+    "rw": "🇷🇼",
+    "sg": "🇨🇫",
+    "si": "🇱🇰",
+    "sm": "🇼🇸",
+    "sn": "🇿🇼",
+    "so": "🇸🇴",
+    "sr": "🇷🇸",
+    "ss": "🇿🇦",
+    "st": "🇱🇸",
+    "su": "🇮🇩",
+    "ta": "🇮🇳",
+    "te": "🇮🇳",
+    "tg": "🇹🇯",
+    "ti": "🇪🇷",
+    "tk": "🇹🇲",
+    "tn": "🇧🇼",
+    "to": "🇹🇴",
+    "ts": "🇿🇦",
+    "tt": "🇷🇺",
+    "ug": "🇨🇳",
+    "ur": "🇵🇰",
+    "uz": "🇺🇿",
+    "ve": "🇿🇦",
+    "vi": "🇻🇳",
+    "wo": "🇸🇳",
+    "xh": "🇿🇦",
+    "yi": "🇺🇸",
+    "yo": "🇳🇬",
+    "zu": "🇿🇦",
+}
+
+def get_flag(lang_code: str, use_second_part: bool = False) -> str:
+    """
+    Get flag for language code.
+    use_second_part: True for SUBS (use second part like DE from de-DE), False for DUBS (use first part like de from de-DE)
+    """
+    if lang_code in LANGUAGES:
+        return LANGUAGES[lang_code]["flag"]
+    
+    # For SUBS: use second part (e.g., DE from de-DE)
+    if use_second_part and '-' in lang_code:
+        second_part = lang_code.split('-')[1]
+        if second_part in LANGUAGES:
+            return LANGUAGES[second_part]["flag"]
+        # Try common country codes
+        country_flags = {
+            'DE': '🇩🇪', 'FR': '🇫🇷', 'US': '🇺🇸', 'GB': '🇬🇧', 'IT': '🇮🇹', 'BR': '🇧🇷',
+            'ES': '🇪🇸', 'RU': '🇷🇺', 'CN': '🇨🇳', 'JP': '🇯🇵', 'KR': '🇰🇷', 'IN': '🇮🇳'
+        }
+        if second_part in country_flags:
+            return country_flags[second_part]
+    
+    # For DUBS: use first part (e.g., de from de-DE)
+    if not use_second_part and '-' in lang_code:
+        first_part = lang_code.split('-')[0]
+        if first_part in LANGUAGES:
+            return LANGUAGES[first_part]["flag"]
+    
+    # Try fallback mapping directly
+    base_try = lang_code.split('-')[0]
+    if base_try in LANG_FALLBACK_FLAGS:
+        return LANG_FALLBACK_FLAGS[base_try]
+
+    # Try base code
+    if '-' in lang_code:
+        base = lang_code.split('-')[0]
+        if base in LANGUAGES:
+            return LANGUAGES[base]["flag"]
+    
+    return DEFAULT_FLAG
+
+
 #ITEMS_PER_PAGE = 10  # Number of languages per page
 
 #############################################################################################################################
@@ -135,6 +263,18 @@ def subs_command(app, message):
     user_id = message.from_user.id
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
+
+
+    # Fast args: /subs on|off  -> Always Ask mode toggle
+    parts = (message.text or "").split()
+    if len(parts) >= 2:
+        arg = parts[1].lower()
+        if arg in ("on", "off"):
+            save_subs_always_ask(user_id, arg == "on")
+            app.send_message(user_id, f"✅ SUBS Always Ask {'enabled' if arg=='on' else 'disabled'}.")
+            send_to_logger(message, f"SUBS Always Ask set via command: {arg}")
+            return
+
 
     # Enable AUTO/TRANS by default if not enabled before
     if not get_user_subs_auto_mode(user_id):
@@ -158,7 +298,7 @@ def subs_command(app, message):
         "- 720p max quality\n"
         "- 1.5 hour max duration\n"
         "- 500mb max video size</blockquote>",
-        reply_markup=get_language_keyboard(page=0, user_id=user_id),
+        reply_markup=get_language_keyboard(page=0, user_id=user_id, per_page_rows=8),
         parse_mode=enums.ParseMode.HTML
     )
     send_to_logger(message, "User opened /subs menu.")
@@ -244,6 +384,34 @@ def subs_auto_callback(app, callback_query):
         
         send_to_logger(callback_query.message, f"User toggled AUTO/TRANS mode to: {new_auto}")
 
+
+@app.on_callback_query(filters.regex(r"^subs_always_ask\|"))
+def subs_always_ask_callback(app, callback_query):
+    """Handle Always Ask mode toggle in subtitle language menu"""
+    parts = callback_query.data.split("|")
+    action = parts[1]
+    page = int(parts[2]) if len(parts) > 2 else 0
+    user_id = callback_query.from_user.id
+    
+    if action == "toggle":
+        current_always_ask = is_subs_always_ask(user_id)
+        new_always_ask = not current_always_ask
+        save_subs_always_ask(user_id, new_always_ask)
+        
+        # Show notification
+        always_ask_text = "enabled" if new_always_ask else "disabled"
+        notification = f"✅ Always Ask mode {always_ask_text}"
+        callback_query.answer(notification, show_alert=False)
+        
+        # Auto-close menu after toggling Always Ask
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        
+        send_to_logger(callback_query.message, f"User toggled Always Ask mode to: {new_always_ask}")
+
+
 @app.on_callback_query(filters.regex(r"^subs_lang_close\|"))
 def subs_lang_close_callback(app, callback_query):
     data = callback_query.data.split("|")[1]
@@ -262,6 +430,25 @@ def clear_subs_check_cache():
     """Cleans the cache of subtitle checks"""
     global _subs_check_cache
     _subs_check_cache.clear()
+    
+    # Also clean up temporary language cache files from Always Ask menu
+    try:
+        # Find all user directories
+        if os.path.exists("users"):
+            for user_dir in os.listdir("users"):
+                user_path = os.path.join("users", user_dir)
+                if os.path.isdir(user_path):
+                    # Remove ask_subs_*.json files
+                    pattern = os.path.join(user_path, "ask_subs_*.json")
+                    for cache_file in glob.glob(pattern):
+                        try:
+                            os.remove(cache_file)
+                            logger.info(f"Removed temp subs cache: {cache_file}")
+                        except Exception as e:
+                            logger.debug(f"Failed to remove {cache_file}: {e}")
+    except Exception as e:
+        logger.debug(f"Error cleaning temp subs cache files: {e}")
+    
     logger.info("Subs check cache cleared")
 
 def check_subs_availability(url, user_id, quality_key=None, return_type=False):
@@ -468,6 +655,29 @@ def is_subs_enabled(user_id):
     lang = get_user_subs_language(user_id)
     return lang is not None and lang != "OFF"
 
+def save_subs_always_ask(user_id, enabled: bool):
+    """Persist Always Ask mode for subtitles (controls 💬 SUBS button in Always Ask)."""
+    user_dir = os.path.join("users", str(user_id))
+    create_directory(user_dir)
+    path = os.path.join(user_dir, "subs_always_ask.txt")
+    if enabled:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("ON")
+    else:
+        if os.path.exists(path):
+            os.remove(path)
+
+def is_subs_always_ask(user_id) -> bool:
+    user_dir = os.path.join("users", str(user_id))
+    path = os.path.join(user_dir, "subs_always_ask.txt")
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read().strip().upper() == "ON"
+        except Exception:
+            return False
+    return False
+
 def save_user_subs_language(user_id, lang_code):
     """Save user's subtitle language preference"""
     user_dir = os.path.join("users", str(user_id))
@@ -539,7 +749,7 @@ def get_available_subs_languages(url, user_id=None, auto_only=False):
             base_opts['cookiefile'] = Config.COOKIE_FILE_PATH
 
         last_info, used_client = {}, None
-        for client in ('web', 'android', 'tv', None):
+        for client in ('tv', None):  # Only try tv client since it always works
             opts = dict(base_opts)
             if client:
                 opts['extractor_args'] = {'youtube': {'player_client': [client]}}
@@ -560,6 +770,41 @@ def get_available_subs_languages(url, user_id=None, auto_only=False):
         _subs_check_cache[f"{url}_{user_id}_client"] = used_client or 'default'
         return last_info
 
+    def _list_via_timedtext(u: str):
+        """Fallback: query YouTube timedtext list endpoint and split normal/auto (asr)."""
+        try:
+            import requests
+            import re as _re
+            # extract video id
+            vid = None
+            m = _re.search(r"[?&]v=([\w-]{11})", u)
+            if m:
+                vid = m.group(1)
+            if not vid:
+                m = _re.search(r"youtu\.be/([\w-]{11})", u)
+                if m:
+                    vid = m.group(1)
+            if not vid:
+                return [], []
+            tt_url = f"https://www.youtube.com/api/timedtext?type=list&v={vid}"
+            headers = {"User-Agent": "Mozilla/5.0"}
+            r = requests.get(tt_url, headers=headers, timeout=15)
+            if r.status_code != 200 or not r.text:
+                return [], []
+            normal, auto = [], []
+            # Parse simple XML lines
+            for m in _re.finditer(r'<track[^>]*lang_code="([^"]+)"[^>]*>', r.text):
+                tag = m.group(0)
+                code = m.group(1)
+                if 'kind="asr"' in tag or "kind='asr'" in tag:
+                    auto.append(code)
+                else:
+                    normal.append(code)
+            return list(set(normal)), list(set(auto))
+        except Exception as _e:
+            logger.warning(f"timedtext list fallback failed: {_e}")
+            return [], []
+
     for attempt in range(MAX_RETRIES):
         try:
             info = extract_info_with_cookies()
@@ -567,6 +812,14 @@ def get_available_subs_languages(url, user_id=None, auto_only=False):
             auto   = list(info.get('automatic_captions', {}).keys())
             result = list(set(auto if auto_only else normal))
             logger.info(f"get_available_subs_languages: auto_only={auto_only}, result={result}")
+            # Fallback to timedtext list if nothing found
+            if not normal and not auto:
+                tt_normal, tt_auto = _list_via_timedtext(url)
+                if tt_normal or tt_auto:
+                    logger.info(f"get_available_subs_languages: timedtext fallback normal={tt_normal}, auto={tt_auto}")
+                    _subs_check_cache[f"{url}_{user_id}_normal_langs"] = tt_normal
+                    _subs_check_cache[f"{url}_{user_id}_auto_langs"] = tt_auto
+                    return tt_auto if auto_only else tt_normal
             return result
 
         except yt_dlp.utils.DownloadError as e:
@@ -868,7 +1121,7 @@ def download_subtitles_ytdlp(url, user_id, video_dir, available_langs):
                 logger.info(f"Language {subs_lang} not found in {available_langs}")
                 return None
 
-            client = _subs_check_cache.get(f"{url}_{user_id}_client", 'tv')
+            client = _subs_check_cache.get(f"{url}_{user_id}_client", 'tv')  # tv is the only reliable client
 
             info_opts = {
                 'quiet': True,
@@ -894,8 +1147,19 @@ def download_subtitles_ytdlp(url, user_id, video_dir, available_langs):
             with yt_dlp.YoutubeDL(info_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
 
-            subs_key = 'automatic_captions' if auto_mode else 'subtitles'
-            subs_dict = info.get(subs_key, {})
+            # Prefer union view: sometimes only one dict is filled depending on client
+            subs_dict = {}
+            if not auto_mode:
+                subs_dict = info.get('subtitles', {}) or {}
+                # merge automatic as fallbacks for listing
+                auto_dict = info.get('automatic_captions', {}) or {}
+                for k, v in auto_dict.items():
+                    subs_dict.setdefault(k, v)
+            else:
+                subs_dict = info.get('automatic_captions', {}) or {}
+                normal_dict = info.get('subtitles', {}) or {}
+                for k, v in normal_dict.items():
+                    subs_dict.setdefault(k, v)
             tracks = subs_dict.get(found_lang) or []
             if not tracks:
                 alt = next((k for k in subs_dict if k.startswith(found_lang)), None)
@@ -1099,14 +1363,20 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
             app.send_message(user_id, f"❌ Error downloading subtitles: {str(e)}")
 
 
-def get_language_keyboard(page=0, user_id=None):
-    """Generate keyboard with language buttons in 3 columns"""
+def get_language_keyboard(page=0, user_id=None, langs_override=None, per_page_rows=8):
+    """Generate keyboard with language buttons in 3 columns. Supports paging and optional language override."""
     keyboard = []
     LANGS_PER_ROW = 3
-    ROWS_PER_PAGE = 7  # eg 7 lines of 3 = 21 languages per page
+
+    ROWS_PER_PAGE = per_page_rows  # default 8 -> 24 per page
+
 
     # We get all languages
-    all_langs = list(LANGUAGES.items())
+    if langs_override is not None:
+        # langs_override is list of codes
+        all_langs = [(code, {"flag": get_flag(code), "name": code}) for code in langs_override]
+    else:
+        all_langs = list(LANGUAGES.items())
     total_languages = len(all_langs)
     total_pages = math.ceil(total_languages / (LANGS_PER_ROW * ROWS_PER_PAGE))
 
@@ -1126,7 +1396,7 @@ def get_language_keyboard(page=0, user_id=None):
             if i + j < len(current_page_langs):
                 lang_code, lang_info = current_page_langs[i + j]
                 checkmark = "✅ " if lang_code == current_lang else ""
-                button_text = f"{checkmark}{lang_info['flag']} {lang_info['name']}"
+                button_text = f"{checkmark}{lang_info.get('flag', get_flag(lang_code))} {lang_info.get('name', lang_code)}"
                 row.append(InlineKeyboardButton(
                     button_text,
                     callback_data=f"subs_lang|{lang_code}"
@@ -1147,10 +1417,83 @@ def get_language_keyboard(page=0, user_id=None):
     keyboard.append([
         InlineKeyboardButton("🚫 OFF", callback_data="subs_lang|OFF"),
         InlineKeyboardButton(f"{auto_emoji} AUTO/TRANS", callback_data=f"subs_auto|toggle|{page}")
+
+    ])
+    # Always Ask option
+    always_ask_enabled = is_subs_always_ask(user_id) if user_id else False
+    always_ask_emoji = "✅" if always_ask_enabled else "☑️"
+    keyboard.append([
+        InlineKeyboardButton(f"{always_ask_emoji} Always Ask", callback_data=f"subs_always_ask|toggle|{page}")
+
     ])
     # Close button
     keyboard.append([
         InlineKeyboardButton("🔚 Close", callback_data="subs_lang_close|close")
+    ])
+
+    return InlineKeyboardMarkup(keyboard)
+
+def get_language_keyboard_always_ask(page=0, user_id=None, langs_override=None, per_page_rows=8, normal_langs=None, auto_langs=None):
+    """Generate keyboard for Always Ask mode with (auto)/(trans) indicators."""
+    keyboard = []
+    LANGS_PER_ROW = 3
+    ROWS_PER_PAGE = per_page_rows
+
+    # We get all languages with type indicators
+    if langs_override is not None:
+        all_langs = []
+        for code in langs_override:
+            flag = get_flag(code, use_second_part=True)  # SUBS: use second part for flags
+            name = code
+            # Determine if it's auto or trans
+            if normal_langs and code in normal_langs:
+                suffix = ""
+            elif auto_langs and code in auto_langs:
+                # Check if it's translated (contains hyphen like 'en-ru')
+                if '-' in code and len(code.split('-')) == 2:
+                    suffix = " (trans)"
+                else:
+                    suffix = " (auto)"
+            else:
+                suffix = ""
+            all_langs.append((code, {"flag": flag, "name": f"{name}{suffix}"}))
+    else:
+        all_langs = list(LANGUAGES.items())
+
+    total_languages = len(all_langs)
+    total_pages = math.ceil(total_languages / (LANGS_PER_ROW * ROWS_PER_PAGE))
+
+    # Cut for the current page
+    start_idx = page * LANGS_PER_ROW * ROWS_PER_PAGE
+    end_idx = start_idx + LANGS_PER_ROW * ROWS_PER_PAGE
+    current_page_langs = all_langs[start_idx:end_idx]
+
+    # Form buttons 3 in a row
+    for i in range(0, len(current_page_langs), LANGS_PER_ROW):
+        row = []
+        for j in range(LANGS_PER_ROW):
+            if i + j < len(current_page_langs):
+                lang_code, lang_info = current_page_langs[i + j]
+                button_text = f"{lang_info['flag']} {lang_info['name']}"
+                row.append(InlineKeyboardButton(
+                    button_text,
+                    callback_data=f"askf|subs_lang|{lang_code}"
+                ))
+        keyboard.append(row)
+
+    # Navigation
+    nav_row = []
+    if page > 0:
+        nav_row.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"askf|subs_page|{page-1}"))
+    if page < total_pages - 1:
+        nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"askf|subs_page|{page+1}"))
+    if nav_row:
+        keyboard.append(nav_row)
+
+    # Back and Close buttons
+    keyboard.append([
+        InlineKeyboardButton("🔙 Back", callback_data="askf|subs|back"),
+        InlineKeyboardButton("🔚 Close", callback_data="askf|subs|close")
     ])
 
     return InlineKeyboardMarkup(keyboard)

@@ -94,7 +94,26 @@ def video_url_extractor(app, message):
         quality_key = None
         if saved_format:
             # Convert format to quality_key for caching
-            if "height<=144" in saved_format:
+            # First check for exact height matches, then for <= matches
+            if "height=144" in saved_format:
+                quality_key = "144p"
+            elif "height=240" in saved_format:
+                quality_key = "240p"
+            elif "height=360" in saved_format:
+                quality_key = "360p"
+            elif "height=480" in saved_format:
+                quality_key = "480p"
+            elif "height=720" in saved_format:
+                quality_key = "720p"
+            elif "height=1080" in saved_format:
+                quality_key = "1080p"
+            elif "height=1440" in saved_format:
+                quality_key = "1440p"
+            elif "height=2160" in saved_format:
+                quality_key = "2160p"
+            elif "height=4320" in saved_format:
+                quality_key = "4320p"
+            elif "height<=144" in saved_format:
                 quality_key = "144p"
             elif "height<=240" in saved_format:
                 quality_key = "240p"
@@ -112,7 +131,7 @@ def video_url_extractor(app, message):
                 quality_key = "2160p"
             elif "height<=4320" in saved_format:
                 quality_key = "4320p"
-            elif "bestvideo+bestaudio" in saved_format or "bv*[vcodec*=avc1]+ba" in saved_format:
+            elif "bestvideo+bestaudio" in saved_format or "bv*[vcodec*=avc1]+ba" in saved_format or "bv*[vcodec*=av01]+ba" in saved_format:
                 quality_key = "bestvideo"
             elif saved_format == "best":
                 quality_key = "best"

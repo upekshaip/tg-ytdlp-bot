@@ -24,7 +24,7 @@ from URL_PARSERS.tags import generate_final_tags, save_user_tags
 from URL_PARSERS.youtube import is_youtube_url, download_thumbnail
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from CONFIG.config import Config
-from COMMANDS.subtitles_cmd import is_subs_enabled, check_subs_availability, get_user_subs_auto_mode, _subs_check_cache, download_subtitles_ytdlp, get_user_subs_language, clear_subs_check_cache
+from COMMANDS.subtitles_cmd import is_subs_enabled, check_subs_availability, get_user_subs_auto_mode, _subs_check_cache, download_subtitles_ytdlp, get_user_subs_language, clear_subs_check_cache, is_subs_always_ask
 from COMMANDS.split_sizer import get_user_split_size
 from COMMANDS.mediainfo_cmd import send_mediainfo_if_enabled
 from URL_PARSERS.playlist_utils import is_playlist_with_range
@@ -39,6 +39,25 @@ from pyrogram.types import ReplyParameters
 # Get app instance for decorators
 app = get_app()
 
+def determine_need_subs(subs_enabled, found_type, user_id):
+    """
+    Helper function to determine if subtitles are needed based on user settings and found type.
+    Returns True if subtitles should be embedded, False otherwise.
+    """
+    if not subs_enabled or found_type is None:
+        return False
+    
+    # Check if we're in Always Ask mode
+    is_always_ask_mode = is_subs_always_ask(user_id)
+    
+    if is_always_ask_mode:
+        # In Always Ask mode, always consider subtitles if found, regardless of auto_mode
+        return True  # True if any subtitles found (auto or normal)
+    else:
+        # In manual mode, respect user's auto_mode setting
+        auto_mode = get_user_subs_auto_mode(user_id)
+        return (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
+
 #@reply_with_keyboard
 def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None):
     """
@@ -47,23 +66,28 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     playlist_indices = []
     playlist_msg_ids = []    
     found_type = None
+    need_subs = False  # Will be determined once at the beginning
     user_id = message.chat.id
     logger.info(f"down_and_up called: url={url}, quality_key={quality_key}, format_override={format_override}, video_count={video_count}, video_start_with={video_start_with}")
     subs_enabled = is_subs_enabled(user_id)
     if subs_enabled and is_youtube_url(url):
         found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-        available_langs = _subs_check_cache.get(
-            f"{url}_{user_id}_{'auto' if found_type == 'auto' else 'normal'}_langs",
-            []
-        )
-        # First, download the subtitles separately
-        user_dir = os.path.join("users", str(user_id))
-        video_dir = user_dir
-        subs_path = download_subtitles_ytdlp(url, user_id, video_dir, available_langs)
-                                    
-        if not subs_path:
-            app.send_message(user_id, "⚠️ Failed to download subtitles", reply_parameters=ReplyParameters(message_id=message.id))
-            #continue
+        # Determine subtitle availability once here
+        need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+        
+        if need_subs:
+            available_langs = _subs_check_cache.get(
+                f"{url}_{user_id}_{'auto' if found_type == 'auto' else 'normal'}_langs",
+                []
+            )
+            # First, download the subtitles separately
+            user_dir = os.path.join("users", str(user_id))
+            video_dir = user_dir
+            subs_path = download_subtitles_ytdlp(url, user_id, video_dir, available_langs)
+                                        
+            if not subs_path:
+                app.send_message(user_id, "⚠️ Failed to download subtitles", reply_parameters=ReplyParameters(message_id=message.id))
+                need_subs = False  # Reset if download failed
 
     # We define a playlist not only by the number of videos, but also by the presence of a range in the URL
     original_text = message.text or message.caption or ""
@@ -95,8 +119,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     elif quality_key and not is_playlist:
         #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
         subs_enabled = is_subs_enabled(user_id)
-        auto_mode = get_user_subs_auto_mode(user_id)
-        need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
+        # Use the already determined subtitle availability
         if not need_subs:
             cached_ids = get_cached_message_ids(url, quality_key)
             if cached_ids:
@@ -112,10 +135,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     return
                 except Exception as e:
                     logger.error(f"Error reposting video from cache: {e}")
-                    #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                    subs_enabled = is_subs_enabled(user_id)
-                    auto_mode = get_user_subs_auto_mode(user_id)
-                    need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
+                    # Use the already determined subtitle availability
                     if not need_subs:
                         save_to_video_cache(url, quality_key, [], clear=True)
                     else:
@@ -184,8 +204,38 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         user_dir_name = os.path.abspath(os.path.join("users", str(user_id)))
         create_directory(user_dir_name)
 
-        # We only need disk space for one video at a time, since files are deleted after upload
-        if not check_disk_space(user_dir_name, 2 * 1024 * 1024 * 1024):
+        # Оценка требуемого места: сначала берём из yt-dlp точный/приблизительный размер,
+        # затем оцениваем по битрейту и длительности, в крайнем случае 2 ГБ.
+        required_bytes = 2 * 1024 * 1024 * 1024
+        try:
+            from DOWN_AND_UP.yt_dlp_hook import get_video_formats
+            info_probe = get_video_formats(url, user_id)
+            size = 0
+            if isinstance(info_probe, dict):
+                size = info_probe.get('filesize') or info_probe.get('filesize_approx') or 0
+                if not size:
+                    # fallback по tbr*duration
+                    tbr = info_probe.get('tbr') or 0  # total bitrate in Kbps
+                    duration = info_probe.get('duration') or 0
+                    if tbr and duration:
+                        # tbr Kbps -> bytes/sec: tbr*1000/8, *duration
+                        size = int((float(tbr) * 1000.0 / 8.0) * float(duration))
+                    else:
+                        # последний шанс: взять максимальный tbr из форматов
+                        formats = info_probe.get('formats') or []
+                        best_tbr = 0
+                        for f in formats:
+                            ftbr = f.get('tbr') or 0
+                            if ftbr and ftbr > best_tbr:
+                                best_tbr = ftbr
+                        if best_tbr and duration:
+                            size = int((float(best_tbr) * 1000.0 / 8.0) * float(duration))
+            if size and size > 0:
+                required_bytes = int(size * 1.2)  # 20% запас
+        except Exception:
+            pass
+
+        if not check_disk_space(user_dir_name, required_bytes):
             send_to_user(message, f"❌ Not enough disk space to download videos.")
             return
 
@@ -215,7 +265,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             # if use_default_format is True, then do not take from format.txt, but use default ones
             if use_default_format:
                 attempts = [
-                    {'format': 'bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best', 'prefer_ffmpeg': True, 'merge_output_format': output_format, 'extract_flat': False},
+                    {'format': 'bv*[vcodec*=avc1][height<=1080][height>720]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba', 'prefer_ffmpeg': True, 'merge_output_format': output_format, 'extract_flat': False},
                     {'format': 'best', 'prefer_ffmpeg': False, 'extract_flat': False}
                 ]
             else:
@@ -228,7 +278,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         attempts = [{'format': custom_format, 'prefer_ffmpeg': True, 'merge_output_format': output_format}]
                 else:
                     attempts = [
-                        {'format': 'bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best',
+                        {'format': 'bv*[vcodec*=avc1][height<=1080][height>720]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba',
                         'prefer_ffmpeg': True, 'merge_output_format': output_format, 'extract_flat': False},
                         {'format': 'bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best',
                         'prefer_ffmpeg': True, 'merge_output_format': output_format, 'extract_flat': False},
@@ -464,10 +514,108 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             is_hls = ("m3u8" in url.lower())
             if not is_hls:
                 common_opts['progress_hooks'] = [progress_func]
-            ytdl_opts = {**common_opts, **attempt_opts}
+            # Respect MKV toggle: remux to mkv when MKV is ON; otherwise prefer mp4
             try:
+                from COMMANDS.format_cmd import get_user_mkv_preference
+                mkv_on = get_user_mkv_preference(user_id)
+            except Exception:
+                mkv_on = False
+
+            # Adjust attempts' merge_output_format based on WEBM preference
+            try:
+                if mkv_on:
+                    for _attempt in attempts:
+                        if isinstance(_attempt, dict):
+                            _attempt['merge_output_format'] = 'mkv'
+                else:
+                    for _attempt in attempts:
+                        if isinstance(_attempt, dict) and 'merge_output_format' not in _attempt:
+                            _attempt['merge_output_format'] = 'mp4'
+            except Exception:
+                pass
+
+            ytdl_opts = {**common_opts, **attempt_opts}
+            # If MKV is ON, remux to mkv; else to mp4
+            if mkv_on:
+                ytdl_opts['remux_video'] = 'mkv'
+            else:
+                ytdl_opts['remux_video'] = 'mp4'
+            try:
+                logger.info(f"Starting yt-dlp extraction for URL: {url}")
+                logger.info(f"yt-dlp options: {ytdl_opts}")
+                
+                # First, check if the requested format is available using the same method as always_ask_menu
+                from DOWN_AND_UP.yt_dlp_hook import get_video_formats
+                
+                logger.info("Checking available formats...")
+                check_info = get_video_formats(url, user_id)
+                logger.info("Format check completed")
+                
+                # Check if requested format exists
+                requested_format = attempt_opts.get('format', '')
+                if requested_format and requested_format != 'best':
+                    available_formats = check_info.get('formats', [])
+                    format_found = False
+                    
+                    # Check if requested format is available
+                    if 'av01' in requested_format:
+                        # Check for AV1 format specifically
+                        for fmt in available_formats:
+                            vcodec = fmt.get('vcodec')
+                            if vcodec and vcodec.startswith('av01'):
+                                format_found = True
+                                break
+                        
+                        if not format_found:
+                            logger.warning(f"AV1 format requested but not available for this video")
+                            
+                            # Also check if there are any video formats at all
+                            video_formats = [fmt for fmt in available_formats if fmt.get('vcodec') and not fmt.get('vcodec').startswith('images')]
+                            if not video_formats:
+                                logger.warning(f"No video formats available at all for this video")
+                            # Notify user and stop download
+                            try:
+                                # Filter out non-video formats (like storyboards)
+                                video_formats = [fmt for fmt in available_formats if fmt.get('vcodec') and not fmt.get('vcodec').startswith('images')]
+                                
+                                available_formats_list = []
+                                for fmt in video_formats[:5]:
+                                    vcodec = fmt.get('vcodec', 'unknown')
+                                    height = fmt.get('height', 'unknown')
+                                    if vcodec and vcodec != 'unknown':
+                                        available_formats_list.append(f"• {vcodec} {height}p")
+                                
+                                formats_text = "\n".join(available_formats_list) if available_formats_list else "• No video formats available"
+                                
+                                safe_edit_message_text(user_id, proc_msg_id, 
+                                    f"{current_total_process}\n❌ AV1 format is not available for this video.\n\nAvailable formats:\n{formats_text}")
+                            except Exception as e:
+                                logger.error(f"Failed to notify user about format unavailability: {e}")
+                            
+                            # Send error message to user
+                            # Filter out non-video formats (like storyboards)
+                            video_formats = [fmt for fmt in available_formats if fmt.get('vcodec') and not fmt.get('vcodec').startswith('images')]
+                            
+                            available_formats_list = []
+                            for fmt in video_formats[:5]:
+                                vcodec = fmt.get('vcodec', 'unknown')
+                                height = fmt.get('height', 'unknown')
+                                if vcodec and vcodec != 'unknown':
+                                    available_formats_list.append(f"• {vcodec} {height}p")
+                            
+                            formats_text = "\n".join(available_formats_list) if available_formats_list else "• No video formats available"
+                            
+                            send_to_user(message, 
+                                f"❌ **AV1 format is not available for this video.**\n\n"
+                                f"**Available formats:**\n{formats_text}\n\n"
+                                f"Please select a different format using `/format` command.")
+                            
+                            return None
+                
                 with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
+                    logger.info("yt-dlp instance created, starting extract_info...")
                     info_dict = ydl.extract_info(url, download=False)
+                    logger.info("extract_info completed successfully")
                 if "entries" in info_dict:
                     entries = info_dict["entries"]
                     if not entries:
@@ -496,6 +644,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         f"{current_total_process}\n> <i>📥 Downloading using format: {ytdl_opts.get('format', 'default')}...</i>")
                 except Exception as e:
                     logger.error(f"Status update error: {e}")
+                
+                logger.info("Starting download phase...")
                 with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
                     if is_hls:
                         cycle_stop = threading.Event()
@@ -513,6 +663,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{full_bar}   100.0%")
                 except Exception as e:
                     logger.error(f"Final progress update error: {e}")
+                
+                logger.info("Download completed successfully")
                 return info_dict
             except yt_dlp.utils.DownloadError as e:
                 nonlocal error_message
@@ -814,6 +966,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     part_duration, splited_thumb_dir = part_result
                     # --- TikTok: Don't Pass Title ---
                     video_msg = send_videos(message, path_lst[p], '' if force_no_title else caption_lst[p], part_duration, splited_thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final)
+                    if not video_msg:
+                        logger.error("send_videos returned None for split part; skipping cache save for this part")
+                        continue
                     #found_type = None
                     try:
                         forwarded_msgs = safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
@@ -829,10 +984,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         rounded_quality_key = f"{ceil_to_popular(int(quality_key[:-1]))}p"
                                 except Exception:
                                     pass
-                                # Проверяем, нужны ли субтитры для этого видео
-                                subs_enabled = is_subs_enabled(user_id)
-                                auto_mode = get_user_subs_auto_mode(user_id)
-                                need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
+                                # Use the already determined subtitle availability
                                 if not need_subs:
                                     save_to_playlist_cache(get_clean_playlist_url(url), rounded_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
                                 else:
@@ -852,7 +1004,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
                                 subs_enabled = is_subs_enabled(user_id)
                                 auto_mode = get_user_subs_auto_mode(user_id)
-                                need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
+                                need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                                 if not need_subs:
                                     save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
                                 else:
@@ -873,7 +1025,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
                             subs_enabled = is_subs_enabled(user_id)
                             auto_mode = get_user_subs_auto_mode(user_id)
-                            need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
+                            need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                             if not need_subs:
                                 save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
                             else:
@@ -903,7 +1055,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
                     subs_enabled = is_subs_enabled(user_id)
                     auto_mode = get_user_subs_auto_mode(user_id)
-                    need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
+                    need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                     if not need_subs:
                         save_to_video_cache(url, quality_key, split_msg_ids, original_text=message.text or message.caption or "")
                     else:
@@ -955,7 +1107,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             auto_mode = get_user_subs_auto_mode(user_id)
                             if subs_enabled and is_youtube_url(url) and min(width, height) <= Config.MAX_SUB_QUALITY:
                                 #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                                if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
+                                # Use the helper function to determine subtitle availability
+                                need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+                                if need_subs:
                                     
                                     # First, download the subtitles separately
                                     video_dir = os.path.dirname(after_rename_abs_path)
@@ -1036,6 +1190,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             # Clear
                             clear_subs_check_cache()
                         video_msg = send_videos(message, after_rename_abs_path, '' if force_no_title else original_video_title, duration, thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final)
+                        if not video_msg:
+                            logger.error("send_videos returned None for single video; aborting cache save for this item")
+                            continue
                         
                         #found_type = None
                         try:
@@ -1049,7 +1206,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
                                     subs_enabled = is_subs_enabled(user_id)
                                     auto_mode = get_user_subs_auto_mode(user_id)
-                                    need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
+                                    need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                                     if not need_subs:
                                         save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
                                     else:
@@ -1063,7 +1220,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
                                     subs_enabled = is_subs_enabled(user_id)
                                     auto_mode = get_user_subs_auto_mode(user_id)
-                                    need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
+                                    need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                                     if not need_subs:
                                         save_to_video_cache(url, quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
                                     else:
@@ -1076,7 +1233,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
                                     subs_enabled = is_subs_enabled(user_id)
                                     auto_mode = get_user_subs_auto_mode(user_id)
-                                    need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
+                                    need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                                     if not need_subs:
                                         save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
                                     else:
@@ -1089,7 +1246,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
                                     subs_enabled = is_subs_enabled(user_id)
                                     auto_mode = get_user_subs_auto_mode(user_id)
-                                    need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
+                                    need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                                     if not need_subs:
                                         # For single videos, save to regular cache
                                         save_to_video_cache(url, quality_key, [video_msg.id], original_text=message.text or message.caption or "")
@@ -1104,7 +1261,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
                                 subs_enabled = is_subs_enabled(user_id)
                                 auto_mode = get_user_subs_auto_mode(user_id)
-                                need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
+                                need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                                 if not need_subs:
                                     save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
                                 else:
@@ -1118,7 +1275,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
                                 subs_enabled = is_subs_enabled(user_id)
                                 auto_mode = get_user_subs_auto_mode(user_id)
-                                need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
+                                need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                                 if not need_subs:
                                     save_to_video_cache(url, quality_key, [video_msg.id], original_text=message.text or message.caption or "")
                                 else:
@@ -1189,7 +1346,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
             subs_enabled = is_subs_enabled(user_id)
             auto_mode = get_user_subs_auto_mode(user_id)
-            need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
+            need_subs = determine_need_subs(subs_enabled, found_type, user_id)
             if not need_subs:
                 save_to_playlist_cache(get_clean_playlist_url(url), quality_key, playlist_indices, playlist_msg_ids, original_text=message.text or message.caption or "")
             else:

@@ -13,6 +13,7 @@ from HELPERS.app_instance import get_app
 from HELPERS.logger import logger, send_to_all, send_to_logger
 from CONFIG.config import Config
 from HELPERS.safe_messeger import safe_forward_messages
+from COMMANDS.format_cmd import get_user_mkv_preference
 from pyrogram import enums
 
 # Get app instance for decorators
@@ -565,7 +566,84 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
         
         video_dir = os.path.dirname(video_path)
         
-        # We get video parameters via FFPRobe
+        # Если контейнер MKV — выполняем «софт»-встраивание дорожки субтитров без прожига
+        try:
+            mkv_selected = bool(get_user_mkv_preference(user_id))
+        except Exception:
+            mkv_selected = False
+        is_mkv_file = video_path.lower().endswith('.mkv')
+
+        if is_mkv_file or mkv_selected:
+            # Убедимся, что есть SRT (в UTF-8)
+            srt_files = [f for f in os.listdir(video_dir) if f.lower().endswith('.srt')]
+            if not srt_files:
+                logger.info(f"No .srt files found in {video_dir} for soft-mux MKV")
+                return False
+            subs_path = os.path.join(video_dir, srt_files[0])
+            subs_path = ensure_utf8_srt(subs_path)
+            if not subs_path or not os.path.exists(subs_path) or os.path.getsize(subs_path) == 0:
+                logger.error(f"Subtitle file invalid for MKV soft-mux: {subs_path}")
+                return False
+
+            # Подготавливаем путь вывода
+            video_base = os.path.splitext(os.path.basename(video_path))[0]
+            output_path = os.path.join(video_dir, f"{video_base}_with_subs_temp.mkv")
+
+            # Собираем MKV: видео/аудио копируем, субтитры как srt
+            ffmpeg_path = get_ffmpeg_path()
+            if not ffmpeg_path:
+                logger.error("ffmpeg not found for MKV soft-mux")
+                return False
+            cmd = [
+                ffmpeg_path, '-y',
+                '-i', video_path,
+                '-i', subs_path,
+                '-c', 'copy',
+                '-c:s', 'srt',
+                '-map', '0',
+                '-map', '1:0'
+            ]
+            # Язык субтитров, если указан
+            if subs_lang and subs_lang != 'OFF':
+                cmd += ['-metadata:s:s:0', f'language={subs_lang}']
+            cmd += [output_path]
+
+            try:
+                logger.info(f"Running ffmpeg soft-mux (MKV): {' '.join(cmd)}")
+                subprocess.run(cmd, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
+            except Exception as e:
+                logger.error(f"FFmpeg soft-mux failed: {e}")
+                return False
+
+            if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+                logger.error("Soft-mux output missing or empty")
+                return False
+
+            # Безопасно заменяем исходный файл на результат (оставляем .mkv путь)
+            backup_path = video_path + ".backup"
+            try:
+                os.rename(video_path, backup_path)
+                os.rename(output_path, video_path)
+                if os.path.exists(backup_path):
+                    os.remove(backup_path)
+            except Exception as e:
+                logger.error(f"Error replacing MKV after soft-mux: {e}")
+                # Откат
+                try:
+                    if os.path.exists(video_path):
+                        os.remove(video_path)
+                    if os.path.exists(backup_path):
+                        os.rename(backup_path, video_path)
+                except Exception:
+                    pass
+                if os.path.exists(output_path):
+                    os.remove(output_path)
+                return False
+
+            logger.info("Soft subtitle mux into MKV completed successfully")
+            return True
+
+        # We get video parameters via FFPRobe (жёсткое прожигание для MP4 и прочих контейнеров)
         width, height, total_time = get_video_info_ffprobe(video_path)
         if width == 0 or height == 0:
             logger.error(f"Unable to determine video resolution via ffprobe: width={width}, height={height}")

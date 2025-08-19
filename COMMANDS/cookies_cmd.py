@@ -10,6 +10,7 @@ from HELPERS.decorators import reply_with_keyboard
 from HELPERS.limitter import is_user_in_channel
 from HELPERS.logger import send_to_logger, logger, send_to_user, send_to_all
 from HELPERS.filesystem_hlp import create_directory
+from HELPERS.safe_messeger import fake_message
 import subprocess
 import os
 import requests
@@ -60,13 +61,49 @@ def cookies_from_browser(app, message):
         if exists:
             installed_browsers.append(browser)
 
-    # If there are no installed browsers, send a message about it
+    # If there are no installed browsers, fallback: download from COOKIE_URL
     if not installed_browsers:
-        app.send_message(
-            user_id,
-            "❌ No supported browsers found on the server. Please install one of the supported browsers or use manual cookie upload."
-        )
-        send_to_logger(message, "No installed browsers found.")
+        fallback_url = getattr(Config, "COOKIE_URL", None)
+        if not fallback_url:
+            app.send_message(
+                user_id,
+                "❌ No supported browsers found and no COOKIE_URL configured. Use /download_cookie or upload cookie.txt."
+            )
+            send_to_logger(message, "No installed browsers found. COOKIE_URL is not configured.")
+            return
+
+        user_dir = os.path.join(".", "users", str(user_id))
+        create_directory(user_dir)
+        cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
+        cookie_file_path = os.path.join(user_dir, cookie_filename)
+
+        try:
+            ok, status, content, err = _download_content(fallback_url, timeout=30)
+            if ok:
+                # basic validation
+                if not fallback_url.lower().endswith('.txt'):
+                    app.send_message(user_id, "❌ Fallback COOKIE_URL must point to a .txt file.")
+                    send_to_logger(message, "COOKIE_URL does not end with .txt (hidden)")
+                    return
+                if len(content or b"") > 100 * 1024:
+                    app.send_message(user_id, "❌ Fallback cookie file is too large (>100KB).")
+                    send_to_logger(message, "Fallback cookie too large (source hidden)")
+                    return
+                with open(cookie_file_path, "wb") as f:
+                    f.write(content)
+                app.send_message(user_id, "✅ YouTube cookie file downloaded via fallback and saved as cookie.txt")
+                send_to_logger(message, "Fallback COOKIE_URL used successfully (source hidden)")
+            else:
+                if status is not None:
+                    app.send_message(user_id, f"❌ Fallback cookie source unavailable (status {status}). Try /download_cookie or upload cookie.txt.")
+                    send_to_logger(message, f"Fallback COOKIE_URL failed: status={status} (hidden)")
+                else:
+                    app.send_message(user_id, "❌ Error downloading fallback cookie. Try /download_cookie or upload cookie.txt.")
+                    safe_err = _sanitize_error_detail(err or "", fallback_url)
+                    send_to_logger(message, f"Fallback COOKIE_URL error: {safe_err}")
+        except Exception as e:
+            app.send_message(user_id, "❌ Unexpected error during fallback cookie download.")
+            send_to_logger(message, f"Fallback COOKIE_URL unexpected error: {type(e).__name__}: {e}")
         return
 
     # Create buttons only for installed browsers
@@ -217,6 +254,12 @@ def download_cookie_callback(app, callback_query):
             reply_parameters=ReplyParameters(message_id=callback_query.message.id if hasattr(callback_query.message, 'id') else None),
             reply_markup=keyboard
         )
+    elif data == "from_browser":
+        try:
+            cookies_from_browser(app, fake_message("/cookies_from_browser", user_id))
+        except Exception as e:
+            logger.error(f"Failed to start cookies_from_browser: {e}")
+            app.answer_callback_query(callback_query.id, "❌ Failed to open browser cookie menu", show_alert=True)
     elif data == "close":
         try:
             callback_query.message.delete()
@@ -277,6 +320,9 @@ def download_cookie(app, message):
         [
             InlineKeyboardButton("📘 Facebook", callback_data="download_cookie|facebook"),
             InlineKeyboardButton("📝 Your Own", callback_data="download_cookie|own"),
+        ],
+        [
+            InlineKeyboardButton("🌐 From Browser (YouTube)", callback_data="download_cookie|from_browser"),
         ],
         [
             InlineKeyboardButton("🔚 Close", callback_data="download_cookie|close"),

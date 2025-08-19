@@ -3,7 +3,7 @@
 Support me on [BuyMeACoffee](https://buymeacoffee.com/upekshaip) \
 Thanks to Contributor - [@IIlIlIlIIIlllIIlIIlIllIIllIlIIIl](https://t.me/IIlIlIlIIIlllIIlIIlIllIIllIlIIIl) - [chelaxian](https://github.com/chelaxian/tg-ytdlp-bot)
 
-Download private YouTube/videos using a cookie file.
+Download private YouTube/videos using a cookie file with advanced format selection, codec support (H.264/AVC, AV1, VP9), and intelligent subtitle handling.
 
 Test free Telegram bots - https://t.me/tg_ytdlp \
 https://t.me/tgytdlp_uae_bot \
@@ -168,15 +168,60 @@ python3 magic.py
 - **/usage** - Show your usage statistics and logs.
 - **/tags** - Get all your #tags.
 - **/audio** - Download audio from a video URL.
-- **/format** - Choose media format options.
+- **/format** - Choose media format options with advanced codec selection (H.264/AVC, AV1, VP9) and container preferences (MP4, MKV).
 - **/split** - Change splitted video part size (0.25-2GB).
-- **/mediainfo** - Turn ON/OFF sending mediainfo.
+- **/mediainfo** - Turn ON/OFF sending mediainfo (`/mediainfo on|off`).
 - **/check_cookie** - Check the cookie file.
-- **/download_cookie** - Download the cookie file.
+- **/download_cookie** - Download the cookie file with additional "From Browser" option.
 - **/save_as_cookie** - Save text as cookie (or upload TXT-doc).
-- **/cookies_from_browser** - Get cookies from browser (if supported).
-- **/subs** - Enable/disable subtitle embedding for videos.
+- **/cookies_from_browser** - Get cookies from browser (if supported) with fallback to Config.COOKIE_URL.
+- **/subs** - Enable/disable subtitle embedding for videos with enhanced language selection and "Always Ask" mode.
 
+---
+
+## Advanced Features
+
+### Enhanced Format Selection (`/format`)
+- **Codec Support**: Choose between H.264/AVC (avc1), AV1 (av01), and VP9 (vp9)
+- **Container Toggle**: Switch between MP4 and MKV containers
+- **Smart Quality Selection**: Prioritizes exact height matches before falling back to "less than or equal to"
+- **Persistent Preferences**: Your codec and container choices are saved per-user
+
+### Always Ask Menu
+- **📼 CODEC Button**: Access advanced codec and container filters
+  - AVC (H.264/AVC) - Traditional, widely supported
+  - AV1 - Modern royalty-free codec with ~25-40% better efficiency
+  - VP9 - Google's VP9 codec
+  - MP4/MKV container selection
+- **📹 DUBS Button**: Select audio language with flag indicators
+  - Only appears when multiple audio languages are detected
+  - Pagination support for long language lists
+- **💬 SUBS Button**: Choose subtitle language with smart detection
+  - Auto-generated vs. normal captions
+  - Translation indicators
+  - Pagination support
+- **Dynamic Filtering**: Real-time quality filtering based on selected codec/container
+- **Smart Subtitle Logic**: Differentiates between "Always Ask" mode and manual subtitle selection
+
+### Intelligent Subtitle Handling
+- **Container-Aware Embedding**:
+  - **MKV**: Soft-muxing (subtitles as separate track, no quality loss)
+  - **MP4**: Hard-embedding (burned into video for universal compatibility)
+- **Language Detection**: Optimized yt-dlp client selection for faster subtitle discovery
+- **Auto Mode**: Automatically selects auto-generated or normal captions based on user preference
+- **Always Ask Mode**: Shows all available subtitle languages for manual selection
+
+### Enhanced Cookie Management
+- **Browser Integration**: Extract cookies from installed browsers
+- **Fallback Support**: Automatic download from Config.COOKIE_URL if no browsers found
+- **Multiple Sources**: Choose between browser extraction and direct download
+
+### Improved Error Handling
+- **Upload Retries**: Smart retry logic for failed uploads with fallback to document mode
+- **Dynamic Disk Space**: Intelligent space estimation based on video size
+- **Graceful Degradation**: Better handling of format unavailability and network issues
+
+---
 
 ## Admin Commands
 

@@ -30,7 +30,7 @@ class DomainsConfig(object):
     ]
     # Added CLEAN_QUERY array for domains where query and fragment can be safely cleared
     CLEAN_QUERY = [
-        'vk.com', 'vkvideo.ru', 'vkontakte.ru',
+        #'vk.com', 'vkvideo.ru', 'vkontakte.ru',
         'tiktok.com', 'vimeo.com', 'twitch.tv',
         'instagram.com', 'ig.me', 'dailymotion.com',
         'twitter.com', 'x.com',

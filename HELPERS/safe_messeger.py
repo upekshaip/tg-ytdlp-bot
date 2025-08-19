@@ -178,6 +178,15 @@ def safe_delete_messages(chat_id, message_ids, **kwargs):
             app = get_app_safe()
             return app.delete_messages(chat_id=chat_id, message_ids=message_ids, **kwargs)
         except Exception as e:
+            # Если сообщение уже удалено/невалидно — не считаем это ошибкой
+            try:
+                msg = str(e)
+            except Exception:
+                msg = f"{type(e).__name__}"
+            if "MESSAGE_ID_INVALID" in msg or "MESSAGE_DELETE_FORBIDDEN" in msg:
+                if attempt == 0:
+                    logger.debug(f"Tried to delete non-existent message(s): {message_ids}")
+                return None
             if "FLOOD_WAIT" in str(e):
                 # Extract wait time
                 wait_match = re.search(r'A wait of (\d+) seconds is required', str(e))
@@ -192,5 +201,6 @@ def safe_delete_messages(chat_id, message_ids, **kwargs):
                 if attempt < max_retries - 1:
                     continue
 
-            logger.error(f"Failed to delete messages after {max_retries} attempts: {e}")
+            # Избегаем внутренних атрибутов исключения (например, pts_count)
+            logger.error(f"Failed to delete messages after {max_retries} attempts: {type(e).__name__}")
             return None
