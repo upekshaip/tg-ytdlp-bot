@@ -91,7 +91,7 @@ def cookies_from_browser(app, message):
                     return
                 with open(cookie_file_path, "wb") as f:
                     f.write(content)
-                app.send_message(user_id, "✅ Cookie file downloaded via fallback and saved as cookie.txt")
+                app.send_message(user_id, "✅ YouTube cookie file downloaded via fallback and saved as cookie.txt")
                 send_to_logger(message, "Fallback COOKIE_URL used successfully (source hidden)")
             else:
                 if status is not None:
@@ -322,7 +322,7 @@ def download_cookie(app, message):
             InlineKeyboardButton("📝 Your Own", callback_data="download_cookie|own"),
         ],
         [
-            InlineKeyboardButton("🌐 From Browser", callback_data="download_cookie|from_browser"),
+            InlineKeyboardButton("🌐 From Browser (YouTube)", callback_data="download_cookie|from_browser"),
         ],
         [
             InlineKeyboardButton("🔚 Close", callback_data="download_cookie|close"),

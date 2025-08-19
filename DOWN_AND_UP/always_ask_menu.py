@@ -934,7 +934,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         show_repost_hint = True
 
         if subs_enabled and is_youtube_url(url):
-            # found_type = check_subs_availability(url, user_id, return_type=True)
+            found_type = check_subs_availability(url, user_id, return_type=True)
             need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
             if need_subs:
                 subs_hint = "\n💬 — Subtitles are available"
@@ -976,7 +976,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                         subs_available = "💬"
                     elif is_youtube_url(url) and w is not None and h is not None and min(int(w), int(h)) <= Config.MAX_SUB_QUALITY:
                         # Check the presence of subtitles of the desired type
-                        # found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
+                        found_type = check_subs_availability(url, user_id, return_type=True)
                         if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
                             temp_info = {
                                 'duration': info.get('duration'),
@@ -1169,7 +1169,10 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
     except Exception:
         pass
     if data == "mp3":
-        callback_query.answer("🎧 Downloading audio...")
+        try:
+            callback_query.answer("🎧 Downloading audio...")
+        except Exception:
+            pass
         # Extract playlist parameters from the original message
         full_string = original_message.text or original_message.caption or ""
         _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
@@ -1178,7 +1181,10 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
         return
     
     if data == "subs_only":
-        callback_query.answer("💬 Downloading subtitles only...")
+        try:
+            callback_query.answer("💬 Downloading subtitles only...")
+        except Exception:
+            pass
         # Extract playlist parameters from the original message
         full_string = original_message.text or original_message.caption or ""
         _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
@@ -1188,7 +1194,10 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
     
     # Logic for forming the format with the real height
     if data == "best":
-        callback_query.answer("📥 Downloading best quality...")
+        try:
+            callback_query.answer("📥 Downloading best quality...")
+        except Exception:
+            pass
         fmt = f"bv*[vcodec*={sel_codec}]+ba"
         quality_key = "best"
     else:
@@ -1232,7 +1241,10 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
                     fmt = f"bv*[vcodec*={sel_codec}][height<={real_height}][height>{prev}]+ba/bv*[vcodec*={sel_codec}][height<={real_height}]+ba/bv*[vcodec*={sel_codec}]+ba"
             
             quality_key = data
-            callback_query.answer(f"📥 Downloading {data}...")
+            try:
+                callback_query.answer(f"📥 Downloading {data}...")
+            except Exception:
+                pass
         except ValueError:
             callback_query.answer("Unknown quality.")
             return
