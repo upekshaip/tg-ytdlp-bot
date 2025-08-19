@@ -29,6 +29,20 @@ def mediainfo_command(app, message):
         return
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
+    # Fast toggle via args: /mediainfo on|off
+    try:
+        parts = (message.text or "").split()
+        if len(parts) >= 2:
+            arg = parts[1].lower()
+            mediainfo_file = os.path.join(user_dir, "mediainfo.txt")
+            if arg in ("on", "off"):
+                with open(mediainfo_file, "w", encoding="utf-8") as f:
+                    f.write("ON" if arg == "on" else "OFF")
+                app.send_message(user_id, f"✅ MediaInfo {'enabled' if arg=='on' else 'disabled'}.")
+                send_to_logger(message, f"MediaInfo set via command: {arg}")
+                return
+    except Exception:
+        pass
     buttons = [
         [InlineKeyboardButton("✅ ON", callback_data="mediainfo_option|on"), InlineKeyboardButton("❌ OFF", callback_data="mediainfo_option|off")],
         [InlineKeyboardButton("🔚 Close", callback_data="mediainfo_option|close")],

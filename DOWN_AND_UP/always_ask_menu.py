@@ -1,5 +1,6 @@
 # --- Callback Processor ---
 import os
+import hashlib
 import re
 from datetime import datetime
 import json
@@ -18,7 +19,10 @@ from CONFIG.config import Config
 
 from COMMANDS.subtitles_cmd import (
     clear_subs_check_cache, is_subs_enabled, check_subs_availability, 
-    get_user_subs_auto_mode, download_subtitles_only, get_user_subs_language, _subs_check_cache
+    get_user_subs_auto_mode, download_subtitles_only, get_user_subs_language, _subs_check_cache,
+    LANGUAGES, get_language_keyboard, is_subs_always_ask, save_subs_always_ask,
+    get_language_keyboard_always_ask, get_available_subs_languages, get_flag,
+    save_user_subs_language, save_user_subs_auto_mode,
 )
 from COMMANDS.split_sizer import get_user_split_size
 
@@ -45,12 +49,13 @@ app = get_app()
 # In-memory filters for Always Ask (per user session)
 _ASK_FILTERS = {}
 _ASK_INFO_CACHE_FILE = "ask_formats.json"
+_ASK_SUBS_LANGS_PREFIX = "ask_subs_"
 
 def get_filters(user_id):
     f = _ASK_FILTERS.get(str(user_id))
     if not f:
         # defaults: filters hidden to keep UI simple
-        f = {"codec": "avc1", "ext": "mp4", "visible": False}
+        f = {"codec": "avc1", "ext": "mp4", "visible": False, "audio_lang": None, "has_dubs": False, "available_dubs": []}
         _ASK_FILTERS[str(user_id)] = f
     return f
 
@@ -60,14 +65,58 @@ def set_filter(user_id, kind, value):
         f["codec"] = value
     elif kind == "ext":
         f["ext"] = value
+    elif kind == "audio_lang":
+        f["audio_lang"] = value
     elif kind == "toggle":
         f["visible"] = (value == "on")
     _ASK_FILTERS[str(user_id)] = f
+
+def save_filters(user_id, state):
+    """Persist current in-memory filters back to the session map."""
+    _ASK_FILTERS[str(user_id)] = dict(state)
 
 def _ask_cache_path(user_id):
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
     return os.path.join(user_dir, _ASK_INFO_CACHE_FILE)
+
+def _subs_langs_cache_path(user_id, url: str) -> str:
+    user_dir = os.path.join("users", str(user_id))
+    create_directory(user_dir)
+    h = hashlib.sha1((url or "").encode("utf-8", errors="ignore")).hexdigest()[:16]
+    return os.path.join(user_dir, f"{_ASK_SUBS_LANGS_PREFIX}{h}.json")
+
+def save_subs_langs_cache(user_id: int, url: str, normal_langs, auto_langs) -> None:
+    try:
+        path = _subs_langs_cache_path(user_id, url)
+        data = {
+            "url": url,
+            "normal": list(normal_langs or []),
+            "auto": list(auto_langs or []),
+        }
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+    except Exception:
+        pass
+
+def load_subs_langs_cache(user_id: int, url: str):
+    try:
+        path = _subs_langs_cache_path(user_id, url)
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data.get("normal", []), data.get("auto", [])
+    except Exception:
+        return [], []
+    return [], []
+
+def delete_subs_langs_cache(user_id: int, url: str) -> None:
+    try:
+        path = _subs_langs_cache_path(user_id, url)
+        if os.path.exists(path):
+            os.remove(path)
+    except Exception:
+        pass
 
 def save_ask_info(user_id, url, info):
     try:
@@ -97,12 +146,191 @@ def load_ask_info(user_id, url):
         return None
     return None
 
+# --- DUBS flag resolver (robust) ---
+_DUBS_FLAG_OVERRIDES = {
+    'de': '🇩🇪',
+    'fr': '🇫🇷',
+    'es': '🇪🇸',
+    'it': '🇮🇹',
+    'en': '🇬🇧',
+    'pt': '🇵🇹',
+}
+
+def _dub_flag(lang_code: str) -> str:
+    try:
+        base = (lang_code or '').split('-', 1)[0].lower()
+        if base in _DUBS_FLAG_OVERRIDES:
+            return _DUBS_FLAG_OVERRIDES[base]
+        # fallback to generic resolver by first part
+        return get_flag(lang_code, use_second_part=False)
+    except Exception:
+        return '🌐'
+
 @app.on_callback_query(filters.regex(r"^askf\|"))
 def ask_filter_callback(app, callback_query):
     user_id = callback_query.from_user.id
     parts = callback_query.data.split("|")
     if len(parts) >= 3:
         _, kind, value = parts[:3]
+
+        # --- SUBS handlers must run BEFORE generic filter rebuild ---
+        if kind == "subs" and value == "open":
+            original_message = callback_query.message.reply_to_message
+            if not original_message:
+                callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+                return
+            url_text = original_message.text or (original_message.caption or "")
+            import re as _re
+            m = _re.search(r'https?://[^\s\*#]+', url_text)
+            url = m.group(0) if m else url_text
+            try:
+                # warm up cache and collect languages
+                check_subs_availability(url, user_id, return_type=True)
+                normal = get_available_subs_languages(url, user_id, auto_only=False)
+                auto = get_available_subs_languages(url, user_id, auto_only=True)
+                # persist for stable paging
+                save_subs_langs_cache(user_id, url, normal, auto)
+                langs = sorted(set(normal) | set(auto))
+            except Exception:
+                # fallback to local cache if network check failed
+                normal, auto = load_subs_langs_cache(user_id, url)
+                langs = sorted(set(normal) | set(auto))
+            if not langs:
+                callback_query.answer("No subtitles detected", show_alert=True)
+                return
+            kb = get_language_keyboard_always_ask(page=0, user_id=user_id, langs_override=langs, per_page_rows=8, normal_langs=normal, auto_langs=auto)
+            try:
+                callback_query.edit_message_reply_markup(reply_markup=kb)
+            except Exception:
+                pass
+            callback_query.answer("Choose subtitle language")
+            return
+        if kind == "subs_page":
+            page = int(value)
+            original_message = callback_query.message.reply_to_message
+            if not original_message:
+                callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+                return
+            url_text = original_message.text or (original_message.caption or "")
+            import re as _re
+            m = _re.search(r'https?://[^\s\*#]+', url_text)
+            url = m.group(0) if m else url_text
+            # Prefer persisted cache to avoid list loss on edits
+            n_cached, a_cached = load_subs_langs_cache(user_id, url)
+            if n_cached or a_cached:
+                normal, auto = n_cached, a_cached
+            else:
+                normal = _subs_check_cache.get(f"{url}_{user_id}_normal_langs") or []
+                auto = _subs_check_cache.get(f"{url}_{user_id}_auto_langs") or []
+            langs = sorted(set(normal) | set(auto))
+            kb = get_language_keyboard_always_ask(page=page, user_id=user_id, langs_override=langs, per_page_rows=8, normal_langs=normal, auto_langs=auto)
+            try:
+                callback_query.edit_message_reply_markup(reply_markup=kb)
+            except Exception:
+                pass
+            callback_query.answer(f"Page {page + 1}")
+            return
+        if kind == "subs" and value in ("back", "close"):
+            if value == "back":
+                original_message = callback_query.message.reply_to_message
+                if original_message:
+                    url_text = original_message.text or (original_message.caption or "")
+                    import re as _re
+                    m = _re.search(r'https?://[^\s\*#]+', url_text)
+                    url = m.group(0) if m else url_text
+                    ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
+                return
+            # close
+            try:
+                app.delete_messages(user_id, callback_query.message.id)
+            except Exception:
+                app.edit_message_reply_markup(chat_id=user_id, message_id=callback_query.message.id, reply_markup=None)
+            callback_query.answer("Subtitle menu closed.")
+            return
+        if kind == "subs_lang":
+            # Persist selected subtitle language as global setting used by embed logic
+            try:
+                save_user_subs_language(user_id, value)
+                # If user picks explicit language from SUBS menu – assume manual, not auto
+                save_user_subs_auto_mode(user_id, False)
+            except Exception:
+                pass
+            original_message = callback_query.message.reply_to_message
+            if original_message:
+                url_text = original_message.text or (original_message.caption or "")
+                import re as _re
+                m = _re.search(r'https?://[^\s\*#]+', url_text)
+                url = m.group(0) if m else url_text
+                # Close subs keyboard and rebuild Always Ask menu with selected lang in summary
+                ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
+            try:
+                callback_query.answer(f"Subtitle language set: {value}")
+            except Exception:
+                pass
+            return
+        # DUBS open: show languages grid with flags
+        if kind == "dubs" and value == "open":
+            original_message = callback_query.message.reply_to_message
+            if not original_message:
+                callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+                return
+            url_text = original_message.text or (original_message.caption or "")
+            import re as _re
+            m = _re.search(r'https?://[^\s\*#]+', url_text)
+            url = m.group(0) if m else url_text
+            fstate = get_filters(user_id)
+            langs = fstate.get("available_dubs", [])
+            if not langs or len(langs) <= 1:
+                callback_query.answer("No alternative audio languages", show_alert=True)
+                return
+            rows, row = [], []
+            for i, lang in enumerate(sorted(langs)):
+                # Use robust flag lookup for DUBS (strict overrides first)
+                flag = _dub_flag(lang)
+                label = f"{flag} {lang}" if flag else lang
+                row.append(InlineKeyboardButton(label, callback_data=f"askf|audio_lang|{lang}"))
+                if (i+1) % 3 == 0:
+                    rows.append(row)
+                    row = []
+            if row:
+                rows.append(row)
+            rows.append([InlineKeyboardButton("🔙 Back", callback_data="askf|dubs|back"), InlineKeyboardButton("🔚 Close", callback_data="askf|dubs|close")])
+            try:
+                callback_query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(rows))
+            except Exception:
+                pass
+            try:
+                callback_query.answer("Choose audio language")
+            except Exception:
+                pass
+            return
+        if kind == "audio_lang":
+            set_filter(user_id, kind, value)
+            original_message = callback_query.message.reply_to_message
+            if original_message:
+                url_text = original_message.text or (original_message.caption or "")
+                import re as _re
+                m = _re.search(r'https?://[^\s\*#]+', url_text)
+                url = m.group(0) if m else url_text
+                ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
+            try:
+                callback_query.answer(f"Audio set: {value}")
+            except Exception:
+                pass
+            return
+        if kind == "dubs" and value in ("back", "close"):
+            original_message = callback_query.message.reply_to_message
+            if original_message:
+                url_text = original_message.text or (original_message.caption or "")
+                import re as _re
+                m = _re.search(r'https?://[^\s\*#]+', url_text)
+                url = m.group(0) if m else url_text
+                ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
+            try:
+                callback_query.answer("Filters updated")
+            except Exception:
+                pass
+            return
         if kind in ("codec", "ext"):
             set_filter(user_id, kind, value)
             try:
@@ -112,6 +340,10 @@ def ask_filter_callback(app, callback_query):
                 pass
         elif kind == "toggle":
             set_filter(user_id, kind, value)
+            # Reset codec/ext to defaults when closing CODEC menu via Back
+            if value == "off":
+                set_filter(user_id, "codec", "avc1")
+                set_filter(user_id, "ext", "mp4")
         # Rebuild the same message in place (fast, using cache)
         original_message = callback_query.message.reply_to_message
         if original_message:
@@ -120,27 +352,57 @@ def ask_filter_callback(app, callback_query):
             m = _re.search(r'https?://[^\s\*#]+', url_text)
             url = m.group(0) if m else url_text
             ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
-            callback_query.answer("Filters updated")
+            # After starting download from menu, we will remove temp subs cache in down_and_up_with_format
+            try:
+                callback_query.answer("Filters updated")
+            except Exception:
+                pass
             return
-        callback_query.answer("Filters updated")
+        try:
+            callback_query.answer("Filters updated")
+        except Exception:
+            pass
 
 def build_filter_rows(user_id):
     f = get_filters(user_id)
     codec = f.get("codec", "avc1")
     ext = f.get("ext", "mp4")
     visible = bool(f.get("visible", False))
-    # When filters are hidden – show compact row with CODEC + audio
+    audio_lang = f.get("audio_lang")
+    has_dubs = bool(f.get("has_dubs"))
+    # When filters are hidden – show compact row with CODEC + audio (+ optional DUBS, SUBS)
     if not visible:
-        return [[InlineKeyboardButton("📼 CODEC", callback_data="askf|toggle|on"), InlineKeyboardButton("🎧 audio (mp3)", callback_data="askq|mp3")]]
+        row = [InlineKeyboardButton("📼 CODEC", callback_data="askf|toggle|on"), InlineKeyboardButton("🎧 audio (mp3)", callback_data="askq|mp3")]
+        # Show DUBS button only if audio dubs are detected for this video (set elsewhere)
+        if has_dubs:
+            row.insert(1, InlineKeyboardButton("🗣 DUBS", callback_data="askf|dubs|open"))
+        # Show SUBS button if Always Ask is enabled for this user
+        try:
+            if is_subs_always_ask(user_id):
+                row.append(InlineKeyboardButton("💬 SUBS", callback_data="askf|subs|open"))
+        except Exception:
+            pass
+        return [row]
     avc1_btn = ("✅ AVC" if codec == "avc1" else "☑️ AVC")
     av01_btn = ("✅ AV1" if codec == "av01" else "☑️ AV1")
     vp9_btn = ("✅ VP9" if codec == "vp9" else "☑️ VP9")
     mp4_btn = ("✅ MP4" if ext == "mp4" else "☑️ MP4")
     mkv_btn = ("✅ MKV" if ext == "mkv" else "☑️ MKV")
-    return [
+    rows = [
         [InlineKeyboardButton(avc1_btn, callback_data="askf|codec|avc1"), InlineKeyboardButton(av01_btn, callback_data="askf|codec|av01"), InlineKeyboardButton(vp9_btn, callback_data="askf|codec|vp9")],
         [InlineKeyboardButton(mp4_btn, callback_data="askf|ext|mp4"), InlineKeyboardButton(mkv_btn, callback_data="askf|ext|mkv"), InlineKeyboardButton("🎧 audio (mp3)", callback_data="askq|mp3")]
     ]
+    act_row = []
+    if has_dubs:
+        act_row.append(InlineKeyboardButton("🗣 DUBS", callback_data="askf|dubs|open"))
+    try:
+        if is_subs_always_ask(user_id):
+            act_row.append(InlineKeyboardButton("💬 SUBS", callback_data="askf|subs|open"))
+    except Exception:
+        pass
+    if act_row:
+        rows.insert(0, act_row)
+    return rows
 
 @app.on_callback_query(filters.regex(r"^askq\|"))
 # @reply_with_keyboard
@@ -210,6 +472,175 @@ def askq_callback(app, callback_query):
             if m:
                 url = m.group(0)
             ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
+            return
+        if kind == "dubs" and value == "open":
+            # Build and show dubs selection menu with flags
+            original_message = callback_query.message.reply_to_message
+            if not original_message:
+                callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+                return
+            url_text = original_message.text or (original_message.caption or "")
+            import re as _re
+            m = _re.search(r'https?://[^\s\*#]+', url_text)
+            url = m.group(0) if m else url_text
+            # Use precomputed list from filters state for speed/stability
+            fstate = get_filters(callback_query.from_user.id)
+            langs = fstate.get('available_dubs', [])
+            # Build buttons 3 per row with flags
+            rows = []
+            row = []
+            for i, lang in enumerate(sorted(langs)):
+                # DUBS: use first part for flags (de from de-DE)
+                flag = get_flag(lang, use_second_part=False)
+                label = f"{flag} {lang}" if flag else lang
+                row.append(InlineKeyboardButton(label, callback_data=f"askf|audio_lang|{lang}"))
+                if (i+1) % 3 == 0:
+                    rows.append(row)
+                    row = []
+            if row:
+                rows.append(row)
+            rows.append([InlineKeyboardButton("🔙 Back", callback_data="askf|dubs|back"), InlineKeyboardButton("🔚 Close", callback_data="askf|dubs|close")])
+            kb = InlineKeyboardMarkup(rows)
+            try:
+                # Replace entire keyboard (keeping caption/text) to show dubs
+                callback_query.edit_message_reply_markup(reply_markup=kb)
+            except Exception:
+                pass
+            callback_query.answer("Choose audio language")
+            return
+        if kind == "subs" and value == "open":
+            # Open SUBS language menu (Always Ask)
+            logger.info(f"[ASKQ] Opening SUBS menu for user {user_id}")
+            original_message = callback_query.message.reply_to_message
+            if not original_message:
+                logger.error(f"[ASKQ] No original message found for SUBS menu")
+                callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+                return
+            url_text = original_message.text or (original_message.caption or "")
+            import re as _re
+            m = _re.search(r'https?://[^\s\*#]+', url_text)
+            url = m.group(0) if m else url_text
+            logger.info(f"[ASKQ] Extracted URL: {url}")
+            
+            # First, check subtitle availability to populate cache
+            try:
+                logger.info(f"[ASKQ] Checking subtitle availability for {url}")
+                # Check availability and populate cache
+                check_subs_availability(url, user_id, return_type=True)
+                # Get available languages
+                normal = get_available_subs_languages(url, user_id, auto_only=False)
+                auto = get_available_subs_languages(url, user_id, auto_only=True)
+                langs = sorted(set(normal) | set(auto))
+                logger.info(f"[ASKQ] Found languages - normal: {normal}, auto: {auto}, total: {langs}")
+            except Exception as e:
+                logger.error(f"[ASKQ] Error checking subtitles: {e}")
+                normal, auto, langs = [], [], []
+            
+            if not langs:
+                logger.warning(f"[ASKQ] No subtitles found for {url}")
+                callback_query.answer("No subtitles detected", show_alert=True)
+                return
+                
+            logger.info(f"[ASKQ] Building keyboard with {len(langs)} languages")
+            kb = get_language_keyboard_always_ask(page=0, user_id=user_id, langs_override=langs, per_page_rows=8, normal_langs=normal, auto_langs=auto)
+            try:
+                callback_query.edit_message_reply_markup(reply_markup=kb)
+                logger.info(f"[ASKQ] Successfully updated message with SUBS keyboard")
+            except Exception as e:
+                logger.error(f"[ASKQ] Error updating message: {e}")
+                pass
+            callback_query.answer("Choose subtitle language")
+            return
+        if kind == "subs_page":
+            # Handle page navigation in Always Ask subtitle menu
+            page = int(value)
+            original_message = callback_query.message.reply_to_message
+            if not original_message:
+                callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+                return
+            url_text = original_message.text or (original_message.caption or "")
+            import re as _re
+            m = _re.search(r'https?://[^\s\*#]+', url_text)
+            url = m.group(0) if m else url_text
+            try:
+                normal = _subs_check_cache.get(f"{url}_{user_id}_normal_langs") or []
+                auto = _subs_check_cache.get(f"{url}_{user_id}_auto_langs") or []
+            except Exception:
+                normal, auto = [], []
+            langs = sorted(set(normal) | set(auto))
+            kb = get_language_keyboard_always_ask(page=page, user_id=user_id, langs_override=langs, per_page_rows=8, normal_langs=normal, auto_langs=auto)
+            try:
+                callback_query.edit_message_reply_markup(reply_markup=kb)
+            except Exception:
+                pass
+            callback_query.answer(f"Page {page + 1}")
+            return
+        if kind == "subs" and value == "back":
+            # Go back to main Always Ask menu
+            original_message = callback_query.message.reply_to_message
+            if original_message:
+                url_text = original_message.text or (original_message.caption or "")
+                import re as _re
+                m = _re.search(r'https?://[^\s\*#]+', url_text)
+                url = m.group(0) if m else url_text
+                ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
+            return
+        if kind == "subs" and value == "close":
+            # Close subtitle menu
+            try:
+                app.delete_messages(user_id, callback_query.message.id)
+            except Exception:
+                app.edit_message_reply_markup(chat_id=user_id, message_id=callback_query.message.id, reply_markup=None)
+            callback_query.answer("Subtitle menu closed.")
+            return
+        if kind == "subs_lang":
+            # Handle subtitle language selection in Always Ask
+            selected_lang = value
+            # Store the selected subtitle language for this video
+            fstate = get_filters(user_id)
+            fstate['selected_subs_lang'] = selected_lang
+            save_filters(user_id, fstate)
+            callback_query.answer(f"Subtitle language set: {selected_lang}")
+            # Return to main Always Ask menu
+            original_message = callback_query.message.reply_to_message
+            if original_message:
+                url_text = original_message.text or (original_message.caption or "")
+                import re as _re
+                m = _re.search(r'https?://[^\s\*#]+', url_text)
+                url = m.group(0) if m else url_text
+                ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
+            return
+        if kind == "dubs" and value == "close":
+            # Close dubs menu without changing audio_lang
+            original_message = callback_query.message.reply_to_message
+            if original_message:
+                url_text = original_message.text or (original_message.caption or "")
+                import re as _re
+                m = _re.search(r'https?://[^\s\*#]+', url_text)
+                url = m.group(0) if m else url_text
+                ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
+            return
+        if kind == "audio_lang":
+            set_filter(callback_query.from_user.id, kind, value)
+            callback_query.answer(f"Audio set: {value}")
+            # Return to main menu with updated summary
+            original_message = callback_query.message.reply_to_message
+            if original_message:
+                url_text = original_message.text or (original_message.caption or "")
+                import re as _re
+                m = _re.search(r'https?://[^\s\*#]+', url_text)
+                url = m.group(0) if m else url_text
+                ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
+            return
+        if kind == "dubs" and value == "back":
+            # Go back to main menu
+            original_message = callback_query.message.reply_to_message
+            if original_message:
+                url_text = original_message.text or (original_message.caption or "")
+                import re as _re
+                m = _re.search(r'https?://[^\s\*#]+', url_text)
+                url = m.group(0) if m else url_text
+                ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
             return
     
     if data == "manual_back":
@@ -681,10 +1112,28 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 download_thumbnail(video_id, thumb_path, url)
             except Exception:
                 thumb_path = None
-        # --- Apply filters and build table/buttons ---
+        # --- Detect available audio dubs (languages) once per menu open ---
         filters_state = get_filters(user_id)
         sel_codec = filters_state.get("codec", "avc1")
         sel_ext = filters_state.get("ext", "mp4")
+        # Build list of available audio languages from formats
+        available_dubs = []
+        lang_seen = set()
+        for f in info.get('formats', []):
+            if (f.get('vcodec') == 'none' and f.get('acodec') and f.get('language')):
+                lang = f.get('language')
+                if lang and lang not in lang_seen:
+                    lang_seen.add(lang)
+                    available_dubs.append(lang)
+        # Save dubs availability per-user (show only if 2+ languages exist)
+        fstate = get_filters(user_id)
+        has_dubs = len(available_dubs) > 1
+        fstate["has_dubs"] = has_dubs
+        fstate["available_dubs"] = sorted(available_dubs)
+        if not has_dubs:
+            # If only one or zero languages, reset audio selection
+            fstate["audio_lang"] = None
+        _ASK_FILTERS[str(user_id)] = fstate
         # If user selected MKV container, reflect this to the download session preference
         try:
             set_session_mkv_override(user_id, sel_ext == "mkv")
@@ -743,6 +1192,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 subs_enabled = is_subs_enabled(user_id)
                 auto_mode = get_user_subs_auto_mode(user_id)
                 subs_available = ""
+                # Audio language marker for rows (keep UI light; summary shows selection)
                 if subs_enabled:
                     if sel_ext == 'mkv':
                         # Для MKV при включённых субтитрах показываем без ограничений
@@ -769,7 +1219,10 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                     postfix = ""
                 need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
                 emoji = "🚀" if is_cached and not need_subs else "📹"
-                table_lines.append(f"{emoji}{q}{subs_available}:  {size_str}{dim_str}{scissors}{postfix}")
+                # Show selected audio language if any
+                sel_audio_lang = get_filters(user_id).get("audio_lang")
+                audio_mark = f" 🗣{sel_audio_lang}" if sel_audio_lang else ""
+                table_lines.append(f"{emoji}{q}{subs_available}{audio_mark}:  {size_str}{dim_str}{scissors}{postfix}")
                 found_quality_keys.add(q)
             table_block = "\n".join(table_lines)
         else:
@@ -810,6 +1263,19 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
 
         # --- Forming caption ---
         cap = f"<b>{title}</b>\n"
+        # Audio/subs selection summary line
+        fstate = get_filters(user_id)
+        sel_audio_lang = fstate.get("audio_lang")
+        subs_enabled = is_subs_enabled(user_id)
+        subs_lang = get_user_subs_language(user_id) if subs_enabled else None
+        summary_parts = []
+        if sel_audio_lang:
+            summary_parts.append(f"🗣 {sel_audio_lang}")
+        # Always show chosen subtitle language if subs are enabled
+        if subs_enabled and subs_lang:
+            summary_parts.append(f"💬 {subs_lang}")
+        if summary_parts:
+            cap += "<blockquote>" + " | ".join(summary_parts) + "</blockquote>\n"
         # --- YouTube expanded block ---
         if ("youtube.com" in url or "youtu.be" in url):
             uploader = info.get('uploader') or ''
@@ -937,7 +1403,18 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
 
         if subs_enabled and is_youtube_url(url):
             found_type = check_subs_availability(url, user_id, return_type=True)
-            need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
+            # Check if we're in Always Ask mode (user will choose language manually)
+            is_always_ask_mode = is_subs_always_ask(user_id)
+            
+            if is_always_ask_mode:
+                # In Always Ask menu, always show subtitles as available if found, regardless of auto_mode
+                # User will choose language and type manually
+                need_subs = found_type is not None  # True if any subtitles found (auto or normal)
+            else:
+                # In manual mode, respect user's auto_mode setting
+                need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
+            
+            logger.info(f"Always Ask menu: subs_enabled={subs_enabled}, auto_mode={auto_mode}, found_type={found_type}, is_always_ask={is_always_ask_mode}, need_subs={need_subs}")
             if need_subs:
                 subs_hint = "\n💬 — Subtitles are available"
                 show_repost_hint = False  # 🚀 we don't show if subs really exist and are needed
@@ -945,7 +1422,9 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 subs_warn = "\n⚠️ Subs not found & won't embed"
 
         repost_line = "\n🚀 — Instant repost from cache" if show_repost_hint else ""
-        hint = "<pre language=\"info\">📼 — Сhange video ext/codec\n📹 — Choose download quality" + repost_line + subs_hint + subs_warn + "</pre>"
+        # Add DUBS hint if available
+        dubs_hint = "\n🗣 — Choose audio language" if get_filters(user_id).get("has_dubs") else ""
+        hint = "<pre language=\"info\">📼 — Сhange video ext/codec\n📹 — Choose download quality" + repost_line + subs_hint + subs_warn + dubs_hint + "</pre>"
         cap += f"\n{hint}\n"
         buttons = []
         # Sort buttons by quality from lowest to highest
@@ -977,16 +1456,29 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                     if sel_ext == 'mkv':
                         subs_available = "💬"
                     elif is_youtube_url(url) and w is not None and h is not None and min(int(w), int(h)) <= Config.MAX_SUB_QUALITY:
-                        # Check the presence of subtitles of the desired type
-                        found_type = check_subs_availability(url, user_id, return_type=True)
-                        if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
-                            temp_info = {
-                                'duration': info.get('duration'),
-                                'filesize': filesize,
-                                'filesize_approx': filesize
-                            }
-                            if check_subs_limits(temp_info, quality_key):
-                                subs_available = "💬"
+                        # Check if we're in Always Ask mode
+                        is_always_ask_mode = is_subs_always_ask(user_id)
+                        
+                        if is_always_ask_mode:
+                            # In Always Ask menu, show 💬 if any subtitles found, regardless of auto_mode
+                            if found_type is not None:  # Any subtitles found (auto or normal)
+                                temp_info = {
+                                    'duration': info.get('duration'),
+                                    'filesize': filesize,
+                                    'filesize_approx': filesize
+                                }
+                                if check_subs_limits(temp_info, quality_key):
+                                    subs_available = "💬"
+                        else:
+                            # In manual mode, respect user's auto_mode setting
+                            if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
+                                temp_info = {
+                                    'duration': info.get('duration'),
+                                    'filesize': filesize,
+                                    'filesize_approx': filesize
+                                }
+                                if check_subs_limits(temp_info, quality_key):
+                                    subs_available = "💬"
                 
                 if is_playlist and playlist_range:
                     indices = list(range(playlist_range[0], playlist_range[1]+1))
@@ -996,7 +1488,16 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                     postfix = f" ({n_cached}/{total})" if total > 1 else ""
                     button_text = f"{icon}{quality_key}{subs_available}{postfix}"
                 else:
-                    need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
+                    # Check if we're in Always Ask mode
+                    is_always_ask_mode = is_subs_always_ask(user_id)
+                    
+                    if is_always_ask_mode:
+                        # In Always Ask menu, show 💬 if any subtitles found, regardless of auto_mode
+                        need_subs = (subs_enabled and found_type is not None)  # True if any subtitles found
+                    else:
+                        # In manual mode, respect user's auto_mode setting
+                        need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
+                    
                     icon = "🚀" if quality_key in cached_qualities and not need_subs else "📹"
                     button_text = f"{icon}{quality_key}{subs_available}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
@@ -1068,16 +1569,21 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             keyboard_rows.append([InlineKeyboardButton("🚀 Quick Embed", callback_data="askq|quick_embed")])
         for i in range(0, len(buttons), 3):
             keyboard_rows.append(buttons[i:i+3])
-        # mp3 уже в ряду фильтров
+        # Insert DUBS button into filter row is handled in build_filter_rows
         
         # --- button subtitles only ---
         # Show the button only if subtitles are turned on and it is youtube
         subs_enabled = is_subs_enabled(user_id)
         if subs_enabled and is_youtube_url(url):
-            # We check for subtitles
-            # found_type = check_subs_availability(url, user_id, return_type=True)
-            auto_mode = get_user_subs_auto_mode(user_id)
-            need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
+            # Check if we're in Always Ask mode
+            is_always_ask_mode = is_subs_always_ask(user_id)
+            
+            if is_always_ask_mode:
+                # In Always Ask menu, show button if any subtitles found, regardless of auto_mode
+                need_subs = found_type is not None  # True if any subtitles found (auto or normal)
+            else:
+                # In manual mode, respect user's auto_mode setting
+                need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
             
             if need_subs:
                 keyboard_rows.append([InlineKeyboardButton("💬 Subtitles Only", callback_data="askq|subs_only")])
@@ -1166,6 +1672,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
         filters_state = {"codec": "avc1", "ext": "mp4"}
     sel_codec = filters_state.get("codec", "avc1")
     sel_ext = filters_state.get("ext", "mp4")
+    sel_audio_lang = filters_state.get("audio_lang")
     try:
         set_session_mkv_override(user_id, sel_ext == "mkv")
     except Exception:
@@ -1200,7 +1707,8 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
             callback_query.answer("📥 Downloading best quality...")
         except Exception:
             pass
-        fmt = f"bv*[vcodec*={sel_codec}]+ba"
+        audio_filter = f"[language^={sel_audio_lang}]" if sel_audio_lang else ""
+        fmt = f"bv*[vcodec*={sel_codec}]+ba{audio_filter}/bv*[vcodec*={sel_codec}]+ba"
         quality_key = "best"
     else:
         try:
@@ -1223,7 +1731,8 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
                 quality_str = data.replace('p', '')
                 quality_val = int(quality_str)
                 prev = 0
-                fmt = f"bv*[vcodec*={sel_codec}][height<={quality_val}][height>{prev}]+ba/bv*[vcodec*={sel_codec}][height<={quality_val}]+ba/bv*[vcodec*={sel_codec}]+ba"
+                audio_filter = f"[language^={sel_audio_lang}]" if sel_audio_lang else ""
+                fmt = f"bv*[vcodec*={sel_codec}][height<={quality_val}][height>{prev}]+ba{audio_filter}/bv*[vcodec*={sel_codec}][height<={quality_val}]+ba{audio_filter}/bv*[vcodec*={sel_codec}]+ba"
             else:
                 # Determine the quality by the smaller side
                 min_side_quality = get_quality_by_min_side(max_width, max_height)
@@ -1233,14 +1742,16 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
                     quality_str = data.replace('p', '')
                     quality_val = int(quality_str)
                     prev = 0
-                    fmt = f"bv*[vcodec*={sel_codec}][height<={quality_val}][height>{prev}]+ba/bv*[vcodec*={sel_codec}][height<={quality_val}]+ba/bv*[vcodec*={sel_codec}]+ba"
+                    audio_filter = f"[language^={sel_audio_lang}]" if sel_audio_lang else ""
+                    fmt = f"bv*[vcodec*={sel_codec}][height<={quality_val}][height>{prev}]+ba{audio_filter}/bv*[vcodec*={sel_codec}][height<={quality_val}]+ba{audio_filter}/bv*[vcodec*={sel_codec}]+ba"
                 else:
                     # Use the real height to form the format
                     real_height = get_real_height_for_quality(data, max_width, max_height)
                     quality_str = data.replace('p', '')
                     quality_val = int(quality_str)
                     prev = 0
-                    fmt = f"bv*[vcodec*={sel_codec}][height<={real_height}][height>{prev}]+ba/bv*[vcodec*={sel_codec}][height<={real_height}]+ba/bv*[vcodec*={sel_codec}]+ba"
+                    audio_filter = f"[language^={sel_audio_lang}]" if sel_audio_lang else ""
+                    fmt = f"bv*[vcodec*={sel_codec}][height<={real_height}][height>{prev}]+ba{audio_filter}/bv*[vcodec*={sel_codec}][height<={real_height}]+ba{audio_filter}/bv*[vcodec*={sel_codec}]+ba"
             
             quality_key = data
             try:
@@ -1274,3 +1785,8 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
 
     # We call the main function of loading with the correct parameters of the playlist
     down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=is_tiktok, format_override=fmt, quality_key=quality_key)
+    # Cleanup temp subs languages cache after we kicked off download
+    try:
+        delete_subs_langs_cache(message.chat.id, url)
+    except Exception:
+        pass
