@@ -1,27 +1,44 @@
-# tg-ytdlp-bot (supports your own cookies)
+# cookiebot - tg-ytdlp-bot
 
 Support me on [BuyMeACoffee](https://buymeacoffee.com/upekshaip) \
 Thanks to Contributor - [@IIlIlIlIIIlllIIlIIlIllIIllIlIIIl](https://t.me/IIlIlIlIIIlllIIlIIlIllIIllIlIIIl) - [chelaxian](https://github.com/chelaxian/tg-ytdlp-bot)
 
-Download private YouTube/videos using a cookie file with advanced format selection, codec support (H.264/AVC, AV1, VP9), and intelligent subtitle handling.
+Download private YouTube/videos using a cookie file.
 
-Test free Telegram bots - https://t.me/tg_ytdlp \
-https://t.me/tgytdlp_uae_bot \
-https://t.me/tgytdlp_uk_bot \
-https://t.me/tgytdlp_fr_bot \
-https://t.me/tgytdlp_bot
+Test free bot - https://t.me/tgytdlp_bot
 
 ## Full Documentation
 [https://upekshaip.com/projects/-O0t36gRpfJR1p8KB7vU](https://upekshaip.com/projects/-O0t36gRpfJR1p8KB7vU)
 
 ---
 
-## Deploy on a VM 
+## Deploy on a VM in a Docker container
 
 - First, add your bot to the **logging channel** and **subscription channel**. Both are required.
 - Star and fork this repository. Then rename the file **_config.py** to **config.py**.
 - Add your configuration to the **config.py** file.
-- Install required dependencies and start the bot.
+
+### Setup Debian for Docker
+
+[Install Docker Engine
+](https://docs.docker.com/engine/install/)
+---
+
+#### Setting up `config.py` (example for Ubuntu/Debian)
+
+```sh
+sudo apt update
+sudo apt install git
+```
+
+```sh
+git clone https://github.com/upekshaip/tg-ytdlp-bot.git
+cd tg-ytdlp-bot
+sudo mv _config.py config.py
+nano config.py
+```
+
+Edit your configuration before deployment. After your edits, proceed with the Docker build steps below.
 
 ---
 
@@ -40,24 +57,38 @@ For export you can use browser extension [Cookie-Editor](https://chromewebstore.
 create in project folder subfolder `cookies` and place `cookie.txt` extracted from YouTube here
 
 ```sh
-cd tg-ytdlp-bot/TXT
+cd tg-ytdlp-bot
+mkdir cookies
 nano cookie.txt
 ```
 ---
 
-##  local deployment on a VM 
-For local deployment you should use this commands:
+#### Building and Running with Docker
+
+```sh
+sudo docker build . -t tg-public-bot
+sudo docker ps -a
+sudo docker run tg-public-bot
+```
+
+(optional) If you want to use `/cookies_from_browser` command, after docker deployment you need to enter your docker CMD and install desktop environment (GUI) and Browser into your docker container.
+Also you will need download `yt-dlp` binary into your Docker container. See [(Optional) Preparing `yt-dlp` for `/cookies_from_browser`](#optional-preparing-yt-dlp-for-cookies_from_browser)
+
+---
+
+## Alternative local deployment on a VM (without Docker container)
+
+If you prefer local deployment rather than docker container, you should use this commands:
 
 #### Install `git` and `python3` (example for Ubuntu/Debian)
 ```sh
 sudo apt update
-sudo apt install mediainfo rsync
 sudo apt install git python3.10 python3-pip python3.10-venv
 ```
 #### Setting up `config.py`
 ```sh
 git clone https://github.com/upekshaip/tg-ytdlp-bot.git
-cd tg-ytdlp-bot/CONFIG
+cd tg-ytdlp-bot
 sudo mv _config.py config.py
 nano config.py
 ```
@@ -69,12 +100,18 @@ Edit your configuration before deployment.
 python3 -m venv venv
 source venv/bin/activate
 pip install --no-cache-dir -r requirements.txt
+pip uninstall urllib3 -y
+pip install --no-cache-dir --force-reinstall "urllib3==1.26.20"
+pip install --no-deps moviepy==1.0.3
+python3 magic.py
 ```
 ---
-### Installing ffmpeg (example for Ubuntu/Debian)
+### (Optional) Installing ffmpeg (example for Ubuntu/Debian)
+<details>
+  <summary>spoiler</summary> 
       
-   you also need to install `ffmpeg` https://github.com/btbn/ffmpeg-builds/releases
-   **ffmpeg** is essential since **yt-dlp** relies on it for merging streams (and in some cases for transcoding or extracting thumbnails). Also ffmpeg is needed for embedding subtitles and for slpitting bigger that 2gb videos into parts. To install ffmpeg on a Debian-based system, run:
+   If you prefer local deployment rather that docker container you also need to install `ffmpeg`
+   **ffmpeg** is essential since **yt-dlp** relies on it for merging streams (and in some cases for transcoding or extracting thumbnails). To install ffmpeg on a Debian-based system, run:
 
    ```sh
    sudo apt-get update
@@ -85,13 +122,8 @@ pip install --no-cache-dir -r requirements.txt
    ```sh
    ffmpeg -version
    ```
----
-### (Optional) Arabic and Asian fonts
 
-<details>
-   <summary>spoiler</summary> 
-      
-If you need to support extra languages such as arabic, chinese, japanese, korean - you also need to install this language packs:
+   If you need to support extra languages such as arabic, chinese, japanese, korean - you also need to install this language packs:
    ```sh
    sudo apt update
    sudo add-apt-repository universe
@@ -101,9 +133,6 @@ If you need to support extra languages such as arabic, chinese, japanese, korean
    sudo apt install fonts-noto-extra            # – extra fonts (including arabic)
    sudo apt install fonts-kacst fonts-kacst-one # – KACST arabic fonts
    sudo apt install fonts-noto-cjk              # – Chinese-Japanese-Korean characters
-   sudo apt install fonts-indic                 # – extra indian fonts
-
-   sudo apt install fonts-noto-color-emoji fontconfig libass9
    ```
 
    For Amiri arabic:
@@ -117,8 +146,8 @@ If you need to support extra languages such as arabic, chinese, japanese, korean
    ```sh
    sudo fc-cache -fv
    fc-list | grep -i amiri
-   ``` 
-</details>
+   ```
+</details> 
 
 ---
 ### (Optional) Preparing `yt-dlp` for `/cookies_from_browser`
@@ -150,12 +179,49 @@ If you need to support extra languages such as arabic, chinese, japanese, korean
 
 ---
 
-## Running Telegram bot
-Now you can start the bot via commands:
-```sh
-source venv/bin/activate
-python3 magic.py
+## New Commands and Features
+
+### /audio Command
+
+The **/audio** command downloads audio from a given video URL. It extracts the best available audio track, converts it to MP3, and sends the audio file to the user. After sending, the downloaded file is removed to prevent disk clutter.
+
+Usage example:
 ```
+/audio https://youtu.be/dQw4w9WgXcQ?si=Vqh0HJVNn_99bhj4
+```
+
+---
+
+### /format Command
+
+The **/format** command allows users to set a custom download format for their videos. Users can either supply a custom format string or choose from a preset menu.
+
+**Main Menu Options:**
+- ❓ Always Ask (menu + buttons)
+- **🎛 Others (144p - 4320p)** – opens a full resolution menu (see below)
+- 💻4k (best for PC/Mac Telegram)
+- 📱FullHD (best for mobile Telegram)
+- 📈bestvideo+bestaudio (MAX quality)
+- **🎚 Custom (enter your own)** – for entering a custom format string
+- 🔙 Close – cancels the selection
+
+**Full Resolution Menu (triggered by "Others"):**
+- 144p (256×144)
+- 240p (426×240)
+- 360p (640×360)
+- 480p (854×480)
+- 720p (1280×720)
+- 1080p (1920×1080)
+- 1440p (2560×1440)
+- 2160p (3840×2160)
+- 4320p (7680×4320)
+- A **Back** button returns to the main menu.
+
+Usage example:
+```
+/format
+```
+Then select the desired option from the menu.
 
 ---
 
@@ -168,60 +234,15 @@ python3 magic.py
 - **/usage** - Show your usage statistics and logs.
 - **/tags** - Get all your #tags.
 - **/audio** - Download audio from a video URL.
-- **/format** - Choose media format options with advanced codec selection (H.264/AVC, AV1, VP9) and container preferences (MP4, MKV).
+- **/format** - Choose media format options.
 - **/split** - Change splitted video part size (0.25-2GB).
-- **/mediainfo** - Turn ON/OFF sending mediainfo (`/mediainfo on|off`).
+- **/mediainfo** - Turn ON/OFF sending mediainfo.
 - **/check_cookie** - Check the cookie file.
-- **/download_cookie** - Download the cookie file with additional "From Browser" option.
+- **/download_cookie** - Download the cookie file.
 - **/save_as_cookie** - Save text as cookie (or upload TXT-doc).
-- **/cookies_from_browser** - Get cookies from browser (if supported) with fallback to Config.COOKIE_URL.
-- **/subs** - Enable/disable subtitle embedding for videos with enhanced language selection and "Always Ask" mode.
+- **/cookies_from_browser** - Get cookies from browser (if supported).
+- **/subs** - Enable/disable subtitle embedding for videos.
 
----
-
-## Advanced Features
-
-### Enhanced Format Selection (`/format`)
-- **Codec Support**: Choose between H.264/AVC (avc1), AV1 (av01), and VP9 (vp9)
-- **Container Toggle**: Switch between MP4 and MKV containers
-- **Smart Quality Selection**: Prioritizes exact height matches before falling back to "less than or equal to"
-- **Persistent Preferences**: Your codec and container choices are saved per-user
-
-### Always Ask Menu
-- **📼 CODEC Button**: Access advanced codec and container filters
-  - AVC (H.264/AVC) - Traditional, widely supported
-  - AV1 - Modern royalty-free codec with ~25-40% better efficiency
-  - VP9 - Google's VP9 codec
-  - MP4/MKV container selection
-- **📹 DUBS Button**: Select audio language with flag indicators
-  - Only appears when multiple audio languages are detected
-  - Pagination support for long language lists
-- **💬 SUBS Button**: Choose subtitle language with smart detection
-  - Auto-generated vs. normal captions
-  - Translation indicators
-  - Pagination support
-- **Dynamic Filtering**: Real-time quality filtering based on selected codec/container
-- **Smart Subtitle Logic**: Differentiates between "Always Ask" mode and manual subtitle selection
-
-### Intelligent Subtitle Handling
-- **Container-Aware Embedding**:
-  - **MKV**: Soft-muxing (subtitles as separate track, no quality loss)
-  - **MP4**: Hard-embedding (burned into video for universal compatibility)
-- **Language Detection**: Optimized yt-dlp client selection for faster subtitle discovery
-- **Auto Mode**: Automatically selects auto-generated or normal captions based on user preference
-- **Always Ask Mode**: Shows all available subtitle languages for manual selection
-
-### Enhanced Cookie Management
-- **Browser Integration**: Extract cookies from installed browsers
-- **Fallback Support**: Automatic download from Config.COOKIE_URL if no browsers found
-- **Multiple Sources**: Choose between browser extraction and direct download
-
-### Improved Error Handling
-- **Upload Retries**: Smart retry logic for failed uploads with fallback to document mode
-- **Dynamic Disk Space**: Intelligent space estimation based on video size
-- **Graceful Degradation**: Better handling of format unavailability and network issues
-
----
 
 ## Admin Commands
 
@@ -244,105 +265,43 @@ python3 magic.py
 - **/all_unblocked** - Get all unblocked users.
 - **/uncache** - Clear cached subtitle language data.
 - **/reload_cache** - Reload cache from firebase to local json file
-- **/auto_cache** - Control auto cache reload: `/auto_cache on` | `/auto_cache off` | `/auto_cache N` (N = 1..168 hours, persisted to `CONFIG/config.py`).
+- **/auto_cache** - Toggle turn ON/OFF mode of auto reloading of cache every N hours. 
 ---
 
-## Auto cache – how it works (on/off/N)
+## Settings Menu (`/settings`)
 
-The bot maintains a local JSON cache (dump) of Firebase data. A background reloader can periodically refresh this cache by first downloading a fresh dump and then reloading it into memory.
+The `/settings` command opens an interactive menu with three categories:
 
-- Refresh cycle:
-  - Download dump via REST (`download_firebase.py` logic)
-  - Reload local JSON into memory
-- Interval alignment: next run is aligned to steps from midnight (00:00) with your interval step (N hours).
-- Logging examples you will see:
-  - `🔄 Downloading and reloading Firebase cache dump...`
-  - `✅ Firebase cache refreshed successfully!`
+- **🍪 COOKIES**
+- **🎞 MEDIA**
+- **📖 LOGS**
 
-### Command usage
-- `/auto_cache on` – enable background auto-refresh
-- `/auto_cache off` – disable background auto-refresh
-- `/auto_cache N` – set refresh interval to N hours (1..168)
-  - This immediately updates runtime settings
-  - The value is also persisted to `CONFIG/config.py` by updating `RELOAD_CACHE_EVERY = N`
-  - The background thread is safely restarted so the new interval takes effect right away
+Each category contains quick action buttons for the most important commands. Example (COOKIES section):
 
-Your current default interval comes from `CONFIG/config.py`:
-```python
-RELOAD_CACHE_EVERY = 24  # in hours
 ```
+🧹 /clean             - Delete cookies & broken media files
+📥 /download_cookie   - Download my YouTube cookie
+🌐 /cookies_from_browser - Get cookies from browser
+🔎 /check_cookie      - Check cookie file in your folder
+🔖 /save_as_cookie    - Send text to save as cookie
+```
+
+- Pressing a button instantly runs the corresponding command (not just sends text).
+- Some buttons (like /audio, /save_as_cookie) show usage hints.
+- The menu is fully localized and does not conflict with other inline menus.
 
 ---
-
-## Updating the bot (updater scripts)
-
-You can update only Python files from the `main` branch of `chelaxian/tg-ytdlp-bot` using provided scripts. The updater will:
-- Clone the repository to a temporary directory
-- Update only `*.py` files in your working directory
-- Preserve your `CONFIG/config.py` and other excluded files/directories
-- Make backups of changed files with suffix `.backup_YYYYMMDD_HHMM` and move them into `_backup/` (original structure preserved)
-- Ask for confirmation before applying changes
-
-### One-command update (recommended)
-```bash
-./update.sh
-```
-- The script checks prerequisites and runs the Python updater.
-- After a successful update, restart the bot service (if you use systemd):
-```bash
-systemctl restart tg-ytdlp-bot
-journalctl -u tg-ytdlp-bot -f
-```
-
-### Manual update via Python
-```bash
-python3 update_from_repo.py --show-excluded   # show excluded files/folders
-python3 update_from_repo.py                   # interactive update (prompts for confirmation)
-```
-
----
-
-## Restoring from backups
-
-When the updater changes files, it creates backups and moves them into the `_backup/` folder, preserving the original directory structure. Backup filenames have a suffix `.backup_YYYYMMDD_HHMM` (minute-level). The restore tool allows you to revert to a selected backup index.
-
-### Interactive restore (recommended)
-```bash
-python3 restore_from_backup.py
-```
-- Use Arrow keys (or j/k) to navigate, PgUp/PgDn for paging, Enter to select, q to quit.
-- The list shows grouped backups by minute: `[YYYY-MM-DD HH:MM:SS] files: N (id: YYYYMMDD_HHMM)`.
-- After confirmation, all files from that backup are restored to the project root, with the `.backup_YYYYMMDD_HHMM` suffix stripped.
-
-### List available backups
-```bash
-python3 restore_from_backup.py --list
-```
-Outputs available backup IDs (newest first) with file counts.
-
-### Non-interactive restore by ID
-```bash
-python3 restore_from_backup.py --timestamp YYYYMMDD_HHMM
-```
-Restores all files for the specified backup ID.
-
-### After restore
-If you run the bot as a service, restart it:
-```bash
-systemctl restart tg-ytdlp-bot
-journalctl -u tg-ytdlp-bot -f
-```
 
 ## Link Command Pattern Spec
 
-- **`https://example.com`** \
+- **`https://blabla.blaa`** \
   Download the video with its original name. \
   If it is a playlist, only the first video is downloaded. 
 
-- **`https://example.com*1*3`**  \
+- **`https://blabla.blaa*1*3`**  \
   Download a specified range of videos from the playlist with their original names. 
 
-- **`https://example.com*1*3*name`**  \
+- **`https://blabla.blaa*1*3*name`**  \
   Download a specified range of videos from the playlist with a custom name. \
   Videos will be named as: 
   - `name - Part 1` 
@@ -387,6 +346,36 @@ Response:
 ```
 ---
 
+## Help
+
+**This bot allows you to download videos and audio, and also work with playlists.**
+
+• Simply send a video link and the bot will start downloading. \
+• For playlists, specify the range of indexes separated by asterisks (e.g. `https://example.com*1*4`) to download videos from position 1 to 4. \
+• You can set a custom playlist name by adding it after the range (e.g. `https://example.com*1*4*My Playlist`). 
+
+• To change the caption of a video, reply to the video with your message – the bot will send the video with your caption. \
+• To extract audio from a video, use the **/audio** command (e.g. `/audio https://example.com`). \
+• Upload a cookie file to download private videos and playlists. \
+• Check or update your cookie file with **/check_cookie**, **/download_cookie**, **/save_as_cookie** and **/cookies_from_browser** commands. \
+• To clean your workspace on server from bad files (e.g. old cookies or media) use **/clean** command (might be helpfull for get rid of errors). \
+• See your usage statistics and logs by sending the **/usage** command. \
+• Control subtitle embedding with **/subs** command - enable or disable automatic subtitle burning into videos. \
+• Clear cached subtitle language data with **/uncache** command if you experience issues with subtitle detection. \
+• Reload cache from firebase to local json file with **/reload_cache** command. \
+• Toggle turn ON/OFF mode of auto reloading of cache every **N** hours with **/auto_cache** command. 
+
+---
+
+## Added New Features
+
+- Per-user cookie download.
+- Per-user database.
+- Custom playlist naming.
+- MP3 audio download support (/audio command).
+
+---
+
 ## Auto-Cleaning User Directories with Crontab
 
 To prevent your server from filling up with downloaded files, you can set up a crontab task that runs every 24 hours and deletes all files in user directories (except for `cookie.txt` and `logs.txt`).
@@ -402,6 +391,18 @@ For example, add the following line to your crontab:
 - `/usr/bin/find /CHANGE/ME/TO/REAL/PATH/TO/tg-ytdlp-bot/users -type f` – Searches for all files under the users directory.
 - `! -name "cookie.txt" ! -name "logs.txt"` – Excludes `cookie.txt` and `logs.txt` files from deletion.
 - `-delete` – Deletes the files found.
+
+---
+
+## TODO
+
+- ~~Add a custom formatter selector for downloads.~~
+- ~~Enhance MP3 support.~~
+- Add Google Drive support to store files.
+
+---
+
+Below is an example section for your GitHub README.md that explains how to set up Firebase for your Telegram bot, including creating a Firebase project, setting up a Realtime Database with authentication, and creating a user.
 
 ---
 
