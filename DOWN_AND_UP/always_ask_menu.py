@@ -741,19 +741,20 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 subs_enabled = is_subs_enabled(user_id)
                 auto_mode = get_user_subs_auto_mode(user_id)
                 subs_available = ""
-                if sel_ext == 'mkv':
-                    # Для MKV не ограничиваем сабы – показываем доступность всегда
-                    subs_available = "💬"
-                elif subs_enabled and is_youtube_url(url) and w is not None and h is not None and min(int(w), int(h)) <= Config.MAX_SUB_QUALITY:
-                    found_type = check_subs_availability(url, user_id, q, return_type=True)
-                    if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
-                        temp_info = {
-                            'duration': info.get('duration'),
-                            'filesize': filesize,
-                            'filesize_approx': filesize
-                        }
-                        if check_subs_limits(temp_info, q):
-                            subs_available = "💬"
+                if subs_enabled:
+                    if sel_ext == 'mkv':
+                        # Для MKV при включённых субтитрах показываем без ограничений
+                        subs_available = "💬"
+                    elif is_youtube_url(url) and w is not None and h is not None and min(int(w), int(h)) <= Config.MAX_SUB_QUALITY:
+                        found_type = check_subs_availability(url, user_id, q, return_type=True)
+                        if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
+                            temp_info = {
+                                'duration': info.get('duration'),
+                                'filesize': filesize,
+                                'filesize_approx': filesize
+                            }
+                            if check_subs_limits(temp_info, q):
+                                subs_available = "💬"
                 # Cache/icon
                 if is_playlist and playlist_range:
                     indices = list(range(playlist_range[0], playlist_range[1]+1))
@@ -970,19 +971,20 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 subs_available = ""
                 subs_enabled = is_subs_enabled(user_id)
                 auto_mode = get_user_subs_auto_mode(user_id)
-                if sel_ext == 'mkv':
-                    subs_available = "💬"
-                elif subs_enabled and is_youtube_url(url) and w is not None and h is not None and min(int(w), int(h)) <= Config.MAX_SUB_QUALITY:
-                    # Check the presence of subtitles of the desired type
-                    # found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                    if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
-                        temp_info = {
-                            'duration': info.get('duration'),
-                            'filesize': filesize,
-                            'filesize_approx': filesize
-                        }
-                        if check_subs_limits(temp_info, quality_key):
-                            subs_available = "💬"
+                if subs_enabled:
+                    if sel_ext == 'mkv':
+                        subs_available = "💬"
+                    elif is_youtube_url(url) and w is not None and h is not None and min(int(w), int(h)) <= Config.MAX_SUB_QUALITY:
+                        # Check the presence of subtitles of the desired type
+                        # found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
+                        if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
+                            temp_info = {
+                                'duration': info.get('duration'),
+                                'filesize': filesize,
+                                'filesize_approx': filesize
+                            }
+                            if check_subs_limits(temp_info, quality_key):
+                                subs_available = "💬"
                 
                 if is_playlist and playlist_range:
                     indices = list(range(playlist_range[0], playlist_range[1]+1))

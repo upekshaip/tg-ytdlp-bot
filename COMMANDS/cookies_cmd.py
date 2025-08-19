@@ -10,6 +10,7 @@ from HELPERS.decorators import reply_with_keyboard
 from HELPERS.limitter import is_user_in_channel
 from HELPERS.logger import send_to_logger, logger, send_to_user, send_to_all
 from HELPERS.filesystem_hlp import create_directory
+from HELPERS.safe_messeger import fake_message
 import subprocess
 import os
 import requests
@@ -253,6 +254,12 @@ def download_cookie_callback(app, callback_query):
             reply_parameters=ReplyParameters(message_id=callback_query.message.id if hasattr(callback_query.message, 'id') else None),
             reply_markup=keyboard
         )
+    elif data == "from_browser":
+        try:
+            cookies_from_browser(app, fake_message("/cookies_from_browser", user_id))
+        except Exception as e:
+            logger.error(f"Failed to start cookies_from_browser: {e}")
+            app.answer_callback_query(callback_query.id, "❌ Failed to open browser cookie menu", show_alert=True)
     elif data == "close":
         try:
             callback_query.message.delete()
@@ -313,6 +320,9 @@ def download_cookie(app, message):
         [
             InlineKeyboardButton("📘 Facebook", callback_data="download_cookie|facebook"),
             InlineKeyboardButton("📝 Your Own", callback_data="download_cookie|own"),
+        ],
+        [
+            InlineKeyboardButton("🌐 From Browser", callback_data="download_cookie|from_browser"),
         ],
         [
             InlineKeyboardButton("🔚 Close", callback_data="download_cookie|close"),
