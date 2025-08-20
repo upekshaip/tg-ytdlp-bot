@@ -1,14 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Virtual env / env files
+venv/
+benv/
+.env
+.python-version
+
+# Bot runtime / sessions / logs
 magic.session
 magic.session-journal
-cookies.txt
-users
+.bot_pid
+bot.log
+runtime.log
+
+# Local data / caches / backups
+users/
+cookies/
+_backup/
+_cursor/
+_arabic_fonts_amiri/
+*.backup_*
+dump.json
+firebase_cache.json
+
+# yt-dlp binaries / temp downloads
+yt-dlp
+*.part
+*.ytdl
+*.temp
+*.tmp
+
+# Sample / experimental scripts
 test.py
-logs.txt
 torrent.py
 bot_sample.py
-tg-bot
 users.txt
-benv
+script.sh
+
+# Configs with secrets (do not commit)
+CONFIG/config.py
 config.py
-.vscode
-__pycache__

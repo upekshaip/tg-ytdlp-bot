@@ -1,17 +1,15 @@
+# Базовые зависимости (обычная установка)
 #pyrogram is outdated so we'll use last fork
 git+https://github.com/KurimuzonAkuma/pyrogram.git#egg=kurigram
-urllib3==1.26.20
 requests<3,>=2.8.1
-Pyrebase4==4.8.0
 TgCrypto>=1.2.5
-#yt-dlp>=2023.10.13
-yt-dlp[default,curl-cffi]
-ffmpeg
-ffmpeg-python>=0.2.0
 moviepy==1.0.3
-python-dotenv>=1.0.0
 tldextract
-pymediainfo
 pillow
 chardet
 sdnotify
+firebase-admin
+
+# Только для yt-dlp — разрешить пре-релизы и переустановить «с нуля»
+--pre
+yt-dlp[default,curl-cffi]
