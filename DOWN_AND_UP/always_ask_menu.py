@@ -711,7 +711,7 @@ def askq_callback(app, callback_query):
         
         # Force use specific quality format like in /format command
         if quality == "best":
-            format_override = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best"
+            format_override = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bv+ba/best"
         elif quality == "mp3":
             down_and_audio(app, original_message, url, tags, quality_key="mp3")
             return
@@ -719,10 +719,28 @@ def askq_callback(app, callback_query):
             try:
                 quality_str = quality.replace('p', '')
                 quality_val = int(quality_str)
-                prev = 0
-                format_override = f"bv*[vcodec*=avc1][height<={quality_val}][height>{prev}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<={quality_val}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+                # choose previous rung for lower bound
+                if quality_val >= 4320:
+                    prev = 2160
+                elif quality_val >= 2160:
+                    prev = 1440
+                elif quality_val >= 1440:
+                    prev = 1080
+                elif quality_val >= 1080:
+                    prev = 720
+                elif quality_val >= 720:
+                    prev = 480
+                elif quality_val >= 480:
+                    prev = 360
+                elif quality_val >= 360:
+                    prev = 240
+                elif quality_val >= 240:
+                    prev = 144
+                else:
+                    prev = 0
+                format_override = f"bv*[vcodec*=avc1][height<={quality_val}][height>{prev}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<={quality_val}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best/bv+ba/best"
             except ValueError:
-                format_override = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best"
+                format_override = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bv+ba/best"
         
         # Handle playlists
         original_text = original_message.text or original_message.caption or ""
@@ -810,15 +828,32 @@ def askq_callback(app, callback_query):
                     try:
                         # Form the correct format for the missing videos
                         if used_quality_key == "best":
-                            format_override = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+                            format_override = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best/bv+ba/best"
                         else:
                             quality_str = used_quality_key.replace('p', '')
                             quality_val = int(quality_str)
-                            prev = 0
-                            format_override = f"bv*[vcodec*=avc1][height<={quality_val}][height>{prev}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<={quality_val}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+                            if quality_val >= 4320:
+                                prev = 2160
+                            elif quality_val >= 2160:
+                                prev = 1440
+                            elif quality_val >= 1440:
+                                prev = 1080
+                            elif quality_val >= 1080:
+                                prev = 720
+                            elif quality_val >= 720:
+                                prev = 480
+                            elif quality_val >= 480:
+                                prev = 360
+                            elif quality_val >= 360:
+                                prev = 240
+                            elif quality_val >= 240:
+                                prev = 144
+                            else:
+                                prev = 0
+                            format_override = f"bv*[vcodec*=avc1][height<={quality_val}][height>{prev}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<={quality_val}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best/bv+ba/best"
                     except Exception as e:
                         logger.error(f"askq_callback: error forming format: {e}")
-                        format_override = "bestvideo+bestaudio/best"
+                        format_override = "bestvideo+bestaudio/best/bv+ba/best"
                     
                     down_and_up(app, original_message, url, playlist_name, new_count, new_start, tags_text, force_no_title=False, format_override=format_override, quality_key=used_quality_key)
             else:
@@ -837,14 +872,31 @@ def askq_callback(app, callback_query):
                 try:
                     # Form the correct format for the new download
                     if data == "best":
-                        format_override = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+                        format_override = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best/bv+ba/best"
                     else:
                         quality_str = data.replace('p', '')
                         quality_val = int(quality_str)
-                        prev = 0
-                        format_override = f"bv*[vcodec*=avc1][height<={quality_val}][height>{prev}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<={quality_val}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best"
+                        if quality_val >= 4320:
+                            prev = 2160
+                        elif quality_val >= 2160:
+                            prev = 1440
+                        elif quality_val >= 1440:
+                            prev = 1080
+                        elif quality_val >= 1080:
+                            prev = 720
+                        elif quality_val >= 720:
+                            prev = 480
+                        elif quality_val >= 480:
+                            prev = 360
+                        elif quality_val >= 360:
+                            prev = 240
+                        elif quality_val >= 240:
+                            prev = 144
+                        else:
+                            prev = 0
+                        format_override = f"bv*[vcodec*=avc1][height<={quality_val}][height>{prev}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<={quality_val}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best/bv+ba/best"
                 except ValueError:
-                    format_override = "bestvideo+bestaudio/best"
+                    format_override = "bestvideo+bestaudio/best/bv+ba/best"
                 
                 down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=data)
             return
@@ -1730,9 +1782,27 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
             if max_width == 0 or max_height == 0:
                 quality_str = data.replace('p', '')
                 quality_val = int(quality_str)
-                prev = 0
+                # choose previous rung for lower bound
+                if quality_val >= 4320:
+                    prev = 2160
+                elif quality_val >= 2160:
+                    prev = 1440
+                elif quality_val >= 1440:
+                    prev = 1080
+                elif quality_val >= 1080:
+                    prev = 720
+                elif quality_val >= 720:
+                    prev = 480
+                elif quality_val >= 480:
+                    prev = 360
+                elif quality_val >= 360:
+                    prev = 240
+                elif quality_val >= 240:
+                    prev = 144
+                else:
+                    prev = 0
                 audio_filter = f"[language^={sel_audio_lang}]" if sel_audio_lang else ""
-                fmt = f"bv*[vcodec*={sel_codec}][height<={quality_val}][height>{prev}]+ba{audio_filter}/bv*[vcodec*={sel_codec}][height<={quality_val}]+ba{audio_filter}/bv*[vcodec*={sel_codec}]+ba"
+                fmt = f"bv*[vcodec*={sel_codec}][height<={quality_val}][height>{prev}]+ba{audio_filter}/bv*[vcodec*={sel_codec}][height<={quality_val}]+ba{audio_filter}/bv*[vcodec*={sel_codec}]+ba/bv+ba/best"
             else:
                 # Determine the quality by the smaller side
                 min_side_quality = get_quality_by_min_side(max_width, max_height)
@@ -1741,17 +1811,51 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
                 if data != min_side_quality:
                     quality_str = data.replace('p', '')
                     quality_val = int(quality_str)
-                    prev = 0
+                    if quality_val >= 4320:
+                        prev = 2160
+                    elif quality_val >= 2160:
+                        prev = 1440
+                    elif quality_val >= 1440:
+                        prev = 1080
+                    elif quality_val >= 1080:
+                        prev = 720
+                    elif quality_val >= 720:
+                        prev = 480
+                    elif quality_val >= 480:
+                        prev = 360
+                    elif quality_val >= 360:
+                        prev = 240
+                    elif quality_val >= 240:
+                        prev = 144
+                    else:
+                        prev = 0
                     audio_filter = f"[language^={sel_audio_lang}]" if sel_audio_lang else ""
-                    fmt = f"bv*[vcodec*={sel_codec}][height<={quality_val}][height>{prev}]+ba{audio_filter}/bv*[vcodec*={sel_codec}][height<={quality_val}]+ba{audio_filter}/bv*[vcodec*={sel_codec}]+ba"
+                    fmt = f"bv*[vcodec*={sel_codec}][height<={quality_val}][height>{prev}]+ba{audio_filter}/bv*[vcodec*={sel_codec}][height<={quality_val}]+ba{audio_filter}/bv*[vcodec*={sel_codec}]+ba/bv+ba/best"
                 else:
                     # Use the real height to form the format
                     real_height = get_real_height_for_quality(data, max_width, max_height)
                     quality_str = data.replace('p', '')
                     quality_val = int(quality_str)
-                    prev = 0
+                    if quality_val >= 4320:
+                        prev = 2160
+                    elif quality_val >= 2160:
+                        prev = 1440
+                    elif quality_val >= 1440:
+                        prev = 1080
+                    elif quality_val >= 1080:
+                        prev = 720
+                    elif quality_val >= 720:
+                        prev = 480
+                    elif quality_val >= 480:
+                        prev = 360
+                    elif quality_val >= 360:
+                        prev = 240
+                    elif quality_val >= 240:
+                        prev = 144
+                    else:
+                        prev = 0
                     audio_filter = f"[language^={sel_audio_lang}]" if sel_audio_lang else ""
-                    fmt = f"bv*[vcodec*={sel_codec}][height<={real_height}][height>{prev}]+ba{audio_filter}/bv*[vcodec*={sel_codec}][height<={real_height}]+ba{audio_filter}/bv*[vcodec*={sel_codec}]+ba"
+                    fmt = f"bv*[vcodec*={sel_codec}][height<={real_height}][height>{prev}]+ba{audio_filter}/bv*[vcodec*={sel_codec}][height<={real_height}]+ba{audio_filter}/bv*[vcodec*={sel_codec}]+ba/bv+ba/best"
             
             quality_key = data
             try:

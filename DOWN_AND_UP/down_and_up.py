@@ -265,7 +265,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             # if use_default_format is True, then do not take from format.txt, but use default ones
             if use_default_format:
                 attempts = [
-                    {'format': 'bv*[vcodec*=avc1][height<=1080][height>720]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba', 'prefer_ffmpeg': True, 'merge_output_format': output_format, 'extract_flat': False},
+                    {'format': 'bv*[vcodec*=avc1][height<=1080][height>720]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bv+ba/best', 'prefer_ffmpeg': True, 'merge_output_format': output_format, 'extract_flat': False},
                     {'format': 'best', 'prefer_ffmpeg': False, 'extract_flat': False}
                 ]
             else:
@@ -278,9 +278,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         attempts = [{'format': custom_format, 'prefer_ffmpeg': True, 'merge_output_format': output_format}]
                 else:
                     attempts = [
-                        {'format': 'bv*[vcodec*=avc1][height<=1080][height>720]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba',
+                        {'format': 'bv*[vcodec*=avc1][height<=1080][height>720]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bv+ba/best',
                         'prefer_ffmpeg': True, 'merge_output_format': output_format, 'extract_flat': False},
-                        {'format': 'bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best',
+                        {'format': 'bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best/bv+ba/best',
                         'prefer_ffmpeg': True, 'merge_output_format': output_format, 'extract_flat': False},
                         {'format': 'best', 'prefer_ffmpeg': False, 'extract_flat': False}
                     ]
@@ -629,12 +629,29 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         # If there is only one video in the playlist, just download it
                         info_dict = entries[0]  # Just take the first video
 
-                if ("m3u8" in url.lower()) or (info_dict and info_dict.get("protocol") == "m3u8_native"):
+                # Detect HLS not only by URL/top-level protocol, but by requested formats too
+                requested_formats = []
+                try:
+                    requested_formats = info_dict.get('requested_formats') or []
+                except Exception:
+                    requested_formats = []
+
+                hls_in_requested = False
+                for _rf in requested_formats:
+                    proto = (_rf.get('protocol') or '').lower()
+                    if 'm3u8' in proto or 'hls' in proto:
+                        hls_in_requested = True
+                        break
+
+                if ("m3u8" in url.lower()) or (info_dict and info_dict.get("protocol") in ("m3u8", "m3u8_native")) or hls_in_requested:
                     is_hls = True
-                    # if "format" in ytdl_opts:
-                    # del ytdl_opts["format"]
+                    # Force ffmpeg for HLS and disable chunked HTTP to avoid Conflicting range on fragments
                     ytdl_opts["downloader"] = "ffmpeg"
+                    ytdl_opts["hls_prefer_native"] = False
                     ytdl_opts["hls_use_mpegts"] = True
+                    ytdl_opts.pop("http_chunk_size", None)
+                    # Reduce parallelism for fragile HLS endpoints
+                    ytdl_opts["concurrent_fragment_downloads"] = 1
                 try:
                     if is_hls:
                                         safe_edit_message_text(user_id, proc_msg_id,
