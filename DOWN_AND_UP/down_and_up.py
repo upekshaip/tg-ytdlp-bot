@@ -430,33 +430,29 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             nonlocal current_total_process, error_message
             
             common_opts = {
-                'playlist_items': str(current_index),  # We use only current_index for playlists
+                'playlist_items': str(current_index),
                 'outtmpl': os.path.join(user_dir_name, "%(title).50s.%(ext)s"),
                 'postprocessors': [
-                {
-                   'key': 'EmbedThumbnail'   # equivalent to --embed-thumbnail
-                },
-                {
-                   'key': 'FFmpegMetadata'   # equivalent to --add-metadata
-                }                  
-                ],                
+                    {'key': 'EmbedThumbnail'},
+                    {'key': 'FFmpegMetadata'}
+                ],
                 'extractor_args': {
-                   'generic': ['impersonate=chrome'],
-                   'youtubetab': ['skip=authcheck']
+                    'generic': ['impersonate=chrome'],
+                    'youtubetab': ['skip=authcheck']
                 },
                 'referer': url,
                 'geo_bypass': True,
                 'check_certificate': False,
-                'live_from_start': True,
-                'socket_timeout': 60,  # Increase socket timeout
-                'retries': 15,  # Increase retries
-                'fragment_retries': 15,  # Increase fragment retries
-                'http_chunk_size': 5242880,  # 5MB chunks for better stability
-                'buffersize': 2048,  # Increase buffer size
-                'sleep_interval': 2,  # Sleep between requests
-                'max_sleep_interval': 10,  # Max sleep between requests
-                'read_timeout': 60,  # Read timeout
-                'connect_timeout': 30  # Connect timeout
+                'live_from_start': True #,
+                #'socket_timeout': 60,  # Increase socket timeout
+                #'retries': 15,  # Increase retries
+                #'fragment_retries': 15,  # Increase fragment retries
+                #'http_chunk_size': 5242880,  # 5MB chunks for better stability
+                #'buffersize': 2048,  # Increase buffer size
+                #'sleep_interval': 2,  # Sleep between requests
+                #'max_sleep_interval': 10,  # Max sleep between requests
+                #'read_timeout': 60,  # Read timeout
+                #'connect_timeout': 30  # Connect timeout
             }
             
             # Check subtitle availability for YouTube videos (but don't download them here)
@@ -1057,7 +1053,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                               safe_edit_message_text(user_id, proc_msg_id,
                                   f"{info_text}\n{full_bar}   100.0%\n<i>📤 Splitted part {p + 1} file uploaded</i>")
                     if p < len(caption_lst) - 1:
-                        threading.Event().wait(2)
+                        pass
                     if os.path.exists(splited_thumb_dir):
                         os.remove(splited_thumb_dir)
                     send_mediainfo_if_enabled(user_id, path_lst[p], message)
@@ -1306,7 +1302,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             os.remove(after_rename_abs_path)
                         if thumb_dir and os.path.exists(thumb_dir):
                             os.remove(thumb_dir)
-                        threading.Event().wait(2)
+                        pass
                     except Exception as e:
                         logger.error(f"Error sending video: {e}")
                         logger.error(traceback.format_exc())
