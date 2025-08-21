@@ -123,6 +123,7 @@ LANGUAGES = {
     "ig": {"flag": "🇳🇬", "name": "Igbo"}
 }
 
+
 # Fallback flag for unknown/region languages
 DEFAULT_FLAG = "🌐"
 
@@ -248,6 +249,7 @@ def get_flag(lang_code: str, use_second_part: bool = False) -> str:
     
     return DEFAULT_FLAG
 
+
 #ITEMS_PER_PAGE = 10  # Number of languages per page
 
 #############################################################################################################################
@@ -262,6 +264,7 @@ def subs_command(app, message):
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
 
+
     # Fast args: /subs on|off  -> Always Ask mode toggle
     parts = (message.text or "").split()
     if len(parts) >= 2:
@@ -271,6 +274,7 @@ def subs_command(app, message):
             app.send_message(user_id, f"✅ SUBS Always Ask {'enabled' if arg=='on' else 'disabled'}.")
             send_to_logger(message, f"SUBS Always Ask set via command: {arg}")
             return
+
 
     # Enable AUTO/TRANS by default if not enabled before
     if not get_user_subs_auto_mode(user_id):
@@ -380,6 +384,7 @@ def subs_auto_callback(app, callback_query):
         
         send_to_logger(callback_query.message, f"User toggled AUTO/TRANS mode to: {new_auto}")
 
+
 @app.on_callback_query(filters.regex(r"^subs_always_ask\|"))
 def subs_always_ask_callback(app, callback_query):
     """Handle Always Ask mode toggle in subtitle language menu"""
@@ -405,6 +410,7 @@ def subs_always_ask_callback(app, callback_query):
             callback_query.edit_message_reply_markup(reply_markup=None)
         
         send_to_logger(callback_query.message, f"User toggled Always Ask mode to: {new_always_ask}")
+
 
 @app.on_callback_query(filters.regex(r"^subs_lang_close\|"))
 def subs_lang_close_callback(app, callback_query):
@@ -1361,7 +1367,9 @@ def get_language_keyboard(page=0, user_id=None, langs_override=None, per_page_ro
     """Generate keyboard with language buttons in 3 columns. Supports paging and optional language override."""
     keyboard = []
     LANGS_PER_ROW = 3
+
     ROWS_PER_PAGE = per_page_rows  # default 8 -> 24 per page
+
 
     # We get all languages
     if langs_override is not None:
@@ -1409,12 +1417,14 @@ def get_language_keyboard(page=0, user_id=None, langs_override=None, per_page_ro
     keyboard.append([
         InlineKeyboardButton("🚫 OFF", callback_data="subs_lang|OFF"),
         InlineKeyboardButton(f"{auto_emoji} AUTO/TRANS", callback_data=f"subs_auto|toggle|{page}")
+
     ])
     # Always Ask option
     always_ask_enabled = is_subs_always_ask(user_id) if user_id else False
     always_ask_emoji = "✅" if always_ask_enabled else "☑️"
     keyboard.append([
         InlineKeyboardButton(f"{always_ask_emoji} Always Ask", callback_data=f"subs_always_ask|toggle|{page}")
+
     ])
     # Close button
     keyboard.append([
