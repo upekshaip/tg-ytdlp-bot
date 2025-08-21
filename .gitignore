@@ -30,6 +30,7 @@ users/
 cookies/
 _backup/
 _cursor/
+TOOLS/
 _arabic_fonts_amiri/
 *.backup_*
 dump.json
@@ -48,6 +49,7 @@ torrent.py
 bot_sample.py
 users.txt
 script.sh
+log.txt
 
 # Configs with secrets (do not commit)
 CONFIG/config.py

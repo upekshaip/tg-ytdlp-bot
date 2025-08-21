@@ -7,6 +7,7 @@ import json
 from pyrogram import filters, enums
 from pyrogram.errors import FloodWait
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
+import requests
 
 from HELPERS.app_instance import get_app
 from HELPERS.decorators import get_main_reply_keyboard
@@ -42,6 +43,7 @@ from URL_PARSERS.youtube import is_youtube_url, download_thumbnail
 from URL_PARSERS.tiktok import is_tiktok_url
 from URL_PARSERS.normalizer import get_clean_playlist_url
 from URL_PARSERS.embedder import transform_to_embed_url, is_instagram_url, is_twitter_url, is_reddit_url
+from URL_PARSERS.thumbnail_downloader import download_thumbnail as download_universal_thumbnail
 
 # Get app instance for decorators
 app = get_app()
@@ -1164,6 +1166,39 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 download_thumbnail(video_id, thumb_path, url)
             except Exception:
                 thumb_path = None
+        else:
+            # Try to download thumbnail for non-YouTube services
+            service_name = "unknown"
+            if 'vk.com' in url:
+                service_name = "vk"
+            elif 'tiktok.com' in url:
+                service_name = "tiktok"
+            elif any(x in url for x in ['twitter.com', 'x.com']):
+                service_name = "twitter"
+            elif 'facebook.com' in url:
+                service_name = "facebook"
+            elif 'pornhub.com' in url or 'pornhub.org' in url:
+                service_name = "pornhub"
+            
+            if service_name != "unknown":
+                thumb_path = os.path.join(user_dir, f"{service_name}_thumb_{video_id or 'unknown'}.jpg")
+                try:
+                    if download_universal_thumbnail(url, thumb_path):
+                        thumb_path = thumb_path
+                    else:
+                        thumbnail_url = info.get('thumbnail')
+                        if thumbnail_url:
+                            try:
+                                response = requests.get(thumbnail_url, timeout=10)
+                                if response.status_code == 200 and len(response.content) <= 1024 * 1024:
+                                    with open(thumb_path, "wb") as f:
+                                        f.write(response.content)
+                                    thumb_path = thumb_path
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+        # At this point, lack of thumbnail must NOT block further UI
         # --- Detect available audio dubs (languages) once per menu open ---
         filters_state = get_filters(user_id)
         sel_codec = filters_state.get("codec", "avc1")
@@ -1278,31 +1313,229 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 found_quality_keys.add(q)
             table_block = "\n".join(table_lines)
         else:
-            # --- The old logic for non-youutube ---
-            minside_size_dim_map = {}
+            # --- Non-YouTube: build quality map from actual formats (VK, PH etc.) ---
+            import re as _re
+            quality_map = {}  # quality_key -> best candidate dict
+
+            def infer_quality_key(f):
+                w = f.get('width')
+                h = f.get('height')
+                if w and h:
+                    return get_quality_by_min_side(w, h)
+                fid = f.get('format_id') or ''
+                # url360 / 240p / 1080p etc.
+                # Case 1: 144p/240p/.. from PH-like ids
+                m = _re.match(r'^(\d{3,4})p$', fid)
+                if m:
+                    try:
+                        return f"{int(m.group(1))}p"
+                    except Exception:
+                        return None
+                # Case 2: url144/url240/... from VK
+                m2 = _re.match(r'^url(\d{3,4})$', fid)
+                if m2:
+                    try:
+                        return f"{int(m2.group(1))}p"
+                    except Exception:
+                        return None
+                # Case 3: generic *_540p_* like on TikTok
+                m3 = _re.search(r'(\d{3,4})p', fid)
+                if m3:
+                    try:
+                        return f"{int(m3.group(1))}p"
+                    except Exception:
+                        return None
+                return None
+
+            def is_manifest(f):
+                proto = (f.get('protocol') or '').lower()
+                return 'm3u8' in proto or 'dash' in (f.get('format_note') or '').lower() or f.get('manifest_url') is not None
+
+            # --- Helpers for size estimation when FILESIZE is missing ---
+            def best_audio_kbps() -> int:
+                kbps = 0
+                for af in info.get('formats', []):
+                    if af.get('vcodec') == 'none':
+                        # Prefer tbr, else abr
+                        val = None
+                        if af.get('tbr'):
+                            val = float(af['tbr'])
+                        elif af.get('abr'):
+                            val = float(af['abr'])
+                        if val:
+                            kbps = max(kbps, int(val))
+                return kbps or 128  # default to 128 kbps if unknown
+
+            _audio_kbps = best_audio_kbps()
+
+            def default_video_kbps_for_height(height: int, fps: int | None, vcodec: str | None) -> int:
+                # Baseline by height (rough real-world averages for SDR 16:9)
+                baseline = {
+                    144: 250,
+                    240: 400,
+                    360: 800,
+                    480: 1200,
+                    540: 2000,
+                    576: 2200,
+                    720: 2500,
+                    1080: 4500,
+                    1440: 8000,
+                    2160: 14000,
+                    4320: 40000,
+                }
+                # pick nearest not-greater baseline
+                h_keys = sorted(baseline.keys())
+                chosen = baseline[h_keys[0]]
+                for hk in h_keys:
+                    if height >= hk:
+                        chosen = baseline[hk]
+                # fps adjustment
+                if fps and fps > 30:
+                    chosen = int(chosen * 1.25)
+                # codec efficiency (AV1/VP9 can be ~10% better than AVC)
+                if vcodec and (vcodec.startswith('av01') or 'vp9' in vcodec):
+                    chosen = int(chosen * 0.9)
+                return max(chosen, 200)
+
+            def sibling_video_kbps_for_quality(qk: str) -> int:
+                # Try to find any sibling format with same quality and known tbr/vbr
+                best = 0
+                for sf in info.get('formats', []):
+                    if infer_quality_key(sf) != qk:
+                        continue
+                    val = 0.0
+                    if sf.get('tbr'):
+                        val = float(sf['tbr'])
+                    elif sf.get('vbr'):
+                        val = float(sf['vbr'])
+                    if val:
+                        best = max(best, int(val))
+                return best
+
+            def estimate_size_mb(f, qk: str, filesize_str: str = '') -> int:
+                # 1) Exact sizes
+                if f.get('filesize'):
+                    return int(f['filesize']) // (1024*1024)
+                if f.get('filesize_approx'):
+                    return int(f['filesize_approx']) // (1024*1024)
+                
+                # 2) Try to parse human-readable size strings (like "624KB", "1.4MB")
+                if filesize_str:
+                    try:
+                        import re as _re
+                        # Parse patterns like "624KB", "1.4MB", "2.1GB"
+                        match = _re.match(r'^([\d.]+)\s*(KB|MB|GB)$', filesize_str.strip())
+                        if match:
+                            size_val = float(match.group(1))
+                            unit = match.group(2)
+                            if unit == 'KB':
+                                return max(1, int(size_val / 1024))  # At least 1 MB for any KB
+                            elif unit == 'MB':
+                                return int(size_val)
+                            elif unit == 'GB':
+                                return int(size_val * 1024)
+                    except Exception:
+                        pass
+                
+                duration = info.get('duration')
+                if not duration:
+                    return 0
+                # 3) Use tbr/vbr/abr when available
+                kbps = 0.0
+                if f.get('tbr'):
+                    kbps = float(f['tbr'])
+                elif f.get('vbr'):
+                    kbps = float(f['vbr'])
+                elif f.get('abr'):
+                    kbps = float(f['abr'])
+                # 4) Else use sibling with same quality
+                if not kbps:
+                    kbps = float(sibling_video_kbps_for_quality(qk))
+                # 5) Else heuristic by height/fps/codec
+                if not kbps:
+                    # derive height from qk like '360p'
+                    try:
+                        height = int((qk or '0p').rstrip('p'))
+                    except Exception:
+                        height = f.get('height') or 0
+                    fps = f.get('fps') or 30
+                    vcodec = f.get('vcodec') or ''
+                    kbps = float(default_video_kbps_for_height(int(height or 0), int(fps or 0), vcodec))
+                # add audio kbps if stream is likely video-only (no abr or explicit no audio)
+                if (f.get('acodec') in (None, '', 'none')) or (not f.get('abr')):
+                    kbps += float(_audio_kbps)
+                try:
+                    mb = (kbps * float(duration) * 125) / (1024*1024)
+                    if mb > 0 and mb < 1:
+                        return 1
+                    return int(round(mb))
+                except Exception:
+                    return 0
+
             for f in info.get('formats', []):
-                if f.get('vcodec', 'none') != 'none' and f.get('height') and f.get('width'):
-                    w = f['width']
-                    h = f['height']
-                    quality_key = get_quality_by_min_side(w, h)
-                    if quality_key != "best":
-                        # Approximate size: if there is Filesize - we use, otherwise we think by Bitrate*Duration, otherwise ' -'
-                        if f.get('filesize'):
-                            size_mb = int(f['filesize']) // (1024*1024)
-                        elif f.get('filesize_approx'):
-                            size_mb = int(f['filesize_approx']) // (1024*1024)
-                        elif f.get('tbr') and info.get('duration'):
-                            size_mb = int(float(f['tbr']) * float(info['duration']) * 125 / (1024*1024))
-                        else:
-                            size_mb = None
-                        if size_mb:
-                            key = (quality_key, w, h)
-                            minside_size_dim_map[key] = size_mb
+                # Skip audio-only
+                if f.get('vcodec') == 'none' and (f.get('audio_ext') or '') != 'none':
+                    continue
+
+                qk = infer_quality_key(f)
+                if not qk or qk == 'best':
+                    continue
+
+                # derive dimensions when missing (assume 16:9)
+                w_val = f.get('width') or 0
+                h_val = f.get('height') or 0
+                if not h_val:
+                    try:
+                        h_val = int(qk.rstrip('p'))
+                    except Exception:
+                        h_val = 0
+                if not w_val and h_val:
+                    w_val = int(h_val * 16 / 9)
+
+                candidate = {
+                    'w': w_val,
+                    'h': h_val,
+                    'size_mb': estimate_size_mb(f, qk, f.get('filesize_str') or ''),
+                    'format_id': f.get('format_id') or '',
+                    'protocol': f.get('protocol') or '',
+                    'filesize_str': f.get('filesize_str') or '',  # Capture human-readable size like "624KB"
+                }
+
+                prev = quality_map.get(qk)
+                if not prev:
+                    quality_map[qk] = candidate
+                else:
+                    # Prefer entries with known resolution/size; then prefer non-manifest; then larger size
+                    prev_has_dims = bool(prev.get('w')) and bool(prev.get('h'))
+                    curr_has_dims = bool(candidate.get('w')) and bool(candidate.get('h'))
+                    prev_has_size = prev.get('size_mb', 0) > 0
+                    curr_has_size = candidate.get('size_mb', 0) > 0
+                    prev_manifest = is_manifest(prev)
+                    curr_manifest = is_manifest(candidate)
+
+                    def better(a_has_dims, a_has_size, a_manifest, a_size, b_has_dims, b_has_size, b_manifest, b_size):
+                        # 1) prefer with dimensions
+                        if a_has_dims != b_has_dims:
+                            return a_has_dims
+                        # 2) prefer with size estimation
+                        if a_has_size != b_has_size:
+                            return a_has_size
+                        # 3) prefer non-manifest
+                        if a_manifest != b_manifest:
+                            return not a_manifest
+                        # 4) prefer bigger size
+                        return a_size > b_size
+
+                    if better(curr_has_dims, curr_has_size, curr_manifest, candidate['size_mb'],
+                              prev_has_dims, prev_has_size, prev_manifest, prev.get('size_mb', 0)):
+                        quality_map[qk] = candidate
             table_lines = []
-            for (quality_key, w, h), size_val in sorted(minside_size_dim_map.items(), key=lambda x: sort_quality_key(x[0][0])):
+            for quality_key in sorted(quality_map.keys(), key=sort_quality_key):
+                entry = quality_map[quality_key]
+                w, h, size_val = entry['w'], entry['h'], entry['size_mb']
                 found_quality_keys.add(quality_key)
                 size_str = f"{round(size_val/1024, 1)}GB" if size_val and size_val >= 1024 else (f"{size_val}MB" if size_val else '—')
-                dim_str = f" ({w}×{h})"
+                dim_str = f" ({w}×{h})" if w and h else ''
                 scissors = ""
                 if get_user_split_size(user_id) and size_val:
                     video_bytes = size_val * 1024 * 1024
@@ -1329,7 +1562,8 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         if summary_parts:
             cap += "<blockquote>" + " | ".join(summary_parts) + "</blockquote>\n"
         # --- YouTube expanded block ---
-        if ("youtube.com" in url or "youtu.be" in url):
+        is_youtube = ("youtube.com" in url or "youtu.be" in url)
+        if is_youtube:
             uploader = info.get('uploader') or ''
             channel_url = info.get('channel_url') or ''
             view_count = info.get('view_count')
@@ -1390,7 +1624,19 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             meta_block = '\n'.join(meta_lines)
             cap = meta_block + '\n\n'
         else:
-            cap = ''
+            # For non-YouTube: show Uploader, Duration, then Title if present
+            title_ny = info.get('title') or ''
+            uploader_ny = info.get('uploader') or ''
+            duration_ny = info.get('duration')
+            duration_str_ny = TimeFormatter(duration_ny*1000) if duration_ny else ''
+            meta_lines_ny = []
+            if uploader_ny:
+                meta_lines_ny.append(f"📺 <b>{uploader_ny}</b>")
+            if duration_str_ny:
+                meta_lines_ny.append(f"<blockquote>⏱️ {duration_str_ny}</blockquote>")
+            if title_ny:
+                meta_lines_ny.append(f"\n<b>{title_ny}</b>")
+            cap = ('\n'.join(meta_lines_ny) + '\n\n') if meta_lines_ny else ''
         # --- a table of qualities ---
         if table_block:
             cap += f"<blockquote>{table_block}</blockquote>\n"
@@ -1409,40 +1655,51 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 # cap += f"\n{links}"
         # --- Cutting by the limit ---
         if len(cap) > 1024:
-            # We cut off by priority: likes, subscribers, views, date, duration, name, channel
-            # 1. Likes
-            cap1 = cap.replace(likes_str, '') if likes_str else cap
-            if len(cap1) <= 1024:
-                cap = cap1
-            else:
-                # 2. Subscribers
-                cap2 = cap1.replace(subs_str, '') if subs_str else cap1
-                if len(cap2) <= 1024:
-                    cap = cap2
+            if is_youtube:
+                # We cut off by priority: likes, subscribers, views, date, duration, name, channel
+                # 1. Likes
+                cap1 = cap.replace(likes_str, '') if likes_str else cap
+                if len(cap1) <= 1024:
+                    cap = cap1
                 else:
-                    # 3. Views
-                    cap3 = cap2.replace(views_str, '') if views_str else cap2
-                    if len(cap3) <= 1024:
-                        cap = cap3
+                    # 2. Subscribers
+                    cap2 = cap1.replace(subs_str, '') if subs_str else cap1
+                    if len(cap2) <= 1024:
+                        cap = cap2
                     else:
-                        # 4. Date
-                        cap4 = cap3.replace(upload_date_str, '') if upload_date_str else cap3
-                        if len(cap4) <= 1024:
-                            cap = cap4
+                        # 3. Views
+                        cap3 = cap2.replace(views_str, '') if views_str else cap2
+                        if len(cap3) <= 1024:
+                            cap = cap3
                         else:
-                            # 5. Duration
-                            cap5 = cap4.replace(duration_str, '') if duration_str else cap4
-                            if len(cap5) <= 1024:
-                                cap = cap5
+                            # 4. Date
+                            cap4 = cap3.replace(upload_date_str, '') if upload_date_str else cap3
+                            if len(cap4) <= 1024:
+                                cap = cap4
                             else:
-                                # 6. Name
-                                cap6 = cap5.replace(title_val, '') if title_val else cap5
-                                if len(cap6) <= 1024:
-                                    cap = cap6
+                                # 5. Duration
+                                cap5 = cap4.replace(duration_str, '') if duration_str else cap4
+                                if len(cap5) <= 1024:
+                                    cap = cap5
                                 else:
-                                    # 7. Channel
-                                    cap7 = cap6.replace(uploader, '') if uploader else cap6
-                                    cap = cap7[:1021] + '...'
+                                    # 6. Name
+                                    cap6 = cap5.replace(title_val, '') if title_val else cap5
+                                    if len(cap6) <= 1024:
+                                        cap = cap6
+                                    else:
+                                        # 7. Channel
+                                        cap7 = cap6.replace(uploader, '') if uploader else cap6
+                                        cap = cap7[:1021] + '...'
+            else:
+                # Simple trim for non-YouTube: cut title first, then uploader, then duration
+                if title_ny and len(cap) > 1024:
+                    cap = cap.replace(f"<b>{title_ny}</b>", "")
+                if uploader_ny and len(cap) > 1024:
+                    cap = cap.replace(f"📺 <b>{uploader_ny}</b>", "")
+                if duration_str_ny and len(cap) > 1024:
+                    cap = cap.replace(f"⏱️ {duration_str_ny}", "")
+                if len(cap) > 1024:
+                    cap = cap[:1021] + '...'
         # --- Hint ---
         subs_enabled = is_subs_enabled(user_id)
         auto_mode = get_user_subs_auto_mode(user_id)
@@ -1554,19 +1811,11 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                     button_text = f"{icon}{quality_key}{subs_available}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         else:
-            popular = [144, 240, 360, 480, 540, 576, 720, 1080, 1440, 2160, 4320]
-            for height in popular:
-                quality_key = f"{height}p"
-                size_val = None
-                w = h = None
-                for (qk, ww, hh), size in minside_size_dim_map.items():
-                    if qk == quality_key:
-                        size_val = size
-                        w = ww
-                        h = hh
-                        break
-                if size_val is None:
-                    continue
+            # Show only detected qualities derived from formats (one per quality)
+            detected_ordered = sorted(quality_map.keys(), key=sort_quality_key)
+            for quality_key in detected_ordered:
+                entry = quality_map[quality_key]
+                w, h, size_val = entry['w'], entry['h'], entry['size_mb']
                 size_str = f"{round(size_val/1024, 1)}GB" if size_val and size_val >= 1024 else (f"{size_val}MB" if size_val else '—')
                 dim_str = f" ({w}×{h})" if w and h else ''
                 scissors = ""
@@ -1576,7 +1825,6 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                         n_parts = (video_bytes + get_user_split_size(user_id) - 1) // get_user_split_size(user_id)
                         scissors = f" ✂️{n_parts}"
 
-                
                 if is_playlist and playlist_range:
                     indices = list(range(playlist_range[0], playlist_range[1]+1))
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
@@ -1585,7 +1833,6 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                     postfix = f" ({n_cached}/{total})" if total > 1 else ""
                     button_text = f"{icon}{quality_key}{postfix}"
                 else:
-                    
                     icon = "🚀" if quality_key in cached_qualities else "📹"
                     button_text = f"{icon}{quality_key}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
@@ -1892,5 +2139,22 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
     # Cleanup temp subs languages cache after we kicked off download
     try:
         delete_subs_langs_cache(message.chat.id, url)
+    except Exception:
+        pass
+
+    # Save detected qualities per filters to a per-user file for all services
+    try:
+        user_dir = os.path.join("users", str(user_id))
+        create_directory(user_dir)
+        qfile = os.path.join(user_dir, "available_qualities.txt")
+        payload = {
+            "url": info.get('webpage_url') or url,
+            "sel_codec": sel_codec,
+            "sel_ext": sel_ext,
+            "qualities": sorted(list(quality_map.keys()), key=sort_quality_key)
+        }
+        import json as _json
+        with open(qfile, "w", encoding="utf-8") as f:
+            f.write(_json.dumps(payload, ensure_ascii=False, indent=2))
     except Exception:
         pass

@@ -458,7 +458,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
             # Add delay between uploads for playlists
             if idx < len(indices_to_download) - 1:
-                threading.Event().wait(2)
+                pass
 
         if successful_uploads == len(indices_to_download):
             success_msg = f"✅ Audio successfully downloaded and sent - {len(indices_to_download)} files uploaded.\n{Config.CREDITS_MSG}"
