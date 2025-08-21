@@ -44,6 +44,7 @@ cd tg-ytdlp-bot/TXT
 nano cookie.txt
 ```
 Also you may fill in `porn_domains.txt` `porn_keywords.txt` files in `TXT` folder if you want to tag #porn videos and hide them under spoiler
+
 ---
 
 ##  local deployment on a VM 
