@@ -48,6 +48,104 @@ from URL_PARSERS.thumbnail_downloader import download_thumbnail as download_univ
 # Get app instance for decorators
 app = get_app()
 
+def format_filesize(size_str):
+    """Convert filesize to shortest readable format (kb, mb, gb)"""
+    if not size_str or size_str in ['unknown', 'none', '|', '≈']:
+        return None
+    
+    # Only process KiB, MiB, GiB formats
+    import re
+    if not re.match(r'^\d+\.?\d*(KiB|MiB|GiB)$', size_str, re.IGNORECASE):
+        return None
+    
+    # Remove any non-numeric characters except decimal point
+    clean_size = re.sub(r'[^\d.]', '', size_str)
+    
+    try:
+        size = float(clean_size)
+    except ValueError:
+        return None
+    
+    # Determine the original unit from the original string
+    original_str = size_str.lower()
+    if 'kib' in original_str:
+        unit_multiplier = 1024
+    elif 'mib' in original_str:
+        unit_multiplier = 1024 * 1024
+    elif 'gib' in original_str:
+        unit_multiplier = 1024 * 1024 * 1024
+    else:
+        return None  # Only process KiB/MiB/GiB
+    
+    # Convert to bytes
+    bytes_size = size * unit_multiplier
+    
+    # Convert to shortest readable format
+    if bytes_size >= 1024 * 1024 * 1024:  # GB
+        return f"{bytes_size / (1024 * 1024 * 1024):.0f}gb"
+    elif bytes_size >= 1024 * 1024:  # MB
+        return f"{bytes_size / (1024 * 1024):.0f}mb"
+    elif bytes_size >= 1024:  # KB
+        return f"{bytes_size / 1024:.0f}kb"
+    else:
+        return f"{bytes_size:.0f}b"
+
+def extract_button_data(format_line):
+    """Extract only needed data for button display from complete format line"""
+    parts = format_line.split()
+    button_parts = []
+    
+    # Media extensions to look for
+    media_extensions = ['mp4', 'webm', 'm4a', 'mkv', 'avi', 'mov', 'flv', 'wmv', '3gp', 'ogv', 'ts', 'mts', 'm2ts', 'mp3', 'm4a', 'ogg', 'm3u8']
+    
+    for part in parts:
+        part = part.strip()
+        
+        # Skip empty or invalid parts
+        if not part or part in ['unknown', 'none', '|', '≈'] or len(part) == 1 and part.isdigit():
+            continue
+        
+        # Check for media extension
+        if part.lower() in media_extensions:
+            button_parts.append(part)
+            continue
+        
+        # Check for resolution pattern (WxH)
+        if 'x' in part and part.replace('x', '').replace('p', '').isdigit():
+            button_parts.append(part)
+            continue
+        
+        # Check for filesize pattern (only KiB/MiB/GiB)
+        import re
+        if re.match(r'^\d+\.?\d*(KiB|MiB|GiB)$', part, re.IGNORECASE):
+            formatted_size = format_filesize(part)
+            if formatted_size:
+                button_parts.append(formatted_size)
+            continue
+        
+        # Check for quality pattern (e.g., 144p, 720p60, 1080p60)
+        if re.match(r'^\d+p\d*$', part):
+            button_parts.append(part)
+            continue
+        
+        # Check for video codec patterns
+        if any(codec in part.lower() for codec in ['avc', 'vp9', 'av1', 'h264', 'h265', 'hevc', 'avc1', 'vp09', 'av01', 'opus']):
+            # Shorten video codec names
+            if part.startswith('avc1.'):
+                part = 'avc1'
+            elif part.startswith('vp9'):
+                part = 'vp9'
+            elif part.startswith('vp09'):
+                part = 'vp9'
+            elif part.startswith('av1.'):
+                part = 'av1'
+            elif part.startswith('av01.'):
+                part = 'av1'
+            button_parts.append(part)
+            continue
+    
+    return button_parts
+
 # In-memory filters for Always Ask (per user session)
 _ASK_FILTERS = {}
 _ASK_INFO_CACHE_FILE = "ask_formats.json"
@@ -414,6 +512,27 @@ def askq_callback(app, callback_query):
     data = callback_query.data.split("|")[1]
     found_type = None
     if data == "close":
+        # Clean up old format cache files before closing menu
+        try:
+            user_dir = os.path.join("users", str(user_id))
+            create_directory(user_dir)
+            
+            # Remove all old format cache files
+            import glob
+            format_cache_pattern = os.path.join(user_dir, "formats_cache_*.json")
+            old_cache_files = glob.glob(format_cache_pattern)
+            
+            for cache_file in old_cache_files:
+                try:
+                    os.remove(cache_file)
+                    logger.info(f"Cleaned up old format cache: {cache_file}")
+                except Exception as e:
+                    logger.warning(f"Failed to remove old cache file {cache_file}: {e}")
+            if old_cache_files:
+                logger.info(f"Cleaned up {len(old_cache_files)} old format cache files before closing menu")
+        except Exception as e:
+            logger.warning(f"Error cleaning up old format cache files before closing menu: {e}")
+        
         try:
             app.delete_messages(user_id, callback_query.message.id)
         except Exception:
@@ -452,6 +571,11 @@ def askq_callback(app, callback_query):
     # Handle manual quality selection menu
     if data == "try_manual":
         show_manual_quality_menu(app, callback_query)
+        return
+    
+    # Handle other qualities menu
+    if data == "other_qualities":
+        show_other_qualities_menu(app, callback_query)
         return
 
     # Handle filter toggles
@@ -645,6 +769,94 @@ def askq_callback(app, callback_query):
                 ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
             return
     
+    # Handle other qualities page navigation
+    if data.startswith("other_page_"):
+        page = int(data.replace("other_page_", ""))
+        # For page navigation, use cached data for speed
+        original_message = callback_query.message.reply_to_message
+        if original_message:
+            url_text = original_message.text or (original_message.caption or "")
+            import re as _re
+            m = _re.search(r'https?://[^\s\*#]+', url_text)
+            url = m.group(0) if m else url_text
+            
+            if url:
+                # Clean up old format cache files before using current cache
+                try:
+                    user_dir = os.path.join("users", str(callback_query.from_user.id))
+                    create_directory(user_dir)
+                    
+                    # Remove all old format cache files except current one
+                    import glob
+                    format_cache_pattern = os.path.join(user_dir, "formats_cache_*.json")
+                    old_cache_files = glob.glob(format_cache_pattern)
+                    
+                    current_cache_file = os.path.join(user_dir, f"formats_cache_{hashlib.md5(url.encode()).hexdigest()[:8]}.json")
+                    
+                    for cache_file in old_cache_files:
+                        if cache_file != current_cache_file:  # Don't delete current cache
+                            try:
+                                os.remove(cache_file)
+                                logger.info(f"Cleaned up old format cache: {cache_file}")
+                            except Exception as e:
+                                logger.warning(f"Failed to remove old cache file {cache_file}: {e}")
+                    if len(old_cache_files) > 1:
+                        logger.info(f"Cleaned up {len(old_cache_files) - 1} old format cache files during navigation")
+                except Exception as e:
+                    logger.warning(f"Error cleaning up old format cache files during navigation: {e}")
+                
+                cache_file = current_cache_file
+                if os.path.exists(cache_file):
+                    try:
+                        with open(cache_file, 'r', encoding='utf-8') as f:
+                            cached_data = json.load(f)
+                            format_lines = cached_data.get('formats', [])
+                            if format_lines:
+                                show_formats_from_cache(app, callback_query, format_lines, page, url)
+                                return
+                    except Exception:
+                        pass
+        
+        # Fallback to full function if cache not available
+        show_other_qualities_menu(app, callback_query, page)
+        return
+    
+    if data == "other_back":
+        # Go back to main Always Ask menu
+        original_message = callback_query.message.reply_to_message
+        if original_message:
+            url_text = original_message.text or (original_message.caption or "")
+            import re as _re
+            m = _re.search(r'https?://[^\s\*#]+', url_text)
+            url = m.group(0) if m else url_text
+            
+            # Clean up old format cache files before returning to main menu
+            try:
+                user_dir = os.path.join("users", str(callback_query.from_user.id))
+                create_directory(user_dir)
+                
+                # Remove all old format cache files except current one
+                import glob
+                format_cache_pattern = os.path.join(user_dir, "formats_cache_*.json")
+                old_cache_files = glob.glob(format_cache_pattern)
+                
+                current_cache_file = os.path.join(user_dir, f"formats_cache_{hashlib.md5(url.encode()).hexdigest()[:8]}.json")
+                
+                for cache_file in old_cache_files:
+                    if cache_file != current_cache_file:  # Don't delete current cache
+                        try:
+                            os.remove(cache_file)
+                            logger.info(f"Cleaned up old format cache: {cache_file}")
+                        except Exception as e:
+                            logger.warning(f"Failed to remove old cache file {cache_file}: {e}")
+                if len(old_cache_files) > 1:
+                    logger.info(f"Cleaned up {len(old_cache_files) - 1} old format cache files before returning to main menu")
+            except Exception as e:
+                logger.warning(f"Error cleaning up old format cache files before returning to main menu: {e}")
+            
+            ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
+        return
+    
     if data == "manual_back":
         # Extract URL and tags to regenerate the original menu
         original_message = callback_query.message.reply_to_message
@@ -676,6 +888,51 @@ def askq_callback(app, callback_query):
         else:
             callback_query.answer("❌ Error: URL not found.", show_alert=True)
             app.delete_messages(user_id, callback_query.message.id)
+        return
+    
+    # Handle other quality selection by ID
+    if data.startswith("other_id_"):
+        format_id = data.replace("other_id_", "")
+        callback_query.answer(f"📥 Downloading format {format_id}...")
+        
+        original_message = callback_query.message.reply_to_message
+        if not original_message:
+            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            app.delete_messages(user_id, callback_query.message.id)
+            return
+        
+        url = None
+        if callback_query.message.caption_entities:
+            for entity in callback_query.message.caption_entities:
+                if entity.type == enums.MessageEntityType.TEXT_LINK and entity.url:
+                    url = entity.url
+                    break
+        if not url and callback_query.message.reply_to_message:
+            url_match = re.search(r'https?://[^\s\*#]+', callback_query.message.reply_to_message.text)
+            if url_match:
+                url = url_match.group(0)
+        
+        if not url:
+            callback_query.answer("❌ Error: URL not found.", show_alert=True)
+            app.delete_messages(user_id, callback_query.message.id)
+            return
+        
+        # Extract tags from the user's source message
+        original_text = original_message.text or original_message.caption or ""
+        _, _, _, _, tags, tags_text, _ = extract_url_range_tags(original_text)
+        
+        app.delete_messages(user_id, callback_query.message.id)
+        
+        # Use specific format ID for download
+        format_override = format_id
+        
+        # Handle playlists
+        if is_playlist_with_range(original_text):
+            _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(original_text)
+            video_count = video_end_with - video_start_with + 1
+            down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=format_id)
+        else:
+            down_and_up_with_format(app, original_message, url, format_override, tags_text, quality_key=format_id)
         return
     
     # Handle manual quality selection
@@ -1101,6 +1358,435 @@ def show_manual_quality_menu(app, callback_query):
         if callback_query:
             callback_query.answer("❌ Не удалось открыть меню выбора качества.", show_alert=True)
 
+def show_other_qualities_menu(app, callback_query, page=0):
+    """Show all available qualities from yt-dlp -F output with pagination"""
+    user_id = callback_query.from_user.id
+    
+    # Check if we have cached formats for this URL
+    url = None
+    original_message = callback_query.message.reply_to_message
+    if original_message:
+        url_text = original_message.text or (original_message.caption or "")
+        import re as _re
+        m = _re.search(r'https?://[^\s\*#]+', url_text)
+        url = m.group(0) if m else url_text
+    
+    if url:
+        # Clean up old format cache files before checking current cache
+        try:
+            user_dir = os.path.join("users", str(user_id))
+            create_directory(user_dir)
+            
+            # Remove all old format cache files except current one
+            import glob
+            format_cache_pattern = os.path.join(user_dir, "formats_cache_*.json")
+            old_cache_files = glob.glob(format_cache_pattern)
+            
+            current_cache_file = os.path.join(user_dir, f"formats_cache_{hashlib.md5(url.encode()).hexdigest()[:8]}.json")
+            
+            for cache_file in old_cache_files:
+                if cache_file != current_cache_file:  # Don't delete current cache
+                    try:
+                        os.remove(cache_file)
+                        logger.info(f"Cleaned up old format cache: {cache_file}")
+                    except Exception as e:
+                        logger.warning(f"Failed to remove old cache file {cache_file}: {e}")
+                        
+            if len(old_cache_files) > 1:  # More than just current cache
+                logger.info(f"Cleaned up {len(old_cache_files) - 1} old format cache files for user {user_id}")
+        except Exception as e:
+            logger.warning(f"Error cleaning up old format cache files: {e}")
+        
+        cache_file = current_cache_file
+        if os.path.exists(cache_file) and page == 0:
+            # Use cached formats for first page
+            try:
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    cached_data = json.load(f)
+                    format_lines = cached_data.get('formats', [])
+                    if format_lines:
+                        # Show cached formats immediately
+                        logger.info(f"Using cached formats for first page, {len(format_lines)} formats found")
+                        show_formats_from_cache(app, callback_query, format_lines, page, url)
+                        return
+            except Exception:
+                pass  # Fall back to fresh fetch
+    
+    # Extract URL from the callback
+    original_message = callback_query.message.reply_to_message
+    if not original_message:
+        callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+        callback_query.message.delete()
+        return
+    
+    url = None
+    if callback_query.message.caption_entities:
+        for entity in callback_query.message.caption_entities:
+            if entity.type == enums.MessageEntityType.TEXT_LINK and entity.url:
+                url = entity.url
+                break
+    if not url and callback_query.message.reply_to_message:
+        url_match = re.search(r'https?://[^\s\*#]+', callback_query.message.reply_to_message.text)
+        if url_match:
+            url = url_match.group(0)
+    
+    if not url:
+        callback_query.answer("❌ Error: URL not found.", show_alert=True)
+        callback_query.message.delete()
+        return
+    
+    # Extract tags
+    tags = []
+    caption_text = callback_query.message.caption
+    if caption_text:
+        tag_matches = re.findall(r'#\S+', caption_text)
+        if tag_matches:
+            tags = tag_matches
+    tags_text = ' '.join(tags)
+    
+    # Check if it's a playlist
+    original_text = original_message.text or original_message.caption or ""
+    is_playlist = is_playlist_with_range(original_text)
+    
+    # Get video title for caption
+    try:
+        info = get_video_formats(url, user_id)
+        title = info.get('title', 'Video')
+        video_title = title
+    except:
+        video_title = "Video"
+    
+    # Form caption
+    cap = f"<b>{video_title}</b>\n"
+    if tags_text:
+        cap += f"{tags_text}\n"
+    cap += f"\n<b>🎛 All Available Formats</b>\n"
+    cap += f"\n<i>Page {page + 1}</i>\n"
+    
+    # Get all formats using yt-dlp -F
+    try:
+        import subprocess
+        
+        # Create cache file path
+        user_dir = os.path.join("users", str(user_id))
+        create_directory(user_dir)
+        cache_file = os.path.join(user_dir, f"formats_cache_{hashlib.md5(url.encode()).hexdigest()[:8]}.json")
+        
+        # Check if we have cached formats
+        format_lines = []
+        if os.path.exists(cache_file):
+            # Use cached data if available
+            try:
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    cached_data = json.load(f)
+                    format_lines = cached_data.get('formats', [])
+                    if format_lines:
+                        logger.info(f"Using cached formats from {cache_file}")
+            except Exception as e:
+                logger.warning(f"Failed to read cache file {cache_file}: {e}")
+        
+        if not format_lines:
+            # Run yt-dlp -F to get all formats
+            logger.info(f"Running yt-dlp -F for URL: {url}")
+            
+            # Build command with cookies if available
+            cmd = ["yt-dlp", "-F"]
+            
+            # Add cookies file if it exists
+            user_cookie_file = os.path.join("users", str(user_id), "cookie.txt")
+            if os.path.exists(user_cookie_file):
+                cmd.extend(["--cookies", user_cookie_file])
+                logger.info(f"Using cookies from: {user_cookie_file}")
+            else:
+                logger.info("No user cookie file found, using default")
+            
+            cmd.append(url)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            
+            logger.info(f"yt-dlp -F completed with return code: {result.returncode}")
+            if result.returncode != 0:
+                logger.warning(f"yt-dlp -F failed with stderr: {result.stderr}")
+                # Fallback: try to get formats from cached info
+                info = get_video_formats(url, user_id)
+                formats = info.get('formats', [])
+                format_lines = []
+                for f in formats:
+                    format_id = f.get('format_id', 'unknown')
+                    ext = f.get('ext', 'unknown')
+                    resolution = f.get('resolution', 'unknown')
+                    proto = f.get('protocol', 'https')
+                    vcodec = f.get('vcodec', 'none')
+                    
+                    # Validate format_id - should not contain brackets or special characters
+                    if format_id and not format_id.startswith('[') and not format_id.startswith('(') and format_id != 'unknown':
+                        # Skip non-media formats
+                        if ext.lower() in ['mhtml', 'html', 'txt', 'json', 'xml']:
+                            continue
+                        
+                        # Store format info for button creation
+                        format_lines.append(f"{format_id:<12} {ext:<8} {resolution:<12} {proto:<12} {vcodec}")
+                        logger.debug(f"Fallback format: {format_id} | {ext} | {resolution} | {proto} | {vcodec}")
+                    else:
+                        logger.warning(f"Skipping invalid fallback format_id: {format_id}")
+                
+                # If no formats found, create basic format list
+                if not format_lines:
+                    # Create basic format list based on common patterns
+                    basic_formats = [
+                        "best",
+                        "worst", 
+                        "bestvideo+bestaudio",
+                        "bv+ba"
+                    ]
+                    for fmt in basic_formats:
+                        format_lines.append(f"{fmt:<12} mp4 unknown https none")
+                
+                # Cache the fallback formats for future use
+                if format_lines:
+                    try:
+                        cache_data = {
+                            'url': url,
+                            'timestamp': datetime.now().isoformat(),
+                            'formats': format_lines
+                        }
+                        with open(cache_file, 'w', encoding='utf-8') as f:
+                            json.dump(cache_data, f, ensure_ascii=False, indent=2)
+                        logger.info(f"Cached {len(format_lines)} fallback formats to {cache_file}")
+                    except Exception as e:
+                        logger.warning(f"Failed to cache fallback formats: {e}")
+            else:
+                # Parse yt-dlp output
+                output_lines = result.stdout.strip().split('\n')
+                format_lines = []
+                logger.info(f"Parsing yt-dlp output: {len(output_lines)} lines")
+                
+                for line in output_lines:
+                    if line.strip() and not line.startswith('ID') and not line.startswith('─') and not line.startswith('format_id'):
+                        # Parse format line (ID, EXT, RESOLUTION, FPS, FILESIZE, TBR, PROTO, VCODEC, VBR, ACODEC, ABR, ASR, MORE INFO)
+                        parts = line.split()
+                        if len(parts) >= 7:  # Need at least ID, EXT, RESOLUTION, FPS, FILESIZE, TBR, PROTO
+                            format_id = parts[0]
+                            ext = parts[1] if len(parts) > 1 else 'unknown'
+                            resolution = parts[2] if len(parts) > 2 else '—'
+                            filesize = parts[4] if len(parts) > 4 else 'unknown'
+                            proto = parts[6] if len(parts) > 6 else 'unknown'
+                            vcodec = 'none'
+                            
+                            # Remove ≈ symbol from filesize
+                            if filesize.startswith('≈'):
+                                filesize = filesize[1:].strip()
+                            
+                            # Find VCODEC (usually around position 8-9)
+                            for j, part in enumerate(parts):
+                                if j > 7 and part and part != 'none' and not part.startswith('mp4a') and not part.startswith('—') and not part.startswith('audio') and not part.startswith('≈'):
+                                    # Check if this looks like a video codec
+                                    if any(codec in part.lower() for codec in ['avc', 'vp9', 'av1', 'h264', 'h265', 'hevc']):
+                                        vcodec = part
+                                        break
+                            
+                            # Skip non-media formats
+                            if ext.lower() in ['mhtml', 'html', 'txt', 'json', 'xml']:
+                                continue
+                            
+                            # Validate format_id - should not contain brackets or special characters
+                            if format_id and not format_id.startswith('[') and not format_id.startswith('('):
+                                # Store complete original line for full data preservation
+                                format_lines.append(line.strip())
+                                logger.debug(f"Stored complete format line: {line.strip()}")
+                            else:
+                                logger.warning(f"Skipping invalid format_id: {format_id}")
+                
+                logger.info(f"Parsed {len(format_lines)} formats from yt-dlp output")
+                
+                # Cache the formats for future use
+                if format_lines:
+                    try:
+                        cache_data = {
+                            'url': url,
+                            'timestamp': datetime.now().isoformat(),
+                            'formats': format_lines
+                        }
+                        with open(cache_file, 'w', encoding='utf-8') as f:
+                            json.dump(cache_data, f, ensure_ascii=False, indent=2)
+                        logger.info(f"Cached {len(format_lines)} formats to {cache_file}")
+                    except Exception as e:
+                        logger.warning(f"Failed to cache formats: {e}")
+        
+        # Pagination: 10 formats per page (1 row × 10 columns)
+        formats_per_page = 10
+        total_formats = len(format_lines)
+        total_pages = (total_formats + formats_per_page - 1) // formats_per_page
+        
+        start_idx = page * formats_per_page
+        end_idx = min(start_idx + formats_per_page, total_formats)
+        page_formats = format_lines[start_idx:end_idx]
+        
+        # Build keyboard with format buttons (1 row × 10 columns max)
+        keyboard_rows = []
+        row = []
+        for i, format_line in enumerate(page_formats):
+            format_id = format_line.split()[0].strip()
+            
+            # Additional validation - skip invalid format IDs
+            if format_id and not format_id.startswith('[') and not format_id.startswith('(') and format_id != 'unknown':
+                # Extract only needed data for button display
+                button_parts = extract_button_data(format_line)
+                
+                if button_parts:  # Only create button if we have valid data
+                    # Join with | separator
+                    button_text = ' | '.join(button_parts)
+                    
+                    # Limit button text length
+                    if len(button_text) > 40:
+                        button_text = button_text[:37] + "..."
+                    
+                    # Each button goes in its own row (1 column layout)
+                    keyboard_rows.append([InlineKeyboardButton(button_text, callback_data=f"askq|other_id_{format_id}")])
+        
+        # Add navigation buttons
+        nav_row = []
+        if page > 0:
+            nav_row.append(InlineKeyboardButton("◀️ Prev", callback_data=f"askq|other_page_{page-1}"))
+        if page < total_pages - 1:
+            nav_row.append(InlineKeyboardButton("Next ▶️", callback_data=f"askq|other_page_{page+1}"))
+        if nav_row:
+            keyboard_rows.append(nav_row)
+        
+        # Add back and close buttons
+        keyboard_rows.append([
+            InlineKeyboardButton("🔙 Back", callback_data="askq|other_back"),
+            InlineKeyboardButton("🔚 Close", callback_data="askq|close")
+        ])
+        
+        keyboard = InlineKeyboardMarkup(keyboard_rows)
+        
+        # Update message
+        try:
+            if callback_query.message.photo:
+                callback_query.edit_message_caption(caption=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+            else:
+                callback_query.edit_message_text(text=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+            callback_query.answer(f"Formats page {page + 1}/{total_pages}")
+        except Exception as e:
+            # Fallback: send new message
+            try:
+                chat_id = callback_query.message.chat.id
+                ref_id = original_message.id if original_message else None
+                app.send_message(chat_id, cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard,
+                               reply_parameters=ReplyParameters(message_id=ref_id))
+                callback_query.answer(f"Formats page {page + 1}/{total_pages}")
+            except Exception as e2:
+                logger.error(f"Error showing other qualities menu: {e2}")
+                callback_query.answer("❌ Error showing formats menu", show_alert=True)
+        
+            # Clean up temp file
+        try:
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+        except:
+            pass
+            
+    except Exception as e:
+        logger.error(f"Error getting formats: {e}")
+        callback_query.answer("❌ Error getting formats", show_alert=True)
+        # Show error message
+        error_cap = f"<b>{video_title}</b>\n\n❌ Error getting available formats.\nPlease try again later."
+        try:
+            if callback_query.message.photo:
+                callback_query.edit_message_caption(caption=error_cap, parse_mode=enums.ParseMode.HTML)
+            else:
+                callback_query.edit_message_text(text=error_cap, parse_mode=enums.ParseMode.HTML)
+        except:
+            pass
+
+def show_formats_from_cache(app, callback_query, format_lines, page, url):
+    """Show formats from cached data for fast navigation"""
+    user_id = callback_query.from_user.id
+    logger.info(f"Showing formats from cache for user {user_id}, page {page}, {len(format_lines)} formats")
+    
+    # Get video title for caption
+    try:
+        info = get_video_formats(url, user_id)
+        title = info.get('title', 'Video')
+        video_title = title
+    except:
+        video_title = "Video"
+    
+    # Form caption
+    cap = f"<b>{video_title}</b>\n"
+    cap += f"\n<b>🎛 All Available Formats</b>\n"
+    cap += f"\n<i>Page {page + 1}</i>\n"
+    
+    # Pagination: 10 formats per page (1 column × 10 rows)
+    formats_per_page = 10
+    total_formats = len(format_lines)
+    total_pages = (total_formats + formats_per_page - 1) // formats_per_page
+    
+    start_idx = page * formats_per_page
+    end_idx = min(start_idx + formats_per_page, total_formats)
+    page_formats = format_lines[start_idx:end_idx]
+    
+    # Build keyboard with format buttons (1 column × 10 rows max)
+    keyboard_rows = []
+    for i, format_line in enumerate(page_formats):
+        format_id = format_line.split()[0].strip()
+        
+        # Additional validation - skip invalid format IDs
+        if format_id and not format_id.startswith('[') and not format_id.startswith('(') and format_id != 'unknown':
+            # Extract only needed data for button display
+            button_parts = extract_button_data(format_line)
+            
+            if button_parts:  # Only create button if we have valid data
+                # Join with | separator
+                button_text = ' | '.join(button_parts)
+                
+                # Limit button text length
+                if len(button_text) > 40:
+                    button_text = button_text[:37] + "..."
+                
+                # Each button goes in its own row (1 column layout)
+                keyboard_rows.append([InlineKeyboardButton(button_text, callback_data=f"askq|other_id_{format_id}")])
+        else:
+            logger.warning(f"Invalid format line structure: {format_line}")
+    else:
+        logger.warning(f"Skipping invalid format_id for button: {format_id}")
+    
+    # Add navigation buttons
+    nav_row = []
+    if page > 0:
+        nav_row.append(InlineKeyboardButton("◀️ Prev", callback_data=f"askq|other_page_{page-1}"))
+    if page < total_pages - 1:
+        nav_row.append(InlineKeyboardButton("Next ▶️", callback_data=f"askq|other_page_{page+1}"))
+    if nav_row:
+        keyboard_rows.append(nav_row)
+    
+    # Add back and close buttons
+    keyboard_rows.append([
+        InlineKeyboardButton("🔙 Back", callback_data="askq|other_back"),
+        InlineKeyboardButton("🔚 Close", callback_data="askq|close")
+    ])
+    
+    keyboard = InlineKeyboardMarkup(keyboard_rows)
+    
+    # Update message
+    try:
+        if callback_query.message.photo:
+            callback_query.edit_message_caption(caption=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+        else:
+            callback_query.edit_message_text(text=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+        callback_query.answer(f"Formats page {page + 1}/{total_pages} (from cache)")
+    except Exception as e:
+        # Fallback: send new message
+        try:
+            chat_id = callback_query.message.chat.id
+            ref_id = callback_query.message.reply_to_message.id if callback_query.message.reply_to_message else None
+            app.send_message(chat_id, cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard,
+                           reply_parameters=ReplyParameters(message_id=ref_id) if ref_id else None)
+            callback_query.answer(f"Formats page {page + 1}/{total_pages} (from cache)")
+        except Exception as e2:
+            logger.error(f"Error showing cached formats: {e2}")
+            callback_query.answer("❌ Error showing formats menu", show_alert=True)
+
 # --- Always ask processing ---
 def sort_quality_key(quality_key):
     """Sort qualities by increasing resolution from lower to higher"""
@@ -1119,6 +1805,29 @@ def sort_quality_key(quality_key):
 def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
     user_id = message.chat.id
     proc_msg = None
+    
+    # Clean up old format cache files before starting
+    try:
+        user_dir = os.path.join("users", str(user_id))
+        create_directory(user_dir)
+        
+        # Remove all old format cache files
+        import glob
+        format_cache_pattern = os.path.join(user_dir, "formats_cache_*.json")
+        old_cache_files = glob.glob(format_cache_pattern)
+        
+        for cache_file in old_cache_files:
+            try:
+                os.remove(cache_file)
+                logger.info(f"Cleaned up old format cache: {cache_file}")
+            except Exception as e:
+                logger.warning(f"Failed to remove old cache file {cache_file}: {e}")
+                
+        if old_cache_files:
+            logger.info(f"Cleaned up {len(old_cache_files)} old format cache files for user {user_id}")
+    except Exception as e:
+        logger.warning(f"Error cleaning up old format cache files: {e}")
+    
     # Early FloodWait check: if there is a saved waiting time, inform user and try to clear on success
     try:
         user_dir = os.path.join("users", str(user_id))
@@ -1194,6 +1903,11 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         title = info.get('title', 'Video')
         video_id = info.get('id')
         tags_text = generate_final_tags(url, tags, info)
+        # Determine NSFW to hide preview under spoiler in Always Ask Menu too
+        try:
+            is_nsfw = isinstance(tags_text, str) and ('#porn' in tags_text.lower())
+        except Exception:
+            is_nsfw = False
         thumb_path = None
         user_dir = os.path.join("users", str(user_id))
         create_directory(user_dir)
@@ -1874,26 +2588,26 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                     button_text = f"{icon}{quality_key}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
 
-        if not buttons:
-            quality_key = "best"
-            
-            if is_playlist and playlist_range:
-                indices = list(range(playlist_range[0], playlist_range[1]+1))
-                n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
-                total = len(indices)
-                icon = "🚀" if n_cached > 0 else "📹"
-                postfix = f" ({n_cached}/{total})" if total > 1 else ""
-                button_text = f"{icon}Best Quality{postfix}"
-            else:
-                icon = "🚀" if quality_key in cached_qualities else "📹"
-                button_text = f"{icon}Best Quality"
-            buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
-            
-            # Add "Try Another Qualities" button when no automatic qualities detected
-            buttons.append(InlineKeyboardButton("🎛 Force Quality", callback_data=f"askq|try_manual"))
-            
+        # Always add Best Quality button
+        quality_key = "best"
+        if is_playlist and playlist_range:
+            indices = list(range(playlist_range[0], playlist_range[1]+1))
+            n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
+            total = len(indices)
+            icon = "🚀" if n_cached > 0 else "📹"
+            postfix = f" ({n_cached}/{total})" if total > 1 else ""
+            button_text = f"{icon}Best{postfix}"
+        else:
+            icon = "🚀" if quality_key in cached_qualities else "📹"
+            button_text = f"{icon}Best"
+        buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
+        
+        # Always add Other Qualities button
+        buttons.append(InlineKeyboardButton("🎛 Other", callback_data=f"askq|other_qualities"))
+        
+        if not found_quality_keys:
             # Add explanation when automatic quality detection fails
-            autodiscovery_note = "<blockquote>⚠️ Qualities not auto-detected\nYou can manually force quality.</blockquote>"
+            autodiscovery_note = "<blockquote>⚠️ Qualities not auto-detected\nUse 'Other' button to see all available formats.</blockquote>"
             cap += f"\n{autodiscovery_note}\n"
         # --- Form rows of 3 buttons ---
         keyboard_rows = []
@@ -1957,7 +2671,15 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                     pass
                 proc_msg = None
             if thumb_path and os.path.exists(thumb_path):
-                app.send_photo(user_id, thumb_path, caption=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_parameters=ReplyParameters(message_id=message.id))
+                app.send_photo(
+                    user_id,
+                    thumb_path,
+                    caption=cap,
+                    parse_mode=enums.ParseMode.HTML,
+                    reply_markup=keyboard,
+                    reply_parameters=ReplyParameters(message_id=message.id),
+                    has_spoiler=is_nsfw
+                )
             else:
                 app.send_message(user_id, cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_parameters=ReplyParameters(message_id=message.id))
         send_to_logger(message, f"Always Ask menu sent for {url}")
@@ -2049,8 +2771,8 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
             callback_query.answer("📥 Downloading best quality...")
         except Exception:
             pass
-        audio_filter = f"[language^={sel_audio_lang}]" if sel_audio_lang else ""
-        fmt = f"bv*[vcodec*={sel_codec}]+ba{audio_filter}/bv*[vcodec*={sel_codec}]+ba"
+        # Use fixed format bv+ba for Best quality
+        fmt = "bv+ba"
         quality_key = "best"
     else:
         try:
