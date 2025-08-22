@@ -8,6 +8,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyPara
 from HELPERS.app_instance import get_app
 from HELPERS.filesystem_hlp import create_directory
 from HELPERS.logger import send_to_logger, logger, send_to_all
+from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
 
 # Get app instance for decorators
 app = get_app()
@@ -38,7 +39,7 @@ def mediainfo_command(app, message):
             if arg in ("on", "off"):
                 with open(mediainfo_file, "w", encoding="utf-8") as f:
                     f.write("ON" if arg == "on" else "OFF")
-                app.send_message(user_id, f"✅ MediaInfo {'enabled' if arg=='on' else 'disabled'}.")
+                safe_send_message(user_id, f"✅ MediaInfo {'enabled' if arg=='on' else 'disabled'}.")
                 send_to_logger(message, f"MediaInfo set via command: {arg}")
                 return
     except Exception:
@@ -48,7 +49,7 @@ def mediainfo_command(app, message):
         [InlineKeyboardButton("🔚 Close", callback_data="mediainfo_option|close")],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
-    app.send_message(
+    safe_send_message(
         user_id,
         "Enable or disable sending MediaInfo for downloaded files?",
         reply_markup=keyboard
@@ -70,22 +71,31 @@ def mediainfo_option_callback(app, callback_query):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        callback_query.answer("Menu closed.")
+        try:
+            callback_query.answer("Menu closed.")
+        except Exception:
+            pass
         send_to_logger(callback_query.message, "MediaInfo: closed.")
         return
     if data == "on":
         with open(mediainfo_file, "w", encoding="utf-8") as f:
             f.write("ON")
-        callback_query.edit_message_text("✅ MediaInfo enabled. After downloading, file info will be sent.")
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "✅ MediaInfo enabled. After downloading, file info will be sent.")
         send_to_logger(callback_query.message, "MediaInfo enabled.")
-        callback_query.answer("MediaInfo enabled.")
+        try:
+            callback_query.answer("MediaInfo enabled.")
+        except Exception:
+            pass
         return
     if data == "off":
         with open(mediainfo_file, "w", encoding="utf-8") as f:
             f.write("OFF")
-        callback_query.edit_message_text("❌ MediaInfo disabled.")
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "❌ MediaInfo disabled.")
         send_to_logger(callback_query.message, "MediaInfo disabled.")
-        callback_query.answer("MediaInfo disabled.")
+        try:
+            callback_query.answer("MediaInfo disabled.")
+        except Exception:
+            pass
         return
 
 

@@ -177,6 +177,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             else:
                 cookie_file = None
         last_update = 0
+        progress_start_time = time.time()
         current_total_process = ""
         successful_uploads = 0
 
@@ -186,7 +187,13 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             if check_download_timeout(user_id):
                 raise Exception(f"Download timeout exceeded ({Config.DOWNLOAD_TIMEOUT // 3600} hours)")
             current_time = time.time()
-            if current_time - last_update < 0.2:
+            # Adaptive throttle: base 1.5s, doubles each minute (cap 30s)
+            elapsed = max(0, current_time - progress_start_time)
+            minutes_passed = int(elapsed // 60)
+            base_interval = 1.5
+            interval = base_interval * (2 ** minutes_passed)
+            interval = min(interval, 30.0)
+            if current_time - last_update < interval:
                 return
             if d.get("status") == "downloading":
                 downloaded = d.get("downloaded_bytes", 0)

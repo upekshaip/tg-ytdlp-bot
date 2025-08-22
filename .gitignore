@@ -29,7 +29,9 @@ runtime.log
 users/
 cookies/
 _backup/
+_backup/_arabic_fonts_amiri/
 _cursor/
+_cursor/TOOLS/
 TOOLS/
 _arabic_fonts_amiri/
 *.backup_*
@@ -48,9 +50,13 @@ test.py
 torrent.py
 bot_sample.py
 users.txt
+TOOLS/script.sh
+_cursor/TOOLS/script.sh
 script.sh
 log.txt
+update.sh
 
 # Configs with secrets (do not commit)
 CONFIG/config.py
 config.py
+TXT/
