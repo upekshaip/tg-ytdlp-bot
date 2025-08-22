@@ -709,6 +709,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     send_to_all(message, error_message)
                     logger.info(f"Stopping download: playlist item at index {current_index} (no video found)")
                     return "STOP"  # New special value for full stop
+                
+                # Check if this is a TikTok infinite loop error
+                if "TikTok API keeps sending the same page" in str(e) and "infinite loop" in str(e):
+                    error_message = f"⚠️ TikTok API error at index {current_index + 1}, skipping to next video..."
+                    send_to_user(message, error_message)
+                    logger.info(f"Skipping TikTok video at index {current_index} due to API error")
+                    return "SKIP"  # Skip this video and continue with next
 
                 send_to_user(message, f"❌ Unknown error: {e}")
                 return None

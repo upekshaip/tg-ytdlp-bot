@@ -309,6 +309,14 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     send_to_all(message, error_message)
                     logger.info(f"Skipping item at index {current_index} (no content found)")
                     return "SKIP"
+                
+                # Check if this is a TikTok infinite loop error
+                if "TikTok API keeps sending the same page" in error_text and "infinite loop" in error_text:
+                    error_message = f"⚠️ TikTok API error at index {current_index + video_start_with}, skipping to next audio..."
+                    send_to_user(message, error_message)
+                    logger.info(f"Skipping TikTok audio at index {current_index} due to API error")
+                    return "SKIP"  # Skip this audio and continue with next
+                
                 else:
                     send_to_user(message, f"❌ Unknown error: {e}")
                 return None
