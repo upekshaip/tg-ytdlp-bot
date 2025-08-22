@@ -4,6 +4,8 @@ import time
 import logging
 from types import SimpleNamespace
 from HELPERS.app_instance import get_app
+from pyrogram.errors import FloodWait
+import os
 from pyrogram.types import ReplyParameters
 
 # Configure local logger
@@ -48,6 +50,17 @@ def safe_send_message(chat_id, text, **kwargs):
         try:
             app = get_app_safe()
             return app.send_message(chat_id, text, **kwargs)
+        except FloodWait as e:
+            # Write FloodWait seconds to per-user file and do not spin retries for huge waits
+            try:
+                user_dir = os.path.join("users", str(chat_id))
+                os.makedirs(user_dir, exist_ok=True)
+                with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                    f.write(str(e.value))
+            except Exception:
+                pass
+            logger.warning(f"Flood wait detected ({e.value}s) while sending message to {chat_id}")
+            return None
         except Exception as e:
             if "FLOOD_WAIT" in str(e):
                 # Extract wait time
@@ -55,7 +68,7 @@ def safe_send_message(chat_id, text, **kwargs):
                 if wait_match:
                     wait_seconds = int(wait_match.group(1))
                     logger.warning(f"Flood wait detected, sleeping for {wait_seconds} seconds")
-                    time.sleep(min(wait_seconds + 1, 30))  # Wait the required time (max 30 sec)
+                    time.sleep(min(wait_seconds + 1, 5))  # short backoff
                 else:
                     logger.warning(f"Flood wait detected but couldn't extract time, sleeping for {retry_delay} seconds")
                     time.sleep(retry_delay)
@@ -124,6 +137,17 @@ def safe_edit_message_text(chat_id, message_id, text, **kwargs):
         try:
             app = get_app_safe()
             return app.edit_message_text(chat_id, message_id, text, **kwargs)
+        except FloodWait as e:
+            # Persist FloodWait info and stop
+            try:
+                user_dir = os.path.join("users", str(chat_id))
+                os.makedirs(user_dir, exist_ok=True)
+                with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                    f.write(str(e.value))
+            except Exception:
+                pass
+            logger.warning(f"Flood wait detected ({e.value}s) while editing message for {chat_id}")
+            return None
         except Exception as e:
             # If message ID is invalid, it means the message was deleted
             # No need to retry, just return immediately
@@ -144,7 +168,7 @@ def safe_edit_message_text(chat_id, message_id, text, **kwargs):
                 if wait_match:
                     wait_seconds = int(wait_match.group(1))
                     logger.warning(f"Flood wait detected, sleeping for {wait_seconds} seconds")
-                    time.sleep(min(wait_seconds + 1, 30))  # Wait the required time (max 30 sec)
+                    time.sleep(min(wait_seconds + 1, 5))
                 else:
                     logger.warning(f"Flood wait detected but couldn't extract time, sleeping for {retry_delay} seconds")
                     time.sleep(retry_delay)

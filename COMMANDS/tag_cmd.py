@@ -2,6 +2,7 @@ from HELPERS.app_instance import get_app
 from pyrogram import filters
 import os
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
+from HELPERS.safe_messeger import safe_send_message
 from CONFIG.config import Config
 from HELPERS.logger import send_to_logger
 
@@ -16,14 +17,14 @@ def tags_command(app, message):
     tags_file = os.path.join(user_dir, "tags.txt")
     if not os.path.exists(tags_file):
         reply_text = "You have no tags yet."
-        app.send_message(user_id, reply_text, reply_parameters=ReplyParameters(message_id=message.id))
+        safe_send_message(user_id, reply_text, reply_parameters=ReplyParameters(message_id=message.id))
         send_to_logger(message, reply_text)
         return
     with open(tags_file, "r", encoding="utf-8") as f:
         tags = [line.strip() for line in f if line.strip()]
     if not tags:
         reply_text = "You have no tags yet."
-        app.send_message(user_id, reply_text, reply_parameters=ReplyParameters(message_id=message.id))
+        safe_send_message(user_id, reply_text, reply_parameters=ReplyParameters(message_id=message.id))
         send_to_logger(message, reply_text)
         return
     # We form posts by 4096 characters
@@ -33,12 +34,12 @@ def tags_command(app, message):
     ])
     for tag in tags:
         if len(msg) + len(tag) + 1 > 4096:
-            app.send_message(user_id, msg, reply_parameters=ReplyParameters(message_id=message.id), reply_markup=keyboard)
+            safe_send_message(user_id, msg, reply_parameters=ReplyParameters(message_id=message.id), reply_markup=keyboard)
             send_to_logger(message, msg)
             msg = ''
         msg += tag + '\n'
     if msg:
-        app.send_message(user_id, msg, reply_parameters=ReplyParameters(message_id=message.id), reply_markup=keyboard)
+        safe_send_message(user_id, msg, reply_parameters=ReplyParameters(message_id=message.id), reply_markup=keyboard)
         send_to_logger(message, msg)
 
 @app.on_callback_query(filters.regex(r"^tags_close\|"))

@@ -2,6 +2,7 @@ from HELPERS.app_instance import get_app
 from HELPERS.logger import send_to_user, send_to_logger, send_to_all
 from pyrogram import filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from HELPERS.safe_messeger import safe_send_message
 from CONFIG.config import Config
 from datetime import datetime
 import subprocess
@@ -84,7 +85,7 @@ def send_promo_message(app, message):
                     if reply:
                         try:
                             if reply.text:
-                                app.send_message(user, reply.text)
+                                safe_send_message(user, reply.text)
                             elif reply.video:
                                 app.send_video(user, reply.video.file_id, caption=reply.caption)
                             elif reply.photo:
@@ -102,7 +103,7 @@ def send_promo_message(app, message):
                             continue
                     # If there is an additional text, we send it
                     if broadcast_text:
-                        app.send_message(user, broadcast_text)
+                        safe_send_message(user, broadcast_text)
             except Exception as e:
                 logger.error(f"Error sending broadcast to user {user}: {e}")
         send_to_all(message, "<b>✅ Promo message sent to all other users</b>")

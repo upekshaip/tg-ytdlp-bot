@@ -390,6 +390,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         last_update = 0
         full_bar = "🟩" * 10
         first_progress_update = True  # Flag for tracking the first update
+        progress_start_time = time.time()
 
         def progress_func(d):
             nonlocal last_update, first_progress_update
@@ -397,7 +398,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             if check_download_timeout(user_id):
                 raise Exception(f"Download timeout exceeded ({Config.DOWNLOAD_TIMEOUT // 3600} hours)")
             current_time = time.time()
-            if current_time - last_update < 1.5:
+            # Adaptive throttle: base 1.5s, doubles each minute (1m→1.5s, 2m→3s, 3m→6s,...)
+            elapsed = max(0, current_time - progress_start_time)
+            minutes_passed = int(elapsed // 60)
+            base_interval = 1.5
+            interval = base_interval * (2 ** minutes_passed)
+            interval = min(interval, 30.0)  # hard cap to avoid too rare updates
+            if current_time - last_update < interval:
                 return
             if d.get("status") == "downloading":
                 downloaded = d.get("downloaded_bytes", 0)
