@@ -98,6 +98,12 @@ def extract_button_data(format_line):
     # Media extensions to look for
     media_extensions = ['mp4', 'webm', 'm4a', 'mkv', 'avi', 'mov', 'flv', 'wmv', '3gp', 'ogv', 'ts', 'mts', 'm2ts', 'mp3', 'ogg', 'm3u8', 'f4v', 'f4p', 'f4a', 'f4b', 'm4v', 'm4p', 'm4b', 'm4r', '3g2', '3gpp', '3gpp2', 'asf', 'divx', 'xvid', 'rm', 'rmvb', 'vob', 'ifo', 'vcd', 'svcd', 'dvd', 'iso', 'bin', 'cue', 'img', 'nrg', 'mdf', 'mds', 'ccd', 'sub', 'idx', 'srt', 'ssa', 'ass', 'vtt', 'smi', 'sami', 'rt', 'txt', 'lrc', 'srt', 'vobsub', 'dvdsub', 'pgs', 'dvb', 'hdmv', 'pcm', 'wav', 'aiff', 'au', 'ra', 'ram', 'wma', 'ape', 'flac', 'alac', 'aac', 'ac3', 'dts', 'dtshd', 'truehd', 'eac3', 'mp2', 'mp3', 'ogg', 'opus', 'vorbis', 'speex', 'amr', 'awb', 'gsm', 'ilbc', 'qcelp', 'evrc', 'smv', 'g729', 'g722', 'g723', 'g726', 'g728', 'g729', 'amrnb', 'amrwb', 'qcelp', 'evrc', 'smv', 'g729', 'g722', 'g723', 'g726', 'g728', 'g729']
     
+    # Codec patterns to look for
+    codec_patterns = ['avc', 'vp9', 'av1', 'h264', 'h265', 'hevc', 'avc1', 'vp09', 'av01', 'opus', 'aac', 'ac3', 'dts', 'mp3', 'wav', 'flac', 'alac', 'vorbis', 'speex', 'amr', 'gsm', 'ilbc', 'qcelp', 'evrc', 'smv', 'g729', 'g722', 'g723', 'g726', 'g728', 'amrnb', 'amrwb', 'mp2', 'eac3', 'truehd', 'dtshd', 'pcm', 'aiff', 'au', 'ra', 'ram', 'wma', 'ape', 'ogg', 'm4a', 'm4b', 'm4p', 'm4r', 'f4a', 'f4b', 'f4p', 'f4v', '3g2', '3gpp', '3gpp2', 'asf', 'divx', 'xvid', 'rm', 'rmvb', 'vob', 'ifo', 'vcd', 'svcd', 'dvd', 'iso', 'bin', 'cue', 'img', 'nrg', 'mdf', 'mds', 'ccd', 'sub', 'idx', 'srt', 'ssa', 'ass', 'vtt', 'smi', 'sami', 'rt', 'txt', 'lrc', 'vobsub', 'dvdsub', 'pgs', 'dvb', 'hdmv']
+    
+    # Extract all possible data from format line
+    all_extracted = []
+    
     for part in parts:
         part = part.strip()
         
@@ -107,12 +113,12 @@ def extract_button_data(format_line):
         
         # Check for media extension
         if part.lower() in media_extensions:
-            button_parts.append(part)
+            all_extracted.append(part)
             continue
         
         # Check for resolution pattern (WxH)
         if 'x' in part and part.replace('x', '').replace('p', '').isdigit():
-            button_parts.append(part)
+            all_extracted.append(part)
             continue
         
         # Check for filesize pattern (only KiB/MiB/GiB)
@@ -120,22 +126,22 @@ def extract_button_data(format_line):
         if re.match(r'^\d+\.?\d*(KiB|MiB|GiB)$', part, re.IGNORECASE):
             formatted_size = format_filesize(part)
             if formatted_size:
-                button_parts.append(formatted_size)
+                all_extracted.append(formatted_size)
             continue
         
         # Check for quality pattern (e.g., 144p, 720p60, 1080p60)
         if re.match(r'^\d+p\d*$', part):
-            button_parts.append(part)
+            all_extracted.append(part)
             continue
         
         # Extract quality from format names (e.g., h264_540p_389369-0 -> 540p)
         quality_match = re.search(r'(\d+p\d*)', part)
-        if quality_match and quality_match.group(1) not in button_parts:
-            button_parts.append(quality_match.group(1))
+        if quality_match:
+            all_extracted.append(quality_match.group(1))
             continue
         
         # Check for video codec patterns
-        if any(codec in part.lower() for codec in ['avc', 'vp9', 'av1', 'h264', 'h265', 'hevc', 'avc1', 'vp09', 'av01', 'opus', 'aac', 'ac3', 'dts', 'mp3', 'wav', 'flac', 'alac', 'vorbis', 'speex', 'amr', 'gsm', 'ilbc', 'qcelp', 'evrc', 'smv', 'g729', 'g722', 'g723', 'g726', 'g728', 'amrnb', 'amrwb', 'mp2', 'eac3', 'truehd', 'dtshd', 'pcm', 'aiff', 'au', 'ra', 'ram', 'wma', 'ape', 'ogg', 'm4a', 'm4b', 'm4p', 'm4r', 'f4a', 'f4b', 'f4p', 'f4v', '3g2', '3gpp', '3gpp2', 'asf', 'divx', 'xvid', 'rm', 'rmvb', 'vob', 'ifo', 'vcd', 'svcd', 'dvd', 'iso', 'bin', 'cue', 'img', 'nrg', 'mdf', 'mds', 'ccd', 'sub', 'idx', 'srt', 'ssa', 'ass', 'vtt', 'smi', 'sami', 'rt', 'txt', 'lrc', 'vobsub', 'dvdsub', 'pgs', 'dvb', 'hdmv']):
+        if any(codec in part.lower() for codec in codec_patterns):
             # Shorten video codec names
             if part.startswith('avc1.'):
                 part = 'avc1'
@@ -147,8 +153,55 @@ def extract_button_data(format_line):
                 part = 'av1'
             elif part.startswith('av01.'):
                 part = 'av1'
-            button_parts.append(part)
+            all_extracted.append(part)
             continue
+    
+    # Extract data from format names (first part of the line)
+    format_name = parts[0] if parts else ""
+    
+    # Replace url360, url240, etc. with 360p, 240p, etc.
+    url_quality_match = re.search(r'url(\d+)', format_name, re.IGNORECASE)
+    if url_quality_match:
+        quality = url_quality_match.group(1) + 'p'
+        all_extracted.append(quality)
+    
+    # Extract extensions and codecs from format names
+    for ext in media_extensions:
+        if ext.lower() in format_name.lower():
+            all_extracted.append(ext)
+    
+    for codec in codec_patterns:
+        if codec.lower() in format_name.lower():
+            # Shorten codec names
+            if codec.startswith('avc1.'):
+                codec = 'avc1'
+            elif codec.startswith('vp9'):
+                codec = 'vp9'
+            elif codec.startswith('vp09'):
+                codec = 'vp9'
+            elif codec.startswith('av1.'):
+                codec = 'av1'
+            elif codec.startswith('av01.'):
+                codec = 'av1'
+            all_extracted.append(codec)
+    
+    # Extract quality from format names like hls_fmp4-12_4-Audio
+    quality_from_name = re.search(r'(\d+p\d*)', format_name, re.IGNORECASE)
+    if quality_from_name:
+        all_extracted.append(quality_from_name.group(1))
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    for item in all_extracted:
+        # Replace mp4_dash with mp4
+        if item == 'mp4_dash':
+            item = 'mp4'
+        
+        # Convert to lowercase for comparison but keep original case
+        item_lower = item.lower()
+        if item_lower not in seen:
+            seen.add(item_lower)
+            button_parts.append(item)
     
     return button_parts
 
