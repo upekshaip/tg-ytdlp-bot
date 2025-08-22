@@ -1119,6 +1119,43 @@ def sort_quality_key(quality_key):
 def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
     user_id = message.chat.id
     proc_msg = None
+    # Early FloodWait check: if there is a saved waiting time, inform user and try to clear on success
+    try:
+        user_dir = os.path.join("users", str(user_id))
+        flood_time_file = os.path.join(user_dir, "flood_wait.txt")
+        if os.path.exists(flood_time_file):
+            with open(flood_time_file, 'r') as f:
+                try:
+                    wait_time = int(f.read().strip())
+                except Exception:
+                    wait_time = None
+            if wait_time is not None:
+                hours = wait_time // 3600
+                minutes = (wait_time % 3600) // 60
+                seconds = wait_time % 60
+                time_str = f"{hours}h {minutes}m {seconds}s"
+                proc_msg = app.send_message(user_id, f"⚠️ Telegram has limited message sending.\n⏳ Please wait: {time_str}\nTo update timer send URL again 2 times.")
+            else:
+                proc_msg = app.send_message(user_id, "⚠️ Telegram has limited message sending.\n⏳ Please wait: \nTo update timer send URL again 2 times.")
+            try:
+                app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text="Download started")
+                if os.path.exists(flood_time_file):
+                    os.remove(flood_time_file)
+            except FloodWait as e:
+                # Keep/refresh timer and exit early
+                try:
+                    os.makedirs(user_dir, exist_ok=True)
+                    with open(flood_time_file, 'w') as f:
+                        f.write(str(e.value))
+                except Exception:
+                    pass
+                return
+            except Exception:
+                return
+            # If edit succeeded, proceed as usual (no flood)
+            proc_msg = None
+    except Exception:
+        pass
     found_type = None
     # Clean the cache of subtitles only on initial open (when no callback provided).
     # On filter toggles (when cb is not None), we KEEP the cache to avoid re-fetching subtitles.
