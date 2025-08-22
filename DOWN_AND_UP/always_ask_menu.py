@@ -95,8 +95,14 @@ def extract_button_data(format_line):
     parts = format_line.split()
     button_parts = []
     
-    # Media extensions to look for
-    media_extensions = ['mp4', 'webm', 'm4a', 'mkv', 'avi', 'mov', 'flv', 'wmv', '3gp', 'ogv', 'ts', 'mts', 'm2ts', 'mp3', 'm4a', 'ogg', 'm3u8']
+    # Media extensions to look for (popular formats only)
+    media_extensions = ['mp4', 'webm', 'm4a', 'mkv', 'avi', 'mov', 'flv', 'wmv', '3gp', 'ogv', 'ts', 'mts', 'm2ts', 'mp3', 'ogg', 'm3u8', 'f4v', 'm4v', 'm4p', 'm4b', 'm4r', '3g2', '3gpp', '3gpp2', 'asf', 'divx', 'xvid', 'rm', 'rmvb', 'vob', 'vcd', 'svcd', 'dvd', 'iso', 'sub', 'idx', 'srt', 'ssa', 'ass', 'vtt', 'smi', 'sami', 'rt', 'txt', 'lrc', 'vobsub', 'dvdsub', 'pgs', 'dvb', 'hdmv', 'pcm', 'wav', 'aiff', 'wma', 'ape', 'flac', 'alac', 'aac', 'ac3', 'dts', 'dtshd', 'truehd', 'eac3', 'mp2', 'opus', 'vorbis', 'speex', 'amr', 'awb', 'gsm', 'amrnb', 'amrwb']
+    
+    # Codec patterns to look for (popular codecs only)
+    codec_patterns = ['avc', 'vp9', 'av1', 'h264', 'h265', 'hevc', 'avc1', 'vp09', 'av01', 'opus', 'aac', 'ac3', 'dts', 'mp3', 'wav', 'flac', 'alac', 'vorbis', 'speex', 'amr', 'gsm', 'amrnb', 'amrwb', 'mp2', 'eac3', 'truehd', 'dtshd', 'pcm', 'aiff', 'wma', 'ape', 'ogg', 'm4a', 'm4b', 'm4p', 'm4r', 'f4a', 'f4b', 'f4p', 'f4v', '3g2', '3gpp', '3gpp2', 'asf', 'divx', 'xvid', 'rm', 'rmvb', 'vob', 'vcd', 'svcd', 'dvd', 'sub', 'idx', 'srt', 'ssa', 'ass', 'vtt', 'smi', 'sami', 'rt', 'txt', 'lrc', 'vobsub', 'dvdsub', 'pgs', 'dvb', 'hdmv']
+    
+    # Extract all possible data from format line
+    all_extracted = []
     
     for part in parts:
         part = part.strip()
@@ -107,12 +113,12 @@ def extract_button_data(format_line):
         
         # Check for media extension
         if part.lower() in media_extensions:
-            button_parts.append(part)
+            all_extracted.append(part)
             continue
         
         # Check for resolution pattern (WxH)
         if 'x' in part and part.replace('x', '').replace('p', '').isdigit():
-            button_parts.append(part)
+            all_extracted.append(part)
             continue
         
         # Check for filesize pattern (only KiB/MiB/GiB)
@@ -120,29 +126,110 @@ def extract_button_data(format_line):
         if re.match(r'^\d+\.?\d*(KiB|MiB|GiB)$', part, re.IGNORECASE):
             formatted_size = format_filesize(part)
             if formatted_size:
-                button_parts.append(formatted_size)
+                all_extracted.append(formatted_size)
             continue
         
         # Check for quality pattern (e.g., 144p, 720p60, 1080p60)
         if re.match(r'^\d+p\d*$', part):
-            button_parts.append(part)
+            all_extracted.append(part)
+            continue
+        
+        # Extract quality from format names (e.g., h264_540p_389369-0 -> 540p)
+        quality_match = re.search(r'(\d+p\d*)', part)
+        if quality_match:
+            all_extracted.append(quality_match.group(1))
             continue
         
         # Check for video codec patterns
-        if any(codec in part.lower() for codec in ['avc', 'vp9', 'av1', 'h264', 'h265', 'hevc', 'avc1', 'vp09', 'av01', 'opus']):
+        if any(codec in part.lower() for codec in codec_patterns):
             # Shorten video codec names
-            if part.startswith('avc1.'):
+            if part.startswith('avc1'):
                 part = 'avc1'
             elif part.startswith('vp9'):
                 part = 'vp9'
             elif part.startswith('vp09'):
                 part = 'vp9'
-            elif part.startswith('av1.'):
+            elif part.startswith('av1'):
                 part = 'av1'
-            elif part.startswith('av01.'):
+            elif part.startswith('av01'):
                 part = 'av1'
-            button_parts.append(part)
+            all_extracted.append(part)
             continue
+        
+        # Check for audio indicator
+        if part.lower() == 'audio':
+            all_extracted.append('audio')
+            continue
+    
+    # Extract data from format names (first part of the line)
+    format_name = parts[0] if parts else ""
+    
+    # Replace url360, url240, etc. with 360p, 240p, etc.
+    url_quality_match = re.search(r'url(\d+)', format_name, re.IGNORECASE)
+    if url_quality_match:
+        quality = url_quality_match.group(1) + 'p'
+        all_extracted.append(quality)
+    
+    # Extract specific patterns from format names
+    # Extract hls from hls_fmp4-12_4-Audio
+    if 'hls' in format_name.lower():
+        all_extracted.append('hls')
+    
+    # Extract mp4 from hls_fmp4-12_4-Audio
+    if 'mp4' in format_name.lower():
+        all_extracted.append('mp4')
+    
+    # Extract dash from dash_sep-7
+    if 'dash' in format_name.lower():
+        all_extracted.append('dash')
+    
+    # Extract other extensions and codecs from format names
+    for ext in media_extensions:
+        if ext.lower() in format_name.lower() and ext not in ['mp4', 'hls', 'dash']:  # Avoid duplicates
+            all_extracted.append(ext)
+    
+    for codec in codec_patterns:
+        if codec.lower() in format_name.lower():
+            # Shorten codec names
+            if codec.startswith('avc1.'):
+                codec = 'avc1'
+            elif codec.startswith('vp9'):
+                codec = 'vp9'
+            elif codec.startswith('vp09'):
+                codec = 'vp9'
+            elif codec.startswith('av1.'):
+                codec = 'av1'
+            elif codec.startswith('av01.'):
+                codec = 'av1'
+            all_extracted.append(codec)
+    
+    # Extract quality from format names like hls_fmp4-12_4-Audio
+    quality_from_name = re.search(r'(\d+p\d*)', format_name, re.IGNORECASE)
+    if quality_from_name:
+        all_extracted.append(quality_from_name.group(1))
+    
+    # Remove duplicates while preserving order (including comma variations)
+    seen = set()
+    for item in all_extracted:
+        # Clean up item (remove commas, extra spaces)
+        clean_item = item.strip().rstrip(',')
+        
+        # Handle combined items like m4a_dash, mp4_dash
+        if '_' in clean_item:
+            # Split combined items and add each part if not already present
+            parts_combined = clean_item.split('_')
+            for part_combined in parts_combined:
+                part_combined = part_combined.strip()
+                if part_combined and part_combined.lower() not in seen:
+                    seen.add(part_combined.lower())
+                    button_parts.append(part_combined)
+            continue
+        
+        # Convert to lowercase for comparison but keep original case
+        clean_item_lower = clean_item.lower()
+        if clean_item_lower not in seen:
+            seen.add(clean_item_lower)
+            button_parts.append(clean_item)
     
     return button_parts
 
@@ -463,13 +550,135 @@ def ask_filter_callback(app, callback_query):
         except Exception:
             pass
 
-def build_filter_rows(user_id):
+def get_available_formats_from_cache(user_id, url):
+    """Get available codecs and formats from ask_formats.json cache"""
+    try:
+        user_dir = os.path.join("users", str(user_id))
+        cache_file = os.path.join(user_dir, _ASK_INFO_CACHE_FILE)
+        
+        if not os.path.exists(cache_file):
+            return {"codecs": set(), "formats": set()}
+        
+        with open(cache_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        available_codecs = set()
+        available_formats = set()
+        
+        # Check if this URL matches the cached data
+        if data.get('url') == url:
+            formats = data.get('formats', [])
+            
+            for format_line in formats:
+                # Extract codecs and formats using our existing function
+                extracted = extract_button_data(format_line)
+                
+                for item in extracted:
+                    # Check for codecs
+                    if item.lower() in ['avc1', 'avc', 'h264']:
+                        available_codecs.add('avc1')
+                    elif item.lower() in ['av1', 'av01']:
+                        available_codecs.add('av01')
+                    elif item.lower() in ['vp9', 'vp09']:
+                        available_codecs.add('vp9')
+                    
+                    # Check for formats
+                    if item.lower() in ['mp4']:
+                        available_formats.add('mp4')
+                    elif item.lower() in ['mkv', 'webm', 'avi', 'mov', 'flv', 'wmv', '3gp', 'ogv', 'ts', 'mts', 'm2ts']:
+                        # These formats can be converted to MKV by ffmpeg
+                        available_formats.add('mkv')
+        
+        return {"codecs": available_codecs, "formats": available_formats}
+    except Exception as e:
+        logger.warning(f"Error reading available formats from cache: {e}")
+        return {"codecs": set(), "formats": set()}
+
+def filter_qualities_by_codec_format(user_id, url, qualities):
+    """Filter qualities based on selected codec and format"""
+    try:
+        # Get current filters
+        f = get_filters(user_id)
+        selected_codec = f.get("codec", "avc1")
+        selected_format = f.get("ext", "mp4")
+        
+        # Get available formats from cache
+        available_formats = get_available_formats_from_cache(user_id, url)
+        
+        # If no cache or no specific formats available, return all qualities
+        if not available_formats["codecs"] and not available_formats["formats"]:
+            return qualities
+        
+        # Get all format lines from cache
+        user_dir = os.path.join("users", str(user_id))
+        cache_file = os.path.join(user_dir, _ASK_INFO_CACHE_FILE)
+        
+        if not os.path.exists(cache_file):
+            return qualities
+        
+        with open(cache_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        if data.get('url') != url:
+            return qualities
+        
+        formats = data.get('formats', [])
+        filtered_qualities = set()
+        
+        for format_line in formats:
+            extracted = extract_button_data(format_line)
+            
+            # Check if this format matches selected codec and format
+            has_codec = False
+            has_format = False
+            
+            for item in extracted:
+                # Check codec
+                if selected_codec == 'avc1' and item.lower() in ['avc1', 'avc', 'h264']:
+                    has_codec = True
+                elif selected_codec == 'av01' and item.lower() in ['av1', 'av01']:
+                    has_codec = True
+                elif selected_codec == 'vp9' and item.lower() in ['vp9', 'vp09']:
+                    has_codec = True
+                
+                # Check format
+                if selected_format == 'mp4' and item.lower() == 'mp4':
+                    has_format = True
+                elif selected_format == 'mkv' and item.lower() in ['mkv', 'webm', 'avi', 'mov', 'flv', 'wmv', '3gp', 'ogv', 'ts', 'mts', 'm2ts']:
+                    has_format = True
+            
+            # If both codec and format match, extract quality
+            if has_codec and has_format:
+                for item in extracted:
+                    # Look for quality patterns (e.g., 720p, 1080p)
+                    if 'p' in item and any(char.isdigit() for char in item):
+                        quality_match = re.search(r'(\d+p\d*)', item)
+                        if quality_match:
+                            filtered_qualities.add(quality_match.group(1))
+        
+        # Return intersection of available qualities and filtered qualities
+        if filtered_qualities:
+            return [q for q in qualities if q in filtered_qualities]
+        else:
+            return qualities
+            
+    except Exception as e:
+        logger.warning(f"Error filtering qualities: {e}")
+        return qualities
+
+def build_filter_rows(user_id, url=None):
     f = get_filters(user_id)
     codec = f.get("codec", "avc1")
     ext = f.get("ext", "mp4")
     visible = bool(f.get("visible", False))
     audio_lang = f.get("audio_lang")
     has_dubs = bool(f.get("has_dubs"))
+    
+    # Get available formats from cache if URL is provided
+    available_formats = {"codecs": set(), "formats": set()}
+    if url:
+        available_formats = get_available_formats_from_cache(user_id, url)
+    
     # When filters are hidden – show compact row with CODEC + audio (+ optional DUBS, SUBS)
     if not visible:
         row = [InlineKeyboardButton("📼 CODEC", callback_data="askf|toggle|on"), InlineKeyboardButton("🎧 audio (mp3)", callback_data="askq|mp3")]
@@ -483,11 +692,23 @@ def build_filter_rows(user_id):
         except Exception:
             pass
         return [row]
-    avc1_btn = ("✅ AVC" if codec == "avc1" else "☑️ AVC")
-    av01_btn = ("✅ AV1" if codec == "av01" else "☑️ AV1")
-    vp9_btn = ("✅ VP9" if codec == "vp9" else "☑️ VP9")
-    mp4_btn = ("✅ MP4" if ext == "mp4" else "☑️ MP4")
-    mkv_btn = ("✅ MKV" if ext == "mkv" else "☑️ MKV")
+    
+    # Build codec buttons with availability check
+    avc1_available = 'avc1' in available_formats["codecs"] or not available_formats["codecs"]  # Show if available or if no cache
+    av01_available = 'av01' in available_formats["codecs"] or not available_formats["codecs"]
+    vp9_available = 'vp9' in available_formats["codecs"] or not available_formats["codecs"]
+    
+    avc1_btn = ("✅ AVC" if codec == "avc1" else "☑️ AVC") if avc1_available else "❌ AVC"
+    av01_btn = ("✅ AV1" if codec == "av01" else "☑️ AV1") if av01_available else "❌ AV1"
+    vp9_btn = ("✅ VP9" if codec == "vp9" else "☑️ VP9") if vp9_available else "❌ VP9"
+    
+    # Build format buttons with availability check
+    mp4_available = 'mp4' in available_formats["formats"] or not available_formats["formats"]
+    mkv_available = 'mkv' in available_formats["formats"] or not available_formats["formats"]
+    
+    mp4_btn = ("✅ MP4" if ext == "mp4" else "☑️ MP4") if mp4_available else "❌ MP4"
+    mkv_btn = ("✅ MKV" if ext == "mkv" else "☑️ MKV") if mkv_available else "❌ MKV"
+    
     rows = [
         [InlineKeyboardButton(avc1_btn, callback_data="askf|codec|avc1"), InlineKeyboardButton(av01_btn, callback_data="askf|codec|av01"), InlineKeyboardButton(vp9_btn, callback_data="askf|codec|vp9")],
         [InlineKeyboardButton(mp4_btn, callback_data="askf|ext|mp4"), InlineKeyboardButton(mkv_btn, callback_data="askf|ext|mkv"), InlineKeyboardButton("🎧 audio (mp3)", callback_data="askq|mp3")]
@@ -584,9 +805,7 @@ def askq_callback(app, callback_query):
         # support both prefixes
         _, kind, value = parts[0], parts[1], parts[2]
         if kind in ("codec", "ext"):
-            set_filter(callback_query.from_user.id, kind, value)
-            callback_query.answer("Filters updated")
-            # Reopen the menu with updated filters
+            # Get original message and URL
             original_message = callback_query.message.reply_to_message
             if not original_message:
                 callback_query.answer("❌ Error: Original message not found.", show_alert=True)
@@ -597,6 +816,24 @@ def askq_callback(app, callback_query):
             m = _re.search(r'https?://[^\s\*#]+', url)
             if m:
                 url = m.group(0)
+            
+            # Check if the selected codec/format is available
+            available_formats = get_available_formats_from_cache(user_id, url)
+            
+            if kind == "codec":
+                if value not in available_formats["codecs"] and available_formats["codecs"]:
+                    # Codec is not available, show warning
+                    callback_query.answer(f"❌ {value.upper()} codec not available for this video", show_alert=True)
+                    return
+            elif kind == "ext":
+                if value not in available_formats["formats"] and available_formats["formats"]:
+                    # Format is not available, show warning
+                    callback_query.answer(f"❌ {value.upper()} format not available for this video", show_alert=True)
+                    return
+            
+            # Set filter and reopen menu
+            set_filter(callback_query.from_user.id, kind, value)
+            callback_query.answer("Filters updated")
             ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
             return
         if kind == "dubs" and value == "open":
@@ -1741,8 +1978,8 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
                 button_text = ' | '.join(button_parts)
                 
                 # Limit button text length
-                if len(button_text) > 40:
-                    button_text = button_text[:37] + "..."
+                if len(button_text) > 64:
+                    button_text = button_text[:61] + "..."
                 
                 # Each button goes in its own row (1 column layout)
                 keyboard_rows.append([InlineKeyboardButton(button_text, callback_data=f"askq|other_id_{format_id}")])
@@ -2612,7 +2849,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         # --- Form rows of 3 buttons ---
         keyboard_rows = []
         # Add filter rows first
-        keyboard_rows.extend(build_filter_rows(user_id))
+        keyboard_rows.extend(build_filter_rows(user_id, url))
         
         # Add Quick Embed button for supported services at the top (but not for ranges)
         if (is_instagram_url(url) or is_twitter_url(url) or is_reddit_url(url)) and not is_playlist_with_range(original_text):
@@ -2772,7 +3009,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
         except Exception:
             pass
         # Use fixed format bv+ba for Best quality
-        fmt = "bv+ba"
+        fmt = "bv+ba/best"
         quality_key = "best"
     else:
         try:
