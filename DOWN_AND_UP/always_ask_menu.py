@@ -550,13 +550,135 @@ def ask_filter_callback(app, callback_query):
         except Exception:
             pass
 
-def build_filter_rows(user_id):
+def get_available_formats_from_cache(user_id, url):
+    """Get available codecs and formats from ask_formats.json cache"""
+    try:
+        user_dir = os.path.join("users", str(user_id))
+        cache_file = os.path.join(user_dir, _ASK_INFO_CACHE_FILE)
+        
+        if not os.path.exists(cache_file):
+            return {"codecs": set(), "formats": set()}
+        
+        with open(cache_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        available_codecs = set()
+        available_formats = set()
+        
+        # Check if this URL matches the cached data
+        if data.get('url') == url:
+            formats = data.get('formats', [])
+            
+            for format_line in formats:
+                # Extract codecs and formats using our existing function
+                extracted = extract_button_data(format_line)
+                
+                for item in extracted:
+                    # Check for codecs
+                    if item.lower() in ['avc1', 'avc', 'h264']:
+                        available_codecs.add('avc1')
+                    elif item.lower() in ['av1', 'av01']:
+                        available_codecs.add('av01')
+                    elif item.lower() in ['vp9', 'vp09']:
+                        available_codecs.add('vp9')
+                    
+                    # Check for formats
+                    if item.lower() in ['mp4']:
+                        available_formats.add('mp4')
+                    elif item.lower() in ['mkv', 'webm', 'avi', 'mov', 'flv', 'wmv', '3gp', 'ogv', 'ts', 'mts', 'm2ts']:
+                        # These formats can be converted to MKV by ffmpeg
+                        available_formats.add('mkv')
+        
+        return {"codecs": available_codecs, "formats": available_formats}
+    except Exception as e:
+        logger.warning(f"Error reading available formats from cache: {e}")
+        return {"codecs": set(), "formats": set()}
+
+def filter_qualities_by_codec_format(user_id, url, qualities):
+    """Filter qualities based on selected codec and format"""
+    try:
+        # Get current filters
+        f = get_filters(user_id)
+        selected_codec = f.get("codec", "avc1")
+        selected_format = f.get("ext", "mp4")
+        
+        # Get available formats from cache
+        available_formats = get_available_formats_from_cache(user_id, url)
+        
+        # If no cache or no specific formats available, return all qualities
+        if not available_formats["codecs"] and not available_formats["formats"]:
+            return qualities
+        
+        # Get all format lines from cache
+        user_dir = os.path.join("users", str(user_id))
+        cache_file = os.path.join(user_dir, _ASK_INFO_CACHE_FILE)
+        
+        if not os.path.exists(cache_file):
+            return qualities
+        
+        with open(cache_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        if data.get('url') != url:
+            return qualities
+        
+        formats = data.get('formats', [])
+        filtered_qualities = set()
+        
+        for format_line in formats:
+            extracted = extract_button_data(format_line)
+            
+            # Check if this format matches selected codec and format
+            has_codec = False
+            has_format = False
+            
+            for item in extracted:
+                # Check codec
+                if selected_codec == 'avc1' and item.lower() in ['avc1', 'avc', 'h264']:
+                    has_codec = True
+                elif selected_codec == 'av01' and item.lower() in ['av1', 'av01']:
+                    has_codec = True
+                elif selected_codec == 'vp9' and item.lower() in ['vp9', 'vp09']:
+                    has_codec = True
+                
+                # Check format
+                if selected_format == 'mp4' and item.lower() == 'mp4':
+                    has_format = True
+                elif selected_format == 'mkv' and item.lower() in ['mkv', 'webm', 'avi', 'mov', 'flv', 'wmv', '3gp', 'ogv', 'ts', 'mts', 'm2ts']:
+                    has_format = True
+            
+            # If both codec and format match, extract quality
+            if has_codec and has_format:
+                for item in extracted:
+                    # Look for quality patterns (e.g., 720p, 1080p)
+                    if 'p' in item and any(char.isdigit() for char in item):
+                        quality_match = re.search(r'(\d+p\d*)', item)
+                        if quality_match:
+                            filtered_qualities.add(quality_match.group(1))
+        
+        # Return intersection of available qualities and filtered qualities
+        if filtered_qualities:
+            return [q for q in qualities if q in filtered_qualities]
+        else:
+            return qualities
+            
+    except Exception as e:
+        logger.warning(f"Error filtering qualities: {e}")
+        return qualities
+
+def build_filter_rows(user_id, url=None):
     f = get_filters(user_id)
     codec = f.get("codec", "avc1")
     ext = f.get("ext", "mp4")
     visible = bool(f.get("visible", False))
     audio_lang = f.get("audio_lang")
     has_dubs = bool(f.get("has_dubs"))
+    
+    # Get available formats from cache if URL is provided
+    available_formats = {"codecs": set(), "formats": set()}
+    if url:
+        available_formats = get_available_formats_from_cache(user_id, url)
+    
     # When filters are hidden – show compact row with CODEC + audio (+ optional DUBS, SUBS)
     if not visible:
         row = [InlineKeyboardButton("📼 CODEC", callback_data="askf|toggle|on"), InlineKeyboardButton("🎧 audio (mp3)", callback_data="askq|mp3")]
@@ -570,11 +692,23 @@ def build_filter_rows(user_id):
         except Exception:
             pass
         return [row]
-    avc1_btn = ("✅ AVC" if codec == "avc1" else "☑️ AVC")
-    av01_btn = ("✅ AV1" if codec == "av01" else "☑️ AV1")
-    vp9_btn = ("✅ VP9" if codec == "vp9" else "☑️ VP9")
-    mp4_btn = ("✅ MP4" if ext == "mp4" else "☑️ MP4")
-    mkv_btn = ("✅ MKV" if ext == "mkv" else "☑️ MKV")
+    
+    # Build codec buttons with availability check
+    avc1_available = 'avc1' in available_formats["codecs"] or not available_formats["codecs"]  # Show if available or if no cache
+    av01_available = 'av01' in available_formats["codecs"] or not available_formats["codecs"]
+    vp9_available = 'vp9' in available_formats["codecs"] or not available_formats["codecs"]
+    
+    avc1_btn = ("✅ AVC" if codec == "avc1" else "☑️ AVC") if avc1_available else "❌ AVC"
+    av01_btn = ("✅ AV1" if codec == "av01" else "☑️ AV1") if av01_available else "❌ AV1"
+    vp9_btn = ("✅ VP9" if codec == "vp9" else "☑️ VP9") if vp9_available else "❌ VP9"
+    
+    # Build format buttons with availability check
+    mp4_available = 'mp4' in available_formats["formats"] or not available_formats["formats"]
+    mkv_available = 'mkv' in available_formats["formats"] or not available_formats["formats"]
+    
+    mp4_btn = ("✅ MP4" if ext == "mp4" else "☑️ MP4") if mp4_available else "❌ MP4"
+    mkv_btn = ("✅ MKV" if ext == "mkv" else "☑️ MKV") if mkv_available else "❌ MKV"
+    
     rows = [
         [InlineKeyboardButton(avc1_btn, callback_data="askf|codec|avc1"), InlineKeyboardButton(av01_btn, callback_data="askf|codec|av01"), InlineKeyboardButton(vp9_btn, callback_data="askf|codec|vp9")],
         [InlineKeyboardButton(mp4_btn, callback_data="askf|ext|mp4"), InlineKeyboardButton(mkv_btn, callback_data="askf|ext|mkv"), InlineKeyboardButton("🎧 audio (mp3)", callback_data="askq|mp3")]
@@ -671,9 +805,7 @@ def askq_callback(app, callback_query):
         # support both prefixes
         _, kind, value = parts[0], parts[1], parts[2]
         if kind in ("codec", "ext"):
-            set_filter(callback_query.from_user.id, kind, value)
-            callback_query.answer("Filters updated")
-            # Reopen the menu with updated filters
+            # Get original message and URL
             original_message = callback_query.message.reply_to_message
             if not original_message:
                 callback_query.answer("❌ Error: Original message not found.", show_alert=True)
@@ -684,6 +816,24 @@ def askq_callback(app, callback_query):
             m = _re.search(r'https?://[^\s\*#]+', url)
             if m:
                 url = m.group(0)
+            
+            # Check if the selected codec/format is available
+            available_formats = get_available_formats_from_cache(user_id, url)
+            
+            if kind == "codec":
+                if value not in available_formats["codecs"] and available_formats["codecs"]:
+                    # Codec is not available, show warning
+                    callback_query.answer(f"❌ {value.upper()} codec not available for this video", show_alert=True)
+                    return
+            elif kind == "ext":
+                if value not in available_formats["formats"] and available_formats["formats"]:
+                    # Format is not available, show warning
+                    callback_query.answer(f"❌ {value.upper()} format not available for this video", show_alert=True)
+                    return
+            
+            # Set filter and reopen menu
+            set_filter(callback_query.from_user.id, kind, value)
+            callback_query.answer("Filters updated")
             ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
             return
         if kind == "dubs" and value == "open":
@@ -2699,7 +2849,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         # --- Form rows of 3 buttons ---
         keyboard_rows = []
         # Add filter rows first
-        keyboard_rows.extend(build_filter_rows(user_id))
+        keyboard_rows.extend(build_filter_rows(user_id, url))
         
         # Add Quick Embed button for supported services at the top (but not for ranges)
         if (is_instagram_url(url) or is_twitter_url(url) or is_reddit_url(url)) and not is_playlist_with_range(original_text):
