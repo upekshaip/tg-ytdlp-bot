@@ -46,6 +46,14 @@ def safe_send_message(chat_id, text, **kwargs):
             del kwargs['message']
     max_retries = 3
     retry_delay = 5
+    # Extract internal helper kwargs (not supported by pyrogram)
+    cb = kwargs.pop('_callback_query', None)
+    notice = kwargs.pop('_fallback_notice', None)
+    # Drop any other underscored keys just in case
+    for k in list(kwargs.keys()):
+        if isinstance(k, str) and k.startswith('_'):
+            kwargs.pop(k, None)
+
     for attempt in range(max_retries):
         try:
             app = get_app_safe()
@@ -62,11 +70,9 @@ def safe_send_message(chat_id, text, **kwargs):
             logger.warning(f"Flood wait detected ({e.value}s) while sending message to {chat_id}")
             # Try to fall back to answering the callback (if provided) to give user feedback
             try:
-                cb = kwargs.pop('_callback_query', None)
-                notice = kwargs.pop('_fallback_notice', None) or "⏳ Flood limit. Try later."
                 if cb is not None:
                     try:
-                        cb.answer(notice, show_alert=False)
+                        cb.answer(notice or "⏳ Flood limit. Try later.", show_alert=False)
                     except Exception:
                         pass
             except Exception:
