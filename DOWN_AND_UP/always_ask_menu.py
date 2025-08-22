@@ -1194,6 +1194,11 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         title = info.get('title', 'Video')
         video_id = info.get('id')
         tags_text = generate_final_tags(url, tags, info)
+        # Determine NSFW to hide preview under spoiler in Always Ask Menu too
+        try:
+            is_nsfw = isinstance(tags_text, str) and ('#porn' in tags_text.lower())
+        except Exception:
+            is_nsfw = False
         thumb_path = None
         user_dir = os.path.join("users", str(user_id))
         create_directory(user_dir)
@@ -1957,7 +1962,15 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                     pass
                 proc_msg = None
             if thumb_path and os.path.exists(thumb_path):
-                app.send_photo(user_id, thumb_path, caption=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_parameters=ReplyParameters(message_id=message.id))
+                app.send_photo(
+                    user_id,
+                    thumb_path,
+                    caption=cap,
+                    parse_mode=enums.ParseMode.HTML,
+                    reply_markup=keyboard,
+                    reply_parameters=ReplyParameters(message_id=message.id),
+                    has_spoiler=is_nsfw
+                )
             else:
                 app.send_message(user_id, cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_parameters=ReplyParameters(message_id=message.id))
         send_to_logger(message, f"Always Ask menu sent for {url}")
