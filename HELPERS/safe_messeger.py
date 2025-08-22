@@ -60,6 +60,17 @@ def safe_send_message(chat_id, text, **kwargs):
             except Exception:
                 pass
             logger.warning(f"Flood wait detected ({e.value}s) while sending message to {chat_id}")
+            # Try to fall back to answering the callback (if provided) to give user feedback
+            try:
+                cb = kwargs.pop('_callback_query', None)
+                notice = kwargs.pop('_fallback_notice', None) or "⏳ Flood limit. Try later."
+                if cb is not None:
+                    try:
+                        cb.answer(notice, show_alert=False)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
             return None
         except Exception as e:
             if "FLOOD_WAIT" in str(e):

@@ -248,7 +248,10 @@ def download_cookie_callback(app, callback_query):
     elif data == "facebook":
         download_and_save_cookie(app, callback_query, Config.FACEBOOK_COOKIE_URL, "facebook")
     elif data == "own":
-        app.answer_callback_query(callback_query.id)
+        try:
+            app.answer_callback_query(callback_query.id)
+        except Exception:
+            pass
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔚 Close", callback_data="save_as_cookie_hint|close")]
         ])
@@ -257,14 +260,28 @@ def download_cookie_callback(app, callback_query):
             callback_query.message.chat.id,
             Config.SAVE_AS_COOKIE_HINT,
             reply_parameters=ReplyParameters(message_id=callback_query.message.id if hasattr(callback_query.message, 'id') else None),
-            reply_markup=keyboard
+            reply_markup=keyboard,
+            _callback_query=callback_query,
+            _fallback_notice="⏳ Flood limit. Try later."
         )
     elif data == "from_browser":
         try:
             cookies_from_browser(app, fake_message("/cookies_from_browser", user_id))
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+            try:
+                app.answer_callback_query(callback_query.id, "⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
         except Exception as e:
             logger.error(f"Failed to start cookies_from_browser: {e}")
-            app.answer_callback_query(callback_query.id, "❌ Failed to open browser cookie menu", show_alert=True)
+            try:
+                app.answer_callback_query(callback_query.id, "❌ Failed to open browser cookie menu", show_alert=True)
+            except Exception:
+                pass
     elif data == "close":
         try:
             callback_query.message.delete()

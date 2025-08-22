@@ -26,10 +26,11 @@ def command2(app, message):
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔚 Close", callback_data="help_msg|close")]
     ])
-    safe_send_message(message.chat.id, (Config.HELP_MSG),
+    result = safe_send_message(message.chat.id, (Config.HELP_MSG),
                       parse_mode=enums.ParseMode.HTML,
                       reply_markup=keyboard)
     send_to_logger(message, f"Send help txt to user")
+    return result
 
 # Get app instance for decorators
 app = get_app()
@@ -230,21 +231,54 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             pass
         return
     if data == "download_cookie":
-        url_distractor(app, fake_message("/download_cookie", user_id))
+        try:
+            url_distractor(app, fake_message("/download_cookie", user_id))
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+            try:
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
+            return
         try:
             callback_query.answer("Command executed.")
         except Exception:
             pass
         return
     if data == "cookies_from_browser":
-        cookies_from_browser(app, fake_message("/cookies_from_browser", user_id))
+        try:
+            cookies_from_browser(app, fake_message("/cookies_from_browser", user_id))
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+            try:
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
+            return
         try:
             callback_query.answer("Command executed.")
         except Exception:
             pass
         return
     if data == "check_cookie":
-        url_distractor(app, fake_message("/check_cookie", user_id))
+        try:
+            url_distractor(app, fake_message("/check_cookie", user_id))
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+            try:
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
+            return
         try:
             callback_query.answer("Command executed.")
         except Exception:
@@ -329,7 +363,9 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         safe_send_message(user_id,
                           "Download only audio from video source.\n\nUsage: /audio + URL \n\n(ex. /audio https://youtu.be/abc123)\n(ex. /audio https://youtu.be/playlist?list=abc123*1*10)",
                           reply_parameters=ReplyParameters(message_id=callback_query.message.id),
-                          reply_markup=keyboard)
+                          reply_markup=keyboard,
+                          _callback_query=callback_query,
+                          _fallback_notice="⏳ Flood limit. Try later.")
         try:
             callback_query.answer("Hint sent.")
         except Exception:
@@ -352,18 +388,28 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         return
     if data == "help":
         try:
-            command2(app, fake_message("/help", user_id))
+            res = command2(app, fake_message("/help", user_id))
         except FloodWait as e:
             user_dir = os.path.join("users", str(user_id))
             os.makedirs(user_dir, exist_ok=True)
             with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
                 f.write(str(e.value))
-            callback_query.answer("Flood wait active. Try later.", show_alert=False)
+            try:
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
             return
-        try:
-            callback_query.answer("Command executed.")
-        except Exception:
-            pass
+        # If safe_send_message returned None due to FloodWait, notify via callback
+        if res is None:
+            try:
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
+        else:
+            try:
+                callback_query.answer("Command executed.")
+            except Exception:
+                pass
         return
     if data == "usage":
         try:
@@ -373,7 +419,10 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             os.makedirs(user_dir, exist_ok=True)
             with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
                 f.write(str(e.value))
-            callback_query.answer("Flood wait active. Try later.", show_alert=False)
+            try:
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
             return
         try:
             callback_query.answer("Command executed.")
@@ -388,7 +437,10 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             os.makedirs(user_dir, exist_ok=True)
             with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
                 f.write(str(e.value))
-            callback_query.answer("Flood wait active. Try later.", show_alert=False)
+            try:
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
             return
         try:
             callback_query.answer("Command executed.")
