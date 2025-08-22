@@ -6,6 +6,7 @@ from functools import wraps
 
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger
+from HELPERS.safe_messeger import safe_send_message
 
 def app_handler(func):
     """Decorator to automatically inject app instance"""
@@ -54,7 +55,7 @@ def send_reply_keyboard_always(user_id):
                 # If it didn't work, we delete the id to avoid getting stuck
                 reply_keyboard_msg_ids.pop(user_id, None)
         # Always after failure or if there is no id - send a new one
-        msg = app.send_message(user_id, "\u2063", reply_markup=get_main_reply_keyboard())
+        msg = safe_send_message(user_id, "\u2063", reply_markup=get_main_reply_keyboard())
         # If there was another service msg_id (and it is not equal to the new one), we try to delete the old message
         if msg_id and msg_id != msg.id:
             try:

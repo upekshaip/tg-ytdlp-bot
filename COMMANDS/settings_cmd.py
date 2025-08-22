@@ -70,7 +70,10 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        callback_query.answer("Menu closed.")
+        try:
+            callback_query.answer("Menu closed.")
+        except Exception:
+            pass
         return
     if data == "clean":
         # Show the cleaning menu
@@ -97,7 +100,10 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
                                "<b>🧹 Clean Options</b>\n\nChoose what to clean:",
                                reply_markup=keyboard,
                                parse_mode=enums.ParseMode.HTML)
-        callback_query.answer()
+        try:
+            callback_query.answer()
+        except Exception:
+            pass
         return
     if data == "cookies":
         keyboard = InlineKeyboardMarkup([
@@ -115,7 +121,10 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
                                "<b>🍪 COOKIES</b>\n\nChoose an action:",
                                reply_markup=keyboard,
                                parse_mode=enums.ParseMode.HTML)
-        callback_query.answer()
+        try:
+            callback_query.answer()
+        except Exception:
+            pass
         return
     if data == "media":
         keyboard = InlineKeyboardMarkup([
@@ -131,7 +140,10 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
                                "<b>🎞 MEDIA</b>\n\nChoose an action:",
                                reply_markup=keyboard,
                                parse_mode=enums.ParseMode.HTML)
-        callback_query.answer()
+        try:
+            callback_query.answer()
+        except Exception:
+            pass
         return
     if data == "logs":
         keyboard = InlineKeyboardMarkup([
@@ -145,7 +157,10 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
                                "<b>📖 INFO</b>\n\nChoose an action:",
                                reply_markup=keyboard,
                                parse_mode=enums.ParseMode.HTML)
-        callback_query.answer()
+        try:
+            callback_query.answer()
+        except Exception:
+            pass
         return
     if data == "back":
         # Return to main menu
@@ -164,7 +179,10 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
                                "<b>Bot Settings</b>\n\nChoose a category:",
                                reply_markup=keyboard,
                                parse_mode=enums.ParseMode.HTML)
-        callback_query.answer()
+        try:
+            callback_query.answer()
+        except Exception:
+            pass
         return
 
 @app.on_callback_query(filters.regex(r"^settings__cmd__"))

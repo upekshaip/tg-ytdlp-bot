@@ -252,7 +252,8 @@ def download_cookie_callback(app, callback_query):
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔚 Close", callback_data="save_as_cookie_hint|close")]
         ])
-        app.send_message(
+        from HELPERS.safe_messeger import safe_send_message
+        safe_send_message(
             callback_query.message.chat.id,
             Config.SAVE_AS_COOKIE_HINT,
             reply_parameters=ReplyParameters(message_id=callback_query.message.id if hasattr(callback_query.message, 'id') else None),
@@ -339,7 +340,8 @@ def download_cookie(app, message):
 Choose a service to download the cookie file.
 Cookie files will be saved as cookie.txt in your folder.
 """
-    app.send_message(
+    from HELPERS.safe_messeger import safe_send_message
+    safe_send_message(
         chat_id=user_id,
         text=text,
         reply_markup=keyboard,

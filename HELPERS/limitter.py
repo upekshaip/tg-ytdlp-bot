@@ -4,6 +4,7 @@ from HELPERS.logger import logger
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from pyrogram.enums import ChatMemberStatus
 import os
+from HELPERS.safe_messeger import safe_send_message
 
 def humanbytes(size):
     # https://stackoverflow.com/a/49361727/4723940
@@ -45,8 +46,8 @@ def is_user_in_channel(app, message):
         button = InlineKeyboardButton(
             "Join Channel", url=Config.SUBSCRIBE_CHANNEL_URL)
         keyboard = InlineKeyboardMarkup([[button]])
-        # Use the send_message () Method to send the message with the button
-        app.send_message(
+        # Use safe send to avoid FloodWait on texts
+        safe_send_message(
             chat_id=message.chat.id,
             text=text,
             reply_markup=keyboard
@@ -180,13 +181,13 @@ def check_playlist_range_limits(url, video_start_with, video_end_with, app, mess
 
     count = video_end_with - video_start_with + 1
     if count > max_count:
-        app.send_message(
+        safe_send_message(
             message.chat.id,
             f"❗️ Range limit exceeded for {service}: {count} (maximum {max_count}).\nReduce the range and try again.",
             reply_to_message_id=message.id
         )
         # We send a notification to the log channel
-        app.send_message(
+        safe_send_message(
             Config.LOGS_ID,
             f"❗️ Range limit exceeded for {service}: {count} (maximum {max_count})\nUser ID: {message.chat.id}",
         )
