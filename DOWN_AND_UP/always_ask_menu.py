@@ -96,7 +96,7 @@ def extract_button_data(format_line):
     button_parts = []
     
     # Media extensions to look for
-    media_extensions = ['mp4', 'webm', 'm4a', 'mkv', 'avi', 'mov', 'flv', 'wmv', '3gp', 'ogv', 'ts', 'mts', 'm2ts', 'mp3', 'm4a', 'ogg', 'm3u8']
+    media_extensions = ['mp4', 'webm', 'm4a', 'mkv', 'avi', 'mov', 'flv', 'wmv', '3gp', 'ogv', 'ts', 'mts', 'm2ts', 'mp3', 'ogg', 'm3u8', 'f4v', 'f4p', 'f4a', 'f4b', 'm4v', 'm4p', 'm4b', 'm4r', '3g2', '3gpp', '3gpp2', 'asf', 'divx', 'xvid', 'rm', 'rmvb', 'vob', 'ifo', 'vcd', 'svcd', 'dvd', 'iso', 'bin', 'cue', 'img', 'nrg', 'mdf', 'mds', 'ccd', 'sub', 'idx', 'srt', 'ssa', 'ass', 'vtt', 'smi', 'sami', 'rt', 'txt', 'lrc', 'srt', 'vobsub', 'dvdsub', 'pgs', 'dvb', 'hdmv', 'pcm', 'wav', 'aiff', 'au', 'ra', 'ram', 'wma', 'ape', 'flac', 'alac', 'aac', 'ac3', 'dts', 'dtshd', 'truehd', 'eac3', 'mp2', 'mp3', 'ogg', 'opus', 'vorbis', 'speex', 'amr', 'awb', 'gsm', 'ilbc', 'qcelp', 'evrc', 'smv', 'g729', 'g722', 'g723', 'g726', 'g728', 'g729', 'amrnb', 'amrwb', 'qcelp', 'evrc', 'smv', 'g729', 'g722', 'g723', 'g726', 'g728', 'g729']
     
     for part in parts:
         part = part.strip()
@@ -128,8 +128,14 @@ def extract_button_data(format_line):
             button_parts.append(part)
             continue
         
+        # Extract quality from format names (e.g., h264_540p_389369-0 -> 540p)
+        quality_match = re.search(r'(\d+p\d*)', part)
+        if quality_match and quality_match.group(1) not in button_parts:
+            button_parts.append(quality_match.group(1))
+            continue
+        
         # Check for video codec patterns
-        if any(codec in part.lower() for codec in ['avc', 'vp9', 'av1', 'h264', 'h265', 'hevc', 'avc1', 'vp09', 'av01', 'opus']):
+        if any(codec in part.lower() for codec in ['avc', 'vp9', 'av1', 'h264', 'h265', 'hevc', 'avc1', 'vp09', 'av01', 'opus', 'aac', 'ac3', 'dts', 'mp3', 'wav', 'flac', 'alac', 'vorbis', 'speex', 'amr', 'gsm', 'ilbc', 'qcelp', 'evrc', 'smv', 'g729', 'g722', 'g723', 'g726', 'g728', 'amrnb', 'amrwb', 'mp2', 'eac3', 'truehd', 'dtshd', 'pcm', 'aiff', 'au', 'ra', 'ram', 'wma', 'ape', 'ogg', 'm4a', 'm4b', 'm4p', 'm4r', 'f4a', 'f4b', 'f4p', 'f4v', '3g2', '3gpp', '3gpp2', 'asf', 'divx', 'xvid', 'rm', 'rmvb', 'vob', 'ifo', 'vcd', 'svcd', 'dvd', 'iso', 'bin', 'cue', 'img', 'nrg', 'mdf', 'mds', 'ccd', 'sub', 'idx', 'srt', 'ssa', 'ass', 'vtt', 'smi', 'sami', 'rt', 'txt', 'lrc', 'vobsub', 'dvdsub', 'pgs', 'dvb', 'hdmv']):
             # Shorten video codec names
             if part.startswith('avc1.'):
                 part = 'avc1'
@@ -1741,8 +1747,8 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
                 button_text = ' | '.join(button_parts)
                 
                 # Limit button text length
-                if len(button_text) > 40:
-                    button_text = button_text[:37] + "..."
+                if len(button_text) > 64:
+                    button_text = button_text[:61] + "..."
                 
                 # Each button goes in its own row (1 column layout)
                 keyboard_rows.append([InlineKeyboardButton(button_text, callback_data=f"askq|other_id_{format_id}")])
@@ -2772,7 +2778,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
         except Exception:
             pass
         # Use fixed format bv+ba for Best quality
-        fmt = "bv+ba"
+        fmt = "bv+ba/best"
         quality_key = "best"
     else:
         try:
