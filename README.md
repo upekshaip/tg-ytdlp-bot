@@ -247,6 +247,8 @@ python3 magic.py
 - **/uncache** - Clear cached subtitle language data.
 - **/reload_cache** - Reload cache from firebase to local json file
 - **/auto_cache** - Control auto cache reload: `/auto_cache on` | `/auto_cache off` | `/auto_cache N` (N = 1..168 hours, persisted to `CONFIG/config.py`).
+- **/update_porn** - Run script to update porn domains and keywords from external sources.
+- **/reload_porn** - Reload porn detection cache (domains, keywords, supported sites) without restarting the bot.
 ---
 
 ## Auto cache – how it works (on/off/N)
@@ -273,6 +275,62 @@ Your current default interval comes from `CONFIG/config.py`:
 ```python
 RELOAD_CACHE_EVERY = 24  # in hours
 ```
+
+---
+
+## Porn Detection Management
+
+The bot includes advanced porn detection capabilities with configurable domain and keyword lists. Admins can manage these lists using dedicated commands.
+
+### Porn Detection Commands
+
+#### `/update_porn`
+Runs an external script to update porn domains and keywords from external sources.
+
+**Features:**
+- Executes customizable script (default: `./script.sh`)
+- Shows real-time script output and execution status
+- Comprehensive error handling and logging
+- Script path configurable via `CONFIG/domains.py`
+
+**Configuration:**
+```python
+# In CONFIG/domains.py
+UPDATE_PORN_SCRIPT_PATH = "./script.sh"  # Customize script path
+```
+
+#### `/reload_porn`
+Reloads the porn detection cache without restarting the bot.
+
+**Features:**
+- Hot-reloads porn domains from `TXT/porn_domains.txt`
+- Hot-reloads porn keywords from `TXT/porn_keywords.txt`
+- Hot-reloads supported sites from `TXT/supported_sites.txt`
+- Shows current cache statistics
+- Immediate effect - no bot restart required
+
+### File Structure
+```
+TXT/
+├── porn_domains.txt      # List of porn domains (one per line)
+├── porn_keywords.txt     # List of porn keywords (one per line)
+└── supported_sites.txt   # List of supported video sites
+
+script.sh                 # Update script (customizable)
+```
+
+### Integration
+These commands integrate with the existing porn detection system:
+- **Domain Detection**: Checks video URLs against porn domain lists
+- **Keyword Detection**: Scans video titles, descriptions, and captions
+- **Auto-tagging**: Automatically adds `#porn` tag to detected content
+- **Spoiler Protection**: Hides porn content under spoiler tags in Telegram
+
+### Security
+- Both commands are admin-only with proper access control
+- Script execution is logged for audit purposes
+- Script runs from the bot's root directory
+- Script output is captured and displayed to the admin
 
 ---
 
