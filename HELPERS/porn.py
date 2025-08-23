@@ -1,4 +1,5 @@
 import tldextract
+import re
 from urllib.parse import urlparse
 from CONFIG.config import Config
 from HELPERS.logger import logger

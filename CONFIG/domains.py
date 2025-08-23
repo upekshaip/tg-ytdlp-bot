@@ -12,6 +12,9 @@ class DomainsConfig(object):
     SUPPORTED_SITES_FILE = "TXT/supported_sites.txt"
     #CLEAN_QUERY = "normalized_sites.txt"
     
+    # Script for updating porn lists
+    UPDATE_PORN_SCRIPT_PATH = "./script.sh"
+    
     # --- Whitelist of domains that are not considered porn ---
     WHITELIST = [
         'dailymotion.com', 'sky.com', 'xbox.com', 'youtube.com', 'youtu.be', '1tv.ru', 'x.ai',
