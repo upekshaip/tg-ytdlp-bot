@@ -34,8 +34,15 @@ class Config(object):
     # Cookie file URL
     # EX: "https://path/to/your/cookie-file.txt"
     COOKIE_URL = "https://XXX/cookie.txt"
-    YOUTUBE_COOKIE_URL = "https://XXX/youtube_cookies.txt"
-    #YOUTUBE_COOKIE_URL = "https://XXX/youtube_cookie.txt"
+    # YouTube cookies URLs - main URL and backups
+    # The bot will check cookies in the order: YOUTUBE_COOKIE_URL, YOUTUBE_COOKIE_URL_1, YOUTUBE_COOKIE_URL_2, etc. up to 10
+    # If one URL does not work or the cookies are expired, the bot will automatically try the next one
+    YOUTUBE_COOKIE_URL = "https://XXX/youtube_cookie.txt"
+    YOUTUBE_COOKIE_URL_1 = "https://XXX/cookie1.txt"
+    YOUTUBE_COOKIE_URL_2 = "https://XXX/cookie2.txt"
+    YOUTUBE_COOKIE_URL_3 = "https://XXX/cookie3.txt"
+    #YOUTUBE_COOKIE_URL_4 = "https://XXX/cookie4.txt"
+    #YOUTUBE_COOKIE_URL_10 = "https://XXX/cookie10.txt"
     INSTAGRAM_COOKIE_URL = "https://XXX/instagram_cookie.txt"
     TIKTOK_COOKIE_URL = "https://XXX/tiktok_cookie.txt"
     FACEBOOK_COOKIE_URL = "https://XXX/facebook_cookie.txt"
