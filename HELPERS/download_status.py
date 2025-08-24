@@ -108,9 +108,33 @@ def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
         counter = 0
         emojis = ["⏳", "⌛"]
         active = True
+        start_time = time.time()
+        last_update = 0
 
         while active and not stop_anim.is_set():
             try:
+                current_time = time.time()
+                elapsed = current_time - start_time
+                minutes_passed = int(elapsed // 60)
+                
+                # After 1 hour, stop animating and show static hourglass
+                if minutes_passed >= 60:
+                    safe_edit_message_text(user_id, hourglass_msg_id, "⏳ Please wait...")
+                    break
+                
+                # Adaptive animation interval
+                if minutes_passed < 5:
+                    interval = 3.0  # First 5 minutes: every 3 seconds
+                else:
+                    # Exponential backoff for animation
+                    base_interval = 3.0
+                    interval = base_interval * (2 ** (minutes_passed - 4))  # Start exponential after 5 minutes
+                    interval = min(interval, 30.0)  # Cap at 30 seconds
+                
+                if current_time - last_update < interval:
+                    time.sleep(1.0)
+                    continue
+                
                 emoji = emojis[counter % len(emojis)]
                 # Attempt to edit message but don't keep trying if message is invalid
                 result = safe_edit_message_text(user_id, hourglass_msg_id, f"{emoji} Please wait...")
@@ -121,7 +145,8 @@ def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
                     break
 
                 counter += 1
-                time.sleep(3.0)
+                last_update = current_time
+                time.sleep(1.0)  # Check more frequently for stop event
             except Exception as e:
                 logger.error(f"Error in hourglass animation: {e}")
                 # Stop animation on error to prevent log spam
@@ -158,10 +183,34 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
         """Show progress animation for HLS downloads"""
         counter = 0
         active = True
+        start_time = time.time()
+        last_update = 0
 
         while active and not cycle_stop.is_set():
-            counter = (counter + 1) % 11
             try:
+                current_time = time.time()
+                elapsed = current_time - start_time
+                minutes_passed = int(elapsed // 60)
+                
+                # After 1 hour, stop showing intermediate progress
+                if minutes_passed >= 60:
+                    break
+                
+                # Adaptive update interval
+                if minutes_passed < 5:
+                    interval = 3.0  # First 5 minutes: every 3 seconds
+                else:
+                    # Exponential backoff
+                    base_interval = 3.0
+                    interval = base_interval * (2 ** (minutes_passed - 4))  # Start exponential after 5 minutes
+                    interval = min(interval, 30.0)  # Cap at 30 seconds
+                
+                if current_time - last_update < interval:
+                    time.sleep(1.0)
+                    continue
+                
+                counter = (counter + 1) % 11
+                
                 # Check for fragment files
                 frag_files = []
                 try:
@@ -187,14 +236,13 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
                     active = False
                     break
 
+                last_update = current_time
+                time.sleep(1.0)  # Check more frequently for stop event
+
             except Exception as e:
                 logger.warning(f"Cycle progress error: {e}")
                 # Stop animation on consistent errors to prevent log spam
                 active = False
-                break
-
-            # Sleep with check for stop event
-            if cycle_stop.wait(3.0):
                 break
 
         logger.debug(f"Cycle progress animation stopped for message {proc_msg_id}")

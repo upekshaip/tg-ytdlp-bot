@@ -6,7 +6,9 @@ from pyrogram import enums
 from HELPERS.logger import send_to_logger
 
 from HELPERS.app_instance import get_app
-from HELPERS.safe_messeger import fake_message
+from HELPERS.safe_messeger import fake_message, safe_send_message, safe_edit_message_text
+from pyrogram.errors import FloodWait
+import os
 # Lazy imports to avoid circular dependency - import url_distractor inside functions
 from COMMANDS.cookies_cmd import cookies_from_browser
 from COMMANDS.format_cmd import set_format
@@ -24,10 +26,13 @@ def command2(app, message):
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔚 Close", callback_data="help_msg|close")]
     ])
-    app.send_message(message.chat.id, (Config.HELP_MSG),
-                     parse_mode=enums.ParseMode.HTML,
-                     reply_markup=keyboard)
+
+    result = safe_send_message(message.chat.id, (Config.HELP_MSG),
+
+                      parse_mode=enums.ParseMode.HTML,
+                      reply_markup=keyboard)
     send_to_logger(message, f"Send help txt to user")
+    return result
 
 # Get app instance for decorators
 app = get_app()
@@ -48,7 +53,7 @@ def settings_command(app, message):
         ],
         [InlineKeyboardButton("🔚 Close", callback_data="settings__menu__close")]
     ])
-    app.send_message(
+    safe_send_message(
         user_id,
         "<b>Bot Settings</b>\n\nChoose a category:",
         reply_markup=keyboard,
@@ -68,7 +73,10 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        callback_query.answer("Menu closed.")
+        try:
+            callback_query.answer("Menu closed.")
+        except Exception:
+            pass
         return
     if data == "clean":
         # Show the cleaning menu
@@ -91,12 +99,16 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             ],
             [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
         ])
-        callback_query.edit_message_text(
-            "<b>🧹 Clean Options</b>\n\nChoose what to clean:",
-            reply_markup=keyboard,
-            parse_mode=enums.ParseMode.HTML
-        )
-        callback_query.answer()
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
+                               "<b>🧹 Clean Options</b>\n\nChoose what to clean:",
+                               reply_markup=keyboard,
+                               parse_mode=enums.ParseMode.HTML)
+
+        try:
+            callback_query.answer()
+        except Exception:
+            pass
+
         return
     if data == "cookies":
         keyboard = InlineKeyboardMarkup([
@@ -110,12 +122,16 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
                                   callback_data="settings__cmd__save_as_cookie")],
             [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
         ])
-        callback_query.edit_message_text(
-            "<b>🍪 COOKIES</b>\n\nChoose an action:",
-            reply_markup=keyboard,
-            parse_mode=enums.ParseMode.HTML
-        )
-        callback_query.answer()
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
+                               "<b>🍪 COOKIES</b>\n\nChoose an action:",
+                               reply_markup=keyboard,
+                               parse_mode=enums.ParseMode.HTML)
+
+        try:
+            callback_query.answer()
+        except Exception:
+            pass
+
         return
     if data == "media":
         keyboard = InlineKeyboardMarkup([
@@ -127,12 +143,16 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("📋 /playlist - How to download playlists", callback_data="settings__cmd__playlist")],
             [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
         ])
-        callback_query.edit_message_text(
-            "<b>🎞 MEDIA</b>\n\nChoose an action:",
-            reply_markup=keyboard,
-            parse_mode=enums.ParseMode.HTML
-        )
-        callback_query.answer()
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
+                               "<b>🎞 MEDIA</b>\n\nChoose an action:",
+                               reply_markup=keyboard,
+                               parse_mode=enums.ParseMode.HTML)
+
+        try:
+            callback_query.answer()
+        except Exception:
+            pass
+
         return
     if data == "logs":
         keyboard = InlineKeyboardMarkup([
@@ -142,12 +162,16 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("📋 /playlist - Playlist's help", callback_data="settings__cmd__playlist")],
             [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
         ])
-        callback_query.edit_message_text(
-            "<b>📖 INFO</b>\n\nChoose an action:",
-            reply_markup=keyboard,
-            parse_mode=enums.ParseMode.HTML
-        )
-        callback_query.answer()
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
+                               "<b>📖 INFO</b>\n\nChoose an action:",
+                               reply_markup=keyboard,
+                               parse_mode=enums.ParseMode.HTML)
+
+        try:
+            callback_query.answer()
+        except Exception:
+            pass
+
         return
     if data == "back":
         # Return to main menu
@@ -162,12 +186,16 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             ],
             [InlineKeyboardButton("🔚 Close", callback_data="settings__menu__close")]
         ])
-        callback_query.edit_message_text(
-            "<b>Bot Settings</b>\n\nChoose a category:",
-            reply_markup=keyboard,
-            parse_mode=enums.ParseMode.HTML
-        )
-        callback_query.answer()
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
+                               "<b>Bot Settings</b>\n\nChoose a category:",
+                               reply_markup=keyboard,
+                               parse_mode=enums.ParseMode.HTML)
+
+        try:
+            callback_query.answer()
+        except Exception:
+            pass
+
         return
 
 @app.on_callback_query(filters.regex(r"^settings__cmd__"))
@@ -201,77 +229,255 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             ],
             [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
         ])
-        callback_query.edit_message_text(
-            "<b>🧹 Clean Options</b>\n\nChoose what to clean:",
-            reply_markup=keyboard,
-            parse_mode=enums.ParseMode.HTML
-        )
-        callback_query.answer()
+        try:
+            callback_query.edit_message_text(
+                "<b>🧹 Clean Options</b>\n\nChoose what to clean:",
+                reply_markup=keyboard,
+                parse_mode=enums.ParseMode.HTML
+            )
+        except Exception:
+            pass
+        try:
+            callback_query.answer()
+        except Exception:
+            pass
         return
     if data == "download_cookie":
-        url_distractor(app, fake_message("/download_cookie", user_id))
-        callback_query.answer("Command executed.")
+        try:
+            url_distractor(app, fake_message("/download_cookie", user_id))
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+            try:
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
+            return
+        try:
+            callback_query.answer("Command executed.")
+        except Exception:
+            pass
         return
     if data == "cookies_from_browser":
-        cookies_from_browser(app, fake_message("/cookies_from_browser", user_id))
-        callback_query.answer("Command executed.")
+        try:
+            cookies_from_browser(app, fake_message("/cookies_from_browser", user_id))
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+            try:
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
+            return
+        try:
+            callback_query.answer("Command executed.")
+        except Exception:
+            pass
         return
     if data == "check_cookie":
-        url_distractor(app, fake_message("/check_cookie", user_id))
-        callback_query.answer("Command executed.")
+        try:
+            url_distractor(app, fake_message("/check_cookie", user_id))
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+            try:
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
+            return
+        try:
+            callback_query.answer("Command executed.")
+        except Exception:
+            pass
         return
     if data == "save_as_cookie":
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔚 Close", callback_data="save_as_cookie_hint|close")]
         ])
-        app.send_message(user_id, Config.SAVE_AS_COOKIE_HINT, reply_parameters=ReplyParameters(message_id=callback_query.message.id),
-                         parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
-        callback_query.answer("Hint sent.")
+        safe_send_message(user_id, Config.SAVE_AS_COOKIE_HINT, reply_parameters=ReplyParameters(message_id=callback_query.message.id),
+                          parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+
+        try:
+            callback_query.answer("Hint sent.")
+        except Exception:
+            pass
+
         return
     if data == "format":
         # Add the command attribute for set_format to work correctly
-        set_format(app, fake_message("/format", user_id, command=["format"]))
-        callback_query.answer("Command executed.")
+        try:
+            set_format(app, fake_message("/format", user_id, command=["format"]))
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+            callback_query.answer("Flood wait active. Try later.", show_alert=False)
+            return
+
+        try:
+            callback_query.answer("Command executed.")
+        except Exception:
+            pass
+
         return
         
     # /Subs Command
     if data == "subs":
-        subs_command(app, fake_message("/subs", user_id))
-        callback_query.answer("Command executed.")
+        try:
+            subs_command(app, fake_message("/subs", user_id))
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+            callback_query.answer("Flood wait active. Try later.", show_alert=False)
+            return
+
+        try:
+            callback_query.answer("Command executed.")
+        except Exception:
+            pass
+
         return
 
     if data == "mediainfo":
-        mediainfo_command(app, fake_message("/mediainfo", user_id))
-        callback_query.answer("Command executed.")
+        try:
+            mediainfo_command(app, fake_message("/mediainfo", user_id))
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+            callback_query.answer("Flood wait active. Try later.", show_alert=False)
+            return
+
+        try:
+            callback_query.answer("Command executed.")
+        except Exception:
+            pass
+
         return
     if data == "split":
-        split_command(app, fake_message("/split", user_id))
+        try:
+            split_command(app, fake_message("/split", user_id))
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+            callback_query.answer("Flood wait active. Try later.", show_alert=False)
+            return
         callback_query.answer("Command executed.")
         return
     if data == "audio":
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔚 Close", callback_data="audio_hint|close")]
         ])
-        app.send_message(user_id,
-                         "Download only audio from video source.\n\nUsage: /audio + URL \n\n(ex. /audio https://youtu.be/abc123)\n(ex. /audio https://youtu.be/playlist?list=abc123*1*10)",
-                         reply_parameters=ReplyParameters(message_id=callback_query.message.id),
-                         reply_markup=keyboard)
-        callback_query.answer("Hint sent.")
+        safe_send_message(user_id,
+                          "Download only audio from video source.\n\nUsage: /audio + URL \n\n(ex. /audio https://youtu.be/abc123)\n(ex. /audio https://youtu.be/playlist?list=abc123*1*10)",
+                          reply_parameters=ReplyParameters(message_id=callback_query.message.id),
+
+                          reply_markup=keyboard,
+                          _callback_query=callback_query,
+                          _fallback_notice="⏳ Flood limit. Try later.")
+        try:
+            callback_query.answer("Hint sent.")
+        except Exception:
+            pass
+
         return
     if data == "tags":
-        tags_command(app, fake_message("/tags", user_id))
-        callback_query.answer("Command executed.")
+        try:
+            tags_command(app, fake_message("/tags", user_id))
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+            callback_query.answer("Flood wait active. Try later.", show_alert=False)
+            return
+
+        try:
+            callback_query.answer("Command executed.")
+        except Exception:
+            pass
         return
     if data == "help":
-        command2(app, fake_message("/help", user_id))
-        callback_query.answer("Command executed.")
+        try:
+            res = command2(app, fake_message("/help", user_id))
+
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+
+            try:
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
+            return
+        # If safe_send_message returned None due to FloodWait, notify via callback
+        if res is None:
+            try:
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
+        else:
+            try:
+                callback_query.answer("Command executed.")
+            except Exception:
+                pass
+
         return
     if data == "usage":
-        url_distractor(app, fake_message("/usage", user_id))
-        callback_query.answer("Command executed.")
+        try:
+            url_distractor(app, fake_message("/usage", user_id))
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+
+            try:
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
+            return
+        try:
+            callback_query.answer("Command executed.")
+        except Exception:
+            pass
+
         return
     if data == "playlist":
-        playlist_command(app, fake_message("/playlist", user_id))
-        callback_query.answer("Command executed.")
+        try:
+            playlist_command(app, fake_message("/playlist", user_id))
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+
+            try:
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
+            return
+        try:
+            callback_query.answer("Command executed.")
+        except Exception:
+            pass
+
         return
-    callback_query.answer("Unknown command.", show_alert=True)
+    try:
+        callback_query.answer("Unknown command.", show_alert=True)
+    except Exception:
+        pass

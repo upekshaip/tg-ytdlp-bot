@@ -153,8 +153,10 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 • <code>/usage</code> - История загрузок
 • <code>/help</code> - Показать эту справку
 </blockquote>
-👨‍💻 <i>Developer:</i> @upekshaip <a href="https://github.com/upekshaip/tg-ytdlp-bot">[🛠 github]</a>
-🤝 <i>Contributor:</i> @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl <a href="https://github.com/chelaxian/tg-ytdlp-bot">[🛠 github]</a>
+👨‍💻 <i>Developer:</i> @upekshaip 
+<a href="https://github.com/upekshaip/tg-ytdlp-bot">[🛠 github]</a>
+🤝 <i>Contributor:</i> @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl 
+<a href="https://github.com/chelaxian/tg-ytdlp-bot">[🛠 github]</a>
     """
     
     # Version 1.0.0 - Добавлен SAVE_AS_COOKIE_HINT для подсказки по /save_as_cookie

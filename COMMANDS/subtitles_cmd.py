@@ -271,7 +271,8 @@ def subs_command(app, message):
         arg = parts[1].lower()
         if arg in ("on", "off"):
             save_subs_always_ask(user_id, arg == "on")
-            app.send_message(user_id, f"✅ SUBS Always Ask {'enabled' if arg=='on' else 'disabled'}.")
+            from HELPERS.safe_messeger import safe_send_message
+            safe_send_message(user_id, f"✅ SUBS Always Ask {'enabled' if arg=='on' else 'disabled'}.")
             send_to_logger(message, f"SUBS Always Ask set via command: {arg}")
             return
 
@@ -291,7 +292,8 @@ def subs_command(app, message):
         auto_text = " (auto-subs)" if auto_mode else ""
         status_text = f"{lang_info['flag']} Selected language: {lang_info['name']}{auto_text}"
 
-    app.send_message(
+    from HELPERS.safe_messeger import safe_send_message
+    safe_send_message(
         message.chat.id,
         f"<b>💬 Subtitle settings</b>\n\n{status_text}\n\nSelect subtitle language:\n\n"
         "<blockquote>❗️WARNING: due to high CPU impact this function is very slow (near real-time) and limited to:\n"
@@ -1278,12 +1280,14 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
         # Check if subtitles are enabled
         subs_lang = get_user_subs_language(user_id)
         if not subs_lang or subs_lang == "OFF":
-            app.send_message(user_id, "❌ Subtitles are disabled. Use /subs to configure.")
+            from HELPERS.safe_messeger import safe_send_message
+            safe_send_message(user_id, "❌ Subtitles are disabled. Use /subs to configure.")
             return
         
         # Check if this is YouTube
         if not is_youtube_url(url):
-            app.send_message(user_id, "❌ Subtitle downloading is only supported for YouTube.")
+            from HELPERS.safe_messeger import safe_send_message
+            safe_send_message(user_id, "❌ Subtitle downloading is only supported for YouTube.")
             return
         
         # Check subtitle availability
@@ -1300,7 +1304,8 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
             # return
         
         # Send message about download start
-        status_msg = app.send_message(user_id, "💬 Downloading subtitles...", reply_parameters=ReplyParameters(message_id=message.id))
+        from HELPERS.safe_messeger import safe_send_message
+        status_msg = safe_send_message(user_id, "💬 Downloading subtitles...", reply_parameters=ReplyParameters(message_id=message.id))
         
         # Download subtitles
         subs_path = download_subtitles_ytdlp(url, user_id, user_dir, available_langs)
@@ -1360,7 +1365,8 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
         try:
             app.edit_message_text(user_id, status_msg.id, f"❌ Error: {str(e)}")
         except:
-            app.send_message(user_id, f"❌ Error downloading subtitles: {str(e)}")
+            from HELPERS.safe_messeger import safe_send_message
+            safe_send_message(user_id, f"❌ Error downloading subtitles: {str(e)}")
 
 
 def get_language_keyboard(page=0, user_id=None, langs_override=None, per_page_rows=8):

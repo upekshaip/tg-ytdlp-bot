@@ -265,7 +265,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             # if use_default_format is True, then do not take from format.txt, but use default ones
             if use_default_format:
                 attempts = [
-                    {'format': 'bv*[vcodec*=avc1][height<=1080][height>720]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba', 'prefer_ffmpeg': True, 'merge_output_format': output_format, 'extract_flat': False},
+                    {'format': 'bv*[vcodec*=avc1][height<=1080][height>720]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bv+ba/best', 'prefer_ffmpeg': True, 'merge_output_format': output_format, 'extract_flat': False},
                     {'format': 'best', 'prefer_ffmpeg': False, 'extract_flat': False}
                 ]
             else:
@@ -278,9 +278,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         attempts = [{'format': custom_format, 'prefer_ffmpeg': True, 'merge_output_format': output_format}]
                 else:
                     attempts = [
-                        {'format': 'bv*[vcodec*=avc1][height<=1080][height>720]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba',
+                        {'format': 'bv*[vcodec*=avc1][height<=1080][height>720]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bv+ba/best',
                         'prefer_ffmpeg': True, 'merge_output_format': output_format, 'extract_flat': False},
-                        {'format': 'bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best',
+                        {'format': 'bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best/bv+ba/best',
                         'prefer_ffmpeg': True, 'merge_output_format': output_format, 'extract_flat': False},
                         {'format': 'best', 'prefer_ffmpeg': False, 'extract_flat': False}
                     ]
@@ -390,15 +390,44 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         last_update = 0
         full_bar = "🟩" * 10
         first_progress_update = True  # Flag for tracking the first update
+        progress_start_time = time.time()
 
         def progress_func(d):
             nonlocal last_update, first_progress_update
-            # Check the timaut
+            # Check the timeout
             if check_download_timeout(user_id):
                 raise Exception(f"Download timeout exceeded ({Config.DOWNLOAD_TIMEOUT // 3600} hours)")
             current_time = time.time()
-            if current_time - last_update < 1.5:
+            
+            # Calculate elapsed time and minutes passed
+            elapsed = max(0, current_time - progress_start_time)
+            minutes_passed = int(elapsed // 60)
+            
+            # After 1 hour (60 minutes), only show 0% and 100%
+            if minutes_passed >= 60:
+                if d.get("status") == "finished":
+                    try:
+                        safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{full_bar}   100.0%")
+                    except Exception as e:
+                        logger.error(f"Error updating progress: {e}")
+                elif d.get("status") == "error":
+                    logger.error("Error occurred during download.")
+                    send_to_all(message, "❌ Sorry... Some error occurred during download.")
                 return
+            
+            # Adaptive throttle: base 1.5s, doubles each minute (1m→1.5s, 2m→3s, 3m→6s,...)
+            base_interval = 1.5
+            if minutes_passed < 5:
+                # First 5 minutes: 1.5 seconds
+                interval = base_interval
+            else:
+                # After 5 minutes: exponential backoff
+                interval = base_interval * (2 ** (minutes_passed - 4))  # Start exponential after 5 minutes
+                interval = min(interval, 30.0)  # hard cap to avoid too rare updates
+            
+            if current_time - last_update < interval:
+                return
+                
             if d.get("status") == "downloading":
                 downloaded = d.get("downloaded_bytes", 0)
                 # yt-dlp may provide only total_bytes_estimate for some sites
@@ -419,6 +448,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{bar}   {percent:.1f}%")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
+            elif d.get("status") == "finished":
+                try:
+                    safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{full_bar}   100.0%")
+                except Exception as e:
+                    logger.error(f"Error updating progress: {e}")
             elif d.get("status") == "error":
                 logger.error("Error occurred during download.")
                 send_to_all(message, "❌ Sorry... Some error occurred during download.")
@@ -430,33 +464,29 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             nonlocal current_total_process, error_message
             
             common_opts = {
-                'playlist_items': str(current_index),  # We use only current_index for playlists
+                'playlist_items': str(current_index),
                 'outtmpl': os.path.join(user_dir_name, "%(title).50s.%(ext)s"),
                 'postprocessors': [
-                {
-                   'key': 'EmbedThumbnail'   # equivalent to --embed-thumbnail
-                },
-                {
-                   'key': 'FFmpegMetadata'   # equivalent to --add-metadata
-                }                  
-                ],                
+                    {'key': 'EmbedThumbnail'},
+                    {'key': 'FFmpegMetadata'}
+                ],
                 'extractor_args': {
-                   'generic': ['impersonate=chrome'],
-                   'youtubetab': ['skip=authcheck']
+                    'generic': ['impersonate=chrome'],
+                    'youtubetab': ['skip=authcheck']
                 },
                 'referer': url,
                 'geo_bypass': True,
                 'check_certificate': False,
-                'live_from_start': True,
-                'socket_timeout': 60,  # Increase socket timeout
-                'retries': 15,  # Increase retries
-                'fragment_retries': 15,  # Increase fragment retries
-                'http_chunk_size': 5242880,  # 5MB chunks for better stability
-                'buffersize': 2048,  # Increase buffer size
-                'sleep_interval': 2,  # Sleep between requests
-                'max_sleep_interval': 10,  # Max sleep between requests
-                'read_timeout': 60,  # Read timeout
-                'connect_timeout': 30  # Connect timeout
+                'live_from_start': True #,
+                #'socket_timeout': 60,  # Increase socket timeout
+                #'retries': 15,  # Increase retries
+                #'fragment_retries': 15,  # Increase fragment retries
+                #'http_chunk_size': 5242880,  # 5MB chunks for better stability
+                #'buffersize': 2048,  # Increase buffer size
+                #'sleep_interval': 2,  # Sleep between requests
+                #'max_sleep_interval': 10,  # Max sleep between requests
+                #'read_timeout': 60,  # Read timeout
+                #'connect_timeout': 30  # Connect timeout
             }
             
             # Check subtitle availability for YouTube videos (but don't download them here)
@@ -629,12 +659,29 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         # If there is only one video in the playlist, just download it
                         info_dict = entries[0]  # Just take the first video
 
-                if ("m3u8" in url.lower()) or (info_dict and info_dict.get("protocol") == "m3u8_native"):
+                # Detect HLS not only by URL/top-level protocol, but by requested formats too
+                requested_formats = []
+                try:
+                    requested_formats = info_dict.get('requested_formats') or []
+                except Exception:
+                    requested_formats = []
+
+                hls_in_requested = False
+                for _rf in requested_formats:
+                    proto = (_rf.get('protocol') or '').lower()
+                    if 'm3u8' in proto or 'hls' in proto:
+                        hls_in_requested = True
+                        break
+
+                if ("m3u8" in url.lower()) or (info_dict and info_dict.get("protocol") in ("m3u8", "m3u8_native")) or hls_in_requested:
                     is_hls = True
-                    # if "format" in ytdl_opts:
-                    # del ytdl_opts["format"]
+                    # Force ffmpeg for HLS and disable chunked HTTP to avoid Conflicting range on fragments
                     ytdl_opts["downloader"] = "ffmpeg"
+                    ytdl_opts["hls_prefer_native"] = False
                     ytdl_opts["hls_use_mpegts"] = True
+                    ytdl_opts.pop("http_chunk_size", None)
+                    # Reduce parallelism for fragile HLS endpoints
+                    ytdl_opts["concurrent_fragment_downloads"] = 1
                 try:
                     if is_hls:
                                         safe_edit_message_text(user_id, proc_msg_id,
@@ -689,6 +736,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     send_to_all(message, error_message)
                     logger.info(f"Stopping download: playlist item at index {current_index} (no video found)")
                     return "STOP"  # New special value for full stop
+                
+                # Check if this is a TikTok infinite loop error
+                if "TikTok API keeps sending the same page" in str(e) and "infinite loop" in str(e):
+                    error_message = f"⚠️ TikTok API error at index {current_index + 1}, skipping to next video..."
+                    send_to_user(message, error_message)
+                    logger.info(f"Skipping TikTok video at index {current_index} due to API error")
+                    return "SKIP"  # Skip this video and continue with next
 
                 send_to_user(message, f"❌ Unknown error: {e}")
                 return None
@@ -1040,7 +1094,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                               safe_edit_message_text(user_id, proc_msg_id,
                                   f"{info_text}\n{full_bar}   100.0%\n<i>📤 Splitted part {p + 1} file uploaded</i>")
                     if p < len(caption_lst) - 1:
-                        threading.Event().wait(2)
+                        pass
                     if os.path.exists(splited_thumb_dir):
                         os.remove(splited_thumb_dir)
                     send_mediainfo_if_enabled(user_id, path_lst[p], message)
@@ -1289,7 +1343,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             os.remove(after_rename_abs_path)
                         if thumb_dir and os.path.exists(thumb_dir):
                             os.remove(thumb_dir)
-                        threading.Event().wait(2)
+                        pass
                     except Exception as e:
                         logger.error(f"Error sending video: {e}")
                         logger.error(traceback.format_exc())

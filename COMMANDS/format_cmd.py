@@ -8,6 +8,7 @@ from HELPERS.app_instance import get_app
 from HELPERS.logger import send_to_logger, logger
 from HELPERS.filesystem_hlp import create_directory
 from HELPERS.limitter import is_user_in_channel
+from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
 from urllib.parse import urlparse
 import os
 import json
@@ -99,7 +100,7 @@ def set_format(app, message):
         custom_format = message.text.split(" ", 1)[1].strip()
         with open(os.path.join(user_dir, "format.txt"), "w", encoding="utf-8") as f:
             f.write(custom_format)
-        app.send_message(user_id, f"✅ Format updated to:\n{custom_format}")
+        safe_send_message(user_id, f"✅ Format updated to:\n{custom_format}")
         send_to_logger(message, f"Format updated to: {custom_format}")
     else:
         # Main Menu with A Few Popular Options, Plus The Others Button
@@ -113,7 +114,7 @@ def set_format(app, message):
             [InlineKeyboardButton("🎚 Custom (enter your own)", callback_data="format_option|custom")],
             [InlineKeyboardButton("🔚 Close", callback_data="format_option|close")]
         ])
-        app.send_message(
+        safe_send_message(
             user_id,
             "Select a format option or send a custom one using <code>/format &lt;format_string&gt;</code>:",
             reply_markup=main_keyboard
@@ -145,7 +146,7 @@ def format_option_callback(app, callback_query):
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔚 Close", callback_data="format_custom|close")]
         ])
-        app.send_message(
+        safe_send_message(
             user_id,
             "To use a custom format, send the command in the following form:\n\n<code>/format bestvideo+bestaudio/best</code>\n\nReplace <code>bestvideo+bestaudio/best</code> with your desired format string.",
             reply_parameters=ReplyParameters(message_id=callback_query.message.id),
@@ -190,8 +191,11 @@ def format_option_callback(app, callback_query):
             ],
             [InlineKeyboardButton("🔙 Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton("🔚 Close", callback_data="format_option|close")]
         ])
-        callback_query.edit_message_text("Select your desired resolution and codec:", reply_markup=full_res_keyboard)
-        callback_query.answer()
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "Select your desired resolution and codec:", reply_markup=full_res_keyboard)
+        try:
+            callback_query.answer()
+        except Exception:
+            pass
         send_to_logger(callback_query.message, "Format resolution menu sent.")
         return
 
@@ -207,9 +211,11 @@ def format_option_callback(app, callback_query):
             [InlineKeyboardButton("🎚 Custom (enter your own)", callback_data="format_option|custom")],
             [InlineKeyboardButton("🔚 close", callback_data="format_option|close")]
         ])
-        callback_query.edit_message_text("Select a format option or send a custom one using <code>/format &lt;format_string&gt;</code>:",
-                                         reply_markup=main_keyboard)
-        callback_query.answer()
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "Select a format option or send a custom one using <code>/format &lt;format_string&gt;</code>:", reply_markup=main_keyboard)
+        try:
+            callback_query.answer()
+        except Exception:
+            pass
         send_to_logger(callback_query.message, "Returned to main format menu.")
         return
 
@@ -219,74 +225,74 @@ def format_option_callback(app, callback_query):
     # Mapping for the Rest of the Options based on selected codec
     if data == "bv144":
         if user_codec == "av01":
-            chosen_format = "bv*[vcodec*=av01][height<=144]+ba[acodec*=mp4a]/bv*[vcodec*=av01][height<=144]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba"
+            chosen_format = "bv*[vcodec*=av01][height<=144]+ba[acodec*=mp4a]/bv*[vcodec*=av01][height<=144]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba/bv+ba/best"
         elif user_codec == "vp9":
-            chosen_format = "bv*[vcodec*=vp9][height<=144]+ba[acodec*=mp4a]/bv*[vcodec*=vp9][height<=144]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba"
+            chosen_format = "bv*[vcodec*=vp9][height<=144]+ba[acodec*=mp4a]/bv*[vcodec*=vp9][height<=144]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba/bv+ba/best"
         else:  # avc1
-            chosen_format = "bv*[vcodec*=avc1][height<=144]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=144]+ba/bv*[vcodec*=avc1]+ba"
+            chosen_format = "bv*[vcodec*=avc1][height<=144]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=144]+ba/bv*[vcodec*=avc1]+ba/bv+ba/best"
     elif data == "bv240":
         if user_codec == "av01":
-            chosen_format = "bv*[vcodec*=av01][height<=240][height>144]+ba[acodec*=mp4a]/bv*[vcodec*=av01][height<=240][height>144]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba"
+            chosen_format = "bv*[vcodec*=av01][height<=240][height>144]+ba[acodec*=mp4a]/bv*[vcodec*=av01][height<=240][height>144]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba/bv+ba/best"
         elif user_codec == "vp9":
-            chosen_format = "bv*[vcodec*=vp9][height<=240][height>144]+ba[acodec*=mp4a]/bv*[vcodec*=vp9][height<=240][height>144]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba"
+            chosen_format = "bv*[vcodec*=vp9][height<=240][height>144]+ba[acodec*=mp4a]/bv*[vcodec*=vp9][height<=240][height>144]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba/bv+ba/best"
         else:  # avc1
-            chosen_format = "bv*[vcodec*=avc1][height<=240][height>144]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=240]+ba/bv*[vcodec*=avc1]+ba"
+            chosen_format = "bv*[vcodec*=avc1][height<=240][height>144]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=240]+ba/bv*[vcodec*=avc1]+ba/bv+ba/best"
     elif data == "bv360":
         if user_codec == "av01":
-            chosen_format = "bv*[vcodec*=av01][height<=360][height>240]+ba[acodec*=mp4a]/bv*[vcodec*=av01][height<=360][height>240]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba"
+            chosen_format = "bv*[vcodec*=av01][height<=360][height>240]+ba[acodec*=mp4a]/bv*[vcodec*=av01][height<=360][height>240]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba/bv+ba/best"
         elif user_codec == "vp9":
-            chosen_format = "bv*[vcodec*=vp9][height<=360][height>240]+ba[acodec*=mp4a]/bv*[vcodec*=vp9][height<=360][height>240]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba"
+            chosen_format = "bv*[vcodec*=vp9][height<=360][height>240]+ba[acodec*=mp4a]/bv*[vcodec*=vp9][height<=360][height>240]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba/bv+ba/best"
         else:  # avc1
-            chosen_format = "bv*[vcodec*=avc1][height<=360][height>240]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=360]+ba/bv*[vcodec*=avc1]+ba"
+            chosen_format = "bv*[vcodec*=avc1][height<=360][height>240]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=360]+ba/bv*[vcodec*=avc1]+ba/bv+ba/best"
     elif data == "bv480":
         if user_codec == "av01":
-            chosen_format = "bv*[vcodec*=av01][height<=480][height>360]+ba[acodec*=mp4a]/bv*[vcodec*=av01][height<=480][height>360]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba"
+            chosen_format = "bv*[vcodec*=av01][height<=480][height>360]+ba[acodec*=mp4a]/bv*[vcodec*=av01][height<=480][height>360]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba/bv+ba/best"
         elif user_codec == "vp9":
-            chosen_format = "bv*[vcodec*=vp9][height<=480][height>360]+ba[acodec*=mp4a]/bv*[vcodec*=vp9][height<=480][height>360]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba"
+            chosen_format = "bv*[vcodec*=vp9][height<=480][height>360]+ba[acodec*=mp4a]/bv*[vcodec*=vp9][height<=480][height>360]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba/bv+ba/best"
         else:  # avc1
-            chosen_format = "bv*[vcodec*=avc1][height<=480][height>360]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=480]+ba/bv*[vcodec*=avc1]+ba"
+            chosen_format = "bv*[vcodec*=avc1][height<=480][height>360]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=480]+ba/bv*[vcodec*=avc1]+ba/bv+ba/best"
     elif data == "bv720":
         if user_codec == "av01":
-            chosen_format = "bv*[vcodec*=av01][height<=720][height>480]+ba[acodec*=mp4a]/bv*[vcodec*=av01][height<=720][height>480]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba"
+            chosen_format = "bv*[vcodec*=av01][height<=720][height>480]+ba[acodec*=mp4a]/bv*[vcodec*=av01][height<=720][height>480]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba/bv+ba/best"
         elif user_codec == "vp9":
-            chosen_format = "bv*[vcodec*=vp9][height<=720][height>480]+ba[acodec*=mp4a]/bv*[vcodec*=vp9][height<=720][height>480]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba"
+            chosen_format = "bv*[vcodec*=vp9][height<=720][height>480]+ba[acodec*=mp4a]/bv*[vcodec*=vp9][height<=720][height>480]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba/bv+ba/best"
         else:  # avc1
-            chosen_format = "bv*[vcodec*=avc1][height<=720][height>480]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=720]+ba/bv*[vcodec*=avc1]+ba"
+            chosen_format = "bv*[vcodec*=avc1][height<=720][height>480]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=720]+ba/bv*[vcodec*=avc1]+ba/bv+ba/best"
     elif data == "bv1080":
         if user_codec == "av01":
-            chosen_format = "bv*[vcodec*=av01][height<=1080][height>720]+ba[acodec*=mp4a]/bv*[vcodec*=av01][height<=1080][height>720]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba"
+            chosen_format = "bv*[vcodec*=av01][height<=1080][height>720]+ba[acodec*=mp4a]/bv*[vcodec*=av01][height<=1080][height>720]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba/bv+ba/best"
         elif user_codec == "vp9":
-            chosen_format = "bv*[vcodec*=vp9][height<=1080][height>720]+ba[acodec*=mp4a]/bv*[vcodec*=vp9][height<=1080][height>720]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba"
+            chosen_format = "bv*[vcodec*=vp9][height<=1080][height>720]+ba[acodec*=mp4a]/bv*[vcodec*=vp9][height<=1080][height>720]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba/bv+ba/best"
         else:  # avc1
-            chosen_format = "bv*[vcodec*=avc1][height<=1080][height>720]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=1080]+ba/bv*[vcodec*=avc1]+ba"
+            chosen_format = "bv*[vcodec*=avc1][height<=1080][height>720]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=1080]+ba/bv*[vcodec*=avc1]+ba/bv+ba/best"
     elif data == "bv1440":
         if user_codec == "av01":
-            chosen_format = "bv*[vcodec*=av01][height<=1440][height>1080]+ba[acodec*=mp4a]/bv*[vcodec*=av01][height<=1440][height>1080]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba"
+            chosen_format = "bv*[vcodec*=av01][height<=1440][height>1080]+ba[acodec*=mp4a]/bv*[vcodec*=av01][height<=1440][height>1080]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba/bv+ba/best"
         elif user_codec == "vp9":
-            chosen_format = "bv*[vcodec*=vp9][height<=1440][height>1080]+ba[acodec*=mp4a]/bv*[vcodec*=vp9][height<=1440][height>1080]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba"
+            chosen_format = "bv*[vcodec*=vp9][height<=1440][height>1080]+ba[acodec*=mp4a]/bv*[vcodec*=vp9][height<=1440][height>1080]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba/bv+ba/best"
         else:  # avc1
-            chosen_format = "bv*[vcodec*=avc1][height<=1440][height>1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=1440]+ba/bv*[vcodec*=avc1]+ba"
+            chosen_format = "bv*[vcodec*=avc1][height<=1440][height>1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=1440]+ba/bv*[vcodec*=avc1]+ba/bv+ba/best"
     elif data == "bv2160":
         if user_codec == "av01":
-            chosen_format = "bv*[vcodec*=av01][height<=2160][height>1440]+ba[acodec*=mp4a]/bv*[vcodec*=av01][height<=2160][height>1440]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba"
+            chosen_format = "bv*[vcodec*=av01][height<=2160][height>1440]+ba[acodec*=mp4a]/bv*[vcodec*=av01][height<=2160][height>1440]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba/bv+ba/best"
         elif user_codec == "vp9":
-            chosen_format = "bv*[vcodec*=vp9][height<=2160][height>1440]+ba[acodec*=mp4a]/bv*[vcodec*=vp9][height<=2160][height>1440]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba"
+            chosen_format = "bv*[vcodec*=vp9][height<=2160][height>1440]+ba[acodec*=mp4a]/bv*[vcodec*=vp9][height<=2160][height>1440]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba/bv+ba/best"
         else:  # avc1
-            chosen_format = "bv*[vcodec*=avc1][height<=2160][height>1440]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=2160]+ba/bv*[vcodec*=avc1]+ba"
+            chosen_format = "bv*[vcodec*=avc1][height<=2160][height>1440]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=2160]+ba/bv*[vcodec*=avc1]+ba/bv+ba/best"
     elif data == "bv4320":
         if user_codec == "av01":
-            chosen_format = "bv*[vcodec*=av01][height<=4320][height>2160]+ba[acodec*=mp4a]/bv*[vcodec*=av01][height<=4320][height>2160]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba"
+            chosen_format = "bv*[vcodec*=av01][height<=4320][height>2160]+ba[acodec*=mp4a]/bv*[vcodec*=av01][height<=4320][height>2160]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba/bv+ba/best"
         elif user_codec == "vp9":
-            chosen_format = "bv*[vcodec*=vp9][height<=4320][height>2160]+ba[acodec*=mp4a]/bv*[vcodec*=vp9][height<=4320][height>2160]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba"
+            chosen_format = "bv*[vcodec*=vp9][height<=4320][height>2160]+ba[acodec*=mp4a]/bv*[vcodec*=vp9][height<=4320][height>2160]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba/bv+ba/best"
         else:  # avc1
-            chosen_format = "bv*[vcodec*=avc1][height<=4320][height>2160]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=4320]+ba/bv*[vcodec*=avc1]+ba"
+            chosen_format = "bv*[vcodec*=avc1][height<=4320][height>2160]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=4320]+ba/bv*[vcodec*=avc1]+ba/bv+ba/best"
     elif data == "bestvideo":
         if user_codec == "av01":
-            chosen_format = "bv*[vcodec*=av01]+ba[acodec*=mp4a]/bv*[vcodec*=av01]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba"
+            chosen_format = "bv*[vcodec*=av01]+ba[acodec*=mp4a]/bv*[vcodec*=av01]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba/bv+ba/best"
         elif user_codec == "vp9":
-            chosen_format = "bv*[vcodec*=vp9]+ba[acodec*=mp4a]/bv*[vcodec*=vp9]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba"
+            chosen_format = "bv*[vcodec*=vp9]+ba[acodec*=mp4a]/bv*[vcodec*=vp9]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba/bv+ba/best"
         else:  # avc1
-            chosen_format = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bv*[vcodec*=avc1]+ba"
+            chosen_format = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bv*[vcodec*=avc1]+ba/bv+ba/best"
     elif data == "best":
         if user_codec == "av01":
             chosen_format = "bestvideo[vcodec*=av01]+bestaudio/bv*[vcodec*=av01]+ba"
@@ -302,8 +308,11 @@ def format_option_callback(app, callback_query):
     create_directory(user_dir)
     with open(os.path.join(user_dir, "format.txt"), "w", encoding="utf-8") as f:
         f.write(chosen_format)
-    callback_query.edit_message_text(f"✅ Format updated to:\n{chosen_format}")
-    callback_query.answer("✅ Format saved.")
+    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, f"✅ Format updated to:\n{chosen_format}")
+    try:
+        callback_query.answer("✅ Format saved.")
+    except Exception:
+        pass
     send_to_logger(callback_query.message, f"Format updated to: {chosen_format}")
 
     if data == "alwaysask":
@@ -311,8 +320,8 @@ def format_option_callback(app, callback_query):
         create_directory(user_dir)
         with open(os.path.join(user_dir, "format.txt"), "w", encoding="utf-8") as f:
             f.write("ALWAYS_ASK")
-        callback_query.edit_message_text(
-            "✅ Format set to: Always Ask. Now you will be prompted for quality each time you send a URL.")
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
+                               "✅ Format set to: Always Ask. Now you will be prompted for quality each time you send a URL.")
         send_to_logger(callback_query.message, "Format set to ALWAYS_ASK.")
         return
 
@@ -357,7 +366,10 @@ def format_codec_callback(app, callback_query):
             ],
             [InlineKeyboardButton("🔙 Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton("🔚 Close", callback_data="format_option|close")]
         ])
-        callback_query.edit_message_reply_markup(reply_markup=full_res_keyboard)
+        try:
+            callback_query.edit_message_reply_markup(reply_markup=full_res_keyboard)
+        except Exception:
+            pass
         send_to_logger(callback_query.message, f"Codec preference set to {data}")
 
 @app.on_callback_query(filters.regex(r"^format_container\|"))
@@ -379,8 +391,14 @@ def format_container_callback(app, callback_query):
             [InlineKeyboardButton(avc1_button, callback_data="format_codec|avc1"), InlineKeyboardButton(av01_button, callback_data="format_codec|av01"), InlineKeyboardButton(vp9_button, callback_data="format_codec|vp9")],
             [InlineKeyboardButton("🔙 Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton("🔚 Close", callback_data="format_option|close")]
         ])
-        callback_query.edit_message_reply_markup(reply_markup=full_res_keyboard)
-        callback_query.answer(f"MKV is now {'ON' if mkv_on else 'OFF'}")
+        try:
+            callback_query.edit_message_reply_markup(reply_markup=full_res_keyboard)
+        except Exception:
+            pass
+        try:
+            callback_query.answer(f"MKV is now {'ON' if mkv_on else 'OFF'}")
+        except Exception:
+            pass
 
 # Callback processor to close the message
 @app.on_callback_query(filters.regex(r"^format_custom\|"))
@@ -391,7 +409,10 @@ def format_custom_callback(app, callback_query):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        callback_query.answer("Custom format menu closed.")
+        try:
+            callback_query.answer("Custom format menu closed.")
+        except Exception:
+            pass
         send_to_logger(callback_query.message, "Custom format menu closed")
         return
 # ####################################################################################
