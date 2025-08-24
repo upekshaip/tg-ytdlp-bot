@@ -394,18 +394,40 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
         def progress_func(d):
             nonlocal last_update, first_progress_update
-            # Check the timaut
+            # Check the timeout
             if check_download_timeout(user_id):
                 raise Exception(f"Download timeout exceeded ({Config.DOWNLOAD_TIMEOUT // 3600} hours)")
             current_time = time.time()
-            # Adaptive throttle: base 1.5s, doubles each minute (1m→1.5s, 2m→3s, 3m→6s,...)
+            
+            # Calculate elapsed time and minutes passed
             elapsed = max(0, current_time - progress_start_time)
             minutes_passed = int(elapsed // 60)
+            
+            # After 1 hour (60 minutes), only show 0% and 100%
+            if minutes_passed >= 60:
+                if d.get("status") == "finished":
+                    try:
+                        safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{full_bar}   100.0%")
+                    except Exception as e:
+                        logger.error(f"Error updating progress: {e}")
+                elif d.get("status") == "error":
+                    logger.error("Error occurred during download.")
+                    send_to_all(message, "❌ Sorry... Some error occurred during download.")
+                return
+            
+            # Adaptive throttle: base 1.5s, doubles each minute (1m→1.5s, 2m→3s, 3m→6s,...)
             base_interval = 1.5
-            interval = base_interval * (2 ** minutes_passed)
-            interval = min(interval, 30.0)  # hard cap to avoid too rare updates
+            if minutes_passed < 5:
+                # First 5 minutes: 1.5 seconds
+                interval = base_interval
+            else:
+                # After 5 minutes: exponential backoff
+                interval = base_interval * (2 ** (minutes_passed - 4))  # Start exponential after 5 minutes
+                interval = min(interval, 30.0)  # hard cap to avoid too rare updates
+            
             if current_time - last_update < interval:
                 return
+                
             if d.get("status") == "downloading":
                 downloaded = d.get("downloaded_bytes", 0)
                 # yt-dlp may provide only total_bytes_estimate for some sites
@@ -424,6 +446,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         first_progress_update = False
 
                     safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{bar}   {percent:.1f}%")
+                except Exception as e:
+                    logger.error(f"Error updating progress: {e}")
+            elif d.get("status") == "finished":
+                try:
+                    safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{full_bar}   100.0%")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
             elif d.get("status") == "error":

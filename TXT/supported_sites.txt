@@ -64,7 +64,6 @@ AppleConnect
 AppleDaily
 ApplePodcasts
 ArcPublishing
-Arkena
 Art19
 Art19Show
 ArteTV
@@ -97,7 +96,6 @@ BeatBumpVideo
 Beatport
 Beeg
 BehindKink
-Bellator
 BerufeTV
 Bet
 Bigflix
@@ -200,7 +198,6 @@ CineverseDetails
 CiscoLiveSearch
 CiscoLiveSession
 ClipRs
-ClipYouEmbed
 Clipchamp
 Clippit
 CloserToTruth
@@ -209,7 +206,6 @@ CloudyCDN
 Clubic
 Clyp
 ComedyCentral
-ComedyCentralTV
 ConanClassic
 CondeNast
 CookingChannel
@@ -276,7 +272,6 @@ EUScreen
 EWETV
 EWETVLive
 EWETVRecordings
-EaglePlatform
 EbaumsWorld
 Ebay
 EinsUndEinsTV
@@ -306,6 +301,8 @@ FOX9
 FOX9News
 FacebookPluginsVideo
 Fathom
+Faulio
+FaulioLive
 Fczenit
 Fifa
 Filmweb
@@ -696,7 +693,6 @@ PalcoMP3
 Panopto
 PanoptoList
 PanoptoPlaylist
-ParamountNetwork
 ParamountPlus
 ParamountPlusSeries
 ParamountPressExpress
@@ -717,7 +713,6 @@ PinterestCollection
 PiramideTV
 PiramideTVChannel
 PlVideo
-Pladform
 PlanetMarathi
 Platzi
 PlatziCourse
@@ -728,6 +723,7 @@ PlayerFm
 Playtvak
 Playwire
 PlutoTV
+PlyrEmbed
 PodbayFM
 PodbayFMChannel
 Podchaser
@@ -886,6 +882,7 @@ ShahidShow
 SharePoint
 ShareVideosEmbed
 ShemarooMe
+Shiey
 ShowRoomLive
 ShugiinItvLive
 ShugiinItvLiveRoom
@@ -923,6 +920,7 @@ StacommuLive
 StacommuVOD
 StagePlusVODConcert
 Steam
+SteamCommunity
 SteamCommunityBroadcast
 Stitcher
 StitcherShow
@@ -1032,7 +1030,6 @@ TrovoVod
 TrtCocukVideo
 TrtWorld
 TruNews
-TruTV
 TrueID
 Truth
 Tube8
@@ -1082,8 +1079,6 @@ Varzesh3
 Vbox7
 Veo
 Vesti
-Vevo
-VevoPlaylist
 ViMP
 VidLii
 Viddler
@@ -1235,7 +1230,6 @@ cbssports
 chzzk
 cielotv.it
 ciscowebex
-cmt.com
 cp24
 cpac
 cu.ntv.co.jp
@@ -1330,10 +1324,6 @@ monstersiren
 moviepilot
 mtg
 mtv
-mtv.de
-mtv.it
-mtvjapan
-mtvservices
 n-tv.de
 natgeo
 navernow
@@ -1346,9 +1336,6 @@ nfb
 nfl.com
 nhl.com
 nick.com
-nick.de
-nickelodeon
-nickelodeonru
 niconico
 nicovideo
 njoy
@@ -1417,8 +1404,9 @@ soundgasm
 southpark.cc.com
 southpark.de
 southpark.lat
-southpark.nl
-southparkstudios.dk
+southparkstudios.co.uk
+southparkstudios.com.br
+southparkstudios.nu
 spotify
 sr
 stanfordoc
@@ -1448,7 +1436,6 @@ tv5unis
 tv8.it
 tvaplus
 tvigle
-tvland.com
 tvopengr
 tvp
 tvw

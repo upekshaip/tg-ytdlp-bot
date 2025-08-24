@@ -18,6 +18,7 @@ import requests
 import re
 from requests import Session
 from requests.adapters import HTTPAdapter
+import yt_dlp
 
 # Get app instance for decorators
 app = get_app()
@@ -238,7 +239,7 @@ def download_cookie_callback(app, callback_query):
     data = callback_query.data.split("|")[1]
 
     if data == "youtube":
-        download_and_save_cookie(app, callback_query, Config.YOUTUBE_COOKIE_URL, "youtube")
+        download_and_validate_youtube_cookies(app, callback_query)
     elif data == "instagram":
         download_and_save_cookie(app, callback_query, Config.INSTAGRAM_COOKIE_URL, "instagram")
     elif data == "twitter":
@@ -312,8 +313,20 @@ def checking_cookie_file(app, message):
         with open(file_path, "r", encoding="utf-8") as cookie:
             cookie_content = cookie.read()
         if cookie_content.startswith("# Netscape HTTP Cookie File"):
-            send_to_user(message, "✅ Cookie file exists and has correct format")
-            send_to_logger(message, "Cookie file exists and has correct format.")
+            # Check the functionality of YouTube cookies
+            send_to_user(message, "✅ Cookie file exists and has correct format\n\n🔄 Checking YouTube cookies...")
+            
+            # Check if the file contains YouTube cookies
+            if any(line.strip().endswith('.youtube.com') for line in cookie_content.split('\n') if line.strip() and not line.startswith('#')):
+                if test_youtube_cookies(file_path):
+                    send_to_user(message, "✅ Cookie file exists and has correct format\n✅ YouTube cookies are working properly")
+                    send_to_logger(message, "Cookie file exists, has correct format, and YouTube cookies are working.")
+                else:
+                    send_to_user(message, "✅ Cookie file exists and has correct format\n❌ YouTube cookies are expired or invalid\n\nUse /download_cookie to get new cookies")
+                    send_to_logger(message, "Cookie file exists and has correct format, but YouTube cookies are expired.")
+            else:
+                send_to_user(message, "✅ Cookie file exists and has correct format")
+                send_to_logger(message, "Cookie file exists and has correct format.")
         else:
             send_to_user(message, "⚠️ Cookie file exists but has incorrect format")
             send_to_logger(message, "Cookie file exists but has incorrect format.")
@@ -488,3 +501,161 @@ def save_as_cookie_file(app, message):
     else:
         send_to_user(message, "<b>❌ Not a valid cookie.</b>")
         send_to_logger(message, f"Invalid cookie content provided by user {user_id}.")
+
+def test_youtube_cookies(cookie_file_path: str) -> bool:
+    """
+    Returns True if cookies are working, False if not.
+    """
+    try:
+        # Test URL - use a short YouTube video for testing
+        test_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"  # Rick Roll - short video
+        
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'skip_download': True,
+            'noplaylist': True,
+            'format': 'best',
+            'ignore_no_formats_error': True,
+            'cookiefile': cookie_file_path,
+            'extractor_args': {
+                'youtube': {'player_client': ['tv']}
+            },
+            'retries': 3,
+            'extractor_retries': 2,
+        }
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(test_url, download=False)
+            
+        # If you received information about the video, then the cookies are working.
+        if info and 'title' in info and 'duration' in info:
+            logger.info(f"YouTube cookies test passed for {cookie_file_path}")
+            return True
+        else:
+            logger.warning(f"YouTube cookies test failed - no valid info returned for {cookie_file_path}")
+            return False
+            
+    except yt_dlp.utils.DownloadError as e:
+        error_text = str(e).lower()
+        # Check for specific YouTube errors
+        if any(keyword in error_text for keyword in [
+            'sign in', 'login required', 'private video', 'age restricted',
+            'video unavailable', 'cookies', 'authentication'
+        ]):
+            logger.warning(f"YouTube cookies test failed - authentication error: {e}")
+            return False
+        else:
+            # Other errors may not be related to cookies
+            logger.info(f"YouTube cookies test - other error (may not be cookie-related): {e}")
+            return True
+            
+    except Exception as e:
+        logger.error(f"YouTube cookies test failed with exception: {e}")
+        return False
+
+def get_youtube_cookie_urls() -> list:
+    """
+    Returns a list of URLs for YouTube cookies in order of priority.
+    """
+    urls = []
+    
+    # Check the main URLs in order of priority
+    if hasattr(Config, 'YOUTUBE_COOKIE_URL') and Config.YOUTUBE_COOKIE_URL:
+        urls.append(Config.YOUTUBE_COOKIE_URL)
+    
+    # Add numbered URLs
+    for i in range(1, 10):  # Support up to 9 URLs
+        url_attr = f'YOUTUBE_COOKIE_URL_{i}'
+        if hasattr(Config, url_attr):
+            url_value = getattr(Config, url_attr)
+            if url_value:
+                urls.append(url_value)
+    
+    return urls
+
+def download_and_validate_youtube_cookies(app, callback_query) -> bool:
+    """
+    Downloads and checks YouTube cookies from all available sources.
+    Returns True if working cookies are found, False if not.
+    """
+    user_id = str(callback_query.from_user.id)
+    cookie_urls = get_youtube_cookie_urls()
+    
+    if not cookie_urls:
+        send_to_user(callback_query.message, "❌ YouTube cookie sources are not configured!")
+        send_to_logger(callback_query.message, f"YouTube cookie URLs are empty for user {user_id}.")
+        return False
+    
+    # Create user folder
+    user_dir = os.path.join("users", user_id)
+    create_directory(user_dir)
+    cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
+    cookie_file_path = os.path.join(user_dir, cookie_filename)
+    
+    # Update the message about the start of the process
+    safe_edit_message_text(
+        callback_query.message.chat.id, 
+        callback_query.message.id, 
+        "🔄 Downloading and checking YouTube cookies...\n\nAttempt 1 of {len(cookie_urls)}"
+    )
+    
+    for i, url in enumerate(cookie_urls, 1):
+        try:
+            # Update the message about the current attempt
+            safe_edit_message_text(
+                callback_query.message.chat.id, 
+                callback_query.message.id, 
+                f"🔄 Downloading and checking YouTube cookies...\n\nAttempt {i} of {len(cookie_urls)}"
+            )
+            
+            # Download cookies
+            ok, status, content, err = _download_content(url, timeout=30)
+            if not ok:
+                logger.warning(f"Failed to download YouTube cookie from URL {i}: status={status}, error={err}")
+                continue
+            
+            # Check the format and size
+            if not url.lower().endswith('.txt'):
+                logger.warning(f"YouTube cookie URL {i} is not .txt file")
+                continue
+                
+            content_size = len(content or b"")
+            if content_size > 100 * 1024:
+                logger.warning(f"YouTube cookie file {i} is too large: {content_size} bytes")
+                continue
+            
+            # Save cookies to a temporary file
+            with open(cookie_file_path, "wb") as cf:
+                cf.write(content)
+            
+            # Check the functionality of cookies
+            if test_youtube_cookies(cookie_file_path):
+                safe_edit_message_text(
+                    callback_query.message.chat.id, 
+                    callback_query.message.id, 
+                    f"✅ YouTube cookies successfully downloaded and validated!\n\nUsed source {i} of {len(cookie_urls)}"
+                )
+                send_to_logger(callback_query.message, f"YouTube cookies downloaded and validated for user {user_id} from source {i}.")
+                return True
+            else:
+                logger.warning(f"YouTube cookies from source {i} failed validation")
+                # Remove non-working cookies
+                if os.path.exists(cookie_file_path):
+                    os.remove(cookie_file_path)
+                    
+        except Exception as e:
+            logger.error(f"Error processing YouTube cookie URL {i}: {e}")
+            # Remove the file in case of an error
+            if os.path.exists(cookie_file_path):
+                os.remove(cookie_file_path)
+            continue
+    
+    # If no source worked
+    safe_edit_message_text(
+        callback_query.message.chat.id, 
+        callback_query.message.id, 
+        "❌ All YouTube cookies are expired or unavailable!\n\nContact the bot administrator to replace them."
+    )
+    send_to_logger(callback_query.message, f"All YouTube cookie sources failed for user {user_id}.")
+    return False

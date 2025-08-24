@@ -326,3 +326,84 @@ def uncache_command(app, message):
     except Exception as e:
         send_to_all(message, f"❌ Error clearing cache: {e}")
 
+
+@app.on_message(filters.command("update_porn") & filters.private)
+def update_porn_command(app, message):
+    """Admin command to run the porn list update script"""
+    if int(message.chat.id) not in Config.ADMIN:
+        send_to_user(message, "❌ Access denied. Admin only.")
+        return
+    
+    script_path = getattr(Config, "UPDATE_PORN_SCRIPT_PATH", "./script.sh")
+    
+    try:
+        send_to_user(message, f"⏳ Running porn list update script: {script_path}")
+        send_to_logger(message, f"Admin {message.chat.id} started porn list update script: {script_path}")
+        
+        # Run the script
+        result = subprocess.run(
+            [script_path], 
+            capture_output=True, 
+            text=True, 
+            encoding='utf-8', 
+            errors='replace',
+            cwd=os.getcwd()  # Run from bot root directory
+        )
+        
+        if result.returncode == 0:
+            output = result.stdout.strip()
+            if output:
+                send_to_user(message, f"✅ Script completed successfully!\n\nOutput:\n<code>{output}</code>")
+            else:
+                send_to_user(message, "✅ Script completed successfully!")
+            send_to_logger(message, f"Porn list update script completed successfully by admin {message.chat.id}")
+        else:
+            error_msg = result.stderr.strip() if result.stderr else "Unknown error"
+            send_to_user(message, f"❌ Script failed with return code {result.returncode}:\n<code>{error_msg}</code>")
+            send_to_logger(message, f"Porn list update script failed by admin {message.chat.id}: {error_msg}")
+            
+    except FileNotFoundError:
+        send_to_user(message, f"❌ Script not found: {script_path}")
+        send_to_logger(message, f"Admin {message.chat.id} tried to run non-existent script: {script_path}")
+    except Exception as e:
+        send_to_user(message, f"❌ Error running script: {str(e)}")
+        send_to_logger(message, f"Error running porn update script by admin {message.chat.id}: {str(e)}")
+
+
+@app.on_message(filters.command("reload_porn") & filters.private)
+def reload_porn_command(app, message):
+    """Admin command to reload porn domains and keywords cache without restarting the bot"""
+    if int(message.chat.id) not in Config.ADMIN:
+        send_to_user(message, "❌ Access denied. Admin only.")
+        return
+    
+    try:
+        send_to_user(message, "⏳ Reloading porn domains and keywords cache...")
+        send_to_logger(message, f"Admin {message.chat.id} started porn cache reload")
+        
+        # Import and reload the porn cache
+        from HELPERS.porn import load_domain_lists
+        
+        # Reload the cache
+        load_domain_lists()
+        
+        # Get current counts for confirmation
+        from HELPERS.porn import PORN_DOMAINS, PORN_KEYWORDS, SUPPORTED_SITES
+        
+        domains_count = len(PORN_DOMAINS)
+        keywords_count = len(PORN_KEYWORDS)
+        sites_count = len(SUPPORTED_SITES)
+        
+        send_to_user(message, f"✅ Porn cache reloaded successfully!\n\n"
+                             f"📊 Current cache status:\n"
+                             f"• Domains: {domains_count}\n"
+                             f"• Keywords: {keywords_count}\n"
+                             f"• Supported sites: {sites_count}")
+        
+        send_to_logger(message, f"Porn cache reloaded successfully by admin {message.chat.id}. "
+                               f"Domains: {domains_count}, Keywords: {keywords_count}, Sites: {sites_count}")
+        
+    except Exception as e:
+        send_to_user(message, f"❌ Error reloading porn cache: {str(e)}")
+        send_to_logger(message, f"Error reloading porn cache by admin {message.chat.id}: {str(e)}")
+
