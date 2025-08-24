@@ -37,12 +37,48 @@ One way to do this is through a private browsing/incognito window:
 
 For export you can use browser extension [Cookie-Editor](https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm)
 
-create in project folder subfolder `cookies` and place `cookie.txt` extracted from YouTube here
+create in project folder subfolder `TXT` and place `cookie.txt` extracted from YouTube here
 
 ```sh
 cd tg-ytdlp-bot/TXT
 nano cookie.txt
 ```
+
+#### Advanced YouTube Cookie Management
+
+The bot now supports automatic downloading and validation of YouTube cookies from multiple sources:
+
+**Features:**
+- **Multiple Sources**: Configure up to 10 different cookie sources
+- **Automatic Validation**: Each downloaded cookie is tested for functionality
+- **Fallback System**: If one source fails, automatically tries the next
+- **Real-time Progress**: Shows download and validation progress to users
+
+**Configuration in `CONFIG/config.py`:**
+```python
+# YouTube cookies URLs - main URL and backups
+# The bot will check cookies in the order: YOUTUBE_COOKIE_URL, YOUTUBE_COOKIE_URL_1, YOUTUBE_COOKIE_URL_2, etc.
+# If one URL does not work or the cookies are expired, the bot will automatically try the next one
+YOUTUBE_COOKIE_URL = "https://your-domain.com/cookies/youtube/cookie1.txt"
+YOUTUBE_COOKIE_URL_1 = "https://your-domain.com/cookies/youtube/cookie2.txt"
+YOUTUBE_COOKIE_URL_2 = "https://your-domain.com/cookies/youtube/cookie3.txt"
+YOUTUBE_COOKIE_URL_3 = "https://your-domain.com/cookies/youtube/cookie4.txt"
+YOUTUBE_COOKIE_URL_4 = "https://your-domain.com/cookies/youtube/cookie5.txt"
+# Add more sources as needed (up to YOUTUBE_COOKIE_URL_9)
+```
+
+**How it works:**
+1. User runs `/download_cookie` and selects YouTube
+2. Bot downloads cookies from the first available source
+3. Validates cookies by testing them with a YouTube video
+4. If validation fails, automatically tries the next source
+5. Continues until working cookies are found or all sources are exhausted
+
+**User Experience:**
+- Progress updates: "🔄 Downloading and checking YouTube cookies... Attempt 1 of 4"
+- Success message: "✅ YouTube cookies successfully downloaded and validated! Used source 2 of 4"
+- Failure message: "❌ All YouTube cookies are expired or unavailable! Contact the bot administrator to replace them."
+
 Also you may fill in `porn_domains.txt` `porn_keywords.txt` files in `TXT` folder if you want to tag #porn videos and hide them under spoiler
 
 ---
@@ -63,6 +99,105 @@ cd tg-ytdlp-bot/CONFIG
 sudo mv _config.py config.py
 nano config.py
 ```
+
+**Required Configuration Fields:**
+
+```python
+# Bot Configuration
+BOT_NAME = "your_bot_name"                    # Your bot's name
+BOT_NAME_FOR_USERS = "tg-ytdlp-bot"          # Name in database
+ADMIN = [123456789, 987654321]               # List of admin user IDs
+API_ID = 12345678                            # Your Telegram API ID
+API_HASH = "your_api_hash_here"              # Your Telegram API Hash
+BOT_TOKEN = "1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"  # Your bot token
+
+# Channel Configuration
+LOGS_ID = -1001234567890                     # Logging channel ID
+SUBSCRIBE_CHANNEL = -1001234567890           # Subscription channel ID
+SUBSCRIBE_CHANNEL_URL = "https://t.me/your_channel"  # Channel invite link
+
+# Cookie Configuration
+COOKIE_URL = "https://your-domain.com/cookies/cookie.txt"  # Fallback cookie URL
+
+# YouTube Cookie URLs (Multiple Sources)
+YOUTUBE_COOKIE_URL = "https://your-domain.com/cookies/youtube/cookie1.txt"
+YOUTUBE_COOKIE_URL_1 = "https://your-domain.com/cookies/youtube/cookie2.txt"
+YOUTUBE_COOKIE_URL_2 = "https://your-domain.com/cookies/youtube/cookie3.txt"
+YOUTUBE_COOKIE_URL_3 = "https://your-domain.com/cookies/youtube/cookie4.txt"
+YOUTUBE_COOKIE_URL_4 = "https://your-domain.com/cookies/youtube/cookie5.txt"
+
+# Other Service Cookies
+INSTAGRAM_COOKIE_URL = "https://your-domain.com/cookies/instagram_cookie.txt"
+TIKTOK_COOKIE_URL = "https://your-domain.com/cookies/tiktok_cookie.txt"
+FACEBOOK_COOKIE_URL = "https://your-domain.com/cookies/facebook_cookie.txt"
+TWITTER_COOKIE_URL = "https://your-domain.com/cookies/twitter_cookie.txt"
+
+# Firebase Configuration
+FIREBASE_USER = "your-email@gmail.com"
+FIREBASE_PASSWORD = "your-firebase-password"
+FIREBASE_CONF = {
+    "apiKey": "your-api-key",
+    "authDomain": "your-project.firebaseapp.com",
+    "projectId": "your-project-id",
+    "storageBucket": "your-project.appspot.com",
+    "messagingSenderId": "123456789",
+    "appId": "1:123456789:web:abcdef123456",
+    "databaseURL": "https://your-project-default-rtdb.firebaseio.com"
+}
+```
+
+**Important Notes:**
+- **Admin IDs**: Add your Telegram user ID to the `ADMIN` list to access admin commands
+- **Channel IDs**: Both logging and subscription channels are required
+- **Cookie URLs**: Must point to `.txt` files with Netscape cookie format
+- **Firebase**: Required for caching and user data management
+- **API Credentials**: Get from [@BotFather](https://t.me/BotFather) and [my.telegram.org](https://my.telegram.org)
+
+**Getting API Credentials:**
+1. **Bot Token**: Message [@BotFather](https://t.me/BotFather) and create a new bot
+2. **API ID & Hash**: Visit [my.telegram.org](https://my.telegram.org), log in, and go to "API development tools"
+3. **Channel IDs**: Add your bot to the channels and get the channel IDs (they start with -100)
+
+**Getting Your User ID:**
+- Message [@userinfobot](https://t.me/userinfobot) to get your Telegram user ID
+- Add this ID to the `ADMIN` list in config.py
+
+**Setting Up Firebase:**
+1. Go to [Firebase Console](https://console.firebase.google.com/) and create a new project
+2. Enable Realtime Database and Authentication
+3. Create a user with email/password authentication
+4. Get your Firebase configuration from Project Settings
+5. Update the `FIREBASE_CONF` section in config.py with your project details
+
+**Cookie File Setup:**
+1. Create cookie files in Netscape format for each service
+2. Upload them to a web server accessible via HTTPS
+3. Update the cookie URLs in config.py to point to your files
+4. Ensure files are under 100KB and accessible without authentication
+
+**Setting Up Channels:**
+1. **Logging Channel**: Create a private channel for bot logs
+   - Add your bot as admin with "Send Messages" permission
+   - Get the channel ID (starts with -100)
+   - Update `LOGS_ID` in config.py
+
+2. **Subscription Channel**: Create a public/private channel for user subscription
+   - Add your bot as admin
+   - Get the channel ID and invite link
+   - Update `SUBSCRIBE_CHANNEL` and `SUBSCRIBE_CHANNEL_URL` in config.py
+
+**Channel ID Format:**
+- Public channels: `-100` + channel ID
+- Private channels: `-100` + channel ID
+- Example: If your channel ID is `1234567890`, use `-1001234567890`
+
+**Getting Channel IDs:**
+1. **Method 1**: Forward a message from your channel to [@userinfobot](https://t.me/userinfobot)
+2. **Method 2**: Use [@getidsbot](https://t.me/getidsbot) - send it a link to your channel
+3. **Method 3**: Add [@RawDataBot](https://t.me/RawDataBot) to your channel and check the forwarded message
+
+**Important**: Both channels are required for the bot to function properly.
+
 Edit your configuration before deployment.
 
 #### Install `python` modules
@@ -217,11 +352,79 @@ python3 magic.py
 - **Browser Integration**: Extract cookies from installed browsers
 - **Fallback Support**: Automatic download from Config.COOKIE_URL if no browsers found
 - **Multiple Sources**: Choose between browser extraction and direct download
+- **YouTube Cookie Validation**: Automatic testing and validation of YouTube cookies
+- **Multi-Source Fallback**: Automatic switching between multiple cookie sources
+- **Real-time Progress**: Live updates during cookie download and validation process
 
 ### Improved Error Handling
 - **Upload Retries**: Smart retry logic for failed uploads with fallback to document mode
 - **Dynamic Disk Space**: Intelligent space estimation based on video size
 - **Graceful Degradation**: Better handling of format unavailability and network issues
+
+---
+
+## Cookie Management System
+
+The bot features a comprehensive cookie management system that supports multiple services and automatic validation.
+
+### YouTube Cookie Management
+
+**Automatic Download and Validation:**
+- **Multiple Sources**: Configure up to 10 different cookie sources in `config.py`
+- **Sequential Testing**: Bot tests each source in order until working cookies are found
+- **Real-time Validation**: Each downloaded cookie is tested with a YouTube video
+- **Automatic Fallback**: If one source fails, automatically tries the next
+
+**Configuration Example:**
+```python
+# In CONFIG/config.py
+YOUTUBE_COOKIE_URL = "https://your-domain.com/cookies/youtube/cookie1.txt"
+YOUTUBE_COOKIE_URL_1 = "https://your-domain.com/cookies/youtube/cookie2.txt"
+YOUTUBE_COOKIE_URL_2 = "https://your-domain.com/cookies/youtube/cookie3.txt"
+# ... up to YOUTUBE_COOKIE_URL_9
+```
+
+**User Commands:**
+- `/download_cookie` → YouTube: Downloads and validates cookies from multiple sources
+- `/check_cookie`: Validates existing cookies and checks YouTube functionality
+- `/cookies_from_browser`: Extracts cookies from installed browsers
+- `/save_as_cookie`: Upload custom cookie file
+
+**Cookie Validation Process:**
+1. **Download**: Fetches cookie file from configured source
+2. **Format Check**: Validates Netscape cookie format
+3. **Size Validation**: Ensures file size is under 100KB
+4. **YouTube Test**: Tests cookies with a short YouTube video
+5. **Error Analysis**: Distinguishes between authentication and network errors
+6. **Fallback**: Tries next source if current one fails
+
+### Other Service Cookies
+
+The bot also supports cookies for other platforms:
+- **Instagram**: `INSTAGRAM_COOKIE_URL`
+- **TikTok**: `TIKTOK_COOKIE_URL`
+- **Facebook**: `FACEBOOK_COOKIE_URL`
+- **Twitter**: `TWITTER_COOKIE_URL`
+
+### Cookie File Requirements
+
+**Format**: Must be in Netscape cookie format:
+```
+# Netscape HTTP Cookie File
+.youtube.com	TRUE	/	TRUE	1735689600	VISITOR_INFO1_LIVE	abc123
+.youtube.com	TRUE	/	TRUE	1735689600	LOGIN_INFO	abc123
+```
+
+**Size Limit**: Maximum 100KB per cookie file
+
+**Access**: Cookie files must be accessible via HTTP/HTTPS URLs
+
+### Security Features
+
+- **URL Hiding**: Source URLs are hidden from users in error messages
+- **Error Sanitization**: Sensitive information is removed from logs
+- **Temporary Files**: Cookie files are cleaned up after validation
+- **Access Control**: Cookie management commands are properly restricted
 
 ---
 
@@ -523,3 +726,48 @@ systemctl enable tg-ytdlp-bot.service
 systemctl restart tg-ytdlp-bot.service
 journalctl -u tg-ytdlp-bot -f
 ```
+
+---
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+**Bot doesn't start:**
+- Check that all required fields in `config.py` are filled
+- Verify API credentials are correct
+- Ensure both channels are set up and bot has admin permissions
+- Check Firebase configuration and credentials
+
+**Cookie download fails:**
+- Verify cookie URLs are accessible via HTTPS
+- Check file size is under 100KB
+- Ensure files are in Netscape cookie format
+- Test URLs in browser to confirm they work
+
+**YouTube videos fail to download:**
+- Run `/check_cookie` to verify YouTube cookies are working
+- Use `/download_cookie` to get fresh cookies
+- Check if video is age-restricted or private
+- Verify yt-dlp is properly installed and up to date
+
+**Firebase connection errors:**
+- Verify Firebase project is set up correctly
+- Check authentication credentials
+- Ensure Realtime Database rules allow read/write access
+- Verify database URL is correct
+
+**Channel subscription issues:**
+- Ensure bot is admin in subscription channel
+- Check channel invite link is valid
+- Verify channel ID format (should start with -100)
+- Test channel access manually
+
+### Getting Help
+
+If you encounter issues:
+1. Check the bot logs for error messages
+2. Verify all configuration fields are correct
+3. Test individual components (cookies, Firebase, channels)
+4. Check the [GitHub Issues](https://github.com/upekshaip/tg-ytdlp-bot/issues) for similar problems
+5. Create a new issue with detailed error information and logs
