@@ -32,7 +32,7 @@ def get_main_reply_keyboard():
     from pyrogram.types import ReplyKeyboardMarkup
     return ReplyKeyboardMarkup(
         [
-            ["/clean", "/download_cookie"],
+            ["/clean", "/search", "/cookie"],
             ["/playlist", "/settings", "/help"]
         ],
         resize_keyboard=True,

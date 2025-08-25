@@ -69,7 +69,7 @@ def cookies_from_browser(app, message):
         if not fallback_url:
             safe_send_message(
                 user_id,
-                "❌ No supported browsers found and no COOKIE_URL configured. Use /download_cookie or upload cookie.txt."
+                "❌ No supported browsers found and no COOKIE_URL configured. Use /cookie or upload cookie.txt."
             )
             send_to_logger(message, "No installed browsers found. COOKIE_URL is not configured.")
             return
@@ -97,10 +97,10 @@ def cookies_from_browser(app, message):
                 send_to_logger(message, "Fallback COOKIE_URL used successfully (source hidden)")
             else:
                 if status is not None:
-                    safe_send_message(user_id, f"❌ Fallback cookie source unavailable (status {status}). Try /download_cookie or upload cookie.txt.")
+                    safe_send_message(user_id, f"❌ Fallback cookie source unavailable (status {status}). Try /cookie or upload cookie.txt.")
                     send_to_logger(message, f"Fallback COOKIE_URL failed: status={status} (hidden)")
                 else:
-                    safe_send_message(user_id, "❌ Error downloading fallback cookie. Try /download_cookie or upload cookie.txt.")
+                    safe_send_message(user_id, "❌ Error downloading fallback cookie. Try /cookie or upload cookie.txt.")
                     safe_err = _sanitize_error_detail(err or "", fallback_url)
                     send_to_logger(message, f"Fallback COOKIE_URL error: {safe_err}")
         except Exception as e:
@@ -322,7 +322,7 @@ def checking_cookie_file(app, message):
                     send_to_user(message, "✅ Cookie file exists and has correct format\n✅ YouTube cookies are working properly")
                     send_to_logger(message, "Cookie file exists, has correct format, and YouTube cookies are working.")
                 else:
-                    send_to_user(message, "✅ Cookie file exists and has correct format\n❌ YouTube cookies are expired or invalid\n\nUse /download_cookie to get new cookies")
+                    send_to_user(message, "✅ Cookie file exists and has correct format\n❌ YouTube cookies are expired or invalid\n\nUse /cookie to get new cookies")
                     send_to_logger(message, "Cookie file exists and has correct format, but YouTube cookies are expired.")
             else:
                 send_to_user(message, "✅ Cookie file exists and has correct format")
