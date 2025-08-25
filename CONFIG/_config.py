@@ -105,6 +105,7 @@ class Config(object):
     SPLIT_COMMAND = CommandsConfig.SPLIT_COMMAND
     RELOAD_CACHE_COMMAND = CommandsConfig.RELOAD_CACHE_COMMAND
     AUTO_CACHE_COMMAND = CommandsConfig.AUTO_CACHE_COMMAND
+    SEARCH_COMMAND = CommandsConfig.SEARCH_COMMAND
     
     # Messages configuration
     CREDITS_MSG = MessagesConfig.CREDITS_MSG
@@ -115,7 +116,6 @@ class Config(object):
     INDEX_ERROR = MessagesConfig.INDEX_ERROR
     PLAYLIST_HELP_MSG = MessagesConfig.PLAYLIST_HELP_MSG
     HELP_MSG = MessagesConfig.HELP_MSG
-    SEARCH_COMMAND = CommandsConfig.SEARCH_COMMAND
     
     # Domains configuration
     BLACK_LIST = DomainsConfig.BLACK_LIST
