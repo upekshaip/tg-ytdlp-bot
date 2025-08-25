@@ -115,6 +115,7 @@ class Config(object):
     INDEX_ERROR = MessagesConfig.INDEX_ERROR
     PLAYLIST_HELP_MSG = MessagesConfig.PLAYLIST_HELP_MSG
     HELP_MSG = MessagesConfig.HELP_MSG
+    SEARCH_COMMAND = CommandsConfig.SEARCH_COMMAND
     
     # Domains configuration
     BLACK_LIST = DomainsConfig.BLACK_LIST
