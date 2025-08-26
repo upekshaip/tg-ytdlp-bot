@@ -16,6 +16,7 @@ from COMMANDS.mediainfo_cmd import mediainfo_command
 from COMMANDS.settings_cmd import settings_command
 from COMMANDS.split_sizer import split_command
 from COMMANDS.tag_cmd import tags_command
+from COMMANDS.search import search_command
 from COMMANDS.admin_cmd import get_user_log, send_promo_message, block_user, unblock_user, check_runtime, get_user_details, uncache_command, reload_firebase_cache_command
 from DATABASE.cache_db import auto_cache_command
 from DATABASE.firebase_init import is_user_blocked
@@ -67,6 +68,11 @@ def url_distractor(app, message):
         return
 
     # ----- User Commands -----
+    # /Search Command
+    if text.startswith(Config.SEARCH_COMMAND):
+        search_command(app, message)
+        return
+        
     # /Save_as_cookie Command
     if text.startswith(Config.SAVE_AS_COOKIE_COMMAND):
         save_as_cookie_file(app, message)
@@ -77,7 +83,7 @@ def url_distractor(app, message):
         subs_command(app, message)
         return
 
-    # /Download_cookie Command
+    # /cookie Command
     if text == Config.DOWNLOAD_COOKIE_COMMAND:
         download_cookie(app, message)
         return
@@ -199,6 +205,11 @@ def url_distractor(app, message):
         split_command(app, message)
         return
 
+    # /Search Command
+    if text.startswith(Config.SEARCH_COMMAND):
+        search_command(app, message)
+        return
+
     # /uncache Command - Clear cache for URL (for admins only)
     if text.startswith(Config.UNCACHE_COMMAND):
         if is_admin:
@@ -260,6 +271,11 @@ def url_distractor(app, message):
         # /auto_cache Command - Toggle automatic cache reloading
         if Config.AUTO_CACHE_COMMAND in text:
             auto_cache_command(app, message)
+            return
+
+        # /Search Command (for admins too)
+        if text.startswith(Config.SEARCH_COMMAND):
+            search_command(app, message)
             return
 
     # Reframed processing for all users (admins and ordinary users)

@@ -112,7 +112,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
         return
     if data == "cookies":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📥 /download_cookie - Download my 5 cookies",
+            [InlineKeyboardButton("📥 /cookie - Download my 5 cookies",
                                   callback_data="settings__cmd__download_cookie")],
             [InlineKeyboardButton("🌐 /cookies_from_browser - Get browser's YT-cookie",
                                   callback_data="settings__cmd__cookies_from_browser")],
@@ -244,7 +244,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         return
     if data == "download_cookie":
         try:
-            url_distractor(app, fake_message("/download_cookie", user_id))
+            url_distractor(app, fake_message("/cookie", user_id))
         except FloodWait as e:
             user_dir = os.path.join("users", str(user_id))
             os.makedirs(user_dir, exist_ok=True)
