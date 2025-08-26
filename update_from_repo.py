@@ -20,7 +20,8 @@ BRANCH = "main"
 
 # Files and directories that MUST NOT be updated
 EXCLUDED_FILES = [
-    "CONFIG/config.py",  # Main configuration file
+    "CONFIG/messages.py",  # Main configuration file (contains sensitive data)
+    "CONFIG/config.py",  # Main configuration file (contains sensitive data)
     #"requirements.txt", # Dependencies may differ
     ".env",              # Environment variables
     ".bot_pid",          # Bot PID file
@@ -35,7 +36,6 @@ EXCLUDED_FILES = [
 ]
 
 EXCLUDED_DIRS = [
-    "CONFIG",            # Entire configuration directory
     "venv",              # Virtual environment
     ".git",              # Git repository
     "__pycache__",       # Python cache

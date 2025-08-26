@@ -38,8 +38,9 @@ def search_command(app, message):
     # Send single message with updated instructions (English)
     text = (
         "🔍 <b>YouTube Video search</b>\n\n"
-        "<blockquote>📱 <b>For mobile:</b> tap button below and add your search query after text @vid.\n\n</blockquote>"
-        "<blockquote>💻 <b>For PC:</b> just type @vid <code>Your_Search_Query</code> in any chat</blockquote>"
+        "📱 <b>For mobile:</b> tap button below and type your search query after text @vid.\n\n"
+        "💻 <b>For PC:</b> type <code>@vid Your_Search_Query</code> in any chat\n\n"
+        "<blockquote>For example: <b>@vid funny cats</b></blockquote>"
     )
 
     app.send_message(
@@ -65,23 +66,23 @@ def handle_search_callback(client, callback_query):
             try:
                 client.delete_messages(
                     callback_query.message.chat.id,
-                    callback_query.message.message_id
+                    callback_query.message.id
                 )
-            except Exception as e:
+            except Exception:
                 # If can't delete, just edit to show closed message
                 client.edit_message_text(
                     callback_query.message.chat.id,
-                    callback_query.message.message_id,
+                    callback_query.message.id,
                     "🔍 Search helper closed"
                 )
             
             # Answer callback query
             callback_query.answer("Closed")
             
-            # Log the action
-            send_to_logger(callback_query, f"User {user_id} closed search command")
+            # Log the action (pass message object, not callback_query)
+            send_to_logger(callback_query.message, f"User {user_id} closed search command")
             
     except Exception as e:
         # Log error and answer callback
-        send_to_logger(callback_query, f"Error in search callback handler: {e}")
+        send_to_logger(callback_query.message, f"Error in search callback handler: {e}")
         callback_query.answer("Error occurred", show_alert=True)

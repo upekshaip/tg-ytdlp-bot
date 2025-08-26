@@ -1209,7 +1209,7 @@ def askq_callback(app, callback_query):
         if quality == "best":
             format_override = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bv+ba/best"
         elif quality == "mp3":
-            down_and_audio(app, original_message, url, tags, quality_key="mp3")
+            down_and_audio(app, original_message, url, tags, quality_key="mp3", format_override="ba")
             return
         else:
             try:
@@ -1319,7 +1319,7 @@ def askq_callback(app, callback_query):
                 new_count = new_end - new_start + 1
                 
                 if data == "mp3":
-                    down_and_audio(app, original_message, url, tags, quality_key=used_quality_key, playlist_name=playlist_name, video_count=new_count, video_start_with=new_start)
+                    down_and_audio(app, original_message, url, tags, quality_key=used_quality_key, playlist_name=playlist_name, video_count=new_count, video_start_with=new_start, format_override="ba")
                 else:
                     try:
                         # Form the correct format for the missing videos
@@ -1363,7 +1363,7 @@ def askq_callback(app, callback_query):
             # If there is no cache at all - download everything again
             logger.info(f"askq_callback: no cache found for any quality, starting new download")
             if data == "mp3":
-                down_and_audio(app, original_message, url, tags, quality_key=data, playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with)
+                down_and_audio(app, original_message, url, tags, quality_key=data, playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with, format_override="ba")
             else:
                 try:
                     # Form the correct format for the new download
@@ -2987,7 +2987,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
         full_string = original_message.text or original_message.caption or ""
         _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
         video_count = video_end_with - video_start_with + 1
-        down_and_audio(app, original_message, url, tags, quality_key="mp3", playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with)
+        down_and_audio(app, original_message, url, tags, quality_key="mp3", playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with, format_override="ba")
         return
     
     if data == "subs_only":
@@ -3117,6 +3117,60 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
     
     down_and_up_with_format(app, original_message, url, fmt, tags_text, quality_key=quality_key)
 
+def analyze_format_type(format_info):
+    """
+    Analyze format info to determine if it's audio-only, video-only, or full format
+    Returns: 'audio_only', 'video_only', or 'full'
+    """
+    vcodec = format_info.get('vcodec', 'none')
+    acodec = format_info.get('acodec', 'none')
+    
+    # Check if it's audio only
+    if vcodec == 'none' and acodec != 'none':
+        return 'audio_only'
+    
+    # Check if it's video only
+    if vcodec != 'none' and acodec == 'none':
+        return 'video_only'
+    
+    # Full format (both video and audio)
+    return 'full'
+
+def get_complementary_audio_format(video_format_info, all_formats):
+    """
+    Find the best complementary audio format for a video-only format
+    Returns the best audio format or None
+    """
+    video_height = video_format_info.get('height', 0)
+    video_width = video_format_info.get('width', 0)
+    
+    best_audio = None
+    best_quality = 0
+    
+    for f in all_formats:
+        # Look for audio-only formats
+        if f.get('vcodec') == 'none' and f.get('acodec') != 'none':
+            # Prefer audio with similar quality to video
+            audio_height = f.get('height', 0)
+            audio_width = f.get('width', 0)
+            
+            # Calculate quality score (prefer higher bitrate/quality)
+            quality_score = 0
+            if f.get('abr'):
+                quality_score += float(f['abr'])
+            if f.get('tbr'):
+                quality_score += float(f['tbr'])
+            
+            # Bonus for matching resolution
+            if audio_height == video_height and audio_width == video_width:
+                quality_score += 1000
+            
+            if quality_score > best_quality:
+                best_quality = quality_score
+                best_audio = f
+    
+    return best_audio
+
 # --- an auxiliary function for downloading with the format ---
 # @reply_with_keyboard
 def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None):
@@ -3136,6 +3190,52 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
     # Check if there is a link to Tiktok
     is_tiktok = is_tiktok_url(url)
 
+    # Analyze the format to determine if it's audio-only, video-only, or full
+    format_type = None
+    complementary_format = None
+    
+    try:
+        # Get video info to analyze the selected format
+        user_id = message.chat.id
+        info = get_video_formats(url, user_id)
+        
+        if quality_key and 'formats' in info:
+            # Find the selected format
+            selected_format = None
+            for f in info['formats']:
+                if f.get('format_id') == quality_key:
+                    selected_format = f
+                    break
+            
+            if selected_format:
+                format_type = analyze_format_type(selected_format)
+                
+                # If it's audio-only, convert to mp3
+                if format_type == 'audio_only':
+                    # Use audio download function with the selected format
+                    down_and_audio(app, message, url, tags_text, quality_key=quality_key, format_override=fmt)
+                    return
+                
+                # If it's video-only, find complementary audio
+                elif format_type == 'video_only':
+                    complementary_format = get_complementary_audio_format(selected_format, info['formats'])
+                    if complementary_format:
+                        # Create a format string that merges video-only with best audio
+                        video_format_id = selected_format.get('format_id', '')
+                        audio_format_id = complementary_format.get('format_id', '')
+                        fmt = f"{video_format_id}+{audio_format_id}/bv+ba/best"
+                    else:
+                        # If no complementary audio found, use best audio
+                        fmt = f"{selected_format.get('format_id', '')}+bestaudio/bv+ba/best"
+                
+                # If it's full format, use as is
+                else:
+                    # Use the original format
+                    pass
+    except Exception as e:
+        logger.warning(f"Error analyzing format type: {e}")
+        # Continue with original format if analysis fails
+
     # We call the main function of loading with the correct parameters of the playlist
     down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=is_tiktok, format_override=fmt, quality_key=quality_key)
     # Cleanup temp subs languages cache after we kicked off download
@@ -3149,6 +3249,22 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
         user_dir = os.path.join("users", str(user_id))
         create_directory(user_dir)
         qfile = os.path.join(user_dir, "available_qualities.txt")
+        
+        # Get current filters
+        filters_state = get_filters(user_id)
+        sel_codec = filters_state.get("codec", "avc1")
+        sel_ext = filters_state.get("ext", "mp4")
+        
+        # Build quality map from available formats
+        quality_map = {}
+        for f in info.get('formats', []):
+            if f.get('vcodec', 'none') != 'none' and f.get('height') and f.get('width'):
+                w = f['width']
+                h = f['height']
+                quality_key = get_quality_by_min_side(w, h)
+                if quality_key != "best":
+                    quality_map[quality_key] = f
+        
         payload = {
             "url": info.get('webpage_url') or url,
             "sel_codec": sel_codec,

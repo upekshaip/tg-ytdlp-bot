@@ -93,6 +93,9 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             ],
             [
                 InlineKeyboardButton("💬 Subtitles", callback_data="clean_option|subs"),
+                InlineKeyboardButton("🎹 Keyboard", callback_data="clean_option|keyboard"),
+            ],
+            [
                 InlineKeyboardButton("🗑  All files", callback_data="clean_option|all"),
             ],
             [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
@@ -213,6 +216,9 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             ],
             [
                 InlineKeyboardButton("💬 Subtitles", callback_data="clean_option|subs"),
+                InlineKeyboardButton("🎹 Keyboard", callback_data="clean_option|keyboard"),
+            ],
+            [
                 InlineKeyboardButton("🗑  All files", callback_data="clean_option|all"),
             ],
             [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]

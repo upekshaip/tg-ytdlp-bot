@@ -159,7 +159,7 @@ FIREBASE_CONF = {
 3. **Channel IDs**: Add your bot to the channels and get the channel IDs (they start with -100)
 
 **Getting Your User ID:**
-- Message [@userinfobot](https://t.me/userinfobot) to get your Telegram user ID
+- Message [@UserInfoToBot](https://t.me/UserInfoToBot) to get your Telegram user ID
 - Add this ID to the `ADMIN` list in config.py
 
 **Setting Up Firebase:**
@@ -170,9 +170,9 @@ FIREBASE_CONF = {
 5. Update the `FIREBASE_CONF` section in config.py with your project details
 
 **Cookie File Setup:**
-1. Create cookie files in Netscape format for each service
-2. Upload them to a web server accessible via HTTPS
-3. Update the cookie URLs in config.py to point to your files
+1. Create cookie files in Netscape format for each service. You can use this browser extension https://cookie-editor.com/  
+2. Upload them to a web server accessible via HTTPS. You can use your own Github repo for that.
+3. Update the cookie URLs in config.py to point to your files. For Github repo ensure you use RAW URLs to your text cookie files.
 4. Ensure files are under 100KB and accessible without authentication
 
 **Setting Up Channels:**
@@ -313,6 +313,7 @@ python3 magic.py
 - **/save_as_cookie** - Save text as cookie (or upload TXT-doc).
 - **/cookies_from_browser** - Get cookies from browser (if supported) with fallback to Config.COOKIE_URL.
 - **/subs** - Enable/disable subtitle embedding for videos with enhanced language selection and "Always Ask" mode.
+- **/search** - Open inline search helper for quick `@vid` usage (see below).
 
 ---
 
@@ -355,6 +356,17 @@ python3 magic.py
 - **YouTube Cookie Validation**: Automatic testing and validation of YouTube cookies
 - **Multi-Source Fallback**: Automatic switching between multiple cookie sources
 - **Real-time Progress**: Live updates during cookie download and validation process
+
+### Reply Keyboard Management
+- **Customizable Layout**: Choose between 1x3 (single row) and 2x3 (double row) keyboard layouts
+- **Smart Display**: Keyboard automatically shows/hides based on user preferences
+- **Persistent Settings**: User keyboard preferences are saved in `keyboard.txt` file
+- **Easy Toggle**: Quickly switch between OFF, 1x3, and 2x3 modes via `/keyboard` command
+
+**Keyboard Modes:**
+- **OFF**: Completely hides the reply keyboard
+- **1x3**: Shows single row with `/clean`, `/cookie`, `/settings`
+- **2x3**: Shows two rows with full command set (default mode)
 
 ### Improved Error Handling
 - **Upload Retries**: Smart retry logic for failed uploads with fallback to document mode
@@ -771,3 +783,17 @@ If you encounter issues:
 3. Test individual components (cookies, Firebase, channels)
 4. Check the [GitHub Issues](https://github.com/upekshaip/tg-ytdlp-bot/issues) for similar problems
 5. Create a new issue with detailed error information and logs
+
+---
+
+## Inline search helper (/search)
+
+Use this command to quickly activate inline search via `@vid`.
+
+- 📱 Mobile: tap the button shown by `/search`. It opens your chat with prefilled `@vid` and a zero‑width space. Add your query after `@vid`.
+- 💻 PC/Desktop: inline deep-linking cannot prefill reliably. Type manually in any chat:
+  - `@vid Your_Search_Query`
+
+Notes:
+- Desktop Telegram does not always send `/start` payloads from links repeatedly; avoid relying on `https://t.me/<bot>?start=...` for inline prefill.
+- The bot’s `/search` shows only working options and a concise manual hint.
