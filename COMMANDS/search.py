@@ -38,9 +38,9 @@ def search_command(app, message):
     # Send single message with updated instructions (English)
     text = (
         "🔍 <b>YouTube Video search</b>\n\n"
-        "📱 <b>For mobile:</b> tap button below and add your search query after text @vid.\n\n"
-        "💻 <b>For PC:</b> type @vid Your_Search_Query in any chat\n\n"
-        "<blockquote>This helps you quickly find and download videos from various platforms.</blockquote>"
+        "📱 <b>For mobile:</b> tap button below and type your search query after text @vid.\n\n"
+        "💻 <b>For PC:</b> type <code>@vid Your_Search_Query</code> in any chat\n\n"
+        "<blockquote>For example: <b>@vid funny cats</b></blockquote>"
     )
 
     app.send_message(
