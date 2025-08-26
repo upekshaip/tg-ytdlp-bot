@@ -1,6 +1,6 @@
 # Keyboard Command Module
 import os
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
 from pyrogram import enums
 from HELPERS.logger import send_to_all, send_to_logger
 from CONFIG.config import Config
@@ -84,6 +84,19 @@ def keyboard_callback_handler(app, callback_query):
         
         # Answer callback query
         callback_query.answer(f"Keyboard set to {setting}")
+        
+        # If OFF is selected, hide the current keyboard
+        if setting == "OFF":
+            try:
+                # Send a message with ReplyKeyboardRemove to hide the keyboard
+                app.send_message(
+                    callback_query.message.chat.id,
+                    "⌨️ Keyboard hidden",
+                    reply_markup=ReplyKeyboardRemove(selective=False)
+                )
+            except Exception as e:
+                from HELPERS.logger import logger
+                logger.warning(f"Failed to hide keyboard: {e}")
         
         # Log the action
         send_to_logger(callback_query.message, f"User {user_id} set keyboard to {setting}")
