@@ -159,7 +159,7 @@ FIREBASE_CONF = {
 3. **Channel IDs**: Add your bot to the channels and get the channel IDs (they start with -100)
 
 **Getting Your User ID:**
-- Message [@userinfobot](https://t.me/userinfobot) to get your Telegram user ID
+- Message [@UserInfoToBot](https://t.me/UserInfoToBot) to get your Telegram user ID
 - Add this ID to the `ADMIN` list in config.py
 
 **Setting Up Firebase:**
@@ -170,9 +170,9 @@ FIREBASE_CONF = {
 5. Update the `FIREBASE_CONF` section in config.py with your project details
 
 **Cookie File Setup:**
-1. Create cookie files in Netscape format for each service
-2. Upload them to a web server accessible via HTTPS
-3. Update the cookie URLs in config.py to point to your files
+1. Create cookie files in Netscape format for each service. You can use this browser extension https://cookie-editor.com/  
+2. Upload them to a web server accessible via HTTPS. You can use your own Github repo for that.
+3. Update the cookie URLs in config.py to point to your files. For Github repo ensure you use RAW URLs to your text cookie files.
 4. Ensure files are under 100KB and accessible without authentication
 
 **Setting Up Channels:**
