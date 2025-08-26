@@ -26,7 +26,9 @@ def command2(app, message):
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔚 Close", callback_data="help_msg|close")]
     ])
+
     result = safe_send_message(message.chat.id, (Config.HELP_MSG),
+
                       parse_mode=enums.ParseMode.HTML,
                       reply_markup=keyboard)
     send_to_logger(message, f"Send help txt to user")
@@ -104,10 +106,12 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
                                "<b>🧹 Clean Options</b>\n\nChoose what to clean:",
                                reply_markup=keyboard,
                                parse_mode=enums.ParseMode.HTML)
+
         try:
             callback_query.answer()
         except Exception:
             pass
+
         return
     if data == "cookies":
         keyboard = InlineKeyboardMarkup([
@@ -125,10 +129,12 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
                                "<b>🍪 COOKIES</b>\n\nChoose an action:",
                                reply_markup=keyboard,
                                parse_mode=enums.ParseMode.HTML)
+
         try:
             callback_query.answer()
         except Exception:
             pass
+
         return
     if data == "media":
         keyboard = InlineKeyboardMarkup([
@@ -144,10 +150,12 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
                                "<b>🎞 MEDIA</b>\n\nChoose an action:",
                                reply_markup=keyboard,
                                parse_mode=enums.ParseMode.HTML)
+
         try:
             callback_query.answer()
         except Exception:
             pass
+
         return
     if data == "logs":
         keyboard = InlineKeyboardMarkup([
@@ -161,10 +169,12 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
                                "<b>📖 INFO</b>\n\nChoose an action:",
                                reply_markup=keyboard,
                                parse_mode=enums.ParseMode.HTML)
+
         try:
             callback_query.answer()
         except Exception:
             pass
+
         return
     if data == "back":
         # Return to main menu
@@ -183,10 +193,12 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
                                "<b>Bot Settings</b>\n\nChoose a category:",
                                reply_markup=keyboard,
                                parse_mode=enums.ParseMode.HTML)
+
         try:
             callback_query.answer()
         except Exception:
             pass
+
         return
 
 @app.on_callback_query(filters.regex(r"^settings__cmd__"))
@@ -296,10 +308,12 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         ])
         safe_send_message(user_id, Config.SAVE_AS_COOKIE_HINT, reply_parameters=ReplyParameters(message_id=callback_query.message.id),
                           parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+
         try:
             callback_query.answer("Hint sent.")
         except Exception:
             pass
+
         return
     if data == "format":
         # Add the command attribute for set_format to work correctly
@@ -312,10 +326,12 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
                 f.write(str(e.value))
             callback_query.answer("Flood wait active. Try later.", show_alert=False)
             return
+
         try:
             callback_query.answer("Command executed.")
         except Exception:
             pass
+
         return
         
     # /Subs Command
@@ -329,10 +345,12 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
                 f.write(str(e.value))
             callback_query.answer("Flood wait active. Try later.", show_alert=False)
             return
+
         try:
             callback_query.answer("Command executed.")
         except Exception:
             pass
+
         return
 
     if data == "mediainfo":
@@ -345,10 +363,12 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
                 f.write(str(e.value))
             callback_query.answer("Flood wait active. Try later.", show_alert=False)
             return
+
         try:
             callback_query.answer("Command executed.")
         except Exception:
             pass
+
         return
     if data == "split":
         try:
@@ -369,6 +389,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         safe_send_message(user_id,
                           "Download only audio from video source.\n\nUsage: /audio + URL \n\n(ex. /audio https://youtu.be/abc123)\n(ex. /audio https://youtu.be/playlist?list=abc123*1*10)",
                           reply_parameters=ReplyParameters(message_id=callback_query.message.id),
+
                           reply_markup=keyboard,
                           _callback_query=callback_query,
                           _fallback_notice="⏳ Flood limit. Try later.")
@@ -376,6 +397,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             callback_query.answer("Hint sent.")
         except Exception:
             pass
+
         return
     if data == "tags":
         try:
@@ -387,6 +409,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
                 f.write(str(e.value))
             callback_query.answer("Flood wait active. Try later.", show_alert=False)
             return
+
         try:
             callback_query.answer("Command executed.")
         except Exception:
@@ -395,11 +418,13 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
     if data == "help":
         try:
             res = command2(app, fake_message("/help", user_id))
+
         except FloodWait as e:
             user_dir = os.path.join("users", str(user_id))
             os.makedirs(user_dir, exist_ok=True)
             with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
                 f.write(str(e.value))
+
             try:
                 callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
             except Exception:
@@ -416,6 +441,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
                 callback_query.answer("Command executed.")
             except Exception:
                 pass
+
         return
     if data == "usage":
         try:
@@ -425,6 +451,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             os.makedirs(user_dir, exist_ok=True)
             with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
                 f.write(str(e.value))
+
             try:
                 callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
             except Exception:
@@ -434,6 +461,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             callback_query.answer("Command executed.")
         except Exception:
             pass
+
         return
     if data == "playlist":
         try:
@@ -443,6 +471,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             os.makedirs(user_dir, exist_ok=True)
             with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
                 f.write(str(e.value))
+
             try:
                 callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
             except Exception:
@@ -452,6 +481,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             callback_query.answer("Command executed.")
         except Exception:
             pass
+
         return
     try:
         callback_query.answer("Unknown command.", show_alert=True)
