@@ -313,6 +313,7 @@ python3 magic.py
 - **/save_as_cookie** - Save text as cookie (or upload TXT-doc).
 - **/cookies_from_browser** - Get cookies from browser (if supported) with fallback to Config.COOKIE_URL.
 - **/subs** - Enable/disable subtitle embedding for videos with enhanced language selection and "Always Ask" mode.
+- **/search** - Open inline search helper for quick `@vid` usage (see below).
 
 ---
 
@@ -771,3 +772,17 @@ If you encounter issues:
 3. Test individual components (cookies, Firebase, channels)
 4. Check the [GitHub Issues](https://github.com/upekshaip/tg-ytdlp-bot/issues) for similar problems
 5. Create a new issue with detailed error information and logs
+
+---
+
+## Inline search helper (/search)
+
+Use this command to quickly activate inline search via `@vid`.
+
+- 📱 Mobile: tap the button shown by `/search`. It opens your chat with prefilled `@vid` and a zero‑width space. Add your query after `@vid`.
+- 💻 PC/Desktop: inline deep-linking cannot prefill reliably. Type manually in any chat:
+  - `@vid Your_Search_Query`
+
+Notes:
+- Desktop Telegram does not always send `/start` payloads from links repeatedly; avoid relying on `https://t.me/<bot>?start=...` for inline prefill.
+- The bot’s `/search` shows only working options and a concise manual hint.
