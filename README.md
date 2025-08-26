@@ -357,6 +357,17 @@ python3 magic.py
 - **Multi-Source Fallback**: Automatic switching between multiple cookie sources
 - **Real-time Progress**: Live updates during cookie download and validation process
 
+### Reply Keyboard Management
+- **Customizable Layout**: Choose between 1x3 (single row) and 2x3 (double row) keyboard layouts
+- **Smart Display**: Keyboard automatically shows/hides based on user preferences
+- **Persistent Settings**: User keyboard preferences are saved in `keyboard.txt` file
+- **Easy Toggle**: Quickly switch between OFF, 1x3, and 2x3 modes via `/keyboard` command
+
+**Keyboard Modes:**
+- **OFF**: Completely hides the reply keyboard
+- **1x3**: Shows single row with `/clean`, `/cookie`, `/settings`
+- **2x3**: Shows two rows with full command set (default mode)
+
 ### Improved Error Handling
 - **Upload Retries**: Smart retry logic for failed uploads with fallback to document mode
 - **Dynamic Disk Space**: Intelligent space estimation based on video size

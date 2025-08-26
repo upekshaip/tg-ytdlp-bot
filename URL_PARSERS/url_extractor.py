@@ -17,6 +17,7 @@ from COMMANDS.settings_cmd import settings_command
 from COMMANDS.split_sizer import split_command
 from COMMANDS.tag_cmd import tags_command
 from COMMANDS.search import search_command
+from COMMANDS.keyboard_cmd import keyboard_command, keyboard_callback_handler
 from COMMANDS.admin_cmd import get_user_log, send_promo_message, block_user, unblock_user, check_runtime, get_user_details, uncache_command, reload_firebase_cache_command
 from DATABASE.cache_db import auto_cache_command
 from DATABASE.firebase_init import is_user_blocked
@@ -71,6 +72,11 @@ def url_distractor(app, message):
     # /Search Command
     if text.startswith(Config.SEARCH_COMMAND):
         search_command(app, message)
+        return
+        
+    # /Keyboard Command
+    if text == Config.KEYBOARD_COMMAND:
+        keyboard_command(app, message)
         return
         
     # /Save_as_cookie Command
@@ -154,6 +160,10 @@ def url_distractor(app, message):
             remove_media(message, only=["subs.txt"])
             send_to_all(message, "🗑 Subtitle settings removed.")
             clear_subs_check_cache()
+            return
+        elif clean_args == "keyboard":
+            remove_media(message, only=["keyboard.txt"])
+            send_to_all(message, "🗑 Keyboard settings removed.")
             return
         elif clean_args == "all":
             # Delete all files and display the list of deleted ones
@@ -294,6 +304,11 @@ def url_distractor(app, message):
 
     logger.info(f"{user_id} No matching command processed.")
     clear_subs_check_cache()
+
+@app.on_callback_query(filters.regex("^keyboard\\|"))
+def keyboard_callback_handler_wrapper(app, callback_query):
+    """Handle keyboard setting callbacks"""
+    keyboard_callback_handler(app, callback_query)
 
 # The function is_playlist_with_range is now imported from URL_PARSERS.playlist_utils
 ######################################################  

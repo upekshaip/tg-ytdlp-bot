@@ -88,14 +88,16 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 • <code>/clean split</code> - Remove split settings
 • <code>/clean mediainfo</code> - Remove mediainfo settings
 • <code>/clean sub</code> - Remove subtitle settings
+• <code>/clean keyboard</code> - Remove keyboard settings
 
 ⚙️ <b>Settings:</b>
 • <code>/settings</code> - Open settings menu
 • <code>/format</code> - Change video quality & format
 • <code>/split</code> - Set max part size (250MB-2GB)
-• <code>/mediainfo</code> - Enable/disable file info
+• <code>/mediainfo on/off</code> - Enable/disable file info
 • <code>/tags</code> - View your saved tags
-• <code>/sub</code> - Turn on/off subtitles
+• <code>/sub on/off</code> - Turn on/off subtitles
+• <code>/keyboard</code> - Manage keyboard settings (OFF/1x3/2x3)
 
 🏷️ <b>Tags System:</b>
 • Add <code>#tag1#tag2</code> after any URL
@@ -138,14 +140,16 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 • <code>/clean split</code> - Удалить настройки нарезки
 • <code>/clean mediainfo</code> - Удалить настройки mediainfo
 • <code>/clean sub</code> - Удалить настройки субтитров
+• <code>/clean keyboard</code> - Удалить настройки клавиатуры
 
 ⚙️ <b>Настройки:</b>
 • <code>/settings</code> - Открыть меню настроек
 • <code>/format</code> - Изменить качество и формат
 • <code>/split</code> - Установить размер части (250MB-2GB)
-• <code>/mediainfo</code> - Включить/выключить информацию о файле
+• <code>/mediainfo on/off</code> - Включить/выключить информацию о файле
 • <code>/tags</code> - Посмотреть ваши теги
-• <code>/sub</code> - Включить/выключить субтитры
+• <code>/sub on/off</code> - Включить/выключить субтитры
+• <code>/keyboard</code> - Управление настройками клавиатуры (OFF/1x3/2x3)
 
 🏷️ <b>Система тегов:</b>
 • Добавьте <code>#тег1#тег2</code> после любой ссылки

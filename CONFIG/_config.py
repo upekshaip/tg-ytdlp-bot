@@ -106,7 +106,8 @@ class Config(object):
     RELOAD_CACHE_COMMAND = CommandsConfig.RELOAD_CACHE_COMMAND
     AUTO_CACHE_COMMAND = CommandsConfig.AUTO_CACHE_COMMAND
     SEARCH_COMMAND = CommandsConfig.SEARCH_COMMAND
-    
+    KEYBOARD_COMMAND = CommandsConfig.KEYBOARD_COMMAND
+
     # Messages configuration
     CREDITS_MSG = MessagesConfig.CREDITS_MSG
     TO_USE_MSG = MessagesConfig.TO_USE_MSG

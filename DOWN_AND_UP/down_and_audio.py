@@ -30,7 +30,7 @@ from pyrogram.types import ReplyParameters
 app = get_app()
 
 # @reply_with_keyboard
-def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None, video_count=1, video_start_with=1):
+def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None, video_count=1, video_start_with=1, format_override=None):
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
     """
@@ -250,8 +250,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
         def try_download_audio(url, current_index):
             nonlocal current_total_process
+            # Use format_override if provided, otherwise use default 'ba'
+            download_format = format_override if format_override else 'ba'
             ytdl_opts = {
-               'format': 'ba',
+               'format': download_format,
                'postprocessors': [{
                   'key': 'FFmpegExtractAudio',
                   'preferredcodec': 'mp3',
@@ -301,7 +303,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
                 try:
                     safe_edit_message_text(user_id, proc_msg_id,
-                        f"{current_total_process}\n> <i>📥 Downloading audio using format: ba...</i>")
+                        f"{current_total_process}\n> <i>📥 Downloading audio using format: {download_format}...</i>")
                 except Exception as e:
                     logger.error(f"Status update error: {e}")
                 

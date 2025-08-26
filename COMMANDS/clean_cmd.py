@@ -47,6 +47,10 @@ def clean_option_callback(app, callback_query):
         url_distractor(app, fake_message("/clean subs", user_id))
         callback_query.answer("Subtitle settings cleaned.")
         return
+    elif data == "keyboard":
+        url_distractor(app, fake_message("/clean keyboard", user_id))
+        callback_query.answer("Keyboard settings cleaned.")
+        return
     elif data == "all":
         url_distractor(app, fake_message("/clean all", user_id))
         callback_query.answer("All files cleaned.")

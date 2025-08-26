@@ -30,4 +30,5 @@ class CommandsConfig(object):
     RELOAD_CACHE_COMMAND = "/reload_cache"
     AUTO_CACHE_COMMAND = "/auto_cache"
     SEARCH_COMMAND = "/search"
+    KEYBOARD_COMMAND = "/keyboard"
     #######################################################
