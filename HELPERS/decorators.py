@@ -36,6 +36,12 @@ def get_main_reply_keyboard(mode="2x3"):
         keyboard = [
             ["/clean", "/cookie", "/settings"]
         ]
+    elif mode == "FULL":
+        keyboard = [
+            ["🧹", "🍪", "⚙️", "🔍", "🌐"],
+            ["📼", "📊", "✂️", "🎧", "💬"],
+            ["#️⃣", "🆘", "📃", "⏯️", "🎹"]
+        ]
     else:  # 2x3 mode (default)
         keyboard = [
             ["/clean", "/cookie", "/settings"],
@@ -108,7 +114,7 @@ def reply_with_keyboard(func):
                         setting = f.read().strip()
                         if setting == "OFF":
                             keyboard_enabled = False
-                        elif setting in ["1x3", "2x3"]:
+                        elif setting in ["1x3", "2x3", "FULL"]:
                             keyboard_enabled = True
                             keyboard_mode = setting
                 except:
