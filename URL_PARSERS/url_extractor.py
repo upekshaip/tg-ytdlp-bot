@@ -29,6 +29,7 @@ from CONFIG.config import Config
 from HELPERS.logger import logger
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram import enums
+from HELPERS.safe_messeger import fake_message
 
 # Get app instance for decorators
 app = get_app()
@@ -39,6 +40,39 @@ def url_distractor(app, message):
     user_id = message.chat.id
     is_admin = int(user_id) in Config.ADMIN
     text = message.text.strip()
+
+    # Emoji keyboard mapping to commands (from FULL layout)
+    emoji_to_command = {
+        "🧹": "/clean",
+        "🍪": "/cookie",
+        "⚙️": "/settings",
+        "🔍": "/search",
+        "🌐": "/cookies_from_browser",
+        "📼": "/format",
+        "📊": "/mediainfo",
+        "✂️": "/split",
+        "🎧": "/audio",
+        "💬": "/subs",
+        "#️⃣": "/tags",
+        "🆘": "/help",
+        "📃": "/usage",
+        "⏯️": "/playlist",
+        "🎹": "/keyboard",
+    }
+
+    if text in emoji_to_command:
+        mapped = emoji_to_command[text]
+        # Special case: headphones emoji should show audio usage hint
+        if mapped == "/audio":
+            from pyrogram.types import ReplyParameters
+            app.send_message(
+                message.chat.id,
+                "Download only audio from video source.\n\nUsage: /audio + URL \n\n(ex. /audio https://youtu.be/abc123)\n(ex. /audio https://youtu.be/playlist?list=abc123*1*10)",
+                reply_parameters=ReplyParameters(message_id=message.id)
+            )
+            return
+        # Emulate a user command for the mapped emoji
+        return url_distractor(app, fake_message(mapped, user_id))
 
     # For non-admin users, if they haven't Joined the Channel, Exit ImmediaTely.
     if not is_admin and not is_user_in_channel(app, message):
