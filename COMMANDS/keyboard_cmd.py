@@ -53,7 +53,7 @@ def keyboard_command(app, message):
     ]
     
     reply_markup = ReplyKeyboardMarkup(full_keyboard, resize_keyboard=True)
-    app.send_message(message.chat.id, "🎹 Full keyboard activated!", reply_markup=reply_markup)
+    app.send_message(message.chat.id, "🎹 keyboard activated!", reply_markup=reply_markup)
 
 def keyboard_callback_handler(app, callback_query):
     """Handle keyboard setting callbacks"""

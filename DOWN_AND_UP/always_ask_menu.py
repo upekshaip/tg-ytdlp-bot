@@ -6,7 +6,7 @@ from datetime import datetime
 import json
 from pyrogram import filters, enums
 from pyrogram.errors import FloodWait
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters, WebAppInfo
 import requests
 
 from HELPERS.app_instance import get_app
@@ -39,7 +39,7 @@ from DOWN_AND_UP.down_and_up import down_and_up
 
 from URL_PARSERS.playlist_utils import is_playlist_with_range
 from URL_PARSERS.tags import generate_final_tags, extract_url_range_tags
-from URL_PARSERS.youtube import is_youtube_url, download_thumbnail
+from URL_PARSERS.youtube import is_youtube_url, download_thumbnail, youtube_to_piped_url
 from URL_PARSERS.tiktok import is_tiktok_url
 from URL_PARSERS.normalizer import get_clean_playlist_url
 from URL_PARSERS.embedder import transform_to_embed_url, is_instagram_url, is_twitter_url, is_reddit_url
@@ -691,7 +691,7 @@ def build_filter_rows(user_id, url=None):
                 row.append(InlineKeyboardButton("💬 SUBS", callback_data="askf|subs|open"))
         except Exception:
             pass
-        return [row]
+        return [row], []
     
     # Build codec buttons with availability check
     avc1_available = 'avc1' in available_formats["codecs"] or not available_formats["codecs"]  # Show if available or if no cache
@@ -713,17 +713,15 @@ def build_filter_rows(user_id, url=None):
         [InlineKeyboardButton(avc1_btn, callback_data="askf|codec|avc1"), InlineKeyboardButton(av01_btn, callback_data="askf|codec|av01"), InlineKeyboardButton(vp9_btn, callback_data="askf|codec|vp9")],
         [InlineKeyboardButton(mp4_btn, callback_data="askf|ext|mp4"), InlineKeyboardButton(mkv_btn, callback_data="askf|ext|mkv"), InlineKeyboardButton("🎧 audio (mp3)", callback_data="askq|mp3")]
     ]
-    act_row = []
+    action_buttons = []
     if has_dubs:
-        act_row.append(InlineKeyboardButton("🗣 DUBS", callback_data="askf|dubs|open"))
+        action_buttons.append(InlineKeyboardButton("🗣 DUBS", callback_data="askf|dubs|open"))
     try:
         if is_subs_always_ask(user_id):
-            act_row.append(InlineKeyboardButton("💬 SUBS", callback_data="askf|subs|open"))
+            action_buttons.append(InlineKeyboardButton("💬 SUBS", callback_data="askf|subs|open"))
     except Exception:
         pass
-    if act_row:
-        rows.insert(0, act_row)
-    return rows
+    return rows, action_buttons
 
 @app.on_callback_query(filters.regex(r"^askq\|"))
 # @reply_with_keyboard
@@ -2849,14 +2847,35 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         # --- Form rows of 3 buttons ---
         keyboard_rows = []
         # Add filter rows first
-        keyboard_rows.extend(build_filter_rows(user_id, url))
+        filter_rows, filter_action_buttons = build_filter_rows(user_id, url)
+        keyboard_rows.extend(filter_rows)
         
-        # Add Quick Embed button for supported services at the top (but not for ranges)
+        # Collect all action buttons to group them by 3 in a row
+        action_buttons = []
+        
+        # Add filter action buttons (DUBS, SUBS)
+        action_buttons.extend(filter_action_buttons)
+        
+        # Add Quick Embed button for supported services (but not for ranges)
         if (is_instagram_url(url) or is_twitter_url(url) or is_reddit_url(url)) and not is_playlist_with_range(original_text):
-            keyboard_rows.append([InlineKeyboardButton("🚀 Quick Embed", callback_data="askq|quick_embed")])
+            action_buttons.append(InlineKeyboardButton("🚀 Quick Embed", callback_data="askq|quick_embed"))
+        
         for i in range(0, len(buttons), 3):
             keyboard_rows.append(buttons[i:i+3])
-        # Insert DUBS button into filter row is handled in build_filter_rows
+        
+        # Add WATCH button for YouTube links - insert into the last row with Best/Other if possible
+        try:
+            if is_youtube_url(url):
+                piped_url = youtube_to_piped_url(url)
+                wa = WebAppInfo(url=piped_url, expand=True)
+                # Try to add WATCH to the last quality row if it has less than 3 buttons
+                if keyboard_rows and len(keyboard_rows[-1]) < 3:
+                    keyboard_rows[-1].append(InlineKeyboardButton("👁 WATCH", web_app=wa))
+                else:
+                    # If last row is full, create new row with WATCH
+                    action_buttons.append(InlineKeyboardButton("👁 WATCH", web_app=wa))
+        except Exception:
+            pass
         
         # --- button subtitles only ---
         # Show the button only if subtitles are turned on and it is youtube
@@ -2869,11 +2888,15 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 # In Always Ask menu, show button if any subtitles found, regardless of auto_mode
                 need_subs = found_type is not None  # True if any subtitles found (auto or normal)
             else:
-                # In manual mode, respect user's auto_mode setting
+                # manual mode, respect user's auto_mode setting
                 need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
             
             if need_subs:
-                keyboard_rows.append([InlineKeyboardButton("💬 Subtitles Only", callback_data="askq|subs_only")])
+                action_buttons.append(InlineKeyboardButton("💬 Subtitles Only", callback_data="askq|subs_only"))
+        
+        # Group action buttons by 3 in a row
+        for i in range(0, len(action_buttons), 3):
+            keyboard_rows.append(action_buttons[i:i+3])
         
         # Нижний ряд: если фильтры раскрыты – показываем Back + Close, иначе только Close
         if bool(filters_state.get('visible', False)):
