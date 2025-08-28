@@ -2869,7 +2869,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 logger.info(f"Processing YouTube URL for WATCH button: {url}")
                 piped_url = youtube_to_piped_url(url)
                 logger.info(f"Converted to Piped URL: {piped_url}")
-                wa = WebAppInfo(url=piped_url, expand=True)
+                wa = WebAppInfo(url=piped_url)
                 action_buttons.append(InlineKeyboardButton("👁 WATCH", web_app=wa))
                 logger.info(f"Added WATCH button to action_buttons for user {user_id}")
         except Exception as e:
