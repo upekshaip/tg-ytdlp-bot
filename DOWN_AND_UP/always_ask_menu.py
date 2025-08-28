@@ -2863,18 +2863,17 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         for i in range(0, len(buttons), 3):
             keyboard_rows.append(buttons[i:i+3])
         
-        # Add WATCH button for YouTube links - insert into the last row with Best/Other if possible
+        # Add WATCH button for YouTube links - always add to action_buttons for consistent placement
         try:
             if is_youtube_url(url):
+                logger.info(f"Processing YouTube URL for WATCH button: {url}")
                 piped_url = youtube_to_piped_url(url)
+                logger.info(f"Converted to Piped URL: {piped_url}")
                 wa = WebAppInfo(url=piped_url, expand=True)
-                # Try to add WATCH to the last quality row if it has less than 3 buttons
-                if keyboard_rows and len(keyboard_rows[-1]) < 3:
-                    keyboard_rows[-1].append(InlineKeyboardButton("👁 WATCH", web_app=wa))
-                else:
-                    # If last row is full, create new row with WATCH
-                    action_buttons.append(InlineKeyboardButton("👁 WATCH", web_app=wa))
-        except Exception:
+                action_buttons.append(InlineKeyboardButton("👁 WATCH", web_app=wa))
+                logger.info(f"Added WATCH button to action_buttons for user {user_id}")
+        except Exception as e:
+            logger.error(f"Error adding WATCH button for user {user_id}: {e}")
             pass
         
         # --- button subtitles only ---
@@ -2895,14 +2894,23 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 action_buttons.append(InlineKeyboardButton("💬 Subtitles Only", callback_data="askq|subs_only"))
         
         # Group action buttons by 3 in a row
+        logger.info(f"Grouping {len(action_buttons)} action buttons for user {user_id}")
         for i in range(0, len(action_buttons), 3):
-            keyboard_rows.append(action_buttons[i:i+3])
+            row = action_buttons[i:i+3]
+            keyboard_rows.append(row)
+            logger.info(f"Added action button row: {[btn.text for btn in row]}")
         
         # Нижний ряд: если фильтры раскрыты – показываем Back + Close, иначе только Close
         if bool(filters_state.get('visible', False)):
             keyboard_rows.append([InlineKeyboardButton("🔙 Back", callback_data="askf|toggle|off"), InlineKeyboardButton("🔚 Close", callback_data="askq|close")])
         else:
             keyboard_rows.append([InlineKeyboardButton("🔚 Close", callback_data="askq|close")])
+        
+        # Log final keyboard structure
+        logger.info(f"Final keyboard structure for user {user_id}: {len(keyboard_rows)} rows")
+        for i, row in enumerate(keyboard_rows):
+            logger.info(f"Row {i}: {[btn.text for btn in row]}")
+        
         keyboard = InlineKeyboardMarkup(keyboard_rows)
         # cap already contains a hint and a table
         # Replace current menu in-place if possible
