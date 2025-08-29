@@ -85,3 +85,38 @@ def download_thumbnail(video_id: str, dest: str, url: str = None) -> None:
     if not img_bytes:
         raise RuntimeError("Failed to download thumbnail or it is too big")
     # We do nothing else - we keep the original size!
+
+
+def youtube_to_piped_url(url: str) -> str:
+    """Преобразует YouTube-ссылку к формату
+    https://<Config.PIPED_DOMAIN>/api/video/download?v=<ID>&q=18
+    1) youtu.be -> извлечь ID и собрать целевой URL
+    2) youtube.com/watch?v= -> извлечь ID и собрать целевой URL
+    3) youtube.com/shorts/ID -> привести к watch и собрать целевой URL
+    Иные параметры из исходной ссылки игнорируются (по ТЗ).
+    """
+    try:
+        parsed = urlparse(url)
+        domain = parsed.netloc
+        path = parsed.path
+        query = parsed.query
+        # 1) короткая форма youtu.be/ID
+        if 'youtu.be' in domain:
+            video_id = path.lstrip('/')
+            return f"https://{Config.PIPED_DOMAIN}/api/video/download?v={video_id}&q=18"
+        # 2) полная форма
+        if 'youtube.com' in domain:
+            # shorts -> watch
+            if path.startswith('/shorts/'):
+                parts = path.split('/')
+                if len(parts) >= 3:
+                    vid = parts[2]
+                    return f"https://{Config.PIPED_DOMAIN}/api/video/download?v={vid}&q=18"
+            # watch?v=ID
+            qs = parse_qs(query)
+            vid = (qs.get('v') or [None])[0]
+            if vid:
+                return f"https://{Config.PIPED_DOMAIN}/api/video/download?v={vid}&q=18"
+        return url
+    except Exception:
+        return url

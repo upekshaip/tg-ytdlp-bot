@@ -6,7 +6,7 @@ from datetime import datetime
 import json
 from pyrogram import filters, enums
 from pyrogram.errors import FloodWait
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters, WebAppInfo
 import requests
 
 from HELPERS.app_instance import get_app
@@ -39,7 +39,7 @@ from DOWN_AND_UP.down_and_up import down_and_up
 
 from URL_PARSERS.playlist_utils import is_playlist_with_range
 from URL_PARSERS.tags import generate_final_tags, extract_url_range_tags
-from URL_PARSERS.youtube import is_youtube_url, download_thumbnail
+from URL_PARSERS.youtube import is_youtube_url, download_thumbnail, youtube_to_piped_url
 from URL_PARSERS.tiktok import is_tiktok_url
 from URL_PARSERS.normalizer import get_clean_playlist_url
 from URL_PARSERS.embedder import transform_to_embed_url, is_instagram_url, is_twitter_url, is_reddit_url
@@ -691,7 +691,7 @@ def build_filter_rows(user_id, url=None):
                 row.append(InlineKeyboardButton("💬 SUBS", callback_data="askf|subs|open"))
         except Exception:
             pass
-        return [row]
+        return [row], []
     
     # Build codec buttons with availability check
     avc1_available = 'avc1' in available_formats["codecs"] or not available_formats["codecs"]  # Show if available or if no cache
@@ -713,17 +713,15 @@ def build_filter_rows(user_id, url=None):
         [InlineKeyboardButton(avc1_btn, callback_data="askf|codec|avc1"), InlineKeyboardButton(av01_btn, callback_data="askf|codec|av01"), InlineKeyboardButton(vp9_btn, callback_data="askf|codec|vp9")],
         [InlineKeyboardButton(mp4_btn, callback_data="askf|ext|mp4"), InlineKeyboardButton(mkv_btn, callback_data="askf|ext|mkv"), InlineKeyboardButton("🎧 audio (mp3)", callback_data="askq|mp3")]
     ]
-    act_row = []
+    action_buttons = []
     if has_dubs:
-        act_row.append(InlineKeyboardButton("🗣 DUBS", callback_data="askf|dubs|open"))
+        action_buttons.append(InlineKeyboardButton("🗣 DUBS", callback_data="askf|dubs|open"))
     try:
         if is_subs_always_ask(user_id):
-            act_row.append(InlineKeyboardButton("💬 SUBS", callback_data="askf|subs|open"))
+            action_buttons.append(InlineKeyboardButton("💬 SUBS", callback_data="askf|subs|open"))
     except Exception:
         pass
-    if act_row:
-        rows.insert(0, act_row)
-    return rows
+    return rows, action_buttons
 
 @app.on_callback_query(filters.regex(r"^askq\|"))
 # @reply_with_keyboard
@@ -2849,14 +2847,50 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         # --- Form rows of 3 buttons ---
         keyboard_rows = []
         # Add filter rows first
-        keyboard_rows.extend(build_filter_rows(user_id, url))
+        filter_rows, filter_action_buttons = build_filter_rows(user_id, url)
+        keyboard_rows.extend(filter_rows)
         
-        # Add Quick Embed button for supported services at the top (but not for ranges)
+        # Collect all action buttons to group them by 3 in a row
+        action_buttons = []
+        
+        # Add filter action buttons (DUBS, SUBS)
+        action_buttons.extend(filter_action_buttons)
+        
+        # Add Quick Embed button for supported services (but not for ranges)
         if (is_instagram_url(url) or is_twitter_url(url) or is_reddit_url(url)) and not is_playlist_with_range(original_text):
-            keyboard_rows.append([InlineKeyboardButton("🚀 Quick Embed", callback_data="askq|quick_embed")])
-        for i in range(0, len(buttons), 3):
-            keyboard_rows.append(buttons[i:i+3])
-        # Insert DUBS button into filter row is handled in build_filter_rows
+            action_buttons.append(InlineKeyboardButton("🚀 Quick Embed", callback_data="askq|quick_embed"))
+        
+        # Smart grouping of quality buttons - prefer 3 per row, then 2, avoid single buttons
+        if buttons:
+            total_quality_buttons = len(buttons)
+            if total_quality_buttons % 3 == 0:
+                # Perfect grouping by 3
+                for i in range(0, total_quality_buttons, 3):
+                    keyboard_rows.append(buttons[i:i+3])
+            elif total_quality_buttons % 3 == 1 and total_quality_buttons > 1:
+                # Group by 3, then make last two rows with 2 buttons each
+                for i in range(0, total_quality_buttons - 4, 3):
+                    keyboard_rows.append(buttons[i:i+3])
+                # Last two rows with 2 buttons each
+                keyboard_rows.append(buttons[-4:-2])
+                keyboard_rows.append(buttons[-2:])
+            else:
+                # Group by 3, last group might be 1 or 2
+                for i in range(0, total_quality_buttons, 3):
+                    keyboard_rows.append(buttons[i:i+3])
+        
+        # Add WATCH button for YouTube links - always add to action_buttons for consistent placement
+        try:
+            if is_youtube_url(url):
+                logger.info(f"Processing YouTube URL for WATCH button: {url}")
+                piped_url = youtube_to_piped_url(url)
+                logger.info(f"Converted to Piped URL: {piped_url}")
+                wa = WebAppInfo(url=piped_url)
+                action_buttons.append(InlineKeyboardButton("👁 WATCH", web_app=wa))
+                logger.info(f"Added WATCH button to action_buttons for user {user_id}")
+        except Exception as e:
+            logger.error(f"Error adding WATCH button for user {user_id}: {e}")
+            pass
         
         # --- button subtitles only ---
         # Show the button only if subtitles are turned on and it is youtube
@@ -2869,17 +2903,62 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 # In Always Ask menu, show button if any subtitles found, regardless of auto_mode
                 need_subs = found_type is not None  # True if any subtitles found (auto or normal)
             else:
-                # In manual mode, respect user's auto_mode setting
+                # manual mode, respect user's auto_mode setting
                 need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
             
             if need_subs:
-                keyboard_rows.append([InlineKeyboardButton("💬 Subtitles Only", callback_data="askq|subs_only")])
+                action_buttons.append(InlineKeyboardButton("💬 Subtitles Only", callback_data="askq|subs_only"))
         
-        # Нижний ряд: если фильтры раскрыты – показываем Back + Close, иначе только Close
+        # Smart grouping of action buttons - prefer 3 buttons per row, then 2, avoid single buttons
+        logger.info(f"Smart grouping {len(action_buttons)} action buttons for user {user_id}")
+        if action_buttons:
+            # Calculate optimal grouping
+            total_buttons = len(action_buttons)
+            if total_buttons % 3 == 0:
+                # Perfect grouping by 3
+                for i in range(0, total_buttons, 3):
+                    row = action_buttons[i:i+3]
+                    keyboard_rows.append(row)
+                    logger.info(f"Added action button row (3): {[btn.text for btn in row]}")
+            elif total_buttons % 3 == 1 and total_buttons > 1:
+                # Group by 3, then take 2 from last group to make 2+2
+                for i in range(0, total_buttons - 4, 3):
+                    row = action_buttons[i:i+3]
+                    keyboard_rows.append(row)
+                    logger.info(f"Added action button row (3): {[btn.text for btn in row]}")
+                # Last two rows with 2 buttons each
+                keyboard_rows.append(action_buttons[-4:-2])
+                keyboard_rows.append(action_buttons[-2:])
+                logger.info(f"Added action button rows (2+2): {[btn.text for btn in action_buttons[-4:-2]]}, {[btn.text for btn in action_buttons[-2:]]}")
+            else:
+                # Group by 3, last group might be 1 or 2
+                for i in range(0, total_buttons, 3):
+                    row = action_buttons[i:i+3]
+                    keyboard_rows.append(row)
+                    logger.info(f"Added action button row: {[btn.text for btn in row]}")
+        
+        # Smart grouping for bottom row - try to combine with action buttons if possible
+        bottom_buttons = []
         if bool(filters_state.get('visible', False)):
-            keyboard_rows.append([InlineKeyboardButton("🔙 Back", callback_data="askf|toggle|off"), InlineKeyboardButton("🔚 Close", callback_data="askq|close")])
+            bottom_buttons = [InlineKeyboardButton("🔙 Back", callback_data="askf|toggle|off"), InlineKeyboardButton("🔚 Close", callback_data="askq|close")]
         else:
-            keyboard_rows.append([InlineKeyboardButton("🔚 Close", callback_data="askq|close")])
+            bottom_buttons = [InlineKeyboardButton("🔚 Close", callback_data="askq|close")]
+        
+        # Try to add bottom buttons to last action row if it has space
+        if keyboard_rows and len(keyboard_rows[-1]) < 3 and len(bottom_buttons) <= (3 - len(keyboard_rows[-1])):
+            # Add to existing row
+            keyboard_rows[-1].extend(bottom_buttons)
+            logger.info(f"Added bottom buttons to existing row: {[btn.text for btn in bottom_buttons]}")
+        else:
+            # Create new row
+            keyboard_rows.append(bottom_buttons)
+            logger.info(f"Created new bottom row: {[btn.text for btn in bottom_buttons]}")
+        
+        # Log final keyboard structure
+        logger.info(f"Final keyboard structure for user {user_id}: {len(keyboard_rows)} rows")
+        for i, row in enumerate(keyboard_rows):
+            logger.info(f"Row {i}: {[btn.text for btn in row]}")
+        
         keyboard = InlineKeyboardMarkup(keyboard_rows)
         # cap already contains a hint and a table
         # Replace current menu in-place if possible

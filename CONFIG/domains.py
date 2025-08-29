@@ -51,4 +51,7 @@ class DomainsConfig(object):
         'disk.yandex.net', 'streaming.disk.yandex.net',
         # Add here other domains where query and fragment are not needed for video uniqueness
     ]
+    
+    # Piped frontend domain for opening YouTube links as a WebApp
+    PIPED_DOMAIN = "poketube.fun"
     #######################################################

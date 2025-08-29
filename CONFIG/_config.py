@@ -127,7 +127,7 @@ class Config(object):
     NO_COOKIE_DOMAINS = DomainsConfig.NO_COOKIE_DOMAINS
     TIKTOK_DOMAINS = DomainsConfig.TIKTOK_DOMAINS
     CLEAN_QUERY = DomainsConfig.CLEAN_QUERY
-    
+    PIPED_DOMAIN = DomainsConfig.PIPED_DOMAIN    
     # Messages configuration (additional)
     SAVE_AS_COOKIE_HINT = MessagesConfig.SAVE_AS_COOKIE_HINT
     
