@@ -17,7 +17,7 @@ class DomainsConfig(object):
     
     # --- Whitelist of domains that are not considered porn ---
     WHITELIST = [
-        'dailymotion.com', 'sky.com', 'xbox.com', 'youtube.com', 'youtu.be', '1tv.ru', 'x.ai',
+        'bilibili.com', dailymotion.com', 'sky.com', 'xbox.com', 'youtube.com', 'youtu.be', '1tv.ru', 'x.ai',
         'twitch.tv', 'vimeo.com', 'facebook.com', 'tiktok.com', 'instagram.com', 'fb.com', 'ig.me'
         # Other secure domains can be added
     ]
