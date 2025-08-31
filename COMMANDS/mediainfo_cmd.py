@@ -26,8 +26,15 @@ def is_user_in_channel(app, message):
 # @reply_with_keyboard
 def mediainfo_command(app, message):
     user_id = message.chat.id
+    logger.info(f"[MEDIAINFO] User {user_id} requested mediainfo command")
+    logger.info(f"[MEDIAINFO] User {user_id} is admin: {int(user_id) in Config.ADMIN}")
+    logger.info(f"[MEDIAINFO] User {user_id} is in channel: {is_user_in_channel(app, message)}")
+    
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+        logger.info(f"[MEDIAINFO] User {user_id} access denied - not admin and not in channel")
         return
+    
+    logger.info(f"[MEDIAINFO] User {user_id} access granted")
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
     # Fast toggle via args: /mediainfo on|off
