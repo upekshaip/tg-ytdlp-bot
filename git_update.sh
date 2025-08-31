@@ -25,10 +25,6 @@ if [ -z "$(git status --porcelain)" ]; then
     exit 0
 fi
 
-# Add all changes
-echo "➕ Adding all changes..."
-git add .
-
 # Remove any files that should be ignored but are still tracked
 echo "🧹 Cleaning up ignored files..."
 if [ -f "UPDATE.sh" ]; then
@@ -37,6 +33,10 @@ fi
 if [ -d "_cursor" ]; then
     git rm --cached -r "_cursor" 2>/dev/null || true
 fi
+
+# Add all changes
+echo "➕ Adding all changes..."
+git add .
 
 # Check if add was successful
 if [ $? -ne 0 ]; then

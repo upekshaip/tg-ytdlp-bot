@@ -55,7 +55,7 @@ _cursor/TOOLS/script.sh
 script.sh
 log.txt
 update.sh
-UPDATE.sh
+# UPDATE.sh
 cleanup_git.sh
 cleanup_git.ps1
 

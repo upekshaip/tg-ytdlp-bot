@@ -30,10 +30,6 @@ if "%STATUS%"=="" (
     exit /b 0
 )
 
-REM Add all changes
-echo ➕ Adding all changes...
-git add .
-
 REM Remove any files that should be ignored but are still tracked
 echo 🧹 Cleaning up ignored files...
 if exist "UPDATE.sh" (
@@ -42,6 +38,10 @@ if exist "UPDATE.sh" (
 if exist "_cursor" (
     git rm --cached -r "_cursor" 2>nul
 )
+
+REM Add all changes
+echo ➕ Adding all changes...
+git add .
 
 REM Check if add was successful
 if errorlevel 1 (
