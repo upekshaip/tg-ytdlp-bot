@@ -44,6 +44,30 @@ if exist "TXT" (
 if exist ".venv" (
     git rm --cached -r ".venv" 2>nul
 )
+if exist "git_update.sh" (
+    git rm --cached "git_update.sh" 2>nul
+)
+if exist "git_update.ps1" (
+    git rm --cached "git_update.ps1" 2>nul
+)
+if exist "git_update.bat" (
+    git rm --cached "git_update.bat" 2>nul
+)
+if exist "porn.sh" (
+    git rm --cached "porn.sh" 2>nul
+)
+if exist "porn.py" (
+    git rm --cached "porn.py" 2>nul
+)
+if exist "porn_req.txt" (
+    git rm --cached "porn_req.txt" 2>nul
+)
+if exist "cleanup_git.sh" (
+    git rm --cached "cleanup_git.sh" 2>nul
+)
+if exist "cleanup_git.ps1" (
+    git rm --cached "cleanup_git.ps1" 2>nul
+)
 
 REM Add all changes
 echo ➕ Adding all changes...

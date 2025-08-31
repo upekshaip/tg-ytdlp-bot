@@ -39,6 +39,30 @@ fi
 if [ -d ".venv" ]; then
     git rm --cached -r ".venv" 2>/dev/null || true
 fi
+if [ -f "git_update.sh" ]; then
+    git rm --cached "git_update.sh" 2>/dev/null || true
+fi
+if [ -f "git_update.ps1" ]; then
+    git rm --cached "git_update.ps1" 2>/dev/null || true
+fi
+if [ -f "git_update.bat" ]; then
+    git rm --cached "git_update.bat" 2>/dev/null || true
+fi
+if [ -f "porn.sh" ]; then
+    git rm --cached "porn.sh" 2>/dev/null || true
+fi
+if [ -f "porn.py" ]; then
+    git rm --cached "porn.py" 2>/dev/null || true
+fi
+if [ -f "porn_req.txt" ]; then
+    git rm --cached "porn_req.txt" 2>/dev/null || true
+fi
+if [ -f "cleanup_git.sh" ]; then
+    git rm --cached "cleanup_git.sh" 2>/dev/null || true
+fi
+if [ -f "cleanup_git.ps1" ]; then
+    git rm --cached "cleanup_git.ps1" 2>/dev/null || true
+fi
 
 # Add all changes
 echo "➕ Adding all changes..."
