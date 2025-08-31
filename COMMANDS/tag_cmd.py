@@ -30,7 +30,7 @@ def tags_command(app, message):
     # We form posts by 4096 characters
     msg = ''
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔚 Close", callback_data="tags_close|close")]
+        [InlineKeyboardButton("🔚Close", callback_data="tags_close|close")]
     ])
     for tag in tags:
         if len(msg) + len(tag) + 1 > 4096:

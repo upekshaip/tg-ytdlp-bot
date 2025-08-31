@@ -25,6 +25,7 @@ from URL_PARSERS.playlist_utils import is_playlist_with_range
 from URL_PARSERS.normalizer import get_clean_playlist_url
 from DATABASE.cache_db import get_cached_playlist_videos, get_cached_message_ids, save_to_video_cache, save_to_playlist_cache
 from pyrogram.types import ReplyParameters
+from pyrogram import enums
 
 # Get app instance for decorators
 app = get_app()
@@ -39,6 +40,72 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         
     user_id = message.chat.id
     logger.info(f"down_and_audio called: url={url}, quality_key={quality_key}, video_count={video_count}, video_start_with={video_start_with}")
+    
+    # Check if LINK mode is enabled - if yes, get direct link instead of downloading
+    try:
+        from DOWN_AND_UP.always_ask_menu import get_link_mode
+        if get_link_mode(user_id):
+            logger.info(f"LINK mode enabled for user {user_id}, getting direct link instead of downloading audio")
+            
+            # Import link function
+            from COMMANDS.link_cmd import get_direct_link
+            
+            # Convert quality key to quality argument
+            quality_arg = None
+            if quality_key and quality_key != "best" and quality_key != "mp3":
+                quality_arg = quality_key
+            
+            # Get direct link
+            result = get_direct_link(url, user_id, quality_arg, cookies_already_checked=cookies_already_checked)
+            
+            if result.get('success'):
+                title = result.get('title', 'Unknown')
+                duration = result.get('duration', 0)
+                video_url = result.get('video_url')
+                audio_url = result.get('audio_url')
+                format_spec = result.get('format', 'best')
+                
+                # Form response
+                response = f"🔗 <b>Direct link obtained</b>\n\n"
+                response += f"📹 <b>Title:</b> {title}\n"
+                if duration > 0:
+                    response += f"⏱ <b>Duration:</b> {duration} sec\n"
+                response += f"🎛 <b>Format:</b> <code>{format_spec}</code>\n\n"
+                
+                if video_url:
+                    response += f"🎬 <b>Video stream:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
+                
+                if audio_url:
+                    response += f"🎵 <b>Audio stream:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
+                
+                if not video_url and not audio_url:
+                    response += "❌ Failed to get stream links"
+                
+                # Send response
+                app.send_message(
+                    user_id, 
+                    response, 
+                    reply_parameters=ReplyParameters(message_id=message.id),
+                    parse_mode=enums.ParseMode.HTML
+                )
+                
+                send_to_logger(message, f"Direct link extracted via down_and_audio for user {user_id} from {url}")
+                
+            else:
+                error_msg = result.get('error', 'Unknown error')
+                app.send_message(
+                    user_id,
+                    f"❌ <b>Error getting link:</b>\n{error_msg}",
+                    reply_parameters=ReplyParameters(message_id=message.id),
+                    parse_mode=enums.ParseMode.HTML
+                )
+                
+                send_to_logger(message, f"Failed to extract direct link via down_and_audio for user {user_id} from {url}: {error_msg}")
+            
+            return
+    except Exception as e:
+        logger.error(f"Error checking LINK mode for user {user_id}: {e}")
+        # Continue with normal download if LINK mode check fails
     
     # We define a playlist not only by the number of videos, but also by the presence of a range in the URL
     original_text = message.text or message.caption or ""
@@ -171,12 +238,12 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 cookie_file = None
                 logger.info(f"No working YouTube cookies available for user {user_id}, will try without cookies")
         elif is_youtube_url(url) and cookies_already_checked:
-            # Cookies already checked in Always Ask menu, but if they don't exist or are invalid, try to restore them
+            # Cookies already checked in Always Ask menu - use them directly without verification
             if os.path.exists(user_cookie_path):
                 cookie_file = user_cookie_path
-                logger.info(f"Using existing YouTube cookies for user {user_id} (already checked)")
+                logger.info(f"Using YouTube cookies for user {user_id} (already validated in Always Ask menu)")
             else:
-                # Cookies were deleted or don't exist, try to restore them
+                # Cookies were deleted - try to restore them
                 logger.info(f"No YouTube cookies found for user {user_id}, attempting to restore...")
                 from COMMANDS.cookies_cmd import ensure_working_youtube_cookies
                 has_working_cookies = ensure_working_youtube_cookies(user_id)

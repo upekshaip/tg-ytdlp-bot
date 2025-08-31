@@ -65,6 +65,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 📥 <b>Basic Usage:</b>
 • Send any video link and the bot will download it
 • For audio extraction, use <code>/audio URL</code>
+• For direct links, use <code>/link [quality] URL</code>
 • Reply to any video with text to change its caption
 
 📋 <b>Playlists:</b>
@@ -104,6 +105,27 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 • Tags appear in captions and are saved
 • Use <code>/tags</code> to view all your tags
 
+🔗 <b>Direct Links:</b>
+• <code>/link URL</code> - Get direct link (best quality)
+• <code>/link 720 URL</code> - Get direct link (720p or lower)
+• <code>/link 4k URL</code> - Get direct link (4K or lower)
+• <code>/link 8k URL</code> - Get direct link (8K or lower)
+
+⚙️ <b>Advanced Commands with Arguments:</b>
+• <code>/format 720</code> - Set quality to 720p
+• <code>/format 4k</code> - Set quality to 4K
+• <code>/format 8k</code> - Set quality to 8K
+• <code>/keyboard off</code> - Hide keyboard
+• <code>/keyboard 1x3</code> - Set 1x3 keyboard layout
+• <code>/keyboard 2x3</code> - Set 2x3 keyboard layout
+• <code>/keyboard full</code> - Set emoji keyboard
+• <code>/split 250mb</code> - Set split size to 250MB
+• <code>/split 1gb</code> - Set split size to 1GB
+• <code>/split 2gb</code> - Set split size to 2GB
+• <code>/subs off</code> - Disable subtitles
+• <code>/subs ru</code> - Set subtitle language to Russian
+• <code>/subs en auto</code> - Set subtitle language to English with AUTO/TRANS
+
 📊 <b>Information:</b>
 • <code>/usage</code> - View your download history
 • <code>/help</code> - Show this help message
@@ -117,6 +139,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 📥 <b>Основное использование:</b>
 • Отправьте ссылку на видео для загрузки
 • <code>/audio URL</code> - Извлечь аудио
+• <code>/link [качество] URL</code> - Получить прямую ссылку
 • Ответьте на видео текстом для изменения подписи
 
 📋 <b>Плейлисты:</b>
@@ -155,6 +178,27 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 • Добавьте <code>#тег1#тег2</code> после любой ссылки
 • Теги появляются в подписях и сохраняются
 • <code>/tags</code> - Посмотреть все ваши теги
+
+🔗 <b>Прямые ссылки:</b>
+• <code>/link URL</code> - Получить прямую ссылку (лучшее качество)
+• <code>/link 720 URL</code> - Получить прямую ссылку (720p или ниже)
+• <code>/link 4k URL</code> - Получить прямую ссылку (4K или ниже)
+• <code>/link 8k URL</code> - Получить прямую ссылку (8K или ниже)
+
+⚙️ <b>Расширенные команды с аргументами:</b>
+• <code>/format 720</code> - Установить качество 720p
+• <code>/format 4k</code> - Установить качество 4K
+• <code>/format 8k</code> - Установить качество 8K
+• <code>/keyboard off</code> - Скрыть клавиатуру
+• <code>/keyboard 1x3</code> - Установить клавиатуру 1x3
+• <code>/keyboard 2x3</code> - Установить клавиатуру 2x3
+• <code>/keyboard full</code> - Установить эмодзи клавиатуру
+• <code>/split 250mb</code> - Установить размер части 250MB
+• <code>/split 1gb</code> - Установить размер части 1GB
+• <code>/split 2gb</code> - Установить размер части 2GB
+• <code>/subs off</code> - Отключить субтитры
+• <code>/subs ru</code> - Установить язык субтитров русский
+• <code>/subs en auto</code> - Установить язык субтитров английский с AUTO/TRANS
 
 📊 <b>Информация:</b>
 • <code>/usage</code> - История загрузок

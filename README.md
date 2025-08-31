@@ -305,28 +305,89 @@ python3 magic.py
 - **/usage** - Show your usage statistics and logs.
 - **/tags** - Get all your #tags.
 - **/audio** - Download audio from a video URL.
+- **/link** - Get direct video links with quality selection (e.g., `/link 720 URL`, `/link 4k URL`).
 - **/format** - Choose media format options with advanced codec selection (H.264/AVC, AV1, VP9) and container preferences (MP4, MKV).
+  - **With arguments**: `/format 720`, `/format 4k`, `/format 8k` - Set quality directly
 - **/split** - Change splitted video part size (0.25-2GB).
+  - **With arguments**: `/split 250mb`, `/split 1gb`, `/split 2gb` - Set size directly
 - **/mediainfo** - Turn ON/OFF sending mediainfo (`/mediainfo on|off`).
 - **/check_cookie** - Check the cookie file.
 - **/cookie** - Download the cookie file with additional "From Browser" option.
 - **/save_as_cookie** - Save text as cookie (or upload TXT-doc).
 - **/cookies_from_browser** - Get cookies from browser (if supported) with fallback to Config.COOKIE_URL.
 - **/subs** - Enable/disable subtitle embedding for videos with enhanced language selection and "Always Ask" mode.
+  - **With arguments**: `/subs off`, `/subs ru`, `/subs en auto` - Set language and mode directly
+- **/keyboard** - Manage reply keyboard settings (OFF/1x3/2x3/full).
+  - **With arguments**: `/keyboard off`, `/keyboard 1x3`, `/keyboard 2x3`, `/keyboard full` - Set layout directly
 - **/search** - Open inline search helper for quick `@vid` usage (see below).
 
 ---
 
 ## Advanced Features
 
+### Direct Link Extraction (`/link`)
+- **Quality Selection**: Specify desired quality (e.g., `720`, `1080`, `4k`, `8k`)
+- **Flexible Format**: Support for both numeric (`720`) and descriptive (`720p`, `4k`, `8K`) quality specifications
+- **Smart Fallback**: Automatically falls back to best available quality if specified quality is not available
+- **Dual Stream Support**: Returns both video and audio stream URLs when available
+- **Proxy Support**: Works with configured proxy settings for restricted domains
+- **Cookie Integration**: Uses user's cookie settings for private content access
+
+**Usage Examples:**
+```bash
+/link https://youtube.com/watch?v=...          # Best quality
+/link 720 https://youtube.com/watch?v=...     # 720p or lower
+/link 720p https://youtube.com/watch?v=...    # Same as above
+/link 4k https://youtube.com/watch?v=...      # 4K or lower
+/link 8k https://youtube.com/watch?v=...      # 8K or lower
+```
+
 ### Enhanced Format Selection (`/format`)
 - **Codec Support**: Choose between H.264/AVC (avc1), AV1 (av01), and VP9 (vp9)
 - **Container Toggle**: Switch between MP4 and MKV containers
 - **Smart Quality Selection**: Prioritizes exact height matches before falling back to "less than or equal to"
 - **Persistent Preferences**: Your codec and container choices are saved per-user
+- **Quick Quality Setting**: Use arguments to set quality directly (e.g., `/format 720`, `/format 4k`)
+
+### Advanced Command Arguments
+The bot now supports command arguments for quick configuration without opening menus:
+
+#### `/format` with Quality Arguments
+```bash
+/format 720    # Set quality to 720p or lower
+/format 4k     # Set quality to 4K or lower  
+/format 8k     # Set quality to 8K or lower
+/format best   # Set to best quality
+```
+
+#### `/keyboard` with Layout Arguments
+```bash
+/keyboard off   # Hide reply keyboard
+/keyboard 1x3  # Set single row layout
+/keyboard 2x3  # Set double row layout (default)
+/keyboard full  # Set emoji keyboard
+```
+
+#### `/split` with Size Arguments
+```bash
+/split 250mb   # Set split size to 250MB
+/split 500mb   # Set split size to 500MB
+/split 1gb     # Set split size to 1GB
+/split 1.5gb   # Set split size to 1.5GB
+/split 2gb     # Set split size to 2GB
+```
+
+#### `/subs` with Language and Mode Arguments
+```bash
+/subs off       # Disable subtitles
+/subs ru        # Set subtitle language to Russian
+/subs en        # Set subtitle language to English
+/subs en auto   # Set language to English with AUTO/TRANS enabled
+/subs fr auto   # Set language to French with AUTO/TRANS enabled
+```
 
 ### Always Ask Menu
-- **📼 CODEC Button**: Access advanced codec and container filters
+- **📼CODEC Button**: Access advanced codec and container filters
   - AVC (H.264/AVC) - Traditional, widely supported
   - AV1 - Modern royalty-free codec with ~25-40% better efficiency
   - VP9 - Google's VP9 codec
@@ -338,6 +399,11 @@ python3 magic.py
   - Auto-generated vs. normal captions
   - Translation indicators
   - Pagination support
+- **☑️LINK Button**: Toggle direct link mode
+  - When enabled (✅LINK), clicking quality buttons returns direct links instead of downloading
+  - Respects all selected filters (codec, container, audio language, subtitles)
+  - No caching for direct links
+  - Always available in the main menu (not just in CODEC filters)
 - **Dynamic Filtering**: Real-time quality filtering based on selected codec/container
 - **Smart Subtitle Logic**: Differentiates between "Always Ask" mode and manual subtitle selection
 
@@ -356,17 +422,20 @@ python3 magic.py
 - **YouTube Cookie Validation**: Automatic testing and validation of YouTube cookies
 - **Multi-Source Fallback**: Automatic switching between multiple cookie sources
 - **Real-time Progress**: Live updates during cookie download and validation process
+- **Proxy Support**: Automatic proxy usage for restricted domains (configurable in `CONFIG/domains.py`)
 
 ### Reply Keyboard Management
-- **Customizable Layout**: Choose between 1x3 (single row) and 2x3 (double row) keyboard layouts
+- **Customizable Layout**: Choose between 1x3 (single row), 2x3 (double row), and FULL (emoji) keyboard layouts
 - **Smart Display**: Keyboard automatically shows/hides based on user preferences
 - **Persistent Settings**: User keyboard preferences are saved in `keyboard.txt` file
-- **Easy Toggle**: Quickly switch between OFF, 1x3, and 2x3 modes via `/keyboard` command
+- **Easy Toggle**: Quickly switch between OFF, 1x3, 2x3, and FULL modes via `/keyboard` command
+- **Quick Arguments**: Set layout directly with arguments (e.g., `/keyboard off`, `/keyboard full`)
 
 **Keyboard Modes:**
 - **OFF**: Completely hides the reply keyboard
 - **1x3**: Shows single row with `/clean`, `/cookie`, `/settings`
 - **2x3**: Shows two rows with full command set (default mode)
+- **FULL**: Shows emoji keyboard with visual command representation
 
 ### Improved Error Handling
 - **Upload Retries**: Smart retry logic for failed uploads with fallback to document mode

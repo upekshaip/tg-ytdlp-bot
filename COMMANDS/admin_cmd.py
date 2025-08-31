@@ -149,7 +149,7 @@ def get_user_log(app, message):
     with open(log_path, 'w', encoding="utf-8") as f:
         f.write(txt_format)
 
-    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔚 Close", callback_data="userlogs_close|close")]])
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔚Close", callback_data="userlogs_close|close")]])
     from HELPERS.safe_messeger import safe_send_message
     safe_send_message(message.chat.id, f"Total: <b>{total}</b>\n<b>{user_id}</b> - logs (Last 10):\n\n{format_str}", parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
     app.send_document(message.chat.id, log_path, caption=f"{user_id} - all logs")

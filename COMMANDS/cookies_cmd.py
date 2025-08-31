@@ -19,9 +19,15 @@ import re
 from requests import Session
 from requests.adapters import HTTPAdapter
 import yt_dlp
+import time
 
 # Get app instance for decorators
 app = get_app()
+
+# Cache for YouTube cookie validation results
+# Format: {user_id: {'result': bool, 'timestamp': float, 'cookie_path': str}}
+_youtube_cookie_cache = {}
+_CACHE_DURATION = 30  # Cache results for 30 seconds
 
 @app.on_message(filters.command("cookies_from_browser") & filters.private)
 # @reply_with_keyboard
@@ -128,7 +134,7 @@ def cookies_from_browser(app, message):
         buttons.append([button])
 
     # Add a close button
-    buttons.append([InlineKeyboardButton("🔚 Close", callback_data="browser_choice|close")])
+    buttons.append([InlineKeyboardButton("🔚Close", callback_data="browser_choice|close")])
     keyboard = InlineKeyboardMarkup(buttons)
 
     safe_send_message(
@@ -303,7 +309,7 @@ def download_cookie_callback(app, callback_query):
         except Exception:
             pass
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚 Close", callback_data="save_as_cookie_hint|close")]
+            [InlineKeyboardButton("🔚Close", callback_data="save_as_cookie_hint|close")]
         ])
         from HELPERS.safe_messeger import safe_send_message
         safe_send_message(
@@ -434,7 +440,7 @@ def download_cookie(app, message):
             InlineKeyboardButton("🌐 From Browser (YouTube)", callback_data="download_cookie|from_browser"),
         ],
         [
-            InlineKeyboardButton("🔚 Close", callback_data="download_cookie|close"),
+            InlineKeyboardButton("🔚Close", callback_data="download_cookie|close"),
         ],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
@@ -853,9 +859,10 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
     Обеспечивает наличие рабочих YouTube куки для пользователя.
     
     Процесс:
-    1. Проверяет существующие куки пользователя
-    2. Если не работают - скачивает новые из всех источников
-    3. Если ни один источник не работает - удаляет куки и возвращает False
+    1. Проверяет кеш результатов
+    2. Проверяет существующие куки пользователя
+    3. Если не работают - скачивает новые из всех источников
+    4. Если ни один источник не работает - удаляет куки и возвращает False
     
     Args:
         user_id (int): ID пользователя
@@ -863,6 +870,21 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
     Returns:
         bool: True если есть рабочие куки, False если нет
     """
+    global _youtube_cookie_cache
+    
+    # Check cache first
+    current_time = time.time()
+    if user_id in _youtube_cookie_cache:
+        cache_entry = _youtube_cookie_cache[user_id]
+        if current_time - cache_entry['timestamp'] < _CACHE_DURATION:
+            # Check if cookie file still exists and hasn't changed
+            if os.path.exists(cache_entry['cookie_path']):
+                logger.info(f"Using cached YouTube cookie validation result for user {user_id} (cache valid for {_CACHE_DURATION}s)")
+                return cache_entry['result']
+            else:
+                # Cookie file was deleted, remove from cache
+                del _youtube_cookie_cache[user_id]
+    
     logger.info(f"Starting ensure_working_youtube_cookies for user {user_id}")
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
@@ -875,6 +897,12 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
         if test_youtube_cookies(cookie_file_path):
             logger.info(f"Existing YouTube cookies are working for user {user_id}")
             logger.info(f"Finished ensure_working_youtube_cookies for user {user_id} - existing cookies are working")
+            # Cache the successful result
+            _youtube_cookie_cache[user_id] = {
+                'result': True,
+                'timestamp': current_time,
+                'cookie_path': cookie_file_path
+            }
             return True
         else:
             logger.warning(f"Existing YouTube cookies failed test for user {user_id}, will try to update")
@@ -886,6 +914,12 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
         # Удаляем нерабочие куки
         if os.path.exists(cookie_file_path):
             os.remove(cookie_file_path)
+        # Cache the failed result
+        _youtube_cookie_cache[user_id] = {
+            'result': False,
+            'timestamp': current_time,
+            'cookie_path': cookie_file_path
+        }
         return False
     
     logger.info(f"Attempting to download working YouTube cookies for user {user_id} from {len(cookie_urls)} sources")
@@ -918,6 +952,12 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
             if test_youtube_cookies(cookie_file_path):
                 logger.info(f"YouTube cookies from source {i} are working for user {user_id}")
                 logger.info(f"Finished ensure_working_youtube_cookies for user {user_id} - working cookies found from source {i}")
+                # Cache the successful result
+                _youtube_cookie_cache[user_id] = {
+                    'result': True,
+                    'timestamp': current_time,
+                    'cookie_path': cookie_file_path
+                }
                 return True
             else:
                 logger.warning(f"YouTube cookies from source {i} failed validation for user {user_id}")
@@ -937,4 +977,28 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
     if os.path.exists(cookie_file_path):
         os.remove(cookie_file_path)
     logger.info(f"Finished ensure_working_youtube_cookies for user {user_id} - no working cookies found")
+    # Cache the failed result
+    _youtube_cookie_cache[user_id] = {
+        'result': False,
+        'timestamp': current_time,
+        'cookie_path': cookie_file_path
+    }
     return False
+
+def clear_youtube_cookie_cache(user_id: int = None):
+    """
+    Очищает кеш результатов проверки YouTube куки.
+    
+    Args:
+        user_id (int, optional): ID пользователя для очистки. Если None, очищает весь кеш.
+    """
+    global _youtube_cookie_cache
+    if user_id is None:
+        _youtube_cookie_cache.clear()
+        logger.info("Cleared all YouTube cookie validation cache")
+    else:
+        if user_id in _youtube_cookie_cache:
+            del _youtube_cookie_cache[user_id]
+            logger.info(f"Cleared YouTube cookie validation cache for user {user_id}")
+        else:
+            logger.info(f"No cache entry found for user {user_id}")

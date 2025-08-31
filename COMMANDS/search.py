@@ -29,7 +29,7 @@ def search_command(app, message):
         ],
         [
             InlineKeyboardButton(
-                "🔚 Close",
+                "🔚Close",
                 callback_data="search_msg|close"
             )
         ]

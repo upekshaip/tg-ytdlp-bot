@@ -45,7 +45,7 @@ def mediainfo_command(app, message):
         pass
     buttons = [
         [InlineKeyboardButton("✅ ON", callback_data="mediainfo_option|on"), InlineKeyboardButton("❌ OFF", callback_data="mediainfo_option|off")],
-        [InlineKeyboardButton("🔚 Close", callback_data="mediainfo_option|close")],
+        [InlineKeyboardButton("🔚Close", callback_data="mediainfo_option|close")],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
     safe_send_message(

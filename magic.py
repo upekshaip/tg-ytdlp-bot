@@ -108,6 +108,7 @@ from COMMANDS.admin_cmd import *
 from COMMANDS.clean_cmd import *
 from COMMANDS.cookies_cmd import *
 from COMMANDS.format_cmd import *
+from COMMANDS.link_cmd import *
 from COMMANDS.mediainfo_cmd import *
 from COMMANDS.other_handlers import *
 from COMMANDS.settings_cmd import *
