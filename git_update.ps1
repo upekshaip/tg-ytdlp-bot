@@ -34,6 +34,9 @@ if (Test-Path "update.sh") {
 if (Test-Path "_cursor") {
     git rm --cached -r "_cursor" 2>$null
 }
+if (Test-Path "TXT") {
+    git rm --cached -r "TXT" 2>$null
+}
 
 # Add all changes
 Write-Host "➕ Adding all changes..." -ForegroundColor Yellow
