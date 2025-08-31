@@ -1735,6 +1735,15 @@ def show_other_qualities_menu(app, callback_query, page=0):
             else:
                 logger.info("No user cookie file found, using default")
             
+            # Add proxy if needed for this domain
+            from HELPERS.proxy_helper import is_proxy_domain, get_proxy_config
+            if is_proxy_domain(url):
+                proxy_config = get_proxy_config()
+                if proxy_config and 'proxy' in proxy_config:
+                    proxy_url = proxy_config['proxy']
+                    cmd.extend(["--proxy", proxy_url])
+                    logger.info(f"Added proxy to yt-dlp command: {proxy_url}")
+            
             cmd.append(url)
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             

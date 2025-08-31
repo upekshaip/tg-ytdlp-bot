@@ -25,6 +25,10 @@ class DomainsConfig(object):
         'dailymotion.com'
         # Other secure domains can be added
     ]    
+    PROXY_DOMAINS = [
+        'pornhub.com', 'pornhub.org'
+        # Other secure domains can be added
+    ]  
     # TikTok Domain List
     TIKTOK_DOMAINS = [
         'tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com',

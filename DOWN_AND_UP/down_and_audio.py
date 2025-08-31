@@ -314,7 +314,11 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 ytdl_opts['cookiefile'] = None  # Equivalent to --no-cookies
                 logger.info(f"Using --no-cookies for domain: {url}")
             else:
-                ytdl_opts['cookiefile'] = cookie_file   
+                ytdl_opts['cookiefile'] = cookie_file
+            
+            # Add proxy configuration if needed for this domain
+            from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
+            ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url)   
             try:
                 with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
                     info_dict = ydl.extract_info(url, download=False)
