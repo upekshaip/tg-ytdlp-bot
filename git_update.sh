@@ -36,6 +36,9 @@ fi
 if [ -d "TXT" ]; then
     git rm --cached -r "TXT" 2>/dev/null || true
 fi
+if [ -d ".venv" ]; then
+    git rm --cached -r ".venv" 2>/dev/null || true
+fi
 
 # Add all changes
 echo "➕ Adding all changes..."

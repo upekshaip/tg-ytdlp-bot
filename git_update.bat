@@ -41,6 +41,9 @@ if exist "_cursor" (
 if exist "TXT" (
     git rm --cached -r "TXT" 2>nul
 )
+if exist ".venv" (
+    git rm --cached -r ".venv" 2>nul
+)
 
 REM Add all changes
 echo ➕ Adding all changes...

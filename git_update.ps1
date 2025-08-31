@@ -37,6 +37,9 @@ if (Test-Path "_cursor") {
 if (Test-Path "TXT") {
     git rm --cached -r "TXT" 2>$null
 }
+if (Test-Path ".venv") {
+    git rm --cached -r ".venv" 2>$null
+}
 
 # Add all changes
 Write-Host "➕ Adding all changes..." -ForegroundColor Yellow
