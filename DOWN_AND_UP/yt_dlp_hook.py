@@ -5,6 +5,7 @@ from CONFIG.config import Config
 from HELPERS.logger import logger
 from HELPERS.filesystem_hlp import create_directory
 from URL_PARSERS.nocookie import is_no_cookie_domain
+from URL_PARSERS.youtube import is_youtube_url
 
 def get_video_formats(url, user_id=None, playlist_start_index=1):
     ytdl_opts = {
@@ -28,23 +29,36 @@ def get_video_formats(url, user_id=None, playlist_start_index=1):
         user_dir = os.path.join("users", str(user_id))
         # Check the availability of cookie.txt in the user folder
         user_cookie_path = os.path.join(user_dir, "cookie.txt")
-        if os.path.exists(user_cookie_path):
-            cookie_file = user_cookie_path
-        else:
-            # If not in the user folder, we copy from the global folder
-            global_cookie_path = Config.COOKIE_FILE_PATH
-            if os.path.exists(global_cookie_path):
-                try:
-                    create_directory(user_dir)
-                    import shutil
-                    shutil.copy2(global_cookie_path, user_cookie_path)
-                    logger.info(f"Copied global cookie file to user {user_id} folder for format detection")
-                    cookie_file = user_cookie_path
-                except Exception as e:
-                    logger.error(f"Failed to copy global cookie file for user {user_id}: {e}")
-                    cookie_file = None
+        
+        # For YouTube URLs, ensure working cookies
+        if is_youtube_url(url):
+            from COMMANDS.cookies_cmd import ensure_working_youtube_cookies
+            has_working_cookies = ensure_working_youtube_cookies(user_id)
+            if has_working_cookies and os.path.exists(user_cookie_path):
+                cookie_file = user_cookie_path
+                logger.info(f"Using working YouTube cookies for format detection for user {user_id}")
             else:
                 cookie_file = None
+                logger.info(f"No working YouTube cookies available for format detection for user {user_id}, will try without cookies")
+        else:
+            # For non-YouTube URLs, use existing logic
+            if os.path.exists(user_cookie_path):
+                cookie_file = user_cookie_path
+            else:
+                # If not in the user folder, we copy from the global folder
+                global_cookie_path = Config.COOKIE_FILE_PATH
+                if os.path.exists(global_cookie_path):
+                    try:
+                        create_directory(user_dir)
+                        import shutil
+                        shutil.copy2(global_cookie_path, user_cookie_path)
+                        logger.info(f"Copied global cookie file to user {user_id} folder for format detection")
+                        cookie_file = user_cookie_path
+                    except Exception as e:
+                        logger.error(f"Failed to copy global cookie file for user {user_id}: {e}")
+                        cookie_file = None
+                else:
+                    cookie_file = None
         
         # We check whether to use —no-Cookies for this domain
         if is_no_cookie_domain(url):

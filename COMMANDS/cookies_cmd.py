@@ -1,5 +1,5 @@
 
-# Command to Set Browser Cooks
+# Command to Set Browser Cookies and Auto-Update YouTube Cookies
 from pyrogram import filters
 from CONFIG.config import Config
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
@@ -846,4 +846,95 @@ def download_and_validate_youtube_cookies(app, callback_query) -> bool:
         "❌ All YouTube cookies are expired or unavailable!\n\nContact the bot administrator to replace them."
     )
     send_to_logger(callback_query.message, f"All YouTube cookie sources failed for user {user_id}.")
+    return False
+
+def ensure_working_youtube_cookies(user_id: int) -> bool:
+    """
+    Обеспечивает наличие рабочих YouTube куки для пользователя.
+    
+    Процесс:
+    1. Проверяет существующие куки пользователя
+    2. Если не работают - скачивает новые из всех источников
+    3. Если ни один источник не работает - удаляет куки и возвращает False
+    
+    Args:
+        user_id (int): ID пользователя
+        
+    Returns:
+        bool: True если есть рабочие куки, False если нет
+    """
+    logger.info(f"Starting ensure_working_youtube_cookies for user {user_id}")
+    user_dir = os.path.join("users", str(user_id))
+    create_directory(user_dir)
+    cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
+    cookie_file_path = os.path.join(user_dir, cookie_filename)
+    
+    # Проверяем существующие куки
+    if os.path.exists(cookie_file_path):
+        logger.info(f"Checking existing YouTube cookies for user {user_id}")
+        if test_youtube_cookies(cookie_file_path):
+            logger.info(f"Existing YouTube cookies are working for user {user_id}")
+            logger.info(f"Finished ensure_working_youtube_cookies for user {user_id} - existing cookies are working")
+            return True
+        else:
+            logger.warning(f"Existing YouTube cookies failed test for user {user_id}, will try to update")
+    
+    # Если куки нет или не работают, пробуем скачать новые
+    cookie_urls = get_youtube_cookie_urls()
+    if not cookie_urls:
+        logger.warning(f"No YouTube cookie sources configured for user {user_id}")
+        # Удаляем нерабочие куки
+        if os.path.exists(cookie_file_path):
+            os.remove(cookie_file_path)
+        return False
+    
+    logger.info(f"Attempting to download working YouTube cookies for user {user_id} from {len(cookie_urls)} sources")
+    
+    for i, url in enumerate(cookie_urls, 1):
+        try:
+            logger.info(f"Trying YouTube cookie source {i}/{len(cookie_urls)} for user {user_id}")
+            
+            # Скачиваем куки
+            ok, status, content, err = _download_content(url, timeout=30)
+            if not ok:
+                logger.warning(f"Failed to download YouTube cookie from URL {i}: status={status}, error={err}")
+                continue
+            
+            # Проверяем формат и размер
+            if not url.lower().endswith('.txt'):
+                logger.warning(f"YouTube cookie URL {i} is not .txt file")
+                continue
+                
+            content_size = len(content or b"")
+            if content_size > 100 * 1024:
+                logger.warning(f"YouTube cookie file {i} is too large: {content_size} bytes")
+                continue
+            
+            # Сохраняем куки
+            with open(cookie_file_path, "wb") as cf:
+                cf.write(content)
+            
+            # Проверяем работоспособность
+            if test_youtube_cookies(cookie_file_path):
+                logger.info(f"YouTube cookies from source {i} are working for user {user_id}")
+                logger.info(f"Finished ensure_working_youtube_cookies for user {user_id} - working cookies found from source {i}")
+                return True
+            else:
+                logger.warning(f"YouTube cookies from source {i} failed validation for user {user_id}")
+                # Удаляем нерабочие куки
+                if os.path.exists(cookie_file_path):
+                    os.remove(cookie_file_path)
+                    
+        except Exception as e:
+            logger.error(f"Error processing YouTube cookie URL {i} for user {user_id}: {e}")
+            # Удаляем файл в случае ошибки
+            if os.path.exists(cookie_file_path):
+                os.remove(cookie_file_path)
+            continue
+    
+    # Если ни один источник не сработал
+    logger.warning(f"All YouTube cookie sources failed for user {user_id}, removing cookie file")
+    if os.path.exists(cookie_file_path):
+        os.remove(cookie_file_path)
+    logger.info(f"Finished ensure_working_youtube_cookies for user {user_id} - no working cookies found")
     return False
