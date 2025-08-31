@@ -12,8 +12,8 @@ format - Change quality & format options
 mediainfo - Turn ON/OFF sending mediainfo
 split - Change splitted video part size (0.25-2GB)
 subs - Enable/disable subtitle embedding for videos
+link - + [quality] URL - Get direct video/audio stream links
 check_cookie - Check and validate cookie file
 save_as_cookie - Save text as cookie (or upload TXT-doc)
 tags - Get all your #tags
 usage - Get your logs
-link - + [quality] URL - Get direct video/audio stream links
