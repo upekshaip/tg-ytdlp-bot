@@ -30,6 +30,15 @@ if ([string]::IsNullOrEmpty($status)) {
 Write-Host "➕ Adding all changes..." -ForegroundColor Yellow
 git add .
 
+# Remove any files that should be ignored but are still tracked
+Write-Host "🧹 Cleaning up ignored files..." -ForegroundColor Yellow
+if (Test-Path "UPDATE.sh") {
+    git rm --cached "UPDATE.sh" 2>$null
+}
+if (Test-Path "_cursor") {
+    git rm --cached -r "_cursor" 2>$null
+}
+
 # Check if add was successful
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ Error: Failed to add changes to git" -ForegroundColor Red

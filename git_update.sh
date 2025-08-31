@@ -29,6 +29,15 @@ fi
 echo "➕ Adding all changes..."
 git add .
 
+# Remove any files that should be ignored but are still tracked
+echo "🧹 Cleaning up ignored files..."
+if [ -f "UPDATE.sh" ]; then
+    git rm --cached "UPDATE.sh" 2>/dev/null || true
+fi
+if [ -d "_cursor" ]; then
+    git rm --cached -r "_cursor" 2>/dev/null || true
+fi
+
 # Check if add was successful
 if [ $? -ne 0 ]; then
     echo "❌ Error: Failed to add changes to git"

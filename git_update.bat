@@ -34,6 +34,15 @@ REM Add all changes
 echo ➕ Adding all changes...
 git add .
 
+REM Remove any files that should be ignored but are still tracked
+echo 🧹 Cleaning up ignored files...
+if exist "UPDATE.sh" (
+    git rm --cached "UPDATE.sh" 2>nul
+)
+if exist "_cursor" (
+    git rm --cached -r "_cursor" 2>nul
+)
+
 REM Check if add was successful
 if errorlevel 1 (
     echo ❌ Error: Failed to add changes to git
