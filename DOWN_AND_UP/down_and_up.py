@@ -530,13 +530,21 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         common_opts['cookiefile'] = None
                         logger.info(f"No working YouTube cookies available for user {user_id}, will try without cookies")
                 elif is_youtube_url(url) and cookies_already_checked:
-                    # Cookies already checked in Always Ask menu, use existing logic
+                    # Cookies already checked in Always Ask menu, but if they don't exist or are invalid, try to restore them
                     if os.path.exists(user_cookie_path):
                         common_opts['cookiefile'] = user_cookie_path
                         logger.info(f"Using existing YouTube cookies for user {user_id} (already checked)")
                     else:
-                        common_opts['cookiefile'] = None
-                        logger.info(f"No YouTube cookies found for user {user_id} (already checked)")
+                        # Cookies were deleted or don't exist, try to restore them
+                        logger.info(f"No YouTube cookies found for user {user_id}, attempting to restore...")
+                        from COMMANDS.cookies_cmd import ensure_working_youtube_cookies
+                        has_working_cookies = ensure_working_youtube_cookies(user_id)
+                        if has_working_cookies and os.path.exists(user_cookie_path):
+                            common_opts['cookiefile'] = user_cookie_path
+                            logger.info(f"Successfully restored working YouTube cookies for user {user_id}")
+                        else:
+                            common_opts['cookiefile'] = None
+                            logger.info(f"Failed to restore YouTube cookies for user {user_id}, will try without cookies")
                 else:
                     # For non-YouTube URLs, use existing logic
                     if os.path.exists(user_cookie_path):

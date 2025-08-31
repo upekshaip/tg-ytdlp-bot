@@ -41,13 +41,21 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                 cookie_file = None
                 logger.info(f"No working YouTube cookies available for format detection for user {user_id}, will try without cookies")
         elif is_youtube_url(url) and cookies_already_checked:
-            # Cookies already checked, use existing logic
+            # Cookies already checked, but if they don't exist or are invalid, try to restore them
             if os.path.exists(user_cookie_path):
                 cookie_file = user_cookie_path
                 logger.info(f"Using existing YouTube cookies for format detection for user {user_id} (already checked)")
             else:
-                cookie_file = None
-                logger.info(f"No YouTube cookies found for format detection for user {user_id} (already checked)")
+                # Cookies were deleted or don't exist, try to restore them
+                logger.info(f"No YouTube cookies found for format detection for user {user_id}, attempting to restore...")
+                from COMMANDS.cookies_cmd import ensure_working_youtube_cookies
+                has_working_cookies = ensure_working_youtube_cookies(user_id)
+                if has_working_cookies and os.path.exists(user_cookie_path):
+                    cookie_file = user_cookie_path
+                    logger.info(f"Successfully restored working YouTube cookies for format detection for user {user_id}")
+                else:
+                    cookie_file = None
+                    logger.info(f"Failed to restore YouTube cookies for format detection for user {user_id}, will try without cookies")
         else:
             # For non-YouTube URLs, use existing logic
             if os.path.exists(user_cookie_path):
