@@ -30,7 +30,7 @@ from pyrogram.types import ReplyParameters
 app = get_app()
 
 # @reply_with_keyboard
-def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None, video_count=1, video_start_with=1, format_override=None):
+def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None, video_count=1, video_start_with=1, format_override=None, cookies_already_checked=False):
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
     """
@@ -160,8 +160,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         # Check if cookie.txt exists in the user's folder
         user_cookie_path = os.path.join(user_folder, "cookie.txt")
         
-        # For YouTube URLs, ensure working cookies
-        if is_youtube_url(url):
+        # For YouTube URLs, ensure working cookies (skip if already checked in Always Ask menu)
+        if is_youtube_url(url) and not cookies_already_checked:
             from COMMANDS.cookies_cmd import ensure_working_youtube_cookies
             has_working_cookies = ensure_working_youtube_cookies(user_id)
             if has_working_cookies and os.path.exists(user_cookie_path):
@@ -170,6 +170,14 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             else:
                 cookie_file = None
                 logger.info(f"No working YouTube cookies available for user {user_id}, will try without cookies")
+        elif is_youtube_url(url) and cookies_already_checked:
+            # Cookies already checked in Always Ask menu, use existing logic
+            if os.path.exists(user_cookie_path):
+                cookie_file = user_cookie_path
+                logger.info(f"Using existing YouTube cookies for user {user_id} (already checked)")
+            else:
+                cookie_file = None
+                logger.info(f"No YouTube cookies found for user {user_id} (already checked)")
         else:
             # For non-YouTube URLs, use existing logic
             if os.path.exists(user_cookie_path):

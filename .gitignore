@@ -54,7 +54,9 @@ TOOLS/script.sh
 _cursor/TOOLS/script.sh
 script.sh
 log.txt
-update.sh
+# update.sh
+cleanup_git.sh
+cleanup_git.ps1
 
 # Configs with secrets (do not commit)
 CONFIG/config.py

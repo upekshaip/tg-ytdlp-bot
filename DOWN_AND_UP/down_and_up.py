@@ -59,7 +59,7 @@ def determine_need_subs(subs_enabled, found_type, user_id):
         return (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
 
 #@reply_with_keyboard
-def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None):
+def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None, cookies_already_checked=False):
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
     """
@@ -519,8 +519,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Check if cookie.txt exists in the user's folder
                 user_cookie_path = os.path.join("users", str(user_id), "cookie.txt")
                 
-                # For YouTube URLs, ensure working cookies
-                if is_youtube_url(url):
+                # For YouTube URLs, ensure working cookies (skip if already checked in Always Ask menu)
+                if is_youtube_url(url) and not cookies_already_checked:
                     from COMMANDS.cookies_cmd import ensure_working_youtube_cookies
                     has_working_cookies = ensure_working_youtube_cookies(user_id)
                     if has_working_cookies and os.path.exists(user_cookie_path):
@@ -529,6 +529,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     else:
                         common_opts['cookiefile'] = None
                         logger.info(f"No working YouTube cookies available for user {user_id}, will try without cookies")
+                elif is_youtube_url(url) and cookies_already_checked:
+                    # Cookies already checked in Always Ask menu, use existing logic
+                    if os.path.exists(user_cookie_path):
+                        common_opts['cookiefile'] = user_cookie_path
+                        logger.info(f"Using existing YouTube cookies for user {user_id} (already checked)")
+                    else:
+                        common_opts['cookiefile'] = None
+                        logger.info(f"No YouTube cookies found for user {user_id} (already checked)")
                 else:
                     # For non-YouTube URLs, use existing logic
                     if os.path.exists(user_cookie_path):

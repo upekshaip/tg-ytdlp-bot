@@ -26,6 +26,15 @@ if ([string]::IsNullOrEmpty($status)) {
     exit 0
 }
 
+# Remove any files that should be ignored but are still tracked
+Write-Host "🧹 Cleaning up ignored files..." -ForegroundColor Yellow
+if (Test-Path "update.sh") {
+    git rm --cached "update.sh" 2>$null
+}
+if (Test-Path "_cursor") {
+    git rm --cached -r "_cursor" 2>$null
+}
+
 # Add all changes
 Write-Host "➕ Adding all changes..." -ForegroundColor Yellow
 git add .
