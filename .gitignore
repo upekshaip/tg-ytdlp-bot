@@ -67,6 +67,5 @@ git_update.sh
 # Configs with secrets (do not commit)
 CONFIG/config.py
 config.py
-TXT/
 TXT/porn_domains.txt
 TXT/porn_keywords.txt

@@ -33,9 +33,6 @@ fi
 if [ -d "_cursor" ]; then
     git rm --cached -r "_cursor" 2>/dev/null || true
 fi
-if [ -d "TXT" ]; then
-    git rm --cached -r "TXT" 2>/dev/null || true
-fi
 if [ -d ".venv" ]; then
     git rm --cached -r ".venv" 2>/dev/null || true
 fi

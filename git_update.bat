@@ -38,9 +38,6 @@ if exist "update.sh" (
 if exist "_cursor" (
     git rm --cached -r "_cursor" 2>nul
 )
-if exist "TXT" (
-    git rm --cached -r "TXT" 2>nul
-)
 if exist ".venv" (
     git rm --cached -r ".venv" 2>nul
 )
