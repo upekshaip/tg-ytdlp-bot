@@ -209,7 +209,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         required_bytes = 2 * 1024 * 1024 * 1024
         try:
             from DOWN_AND_UP.yt_dlp_hook import get_video_formats
-            info_probe = get_video_formats(url, user_id)
+            info_probe = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked)
             size = 0
             if isinstance(info_probe, dict):
                 size = info_probe.get('filesize') or info_probe.get('filesize_approx') or 0
@@ -599,7 +599,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 from DOWN_AND_UP.yt_dlp_hook import get_video_formats
                 
                 logger.info("Checking available formats...")
-                check_info = get_video_formats(url, user_id)
+                check_info = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked)
                 logger.info("Format check completed")
                 
                 # Check if requested format exists

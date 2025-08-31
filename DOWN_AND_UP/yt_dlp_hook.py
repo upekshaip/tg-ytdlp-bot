@@ -7,7 +7,7 @@ from HELPERS.filesystem_hlp import create_directory
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url
 
-def get_video_formats(url, user_id=None, playlist_start_index=1):
+def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already_checked=False):
     ytdl_opts = {
         'quiet': True,
         'skip_download': True,
@@ -30,8 +30,8 @@ def get_video_formats(url, user_id=None, playlist_start_index=1):
         # Check the availability of cookie.txt in the user folder
         user_cookie_path = os.path.join(user_dir, "cookie.txt")
         
-        # For YouTube URLs, ensure working cookies
-        if is_youtube_url(url):
+        # For YouTube URLs, ensure working cookies (skip if already checked)
+        if is_youtube_url(url) and not cookies_already_checked:
             from COMMANDS.cookies_cmd import ensure_working_youtube_cookies
             has_working_cookies = ensure_working_youtube_cookies(user_id)
             if has_working_cookies and os.path.exists(user_cookie_path):
@@ -40,6 +40,14 @@ def get_video_formats(url, user_id=None, playlist_start_index=1):
             else:
                 cookie_file = None
                 logger.info(f"No working YouTube cookies available for format detection for user {user_id}, will try without cookies")
+        elif is_youtube_url(url) and cookies_already_checked:
+            # Cookies already checked, use existing logic
+            if os.path.exists(user_cookie_path):
+                cookie_file = user_cookie_path
+                logger.info(f"Using existing YouTube cookies for format detection for user {user_id} (already checked)")
+            else:
+                cookie_file = None
+                logger.info(f"No YouTube cookies found for format detection for user {user_id} (already checked)")
         else:
             # For non-YouTube URLs, use existing logic
             if os.path.exists(user_cookie_path):

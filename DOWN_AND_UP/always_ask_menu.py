@@ -1554,7 +1554,7 @@ def show_manual_quality_menu(app, callback_query):
     
     # Get video title for caption
     try:
-        info = get_video_formats(url, user_id)
+        info = get_video_formats(url, user_id, cookies_already_checked=True)
         title = info.get('title', 'Video')
         video_title = title
     except:
@@ -1685,7 +1685,7 @@ def show_other_qualities_menu(app, callback_query, page=0):
     
     # Get video title for caption
     try:
-        info = get_video_formats(url, user_id)
+        info = get_video_formats(url, user_id, cookies_already_checked=True)
         title = info.get('title', 'Video')
         video_title = title
     except:
@@ -1742,7 +1742,7 @@ def show_other_qualities_menu(app, callback_query, page=0):
             if result.returncode != 0:
                 logger.warning(f"yt-dlp -F failed with stderr: {result.stderr}")
                 # Fallback: try to get formats from cached info
-                info = get_video_formats(url, user_id)
+                info = get_video_formats(url, user_id, cookies_already_checked=True)
                 formats = info.get('formats', [])
                 format_lines = []
                 for f in formats:
@@ -1941,7 +1941,7 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
     
     # Get video title for caption
     try:
-        info = get_video_formats(url, user_id)
+        info = get_video_formats(url, user_id, cookies_already_checked=True)
         title = info.get('title', 'Video')
         video_title = title
     except:
@@ -2129,7 +2129,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         # Try load cached info first to make UI instant
         info = load_ask_info(user_id, url)
         if not info:
-            info = get_video_formats(url, user_id, playlist_start_index)
+            info = get_video_formats(url, user_id, playlist_start_index, cookies_already_checked=True)
             # Save minimal info to cache
             try:
                 save_ask_info(user_id, url, info)
@@ -3093,7 +3093,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
     else:
         try:
             # Get information about the video to determine the sizes
-            info = get_video_formats(url, user_id)
+            info = get_video_formats(url, user_id, cookies_already_checked=True)
             formats = info.get('formats', [])
             
             # Find the format with the highest quality to determine the sizes
@@ -3276,7 +3276,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
     try:
         # Get video info to analyze the selected format
         user_id = message.chat.id
-        info = get_video_formats(url, user_id)
+        info = get_video_formats(url, user_id, cookies_already_checked=True)
         
         if quality_key and 'formats' in info:
             # Find the selected format
