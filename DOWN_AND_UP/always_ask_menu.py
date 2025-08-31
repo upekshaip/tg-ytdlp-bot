@@ -47,6 +47,7 @@ from URL_PARSERS.thumbnail_downloader import download_thumbnail as download_univ
 
 # Get app instance for decorators
 app = get_app()
+logger.info(f"always_ask_menu.py imported, app instance: {app is not None}")
 
 def format_filesize(size_str):
     """Convert filesize to shortest readable format (kb, mb, gb)"""
@@ -355,10 +356,12 @@ def _dub_flag(lang_code: str) -> str:
 
 @app.on_callback_query(filters.regex(r"^askf\|"))
 def ask_filter_callback(app, callback_query):
+    logger.info(f"[ASKF] callback received: {callback_query.data}")
     user_id = callback_query.from_user.id
     parts = callback_query.data.split("|")
     if len(parts) >= 3:
         _, kind, value = parts[:3]
+        logger.info(f"[ASKF] parsed: kind={kind}, value={value}")
 
         # --- SUBS handlers must run BEFORE generic filter rebuild ---
         if kind == "subs" and value == "open":
@@ -481,7 +484,7 @@ def ask_filter_callback(app, callback_query):
                     row = []
             if row:
                 rows.append(row)
-            rows.append([InlineKeyboardButton("🔙 Back", callback_data="askf|dubs|back"), InlineKeyboardButton("🔚 Close", callback_data="askf|dubs|close")])
+            rows.append([InlineKeyboardButton("🔙Back", callback_data="askf|dubs|back"), InlineKeyboardButton("🔚Close", callback_data="askf|dubs|close")])
             try:
                 callback_query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(rows))
             except Exception:
@@ -666,6 +669,35 @@ def filter_qualities_by_codec_format(user_id, url, qualities):
         logger.warning(f"Error filtering qualities: {e}")
         return qualities
 
+def get_link_mode(user_id):
+    """
+    Получает состояние режима LINK для пользователя
+    """
+    try:
+        user_dir = os.path.join("users", str(user_id))
+        link_mode_file = os.path.join(user_dir, "link_mode.txt")
+        if os.path.exists(link_mode_file):
+            with open(link_mode_file, 'r') as f:
+                return f.read().strip() == "enabled"
+        return False
+    except Exception:
+        return False
+
+def set_link_mode(user_id, enabled):
+    """
+    Устанавливает состояние режима LINK для пользователя
+    """
+    try:
+        user_dir = os.path.join("users", str(user_id))
+        create_directory(user_dir)
+        link_mode_file = os.path.join(user_dir, "link_mode.txt")
+        with open(link_mode_file, 'w') as f:
+            f.write("enabled" if enabled else "disabled")
+        return True
+    except Exception as e:
+        logger.error(f"Error setting link mode for user {user_id}: {e}")
+        return False
+
 def build_filter_rows(user_id, url=None):
     f = get_filters(user_id)
     codec = f.get("codec", "avc1")
@@ -681,7 +713,7 @@ def build_filter_rows(user_id, url=None):
     
     # When filters are hidden – show compact row with CODEC + audio (+ optional DUBS, SUBS)
     if not visible:
-        row = [InlineKeyboardButton("📼 CODEC", callback_data="askf|toggle|on"), InlineKeyboardButton("🎧 audio (mp3)", callback_data="askq|mp3")]
+        row = [InlineKeyboardButton("📼CODEC", callback_data="askf|toggle|on"), InlineKeyboardButton("🎧MP3", callback_data="askq|mp3")]
         # Show DUBS button only if audio dubs are detected for this video (set elsewhere)
         if has_dubs:
             row.insert(1, InlineKeyboardButton("🗣 DUBS", callback_data="askf|dubs|open"))
@@ -711,7 +743,7 @@ def build_filter_rows(user_id, url=None):
     
     rows = [
         [InlineKeyboardButton(avc1_btn, callback_data="askf|codec|avc1"), InlineKeyboardButton(av01_btn, callback_data="askf|codec|av01"), InlineKeyboardButton(vp9_btn, callback_data="askf|codec|vp9")],
-        [InlineKeyboardButton(mp4_btn, callback_data="askf|ext|mp4"), InlineKeyboardButton(mkv_btn, callback_data="askf|ext|mkv"), InlineKeyboardButton("🎧 audio (mp3)", callback_data="askq|mp3")]
+        [InlineKeyboardButton(mp4_btn, callback_data="askf|ext|mp4"), InlineKeyboardButton(mkv_btn, callback_data="askf|ext|mkv"), InlineKeyboardButton("🎧MP3", callback_data="askq|mp3")]
     ]
     action_buttons = []
     if has_dubs:
@@ -721,6 +753,7 @@ def build_filter_rows(user_id, url=None):
             action_buttons.append(InlineKeyboardButton("💬 SUBS", callback_data="askf|subs|open"))
     except Exception:
         pass
+    
     return rows, action_buttons
 
 @app.on_callback_query(filters.regex(r"^askq\|"))
@@ -759,6 +792,76 @@ def askq_callback(app, callback_query):
         callback_query.answer("Menu closed.")
         return
         
+    # Handle LINK button - get direct link with BV+BA/BEST format
+    if data == "link":
+        # Get original URL from the reply message
+        original_message = callback_query.message.reply_to_message
+        if not original_message:
+            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            return
+            
+        url_text = original_message.text or (original_message.caption or "")
+        import re as _re
+        m = _re.search(r'https?://[^\s\*#]+', url_text)
+        url = m.group(0) if m else url_text
+        
+        try:
+            callback_query.answer("🔗 Getting direct link...")
+        except Exception:
+            pass
+        
+        # Import link function
+        from COMMANDS.link_cmd import get_direct_link
+        
+        # Get direct link with BV+BA/BEST format (video+audio combined)
+        result = get_direct_link(url, user_id, "bv+ba/best", cookies_already_checked=True)
+        
+        if result.get('success'):
+            title = result.get('title', 'Unknown')
+            duration = result.get('duration', 0)
+            video_url = result.get('video_url')
+            audio_url = result.get('audio_url')
+            format_spec = result.get('format', 'bv+ba/best')
+            
+            # Form response
+            response = f"🔗 <b>Direct link obtained</b>\n\n"
+            response += f"📹 <b>Title:</b> {title}\n"
+            if duration > 0:
+                response += f"⏱ <b>Duration:</b> {duration} sec\n"
+            response += f"🎛 <b>Format:</b> <code>{format_spec}</code>\n\n"
+            
+            if video_url:
+                response += f"🎬 <b>Video stream:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
+            
+            if audio_url:
+                response += f"🎵 <b>Audio stream:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
+            
+            if not video_url and not audio_url:
+                response += "❌ Failed to get stream links"
+            
+            # Send response
+            app.send_message(
+                user_id, 
+                response, 
+                reply_parameters=ReplyParameters(message_id=original_message.id),
+                parse_mode=enums.ParseMode.HTML
+            )
+            
+            send_to_logger(original_message, f"Direct link extracted via LINK button for user {user_id} from {url}")
+            
+        else:
+            error_msg = result.get('error', 'Unknown error')
+            app.send_message(
+                user_id,
+                f"❌ <b>Error getting link:</b>\n{error_msg}",
+                reply_parameters=ReplyParameters(message_id=original_message.id),
+                parse_mode=enums.ParseMode.HTML
+            )
+            
+            send_to_logger(original_message, f"Failed to extract direct link via LINK button for user {user_id} from {url}: {error_msg}")
+        
+        return
+    
     if data == "quick_embed":
         # Get original URL from the reply message
         original_message = callback_query.message.reply_to_message
@@ -860,7 +963,7 @@ def askq_callback(app, callback_query):
                     row = []
             if row:
                 rows.append(row)
-            rows.append([InlineKeyboardButton("🔙 Back", callback_data="askf|dubs|back"), InlineKeyboardButton("🔚 Close", callback_data="askf|dubs|close")])
+            rows.append([InlineKeyboardButton("🔙Back", callback_data="askf|dubs|back"), InlineKeyboardButton("🔚Close", callback_data="askf|dubs|close")])
             kb = InlineKeyboardMarkup(rows)
             try:
                 # Replace entire keyboard (keeping caption/text) to show dubs
@@ -869,6 +972,7 @@ def askq_callback(app, callback_query):
                 pass
             callback_query.answer("Choose audio language")
             return
+        # LINK MENU HANDLER REMOVED - now using direct link approach
         if kind == "subs" and value == "open":
             # Open SUBS language menu (Always Ask)
             logger.info(f"[ASKQ] Opening SUBS menu for user {user_id}")
@@ -954,6 +1058,7 @@ def askq_callback(app, callback_query):
                 app.edit_message_reply_markup(chat_id=user_id, message_id=callback_query.message.id, reply_markup=None)
             callback_query.answer("Subtitle menu closed.")
             return
+        # OLD LINK TOGGLE HANDLER REMOVED - now using submenu approach
         if kind == "subs_lang":
             # Handle subtitle language selection in Always Ask
             selected_lang = value
@@ -1003,6 +1108,7 @@ def askq_callback(app, callback_query):
                 url = m.group(0) if m else url_text
                 ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
             return
+        # LINK BACK/CLOSE HANDLERS REMOVED - no longer needed
     
     # Handle other qualities page navigation
     if data.startswith("other_page_"):
@@ -1546,8 +1652,8 @@ def show_manual_quality_menu(app, callback_query):
     
     # Add Back and close buttons
     keyboard_rows.append([
-        InlineKeyboardButton("🔙 Back", callback_data="askq|manual_back"),
-        InlineKeyboardButton("🔚 Close", callback_data="askq|close")
+        InlineKeyboardButton("🔙Back", callback_data="askq|manual_back"),
+        InlineKeyboardButton("🔚Close", callback_data="askq|close")
     ])
     
     keyboard = InlineKeyboardMarkup(keyboard_rows)
@@ -1898,8 +2004,8 @@ def show_other_qualities_menu(app, callback_query, page=0):
         
         # Add back and close buttons
         keyboard_rows.append([
-            InlineKeyboardButton("🔙 Back", callback_data="askq|other_back"),
-            InlineKeyboardButton("🔚 Close", callback_data="askq|close")
+            InlineKeyboardButton("🔙Back", callback_data="askq|other_back"),
+            InlineKeyboardButton("🔚Close", callback_data="askq|close")
         ])
         
         keyboard = InlineKeyboardMarkup(keyboard_rows)
@@ -2006,8 +2112,8 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
     
     # Add back and close buttons
     keyboard_rows.append([
-        InlineKeyboardButton("🔙 Back", callback_data="askq|other_back"),
-        InlineKeyboardButton("🔚 Close", callback_data="askq|close")
+        InlineKeyboardButton("🔙Back", callback_data="askq|other_back"),
+        InlineKeyboardButton("🔚Close", callback_data="askq|close")
     ])
     
     keyboard = InlineKeyboardMarkup(keyboard_rows)
@@ -2847,7 +2953,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         
         # Always add Other Qualities button
-        buttons.append(InlineKeyboardButton("🎛 Other", callback_data=f"askq|other_qualities"))
+        buttons.append(InlineKeyboardButton("🎛Other", callback_data=f"askq|other_qualities"))
         
         if not found_quality_keys:
             # Add explanation when automatic quality detection fails
@@ -2864,6 +2970,10 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         
         # Add filter action buttons (DUBS, SUBS)
         action_buttons.extend(filter_action_buttons)
+        
+        # Add LINK button - always available
+        logger.info(f"Adding LINK button for user {user_id}")
+        action_buttons.append(InlineKeyboardButton("🔗LINK", callback_data="askq|link"))
         
         # Add Quick Embed button for supported services (but not for ranges)
         if (is_instagram_url(url) or is_twitter_url(url) or is_reddit_url(url)) and not is_playlist_with_range(original_text):
@@ -2895,7 +3005,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 piped_url = youtube_to_piped_url(url)
                 logger.info(f"Converted to Piped URL: {piped_url}")
                 wa = WebAppInfo(url=piped_url)
-                action_buttons.append(InlineKeyboardButton("👁 WATCH", web_app=wa))
+                action_buttons.append(InlineKeyboardButton("👁WATCH", web_app=wa))
                 logger.info(f"Added WATCH button to action_buttons for user {user_id}")
         except Exception as e:
             logger.error(f"Error adding WATCH button for user {user_id}: {e}")
@@ -2949,9 +3059,9 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         # Smart grouping for bottom row - try to combine with action buttons if possible
         bottom_buttons = []
         if bool(filters_state.get('visible', False)):
-            bottom_buttons = [InlineKeyboardButton("🔙 Back", callback_data="askf|toggle|off"), InlineKeyboardButton("🔚 Close", callback_data="askq|close")]
+            bottom_buttons = [InlineKeyboardButton("🔙Back", callback_data="askf|toggle|off"), InlineKeyboardButton("🔚Close", callback_data="askq|close")]
         else:
-            bottom_buttons = [InlineKeyboardButton("🔚 Close", callback_data="askq|close")]
+            bottom_buttons = [InlineKeyboardButton("🔚Close", callback_data="askq|close")]
         
         # Try to add bottom buttons to last action row if it has space
         if keyboard_rows and len(keyboard_rows[-1]) < 3 and len(bottom_buttons) <= (3 - len(keyboard_rows[-1])):
@@ -3054,6 +3164,71 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
 def askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs):
     user_id = callback_query.from_user.id
     tags = tags_text.split() if tags_text else []
+    
+    # Check if LINK mode is enabled
+    if get_link_mode(user_id):
+        # Get direct link instead of downloading
+        try:
+            callback_query.answer("🔗 Getting direct link...")
+        except Exception:
+            pass
+        
+        # Import link function
+        from COMMANDS.link_cmd import get_direct_link
+        
+        # Convert quality key to quality argument
+        quality_arg = None
+        if data != "best" and data != "mp3":
+            quality_arg = data
+        
+        # Get direct link
+        result = get_direct_link(url, user_id, quality_arg, cookies_already_checked=True)
+        
+        if result.get('success'):
+            title = result.get('title', 'Unknown')
+            duration = result.get('duration', 0)
+            video_url = result.get('video_url')
+            audio_url = result.get('audio_url')
+            format_spec = result.get('format', 'best')
+            
+            # Form response
+            response = f"🔗 <b>Direct link obtained</b>\n\n"
+            response += f"📹 <b>Title:</b> {title}\n"
+            if duration > 0:
+                response += f"⏱ <b>Duration:</b> {duration} sec\n"
+            response += f"🎛 <b>Format:</b> <code>{format_spec}</code>\n\n"
+            
+            if video_url:
+                response += f"🎬 <b>Video stream:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
+            
+            if audio_url:
+                response += f"🎵 <b>Audio stream:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
+            
+            if not video_url and not audio_url:
+                response += "❌ Failed to get stream links"
+            
+            # Send response
+            app.send_message(
+                user_id, 
+                response, 
+                reply_parameters=ReplyParameters(message_id=original_message.id),
+                parse_mode=enums.ParseMode.HTML
+            )
+            
+            send_to_logger(original_message, f"Direct link extracted via Always Ask menu for user {user_id} from {url}")
+            
+        else:
+            error_msg = result.get('error', 'Unknown error')
+            app.send_message(
+                user_id,
+                f"❌ <b>Error getting link:</b>\n{error_msg}",
+                reply_parameters=ReplyParameters(message_id=original_message.id),
+                parse_mode=enums.ParseMode.HTML
+            )
+            
+            send_to_logger(original_message, f"Failed to extract direct link via Always Ask menu for user {user_id} from {url}: {error_msg}")
+        
+        return
     # Read current filters to build correct format strings and container override
     try:
         filters_state = get_filters(user_id)
@@ -3277,6 +3452,72 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
     
     # Check if there is a link to Tiktok
     is_tiktok = is_tiktok_url(url)
+    
+    # Check if LINK mode is enabled - if yes, get direct link instead of downloading
+    user_id = message.chat.id
+    try:
+        if get_link_mode(user_id):
+            logger.info(f"LINK mode enabled for user {user_id}, getting direct link instead of downloading")
+            
+            # Import link function
+            from COMMANDS.link_cmd import get_direct_link
+            
+            # Convert quality key to quality argument
+            quality_arg = None
+            if quality_key and quality_key != "best" and quality_key != "mp3":
+                quality_arg = quality_key
+            
+            # Get direct link
+            result = get_direct_link(url, user_id, quality_arg, cookies_already_checked=True)
+            
+            if result.get('success'):
+                title = result.get('title', 'Unknown')
+                duration = result.get('duration', 0)
+                video_url = result.get('video_url')
+                audio_url = result.get('audio_url')
+                format_spec = result.get('format', 'best')
+                
+                # Form response
+                response = f"🔗 <b>Direct link obtained</b>\n\n"
+                response += f"📹 <b>Title:</b> {title}\n"
+                if duration > 0:
+                    response += f"⏱ <b>Duration:</b> {duration} sec\n"
+                response += f"🎛 <b>Format:</b> <code>{format_spec}</code>\n\n"
+                
+                if video_url:
+                    response += f"🎬 <b>Video stream:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
+                
+                if audio_url:
+                    response += f"🎵 <b>Audio stream:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
+                
+                if not video_url and not audio_url:
+                    response += "❌ Failed to get stream links"
+                
+                # Send response
+                app.send_message(
+                    user_id, 
+                    response, 
+                    reply_parameters=ReplyParameters(message_id=message.id),
+                    parse_mode=enums.ParseMode.HTML
+                )
+                
+                send_to_logger(message, f"Direct link extracted via down_and_up_with_format for user {user_id} from {url}")
+                
+            else:
+                error_msg = result.get('error', 'Unknown error')
+                app.send_message(
+                    user_id,
+                    f"❌ <b>Error getting link:</b>\n{error_msg}",
+                    reply_parameters=ReplyParameters(message_id=message.id),
+                    parse_mode=enums.ParseMode.HTML
+                )
+                
+                send_to_logger(message, f"Failed to extract direct link via down_and_up_with_format for user {user_id} from {url}: {error_msg}")
+            
+            return
+    except Exception as e:
+        logger.error(f"Error checking LINK mode for user {user_id}: {e}")
+        # Continue with normal download if LINK mode check fails
 
     # Analyze the format to determine if it's audio-only, video-only, or full
     format_type = None

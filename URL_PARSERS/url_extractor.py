@@ -94,7 +94,7 @@ def url_distractor(app, message):
     # /Help Command
     if text == "/help":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚 Close", callback_data="help_msg|close")]
+            [InlineKeyboardButton("🔚Close", callback_data="help_msg|close")]
         ])
         app.send_message(message.chat.id, (Config.HELP_MSG),
                          parse_mode=enums.ParseMode.HTML,
@@ -168,7 +168,13 @@ def url_distractor(app, message):
         clean_args = text[len(Config.CLEAN_COMMAND):].strip().lower()
         if clean_args in ["cookie", "cookies"]:
             remove_media(message, only=["cookie.txt"])
-            send_to_all(message, "🗑 Cookie file removed.")
+            # Clear YouTube cookie validation cache for this user
+            try:
+                from COMMANDS.cookies_cmd import clear_youtube_cookie_cache
+                clear_youtube_cookie_cache(message.chat.id)
+            except Exception as e:
+                logger.error(f"Failed to clear YouTube cookie cache: {e}")
+            send_to_all(message, "🗑 Cookie file removed and cache cleared.")
             return
         elif clean_args in ["log", "logs"]:
             remove_media(message, only=["logs.txt"])
@@ -221,6 +227,13 @@ def url_distractor(app, message):
                 except Exception as e:
                     logger.error(f"Failed to remove file {file_path}: {e}")
 
+            # Clear YouTube cookie validation cache for this user
+            try:
+                from COMMANDS.cookies_cmd import clear_youtube_cookie_cache
+                clear_youtube_cookie_cache(message.chat.id)
+            except Exception as e:
+                logger.error(f"Failed to clear YouTube cookie cache: {e}")
+            
             if removed_files:
                 files_list = "\n".join([f"• {file}" for file in removed_files])
                 send_to_all(message, f"🗑 All files removed successfully!\n\nRemoved files:\n{files_list}")
@@ -231,6 +244,11 @@ def url_distractor(app, message):
             # Regular command /clean - delete only media files with filtering
             remove_media(message)
             send_to_all(message, "🗑 All media files are removed.")
+            try:
+                from COMMANDS.cookies_cmd import clear_youtube_cookie_cache
+                clear_youtube_cookie_cache(message.chat.id)
+            except Exception as e:
+                logger.error(f"Failed to clear YouTube cookie cache: {e}")
             clear_subs_check_cache()
             return
 

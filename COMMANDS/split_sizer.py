@@ -8,6 +8,38 @@ from HELPERS.filesystem_hlp import create_directory
 from HELPERS.logger import send_to_logger, logger
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
 from HELPERS.limitter import humanbytes, is_user_in_channel
+import re
+
+def parse_size_argument(arg):
+    """
+    Parse size argument and return size in bytes
+    
+    Args:
+        arg (str): Size argument (e.g., "250mb", "1.5gb", "2GB")
+        
+    Returns:
+        int: Size in bytes or None if invalid
+    """
+    if not arg:
+        return None
+    
+    # Remove spaces and convert to lowercase
+    arg = arg.lower().replace(" ", "")
+    
+    # Match patterns like "250mb", "1.5gb", "2GB"
+    match = re.match(r'^(\d+(?:\.\d+)?)(mb|gb)$', arg)
+    if not match:
+        return None
+    
+    number = float(match.group(1))
+    unit = match.group(2)
+    
+    if unit == "mb":
+        return int(number * 1024 * 1024)
+    elif unit == "gb":
+        return int(number * 1024 * 1024 * 1024)
+    
+    return None
 
 # Get app instance for decorators
 app = get_app()
@@ -19,6 +51,35 @@ def split_command(app, message):
     # Subscription check for non-admines
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
+    
+    # Check if arguments are provided
+    if len(message.command) > 1:
+        arg = message.command[1].lower()
+        size = parse_size_argument(arg)
+        if size:
+            # Apply size directly
+            user_dir = os.path.join("users", str(user_id))
+            create_directory(user_dir)
+            split_file = os.path.join(user_dir, "split.txt")
+            with open(split_file, "w", encoding="utf-8") as f:
+                f.write(str(size))
+            
+            safe_send_message(user_id, f"✅ Split part size set to: {humanbytes(size)}")
+            send_to_logger(message, f"Split size set to {size} bytes via argument.")
+            return
+        else:
+            safe_send_message(user_id, 
+                "❌ **Invalid size!**\n\n"
+                "Valid formats:\n"
+                "• `250mb` or `250MB`\n"
+                "• `500mb` or `500MB`\n"
+                "• `1gb` or `1GB`\n"
+                "• `1.5gb` or `1.5GB`\n"
+                "• `2gb` or `2GB`\n\n"
+                "Example: `/split 500mb`"
+            )
+            return
+    
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
     # 2-3 row buttons
@@ -38,9 +99,9 @@ def split_command(app, message):
                 text, size = sizes[i + j]
                 row.append(InlineKeyboardButton(text, callback_data=f"split_size|{size}"))
         buttons.append(row)
-    buttons.append([InlineKeyboardButton("🔚 Close", callback_data="split_size|close")])
+    buttons.append([InlineKeyboardButton("🔚Close", callback_data="split_size|close")])
     keyboard = InlineKeyboardMarkup(buttons)
-    safe_send_message(user_id, "Choose max part size for video splitting:", reply_markup=keyboard)
+    safe_send_message(user_id, "Choose max part size for video splitting:\n\nOr use: `/split 250mb`, `/split 1gb`, etc.", reply_markup=keyboard)
     send_to_logger(message, "User opened /split menu.")
 
 @app.on_callback_query(filters.regex(r"^split_size\|"))

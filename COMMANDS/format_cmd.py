@@ -12,6 +12,7 @@ from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
 from urllib.parse import urlparse
 import os
 import json
+import re
 
 # Session-scoped overrides (not persisted)
 _SESSION_MKV_OVERRIDE = {}
@@ -24,6 +25,41 @@ def _default_prefs():
     # codec: avc1 | av01 | vp9
     # mkv: True -> remux to mkv container, False -> default to mp4
     return {"codec": "avc1", "mkv": False}
+
+def parse_quality_argument(quality_arg):
+    """
+    Parses quality argument and returns format for yt-dlp
+    
+    Args:
+        quality_arg (str): Quality argument (e.g., "720", "720p", "4k", "8K")
+        
+    Returns:
+        str: Format for yt-dlp
+    """
+    if not quality_arg:
+        return "best"
+    
+    quality_arg = quality_arg.lower().strip()
+    
+    # Remove 'p' or 'P' if present
+    if quality_arg.endswith('p'):
+        quality_arg = quality_arg[:-1]
+    
+    # Special cases for 4K and 8K
+    if quality_arg in ['4k', '4']:
+        return "bv*[height<=2160]+ba/bv*[height<=2160]/bv+ba/best"
+    elif quality_arg in ['8k', '8']:
+        return "bv*[height<=4320]+ba/bv*[height<=4320]/bv+ba/best"
+    
+    # Check if this is a number from 1 to 10000
+    try:
+        quality_num = int(quality_arg)
+        if 1 <= quality_num <= 10000:
+            return f"bv*[height<={quality_num}]+ba/bv*[height<={quality_num}]/bv+ba/best"
+        else:
+            return "best"
+    except ValueError:
+        return "best"
 
 def load_user_prefs(user_id):
     try:
@@ -95,13 +131,24 @@ def set_format(app, message):
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)  # Ensure The User's Folder Exists
 
-    # If the additional text is transmitted, we save it as Custom Format
+    # If the additional text is transmitted, we save it as Custom Format or Quality
     if len(message.command) > 1:
-        custom_format = message.text.split(" ", 1)[1].strip()
+        arg = message.text.split(" ", 1)[1].strip()
+        
+        # Check if it's a quality argument (number, number+p, 4k, 8k)
+        if re.match(r'^(\d+p?|4k|8k|4K|8K)$', arg, re.IGNORECASE):
+            # It's a quality argument, convert to format
+            custom_format = parse_quality_argument(arg)
+            safe_send_message(user_id, f"✅ Format updated to quality {arg}:\n{custom_format}")
+            send_to_logger(message, f"Format updated to quality {arg}: {custom_format}")
+        else:
+            # It's a custom format string
+            custom_format = arg
+            safe_send_message(user_id, f"✅ Format updated to:\n{custom_format}")
+            send_to_logger(message, f"Format updated to: {custom_format}")
+        
         with open(os.path.join(user_dir, "format.txt"), "w", encoding="utf-8") as f:
             f.write(custom_format)
-        safe_send_message(user_id, f"✅ Format updated to:\n{custom_format}")
-        send_to_logger(message, f"Format updated to: {custom_format}")
     else:
         # Main Menu with A Few Popular Options, Plus The Others Button
         main_keyboard = InlineKeyboardMarkup([
@@ -112,11 +159,15 @@ def set_format(app, message):
             [InlineKeyboardButton("📈Bestvideo+Bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
             # [InlineKeyboardButton("📉best (no ffmpeg) (bad)", callback_data="format_option|best")],
             [InlineKeyboardButton("🎚 Custom (enter your own)", callback_data="format_option|custom")],
-            [InlineKeyboardButton("🔚 Close", callback_data="format_option|close")]
+            [InlineKeyboardButton("🔚Close", callback_data="format_option|close")]
         ])
         safe_send_message(
             user_id,
-            "Select a format option or send a custom one using <code>/format &lt;format_string&gt;</code>:",
+            "Select a format option or send a custom one using:\n"
+            "• <code>/format &lt;format_string&gt;</code> - custom format\n"
+            "• <code>/format 720</code> - 720p quality\n"
+            "• <code>/format 4k</code> - 4K quality\n"
+            "• <code>/format 8k</code> - 8K quality",
             reply_markup=main_keyboard
         )
         send_to_logger(message, "Format menu sent.")
@@ -144,7 +195,7 @@ def format_option_callback(app, callback_query):
     if data == "custom":
         # Sending a message with the Close button
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚 Close", callback_data="format_custom|close")]
+            [InlineKeyboardButton("🔚Close", callback_data="format_custom|close")]
         ])
         safe_send_message(
             user_id,
@@ -189,7 +240,7 @@ def format_option_callback(app, callback_query):
                 InlineKeyboardButton(av01_button, callback_data="format_codec|av01"),
                 InlineKeyboardButton(vp9_button, callback_data="format_codec|vp9"),
             ],
-            [InlineKeyboardButton("🔙 Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton("🔚 Close", callback_data="format_option|close")]
+            [InlineKeyboardButton("🔙Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton("🔚Close", callback_data="format_option|close")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "Select your desired resolution and codec:", reply_markup=full_res_keyboard)
         try:
@@ -203,15 +254,19 @@ def format_option_callback(app, callback_query):
     if data == "back":
         main_keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("❓ Always Ask (menu + buttons)", callback_data="format_option|alwaysask")],
-            [InlineKeyboardButton("🎛 Others (144p - 4320p)", callback_data="format_option|others")],
+            [InlineKeyboardButton("🎛Others (144p - 4320p)", callback_data="format_option|others")],
             [InlineKeyboardButton("💻4k (best for PC/Mac Telegram)", callback_data="format_option|bv2160")],
             [InlineKeyboardButton("📱FullHD (best for mobile Telegram)", callback_data="format_option|bv1080")],
             [InlineKeyboardButton("📈Bestvideo+Bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
             # [InlineKeyboardButton("📉best (no ffmpeg) (bad)", callback_data="format_option|best")],
             [InlineKeyboardButton("🎚 Custom (enter your own)", callback_data="format_option|custom")],
-            [InlineKeyboardButton("🔚 close", callback_data="format_option|close")]
+            [InlineKeyboardButton("🔚Close", callback_data="format_option|close")]
         ])
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "Select a format option or send a custom one using <code>/format &lt;format_string&gt;</code>:", reply_markup=main_keyboard)
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "Select a format option or send a custom one using:\n"
+                               "• <code>/format &lt;format_string&gt;</code> - custom format\n"
+                               "• <code>/format 720</code> - 720p quality\n"
+                               "• <code>/format 4k</code> - 4K quality\n"
+                               "• <code>/format 8k</code> - 8K quality", reply_markup=main_keyboard)
         try:
             callback_query.answer()
         except Exception:
@@ -364,7 +419,7 @@ def format_codec_callback(app, callback_query):
                 InlineKeyboardButton(av01_button, callback_data="format_codec|av01"),
                 InlineKeyboardButton(vp9_button, callback_data="format_codec|vp9")
             ],
-            [InlineKeyboardButton("🔙 Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton("🔚 Close", callback_data="format_option|close")]
+            [InlineKeyboardButton("🔙Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton("🔚Close", callback_data="format_option|close")]
         ])
         try:
             callback_query.edit_message_reply_markup(reply_markup=full_res_keyboard)
@@ -389,7 +444,7 @@ def format_container_callback(app, callback_query):
             [InlineKeyboardButton("480p (854×480)", callback_data="format_option|bv480"), InlineKeyboardButton("720p (1280×720)", callback_data="format_option|bv720"), InlineKeyboardButton("1080p (1920×1080)", callback_data="format_option|bv1080")],
             [InlineKeyboardButton("1440p (2560×1440)", callback_data="format_option|bv1440"), InlineKeyboardButton("2160p (3840×2160)", callback_data="format_option|bv2160"), InlineKeyboardButton("4320p (7680×4320)", callback_data="format_option|bv4320")],
             [InlineKeyboardButton(avc1_button, callback_data="format_codec|avc1"), InlineKeyboardButton(av01_button, callback_data="format_codec|av01"), InlineKeyboardButton(vp9_button, callback_data="format_codec|vp9")],
-            [InlineKeyboardButton("🔙 Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton("🔚 Close", callback_data="format_option|close")]
+            [InlineKeyboardButton("🔙Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton("🔚Close", callback_data="format_option|close")]
         ])
         try:
             callback_query.edit_message_reply_markup(reply_markup=full_res_keyboard)
