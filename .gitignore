@@ -62,6 +62,8 @@ cleanup_git.ps1
 CONFIG/config.py
 config.py
 TXT/
+TXT/porn_domains.txt
+TXT/porn_keywords.txt
 porn.py
 porn.sh
 porn_req.txt
