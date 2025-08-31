@@ -32,6 +32,17 @@ def fake_message(text, user_id, command=None):
     m.from_user.first_name = m.chat.first_name
     if command is not None:
         m.command = command
+    else:
+        # Emulate pyrogram's Message.command behavior when text starts with '/'
+        try:
+            if isinstance(text, str) and text.startswith('/'):
+                parts = text.strip().split()
+                if parts:
+                    cmd = parts[0][1:] if len(parts[0]) > 1 else ''
+                    args = parts[1:]
+                    m.command = [cmd] + args
+        except Exception:
+            pass
     return m
 
 # Helper function for safe message sending with flood wait handling

@@ -1,5 +1,6 @@
 # Decorators for automatic app usage
 from functools import wraps
+import os
 # ####################################################################################
 # Decorators for bot functionality
 # ####################################################################################
@@ -27,26 +28,40 @@ app = get_app()
 # eternal reply-keyboard and reliable work with files
 reply_keyboard_msg_ids = {}  # user_id: message_id
 
-def get_main_reply_keyboard():
+def get_main_reply_keyboard(mode="2x3"):
     """Function for permanent reply-keyboard"""
     from pyrogram.types import ReplyKeyboardMarkup
+    
+    if mode == "1x3":
+        keyboard = [
+            ["/clean", "/cookie", "/settings"]
+        ]
+    elif mode == "FULL":
+        keyboard = [
+            ["🧹", "🍪", "⚙️", "🔍", "🌐"],
+            ["📼", "📊", "✂️", "🎧", "💬"],
+            ["#️⃣", "🆘", "📃", "⏯️", "🎹"]
+        ]
+    else:  # 2x3 mode (default)
+        keyboard = [
+            ["/clean", "/cookie", "/settings"],
+            ["/playlist", "/search", "/help"]
+        ]
+    
     return ReplyKeyboardMarkup(
-        [
-            ["/clean", "/download_cookie"],
-            ["/playlist", "/settings", "/help"]
-        ],
+        keyboard,
         resize_keyboard=True,
         one_time_keyboard=False
     )
 
-def send_reply_keyboard_always(user_id):
+def send_reply_keyboard_always(user_id, mode="2x3"):
     """Send persistent reply keyboard to user"""
     global reply_keyboard_msg_ids
     try:
         msg_id = reply_keyboard_msg_ids.get(user_id)
         if msg_id:
             try:
-                app.edit_message_text(user_id, msg_id, "\u2063", reply_markup=get_main_reply_keyboard())
+                app.edit_message_text(user_id, msg_id, "\u2063", reply_markup=get_main_reply_keyboard(mode))
                 return
             except Exception as e:
                 # Log only if the error is not MESSAGE_ID_INVALID
@@ -55,7 +70,7 @@ def send_reply_keyboard_always(user_id):
                 # If it didn't work, we delete the id to avoid getting stuck
                 reply_keyboard_msg_ids.pop(user_id, None)
         # Always after failure or if there is no id - send a new one
-        msg = safe_send_message(user_id, "\u2063", reply_markup=get_main_reply_keyboard())
+        msg = safe_send_message(user_id, "\u2063", reply_markup=get_main_reply_keyboard(mode))
         # If sending failed (e.g., FloodWait), don't try to access msg.id
         if not msg or not hasattr(msg, "id"):
             return
@@ -84,8 +99,39 @@ def reply_with_keyboard(func):
             user_id = getattr(args[0].chat, 'id', None)
         elif len(args) > 1 and hasattr(args[1], 'chat'):
             user_id = getattr(args[1].chat, 'id', None)
+        
         if user_id:
-            send_reply_keyboard_always(user_id)
+            # Check if keyboard is enabled for this user
+            user_dir = f'./users/{user_id}'
+            keyboard_file = f'{user_dir}/keyboard.txt'
+            
+            keyboard_enabled = True
+            keyboard_mode = "2x3"  # Default mode
+            
+            if os.path.exists(keyboard_file):
+                try:
+                    with open(keyboard_file, 'r') as f:
+                        setting = f.read().strip()
+                        if setting == "OFF":
+                            keyboard_enabled = False
+                        elif setting in ["1x3", "2x3", "FULL"]:
+                            keyboard_enabled = True
+                            keyboard_mode = setting
+                except:
+                    pass
+            
+            # Only show keyboard if enabled and not /keyboard command
+            if keyboard_enabled:
+                # Check if this is a /keyboard command (exclude only /keyboard)
+                is_keyboard_command = False
+                if 'message' in kwargs and hasattr(kwargs['message'], 'text'):
+                    is_keyboard_command = kwargs['message'].text == "/keyboard"
+                elif len(args) > 1 and hasattr(args[1], 'text'):
+                    is_keyboard_command = args[1].text == "/keyboard"
+                
+                if not is_keyboard_command:
+                    send_reply_keyboard_always(user_id, keyboard_mode)
+        
         return result
 
     return wrapper 

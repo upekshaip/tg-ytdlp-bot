@@ -518,24 +518,37 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             else:
                 # Check if cookie.txt exists in the user's folder
                 user_cookie_path = os.path.join("users", str(user_id), "cookie.txt")
-                if os.path.exists(user_cookie_path):
-                    common_opts['cookiefile'] = user_cookie_path
-                else:
-                    # If not in the user's folder, copy from the global folder
-                    global_cookie_path = Config.COOKIE_FILE_PATH
-                    if os.path.exists(global_cookie_path):
-                        try:
-                            user_dir = os.path.join("users", str(user_id))
-                            create_directory(user_dir)
-                            import shutil
-                            shutil.copy2(global_cookie_path, user_cookie_path)
-                            logger.info(f"Copied global cookie file to user {user_id} folder")
-                            common_opts['cookiefile'] = user_cookie_path
-                        except Exception as e:
-                            logger.error(f"Failed to copy global cookie file for user {user_id}: {e}")
-                            common_opts['cookiefile'] = None
+                
+                # For YouTube URLs, ensure working cookies
+                if is_youtube_url(url):
+                    from COMMANDS.cookies_cmd import ensure_working_youtube_cookies
+                    has_working_cookies = ensure_working_youtube_cookies(user_id)
+                    if has_working_cookies and os.path.exists(user_cookie_path):
+                        common_opts['cookiefile'] = user_cookie_path
+                        logger.info(f"Using working YouTube cookies for user {user_id}")
                     else:
                         common_opts['cookiefile'] = None
+                        logger.info(f"No working YouTube cookies available for user {user_id}, will try without cookies")
+                else:
+                    # For non-YouTube URLs, use existing logic
+                    if os.path.exists(user_cookie_path):
+                        common_opts['cookiefile'] = user_cookie_path
+                    else:
+                        # If not in the user's folder, copy from the global folder
+                        global_cookie_path = Config.COOKIE_FILE_PATH
+                        if os.path.exists(global_cookie_path):
+                            try:
+                                user_dir = os.path.join("users", str(user_id))
+                                create_directory(user_dir)
+                                import shutil
+                                shutil.copy2(global_cookie_path, user_cookie_path)
+                                logger.info(f"Copied global cookie file to user {user_id} folder")
+                                common_opts['cookiefile'] = user_cookie_path
+                            except Exception as e:
+                                logger.error(f"Failed to copy global cookie file for user {user_id}: {e}")
+                                common_opts['cookiefile'] = None
+                        else:
+                            common_opts['cookiefile'] = None
             
             # If this is not a playlist with a range, add --no-playlist to the URL with the list parameter
             if not is_playlist and 'list=' in url:
@@ -722,7 +735,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     message,                   
                     "<blockquote>Check <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>here</a> if your site supported</blockquote>\n"
                     "<blockquote>You may need <code>cookie</code> for downloading this video. First, clean your workspace via <b>/clean</b> command</blockquote>\n"
-                    "<blockquote>For Youtube - get <code>cookie</code> via <b>/download_cookie</b> command. For any other supported site - send your own cookie (<a href='https://t.me/c/2303231066/18'>guide1</a>) (<a href='https://t.me/c/2303231066/22'>guide2</a>) and after that send your video link again.</blockquote>\n"
+                    "<blockquote>For Youtube - get <code>cookie</code> via <b>/cookie</b> command. For any other supported site - send your own cookie (<a href='https://t.me/c/2303231066/18'>guide1</a>) (<a href='https://t.me/c/2303231066/22'>guide2</a>) and after that send your video link again.</blockquote>\n"
                     f"────────────────\n❌ Error downloading: {error_message}"
                 )
                 return None

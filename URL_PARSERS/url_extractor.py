@@ -16,6 +16,8 @@ from COMMANDS.mediainfo_cmd import mediainfo_command
 from COMMANDS.settings_cmd import settings_command
 from COMMANDS.split_sizer import split_command
 from COMMANDS.tag_cmd import tags_command
+from COMMANDS.search import search_command
+from COMMANDS.keyboard_cmd import keyboard_command, keyboard_callback_handler
 from COMMANDS.admin_cmd import get_user_log, send_promo_message, block_user, unblock_user, check_runtime, get_user_details, uncache_command, reload_firebase_cache_command
 from DATABASE.cache_db import auto_cache_command
 from DATABASE.firebase_init import is_user_blocked
@@ -27,6 +29,7 @@ from CONFIG.config import Config
 from HELPERS.logger import logger
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram import enums
+from HELPERS.safe_messeger import fake_message
 
 # Get app instance for decorators
 app = get_app()
@@ -37,6 +40,39 @@ def url_distractor(app, message):
     user_id = message.chat.id
     is_admin = int(user_id) in Config.ADMIN
     text = message.text.strip()
+
+    # Emoji keyboard mapping to commands (from FULL layout)
+    emoji_to_command = {
+        "🧹": "/clean",
+        "🍪": "/cookie",
+        "⚙️": "/settings",
+        "🔍": "/search",
+        "🌐": "/cookies_from_browser",
+        "📼": "/format",
+        "📊": "/mediainfo",
+        "✂️": "/split",
+        "🎧": "/audio",
+        "💬": "/subs",
+        "#️⃣": "/tags",
+        "🆘": "/help",
+        "📃": "/usage",
+        "⏯️": "/playlist",
+        "🎹": "/keyboard",
+    }
+
+    if text in emoji_to_command:
+        mapped = emoji_to_command[text]
+        # Special case: headphones emoji should show audio usage hint
+        if mapped == "/audio":
+            from pyrogram.types import ReplyParameters
+            app.send_message(
+                message.chat.id,
+                "Download only audio from video source.\n\nUsage: /audio + URL \n\n(ex. /audio https://youtu.be/abc123)\n(ex. /audio https://youtu.be/playlist?list=abc123*1*10)",
+                reply_parameters=ReplyParameters(message_id=message.id)
+            )
+            return
+        # Emulate a user command for the mapped emoji
+        return url_distractor(app, fake_message(mapped, user_id))
 
     # For non-admin users, if they haven't Joined the Channel, Exit ImmediaTely.
     if not is_admin and not is_user_in_channel(app, message):
@@ -67,6 +103,16 @@ def url_distractor(app, message):
         return
 
     # ----- User Commands -----
+    # /Search Command
+    if text.startswith(Config.SEARCH_COMMAND):
+        search_command(app, message)
+        return
+        
+    # /Keyboard Command
+    if text == Config.KEYBOARD_COMMAND:
+        keyboard_command(app, message)
+        return
+        
     # /Save_as_cookie Command
     if text.startswith(Config.SAVE_AS_COOKIE_COMMAND):
         save_as_cookie_file(app, message)
@@ -77,7 +123,7 @@ def url_distractor(app, message):
         subs_command(app, message)
         return
 
-    # /Download_cookie Command
+    # /cookie Command
     if text == Config.DOWNLOAD_COOKIE_COMMAND:
         download_cookie(app, message)
         return
@@ -149,6 +195,10 @@ def url_distractor(app, message):
             send_to_all(message, "🗑 Subtitle settings removed.")
             clear_subs_check_cache()
             return
+        elif clean_args == "keyboard":
+            remove_media(message, only=["keyboard.txt"])
+            send_to_all(message, "🗑 Keyboard settings removed.")
+            return
         elif clean_args == "all":
             # Delete all files and display the list of deleted ones
             user_dir = f'./users/{str(message.chat.id)}'
@@ -197,6 +247,11 @@ def url_distractor(app, message):
     # /Split Command
     if text.startswith(Config.SPLIT_COMMAND):
         split_command(app, message)
+        return
+
+    # /Search Command
+    if text.startswith(Config.SEARCH_COMMAND):
+        search_command(app, message)
         return
 
     # /uncache Command - Clear cache for URL (for admins only)
@@ -262,6 +317,11 @@ def url_distractor(app, message):
             auto_cache_command(app, message)
             return
 
+        # /Search Command (for admins too)
+        if text.startswith(Config.SEARCH_COMMAND):
+            search_command(app, message)
+            return
+
     # Reframed processing for all users (admins and ordinary users)
     if message.reply_to_message:
         # If the reference text begins with /broadcast, then:
@@ -278,6 +338,11 @@ def url_distractor(app, message):
 
     logger.info(f"{user_id} No matching command processed.")
     clear_subs_check_cache()
+
+@app.on_callback_query(filters.regex("^keyboard\\|"))
+def keyboard_callback_handler_wrapper(app, callback_query):
+    """Handle keyboard setting callbacks"""
+    keyboard_callback_handler(app, callback_query)
 
 # The function is_playlist_with_range is now imported from URL_PARSERS.playlist_utils
 ######################################################  

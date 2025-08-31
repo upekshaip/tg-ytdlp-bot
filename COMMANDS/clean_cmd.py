@@ -47,6 +47,10 @@ def clean_option_callback(app, callback_query):
         url_distractor(app, fake_message("/clean subs", user_id))
         callback_query.answer("Subtitle settings cleaned.")
         return
+    elif data == "keyboard":
+        url_distractor(app, fake_message("/clean keyboard", user_id))
+        callback_query.answer("Keyboard settings cleaned.")
+        return
     elif data == "all":
         url_distractor(app, fake_message("/clean all", user_id))
         callback_query.answer("All files cleaned.")
@@ -54,7 +58,7 @@ def clean_option_callback(app, callback_query):
     elif data == "back":
         # Back to the cookies menu
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📥 /download_cookie - Download my 5 cookies",
+            [InlineKeyboardButton("📥 /cookie - Download my 5 cookies",
                                   callback_data="settings__cmd__download_cookie")],
             [InlineKeyboardButton("🌐 /cookies_from_browser - Get browser's YT-cookie",
                                   callback_data="settings__cmd__cookies_from_browser")],

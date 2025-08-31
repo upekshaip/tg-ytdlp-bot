@@ -4,7 +4,7 @@ class CommandsConfig(object):
     #######################################################
     # Commands
     #######################################################
-    DOWNLOAD_COOKIE_COMMAND = "/download_cookie"
+    DOWNLOAD_COOKIE_COMMAND = "/cookie"
     SUBS_COMMAND = "/subs"
     CHECK_COOKIE_COMMAND = "/check_cookie"
     SAVE_AS_COOKIE_COMMAND = "/save_as_cookie"
@@ -29,4 +29,6 @@ class CommandsConfig(object):
     # Cache commands
     RELOAD_CACHE_COMMAND = "/reload_cache"
     AUTO_CACHE_COMMAND = "/auto_cache"
+    SEARCH_COMMAND = "/search"
+    KEYBOARD_COMMAND = "/keyboard"
     #######################################################

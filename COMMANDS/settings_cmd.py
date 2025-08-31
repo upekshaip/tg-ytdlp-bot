@@ -95,6 +95,9 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             ],
             [
                 InlineKeyboardButton("💬 Subtitles", callback_data="clean_option|subs"),
+                InlineKeyboardButton("🎹 Keyboard", callback_data="clean_option|keyboard"),
+            ],
+            [
                 InlineKeyboardButton("🗑  All files", callback_data="clean_option|all"),
             ],
             [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
@@ -112,7 +115,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
         return
     if data == "cookies":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📥 /download_cookie - Download my 5 cookies",
+            [InlineKeyboardButton("📥 /cookie - Download my 5 cookies",
                                   callback_data="settings__cmd__download_cookie")],
             [InlineKeyboardButton("🌐 /cookies_from_browser - Get browser's YT-cookie",
                                   callback_data="settings__cmd__cookies_from_browser")],
@@ -140,7 +143,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("✂️ /split - Change split video part size", callback_data="settings__cmd__split")],
             [InlineKeyboardButton("🎧 /audio - Download video as audio", callback_data="settings__cmd__audio")],
             [InlineKeyboardButton("💬 /subs - Subtitles language settings", callback_data="settings__cmd__subs")],
-            [InlineKeyboardButton("📋 /playlist - How to download playlists", callback_data="settings__cmd__playlist")],
+            [InlineKeyboardButton("⏯️ /playlist - How to download playlists", callback_data="settings__cmd__playlist")],
             [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
@@ -159,7 +162,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("#️⃣ /tags - Send your #tags", callback_data="settings__cmd__tags")],
             [InlineKeyboardButton("🆘 /help - Get instructions", callback_data="settings__cmd__help")],
             [InlineKeyboardButton("📃 /usage -Send your logs", callback_data="settings__cmd__usage")],
-            [InlineKeyboardButton("📋 /playlist - Playlist's help", callback_data="settings__cmd__playlist")],
+            [InlineKeyboardButton("⏯️ /playlist - Playlist's help", callback_data="settings__cmd__playlist")],
             [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
@@ -225,6 +228,9 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             ],
             [
                 InlineKeyboardButton("💬 Subtitles", callback_data="clean_option|subs"),
+                InlineKeyboardButton("🎹 Keyboard", callback_data="clean_option|keyboard"),
+            ],
+            [
                 InlineKeyboardButton("🗑  All files", callback_data="clean_option|all"),
             ],
             [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
@@ -244,7 +250,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         return
     if data == "download_cookie":
         try:
-            url_distractor(app, fake_message("/download_cookie", user_id))
+            url_distractor(app, fake_message("/cookie", user_id))
         except FloodWait as e:
             user_dir = os.path.join("users", str(user_id))
             os.makedirs(user_dir, exist_ok=True)

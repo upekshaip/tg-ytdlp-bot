@@ -68,7 +68,7 @@ YOUTUBE_COOKIE_URL_4 = "https://your-domain.com/cookies/youtube/cookie5.txt"
 ```
 
 **How it works:**
-1. User runs `/download_cookie` and selects YouTube
+1. User runs `/cookie` and selects YouTube
 2. Bot downloads cookies from the first available source
 3. Validates cookies by testing them with a YouTube video
 4. If validation fails, automatically tries the next source
@@ -309,10 +309,11 @@ python3 magic.py
 - **/split** - Change splitted video part size (0.25-2GB).
 - **/mediainfo** - Turn ON/OFF sending mediainfo (`/mediainfo on|off`).
 - **/check_cookie** - Check the cookie file.
-- **/download_cookie** - Download the cookie file with additional "From Browser" option.
+- **/cookie** - Download the cookie file with additional "From Browser" option.
 - **/save_as_cookie** - Save text as cookie (or upload TXT-doc).
 - **/cookies_from_browser** - Get cookies from browser (if supported) with fallback to Config.COOKIE_URL.
 - **/subs** - Enable/disable subtitle embedding for videos with enhanced language selection and "Always Ask" mode.
+- **/search** - Open inline search helper for quick `@vid` usage (see below).
 
 ---
 
@@ -356,6 +357,17 @@ python3 magic.py
 - **Multi-Source Fallback**: Automatic switching between multiple cookie sources
 - **Real-time Progress**: Live updates during cookie download and validation process
 
+### Reply Keyboard Management
+- **Customizable Layout**: Choose between 1x3 (single row) and 2x3 (double row) keyboard layouts
+- **Smart Display**: Keyboard automatically shows/hides based on user preferences
+- **Persistent Settings**: User keyboard preferences are saved in `keyboard.txt` file
+- **Easy Toggle**: Quickly switch between OFF, 1x3, and 2x3 modes via `/keyboard` command
+
+**Keyboard Modes:**
+- **OFF**: Completely hides the reply keyboard
+- **1x3**: Shows single row with `/clean`, `/cookie`, `/settings`
+- **2x3**: Shows two rows with full command set (default mode)
+
 ### Improved Error Handling
 - **Upload Retries**: Smart retry logic for failed uploads with fallback to document mode
 - **Dynamic Disk Space**: Intelligent space estimation based on video size
@@ -385,7 +397,7 @@ YOUTUBE_COOKIE_URL_2 = "https://your-domain.com/cookies/youtube/cookie3.txt"
 ```
 
 **User Commands:**
-- `/download_cookie` → YouTube: Downloads and validates cookies from multiple sources
+- `/cookie` → YouTube: Downloads and validates cookies from multiple sources
 - `/check_cookie`: Validates existing cookies and checks YouTube functionality
 - `/cookies_from_browser`: Extracts cookies from installed browsers
 - `/save_as_cookie`: Upload custom cookie file
@@ -439,7 +451,7 @@ The bot also supports cookies for other platforms:
 - **/usage** - Get all logs.
 - **/check_cookie** - Check the cookie file.
 - **/save_as_cookie** - Save text as cookie.
-- **/download_cookie** - Download the cookie file.
+- **/cookie** - Download the cookie file.
 - **/cookies_from_browser** - Get cookies from your browser.
 - **/format** - Choose media format options.
 - **/block_user** - Block a user (e.g., `/block_user 10101010`).
@@ -747,7 +759,7 @@ journalctl -u tg-ytdlp-bot -f
 
 **YouTube videos fail to download:**
 - Run `/check_cookie` to verify YouTube cookies are working
-- Use `/download_cookie` to get fresh cookies
+- Use `/cookie` to get fresh cookies
 - Check if video is age-restricted or private
 - Verify yt-dlp is properly installed and up to date
 
@@ -771,3 +783,17 @@ If you encounter issues:
 3. Test individual components (cookies, Firebase, channels)
 4. Check the [GitHub Issues](https://github.com/upekshaip/tg-ytdlp-bot/issues) for similar problems
 5. Create a new issue with detailed error information and logs
+
+---
+
+## Inline search helper (/search)
+
+Use this command to quickly activate inline search via `@vid`.
+
+- 📱 Mobile: tap the button shown by `/search`. It opens your chat with prefilled `@vid` and a zero‑width space. Add your query after `@vid`.
+- 💻 PC/Desktop: inline deep-linking cannot prefill reliably. Type manually in any chat:
+  - `@vid Your_Search_Query`
+
+Notes:
+- Desktop Telegram does not always send `/start` payloads from links repeatedly; avoid relying on `https://t.me/<bot>?start=...` for inline prefill.
+- The bot’s `/search` shows only working options and a concise manual hint.

@@ -105,7 +105,9 @@ class Config(object):
     SPLIT_COMMAND = CommandsConfig.SPLIT_COMMAND
     RELOAD_CACHE_COMMAND = CommandsConfig.RELOAD_CACHE_COMMAND
     AUTO_CACHE_COMMAND = CommandsConfig.AUTO_CACHE_COMMAND
-    
+    SEARCH_COMMAND = CommandsConfig.SEARCH_COMMAND
+    KEYBOARD_COMMAND = CommandsConfig.KEYBOARD_COMMAND
+
     # Messages configuration
     CREDITS_MSG = MessagesConfig.CREDITS_MSG
     TO_USE_MSG = MessagesConfig.TO_USE_MSG
@@ -125,7 +127,7 @@ class Config(object):
     NO_COOKIE_DOMAINS = DomainsConfig.NO_COOKIE_DOMAINS
     TIKTOK_DOMAINS = DomainsConfig.TIKTOK_DOMAINS
     CLEAN_QUERY = DomainsConfig.CLEAN_QUERY
-    
+    PIPED_DOMAIN = DomainsConfig.PIPED_DOMAIN    
     # Messages configuration (additional)
     SAVE_AS_COOKIE_HINT = MessagesConfig.SAVE_AS_COOKIE_HINT
     

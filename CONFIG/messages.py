@@ -73,7 +73,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 
 🍪 <b>Cookies & Private Content:</b>
 • Upload *.txt cookie file for private videos downloading
-• <code>/download_cookie</code> - Get my YouTube cookie
+• <code>/cookie</code> - Get my YouTube cookie
 • <code>/cookies_from_browser</code> - Extract from browser
 • <code>/check_cookie</code> - Verify your cookie
 • <code>/save_as_cookie</code> - Save text as cookie
@@ -88,14 +88,16 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 • <code>/clean split</code> - Remove split settings
 • <code>/clean mediainfo</code> - Remove mediainfo settings
 • <code>/clean sub</code> - Remove subtitle settings
+• <code>/clean keyboard</code> - Remove keyboard settings
 
 ⚙️ <b>Settings:</b>
 • <code>/settings</code> - Open settings menu
 • <code>/format</code> - Change video quality & format
 • <code>/split</code> - Set max part size (250MB-2GB)
-• <code>/mediainfo</code> - Enable/disable file info
+• <code>/mediainfo on/off</code> - Enable/disable file info
 • <code>/tags</code> - View your saved tags
-• <code>/sub</code> - Turn on/off subtitles
+• <code>/sub on/off</code> - Turn on/off subtitles
+• <code>/keyboard</code> - Manage keyboard settings (OFF/1x3/2x3)
 
 🏷️ <b>Tags System:</b>
 • Add <code>#tag1#tag2</code> after any URL
@@ -105,6 +107,9 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 📊 <b>Information:</b>
 • <code>/usage</code> - View your download history
 • <code>/help</code> - Show this help message
+
+🔍 <b>Search:</b>
+• <code>/search</code> - Activate inline search via @vid bot
 
 <blockquote expandable>🇷🇺 <b>Бот для скачивания видео - Помощь</b>
 (нажми, чтобы развернуть 👇)
@@ -120,7 +125,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 
 🍪 <b>Cookies и приватный контент:</b>
 • Загрузите *.txt cookie для скачивания приватных видео
-• <code>/download_cookie</code> - Получить мой YouTube cookie
+• <code>/cookie</code> - Получить мой YouTube cookie
 • <code>/cookies_from_browser</code> - Извлечь из браузера
 • <code>/check_cookie</code> - Проверить ваш cookie
 • <code>/save_as_cookie</code> - Сохранить текст как cookie
@@ -135,14 +140,16 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 • <code>/clean split</code> - Удалить настройки нарезки
 • <code>/clean mediainfo</code> - Удалить настройки mediainfo
 • <code>/clean sub</code> - Удалить настройки субтитров
+• <code>/clean keyboard</code> - Удалить настройки клавиатуры
 
 ⚙️ <b>Настройки:</b>
 • <code>/settings</code> - Открыть меню настроек
 • <code>/format</code> - Изменить качество и формат
 • <code>/split</code> - Установить размер части (250MB-2GB)
-• <code>/mediainfo</code> - Включить/выключить информацию о файле
+• <code>/mediainfo on/off</code> - Включить/выключить информацию о файле
 • <code>/tags</code> - Посмотреть ваши теги
-• <code>/sub</code> - Включить/выключить субтитры
+• <code>/sub on/off</code> - Включить/выключить субтитры
+• <code>/keyboard</code> - Управление настройками клавиатуры (OFF/1x3/2x3)
 
 🏷️ <b>Система тегов:</b>
 • Добавьте <code>#тег1#тег2</code> после любой ссылки
@@ -152,6 +159,9 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 📊 <b>Информация:</b>
 • <code>/usage</code> - История загрузок
 • <code>/help</code> - Показать эту справку
+
+🔍 <b>Поиск:</b>
+• <code>/search</code> - Активировать inline поиск через @vid бота
 </blockquote>
 👨‍💻 <i>Developer:</i> @upekshaip 
 <a href="https://github.com/upekshaip/tg-ytdlp-bot">[🛠 github]</a>
@@ -179,4 +189,15 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
         "https://t.me/c/2303231066/22 "
         "</blockquote>"
     )
+    
+    # Search command message (English)
+    SEARCH_MSG = """
+🔍 <b>Video search</b>
+
+Press the button below to activate inline search via @vid.
+
+<blockquote>
+This helps you quickly find and download videos from various platforms.
+</blockquote>
+    """
     #######################################################
