@@ -9,18 +9,10 @@ from HELPERS.app_instance import get_app
 from HELPERS.filesystem_hlp import create_directory
 from HELPERS.logger import send_to_logger, logger, send_to_all
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
+from HELPERS.limitter import is_user_in_channel
 
 # Get app instance for decorators
 app = get_app()
-
-def is_user_in_channel(app, message):
-    """Check if user is member of the subscription channel"""
-    try:
-        user_id = message.chat.id
-        member = app.get_chat_member(Config.SUBSCRIBE_CHANNEL, user_id)
-        return member.status in ["member", "administrator", "creator"]
-    except Exception:
-        return False
 
 @app.on_message(filters.command("mediainfo") & filters.private)
 # @reply_with_keyboard
