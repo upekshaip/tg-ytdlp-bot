@@ -27,8 +27,8 @@ fi
 
 # Remove any files that should be ignored but are still tracked
 echo "🧹 Cleaning up ignored files..."
-if [ -f "UPDATE.sh" ]; then
-    git rm --cached "UPDATE.sh" 2>/dev/null || true
+if [ -f "update.sh" ]; then
+    git rm --cached "update.sh" 2>/dev/null || true
 fi
 if [ -d "_cursor" ]; then
     git rm --cached -r "_cursor" 2>/dev/null || true

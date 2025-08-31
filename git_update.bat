@@ -32,8 +32,8 @@ if "%STATUS%"=="" (
 
 REM Remove any files that should be ignored but are still tracked
 echo 🧹 Cleaning up ignored files...
-if exist "UPDATE.sh" (
-    git rm --cached "UPDATE.sh" 2>nul
+if exist "update.sh" (
+    git rm --cached "update.sh" 2>nul
 )
 if exist "_cursor" (
     git rm --cached -r "_cursor" 2>nul
