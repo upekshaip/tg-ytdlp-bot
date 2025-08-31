@@ -594,6 +594,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 pass
 
             ytdl_opts = {**common_opts, **attempt_opts}
+            
+            # Add proxy configuration if needed for this domain
+            from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
+            ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url)
+            
             # If MKV is ON, remux to mkv; else to mp4
             if mkv_on:
                 ytdl_opts['remux_video'] = 'mkv'

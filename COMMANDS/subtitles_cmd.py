@@ -1145,6 +1145,10 @@ def download_subtitles_ytdlp(url, user_id, video_dir, available_langs):
                 info_opts['cookiefile'] = user_cookie_path
             elif hasattr(Config, "COOKIE_FILE_PATH") and os.path.exists(Config.COOKIE_FILE_PATH):
                 info_opts['cookiefile'] = Config.COOKIE_FILE_PATH
+            
+            # Add proxy configuration if needed for this domain
+            from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
+            info_opts = add_proxy_to_ytdl_opts(info_opts, url)
 
             with yt_dlp.YoutubeDL(info_opts) as ydl:
                 info = ydl.extract_info(url, download=False)

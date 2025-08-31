@@ -56,6 +56,13 @@ class Config(object):
     DOWNLOAD_FIREBASE_SCRIPT_PATH = "DATABASE/download_firebase.py"
     AUTO_CACHE_RELOAD_ENABLED = True # Enable/disable automatic cache reloading
     #######################################################
+    # Proxy configuration
+    PROXY_TYPE="http" # http, https, socks4, socks5, socks5h
+    PROXY_IP="X.X.X.X"
+    PROXY_PORT=3128
+    PROXY_USER="XXXXXXXX"
+    PROXY_PASSWORD="XXXXXXXXX"
+    #######################################################
     # Firebase initialization
     # your firebase DB path
     BOT_DB_PATH = f"bot/{BOT_NAME_FOR_USERS}/"
@@ -125,6 +132,7 @@ class Config(object):
     SUPPORTED_SITES_FILE = DomainsConfig.SUPPORTED_SITES_FILE
     WHITELIST = DomainsConfig.WHITELIST
     NO_COOKIE_DOMAINS = DomainsConfig.NO_COOKIE_DOMAINS
+    PROXY_DOMAINS = DomainsConfig.PROXY_DOMAINS
     TIKTOK_DOMAINS = DomainsConfig.TIKTOK_DOMAINS
     CLEAN_QUERY = DomainsConfig.CLEAN_QUERY
     PIPED_DOMAIN = DomainsConfig.PIPED_DOMAIN    

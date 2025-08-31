@@ -82,6 +82,10 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
             logger.info(f"Using --no-cookies for domain in get_video_formats: {url}")
         elif cookie_file:
             ytdl_opts['cookiefile'] = cookie_file
+        
+        # Add proxy configuration if needed for this domain
+        from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
+        ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url)
     try:
         with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
