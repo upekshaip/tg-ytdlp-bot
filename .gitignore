@@ -55,9 +55,14 @@ TOOLS/script.sh
 _cursor/TOOLS/script.sh
 script.sh
 log.txt
-# update.sh
 cleanup_git.sh
 cleanup_git.ps1
+porn.py
+porn.sh
+porn_req.txt
+git_update.bat
+git_update.ps1
+git_update.sh
 
 # Configs with secrets (do not commit)
 CONFIG/config.py
@@ -65,9 +70,3 @@ config.py
 TXT/
 TXT/porn_domains.txt
 TXT/porn_keywords.txt
-porn.py
-porn.sh
-porn_req.txt
-git_update.bat
-git_update.ps1
-git_update.sh
