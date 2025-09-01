@@ -123,10 +123,181 @@ def url_distractor(app, message):
         subs_command(app, message)
         return
 
-    # /cookie Command
-    if text == Config.DOWNLOAD_COOKIE_COMMAND:
-        download_cookie(app, message)
+    # /Proxy Command
+    if text.startswith(Config.PROXY_COMMAND):
+        proxy_command(app, message)
         return
+
+    # /Link Command
+    if text.startswith(Config.LINK_COMMAND):
+        link_command(app, message)
+        return
+
+    # /cookie Command
+    if text.startswith(Config.DOWNLOAD_COOKIE_COMMAND):
+        cookie_args = text[len(Config.DOWNLOAD_COOKIE_COMMAND):].strip().lower()
+        
+        # Handle direct arguments
+        if cookie_args == "youtube":
+            # Simulate YouTube button click
+            from HELPERS.safe_messeger import fake_message
+            from pyrogram.types import CallbackQuery
+            from collections import namedtuple
+            
+            # Create a fake callback query
+            FakeCallbackQuery = namedtuple('FakeCallbackQuery', ['from_user', 'message', 'data', 'id'])
+            FakeUser = namedtuple('FakeUser', ['id'])
+            
+            fake_callback = FakeCallbackQuery(
+                from_user=FakeUser(id=user_id),
+                message=message,
+                data="download_cookie|youtube",
+                id="fake_callback_id"
+            )
+            
+            from COMMANDS.cookies_cmd import download_and_validate_youtube_cookies
+            download_and_validate_youtube_cookies(app, fake_callback)
+            return
+            
+        elif cookie_args == "instagram":
+            # Simulate Instagram button click
+            from HELPERS.safe_messeger import fake_message
+            from pyrogram.types import CallbackQuery
+            from collections import namedtuple
+            
+            FakeCallbackQuery = namedtuple('FakeCallbackQuery', ['from_user', 'message', 'data', 'id'])
+            FakeUser = namedtuple('FakeUser', ['id'])
+            
+            fake_callback = FakeCallbackQuery(
+                from_user=FakeUser(id=user_id),
+                message=message,
+                data="download_cookie|instagram",
+                id="fake_callback_id"
+            )
+            
+            from COMMANDS.cookies_cmd import download_and_save_cookie
+            download_and_save_cookie(app, fake_callback, Config.INSTAGRAM_COOKIE_URL, "instagram")
+            return
+            
+        elif cookie_args == "tiktok":
+            # Simulate TikTok button click
+            from HELPERS.safe_messeger import fake_message
+            from pyrogram.types import CallbackQuery
+            from collections import namedtuple
+            
+            FakeCallbackQuery = namedtuple('FakeCallbackQuery', ['from_user', 'message', 'data'])
+            FakeUser = namedtuple('FakeUser', ['id'])
+            
+            fake_callback = FakeCallbackQuery(
+                from_user=FakeUser(id=user_id),
+                message=message,
+                data="download_cookie|tiktok"
+            )
+            
+            from COMMANDS.cookies_cmd import download_and_save_cookie
+            download_and_save_cookie(app, fake_callback, Config.TIKTOK_COOKIE_URL, "tiktok")
+            return
+            
+        elif cookie_args in ["x", "twitter"]:
+            # Simulate Twitter/X button click
+            from HELPERS.safe_messeger import fake_message
+            from pyrogram.types import CallbackQuery
+            from collections import namedtuple
+            
+            FakeCallbackQuery = namedtuple('FakeCallbackQuery', ['from_user', 'message', 'data'])
+            FakeUser = namedtuple('FakeUser', ['id'])
+            
+            fake_callback = FakeCallbackQuery(
+                from_user=FakeUser(id=user_id),
+                message=message,
+                data="download_cookie|twitter"
+            )
+            
+            from COMMANDS.cookies_cmd import download_and_save_cookie
+            download_and_save_cookie(app, fake_callback, Config.TWITTER_COOKIE_URL, "twitter")
+            return
+            
+        elif cookie_args == "facebook":
+            # Simulate Facebook button click
+            from HELPERS.safe_messeger import fake_message
+            from pyrogram.types import CallbackQuery
+            from collections import namedtuple
+            
+            FakeCallbackQuery = namedtuple('FakeCallbackQuery', ['from_user', 'message', 'data'])
+            FakeUser = namedtuple('FakeUser', ['id'])
+            
+            fake_callback = FakeCallbackQuery(
+                from_user=FakeUser(id=user_id),
+                message=message,
+                data="download_cookie|facebook"
+            )
+            
+            from COMMANDS.cookies_cmd import download_and_save_cookie
+            download_and_save_cookie(app, fake_callback, Config.FACEBOOK_COOKIE_URL, "facebook")
+            return
+            
+        elif cookie_args == "custom":
+            # Simulate "Your Own" button click
+            from HELPERS.safe_messeger import fake_message
+            from pyrogram.types import CallbackQuery
+            from collections import namedtuple
+            
+            FakeCallbackQuery = namedtuple('FakeCallbackQuery', ['from_user', 'message', 'data'])
+            FakeUser = namedtuple('FakeUser', ['id'])
+            
+            fake_callback = FakeCallbackQuery(
+                from_user=FakeUser(id=user_id),
+                message=message,
+                data="download_cookie|own"
+            )
+            
+            # Show custom cookie hint
+            try:
+                app.answer_callback_query(fake_callback.id)
+            except Exception:
+                pass
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔚Close", callback_data="save_as_cookie_hint|close")]
+            ])
+            from HELPERS.safe_messeger import safe_send_message
+            from pyrogram.types import ReplyParameters
+            safe_send_message(
+                fake_callback.message.chat.id,
+                Config.SAVE_AS_COOKIE_HINT,
+                reply_parameters=ReplyParameters(message_id=fake_callback.message.id if hasattr(fake_callback.message, 'id') else None),
+                reply_markup=keyboard,
+                _callback_query=fake_callback,
+                _fallback_notice="⏳ Flood limit. Try later."
+            )
+            return
+            
+        elif cookie_args == "" or cookie_args is None:
+            # No arguments - show regular menu
+            download_cookie(app, message)
+            return
+        else:
+            # Invalid argument - show usage message
+            from pyrogram.types import ReplyParameters
+            usage_text = """
+<b>🍪 Cookie Command Usage</b>
+
+<code>/cookie</code> - Show cookie menu
+<code>/cookie youtube</code> - Download YouTube cookies
+<code>/cookie instagram</code> - Download Instagram cookies
+<code>/cookie tiktok</code> - Download TikTok cookies
+<code>/cookie x</code> or <code>/cookie twitter</code> - Download Twitter/X cookies
+<code>/cookie facebook</code> - Download Facebook cookies
+<code>/cookie custom</code> - Show custom cookie instructions
+
+<i>Available services depend on bot configuration.</i>
+"""
+            app.send_message(
+                message.chat.id,
+                usage_text,
+                parse_mode=enums.ParseMode.HTML,
+                reply_parameters=ReplyParameters(message_id=message.id)
+            )
+            return
 
     # /Check_cookie Command
     if text == Config.CHECK_COOKIE_COMMAND:

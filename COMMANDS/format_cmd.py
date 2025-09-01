@@ -135,8 +135,21 @@ def set_format(app, message):
     if len(message.command) > 1:
         arg = message.text.split(" ", 1)[1].strip()
         
+        # Check for special arguments
+        if arg.lower() == "ask":
+            # Set to Always Ask mode
+            with open(os.path.join(user_dir, "format.txt"), "w", encoding="utf-8") as f:
+                f.write("ALWAYS_ASK")
+            safe_send_message(user_id, "✅ Format set to: Always Ask. You will be prompted for quality each time you send a URL.")
+            send_to_logger(message, "Format set to ALWAYS_ASK.")
+            return
+        elif arg.lower() == "best":
+            # Set to bv+ba/best format
+            custom_format = "bv+ba/best"
+            safe_send_message(user_id, f"✅ Format updated to best quality:\n{custom_format}")
+            send_to_logger(message, f"Format updated to best: {custom_format}")
         # Check if it's a quality argument (number, number+p, 4k, 8k)
-        if re.match(r'^(\d+p?|4k|8k|4K|8K)$', arg, re.IGNORECASE):
+        elif re.match(r'^(\d+p?|4k|8k|4K|8K)$', arg, re.IGNORECASE):
             # It's a quality argument, convert to format
             custom_format = parse_quality_argument(arg)
             safe_send_message(user_id, f"✅ Format updated to quality {arg}:\n{custom_format}")
@@ -167,7 +180,9 @@ def set_format(app, message):
             "• <code>/format &lt;format_string&gt;</code> - custom format\n"
             "• <code>/format 720</code> - 720p quality\n"
             "• <code>/format 4k</code> - 4K quality\n"
-            "• <code>/format 8k</code> - 8K quality",
+            "• <code>/format 8k</code> - 8K quality\n"
+            "• <code>/format ask</code> - always show menu\n"
+            "• <code>/format best</code> - bv+ba/best quality",
             reply_markup=main_keyboard
         )
         send_to_logger(message, "Format menu sent.")

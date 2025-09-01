@@ -13,7 +13,7 @@ def sanitize_autotag(tag: str) -> str:
     return '#' + re.sub(r'[^\w\d_]', '_', tag.lstrip('#'), flags=re.UNICODE)
 
 def generate_final_tags(url, user_tags, info_dict):
-    """Tags now include #porn if found by title, description or caption."""
+    """Tags now include #nsfw if found by title, description or caption."""
     final_tags = []
     seen = set()
     # 1. Custom tags
@@ -48,15 +48,15 @@ def generate_final_tags(url, user_tags, info_dict):
             if channel_tag.lower() not in seen:
                 final_tags.append(channel_tag)
                 seen.add(channel_tag.lower())
-    # 4. #porn if defined by title, description or caption
+    # 4. #nsfw if defined by title, description or caption
     video_title = info_dict.get("title") if info_dict else None
     video_description = info_dict.get("description") if info_dict else None
     video_caption = info_dict.get("caption") if info_dict else None
     # Temporarily disable porn detection to avoid circular import
     # if is_porn(url, video_title, video_description, video_caption):
-    #     if '#porn' not in seen:
-    #         final_tags.append('#porn')
-    #         seen.add('#porn')
+    #     if '#nsfw' not in seen:
+    #         final_tags.append('#nsfw')
+    #         seen.add('#nsfw')
     result = ' '.join(final_tags)
     # Check if info_dict is None before accessing it
     title = info_dict.get('title', 'N/A') if info_dict else 'N/A'
@@ -148,7 +148,7 @@ def get_auto_tags(url, user_tags):
     full_domain = f"{ext.domain}.{ext.suffix}".lower() if ext.domain and ext.suffix else ''
     # 1. Porn Check (for all the suffixes of the domain, but taking into account the whitelist)
     if is_porn_domain(domain_parts):
-        auto_tags.add(sanitize_autotag('porn'))
+        auto_tags.add(sanitize_autotag('nsfw'))
     # 2. YouTube Check (including YouTu.be)
     if ("youtube.com" in url_l or "youtu.be" in url_l):
         auto_tags.add("#youtube")
@@ -160,7 +160,7 @@ def get_auto_tags(url, user_tags):
     # 4. Boosty check (boosty.to, boosty.com)
     if ("boosty.to" in url_l or "boosty.com" in url_l):
         auto_tags.add("#boosty")
-        auto_tags.add("#porn")
+        auto_tags.add("#nsfw")
     # 5. Service tag for supported sites (by full domain or 2nd level)
     for site in SUPPORTED_SITES:
         site_l = site.lower()
