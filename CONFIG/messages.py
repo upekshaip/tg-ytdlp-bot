@@ -4,12 +4,13 @@ class MessagesConfig(object):
     #######################################################
     # Messages and errors
     #######################################################
-    CREDITS_MSG = "<i>Developed by</i> @upekshaip"
-    TO_USE_MSG = "<i>To use this bot you need to subscribe to @upekshaip Telegram channel.</i>\nAfter you join the channel, <b>resend your video link again and I will download it for you</b> ❤️  "
+    CREDITS_MSG = "<blockquote><i>Managed by</i> @iilililiiillliiliililliilliliiil\n🇮🇹 @tgytdlp_bot\n🇦🇪 @tgytdlp_uae_bot\n🇬🇧 @tgytdlp_uk_bot\n🇫🇷 @tgytdlp_fr_bot</blockquote>"
+    TO_USE_MSG = "<i>To use this bot you need to subscribe to @tg_ytdlp Telegram channel.</i>\nAfter you join the channel, <b>resend your video link again and bot will download it for you</b> ❤️  "
     MSG1 = "Hello "
-    MSG2 = "This is the second message. which means my own message... 😁"
+    MSG2 = "This is the second message. which means bot's own message... 😁"
     ERROR1 = "Did not found a url link. Please enter a url with <b>https://</b> or <b>http://</b>"
     INDEX_ERROR = "You did not give a valid information. Try again..."
+
     PLAYLIST_HELP_MSG = """
 📋 <b>How to download playlists:</b>
 
@@ -105,7 +106,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 ⚙️ <b>Quick Commands:</b>
 • <code>/format [144-4320]/720p/1080p/4k/8k</code> → set quality
 • <code>/keyboard off/1x3/2x3/full</code> → keyboard layout
-• <code>/split 250mb/500mb/1gb/1.5gb/2gb</code> → part size
+• <code>/split 100mb-2000mb</code> → part size (100MB to 2GB)
 • <code>/subs off/ru/en auto</code> → subtitle language
 • <code>/mediainfo on/off</code> → on/off media info
 • <code>/proxy on/off</code> → enable/disable proxy for all downloads
@@ -159,7 +160,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 ⚙️ <b>Быстрые команды:</b>
 • <code>/format [144-4320]/720p/1080p/4k/8k</code> → качество
 • <code>/keyboard off/1x3/2x3/full</code> → клавиатура
-• <code>/split 250mb/500mb/1gb/1.5gb/2gb</code> → размер части
+• <code>/split 100mb-2000mb</code> → размер части (100MB до 2GB)
 • <code>/subs off/ru/en auto</code> → язык субтитров
 • <code>/mediainfo on/off</code> → вкл/выкл медиаинфо
 • <code>/proxy on/off</code> → включить/выключить прокси для всех загрузок

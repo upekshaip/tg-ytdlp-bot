@@ -110,6 +110,16 @@ def url_distractor(app, message):
         
     # /Keyboard Command
     if text == Config.KEYBOARD_COMMAND:
+        # Ensure message has command attribute
+        if not hasattr(message, 'command') or message.command is None:
+            # Parse command from text
+            parts = text.strip().split()
+            if parts:
+                cmd = parts[0][1:] if len(parts[0]) > 1 else ''
+                args = parts[1:] if len(parts) > 1 else []
+                message.command = [cmd] + args
+            else:
+                message.command = []
         keyboard_command(app, message)
         return
         
@@ -125,11 +135,31 @@ def url_distractor(app, message):
 
     # /Proxy Command
     if text.startswith(Config.PROXY_COMMAND):
+        # Ensure message has command attribute
+        if not hasattr(message, 'command') or message.command is None:
+            # Parse command from text
+            parts = text.strip().split()
+            if parts:
+                cmd = parts[0][1:] if len(parts[0]) > 1 else ''
+                args = parts[1:] if len(parts) > 1 else []
+                message.command = [cmd] + args
+            else:
+                message.command = []
         proxy_command(app, message)
         return
 
     # /Link Command
     if text.startswith(Config.LINK_COMMAND):
+        # Ensure message has command attribute
+        if not hasattr(message, 'command') or message.command is None:
+            # Parse command from text
+            parts = text.strip().split()
+            if parts:
+                cmd = parts[0][1:] if len(parts[0]) > 1 else ''
+                args = parts[1:] if len(parts) > 1 else []
+                message.command = [cmd] + args
+            else:
+                message.command = []
         link_command(app, message)
         return
 
@@ -435,6 +465,16 @@ def url_distractor(app, message):
 
     # /Split Command
     if text.startswith(Config.SPLIT_COMMAND):
+        # Ensure message has command attribute
+        if not hasattr(message, 'command') or message.command is None:
+            # Parse command from text
+            parts = text.strip().split()
+            if parts:
+                cmd = parts[0][1:] if len(parts[0]) > 1 else ''
+                args = parts[1:] if len(parts) > 1 else []
+                message.command = [cmd] + args
+            else:
+                message.command = []
         split_command(app, message)
         return
 

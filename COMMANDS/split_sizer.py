@@ -15,7 +15,7 @@ def parse_size_argument(arg):
     Parse size argument and return size in bytes
     
     Args:
-        arg (str): Size argument (e.g., "250mb", "1.5gb", "2GB")
+        arg (str): Size argument (e.g., "250mb", "1.5gb", "2GB", "100mb", "2000mb")
         
     Returns:
         int: Size in bytes or None if invalid
@@ -26,7 +26,7 @@ def parse_size_argument(arg):
     # Remove spaces and convert to lowercase
     arg = arg.lower().replace(" ", "")
     
-    # Match patterns like "250mb", "1.5gb", "2GB"
+    # Match patterns like "250mb", "1.5gb", "2GB", "100mb", "2000mb"
     match = re.match(r'^(\d+(?:\.\d+)?)(mb|gb)$', arg)
     if not match:
         return None
@@ -34,12 +34,24 @@ def parse_size_argument(arg):
     number = float(match.group(1))
     unit = match.group(2)
     
+    # Convert to bytes
     if unit == "mb":
-        return int(number * 1024 * 1024)
+        size_bytes = int(number * 1024 * 1024)
     elif unit == "gb":
-        return int(number * 1024 * 1024 * 1024)
+        size_bytes = int(number * 1024 * 1024 * 1024)
+    else:
+        return None
     
-    return None
+    # Check limits: 100MB to 2GB
+    min_size = 100 * 1024 * 1024  # 100MB
+    max_size = 2 * 1024 * 1024 * 1024  # 2GB
+    
+    if size_bytes < min_size:
+        return None  # Too small
+    elif size_bytes > max_size:
+        return None  # Too large
+    
+    return size_bytes
 
 # Get app instance for decorators
 app = get_app()
@@ -70,25 +82,32 @@ def split_command(app, message):
         else:
             safe_send_message(user_id, 
                 "❌ **Invalid size!**\n\n"
-                "Valid formats:\n"
-                "• `250mb` or `250MB`\n"
-                "• `500mb` or `500MB`\n"
-                "• `1gb` or `1GB`\n"
-                "• `1.5gb` or `1.5GB`\n"
-                "• `2gb` or `2GB`\n\n"
-                "Example: `/split 500mb`"
+                "**Valid range:** 100MB to 2GB\n\n"
+                "**Valid formats:**\n"
+                "• `100mb` to `2000mb` (megabytes)\n"
+                "• `0.1gb` to `2gb` (gigabytes)\n\n"
+                "**Examples:**\n"
+                "• `/split 100mb` - 100 megabytes\n"
+                "• `/split 500mb` - 500 megabytes\n"
+                "• `/split 1.5gb` - 1.5 gigabytes\n"
+                "• `/split 2gb` - 2 gigabytes\n"
+                "• `/split 2000mb` - 2000 megabytes (2GB)\n\n"
+                "**Presets:**\n"
+                "• `/split 250mb`, `/split 500mb`, `/split 1gb`, `/split 1.5gb`, `/split 2gb`"
             )
             return
     
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
-    # 2-3 row buttons
+    # 2-3 row buttons with more presets
     sizes = [
+        ("100 MB", 100 * 1024 * 1024),
         ("250 MB", 250 * 1024 * 1024),
         ("500 MB", 500 * 1024 * 1024),
+        ("750 MB", 750 * 1024 * 1024),
         ("1 GB", 1024 * 1024 * 1024),
         ("1.5 GB", 1536 * 1024 * 1024),
-        ("2 GB (default)", 1950 * 1024 * 1024)
+        ("2 GB (max)", 2 * 1024 * 1024 * 1024)
     ]
     buttons = []
     # Pass the buttons in 2-3 rows
@@ -101,7 +120,15 @@ def split_command(app, message):
         buttons.append(row)
     buttons.append([InlineKeyboardButton("🔚Close", callback_data="split_size|close")])
     keyboard = InlineKeyboardMarkup(buttons)
-    safe_send_message(user_id, "Choose max part size for video splitting:\n\nOr use: `/split 250mb`, `/split 1gb`, etc.", reply_markup=keyboard)
+    safe_send_message(user_id, 
+        "🎬 **Choose max part size for video splitting:**\n\n"
+        "**Range:** 100MB to 2GB\n\n"
+        "**Quick commands:**\n"
+        "• `/split 100mb` - `/split 2000mb`\n"
+        "• `/split 0.1gb` - `/split 2gb`\n\n"
+        "**Examples:** `/split 300mb`, `/split 1.2gb`, `/split 1500mb`", 
+        reply_markup=keyboard
+    )
     send_to_logger(message, "User opened /split menu.")
 
 @app.on_callback_query(filters.regex(r"^split_size\|"))

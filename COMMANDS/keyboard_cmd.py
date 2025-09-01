@@ -16,7 +16,7 @@ def keyboard_command(app, message):
         os.makedirs(user_dir)
     
     # Check if arguments are provided
-    if len(message.command) > 1:
+    if hasattr(message, 'command') and message.command and len(message.command) > 1:
         arg = message.command[1].lower()
         if arg in ["off", "1x3", "2x3", "full"]:
             # Apply setting directly
@@ -55,12 +55,10 @@ def keyboard_command(app, message):
         except:
             current_setting = "2x3"  # Fallback to default
     
-    # Create inline keyboard for options
+    # Create inline keyboard for options in 2 rows
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔴 OFF", callback_data=f"keyboard|OFF")],
-        [InlineKeyboardButton("📱 1x3", callback_data=f"keyboard|1x3")],
-        [InlineKeyboardButton("📱 2x3", callback_data=f"keyboard|2x3")],
-        [InlineKeyboardButton("🔣 FULL", callback_data=f"keyboard|FULL")]
+        [InlineKeyboardButton("🔴 OFF", callback_data=f"keyboard|OFF"), InlineKeyboardButton("🔣 FULL", callback_data=f"keyboard|FULL")],
+        [InlineKeyboardButton("📱 1x3", callback_data=f"keyboard|1x3"), InlineKeyboardButton("📱 2x3", callback_data=f"keyboard|2x3")]
     ])
     
     status_text = f"🎹 **Keyboard Settings**\n\nCurrent: **{current_setting}**\n\nChoose an option:\n\nOr use: `/keyboard off`, `/keyboard 1x3`, `/keyboard 2x3`, `/keyboard full`"
