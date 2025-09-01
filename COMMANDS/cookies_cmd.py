@@ -1,6 +1,6 @@
 
 # Command to Set Browser Cookies and Auto-Update YouTube Cookies
-from pyrogram import filters
+from pyrogram import filters, enums
 from CONFIG.config import Config
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 
@@ -294,6 +294,12 @@ def download_cookie_callback(app, callback_query):
     data = callback_query.data.split("|")[1]
 
     if data == "youtube":
+        # Send initial message about starting the process
+        safe_edit_message_text(
+            callback_query.message.chat.id, 
+            callback_query.message.id, 
+            "🔄 Starting YouTube cookies test...\n\nPlease wait while I check and validate your cookies."
+        )
         download_and_validate_youtube_cookies(app, callback_query)
     elif data == "instagram":
         download_and_save_cookie(app, callback_query, Config.INSTAGRAM_COOKIE_URL, "instagram")
@@ -421,6 +427,45 @@ def download_cookie(app, message):
         message: Сообщение команды
     """
     user_id = str(message.chat.id)
+    
+    # Check for fast command with arguments: /cookie youtube, /cookie instagram, etc.
+    try:
+        parts = (message.text or "").split()
+        if len(parts) >= 2:
+            service = parts[1].lower()
+            if service == "youtube":
+                # Handle YouTube cookies directly
+                user_id = str(message.chat.id)
+                user_dir = os.path.join("users", user_id)
+                create_directory(user_dir)
+                cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
+                cookie_file_path = os.path.join(user_dir, cookie_filename)
+                
+                # Send initial message
+                send_to_user(message, "🔄 Starting YouTube cookies test...\n\nPlease wait while I check and validate your cookies.")
+                
+                # Check existing cookies first
+                if os.path.exists(cookie_file_path):
+                    if test_youtube_cookies(cookie_file_path):
+                        send_to_user(message, "✅ Your existing YouTube cookies are working properly!\n\nNo need to download new ones.")
+                        return
+                    else:
+                        send_to_user(message, "❌ Your existing YouTube cookies are expired or invalid.\n\n🔄 Downloading new cookies...")
+                
+                # Download and validate new cookies
+                download_and_validate_youtube_cookies(app, message)
+                return
+            elif service in ["instagram", "twitter", "tiktok", "facebook", "own", "from_browser"]:
+                # Fast command - directly call the callback
+                fake_callback = fake_message(f"/cookie {service}", user_id)
+                fake_callback.data = f"download_cookie|{service}"
+                fake_callback.from_user = message.from_user
+                fake_callback.message = message
+                download_cookie_callback(app, fake_callback)
+                return
+    except Exception as e:
+        logger.error(f"Error in fast command handling: {e}")
+        pass
     
     # Buttons for services
     buttons = [
@@ -753,7 +798,7 @@ def get_youtube_cookie_urls() -> list:
     
     return urls
 
-def download_and_validate_youtube_cookies(app, callback_query) -> bool:
+def download_and_validate_youtube_cookies(app, message) -> bool:
     """
     Скачивает и проверяет YouTube куки из всех доступных источников.
     
@@ -763,15 +808,61 @@ def download_and_validate_youtube_cookies(app, callback_query) -> bool:
     3. Сохраняет только рабочие куки
     4. Если ни один источник не работает, сообщает об ошибке
     
+    Args:
+        app: Экземпляр приложения
+        message: Сообщение команды или callback_query
+    
     Returns:
         bool: True если найдены рабочие куки, False если нет
     """
-    user_id = str(callback_query.from_user.id)
+    # Handle both message and callback_query objects
+    if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
+        user_id = str(message.chat.id)
+    elif hasattr(message, 'from_user') and hasattr(message.from_user, 'id'):
+        user_id = str(message.from_user.id)
+    else:
+        logger.error("Cannot determine user_id from message object")
+        return False
+    
+    # Create a helper function to send messages safely
+    def safe_send_to_user(msg):
+        try:
+            if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
+                # It's a Message object
+                from HELPERS.logger import send_to_user
+                send_to_user(message, msg)
+            elif hasattr(message, 'from_user') and hasattr(message.from_user, 'id'):
+                # It's a CallbackQuery object
+                from HELPERS.safe_messeger import safe_send_message
+                from pyrogram import enums
+                safe_send_message(message.from_user.id, msg, parse_mode=enums.ParseMode.HTML)
+            else:
+                # Fallback - try to get user_id and send directly
+                from HELPERS.safe_messeger import safe_send_message
+                from pyrogram import enums
+                safe_send_message(user_id, msg, parse_mode=enums.ParseMode.HTML)
+        except Exception as e:
+            logger.error(f"Error sending message to user: {e}")
+            # Try direct send as last resort
+            try:
+                from HELPERS.safe_messeger import safe_send_message
+                from pyrogram import enums
+                safe_send_message(user_id, msg, parse_mode=enums.ParseMode.HTML)
+            except Exception as e2:
+                logger.error(f"Final fallback send failed: {e2}")
+    
     cookie_urls = get_youtube_cookie_urls()
     
     if not cookie_urls:
-        send_to_user(callback_query.message, "❌ YouTube cookie sources are not configured!")
-        send_to_logger(callback_query.message, f"YouTube cookie URLs are empty for user {user_id}.")
+        safe_send_to_user("❌ YouTube cookie sources are not configured!")
+        # Safe logging
+        try:
+            if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
+                send_to_logger(message, f"YouTube cookie URLs are empty for user {user_id}.")
+            else:
+                logger.error(f"YouTube cookie URLs are empty for user {user_id}")
+        except Exception as e:
+            logger.error(f"Error logging: {e}")
         return False
     
     # Create user folder
@@ -780,21 +871,46 @@ def download_and_validate_youtube_cookies(app, callback_query) -> bool:
     cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
     cookie_file_path = os.path.join(user_dir, cookie_filename)
     
-    # Update the message about the start of the process
-    safe_edit_message_text(
-        callback_query.message.chat.id, 
-        callback_query.message.id, 
-        "🔄 Downloading and checking YouTube cookies...\n\nAttempt 1 of {len(cookie_urls)}"
-    )
+    # Send initial message and store message ID for updates
+    initial_msg = None
+    try:
+        if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
+            # It's a Message object - send initial message
+            from HELPERS.logger import send_to_user
+            initial_msg = send_to_user(message, f"🔄 Downloading and checking YouTube cookies...\n\nAttempt 1 of {len(cookie_urls)}")
+        elif hasattr(message, 'from_user') and hasattr(message.from_user, 'id'):
+            # It's a CallbackQuery object - send initial message
+            from HELPERS.safe_messeger import safe_send_message
+            from pyrogram import enums
+            initial_msg = safe_send_message(message.from_user.id, f"🔄 Downloading and checking YouTube cookies...\n\nAttempt 1 of {len(cookie_urls)}", parse_mode=enums.ParseMode.HTML)
+        else:
+            # Fallback - send directly
+            from HELPERS.safe_messeger import safe_send_message
+            from pyrogram import enums
+            initial_msg = safe_send_message(user_id, f"🔄 Downloading and checking YouTube cookies...\n\nAttempt 1 of {len(cookie_urls)}", parse_mode=enums.ParseMode.HTML)
+    except Exception as e:
+        logger.error(f"Error sending initial message: {e}")
+    
+    # Helper function to update the message
+    def update_message(new_text):
+        try:
+            if initial_msg and hasattr(initial_msg, 'id'):
+                if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
+                    # It's a Message object - edit via app
+                    app.edit_message_text(message.chat.id, initial_msg.id, new_text, parse_mode=enums.ParseMode.HTML)
+                elif hasattr(message, 'from_user') and hasattr(message.from_user, 'id'):
+                    # It's a CallbackQuery object - edit via app
+                    app.edit_message_text(message.from_user.id, initial_msg.id, new_text, parse_mode=enums.ParseMode.HTML)
+                else:
+                    # Fallback - edit via app
+                    app.edit_message_text(user_id, initial_msg.id, new_text, parse_mode=enums.ParseMode.HTML)
+        except Exception as e:
+            logger.error(f"Error updating message: {e}")
     
     for i, url in enumerate(cookie_urls, 1):
         try:
-            # Update the message about the current attempt
-            safe_edit_message_text(
-                callback_query.message.chat.id, 
-                callback_query.message.id, 
-                f"🔄 Downloading and checking YouTube cookies...\n\nAttempt {i} of {len(cookie_urls)}"
-            )
+            # Update message about the current attempt
+            update_message(f"🔄 Downloading and checking YouTube cookies...\n\nAttempt {i} of {len(cookie_urls)}")
             
             # Download cookies
             ok, status, content, err = _download_content(url, timeout=30)
@@ -816,21 +932,20 @@ def download_and_validate_youtube_cookies(app, callback_query) -> bool:
             with open(cookie_file_path, "wb") as cf:
                 cf.write(content)
             
-            # Update message to show testing
-            safe_edit_message_text(
-                callback_query.message.chat.id, 
-                callback_query.message.id, 
-                f"🔄 Downloading and checking YouTube cookies...\n\nAttempt {i} of {len(cookie_urls)}\n🔍 Testing cookies..."
-            )
+            # Update message about testing
+            update_message(f"🔄 Downloading and checking YouTube cookies...\n\nAttempt {i} of {len(cookie_urls)}\n🔍 Testing cookies...")
             
             # Check the functionality of cookies
             if test_youtube_cookies(cookie_file_path):
-                safe_edit_message_text(
-                    callback_query.message.chat.id, 
-                    callback_query.message.id, 
-                    f"✅ YouTube cookies successfully downloaded and validated!\n\nUsed source {i} of {len(cookie_urls)}"
-                )
-                send_to_logger(callback_query.message, f"YouTube cookies downloaded and validated for user {user_id} from source {i}.")
+                update_message(f"✅ YouTube cookies successfully downloaded and validated!\n\nUsed source {i} of {len(cookie_urls)}")
+                # Safe logging
+                try:
+                    if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
+                        send_to_logger(message, f"YouTube cookies downloaded and validated for user {user_id} from source {i}.")
+                    else:
+                        logger.info(f"YouTube cookies downloaded and validated for user {user_id} from source {i}")
+                except Exception as e:
+                    logger.error(f"Error logging: {e}")
                 return True
             else:
                 logger.warning(f"YouTube cookies from source {i} failed validation")
@@ -846,12 +961,15 @@ def download_and_validate_youtube_cookies(app, callback_query) -> bool:
             continue
     
     # If no source worked
-    safe_edit_message_text(
-        callback_query.message.chat.id, 
-        callback_query.message.id, 
-        "❌ All YouTube cookies are expired or unavailable!\n\nContact the bot administrator to replace them."
-    )
-    send_to_logger(callback_query.message, f"All YouTube cookie sources failed for user {user_id}.")
+    update_message("❌ All YouTube cookies are expired or unavailable!\n\nContact the bot administrator to replace them.")
+    # Safe logging
+    try:
+        if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
+            send_to_logger(message, f"All YouTube cookie sources failed for user {user_id}.")
+        else:
+            logger.error(f"All YouTube cookie sources failed for user {user_id}")
+    except Exception as e:
+        logger.error(f"Error logging: {e}")
     return False
 
 def ensure_working_youtube_cookies(user_id: int) -> bool:

@@ -59,7 +59,7 @@ def determine_need_subs(subs_enabled, found_type, user_id):
         return (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
 
 #@reply_with_keyboard
-def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None, cookies_already_checked=False):
+def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None, cookies_already_checked=False, use_proxy=False):
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
     """
@@ -661,9 +661,43 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
             ytdl_opts = {**common_opts, **attempt_opts}
             
-            # Add proxy configuration if needed for this domain
-            from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
-            ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url)
+            # Add proxy configuration if needed
+            if use_proxy:
+                # Force proxy for this download
+                from COMMANDS.proxy_cmd import get_proxy_config
+                proxy_config = get_proxy_config()
+                
+                if proxy_config and 'type' in proxy_config and 'ip' in proxy_config and 'port' in proxy_config:
+                    # Build proxy URL
+                    if proxy_config['type'] == 'http':
+                        if proxy_config.get('user') and proxy_config.get('password'):
+                            proxy_url = f"http://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+                        else:
+                            proxy_url = f"http://{proxy_config['ip']}:{proxy_config['port']}"
+                    elif proxy_config['type'] == 'https':
+                        if proxy_config.get('user') and proxy_config.get('password'):
+                            proxy_url = f"https://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+                        else:
+                            proxy_url = f"https://{proxy_config['ip']}:{proxy_config['port']}"
+                    elif proxy_config['type'] in ['socks4', 'socks5', 'socks5h']:
+                        if proxy_config.get('user') and proxy_config.get('password'):
+                            proxy_url = f"{proxy_config['type']}://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+                        else:
+                            proxy_url = f"{proxy_config['type']}://{proxy_config['ip']}:{proxy_config['port']}"
+                    else:
+                        if proxy_config.get('user') and proxy_config.get('password'):
+                            proxy_url = f"http://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+                        else:
+                            proxy_url = f"http://{proxy_config['ip']}:{proxy_config['port']}"
+                    
+                    ytdl_opts['proxy'] = proxy_url
+                    logger.info(f"Force using proxy for download: {proxy_url}")
+                else:
+                    logger.warning("Proxy requested but proxy configuration is incomplete")
+            else:
+                # Add proxy configuration if needed for this domain
+                from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
+                ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url, user_id)
             
             # If MKV is ON, remux to mkv; else to mp4
             if mkv_on:
@@ -678,7 +712,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 from DOWN_AND_UP.yt_dlp_hook import get_video_formats
                 
                 logger.info("Checking available formats...")
-                check_info = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked)
+                check_info = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked, use_proxy=use_proxy)
                 logger.info("Format check completed")
                 
                 # Check if requested format exists

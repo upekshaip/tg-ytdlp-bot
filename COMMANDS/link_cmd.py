@@ -55,7 +55,7 @@ def parse_quality_argument(quality_arg):
     except ValueError:
         return "best"
 
-def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=False):
+def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=False, use_proxy=False):
     """
     Gets direct link to video using yt-dlp
     
@@ -136,7 +136,41 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
             logger.info(f"Using --no-cookies for domain in link extraction: {url}")
         
         # Add proxy if needed
-        ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url)
+        if use_proxy:
+            # Force proxy for this request
+            from COMMANDS.proxy_cmd import get_proxy_config
+            proxy_config = get_proxy_config()
+            
+            if proxy_config and 'type' in proxy_config and 'ip' in proxy_config and 'port' in proxy_config:
+                # Build proxy URL (with/without user/password)
+                if proxy_config['type'] == 'http':
+                    if proxy_config.get('user') and proxy_config.get('password'):
+                        proxy_url = f"http://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+                    else:
+                        proxy_url = f"http://{proxy_config['ip']}:{proxy_config['port']}"
+                elif proxy_config['type'] == 'https':
+                    if proxy_config.get('user') and proxy_config.get('password'):
+                        proxy_url = f"https://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+                    else:
+                        proxy_url = f"https://{proxy_config['ip']}:{proxy_config['port']}"
+                elif proxy_config['type'] in ['socks4', 'socks5', 'socks5h']:
+                    if proxy_config.get('user') and proxy_config.get('password'):
+                        proxy_url = f"{proxy_config['type']}://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+                    else:
+                        proxy_url = f"{proxy_config['type']}://{proxy_config['ip']}:{proxy_config['port']}"
+                else:
+                    if proxy_config.get('user') and proxy_config.get('password'):
+                        proxy_url = f"http://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+                    else:
+                        proxy_url = f"http://{proxy_config['ip']}:{proxy_config['port']}"
+                
+                ytdl_opts['proxy'] = proxy_url
+                logger.info(f"Force using proxy for link extraction: {proxy_url}")
+            else:
+                logger.warning("Proxy requested but proxy configuration is incomplete")
+        else:
+            # Add proxy configuration if needed for this domain
+            ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url)
         
         # Get video information
         with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
@@ -266,8 +300,8 @@ def link_command(app, message):
         # Send processing start message
         status_msg = app.send_message(user_id, "🔗 Getting direct link...", reply_parameters=ReplyParameters(message_id=message.id))
         
-        # Get direct link
-        result = get_direct_link(url, user_id, quality_arg)
+        # Get direct link with proxy support
+        result = get_direct_link(url, user_id, quality_arg, use_proxy=True)
         
         if result.get('success'):
             title = result.get('title', 'Unknown')

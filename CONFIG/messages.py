@@ -66,6 +66,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 • Send video link → download
 • <code>/audio URL</code> → extract audio
 • <code>/link [quality] URL</code> → get direct links
+• <code>/proxy</code> → enable/disable proxy for all downloads
 • Reply to video with text → change caption
 
 📋 <b>Playlists:</b>
@@ -73,7 +74,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 
 🍪 <b>Cookies & Private:</b>
 • Upload *.txt cookie for private videos
-• <code>/cookie</code> → get my YouTube cookie
+• <code>/cookie [service]</code> → download cookies (youtube/instagram/tiktok/x/facebook/custom)
 • <code>/cookies_from_browser</code> → extract from browser
 • <code>/check_cookie</code> → verify cookie
 • <code>/save_as_cookie</code> → save text as cookie
@@ -107,6 +108,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 • <code>/split 250mb/500mb/1gb/1.5gb/2gb</code> → part size
 • <code>/subs off/ru/en auto</code> → subtitle language
 • <code>/mediainfo on/off</code> → on/off media info
+• <code>/proxy on/off</code> → enable/disable proxy for all downloads
 
 📊 <b>Info:</b>
 • <code>/usage</code> → download history
@@ -118,6 +120,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 • Отправьте ссылку → скачать
 • <code>/audio URL</code> → аудио
 • <code>/link [качество] URL</code> → прямые ссылки
+• <code>/proxy</code> → включить/выключить прокси для всех загрузок
 • Ответьте на видео текстом → изменить подпись
 
 📋 <b>Плейлисты:</b>
@@ -125,7 +128,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 
 🍪 <b>Cookies:</b>
 • Загрузите *.txt для приватных видео
-• <code>/cookie</code> → мой YouTube cookie
+• <code>/cookie [сервис]</code> → скачать куки (youtube/instagram/tiktok/x/facebook/custom)
 • <code>/cookies_from_browser</code> → из браузера
 • <code>/check_cookie</code> → проверить cookie
 • <code>/save_as_cookie</code> → сохранить текст как cookie
@@ -159,6 +162,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 • <code>/split 250mb/500mb/1gb/1.5gb/2gb</code> → размер части
 • <code>/subs off/ru/en auto</code> → язык субтитров
 • <code>/mediainfo on/off</code> → вкл/выкл медиаинфо
+• <code>/proxy on/off</code> → включить/выключить прокси для всех загрузок
 
 📊 <b>Информация:</b>
 • <code>/usage</code> → история загрузок

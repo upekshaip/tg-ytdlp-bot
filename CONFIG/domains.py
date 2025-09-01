@@ -21,6 +21,14 @@ class DomainsConfig(object):
         'vkvideo.ru', 'vk.com', 'twitch.tv', 'vimeo.com', 'facebook.com', 'tiktok.com', 'instagram.com', 'fb.com', 'ig.me'
         # Other secure domains can be added
     ]
+    
+    # --- Greylist of domains excluded only from domain list check but still checked for keywords ---
+    GREYLIST = [
+        'vkvideo.ru', 'vkontakte.ru', 'vk.com'
+        # Add domains here that should be excluded from porn_domains.txt check
+        # but still checked against porn_keywords.txt
+    ]
+    
     NO_COOKIE_DOMAINS = [
         'dailymotion.com'
         # Other secure domains can be added

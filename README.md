@@ -3,7 +3,7 @@
 Support me on [BuyMeACoffee](https://buymeacoffee.com/upekshaip) \
 Thanks to Contributor - [@IIlIlIlIIIlllIIlIIlIllIIllIlIIIl](https://t.me/IIlIlIlIIIlllIIlIIlIllIIllIlIIIl) - [chelaxian](https://github.com/chelaxian/tg-ytdlp-bot)
 
-Download private YouTube/videos using a cookie file with advanced format selection, codec support (H.264/AVC, AV1, VP9), and intelligent subtitle handling.
+Download private YouTube/videos using a cookie file with advanced format selection, codec support (H.264/AVC, AV1, VP9), intelligent subtitle handling, proxy support, and direct stream links.
 
 Test free Telegram bots - https://t.me/tg_ytdlp \
 https://t.me/tgytdlp_uae_bot \
@@ -79,7 +79,7 @@ YOUTUBE_COOKIE_URL_4 = "https://your-domain.com/cookies/youtube/cookie5.txt"
 - Success message: "✅ YouTube cookies successfully downloaded and validated! Used source 2 of 4"
 - Failure message: "❌ All YouTube cookies are expired or unavailable! Contact the bot administrator to replace them."
 
-Also you may fill in `porn_domains.txt` `porn_keywords.txt` files in `TXT` folder if you want to tag #porn videos and hide them under spoiler
+Also you may fill in `porn_domains.txt` `porn_keywords.txt` files in `TXT` folder if you want to tag #nsfw videos and hide them under spoiler
 
 ---
 
@@ -305,7 +305,8 @@ python3 magic.py
 - **/usage** - Show your usage statistics and logs.
 - **/tags** - Get all your #tags.
 - **/audio** - Download audio from a video URL.
-- **/link** - Get direct video links with quality selection (e.g., `/link 720 URL`, `/link 4k URL`).
+- **/link** - Get direct video links with quality selection (e.g., `/link 720 URL`, `/link 4k URL`). Also provides direct links for media players (VLC, MX Player, Infuse, IINA, nPlayer, MPV).
+- **/proxy** - Enable/disable proxy for all yt-dlp downloads (`/proxy on`, `/proxy off`). When enabled, all downloads use the configured proxy server.
 - **/format** - Choose media format options with advanced codec selection (H.264/AVC, AV1, VP9) and container preferences (MP4, MKV).
   - **With arguments**: `/format 720`, `/format 4k`, `/format 8k` - Set quality directly
 - **/split** - Change splitted video part size (0.25-2GB).
@@ -313,6 +314,7 @@ python3 magic.py
 - **/mediainfo** - Turn ON/OFF sending mediainfo (`/mediainfo on|off`).
 - **/check_cookie** - Check the cookie file.
 - **/cookie** - Download the cookie file with additional "From Browser" option.
+  - **With arguments**: `/cookie youtube`, `/cookie instagram`, `/cookie tiktok`, `/cookie x`, `/cookie twitter`, `/cookie facebook`, `/cookie custom` - Direct service selection
 - **/save_as_cookie** - Save text as cookie (or upload TXT-doc).
 - **/cookies_from_browser** - Get cookies from browser (if supported) with fallback to Config.COOKIE_URL.
 - **/subs** - Enable/disable subtitle embedding for videos with enhanced language selection and "Always Ask" mode.
@@ -325,13 +327,34 @@ python3 magic.py
 
 ## Advanced Features
 
-### Direct Link Extraction (`/link`)
+### Proxy Download Support (`/proxy`)
+- **Global Proxy Control**: Enable/disable proxy for all yt-dlp operations
+- **User-Specific Settings**: Each user can independently control their proxy usage
+- **Automatic Integration**: When enabled, proxy is automatically applied to all downloads
+- **Cookie Support**: Works with user's cookie settings for private content
+- **Persistent Settings**: Proxy preference is saved per-user in `proxy.txt` file
+
+**Usage Examples:**
+```bash
+/proxy on                    # Enable proxy for all downloads
+/proxy off                   # Disable proxy for all downloads
+/proxy                      # Show proxy control menu
+```
+
+**How it works:**
+1. User runs `/proxy on` to enable proxy
+2. Bot saves preference to `users/{user_id}/proxy.txt`
+3. All subsequent yt-dlp operations automatically use the configured proxy
+4. User can disable with `/proxy off` at any time
+
+### Enhanced Direct Link Extraction (`/link`)
 - **Quality Selection**: Specify desired quality (e.g., `720`, `1080`, `4k`, `8k`)
 - **Flexible Format**: Support for both numeric (`720`) and descriptive (`720p`, `4k`, `8K`) quality specifications
 - **Smart Fallback**: Automatically falls back to best available quality if specified quality is not available
 - **Dual Stream Support**: Returns both video and audio stream URLs when available
 - **Proxy Support**: Works with configured proxy settings for restricted domains
 - **Cookie Integration**: Uses user's cookie settings for private content access
+- **Player Integration**: 🔗Link button in Always Ask menu now provides direct links for media players (VLC, MX Player, Infuse, IINA, nPlayer, MPV)
 
 **Usage Examples:**
 ```bash
@@ -341,6 +364,11 @@ python3 magic.py
 /link 4k https://youtube.com/watch?v=...      # 4K or lower
 /link 8k https://youtube.com/watch?v=...      # 8K or lower
 ```
+
+**Player Support:**
+- **🌐 Browser**: Direct stream URL for web browsers
+- **🎬 VLC (iOS)**: iOS VLC player with x-callback support
+- **🎬 VLC (Android)**: Android VLC player with intent support
 
 ### Enhanced Format Selection (`/format`)
 - **Codec Support**: Choose between H.264/AVC (avc1), AV1 (av01), and VP9 (vp9)
@@ -384,6 +412,18 @@ The bot now supports command arguments for quick configuration without opening m
 /subs en        # Set subtitle language to English
 /subs en auto   # Set language to English with AUTO/TRANS enabled
 /subs fr auto   # Set language to French with AUTO/TRANS enabled
+```
+
+#### `/cookie` with Service Arguments
+```bash
+/cookie                # Show cookie menu
+/cookie youtube        # Download YouTube cookies directly
+/cookie instagram      # Download Instagram cookies directly
+/cookie tiktok         # Download TikTok cookies directly
+/cookie x              # Download Twitter/X cookies directly (alias)
+/cookie twitter        # Download Twitter/X cookies directly
+/cookie facebook       # Download Facebook cookies directly
+/cookie custom         # Show custom cookie instructions
 ```
 
 ### Always Ask Menu
@@ -603,11 +643,42 @@ TXT/
 script.sh                 # Update script (customizable)
 ```
 
+### Domain Filtering System
+The bot uses a three-tier domain filtering system:
+
+1. **WHITELIST** (`CONFIG/domains.py`): Domains completely excluded from porn detection
+   - These domains and their subdomains are never checked for porn content
+   - Example: `youtube.com`, `bilibili.com`, `dailymotion.com`
+
+2. **GREYLIST** (`CONFIG/domains.py`): Domains excluded only from domain list check
+   - These domains are still checked for porn keywords in titles/descriptions
+   - But they are excluded from the `porn_domains.txt` file check
+   - Useful for sites that might have adult content but aren't primarily porn sites
+
+3. **BLACKLIST** (`CONFIG/domains.py`): Domains explicitly blocked
+   - Currently empty by default, can be used to block specific domains
+
+**Configuration in `CONFIG/domains.py`:**
+```python
+# Whitelist - completely excluded from porn detection
+WHITELIST = [
+    'bilibili.com', 'dailymotion.com', 'youtube.com', 'youtu.be',
+    'twitch.tv', 'vimeo.com', 'facebook.com', 'tiktok.com'
+]
+
+# Greylist - excluded from domain list but still checked for keywords
+GREYLIST = [
+    'example.com', 'test.com'
+    # Add domains here that should be excluded from porn_domains.txt check
+    # but still checked against porn_keywords.txt
+]
+```
+
 ### Integration
 These commands integrate with the existing porn detection system:
 - **Domain Detection**: Checks video URLs against porn domain lists
 - **Keyword Detection**: Scans video titles, descriptions, and captions
-- **Auto-tagging**: Automatically adds `#porn` tag to detected content
+- **Auto-tagging**: Automatically adds `#nsfw` tag to detected content
 - **Spoiler Protection**: Hides porn content under spoiler tags in Telegram
 
 ### Security

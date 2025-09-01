@@ -32,4 +32,5 @@ class CommandsConfig(object):
     SEARCH_COMMAND = "/search"
     KEYBOARD_COMMAND = "/keyboard"
     LINK_COMMAND = "/link"
+    PROXY_COMMAND = "/proxy"
     #######################################################

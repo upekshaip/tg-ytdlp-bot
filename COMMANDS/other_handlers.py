@@ -18,6 +18,7 @@ from URL_PARSERS.tags import extract_url_range_tags, save_user_tags
 
 from DOWN_AND_UP.down_and_audio import down_and_audio
 from COMMANDS.link_cmd import link_command
+from COMMANDS.proxy_cmd import proxy_command
 
 # Get app instance for decorators
 app = get_app()
@@ -83,6 +84,14 @@ def link_command_handler(app, message):
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
     link_command(app, message)
+
+# /Proxy Command
+@app.on_message(filters.command("proxy") & filters.private)
+def proxy_command_handler(app, message):
+    user_id = message.chat.id
+    if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+        return
+    proxy_command(app, message)
 
 
 # /Playlist Command
