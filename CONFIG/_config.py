@@ -90,6 +90,7 @@ class Config(object):
     ###########################################################
     # Commands configuration
     DOWNLOAD_COOKIE_COMMAND = CommandsConfig.DOWNLOAD_COOKIE_COMMAND
+    PROXY_COMMAND = CommandsConfig.PROXY_COMMAND    
     SUBS_COMMAND = CommandsConfig.SUBS_COMMAND
     CHECK_COOKIE_COMMAND = CommandsConfig.CHECK_COOKIE_COMMAND
     SAVE_AS_COOKIE_COMMAND = CommandsConfig.SAVE_AS_COOKIE_COMMAND

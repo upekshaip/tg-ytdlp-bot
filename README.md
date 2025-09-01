@@ -309,8 +309,9 @@ python3 magic.py
 - **/proxy** - Enable/disable proxy for all yt-dlp downloads (`/proxy on`, `/proxy off`). When enabled, all downloads use the configured proxy server.
 - **/format** - Choose media format options with advanced codec selection (H.264/AVC, AV1, VP9) and container preferences (MP4, MKV).
   - **With arguments**: `/format 720`, `/format 4k`, `/format 8k` - Set quality directly
-- **/split** - Change splitted video part size (0.25-2GB).
-  - **With arguments**: `/split 250mb`, `/split 1gb`, `/split 2gb` - Set size directly
+- **/split** - Change splitted video part size (100MB-2GB).
+  - **With arguments**: `/split 100mb`, `/split 500mb`, `/split 1.5gb`, `/split 2gb` - Set size directly
+  - **Range**: Any value from 100MB to 2GB (e.g., `/split 300mb`, `/split 1.2gb`, `/split 1500mb`)
 - **/mediainfo** - Turn ON/OFF sending mediainfo (`/mediainfo on|off`).
 - **/check_cookie** - Check the cookie file.
 - **/cookie** - Download the cookie file with additional "From Browser" option.
@@ -398,11 +399,16 @@ The bot now supports command arguments for quick configuration without opening m
 
 #### `/split` with Size Arguments
 ```bash
+/split 100mb   # Set split size to 100MB (minimum)
 /split 250mb   # Set split size to 250MB
 /split 500mb   # Set split size to 500MB
+/split 750mb   # Set split size to 750MB
 /split 1gb     # Set split size to 1GB
 /split 1.5gb   # Set split size to 1.5GB
-/split 2gb     # Set split size to 2GB
+/split 2gb     # Set split size to 2GB (maximum)
+/split 300mb   # Any custom size between 100MB-2GB
+/split 1.2gb   # Decimal values supported
+/split 1500mb  # Up to 2000MB (2GB)
 ```
 
 #### `/subs` with Language and Mode Arguments
