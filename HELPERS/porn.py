@@ -1,6 +1,41 @@
 import tldextract
 import re
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs, unquote
+# --- an auxiliary function for extracting a domain ---
+def unwrap_redirect_url(url: str) -> str:
+    """
+    Unwrap common redirect links (Google, Facebook, etc.) by extracting the first
+    http(s) URL from known query parameters like url, u, q, redirect, redir, target, to, dest, destination, r, s.
+
+    Performs up to 2 unwrapping passes.
+    """
+    try:
+        current = url
+        for _ in range(2):
+            parsed = urlparse(current)
+            qs = parse_qs(parsed.query or "")
+            candidate = None
+            for key in [
+                "url", "u", "q", "redirect", "redir", "target", "to", "dest", "destination", "r", "s"
+            ]:
+                values = qs.get(key)
+                if not values:
+                    continue
+                for v in values:
+                    v = unquote(v)
+                    m = re.search(r"https?://[^\s]+", v)
+                    if m:
+                        candidate = m.group(0)
+                        break
+                if candidate:
+                    break
+            if candidate:
+                current = candidate
+                continue
+            break
+        return current
+    except Exception:
+        return url
 from CONFIG.config import Config
 from HELPERS.logger import logger
 
@@ -39,7 +74,9 @@ load_domain_lists()
 # --- an auxiliary function for extracting a domain ---
 def extract_domain_parts(url):
     try:
-        ext = tldextract.extract(url)
+        # Try to unwrap redirectors before extracting the domain
+        unwrapped = unwrap_redirect_url(url)
+        ext = tldextract.extract(unwrapped)
         # We collect the domain: Domain.suffix (for example, xvideos.com)
         if ext.domain and ext.suffix:
             full_domain = f"{ext.domain}.{ext.suffix}".lower()
@@ -87,8 +124,8 @@ def is_porn(url, title, description, caption=None):
     Checks content for pornography by domain and keywords (word-boundary regex search)
     in title, description and caption. Domain whitelist has highest priority.
     """
-    # 1. Checking the domain
-    clean_url = url.lower() # Assuming get_clean_url_for_tagging is removed, so we just use the lowercased URL
+    # 1. Checking the domain (with redirect unwrapping)
+    clean_url = unwrap_redirect_url(url).lower()
     domain_parts, _ = extract_domain_parts(clean_url)
     for dom in Config.WHITELIST:
         if dom in domain_parts:
