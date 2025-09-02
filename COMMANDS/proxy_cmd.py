@@ -48,9 +48,18 @@ def proxy_command(app, message):
         [InlineKeyboardButton("🔚Close", callback_data="proxy_option|close")],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
+    # Get available proxy count
+    configs = get_all_proxy_configs()
+    proxy_count = len(configs)
+    
+    if proxy_count > 1:
+        proxy_text = f"Enable or disable using proxy servers ({proxy_count} available) for all yt-dlp operations?\n\nWhen enabled, proxies will be selected using {Config.PROXY_SELECT} method."
+    else:
+        proxy_text = "Enable or disable using proxy server for all yt-dlp operations?"
+    
     safe_send_message(
         user_id,
-        "Enable or disable using 🇩🇪 proxy (Germany) for all yt-dlp operations?",
+        proxy_text,
         reply_markup=keyboard
     )
     send_to_logger(message, "User opened /proxy menu.")
@@ -80,7 +89,17 @@ def proxy_option_callback(app, callback_query):
     if data == "on":
         with open(proxy_file, "w", encoding="utf-8") as f:
             f.write("ON")
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "✅ Proxy enabled. All yt-dlp operations will use proxy.")
+        
+        # Get available proxy count and selection method
+        configs = get_all_proxy_configs()
+        proxy_count = len(configs)
+        
+        if proxy_count > 1:
+            message_text = f"✅ Proxy enabled. All yt-dlp operations will use {proxy_count} proxy servers with {Config.PROXY_SELECT} selection method."
+        else:
+            message_text = "✅ Proxy enabled. All yt-dlp operations will use proxy."
+        
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, message_text)
         send_to_logger(callback_query.message, "Proxy enabled.")
         try:
             callback_query.answer("Proxy enabled.")
@@ -123,11 +142,118 @@ def get_proxy_config():
         'password': Config.PROXY_PASSWORD
     }
 
+def get_proxy_2_config():
+    """Get second proxy configuration from config"""
+    return {
+        'type': Config.PROXY_2_TYPE,
+        'ip': Config.PROXY_2_IP,
+        'port': Config.PROXY_2_PORT,
+        'user': Config.PROXY_2_USER,
+        'password': Config.PROXY_2_PASSWORD
+    }
+
+def get_all_proxy_configs():
+    """Get all available proxy configurations"""
+    configs = []
+    
+    # First proxy
+    if hasattr(Config, 'PROXY_TYPE') and hasattr(Config, 'PROXY_IP') and hasattr(Config, 'PROXY_PORT'):
+        if Config.PROXY_IP and Config.PROXY_PORT:
+            configs.append({
+                'type': Config.PROXY_TYPE,
+                'ip': Config.PROXY_IP,
+                'port': Config.PROXY_PORT,
+                'user': Config.PROXY_USER,
+                'password': Config.PROXY_PASSWORD
+            })
+    
+    # Second proxy
+    if hasattr(Config, 'PROXY_2_TYPE') and hasattr(Config, 'PROXY_2_IP') and hasattr(Config, 'PROXY_2_PORT'):
+        if Config.PROXY_2_IP and Config.PROXY_2_PORT:
+            configs.append({
+                'type': Config.PROXY_2_TYPE,
+                'ip': Config.PROXY_2_IP,
+                'port': Config.PROXY_2_PORT,
+                'user': Config.PROXY_2_USER,
+                'password': Config.PROXY_2_PASSWORD
+            })
+    
+    return configs
+
+def select_proxy_for_user():
+    """Select proxy for user based on PROXY_SELECT method"""
+    import random
+    
+    configs = get_all_proxy_configs()
+    if not configs:
+        return None
+    
+    if len(configs) == 1:
+        return configs[0]
+    
+    # Select method based on PROXY_SELECT
+    if hasattr(Config, 'PROXY_SELECT') and Config.PROXY_SELECT == "random":
+        return random.choice(configs)
+    else:  # default to round_robin
+        # Simple round-robin using a global counter
+        if not hasattr(select_proxy_for_user, 'counter'):
+            select_proxy_for_user.counter = 0
+        selected = configs[select_proxy_for_user.counter % len(configs)]
+        select_proxy_for_user.counter += 1
+        return selected
+
+
+def build_proxy_url(proxy_config):
+    """Build proxy URL from configuration"""
+    if not proxy_config or 'type' not in proxy_config or 'ip' not in proxy_config or 'port' not in proxy_config:
+        return None
+    
+    if proxy_config['type'] == 'http':
+        if proxy_config.get('user') and proxy_config.get('password'):
+            return f"http://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+        else:
+            return f"http://{proxy_config['ip']}:{proxy_config['port']}"
+    elif proxy_config['type'] == 'https':
+        if proxy_config.get('user') and proxy_config.get('password'):
+            return f"https://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+        else:
+            return f"https://{proxy_config['ip']}:{proxy_config['port']}"
+    elif proxy_config['type'] in ['socks4', 'socks5', 'socks5h']:
+        if proxy_config.get('user') and proxy_config.get('password'):
+            return f"{proxy_config['type']}://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+        else:
+            return f"{proxy_config['type']}://{proxy_config['ip']}:{proxy_config['port']}"
+    else:
+        if proxy_config.get('user') and proxy_config.get('password'):
+            return f"http://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+        else:
+            return f"http://{proxy_config['ip']}:{proxy_config['port']}"
+
+def select_proxy_for_domain(url):
+    """Select appropriate proxy for domain based on PROXY_DOMAINS and PROXY_2_DOMAINS"""
+    from CONFIG.domains import DomainsConfig
+    
+    # Extract domain from URL
+    domain = None
+    if '://' in url:
+        domain = url.split('://')[1].split('/')[0]
+    else:
+        domain = url.split('/')[0]
+    
+    # Check PROXY_2_DOMAINS first
+    if hasattr(DomainsConfig, 'PROXY_2_DOMAINS') and DomainsConfig.PROXY_2_DOMAINS:
+        if domain in DomainsConfig.PROXY_2_DOMAINS:
+            return get_proxy_2_config()
+    
+    # Check PROXY_DOMAINS
+    if hasattr(DomainsConfig, 'PROXY_DOMAINS') and DomainsConfig.PROXY_DOMAINS:
+        if domain in DomainsConfig.PROXY_DOMAINS:
+            return get_proxy_config()
+    
+    return None
 
 def add_proxy_to_ytdl_opts(ytdl_opts, url, user_id=None):
     """Add proxy to yt-dlp options if proxy is enabled for user or domain requires it"""
-    from CONFIG.domains import DomainsConfig
-    
     logger.info(f"add_proxy_to_ytdl_opts called: user_id={user_id}, url={url}")
     
     # Check if user has proxy enabled
@@ -135,68 +261,21 @@ def add_proxy_to_ytdl_opts(ytdl_opts, url, user_id=None):
         proxy_enabled = is_proxy_enabled(user_id)
         logger.info(f"Proxy check for user {user_id}: {proxy_enabled}")
         if proxy_enabled:
-            proxy_config = get_proxy_config()
-            if proxy_config and 'type' in proxy_config and 'ip' in proxy_config and 'port' in proxy_config:
-                # Build proxy URL
-                if proxy_config['type'] == 'http':
-                    if proxy_config.get('user') and proxy_config.get('password'):
-                        proxy_url = f"http://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
-                    else:
-                        proxy_url = f"http://{proxy_config['ip']}:{proxy_config['port']}"
-                elif proxy_config['type'] == 'https':
-                    if proxy_config.get('user') and proxy_config.get('password'):
-                        proxy_url = f"https://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
-                    else:
-                        proxy_url = f"https://{proxy_config['ip']}:{proxy_config['port']}"
-                elif proxy_config['type'] in ['socks4', 'socks5', 'socks5h']:
-                    if proxy_config.get('user') and proxy_config.get('password'):
-                        proxy_url = f"{proxy_config['type']}://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
-                    else:
-                        proxy_url = f"{proxy_config['type']}://{proxy_config['ip']}:{proxy_config['port']}"
-                else:
-                    if proxy_config.get('user') and proxy_config.get('password'):
-                        proxy_url = f"http://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
-                    else:
-                        proxy_url = f"http://{proxy_config['ip']}:{proxy_config['port']}"
-                
-                ytdl_opts['proxy'] = proxy_url
-                logger.info(f"Added proxy for user {user_id}: {proxy_url}")
-                return ytdl_opts
+            # Use round-robin/random selection for user proxy
+            proxy_config = select_proxy_for_user()
+            if proxy_config:
+                proxy_url = build_proxy_url(proxy_config)
+                if proxy_url:
+                    ytdl_opts['proxy'] = proxy_url
+                    logger.info(f"Added proxy for user {user_id}: {proxy_url}")
+                    return ytdl_opts
     
-    # Fallback: check if domain requires proxy (PROXY_DOMAINS logic)
-    if hasattr(DomainsConfig, 'PROXY_DOMAINS') and DomainsConfig.PROXY_DOMAINS:
-        domain = None
-        if '://' in url:
-            domain = url.split('://')[1].split('/')[0]
-        else:
-            domain = url.split('/')[0]
-        
-        if domain in DomainsConfig.PROXY_DOMAINS:
-            proxy_config = get_proxy_config()
-            if proxy_config and 'type' in proxy_config and 'ip' in proxy_config and 'port' in proxy_config:
-                # Build proxy URL
-                if proxy_config['type'] == 'http':
-                    if proxy_config.get('user') and proxy_config.get('password'):
-                        proxy_url = f"http://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
-                    else:
-                        proxy_url = f"http://{proxy_config['ip']}:{proxy_config['port']}"
-                elif proxy_config['type'] == 'https':
-                    if proxy_config.get('user') and proxy_config.get('password'):
-                        proxy_url = f"https://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
-                    else:
-                        proxy_url = f"https://{proxy_config['ip']}:{proxy_config['port']}"
-                elif proxy_config['type'] in ['socks4', 'socks5', 'socks5h']:
-                    if proxy_config.get('user') and proxy_config.get('password'):
-                        proxy_url = f"{proxy_config['type']}://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
-                    else:
-                        proxy_url = f"{proxy_config['type']}://{proxy_config['ip']}:{proxy_config['port']}"
-                else:
-                    if proxy_config.get('user') and proxy_config.get('password'):
-                        proxy_url = f"http://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
-                    else:
-                        proxy_url = f"http://{proxy_config['ip']}:{proxy_config['port']}"
-                
-                ytdl_opts['proxy'] = proxy_url
-                logger.info(f"Added proxy for domain {domain}: {proxy_url}")
+    # Check if domain requires specific proxy
+    proxy_config = select_proxy_for_domain(url)
+    if proxy_config:
+        proxy_url = build_proxy_url(proxy_config)
+        if proxy_url:
+            ytdl_opts['proxy'] = proxy_url
+            logger.info(f"Added domain-specific proxy for {url}: {proxy_url}")
     
     return ytdl_opts

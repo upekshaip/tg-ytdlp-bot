@@ -62,6 +62,14 @@ class Config(object):
     PROXY_PORT=3128
     PROXY_USER="XXXXXXXX"
     PROXY_PASSWORD="XXXXXXXXX"
+    # Additional Proxy configuration  
+    PROXY_2_TYPE="socks5" # http, https, socks4, socks5, socks5h
+    PROXY_2_IP="X.X.X.X"
+    PROXY_2_PORT=3128
+    PROXY_2_USER="XXXXXXXX"
+    PROXY_2_PASSWORD="XXXXXXXXX"
+    # Proxy selection method for /proxy on command
+    PROXY_SELECT = "round_robin" # random, round_robin
     #######################################################
     # Firebase initialization
     # your firebase DB path
@@ -135,6 +143,7 @@ class Config(object):
     WHITELIST = DomainsConfig.WHITELIST
     NO_COOKIE_DOMAINS = DomainsConfig.NO_COOKIE_DOMAINS
     PROXY_DOMAINS = DomainsConfig.PROXY_DOMAINS
+    PROXY_2_DOMAINS = DomainsConfig.PROXY_2_DOMAINS
     TIKTOK_DOMAINS = DomainsConfig.TIKTOK_DOMAINS
     CLEAN_QUERY = DomainsConfig.CLEAN_QUERY
     PIPED_DOMAIN = DomainsConfig.PIPED_DOMAIN    

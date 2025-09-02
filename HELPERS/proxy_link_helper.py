@@ -11,7 +11,7 @@ def is_proxy_domain(url):
         url (str): URL для проверки
         
     Returns:
-        bool: True если домен находится в списке PROXY_DOMAINS
+        bool: True если домен находится в списке PROXY_DOMAINS или PROXY_2_DOMAINS
     """
     try:
         parsed_url = urlparse(url)
@@ -21,16 +21,31 @@ def is_proxy_domain(url):
         if domain.startswith('www.'):
             domain = domain[4:]
             
-        # Проверяем точное совпадение домена
-        if domain in Config.PROXY_DOMAINS:
-            logger.info(f"Domain {domain} found in PROXY_DOMAINS list")
-            return True
-            
-        # Проверяем поддомены
-        for proxy_domain in Config.PROXY_DOMAINS:
-            if domain.endswith('.' + proxy_domain) or domain == proxy_domain:
-                logger.info(f"Domain {domain} matches proxy domain {proxy_domain}")
+        # Проверяем PROXY_DOMAINS
+        if hasattr(Config, 'PROXY_DOMAINS') and Config.PROXY_DOMAINS:
+            # Проверяем точное совпадение домена
+            if domain in Config.PROXY_DOMAINS:
+                logger.info(f"Domain {domain} found in PROXY_DOMAINS list")
                 return True
+                
+            # Проверяем поддомены
+            for proxy_domain in Config.PROXY_DOMAINS:
+                if domain.endswith('.' + proxy_domain) or domain == proxy_domain:
+                    logger.info(f"Domain {domain} matches proxy domain {proxy_domain}")
+                    return True
+        
+        # Проверяем PROXY_2_DOMAINS
+        if hasattr(Config, 'PROXY_2_DOMAINS') and Config.PROXY_2_DOMAINS:
+            # Проверяем точное совпадение домена
+            if domain in Config.PROXY_2_DOMAINS:
+                logger.info(f"Domain {domain} found in PROXY_2_DOMAINS list")
+                return True
+                
+            # Проверяем поддомены
+            for proxy_domain in Config.PROXY_2_DOMAINS:
+                if domain.endswith('.' + proxy_domain) or domain == proxy_domain:
+                    logger.info(f"Domain {domain} matches proxy_2 domain {proxy_domain}")
+                    return True
                 
         return False
     except Exception as e:
@@ -39,7 +54,7 @@ def is_proxy_domain(url):
 
 def get_proxy_config():
     """
-    Возвращает конфигурацию прокси из настроек.
+    Возвращает конфигурацию первого прокси из настроек.
     
     Returns:
         dict: Конфигурация прокси или None если прокси не настроен
@@ -72,6 +87,66 @@ def get_proxy_config():
         logger.error(f"Error getting proxy configuration: {e}")
         return None
 
+def get_proxy_2_config():
+    """
+    Возвращает конфигурацию второго прокси из настроек.
+    
+    Returns:
+        dict: Конфигурация прокси или None если прокси не настроен
+    """
+    try:
+        # Проверяем, что все необходимые параметры прокси настроены
+        if (hasattr(Config, 'PROXY_2_TYPE') and 
+            hasattr(Config, 'PROXY_2_IP') and 
+            hasattr(Config, 'PROXY_2_PORT') and
+            Config.PROXY_2_IP and 
+            Config.PROXY_2_PORT):
+            
+            proxy_config = {
+                'proxy': f"{Config.PROXY_2_TYPE}://{Config.PROXY_2_IP}:{Config.PROXY_2_PORT}"
+            }
+            
+            # Добавляем аутентификацию если указана
+            if (hasattr(Config, 'PROXY_2_USER') and 
+                hasattr(Config, 'PROXY_2_PASSWORD') and
+                Config.PROXY_2_USER and 
+                Config.PROXY_2_PASSWORD):
+                proxy_config['proxy'] = f"{Config.PROXY_2_TYPE}://{Config.PROXY_2_USER}:{Config.PROXY_2_PASSWORD}@{Config.PROXY_2_IP}:{Config.PROXY_2_PORT}"
+            
+            logger.info(f"Proxy 2 configuration loaded: {Config.PROXY_2_TYPE}://{Config.PROXY_2_IP}:{Config.PROXY_2_PORT}")
+            return proxy_config
+        else:
+            logger.warning("Proxy 2 configuration incomplete or missing")
+            return None
+    except Exception as e:
+        logger.error(f"Error getting proxy 2 configuration: {e}")
+        return None
+
+def select_proxy_for_domain(url):
+    """Select appropriate proxy for domain based on PROXY_DOMAINS and PROXY_2_DOMAINS"""
+    try:
+        parsed_url = urlparse(url)
+        domain = parsed_url.netloc.lower()
+        
+        # Убираем www. если есть
+        if domain.startswith('www.'):
+            domain = domain[4:]
+        
+        # Check PROXY_2_DOMAINS first
+        if hasattr(Config, 'PROXY_2_DOMAINS') and Config.PROXY_2_DOMAINS:
+            if domain in Config.PROXY_2_DOMAINS:
+                return get_proxy_2_config()
+        
+        # Check PROXY_DOMAINS
+        if hasattr(Config, 'PROXY_DOMAINS') and Config.PROXY_DOMAINS:
+            if domain in Config.PROXY_DOMAINS:
+                return get_proxy_config()
+        
+        return None
+    except Exception as e:
+        logger.error(f"Error selecting proxy for domain {url}: {e}")
+        return None
+
 def add_proxy_to_ytdl_opts(ytdl_opts, url):
     """
     Добавляет настройки прокси к опциям yt-dlp если домен требует прокси.
@@ -84,7 +159,7 @@ def add_proxy_to_ytdl_opts(ytdl_opts, url):
         dict: Обновленные опции yt-dlp
     """
     if is_proxy_domain(url):
-        proxy_config = get_proxy_config()
+        proxy_config = select_proxy_for_domain(url)
         if proxy_config:
             ytdl_opts.update(proxy_config)
             logger.info(f"Added proxy configuration for URL: {url}")
