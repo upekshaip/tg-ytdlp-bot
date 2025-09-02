@@ -43,21 +43,24 @@ def url_distractor(app, message):
 
     # Emoji keyboard mapping to commands (from FULL layout)
     emoji_to_command = {
-        "🧹": "/clean",
-        "🍪": "/cookie",
-        "⚙️": "/settings",
-        "🔍": "/search",
-        "🌐": "/cookies_from_browser",
-        "📼": "/format",
-        "📊": "/mediainfo",
-        "✂️": "/split",
-        "🎧": "/audio",
-        "💬": "/subs",
-        "#️⃣": "/tags",
+        "🧹": Config.CLEAN_COMMAND,
+        "🍪": Config.DOWNLOAD_COOKIE_COMMAND,
+        "⚙️": Config.SETTINGS_COMMAND,
+        "🔍": Config.SEARCH_COMMAND,
+        "🌐": Config.COOKIES_FROM_BROWSER_COMMAND,
+        "🔗": Config.LINK_COMMAND,
+        "📼": Config.FORMAT_COMMAND,
+        "📊": Config.MEDIINFO_COMMAND,
+        "✂️": Config.SPLIT_COMMAND,
+        "🎧": Config.AUDIO_COMMAND,
+        "💬": Config.SUBS_COMMAND,
+        "#️⃣": Config.TAGS_COMMAND,
         "🆘": "/help",
-        "📃": "/usage",
-        "⏯️": "/playlist",
-        "🎹": "/keyboard",
+        "📃": Config.USAGE_COMMAND,
+        "⏯️": Config.PLAYLIST_COMMAND,
+        "🎹": Config.KEYBOARD_COMMAND,
+        "🌎": Config.PROXY_COMMAND,
+        "✅": Config.CHECK_COOKIE_COMMAND,
     }
 
     if text in emoji_to_command:
@@ -358,6 +361,8 @@ def url_distractor(app, message):
     if text.startswith(Config.SETTINGS_COMMAND):
         settings_command(app, message)
         return
+
+    # (handled via Config.LINK_COMMAND and Config.PROXY_COMMAND branches above)
 
         # /Playlist Command
     if text.startswith(Config.PLAYLIST_COMMAND):

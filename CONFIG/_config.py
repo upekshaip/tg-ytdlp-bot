@@ -127,6 +127,7 @@ class Config(object):
     HELP_MSG = MessagesConfig.HELP_MSG
     
     # Domains configuration
+    GREYLIST = DomainsConfig.GREYLIST
     BLACK_LIST = DomainsConfig.BLACK_LIST
     PORN_DOMAINS_FILE = DomainsConfig.PORN_DOMAINS_FILE
     PORN_KEYWORDS_FILE = DomainsConfig.PORN_KEYWORDS_FILE
