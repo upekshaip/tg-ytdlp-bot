@@ -18,7 +18,7 @@ class DomainsConfig(object):
     # --- Whitelist of domains that are not considered porn ---
     WHITELIST = [
         'bilibili.com', 'dailymotion.com', 'sky.com', 'xbox.com', 'youtube.com', 'youtu.be', '1tv.ru', 'x.ai',
-        'vkvideo.ru', 'vk.com', 'twitch.tv', 'vimeo.com', 'facebook.com', 'tiktok.com', 'instagram.com', 'fb.com', 'ig.me'
+        'twitch.tv', 'vimeo.com', 'facebook.com', 'tiktok.com', 'instagram.com', 'fb.com', 'ig.me'
         # Other secure domains can be added
     ]
     
@@ -36,7 +36,11 @@ class DomainsConfig(object):
     PROXY_DOMAINS = [
         'pornhub.com', 'pornhub.org'
         # Other secure domains can be added
-    ]  
+    ]
+    PROXY_2_DOMAINS = [
+        'instagram.com', 'ig.me'
+        # Other secure domains can be added
+    ]      
     # TikTok Domain List
     TIKTOK_DOMAINS = [
         'tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com',
@@ -66,4 +70,3 @@ class DomainsConfig(object):
     
     # Piped frontend domain for opening YouTube links as a WebApp
     PIPED_DOMAIN = "poketube.fun"
-    #######################################################

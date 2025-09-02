@@ -441,8 +441,16 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 except Exception as e:
                     logger.error(f"Status update error: {e}")
                 
-                with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
-                    ydl.download([url])
+                # Try with proxy fallback if user proxy is enabled
+                def download_operation(opts):
+                    with yt_dlp.YoutubeDL(opts) as ydl:
+                        ydl.download([url])
+                    return True
+                
+                from HELPERS.proxy_helper import try_with_proxy_fallback
+                result = try_with_proxy_fallback(ytdl_opts, url, user_id, download_operation)
+                if result is None:
+                    raise Exception("Failed to download audio with all available proxies")
                 
                 try:
                     full_bar = "🟩" * 10
