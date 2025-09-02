@@ -173,7 +173,6 @@ def url_distractor(app, message):
         # Handle direct arguments
         if cookie_args == "youtube":
             # Simulate YouTube button click
-            from HELPERS.safe_messeger import fake_message
             from pyrogram.types import CallbackQuery
             from collections import namedtuple
             
@@ -194,7 +193,6 @@ def url_distractor(app, message):
             
         elif cookie_args == "instagram":
             # Simulate Instagram button click
-            from HELPERS.safe_messeger import fake_message
             from pyrogram.types import CallbackQuery
             from collections import namedtuple
             
@@ -214,7 +212,6 @@ def url_distractor(app, message):
             
         elif cookie_args == "tiktok":
             # Simulate TikTok button click
-            from HELPERS.safe_messeger import fake_message
             from pyrogram.types import CallbackQuery
             from collections import namedtuple
             
@@ -233,7 +230,6 @@ def url_distractor(app, message):
             
         elif cookie_args in ["x", "twitter"]:
             # Simulate Twitter/X button click
-            from HELPERS.safe_messeger import fake_message
             from pyrogram.types import CallbackQuery
             from collections import namedtuple
             
@@ -252,7 +248,6 @@ def url_distractor(app, message):
             
         elif cookie_args == "facebook":
             # Simulate Facebook button click
-            from HELPERS.safe_messeger import fake_message
             from pyrogram.types import CallbackQuery
             from collections import namedtuple
             
@@ -271,7 +266,6 @@ def url_distractor(app, message):
             
         elif cookie_args == "custom":
             # Simulate "Your Own" button click
-            from HELPERS.safe_messeger import fake_message
             from pyrogram.types import CallbackQuery
             from collections import namedtuple
             
