@@ -48,15 +48,18 @@ def generate_final_tags(url, user_tags, info_dict):
             if channel_tag.lower() not in seen:
                 final_tags.append(channel_tag)
                 seen.add(channel_tag.lower())
-    # 4. #nsfw if defined by title, description or caption
+    # 4. #nsfw if defined by title, description or caption (keywords)
     video_title = info_dict.get("title") if info_dict else None
     video_description = info_dict.get("description") if info_dict else None
     video_caption = info_dict.get("caption") if info_dict else None
-    # Temporarily disable porn detection to avoid circular import
-    # if is_porn(url, video_title, video_description, video_caption):
-    #     if '#nsfw' not in seen:
-    #         final_tags.append('#nsfw')
-    #         seen.add('#nsfw')
+    try:
+        from HELPERS.porn import is_porn
+        if is_porn(url, video_title, video_description, video_caption):
+            if '#nsfw' not in seen:
+                final_tags.append('#nsfw')
+                seen.add('#nsfw')
+    except Exception:
+        pass
     result = ' '.join(final_tags)
     # Check if info_dict is None before accessing it
     title = info_dict.get('title', 'N/A') if info_dict else 'N/A'
@@ -146,7 +149,7 @@ def get_auto_tags(url, user_tags):
     ext = tldextract.extract(clean_url)
     second_level = ext.domain.lower() if ext.domain else ''
     full_domain = f"{ext.domain}.{ext.suffix}".lower() if ext.domain and ext.suffix else ''
-    # 1. Porn Check (for all the suffixes of the domain, but taking into account the whitelist)
+    # 1. Porn Check (domain-based). GREYLIST excluded inside is_porn_domain
     if is_porn_domain(domain_parts):
         auto_tags.add(sanitize_autotag('nsfw'))
     # 2. YouTube Check (including YouTu.be)

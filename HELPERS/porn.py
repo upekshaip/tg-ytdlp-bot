@@ -67,11 +67,15 @@ def extract_domain_parts(url):
 # Now we take from config.py
 
 def is_porn_domain(domain_parts):
-    # If any suffix domain on a white list is not porn
+    # If any suffix domain is on a whitelist, it is not porn
     for dom in domain_parts:
         if dom in Config.WHITELIST:
             return False
-    # If any suffix domain in the list of porn is porn
+    # GREYLIST: exclude from domain list check entirely (keywords still apply via is_porn)
+    for dom in domain_parts:
+        if dom in Config.GREYLIST:
+            return False
+    # If any suffix domain is in the porn domains list, treat as porn
     for dom in domain_parts:
         if dom in PORN_DOMAINS:
             return True
