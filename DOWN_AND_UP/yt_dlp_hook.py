@@ -120,17 +120,19 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
             # Add proxy configuration if needed for this domain
             from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
             ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url, user_id)
-    try:
-        with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
+    # Try with proxy fallback if user proxy is enabled
+    def extract_info_operation(opts):
+        with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)
         if 'entries' in info and info.get('entries'):
             return info['entries'][0]
         return info
-    except yt_dlp.utils.DownloadError as e:
-        error_text = str(e)
-        return {'error': error_text}
-    except Exception as e:
-        return {'error': str(e)}
+    
+    from HELPERS.proxy_helper import try_with_proxy_fallback
+    result = try_with_proxy_fallback(ytdl_opts, url, user_id, extract_info_operation)
+    if result is None:
+        return {'error': 'Failed to extract video information with all available proxies'}
+    return result
 
 
 # YT-DLP HOOK

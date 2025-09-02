@@ -125,21 +125,19 @@ def get_proxy_2_config():
 def select_proxy_for_domain(url):
     """Select appropriate proxy for domain based on PROXY_DOMAINS and PROXY_2_DOMAINS"""
     try:
-        parsed_url = urlparse(url)
-        domain = parsed_url.netloc.lower()
+        from CONFIG.domains import DomainsConfig
+        from HELPERS.proxy_helper import extract_domain_from_url, is_domain_in_list
         
-        # Убираем www. если есть
-        if domain.startswith('www.'):
-            domain = domain[4:]
+        domain = extract_domain_from_url(url)
         
         # Check PROXY_2_DOMAINS first
-        if hasattr(Config, 'PROXY_2_DOMAINS') and Config.PROXY_2_DOMAINS:
-            if domain in Config.PROXY_2_DOMAINS:
+        if hasattr(DomainsConfig, 'PROXY_2_DOMAINS') and DomainsConfig.PROXY_2_DOMAINS:
+            if is_domain_in_list(domain, DomainsConfig.PROXY_2_DOMAINS):
                 return get_proxy_2_config()
         
         # Check PROXY_DOMAINS
-        if hasattr(Config, 'PROXY_DOMAINS') and Config.PROXY_DOMAINS:
-            if domain in Config.PROXY_DOMAINS:
+        if hasattr(DomainsConfig, 'PROXY_DOMAINS') and DomainsConfig.PROXY_DOMAINS:
+            if is_domain_in_list(domain, DomainsConfig.PROXY_DOMAINS):
                 return get_proxy_config()
         
         return None

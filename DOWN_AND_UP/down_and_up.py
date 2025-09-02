@@ -776,10 +776,18 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             
                             return None
                 
-                with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
-                    logger.info("yt-dlp instance created, starting extract_info...")
-                    info_dict = ydl.extract_info(url, download=False)
-                    logger.info("extract_info completed successfully")
+                # Try with proxy fallback if user proxy is enabled
+                def extract_info_operation(opts):
+                    with yt_dlp.YoutubeDL(opts) as ydl:
+                        logger.info("yt-dlp instance created, starting extract_info...")
+                        info_dict = ydl.extract_info(url, download=False)
+                        logger.info("extract_info completed successfully")
+                        return info_dict
+                
+                from HELPERS.proxy_helper import try_with_proxy_fallback
+                info_dict = try_with_proxy_fallback(ytdl_opts, url, user_id, extract_info_operation)
+                if info_dict is None:
+                    raise Exception("Failed to extract video information with all available proxies")
                 if "entries" in info_dict:
                     entries = info_dict["entries"]
                     if not entries:
@@ -827,19 +835,27 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     logger.error(f"Status update error: {e}")
                 
                 logger.info("Starting download phase...")
-                with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
-                    if is_hls:
-                        cycle_stop = threading.Event()
-                        cycle_thread = start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_name, cycle_stop)
-                        try:
-                            with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
+                # Try with proxy fallback if user proxy is enabled
+                def download_operation(opts):
+                    with yt_dlp.YoutubeDL(opts) as ydl:
+                        if is_hls:
+                            cycle_stop = threading.Event()
+                            cycle_thread = start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_name, cycle_stop)
+                            try:
+                                with yt_dlp.YoutubeDL(opts) as ydl:
+                                    ydl.download([url])
+                            finally:
+                                cycle_stop.set()
+                                cycle_thread.join(timeout=1)
+                        else:
+                            with yt_dlp.YoutubeDL(opts) as ydl:
                                 ydl.download([url])
-                        finally:
-                            cycle_stop.set()
-                            cycle_thread.join(timeout=1)
-                    else:
-                        with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
-                            ydl.download([url])
+                        return True
+                
+                from HELPERS.proxy_helper import try_with_proxy_fallback
+                result = try_with_proxy_fallback(ytdl_opts, url, user_id, download_operation)
+                if result is None:
+                    raise Exception("Failed to download video with all available proxies")
                 try:
                     safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{full_bar}   100.0%")
                 except Exception as e:

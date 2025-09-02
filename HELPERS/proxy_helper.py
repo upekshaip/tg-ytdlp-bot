@@ -152,7 +152,7 @@ def add_proxy_to_ytdl_opts(ytdl_opts: dict, url: str, user_id: int = None) -> di
     """Add proxy to yt-dlp options if proxy is enabled for user or domain requires it"""
     logger.info(f"add_proxy_to_ytdl_opts called: user_id={user_id}, url={url}")
     
-    # Check if user has proxy enabled
+    # Priority 1: Check if user has proxy enabled (/proxy on)
     if user_id:
         try:
             from COMMANDS.proxy_cmd import is_proxy_enabled
@@ -165,13 +165,13 @@ def add_proxy_to_ytdl_opts(ytdl_opts: dict, url: str, user_id: int = None) -> di
                     proxy_url = build_proxy_url(proxy_config)
                     if proxy_url:
                         ytdl_opts['proxy'] = proxy_url
-                        logger.info(f"Added proxy for user {user_id}: {proxy_url}")
+                        logger.info(f"Added user proxy for {user_id}: {proxy_url}")
                         return ytdl_opts
         except Exception as e:
             logger.warning(f"Error checking proxy for user {user_id}: {e}")
             pass
     
-    # Check if domain requires specific proxy
+    # Priority 2: Check if domain requires specific proxy (only if user proxy is OFF)
     logger.info(f"Checking domain-specific proxy for {url}")
     proxy_config = select_proxy_for_domain(url)
     if proxy_config:
@@ -186,25 +186,92 @@ def add_proxy_to_ytdl_opts(ytdl_opts: dict, url: str, user_id: int = None) -> di
     
     return ytdl_opts
 
+def try_with_proxy_fallback(ytdl_opts: dict, url: str, user_id: int = None, operation_func=None, *args, **kwargs):
+    """
+    Try operation with different proxies in case of failure when user proxy is enabled
+    
+    Args:
+        ytdl_opts: yt-dlp options
+        url: URL to process
+        user_id: User ID
+        operation_func: Function to call with ytdl_opts
+        *args, **kwargs: Additional arguments for operation_func
+    
+    Returns:
+        Result of operation_func or None if all proxies failed
+    """
+    if not operation_func:
+        return None
+    
+    # Check if user has proxy enabled
+    if not user_id:
+        # No user ID, try without proxy fallback
+        return operation_func(ytdl_opts, *args, **kwargs)
+    
+    try:
+        from COMMANDS.proxy_cmd import is_proxy_enabled
+        proxy_enabled = is_proxy_enabled(user_id)
+        if not proxy_enabled:
+            # User proxy is disabled, try without proxy fallback
+            return operation_func(ytdl_opts, *args, **kwargs)
+    except Exception as e:
+        logger.warning(f"Error checking proxy for user {user_id}: {e}")
+        return operation_func(ytdl_opts, *args, **kwargs)
+    
+    # User proxy is enabled, get all available proxies
+    all_configs = get_all_proxy_configs()
+    if not all_configs:
+        logger.info(f"No proxies available for {url}, trying without proxy")
+        return operation_func(ytdl_opts, *args, **kwargs)
+    
+    # Try with each proxy
+    for i, proxy_config in enumerate(all_configs):
+        try:
+            # Update proxy in options
+            current_opts = ytdl_opts.copy()
+            proxy_url = build_proxy_url(proxy_config)
+            if proxy_url:
+                current_opts['proxy'] = proxy_url
+                logger.info(f"Trying {url} with proxy {i+1}/{len(all_configs)}: {proxy_url}")
+                result = operation_func(current_opts, *args, **kwargs)
+                
+                if result is not None:
+                    logger.info(f"Success with proxy {i+1}/{len(all_configs)}: {proxy_url}")
+                    return result
+                else:
+                    logger.warning(f"Operation returned None with proxy {i+1}/{len(all_configs)}: {proxy_url}")
+            else:
+                logger.warning(f"Failed to build proxy URL for config {i+1}/{len(all_configs)}: {proxy_config}")
+                
+        except Exception as e:
+            logger.warning(f"Failed with proxy {i+1}/{len(all_configs)} ({proxy_url}): {e}")
+            continue
+    
+    # Try without proxy as last resort
+    try:
+        logger.info(f"All proxies failed for {url}, trying without proxy")
+        current_opts = ytdl_opts.copy()
+        if 'proxy' in current_opts:
+            del current_opts['proxy']
+        return operation_func(current_opts, *args, **kwargs)
+    except Exception as e:
+        logger.error(f"Failed without proxy for {url}: {e}")
+        return None
+
 def is_proxy_domain(url: str) -> bool:
     """Check if the domain is in PROXY_DOMAINS or PROXY_2_DOMAINS"""
     from CONFIG.domains import DomainsConfig
     
-    # Extract domain from URL
-    domain = None
-    if '://' in url:
-        domain = url.split('://')[1].split('/')[0]
-    else:
-        domain = url.split('/')[0]
+    domain = extract_domain_from_url(url)
     
     # Check PROXY_DOMAINS
     if hasattr(DomainsConfig, 'PROXY_DOMAINS') and DomainsConfig.PROXY_DOMAINS:
-        if domain in DomainsConfig.PROXY_DOMAINS:
+        if is_domain_in_list(domain, DomainsConfig.PROXY_DOMAINS):
             return True
     
     # Check PROXY_2_DOMAINS
     if hasattr(DomainsConfig, 'PROXY_2_DOMAINS') and DomainsConfig.PROXY_2_DOMAINS:
-        if domain in DomainsConfig.PROXY_2_DOMAINS:
+        if is_domain_in_list(domain, DomainsConfig.PROXY_2_DOMAINS):
             return True
     
     return False
@@ -263,12 +330,8 @@ def get_all_proxy_configs():
     
     return configs
 
-def select_proxy_for_domain(url):
-    """Select appropriate proxy for domain based on PROXY_DOMAINS and PROXY_2_DOMAINS"""
-    from CONFIG.domains import DomainsConfig
-    
-    # Extract domain from URL
-    domain = None
+def extract_domain_from_url(url):
+    """Extract domain from URL, handling subdomains properly"""
     if '://' in url:
         domain = url.split('://')[1].split('/')[0]
     else:
@@ -278,19 +341,43 @@ def select_proxy_for_domain(url):
     if domain.startswith('www.'):
         domain = domain[4:]
     
+    return domain
+
+def is_domain_in_list(domain, domain_list):
+    """Check if domain or any of its subdomains match entries in domain_list"""
+    if not domain_list:
+        return False
+    
+    # Direct match
+    if domain in domain_list:
+        return True
+    
+    # Check if any domain in the list is a subdomain of the current domain
+    for listed_domain in domain_list:
+        if domain.endswith('.' + listed_domain):
+            return True
+    
+    return False
+
+def select_proxy_for_domain(url):
+    """Select appropriate proxy for domain based on PROXY_DOMAINS and PROXY_2_DOMAINS"""
+    from CONFIG.domains import DomainsConfig
+    
+    domain = extract_domain_from_url(url)
+    
     logger.info(f"select_proxy_for_domain: URL={url}, extracted_domain={domain}")
     logger.info(f"PROXY_2_DOMAINS: {getattr(DomainsConfig, 'PROXY_2_DOMAINS', 'NOT_FOUND')}")
     logger.info(f"PROXY_DOMAINS: {getattr(DomainsConfig, 'PROXY_DOMAINS', 'NOT_FOUND')}")
     
     # Check PROXY_2_DOMAINS first
     if hasattr(DomainsConfig, 'PROXY_2_DOMAINS') and DomainsConfig.PROXY_2_DOMAINS:
-        if domain in DomainsConfig.PROXY_2_DOMAINS:
+        if is_domain_in_list(domain, DomainsConfig.PROXY_2_DOMAINS):
             logger.info(f"Domain {domain} found in PROXY_2_DOMAINS, using proxy 2")
             return get_proxy_2_config()
     
     # Check PROXY_DOMAINS
     if hasattr(DomainsConfig, 'PROXY_DOMAINS') and DomainsConfig.PROXY_DOMAINS:
-        if domain in DomainsConfig.PROXY_DOMAINS:
+        if is_domain_in_list(domain, DomainsConfig.PROXY_DOMAINS):
             logger.info(f"Domain {domain} found in PROXY_DOMAINS, using proxy 1")
             return get_proxy_config()
     
