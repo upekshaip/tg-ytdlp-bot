@@ -270,14 +270,16 @@ def link_command(app, message):
         
         if len(parts) < 2:
             send_to_user(message, 
-                "❌ <b>Usage:</b>\n"
+                "🔗 <b>Usage:</b>\n"
                 "<code>/link [quality] URL</code>\n\n"
                 "<b>Examples:</b>\n"
-                "• <code>/link https://youtube.com/watch?v=...</code> - best quality\n"
-                "• <code>/link 720 https://youtube.com/watch?v=...</code> - 720p or lower\n"
-                "• <code>/link 720p https://youtube.com/watch?v=...</code> - same as above\n"
-                "• <code>/link 4k https://youtube.com/watch?v=...</code> - 4K or lower\n"
-                "• <code>/link 8k https://youtube.com/watch?v=...</code> - 8K or lower\n\n"
+                "<blockquote>"
+                "• /link https://youtube.com/watch?v=... - best quality\n"
+                "• /link 720 https://youtube.com/watch?v=... - 720p or lower\n"
+                "• /link 720p https://youtube.com/watch?v=... - same as above\n"
+                "• /link 4k https://youtube.com/watch?v=... - 4K or lower\n"
+                "• /link 8k https://youtube.com/watch?v=... - 8K or lower"
+                "</blockquote>\n\n"
                 "<b>Quality:</b> from 1 to 10000 (e.g., 144, 240, 720, 1080)"
             )
             return

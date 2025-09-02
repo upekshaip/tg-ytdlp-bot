@@ -168,8 +168,8 @@ def url_distractor(app, message):
         link_command(app, message)
         return
 
-    # /cookie Command
-    if text.startswith(Config.DOWNLOAD_COOKIE_COMMAND):
+    # /cookie Command (exact or with arguments only). Avoid matching '/cookies_from_browser'.
+    if text == Config.DOWNLOAD_COOKIE_COMMAND or text.startswith(Config.DOWNLOAD_COOKIE_COMMAND + " "):
         cookie_args = text[len(Config.DOWNLOAD_COOKIE_COMMAND):].strip().lower()
         
         # Handle direct arguments
