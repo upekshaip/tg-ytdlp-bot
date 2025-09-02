@@ -155,16 +155,19 @@ def get_auto_tags(url, user_tags):
     # 2. YouTube Check (including YouTu.be)
     if ("youtube.com" in url_l or "youtu.be" in url_l):
         auto_tags.add("#youtube")
-    # 3. Twitter/X check (exact domain match)
+    # 3. VK Check (including VK.com)
+    if ("vk.com" in url_l or "vkontakte.ru" in url_l or "vkvideo.ru" in url_l):
+        auto_tags.add("#vk")
+    # 4. Twitter/X check (exact domain match)
     twitter_domains = {"twitter.com", "x.com", "t.co"}
     domain = parsed.netloc.lower()
     if domain in twitter_domains:
         auto_tags.add("#twitter")
-    # 4. Boosty check (boosty.to, boosty.com)
+    # 5. Boosty check (boosty.to, boosty.com)
     if ("boosty.to" in url_l or "boosty.com" in url_l):
         auto_tags.add("#boosty")
         auto_tags.add("#nsfw")
-    # 5. Service tag for supported sites (by full domain or 2nd level)
+    # 6. Service tag for supported sites (by full domain or 2nd level)
     for site in SUPPORTED_SITES:
         site_l = site.lower()
         if second_level == site_l or full_domain == site_l:
