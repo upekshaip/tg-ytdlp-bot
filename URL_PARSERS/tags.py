@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 from CONFIG.config import Config
 from URL_PARSERS.tiktok import is_tiktok_url, extract_tiktok_profile, get_clean_url_for_tagging
 from HELPERS.filesystem_hlp import create_directory
-from HELPERS.porn import is_porn_domain, extract_domain_parts, SUPPORTED_SITES
+from HELPERS.porn import is_porn_domain, extract_domain_parts, SUPPORTED_SITES, unwrap_redirect_url
 from HELPERS.logger import logger
 
 def sanitize_autotag(tag: str) -> str:
@@ -40,7 +40,8 @@ def generate_final_tags(url, user_tags, info_dict):
         if '#tiktok' not in seen:
             final_tags.append('#tiktok')
             seen.add('#tiktok')
-    clean_url_for_check = get_clean_url_for_tagging(url)
+    # Unwrap redirects before any domain-based checks
+    clean_url_for_check = get_clean_url_for_tagging(unwrap_redirect_url(url))
     if ("youtube.com" in clean_url_for_check or "youtu.be" in clean_url_for_check) and info_dict:
         channel_name = info_dict.get("channel") or info_dict.get("uploader")
         if channel_name:
