@@ -127,9 +127,7 @@ YOUTUBE_COOKIE_URL_3 = "https://your-domain.com/cookies/youtube/cookie4.txt"
 YOUTUBE_COOKIE_URL_4 = "https://your-domain.com/cookies/youtube/cookie5.txt"
 
 # Other Service Cookies
-INSTAGRAM_COOKIE_URL = "https://your-domain.com/cookies/instagram_cookie.txt"
 TIKTOK_COOKIE_URL = "https://your-domain.com/cookies/tiktok_cookie.txt"
-FACEBOOK_COOKIE_URL = "https://your-domain.com/cookies/facebook_cookie.txt"
 TWITTER_COOKIE_URL = "https://your-domain.com/cookies/twitter_cookie.txt"
 
 # Firebase Configuration
@@ -528,9 +526,7 @@ YOUTUBE_COOKIE_URL_2 = "https://your-domain.com/cookies/youtube/cookie3.txt"
 ### Other Service Cookies
 
 The bot also supports cookies for other platforms:
-- **Instagram**: `INSTAGRAM_COOKIE_URL`
 - **TikTok**: `TIKTOK_COOKIE_URL`
-- **Facebook**: `FACEBOOK_COOKIE_URL`
 - **Twitter**: `TWITTER_COOKIE_URL`
 
 ### Cookie File Requirements
