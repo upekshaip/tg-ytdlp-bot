@@ -422,11 +422,9 @@ The bot now supports command arguments for quick configuration without opening m
 ```bash
 /cookie                # Show cookie menu
 /cookie youtube        # Download YouTube cookies directly
-/cookie instagram      # Download Instagram cookies directly
 /cookie tiktok         # Download TikTok cookies directly
 /cookie x              # Download Twitter/X cookies directly (alias)
 /cookie twitter        # Download Twitter/X cookies directly
-/cookie facebook       # Download Facebook cookies directly
 /cookie custom         # Show custom cookie instructions
 ```
 
@@ -551,7 +549,7 @@ The bot also supports cookies for other platforms:
 
 ---
 
-## Admin Commands
+## Commands
 
 - **/start** - Start the bot.
 - **/help** - Send help text.
