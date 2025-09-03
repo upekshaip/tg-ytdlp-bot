@@ -193,24 +193,24 @@ def url_distractor(app, message):
             download_and_validate_youtube_cookies(app, fake_callback)
             return
             
-        elif cookie_args == "instagram":
+        #elif cookie_args == "instagram":
             # Simulate Instagram button click
-            from pyrogram.types import CallbackQuery
-            from collections import namedtuple
+            #from pyrogram.types import CallbackQuery
+            #from collections import namedtuple
             
-            FakeCallbackQuery = namedtuple('FakeCallbackQuery', ['from_user', 'message', 'data', 'id'])
-            FakeUser = namedtuple('FakeUser', ['id'])
+            #FakeCallbackQuery = namedtuple('FakeCallbackQuery', ['from_user', 'message', 'data', 'id'])
+            #FakeUser = namedtuple('FakeUser', ['id'])
             
-            fake_callback = FakeCallbackQuery(
-                from_user=FakeUser(id=user_id),
-                message=message,
-                data="download_cookie|instagram",
-                id="fake_callback_id"
-            )
+            #fake_callback = FakeCallbackQuery(
+                #from_user=FakeUser(id=user_id),
+                #message=message,
+                #data="download_cookie|instagram",
+                #id="fake_callback_id"
+            #)
             
-            from COMMANDS.cookies_cmd import download_and_save_cookie
-            download_and_save_cookie(app, fake_callback, Config.INSTAGRAM_COOKIE_URL, "instagram")
-            return
+            #from COMMANDS.cookies_cmd import download_and_save_cookie
+            #download_and_save_cookie(app, fake_callback, Config.INSTAGRAM_COOKIE_URL, "instagram")
+            #return
             
         elif cookie_args == "tiktok":
             # Simulate TikTok button click
@@ -248,23 +248,23 @@ def url_distractor(app, message):
             download_and_save_cookie(app, fake_callback, Config.TWITTER_COOKIE_URL, "twitter")
             return
             
-        elif cookie_args == "facebook":
+        #elif cookie_args == "facebook":
             # Simulate Facebook button click
-            from pyrogram.types import CallbackQuery
-            from collections import namedtuple
+            #from pyrogram.types import CallbackQuery
+            #from collections import namedtuple
             
-            FakeCallbackQuery = namedtuple('FakeCallbackQuery', ['from_user', 'message', 'data'])
-            FakeUser = namedtuple('FakeUser', ['id'])
+            #FakeCallbackQuery = namedtuple('FakeCallbackQuery', ['from_user', 'message', 'data'])
+            #FakeUser = namedtuple('FakeUser', ['id'])
             
-            fake_callback = FakeCallbackQuery(
-                from_user=FakeUser(id=user_id),
-                message=message,
-                data="download_cookie|facebook"
-            )
+            #fake_callback = FakeCallbackQuery(
+                #from_user=FakeUser(id=user_id),
+                #message=message,
+                #data="download_cookie|facebook"
+            #)
             
-            from COMMANDS.cookies_cmd import download_and_save_cookie
-            download_and_save_cookie(app, fake_callback, Config.FACEBOOK_COOKIE_URL, "facebook")
-            return
+            #from COMMANDS.cookies_cmd import download_and_save_cookie
+            #download_and_save_cookie(app, fake_callback, Config.FACEBOOK_COOKIE_URL, "facebook")
+            #return
             
         elif cookie_args == "custom":
             # Simulate "Your Own" button click

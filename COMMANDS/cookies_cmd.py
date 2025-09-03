@@ -301,14 +301,14 @@ def download_cookie_callback(app, callback_query):
             "🔄 Starting YouTube cookies test...\n\nPlease wait while I check and validate your cookies."
         )
         download_and_validate_youtube_cookies(app, callback_query)
-    elif data == "instagram":
-        download_and_save_cookie(app, callback_query, Config.INSTAGRAM_COOKIE_URL, "instagram")
+    #elif data == "instagram":
+        #download_and_save_cookie(app, callback_query, Config.INSTAGRAM_COOKIE_URL, "instagram")
     elif data == "twitter":
         download_and_save_cookie(app, callback_query, Config.TWITTER_COOKIE_URL, "twitter")
     elif data == "tiktok":
         download_and_save_cookie(app, callback_query, Config.TIKTOK_COOKIE_URL, "tiktok")
-    elif data == "facebook":
-        download_and_save_cookie(app, callback_query, Config.FACEBOOK_COOKIE_URL, "facebook")
+    #elif data == "facebook":
+        #download_and_save_cookie(app, callback_query, Config.FACEBOOK_COOKIE_URL, "facebook")
     elif data == "own":
         try:
             app.answer_callback_query(callback_query.id)
@@ -471,21 +471,22 @@ def download_cookie(app, message):
     buttons = [
         [
             InlineKeyboardButton("📺 YouTube", callback_data="download_cookie|youtube"),
-            InlineKeyboardButton("📷 Instagram", callback_data="download_cookie|instagram"),
+            InlineKeyboardButton("🌐 From Browser (YouTube)", callback_data="download_cookie|from_browser"),            
         ],
         [
             InlineKeyboardButton("🐦 Twitter/X", callback_data="download_cookie|twitter"),
             InlineKeyboardButton("🎵 TikTok", callback_data="download_cookie|tiktok"),
         ],
+        #[
+            #InlineKeyboardButton("📘 Facebook", callback_data="download_cookie|facebook"),
+            #InlineKeyboardButton("📷 Instagram", callback_data="download_cookie|instagram"),
+        #],
         [
-            InlineKeyboardButton("📘 Facebook", callback_data="download_cookie|facebook"),
-            InlineKeyboardButton("📝 Your Own", callback_data="download_cookie|own"),
+
         ],
         [
-            InlineKeyboardButton("🌐 From Browser (YouTube)", callback_data="download_cookie|from_browser"),
-        ],
-        [
-            InlineKeyboardButton("🔚Close", callback_data="download_cookie|close"),
+            InlineKeyboardButton("📝 Your Own", callback_data="download_cookie|own"),            
+            InlineKeyboardButton("🔚Close", callback_data="download_cookie|close")
         ],
     ]
     keyboard = InlineKeyboardMarkup(buttons)

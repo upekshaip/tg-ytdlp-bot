@@ -43,9 +43,9 @@ class Config(object):
     YOUTUBE_COOKIE_URL_3 = "https://XXX/cookie3.txt"
     #YOUTUBE_COOKIE_URL_4 = "https://XXX/cookie4.txt"
     #YOUTUBE_COOKIE_URL_10 = "https://XXX/cookie10.txt"
-    INSTAGRAM_COOKIE_URL = "https://XXX/instagram_cookie.txt"
+    #INSTAGRAM_COOKIE_URL = "https://XXX/instagram_cookie.txt"
     TIKTOK_COOKIE_URL = "https://XXX/tiktok_cookie.txt"
-    FACEBOOK_COOKIE_URL = "https://XXX/facebook_cookie.txt"
+    #FACEBOOK_COOKIE_URL = "https://XXX/facebook_cookie.txt"
     TWITTER_COOKIE_URL = "https://XXX/twitter_cookie.txt"
     # Do not chanege this
     COOKIE_FILE_PATH = "TXT/cookie.txt"
