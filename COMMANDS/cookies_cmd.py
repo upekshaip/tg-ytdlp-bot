@@ -825,7 +825,7 @@ def get_youtube_cookie_urls() -> list:
     
     return urls
 
-def download_and_validate_youtube_cookies(app, message, selected_index: int | None = None, initial_msg=None) -> bool:
+def download_and_validate_youtube_cookies(app, message, selected_index: int | None = None) -> bool:
     """
     Скачивает и проверяет YouTube куки из всех доступных источников.
     
@@ -898,6 +898,47 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
     cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
     cookie_file_path = os.path.join(user_dir, cookie_filename)
     
+    # Check existing cookies first and send initial message
+    initial_msg = None
+    try:
+        if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
+            # It's a Message object
+            from HELPERS.logger import send_to_user
+            if os.path.exists(cookie_file_path):
+                if test_youtube_cookies(cookie_file_path):
+                    send_to_user(message, "✅ Your existing YouTube cookies are working properly!\n\nNo need to download new ones.")
+                    return
+                else:
+                    initial_msg = send_to_user(message, "❌ Your existing YouTube cookies are expired or invalid.\n\n🔄 Downloading new cookies...")
+            else:
+                initial_msg = send_to_user(message, "🔄 Starting YouTube cookies test...\n\nPlease wait while I check and validate your cookies.")
+        elif hasattr(message, 'from_user') and hasattr(message.from_user, 'id'):
+            # It's a CallbackQuery object
+            from HELPERS.safe_messeger import safe_send_message
+            from pyrogram import enums
+            if os.path.exists(cookie_file_path):
+                if test_youtube_cookies(cookie_file_path):
+                    safe_send_message(message.from_user.id, "✅ Your existing YouTube cookies are working properly!\n\nNo need to download new ones.", parse_mode=enums.ParseMode.HTML)
+                    return
+                else:
+                    initial_msg = safe_send_message(message.from_user.id, "❌ Your existing YouTube cookies are expired or invalid.\n\n🔄 Downloading new cookies...", parse_mode=enums.ParseMode.HTML)
+            else:
+                initial_msg = safe_send_message(message.from_user.id, "🔄 Starting YouTube cookies test...\n\nPlease wait while I check and validate your cookies.", parse_mode=enums.ParseMode.HTML)
+        else:
+            # Fallback - send directly
+            from HELPERS.safe_messeger import safe_send_message
+            from pyrogram import enums
+            if os.path.exists(cookie_file_path):
+                if test_youtube_cookies(cookie_file_path):
+                    safe_send_message(user_id, "✅ Your existing YouTube cookies are working properly!\n\nNo need to download new ones.", parse_mode=enums.ParseMode.HTML)
+                    return
+                else:
+                    initial_msg = safe_send_message(user_id, "❌ Your existing YouTube cookies are expired or invalid.\n\n🔄 Downloading new cookies...", parse_mode=enums.ParseMode.HTML)
+            else:
+                initial_msg = safe_send_message(user_id, "🔄 Starting YouTube cookies test...\n\nPlease wait while I check and validate your cookies.", parse_mode=enums.ParseMode.HTML)
+    except Exception as e:
+        logger.error(f"Error sending initial message: {e}")
+    
     # Helper function to update the message (avoid MESSAGE_NOT_MODIFIED)
     _last_update_text = { 'text': None }
     def update_message(new_text):
@@ -905,7 +946,6 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
             if new_text == _last_update_text['text']:
                 return
             if initial_msg and hasattr(initial_msg, 'id'):
-                from pyrogram import enums
                 if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
                     app.edit_message_text(message.chat.id, initial_msg.id, new_text, parse_mode=enums.ParseMode.HTML)
                 elif hasattr(message, 'from_user') and hasattr(message.from_user, 'id'):
@@ -913,34 +953,10 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
                 else:
                     app.edit_message_text(user_id, initial_msg.id, new_text, parse_mode=enums.ParseMode.HTML)
                 _last_update_text['text'] = new_text
-            else:
-                # Fallback: send new message if we can't edit
-                from HELPERS.safe_messeger import safe_send_message
-                from pyrogram import enums
-                safe_send_message(user_id, new_text, parse_mode=enums.ParseMode.HTML)
         except Exception as e:
             if "MESSAGE_NOT_MODIFIED" in str(e):
                 return
             logger.error(f"Error updating message: {e}")
-    
-    # Check existing cookies first
-    if os.path.exists(cookie_file_path):
-        if test_youtube_cookies(cookie_file_path):
-            # Send success message
-            from HELPERS.safe_messeger import safe_send_message
-            from pyrogram import enums
-            safe_send_message(user_id, "✅ Your existing YouTube cookies are working properly!\n\nNo need to download new ones.", parse_mode=enums.ParseMode.HTML)
-            return
-        else:
-            # Send message about expired cookies and start download
-            from HELPERS.safe_messeger import safe_send_message
-            from pyrogram import enums
-            initial_msg = safe_send_message(user_id, "❌ Your existing YouTube cookies are expired or invalid.\n\n🔄 Downloading new cookies...", parse_mode=enums.ParseMode.HTML)
-    else:
-        # Send initial message for new download
-        from HELPERS.safe_messeger import safe_send_message
-        from pyrogram import enums
-        initial_msg = safe_send_message(user_id, f"🔄 Downloading and checking YouTube cookies...\n\nAttempt 1 of {len(cookie_urls)}", parse_mode=enums.ParseMode.HTML)
     
     # Determine the order of attempts
     indices = list(range(len(cookie_urls)))
