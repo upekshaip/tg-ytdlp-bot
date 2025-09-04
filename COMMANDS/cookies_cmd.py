@@ -461,6 +461,16 @@ def download_cookie(app, message):
                 cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
                 cookie_file_path = os.path.join(user_dir, cookie_filename)
                 
+                # Send initial message
+                send_to_user(message, "🔄 Starting YouTube cookies test...\n\nPlease wait while I check and validate your cookies.")
+                
+                # Check existing cookies first
+                if os.path.exists(cookie_file_path):
+                    if test_youtube_cookies(cookie_file_path):
+                        send_to_user(message, "✅ Your existing YouTube cookies are working properly!\n\nNo need to download new ones.")
+                        return
+                    else:
+                        send_to_user(message, "❌ Your existing YouTube cookies are expired or invalid.\n\n🔄 Downloading new cookies...")
                 # Optional specific index: /cookie youtube <n>
                 selected_index = None
                 if len(parts) >= 3 and parts[2].isdigit():
@@ -898,44 +908,23 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
     cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
     cookie_file_path = os.path.join(user_dir, cookie_filename)
     
-    # Check existing cookies first and send initial message
+    # Send initial message and store message ID for updates
     initial_msg = None
     try:
         if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
-            # It's a Message object
+            # It's a Message object - send initial message
             from HELPERS.logger import send_to_user
-            if os.path.exists(cookie_file_path):
-                if test_youtube_cookies(cookie_file_path):
-                    send_to_user(message, "✅ Your existing YouTube cookies are working properly!\n\nNo need to download new ones.")
-                    return
-                else:
-                    initial_msg = send_to_user(message, "❌ Your existing YouTube cookies are expired or invalid.\n\n🔄 Downloading new cookies...")
-            else:
-                initial_msg = send_to_user(message, "🔄 Starting YouTube cookies test...\n\nPlease wait while I check and validate your cookies.")
+            initial_msg = send_to_user(message, f"🔄 Downloading and checking YouTube cookies...\n\nAttempt 1 of {len(cookie_urls)}")
         elif hasattr(message, 'from_user') and hasattr(message.from_user, 'id'):
-            # It's a CallbackQuery object
+            # It's a CallbackQuery object - send initial message
             from HELPERS.safe_messeger import safe_send_message
             from pyrogram import enums
-            if os.path.exists(cookie_file_path):
-                if test_youtube_cookies(cookie_file_path):
-                    safe_send_message(message.from_user.id, "✅ Your existing YouTube cookies are working properly!\n\nNo need to download new ones.", parse_mode=enums.ParseMode.HTML)
-                    return
-                else:
-                    initial_msg = safe_send_message(message.from_user.id, "❌ Your existing YouTube cookies are expired or invalid.\n\n🔄 Downloading new cookies...", parse_mode=enums.ParseMode.HTML)
-            else:
-                initial_msg = safe_send_message(message.from_user.id, "🔄 Starting YouTube cookies test...\n\nPlease wait while I check and validate your cookies.", parse_mode=enums.ParseMode.HTML)
+            initial_msg = safe_send_message(message.from_user.id, f"🔄 Downloading and checking YouTube cookies...\n\nAttempt 1 of {len(cookie_urls)}", parse_mode=enums.ParseMode.HTML)
         else:
             # Fallback - send directly
             from HELPERS.safe_messeger import safe_send_message
             from pyrogram import enums
-            if os.path.exists(cookie_file_path):
-                if test_youtube_cookies(cookie_file_path):
-                    safe_send_message(user_id, "✅ Your existing YouTube cookies are working properly!\n\nNo need to download new ones.", parse_mode=enums.ParseMode.HTML)
-                    return
-                else:
-                    initial_msg = safe_send_message(user_id, "❌ Your existing YouTube cookies are expired or invalid.\n\n🔄 Downloading new cookies...", parse_mode=enums.ParseMode.HTML)
-            else:
-                initial_msg = safe_send_message(user_id, "🔄 Starting YouTube cookies test...\n\nPlease wait while I check and validate your cookies.", parse_mode=enums.ParseMode.HTML)
+            initial_msg = safe_send_message(user_id, f"🔄 Downloading and checking YouTube cookies...\n\nAttempt 1 of {len(cookie_urls)}", parse_mode=enums.ParseMode.HTML)
     except Exception as e:
         logger.error(f"Error sending initial message: {e}")
     
