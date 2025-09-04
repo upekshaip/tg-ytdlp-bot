@@ -170,27 +170,33 @@ def url_distractor(app, message):
 
     # /cookie Command (exact or with arguments only). Avoid matching '/cookies_from_browser'.
     if text == Config.DOWNLOAD_COOKIE_COMMAND or text.startswith(Config.DOWNLOAD_COOKIE_COMMAND + " "):
-        cookie_args = text[len(Config.DOWNLOAD_COOKIE_COMMAND):].strip().lower()
+        raw_args = text[len(Config.DOWNLOAD_COOKIE_COMMAND):].strip()
+        cookie_args = raw_args.lower()
         
         # Handle direct arguments
-        if cookie_args == "youtube":
-            # Simulate YouTube button click
-            from pyrogram.types import CallbackQuery
+        if cookie_args.startswith("youtube"):
+            # Support optional index: /cookie youtube <n>
+            selected_index = None
+            try:
+                parts = raw_args.split()
+                if len(parts) >= 1 and parts[0].lower() == "youtube":
+                    if len(parts) >= 2 and parts[1].isdigit():
+                        selected_index = int(parts[1])
+            except Exception:
+                selected_index = None
+
+            # Simulate YouTube button click or call handler directly when index provided
             from collections import namedtuple
-            
-            # Create a fake callback query
             FakeCallbackQuery = namedtuple('FakeCallbackQuery', ['from_user', 'message', 'data', 'id'])
             FakeUser = namedtuple('FakeUser', ['id'])
-            
             fake_callback = FakeCallbackQuery(
                 from_user=FakeUser(id=user_id),
                 message=message,
                 data="download_cookie|youtube",
                 id="fake_callback_id"
             )
-            
             from COMMANDS.cookies_cmd import download_and_validate_youtube_cookies
-            download_and_validate_youtube_cookies(app, fake_callback)
+            download_and_validate_youtube_cookies(app, fake_callback, selected_index=selected_index)
             return
             
         #elif cookie_args == "instagram":

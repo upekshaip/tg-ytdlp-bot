@@ -428,6 +428,16 @@ The bot now supports command arguments for quick configuration without opening m
 /cookie custom         # Show custom cookie instructions
 ```
 
+#### YouTube Cookie Index Selection
+
+You can select a specific YouTube cookie source by index and then verify it:
+
+```bash
+/cookie youtube 1     # use source #1 (1–N as shown in the /cookie menu)
+/cookie youtube 3     # use source #3
+/check_cookie         # validate current YouTube cookies (tests on RickRoll)
+```
+
 ### Always Ask Menu
 - **📼CODEC Button**: Access advanced codec and container filters
   - AVC (H.264/AVC) - Traditional, widely supported
