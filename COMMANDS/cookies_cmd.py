@@ -413,10 +413,16 @@ def checking_cookie_file(app, message):
                 return False
             if _has_youtube_domain(cookie_content):
                 if test_youtube_cookies(file_path):
-                    safe_edit_message_text(message.chat.id, initial_msg.id, "✅ Cookie file exists and has correct format\n✅ YouTube cookies are working properly")
+                    if initial_msg is not None and hasattr(initial_msg, 'id'):
+                        safe_edit_message_text(message.chat.id, initial_msg.id, "✅ Cookie file exists and has correct format\n✅ YouTube cookies are working properly")
+                    else:
+                        send_to_user(message, "✅ Cookie file exists and has correct format\n✅ YouTube cookies are working properly")
                     send_to_logger(message, "Cookie file exists, has correct format, and YouTube cookies are working.")
                 else:
-                    safe_edit_message_text(message.chat.id, initial_msg.id, "✅ Cookie file exists and has correct format\n❌ YouTube cookies are expired or invalid\n\nUse /cookie to get new cookies")
+                    if initial_msg is not None and hasattr(initial_msg, 'id'):
+                        safe_edit_message_text(message.chat.id, initial_msg.id, "✅ Cookie file exists and has correct format\n❌ YouTube cookies are expired or invalid\n\nUse /cookie to get new cookies")
+                    else:
+                        send_to_user(message, "✅ Cookie file exists and has correct format\n❌ YouTube cookies are expired or invalid\n\nUse /cookie to get new cookies")
                     send_to_logger(message, "Cookie file exists and has correct format, but YouTube cookies are expired.")
             else:
                 send_to_user(message, "✅ Cookie file exists and has correct format")
