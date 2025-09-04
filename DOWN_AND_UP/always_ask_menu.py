@@ -3212,7 +3212,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
             quality_arg = data
         
         # Get direct link
-        result = get_direct_link(url, user_id, quality_arg, cookies_already_checked=True)
+        result = get_direct_link(url, user_id, quality_arg, cookies_already_checked=True, use_proxy=True)
         
         if result.get('success'):
             title = result.get('title', 'Unknown')
@@ -3498,7 +3498,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
                 quality_arg = quality_key
             
             # Get direct link
-            result = get_direct_link(url, user_id, quality_arg, cookies_already_checked=True)
+            result = get_direct_link(url, user_id, quality_arg, cookies_already_checked=True, use_proxy=True)
             
             if result.get('success'):
                 title = result.get('title', 'Unknown')

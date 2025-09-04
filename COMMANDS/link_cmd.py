@@ -137,37 +137,35 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
         
         # Add proxy if needed
         if use_proxy:
-            # Force proxy for this request
-            from COMMANDS.proxy_cmd import get_proxy_config
-            proxy_config = get_proxy_config()
+            # Check if user has global proxy enabled first
+            from COMMANDS.proxy_cmd import is_proxy_enabled, select_proxy_for_user, build_proxy_url
+            proxy_enabled = is_proxy_enabled(user_id)
             
-            if proxy_config and 'type' in proxy_config and 'ip' in proxy_config and 'port' in proxy_config:
-                # Build proxy URL (with/without user/password)
-                if proxy_config['type'] == 'http':
-                    if proxy_config.get('user') and proxy_config.get('password'):
-                        proxy_url = f"http://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+            if proxy_enabled:
+                # User has global proxy enabled - use round-robin/random selection
+                proxy_config = select_proxy_for_user()
+                if proxy_config:
+                    proxy_url = build_proxy_url(proxy_config)
+                    if proxy_url:
+                        ytdl_opts['proxy'] = proxy_url
+                        logger.info(f"Using global proxy for link extraction: {proxy_url}")
                     else:
-                        proxy_url = f"http://{proxy_config['ip']}:{proxy_config['port']}"
-                elif proxy_config['type'] == 'https':
-                    if proxy_config.get('user') and proxy_config.get('password'):
-                        proxy_url = f"https://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
-                    else:
-                        proxy_url = f"https://{proxy_config['ip']}:{proxy_config['port']}"
-                elif proxy_config['type'] in ['socks4', 'socks5', 'socks5h']:
-                    if proxy_config.get('user') and proxy_config.get('password'):
-                        proxy_url = f"{proxy_config['type']}://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
-                    else:
-                        proxy_url = f"{proxy_config['type']}://{proxy_config['ip']}:{proxy_config['port']}"
+                        logger.warning("Failed to build proxy URL from global config")
                 else:
-                    if proxy_config.get('user') and proxy_config.get('password'):
-                        proxy_url = f"http://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
-                    else:
-                        proxy_url = f"http://{proxy_config['ip']}:{proxy_config['port']}"
-                
-                ytdl_opts['proxy'] = proxy_url
-                logger.info(f"Force using proxy for link extraction: {proxy_url}")
+                    logger.warning("Global proxy enabled but no proxy configuration available")
             else:
-                logger.warning("Proxy requested but proxy configuration is incomplete")
+                # User doesn't have global proxy enabled - check domain-specific proxy
+                from COMMANDS.proxy_cmd import select_proxy_for_domain
+                proxy_config = select_proxy_for_domain(url)
+                if proxy_config:
+                    proxy_url = build_proxy_url(proxy_config)
+                    if proxy_url:
+                        ytdl_opts['proxy'] = proxy_url
+                        logger.info(f"Using domain-specific proxy for link extraction: {proxy_url}")
+                    else:
+                        logger.warning("Failed to build proxy URL from domain config")
+                else:
+                    logger.info(f"No domain-specific proxy required for {url}")
         else:
             # Add proxy configuration if needed for this domain
             ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url)
@@ -300,7 +298,7 @@ def link_command(app, message):
             return
         
         # Send processing start message
-        status_msg = app.send_message(user_id, "🔗 Getting direct link...", reply_parameters=ReplyParameters(message_id=message.id))
+        status_msg = app.send_message(user_id, "🔗 Getting direct link...", reply_to_message_id=message.id)
         
         # Get direct link with proxy support
         result = get_direct_link(url, user_id, quality_arg, use_proxy=True)

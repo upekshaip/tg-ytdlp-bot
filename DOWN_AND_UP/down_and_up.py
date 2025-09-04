@@ -85,7 +85,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 quality_arg = quality_key
             
             # Get direct link
-            result = get_direct_link(url, user_id, quality_arg, cookies_already_checked=cookies_already_checked)
+            result = get_direct_link(url, user_id, quality_arg, cookies_already_checked=cookies_already_checked, use_proxy=True)
             
             if result.get('success'):
                 title = result.get('title', 'Unknown')
