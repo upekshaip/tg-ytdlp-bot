@@ -43,6 +43,7 @@ class Config(object):
     YOUTUBE_COOKIE_URL_3 = "https://XXX/cookie3.txt"
     #YOUTUBE_COOKIE_URL_4 = "https://XXX/cookie4.txt"
     #YOUTUBE_COOKIE_URL_10 = "https://XXX/cookie10.txt"
+    YOUTUBE_COOKIE_ORDER = "round_robin" # random, round_robin
     #INSTAGRAM_COOKIE_URL = "https://XXX/instagram_cookie.txt"
     TIKTOK_COOKIE_URL = "https://XXX/tiktok_cookie.txt"
     #FACEBOOK_COOKIE_URL = "https://XXX/facebook_cookie.txt"

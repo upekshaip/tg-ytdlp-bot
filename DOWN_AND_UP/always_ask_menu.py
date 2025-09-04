@@ -2310,6 +2310,64 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 service_name = "facebook"
             elif 'pornhub.com' in url or 'pornhub.org' in url:
                 service_name = "pornhub"
+            elif any(x in url for x in ['instagram.com', 'instagr.am']):
+                service_name = "instagram"
+            elif 'vimeo.com' in url:
+                service_name = "vimeo"
+            elif any(x in url for x in ['dailymotion.com', 'dai.ly']):
+                service_name = "dailymotion"
+            elif 'rutube.ru' in url:
+                service_name = "rutube"
+            elif 'twitch.tv' in url:
+                service_name = "twitch"
+            elif 'boosty.to' in url:
+                service_name = "boosty"
+            elif 'ok.ru' in url:
+                service_name = "okru"
+            elif any(x in url for x in ['reddit.com', 'redd.it']):
+                service_name = "reddit"
+            elif 'pikabu.ru' in url:
+                service_name = "pikabu"
+            elif 'zen.yandex.ru' in url:
+                service_name = "yandex_zen"
+            elif any(x in url for x in ['drive.google.com', 'docs.google.com']):
+                service_name = "google_drive"
+            elif 'redtube.com' in url:
+                service_name = "redtube"
+            elif 'bilibili.com' in url:
+                service_name = "bilibili"
+            elif 'nicovideo.jp' in url:
+                service_name = "niconico"
+            elif 'xvideos.com' in url:
+                service_name = "xvideos"
+            elif 'xnxx.com' in url:
+                service_name = "xnxx"
+            elif 'youporn.com' in url:
+                service_name = "youporn"
+            elif 'xhamster.com' in url:
+                service_name = "xhamster"
+            elif 'porntube.com' in url:
+                service_name = "porntube"
+            elif 'spankbang.com' in url:
+                service_name = "spankbang"
+            elif 'onlyfans.com' in url:
+                service_name = "onlyfans"
+            elif 'patreon.com' in url:
+                service_name = "patreon"
+            elif 'soundcloud.com' in url:
+                service_name = "soundcloud"
+            elif 'bandcamp.com' in url:
+                service_name = "bandcamp"
+            elif 'mixcloud.com' in url:
+                service_name = "mixcloud"
+            elif 'deezer.com' in url:
+                service_name = "deezer"
+            elif 'spotify.com' in url:
+                service_name = "spotify"
+            elif 'music.apple.com' in url:
+                service_name = "apple_music"
+            elif 'tidal.com' in url:
+                service_name = "tidal"
             
             if service_name != "unknown":
                 thumb_path = os.path.join(user_dir, f"{service_name}_thumb_{video_id or 'unknown'}.jpg")
