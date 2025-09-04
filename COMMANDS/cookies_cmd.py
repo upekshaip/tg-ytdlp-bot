@@ -916,6 +916,31 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
     cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
     cookie_file_path = os.path.join(user_dir, cookie_filename)
     
+    # Helper function to update the message (avoid MESSAGE_NOT_MODIFIED)
+    _last_update_text = { 'text': None }
+    def update_message(new_text):
+        try:
+            if new_text == _last_update_text['text']:
+                return
+            if initial_msg and hasattr(initial_msg, 'id'):
+                from pyrogram import enums
+                if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
+                    app.edit_message_text(message.chat.id, initial_msg.id, new_text, parse_mode=enums.ParseMode.HTML)
+                elif hasattr(message, 'from_user') and hasattr(message.from_user, 'id'):
+                    app.edit_message_text(message.from_user.id, initial_msg.id, new_text, parse_mode=enums.ParseMode.HTML)
+                else:
+                    app.edit_message_text(user_id, initial_msg.id, new_text, parse_mode=enums.ParseMode.HTML)
+                _last_update_text['text'] = new_text
+            else:
+                # Fallback: send new message if we can't edit
+                from HELPERS.safe_messeger import safe_send_message
+                from pyrogram import enums
+                safe_send_message(user_id, new_text, parse_mode=enums.ParseMode.HTML)
+        except Exception as e:
+            if "MESSAGE_NOT_MODIFIED" in str(e):
+                return
+            logger.error(f"Error updating message: {e}")
+    
     # Use provided initial_msg or create new one
     if initial_msg is None:
         try:
@@ -935,25 +960,9 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
                 initial_msg = safe_send_message(user_id, f"🔄 Downloading and checking YouTube cookies...\n\nAttempt 1 of {len(cookie_urls)}", parse_mode=enums.ParseMode.HTML)
         except Exception as e:
             logger.error(f"Error sending initial message: {e}")
-    
-    # Helper function to update the message (avoid MESSAGE_NOT_MODIFIED)
-    _last_update_text = { 'text': None }
-    def update_message(new_text):
-        try:
-            if new_text == _last_update_text['text']:
-                return
-            if initial_msg and hasattr(initial_msg, 'id'):
-                if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
-                    app.edit_message_text(message.chat.id, initial_msg.id, new_text, parse_mode=enums.ParseMode.HTML)
-                elif hasattr(message, 'from_user') and hasattr(message.from_user, 'id'):
-                    app.edit_message_text(message.from_user.id, initial_msg.id, new_text, parse_mode=enums.ParseMode.HTML)
-                else:
-                    app.edit_message_text(user_id, initial_msg.id, new_text, parse_mode=enums.ParseMode.HTML)
-                _last_update_text['text'] = new_text
-        except Exception as e:
-            if "MESSAGE_NOT_MODIFIED" in str(e):
-                return
-            logger.error(f"Error updating message: {e}")
+    else:
+        # Update the provided initial message with progress
+        update_message(f"🔄 Downloading and checking YouTube cookies...\n\nAttempt 1 of {len(cookie_urls)}")
     
     # Determine the order of attempts
     indices = list(range(len(cookie_urls)))
