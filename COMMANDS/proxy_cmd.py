@@ -240,16 +240,40 @@ def select_proxy_for_domain(url):
     else:
         domain = url.split('/')[0]
     
+    logger.info(f"select_proxy_for_domain: URL={url}, extracted_domain={domain}")
+    logger.info(f"PROXY_2_DOMAINS: {getattr(DomainsConfig, 'PROXY_2_DOMAINS', [])}")
+    logger.info(f"PROXY_DOMAINS: {getattr(DomainsConfig, 'PROXY_DOMAINS', [])}")
+    
+    # Helper function to check if domain matches any domain in the list (including subdomains)
+    def is_domain_in_list(domain, domain_list):
+        """Check if domain or any of its subdomains match entries in domain_list"""
+        if not domain_list:
+            return False
+        
+        # Direct match
+        if domain in domain_list:
+            return True
+        
+        # Check if any domain in the list is a subdomain of the current domain
+        for listed_domain in domain_list:
+            if domain.endswith('.' + listed_domain) or domain == listed_domain:
+                return True
+        
+        return False
+    
     # Check PROXY_2_DOMAINS first
     if hasattr(DomainsConfig, 'PROXY_2_DOMAINS') and DomainsConfig.PROXY_2_DOMAINS:
-        if domain in DomainsConfig.PROXY_2_DOMAINS:
+        if is_domain_in_list(domain, DomainsConfig.PROXY_2_DOMAINS):
+            logger.info(f"Domain {domain} found in PROXY_2_DOMAINS (or is subdomain), using proxy 2")
             return get_proxy_2_config()
     
     # Check PROXY_DOMAINS
     if hasattr(DomainsConfig, 'PROXY_DOMAINS') and DomainsConfig.PROXY_DOMAINS:
-        if domain in DomainsConfig.PROXY_DOMAINS:
+        if is_domain_in_list(domain, DomainsConfig.PROXY_DOMAINS):
+            logger.info(f"Domain {domain} found in PROXY_DOMAINS (or is subdomain), using proxy 1")
             return get_proxy_config()
     
+    logger.info(f"Domain {domain} not found in any proxy domain list")
     return None
 
 def add_proxy_to_ytdl_opts(ytdl_opts, url, user_id=None):
