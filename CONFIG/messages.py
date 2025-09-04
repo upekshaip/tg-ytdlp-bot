@@ -76,6 +76,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 🍪 <b>Cookies & Private:</b>
 • Upload *.txt cookie for private videos
 • <code>/cookie [service]</code> → download cookies (youtube/tiktok/x/custom)
+• <code>/cookie youtube 1</code> → pick source by index (1–N)
 • <code>/cookies_from_browser</code> → extract from browser
 • <code>/check_cookie</code> → verify cookie
 • <code>/save_as_cookie</code> → save text as cookie
@@ -130,6 +131,7 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 🍪 <b>Cookies:</b>
 • Загрузите *.txt для приватных видео
 • <code>/cookie [сервис]</code> → скачать куки (youtube/tiktok/x/custom)
+• <code>/cookie youtube 1</code> → выбрать источник по индексу (1–N)
 • <code>/cookies_from_browser</code> → из браузера
 • <code>/check_cookie</code> → проверить cookie
 • <code>/save_as_cookie</code> → сохранить текст как cookie

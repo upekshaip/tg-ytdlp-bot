@@ -20,6 +20,7 @@ from requests import Session
 from requests.adapters import HTTPAdapter
 import yt_dlp
 import time
+import random
 
 # Get app instance for decorators
 app = get_app()
@@ -28,6 +29,9 @@ app = get_app()
 # Format: {user_id: {'result': bool, 'timestamp': float, 'cookie_path': str}}
 _youtube_cookie_cache = {}
 _CACHE_DURATION = 30  # Cache results for 30 seconds
+
+# Round-robin pointer for YouTube cookie sources
+_yt_round_robin_index = 0
 
 @app.on_message(filters.command("cookies_from_browser") & filters.private)
 # @reply_with_keyboard
@@ -391,15 +395,28 @@ def checking_cookie_file(app, message):
             cookie_content = cookie.read()
         if cookie_content.startswith("# Netscape HTTP Cookie File"):
             # Check the functionality of YouTube cookies
-            send_to_user(message, "✅ Cookie file exists and has correct format\n\n🔄 Checking YouTube cookies...")
+            initial_msg = send_to_user(message, "✅ Cookie file exists and has correct format\n\n🔄 Checking YouTube cookies...")
             
-            # Check if the file contains YouTube cookies
-            if any(line.strip().endswith('.youtube.com') for line in cookie_content.split('\n') if line.strip() and not line.startswith('#')):
+            # Check if the file contains YouTube cookies (by domain column)
+            def _has_youtube_domain(text: str) -> bool:
+                for raw in text.split('\n'):
+                    line = raw.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                    # Split by tabs or spaces, domain is the first column
+                    parts = line.split('\t') if '\t' in line else line.split()
+                    if not parts:
+                        continue
+                    domain = parts[0].lower()
+                    if 'youtube.com' in domain:
+                        return True
+                return False
+            if _has_youtube_domain(cookie_content):
                 if test_youtube_cookies(file_path):
-                    send_to_user(message, "✅ Cookie file exists and has correct format\n✅ YouTube cookies are working properly")
+                    safe_edit_message_text(message.chat.id, initial_msg.id, "✅ Cookie file exists and has correct format\n✅ YouTube cookies are working properly")
                     send_to_logger(message, "Cookie file exists, has correct format, and YouTube cookies are working.")
                 else:
-                    send_to_user(message, "✅ Cookie file exists and has correct format\n❌ YouTube cookies are expired or invalid\n\nUse /cookie to get new cookies")
+                    safe_edit_message_text(message.chat.id, initial_msg.id, "✅ Cookie file exists and has correct format\n❌ YouTube cookies are expired or invalid\n\nUse /cookie to get new cookies")
                     send_to_logger(message, "Cookie file exists and has correct format, but YouTube cookies are expired.")
             else:
                 send_to_user(message, "✅ Cookie file exists and has correct format")
@@ -428,7 +445,7 @@ def download_cookie(app, message):
     """
     user_id = str(message.chat.id)
     
-    # Check for fast command with arguments: /cookie youtube, /cookie instagram, etc.
+    # Check for fast command with arguments: /cookie youtube, /cookie youtube <n>, /cookie instagram, etc.
     try:
         parts = (message.text or "").split()
         if len(parts) >= 2:
@@ -451,9 +468,15 @@ def download_cookie(app, message):
                         return
                     else:
                         send_to_user(message, "❌ Your existing YouTube cookies are expired or invalid.\n\n🔄 Downloading new cookies...")
-                
-                # Download and validate new cookies
-                download_and_validate_youtube_cookies(app, message)
+                # Optional specific index: /cookie youtube <n>
+                selected_index = None
+                if len(parts) >= 3 and parts[2].isdigit():
+                    try:
+                        selected_index = int(parts[2])
+                    except Exception:
+                        selected_index = None
+                # Download and validate new cookies (optionally a specific source)
+                download_and_validate_youtube_cookies(app, message, selected_index=selected_index)
                 return
             elif service in ["instagram", "twitter", "tiktok", "facebook", "own", "from_browser"]:
                 # Fast command - directly call the callback
@@ -470,7 +493,10 @@ def download_cookie(app, message):
     # Buttons for services
     buttons = [
         [
-            InlineKeyboardButton("📺 YouTube", callback_data="download_cookie|youtube"),
+            InlineKeyboardButton(
+                f"📺 YouTube (1-{max(1, len(get_youtube_cookie_urls()))})",
+                callback_data="download_cookie|youtube"
+            ),
             InlineKeyboardButton("🌐 From Browser (YouTube)", callback_data="download_cookie|from_browser"),            
         ],
         [
@@ -490,11 +516,18 @@ def download_cookie(app, message):
         ],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
-    text = """
+    text = f"""
 🍪 <b>Download Cookie Files</b>
 
 Choose a service to download the cookie file.
 Cookie files will be saved as cookie.txt in your folder.
+
+<blockquote>
+Tip: You can also use direct command:
+• <code>/cookie youtube</code> – download and validate cookies
+• <code>/cookie youtube 1</code> – use a specific source by index (1–{len(get_youtube_cookie_urls())})
+Then verify with <code>/check_cookie</code> (tests on RickRoll).
+</blockquote>
 """
     from HELPERS.safe_messeger import safe_send_message
     safe_send_message(
@@ -799,7 +832,7 @@ def get_youtube_cookie_urls() -> list:
     
     return urls
 
-def download_and_validate_youtube_cookies(app, message) -> bool:
+def download_and_validate_youtube_cookies(app, message, selected_index: int | None = None) -> bool:
     """
     Скачивает и проверяет YouTube куки из всех доступных источников.
     
@@ -892,41 +925,68 @@ def download_and_validate_youtube_cookies(app, message) -> bool:
     except Exception as e:
         logger.error(f"Error sending initial message: {e}")
     
-    # Helper function to update the message
+    # Helper function to update the message (avoid MESSAGE_NOT_MODIFIED)
+    _last_update_text = { 'text': None }
     def update_message(new_text):
         try:
+            if new_text == _last_update_text['text']:
+                return
             if initial_msg and hasattr(initial_msg, 'id'):
                 if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
-                    # It's a Message object - edit via app
                     app.edit_message_text(message.chat.id, initial_msg.id, new_text, parse_mode=enums.ParseMode.HTML)
                 elif hasattr(message, 'from_user') and hasattr(message.from_user, 'id'):
-                    # It's a CallbackQuery object - edit via app
                     app.edit_message_text(message.from_user.id, initial_msg.id, new_text, parse_mode=enums.ParseMode.HTML)
                 else:
-                    # Fallback - edit via app
                     app.edit_message_text(user_id, initial_msg.id, new_text, parse_mode=enums.ParseMode.HTML)
+                _last_update_text['text'] = new_text
         except Exception as e:
+            if "MESSAGE_NOT_MODIFIED" in str(e):
+                return
             logger.error(f"Error updating message: {e}")
     
-    for i, url in enumerate(cookie_urls, 1):
+    # Determine the order of attempts
+    indices = list(range(len(cookie_urls)))
+    global _yt_round_robin_index
+    if selected_index is not None:
+        # Use a specific 1-based index
+        if 1 <= selected_index <= len(cookie_urls):
+            indices = [selected_index - 1]
+        else:
+            update_message(f"❌ Invalid YouTube cookie index: {selected_index}. Available range is 1-{len(cookie_urls)}")
+            return False
+    else:
+        order = getattr(Config, 'YOUTUBE_COOKIE_ORDER', 'round_robin') or 'round_robin'
+        if order == 'random':
+            random.shuffle(indices)
+        else:
+            # round_robin: rotate starting position
+            if len(indices) > 0:
+                start = _yt_round_robin_index % len(indices)
+                indices = indices[start:] + indices[:start]
+                # advance pointer for next call
+                _yt_round_robin_index = (start + 1) % len(indices)
+
+    # Iterate over chosen order
+    for attempt_number, idx in enumerate(indices, 1):
+        url = cookie_urls[idx]
         try:
             # Update message about the current attempt
-            update_message(f"🔄 Downloading and checking YouTube cookies...\n\nAttempt {i} of {len(cookie_urls)}")
+            update_message(f"🔄 Downloading and checking YouTube cookies...\n\nAttempt {attempt_number} of {len(indices)}")
             
             # Download cookies
             ok, status, content, err = _download_content(url, timeout=30)
             if not ok:
-                logger.warning(f"Failed to download YouTube cookie from URL {i}: status={status}, error={err}")
+                logger.warning(f"Failed to download YouTube cookie from URL {idx + 1}: status={status}, error={err}")
                 continue
             
             # Check the format and size
             if not url.lower().endswith('.txt'):
-                logger.warning(f"YouTube cookie URL {i} is not .txt file")
+                logger.warning(f"YouTube cookie URL {idx + 1} is not .txt file")
                 continue
                 
             content_size = len(content or b"")
             if content_size > 100 * 1024:
-                logger.warning(f"YouTube cookie file {i} is too large: {content_size} bytes")
+                logger.warning(f"YouTube cookie file {idx + 1} is too large: {content_size} bytes")
                 continue
             
             # Save cookies to a temporary file
@@ -934,28 +994,28 @@ def download_and_validate_youtube_cookies(app, message) -> bool:
                 cf.write(content)
             
             # Update message about testing
-            update_message(f"🔄 Downloading and checking YouTube cookies...\n\nAttempt {i} of {len(cookie_urls)}\n🔍 Testing cookies...")
+            update_message(f"🔄 Downloading and checking YouTube cookies...\n\nAttempt {attempt_number} of {len(indices)}\n🔍 Testing cookies...")
             
             # Check the functionality of cookies
             if test_youtube_cookies(cookie_file_path):
-                update_message(f"✅ YouTube cookies successfully downloaded and validated!\n\nUsed source {i} of {len(cookie_urls)}")
+                update_message(f"✅ YouTube cookies successfully downloaded and validated!\n\nUsed source {idx + 1} of {len(cookie_urls)}")
                 # Safe logging
                 try:
                     if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
-                        send_to_logger(message, f"YouTube cookies downloaded and validated for user {user_id} from source {i}.")
+                        send_to_logger(message, f"YouTube cookies downloaded and validated for user {user_id} from source {idx + 1}.")
                     else:
-                        logger.info(f"YouTube cookies downloaded and validated for user {user_id} from source {i}")
+                        logger.info(f"YouTube cookies downloaded and validated for user {user_id} from source {idx + 1}")
                 except Exception as e:
                     logger.error(f"Error logging: {e}")
                 return True
             else:
-                logger.warning(f"YouTube cookies from source {i} failed validation")
+                logger.warning(f"YouTube cookies from source {idx + 1} failed validation")
                 # Remove non-working cookies
                 if os.path.exists(cookie_file_path):
                     os.remove(cookie_file_path)
                     
         except Exception as e:
-            logger.error(f"Error processing YouTube cookie URL {i}: {e}")
+            logger.error(f"Error processing YouTube cookie URL {idx + 1}: {e}")
             # Remove the file in case of an error
             if os.path.exists(cookie_file_path):
                 os.remove(cookie_file_path)
