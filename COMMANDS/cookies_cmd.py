@@ -958,7 +958,10 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
             update_message(f"❌ Invalid YouTube cookie index: {selected_index}. Available range is 1-{len(cookie_urls)}")
             return False
     else:
-        order = getattr(Config, 'YOUTUBE_COOKIE_ORDER', 'round_robin') or 'round_robin'
+        order = getattr(Config, 'YOUTUBE_COOKIE_ORDER', 'round_robin')
+        if not order:
+            order = 'round_robin'
+        logger.info(f"YouTube cookie order mode: {order}")
         if order == 'random':
             random.shuffle(indices)
         else:
@@ -968,6 +971,7 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
                 indices = indices[start:] + indices[:start]
                 # advance pointer for next call
                 _yt_round_robin_index = (start + 1) % len(indices)
+        logger.info(f"YouTube cookie indices order: {[i+1 for i in indices]}")
 
     # Iterate over chosen order
     for attempt_number, idx in enumerate(indices, 1):
