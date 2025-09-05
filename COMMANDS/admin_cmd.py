@@ -57,7 +57,7 @@ def reload_firebase_cache_command(app, message):
 
 def send_promo_message(app, message):
     # We get a list of users from the base
-    user_lst = db.child("bot").child("tgytdlp_bot").child("users").get().each()
+    user_lst = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").get().each()
     user_lst = [int(user.key()) for user in user_lst]
     # Add administrators if they are not on the list
     for admin in Config.ADMIN:
@@ -122,7 +122,7 @@ def get_user_log(app, message):
     if int(message.chat.id) in Config.ADMIN and Config.GET_USER_LOGS_COMMAND in message.text:
         user_id = message.text.split(Config.GET_USER_LOGS_COMMAND + " ")[1]
 
-    logs_dict = get_from_local_cache(["bot", "tgytdlp_bot", "logs", user_id])
+    logs_dict = get_from_local_cache(["bot", Config.BOT_NAME_FOR_USERS, "logs", user_id])
     if not logs_dict:
         send_to_all(message, "<b>❌ User did not download any content yet...</b> Not exist in logs")
         return
@@ -172,7 +172,7 @@ def get_user_details(app, message):
         send_to_all(message, "❌ Invalid command")
         return
 
-    data_dict = get_from_local_cache(["bot", "tgytdlp_bot", path])
+    data_dict = get_from_local_cache(["bot", Config.BOT_NAME_FOR_USERS, path])
     if not data_dict:
         send_to_all(message, f"❌ No data found in cache for <code>{path}</code>")
         return

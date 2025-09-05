@@ -167,8 +167,36 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
                 else:
                     logger.info(f"No domain-specific proxy required for {url}")
         else:
-            # Add proxy configuration if needed for this domain
-            ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url)
+            # use_proxy=False: Check if user has global proxy enabled OR domain requires proxy
+            from COMMANDS.proxy_cmd import is_proxy_enabled, select_proxy_for_user, select_proxy_for_domain, build_proxy_url
+            
+            # Check if user has global proxy enabled
+            proxy_enabled = is_proxy_enabled(user_id)
+            
+            if proxy_enabled:
+                # User has global proxy enabled - use proxy for ALL requests
+                proxy_config = select_proxy_for_user()
+                if proxy_config:
+                    proxy_url = build_proxy_url(proxy_config)
+                    if proxy_url:
+                        ytdl_opts['proxy'] = proxy_url
+                        logger.info(f"Using global proxy for link extraction (user enabled): {proxy_url}")
+                    else:
+                        logger.warning("Failed to build proxy URL from global config")
+                else:
+                    logger.warning("Global proxy enabled but no proxy configuration available")
+            else:
+                # User proxy disabled - check if domain requires specific proxy
+                proxy_config = select_proxy_for_domain(url)
+                if proxy_config:
+                    proxy_url = build_proxy_url(proxy_config)
+                    if proxy_url:
+                        ytdl_opts['proxy'] = proxy_url
+                        logger.info(f"Using domain-specific proxy for link extraction: {proxy_url}")
+                    else:
+                        logger.warning("Failed to build proxy URL for domain-specific proxy")
+                else:
+                    logger.info(f"User proxy disabled and domain doesn't require proxy - using direct connection for {url}")
         
         # Get video information
         with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
@@ -300,8 +328,8 @@ def link_command(app, message):
         # Send processing start message
         status_msg = app.send_message(user_id, "🔗 Getting direct link...", reply_to_message_id=message.id)
         
-        # Get direct link with proxy support
-        result = get_direct_link(url, user_id, quality_arg, use_proxy=True)
+        # Get direct link - use proxy only if user has proxy enabled and domain requires it
+        result = get_direct_link(url, user_id, quality_arg, use_proxy=False)
         
         if result.get('success'):
             title = result.get('title', 'Unknown')
