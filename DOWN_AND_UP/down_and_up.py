@@ -23,6 +23,7 @@ from DATABASE.firebase_init import write_logs
 from URL_PARSERS.tags import generate_final_tags, save_user_tags
 from URL_PARSERS.youtube import is_youtube_url, download_thumbnail
 from URL_PARSERS.nocookie import is_no_cookie_domain
+from URL_PARSERS.thumbnail_downloader import download_thumbnail as download_universal_thumbnail
 from CONFIG.config import Config
 from COMMANDS.subtitles_cmd import is_subs_enabled, check_subs_availability, get_user_subs_auto_mode, _subs_check_cache, download_subtitles_ytdlp, get_user_subs_language, clear_subs_check_cache, is_subs_always_ask
 from COMMANDS.split_sizer import get_user_split_size
@@ -63,6 +64,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
     """
+    # Import required modules at the beginning
+    from URL_PARSERS.youtube import is_youtube_url
+    from COMMANDS.cookies_cmd import is_youtube_cookie_error, is_youtube_geo_error, retry_download_with_different_cookies, retry_download_with_proxy
+    
     playlist_indices = []
     playlist_msg_ids = []    
     found_type = None
@@ -867,6 +872,37 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 nonlocal error_message
                 error_message = str(e)
                 logger.error(f"DownloadError: {error_message}")
+                
+                # Проверяем, связана ли ошибка с куками или региональными ограничениями YouTube
+                if is_youtube_url(url):
+                    if is_youtube_geo_error(error_message):
+                        logger.info(f"YouTube geo-blocked error detected for user {user_id}, attempting retry with proxy")
+                        
+                        # Пробуем скачать через прокси
+                        retry_result = retry_download_with_proxy(
+                            user_id, url, try_download, url, attempt_opts
+                        )
+                        
+                        if retry_result is not None:
+                            logger.info(f"Download retry with proxy successful for user {user_id}")
+                            return retry_result
+                        else:
+                            logger.warning(f"Download retry with proxy failed for user {user_id}")
+                    
+                    elif is_youtube_cookie_error(error_message):
+                        logger.info(f"YouTube cookie-related error detected for user {user_id}, attempting retry with different cookies")
+                        
+                        # Пробуем скачать с другими куками
+                        retry_result = retry_download_with_different_cookies(
+                            user_id, url, try_download, url, attempt_opts
+                        )
+                        
+                        if retry_result is not None:
+                            logger.info(f"Download retry successful for user {user_id}")
+                            return retry_result
+                        else:
+                            logger.warning(f"All cookie retry attempts failed for user {user_id}")
+                
                 # Send full error message with instructions immediately
                 send_to_all(
                     message,                   
@@ -1104,6 +1140,16 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             logger.info(f"Using YouTube thumbnail: {youtube_thumb_path}")
                 except Exception as e:
                     logger.warning(f"YouTube thumbnail download failed: {e}")
+            # If not YouTube or YouTube thumb not found, try universal thumbnail downloader
+            if not thumb_dir:
+                try:
+                    universal_thumb_path = os.path.join(dir_path, "universal_thumb.jpg")
+                    if download_universal_thumbnail(url, universal_thumb_path):
+                        if os.path.exists(universal_thumb_path):
+                            thumb_dir = universal_thumb_path
+                            logger.info(f"Using universal thumbnail: {universal_thumb_path}")
+                except Exception as e:
+                    logger.info(f"Universal thumbnail not available: {e}")
             
             # Get video duration (always needed)
             try:
@@ -1130,7 +1176,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 logger.warning(f"Failed to get video duration: {e}")
                 duration = 0
             
-            # Use ffmpeg thumbnail only as fallback (when YouTube thumbnail failed)
+            # Use ffmpeg thumbnail only as fallback (when both YouTube/universal thumbnails failed)
             if not thumb_dir:
                 result = get_duration_thumb(message, dir_path, user_vid_path, sanitize_filename(caption_name))
                 if result is None:
