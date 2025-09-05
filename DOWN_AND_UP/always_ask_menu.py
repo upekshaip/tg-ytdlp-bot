@@ -2180,6 +2180,166 @@ def sort_quality_key(quality_key):
         except ValueError:
             return 0  # for unknown formats
 
+def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, original_text, is_playlist, playlist_range):
+    """
+    Создает меню качества из кэшированных данных когда не удается получить новые.
+    
+    Args:
+        app: Экземпляр приложения
+        message: Сообщение пользователя
+        url: URL видео
+        tags: Теги
+        proc_msg: Сообщение о процессе
+        user_id: ID пользователя
+        original_text: Оригинальный текст сообщения
+        is_playlist: Является ли плейлистом
+        playlist_range: Диапазон плейлиста
+        
+    Returns:
+        bool: True если меню создано успешно, False если нет кэшированных данных
+    """
+    try:
+        logger.info(f"Attempting to create menu from cached qualities for user {user_id}")
+        
+        # Получаем кэшированные качества
+        if is_playlist and playlist_range:
+            cached_qualities = get_cached_playlist_qualities(get_clean_playlist_url(url))
+        else:
+            cached_qualities = get_cached_qualities(url)
+        
+        if not cached_qualities:
+            logger.info(f"No cached qualities found for user {user_id}")
+            return False
+        
+        logger.info(f"Found cached qualities for user {user_id}: {list(cached_qualities.keys())}")
+        
+        # Получаем базовую информацию о видео из кэша
+        try:
+            info = load_ask_info(user_id, url)
+            if not info:
+                # Пробуем получить минимальную информацию
+                info = {'title': 'Video (cached)', 'id': 'cached'}
+        except Exception:
+            info = {'title': 'Video (cached)', 'id': 'cached'}
+        
+        title = info.get('title', 'Video (cached)')
+        tags_text = generate_final_tags(url, tags, info)
+        
+        # Определяем NSFW
+        try:
+            is_nsfw = isinstance(tags_text, str) and ('#nsfw' in tags_text.lower())
+        except Exception:
+            is_nsfw = False
+        
+        # Создаем заголовок
+        cap = f"<b>{title}</b>\n"
+        if tags_text:
+            cap += f"{tags_text}\n"
+        cap += f"\n<b>📹 Available Qualities (from cache)</b>\n"
+        cap += f"\n<i>⚠️ Using cached qualities - new formats may not be available</i>\n"
+        
+        # Создаем кнопки качества из кэша
+        buttons = []
+        
+        # Добавляем кнопки для каждого кэшированного качества
+        quality_order = ["144p", "240p", "360p", "480p", "720p", "1080p", "1440p", "2160p", "4320p", "mp3"]
+        
+        for quality_key in quality_order:
+            if quality_key in cached_qualities:
+                if is_playlist and playlist_range:
+                    indices = list(range(playlist_range[0], playlist_range[1]+1))
+                    n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
+                    total = len(indices)
+                    icon = "🚀" if n_cached > 0 else "📹"
+                    postfix = f" ({n_cached}/{total})" if total > 1 else ""
+                    button_text = f"{icon}{quality_key}{postfix}"
+                else:
+                    icon = "🚀" if quality_key in cached_qualities else "📹"
+                    button_text = f"{icon}{quality_key}"
+                buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
+        
+        # Всегда добавляем Best Quality
+        quality_key = "best"
+        if is_playlist and playlist_range:
+            indices = list(range(playlist_range[0], playlist_range[1]+1))
+            n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
+            total = len(indices)
+            icon = "🚀" if n_cached > 0 else "📹"
+            postfix = f" ({n_cached}/{total})" if total > 1 else ""
+            button_text = f"{icon}Best{postfix}"
+        else:
+            icon = "🚀" if quality_key in cached_qualities else "📹"
+            button_text = f"{icon}Best"
+        buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
+        
+        # Всегда добавляем Other Qualities
+        buttons.append(InlineKeyboardButton("🎛Other", callback_data=f"askq|other_qualities"))
+        
+        # Создаем клавиатуру
+        keyboard_rows = []
+        
+        # Добавляем фильтры
+        filter_rows, filter_action_buttons = build_filter_rows(user_id, url)
+        keyboard_rows.extend(filter_rows)
+        
+        # Группируем кнопки качества по 3 в ряд
+        if buttons:
+            total_quality_buttons = len(buttons)
+            if total_quality_buttons % 3 == 0:
+                for i in range(0, total_quality_buttons, 3):
+                    keyboard_rows.append(buttons[i:i+3])
+            elif total_quality_buttons % 3 == 1 and total_quality_buttons > 1:
+                for i in range(0, total_quality_buttons - 4, 3):
+                    keyboard_rows.append(buttons[i:i+3])
+                keyboard_rows.append(buttons[-4:-2])
+                keyboard_rows.append(buttons[-2:])
+            else:
+                for i in range(0, total_quality_buttons, 3):
+                    keyboard_rows.append(buttons[i:i+3])
+        
+        # Собираем action buttons
+        action_buttons = []
+        action_buttons.extend(filter_action_buttons)
+        
+        # Добавляем WATCH кнопку для YouTube (без LINK кнопки)
+        try:
+            if is_youtube_url(url):
+                piped_url = youtube_to_piped_url(url)
+                wa = WebAppInfo(url=piped_url)
+                action_buttons.append(InlineKeyboardButton("👁Watch", web_app=wa))
+        except Exception as e:
+            logger.error(f"Error adding WATCH button: {e}")
+        
+        # Группируем action buttons
+        if action_buttons:
+            for i in range(0, len(action_buttons), 3):
+                keyboard_rows.append(action_buttons[i:i+3])
+        
+        # Добавляем кнопку закрытия
+        keyboard_rows.append([InlineKeyboardButton("🔚Close", callback_data="askq|close")])
+        
+        keyboard = InlineKeyboardMarkup(keyboard_rows)
+        
+        # Отправляем меню
+        try:
+            if proc_msg:
+                result = app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+                if result is None:
+                    app.send_message(user_id, cap, reply_parameters=ReplyParameters(message_id=message.id), parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+            else:
+                app.send_message(user_id, cap, reply_parameters=ReplyParameters(message_id=message.id), parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+            
+            logger.info(f"Successfully created cached qualities menu for user {user_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error sending cached qualities menu: {e}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error creating cached qualities menu: {e}")
+        return False
+
 # @reply_with_keyboard
 def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
     """Show quality selection menu for video"""
@@ -3235,6 +3395,21 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 logger.warning(f"Failed to send flood notice: {e}")
         return
     except Exception as e:
+        logger.error(f"Error retrieving video information for user {user_id}: {e}")
+        
+        # Сначала пробуем создать меню из кэшированных качеств
+        try:
+            logger.info(f"Attempting to create menu from cached qualities for user {user_id}")
+            if create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, original_text, is_playlist, playlist_range):
+                logger.info(f"Successfully created cached qualities menu for user {user_id}")
+                send_to_logger(message, f"Created cached qualities menu for user {user_id} after error: {e}")
+                return
+            else:
+                logger.info(f"No cached qualities available for user {user_id}, showing error message")
+        except Exception as cache_error:
+            logger.error(f"Error creating cached qualities menu: {cache_error}")
+        
+        # Если кэшированных качеств нет, показываем ошибку
         error_text = f"❌ Error retrieving video information:\n{e}\n> Try the /clean command and try again. If the error persists, YouTube requires authorization. Update cookies.txt via /cookie or /cookies_from_browser and try again."
         try:
             if proc_msg:

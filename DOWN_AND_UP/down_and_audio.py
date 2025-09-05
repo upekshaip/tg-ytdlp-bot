@@ -35,6 +35,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
     """
+    # Import required modules at the beginning
+    from COMMANDS.cookies_cmd import is_youtube_cookie_error, is_youtube_geo_error, retry_download_with_different_cookies, retry_download_with_proxy
+    
     playlist_indices = []
     playlist_msg_ids = []  
         
@@ -463,9 +466,6 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 logger.error(f"DownloadError: {error_text}")
                 
                 # Проверяем, связана ли ошибка с куками или региональными ограничениями YouTube
-                from URL_PARSERS.youtube import is_youtube_url
-                from COMMANDS.cookies_cmd import is_youtube_cookie_error, is_youtube_geo_error, retry_download_with_different_cookies, retry_download_with_proxy
-                
                 if is_youtube_url(url):
                     if is_youtube_geo_error(error_text):
                         logger.info(f"YouTube geo-blocked error detected for user {user_id}, attempting retry with proxy")
