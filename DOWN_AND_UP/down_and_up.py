@@ -23,6 +23,7 @@ from DATABASE.firebase_init import write_logs
 from URL_PARSERS.tags import generate_final_tags, save_user_tags
 from URL_PARSERS.youtube import is_youtube_url, download_thumbnail
 from URL_PARSERS.nocookie import is_no_cookie_domain
+from URL_PARSERS.thumbnail_downloader import download_thumbnail as download_universal_thumbnail
 from CONFIG.config import Config
 from COMMANDS.subtitles_cmd import is_subs_enabled, check_subs_availability, get_user_subs_auto_mode, _subs_check_cache, download_subtitles_ytdlp, get_user_subs_language, clear_subs_check_cache, is_subs_always_ask
 from COMMANDS.split_sizer import get_user_split_size
@@ -1104,6 +1105,16 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             logger.info(f"Using YouTube thumbnail: {youtube_thumb_path}")
                 except Exception as e:
                     logger.warning(f"YouTube thumbnail download failed: {e}")
+            # If not YouTube or YouTube thumb not found, try universal thumbnail downloader
+            if not thumb_dir:
+                try:
+                    universal_thumb_path = os.path.join(dir_path, "universal_thumb.jpg")
+                    if download_universal_thumbnail(url, universal_thumb_path):
+                        if os.path.exists(universal_thumb_path):
+                            thumb_dir = universal_thumb_path
+                            logger.info(f"Using universal thumbnail: {universal_thumb_path}")
+                except Exception as e:
+                    logger.info(f"Universal thumbnail not available: {e}")
             
             # Get video duration (always needed)
             try:
@@ -1130,7 +1141,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 logger.warning(f"Failed to get video duration: {e}")
                 duration = 0
             
-            # Use ffmpeg thumbnail only as fallback (when YouTube thumbnail failed)
+            # Use ffmpeg thumbnail only as fallback (when both YouTube/universal thumbnails failed)
             if not thumb_dir:
                 result = get_duration_thumb(message, dir_path, user_vid_path, sanitize_filename(caption_name))
                 if result is None:
