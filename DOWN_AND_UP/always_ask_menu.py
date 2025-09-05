@@ -2211,7 +2211,7 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
             logger.info(f"No cached qualities found for user {user_id}")
             return False
         
-        logger.info(f"Found cached qualities for user {user_id}: {list(cached_qualities.keys())}")
+        logger.info(f"Found cached qualities for user {user_id}: {list(cached_qualities)}")
         
         # Получаем базовую информацию о видео из кэша
         try:
@@ -2323,9 +2323,16 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         # Отправляем меню
         try:
             if proc_msg:
-                result = app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
-                if result is None:
-                    app.send_message(user_id, cap, reply_parameters=ReplyParameters(message_id=message.id), parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+                try:
+                    result = app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+                    if result is None:
+                        app.send_message(user_id, cap, reply_parameters=ReplyParameters(message_id=message.id), parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+                except Exception as edit_error:
+                    if "MESSAGE_ID_INVALID" in str(edit_error):
+                        logger.warning(f"Message ID invalid, sending new message: {edit_error}")
+                        app.send_message(user_id, cap, reply_parameters=ReplyParameters(message_id=message.id), parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+                    else:
+                        raise edit_error
             else:
                 app.send_message(user_id, cap, reply_parameters=ReplyParameters(message_id=message.id), parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
             
