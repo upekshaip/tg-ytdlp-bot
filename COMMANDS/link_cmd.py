@@ -167,8 +167,27 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
                 else:
                     logger.info(f"No domain-specific proxy required for {url}")
         else:
-            # Add proxy configuration if needed for this domain
-            ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url)
+            # use_proxy=False: Only use proxy if user has proxy enabled AND domain requires it
+            from COMMANDS.proxy_cmd import is_proxy_enabled, select_proxy_for_domain, build_proxy_url
+            from CONFIG.domains import DomainsConfig
+            
+            # Check if user has proxy enabled
+            proxy_enabled = is_proxy_enabled(user_id)
+            
+            if proxy_enabled:
+                # User has proxy enabled - check if domain requires proxy
+                proxy_config = select_proxy_for_domain(url)
+                if proxy_config:
+                    proxy_url = build_proxy_url(proxy_config)
+                    if proxy_url:
+                        ytdl_opts['proxy'] = proxy_url
+                        logger.info(f"Using proxy for link extraction (user enabled + domain requires): {proxy_url}")
+                    else:
+                        logger.warning("Failed to build proxy URL for domain-specific proxy")
+                else:
+                    logger.info(f"User has proxy enabled but domain {url} doesn't require proxy - using direct connection")
+            else:
+                logger.info(f"User proxy disabled and use_proxy=False - using direct connection for {url}")
         
         # Get video information
         with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
@@ -300,8 +319,8 @@ def link_command(app, message):
         # Send processing start message
         status_msg = app.send_message(user_id, "🔗 Getting direct link...", reply_to_message_id=message.id)
         
-        # Get direct link with proxy support
-        result = get_direct_link(url, user_id, quality_arg, use_proxy=True)
+        # Get direct link - use proxy only if user has proxy enabled and domain requires it
+        result = get_direct_link(url, user_id, quality_arg, use_proxy=False)
         
         if result.get('success'):
             title = result.get('title', 'Unknown')

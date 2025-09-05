@@ -3451,8 +3451,8 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
         if data != "best" and data != "mp3":
             quality_arg = data
         
-        # Get direct link
-        result = get_direct_link(url, user_id, quality_arg, cookies_already_checked=True, use_proxy=True)
+        # Get direct link - use proxy only if user has proxy enabled and domain requires it
+        result = get_direct_link(url, user_id, quality_arg, cookies_already_checked=True, use_proxy=False)
         
         if result.get('success'):
             title = result.get('title', 'Unknown')
