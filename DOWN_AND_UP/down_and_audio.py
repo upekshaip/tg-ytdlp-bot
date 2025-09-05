@@ -461,6 +461,40 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             except yt_dlp.utils.DownloadError as e:
                 error_text = str(e)
                 logger.error(f"DownloadError: {error_text}")
+                
+                # Проверяем, связана ли ошибка с куками или региональными ограничениями YouTube
+                from URL_PARSERS.youtube import is_youtube_url
+                from COMMANDS.cookies_cmd import is_youtube_cookie_error, is_youtube_geo_error, retry_download_with_different_cookies, retry_download_with_proxy
+                
+                if is_youtube_url(url):
+                    if is_youtube_geo_error(error_text):
+                        logger.info(f"YouTube geo-blocked error detected for user {user_id}, attempting retry with proxy")
+                        
+                        # Пробуем скачать через прокси
+                        retry_result = retry_download_with_proxy(
+                            user_id, url, try_download_audio, url, current_index
+                        )
+                        
+                        if retry_result is not None:
+                            logger.info(f"Audio download retry with proxy successful for user {user_id}")
+                            return retry_result
+                        else:
+                            logger.warning(f"Audio download retry with proxy failed for user {user_id}")
+                    
+                    elif is_youtube_cookie_error(error_text):
+                        logger.info(f"YouTube cookie-related error detected for user {user_id}, attempting retry with different cookies")
+                        
+                        # Пробуем скачать с другими куками
+                        retry_result = retry_download_with_different_cookies(
+                            user_id, url, try_download_audio, url, current_index
+                        )
+                        
+                        if retry_result is not None:
+                            logger.info(f"Audio download retry successful for user {user_id}")
+                            return retry_result
+                        else:
+                            logger.warning(f"All cookie retry attempts failed for user {user_id}")
+                
                 # Send full error message with instructions immediately
                 send_to_all(
                     message,

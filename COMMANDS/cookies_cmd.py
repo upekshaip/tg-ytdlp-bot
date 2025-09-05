@@ -16,10 +16,10 @@ import subprocess
 import os
 import requests
 import re
+import time
 from requests import Session
 from requests.adapters import HTTPAdapter
 import yt_dlp
-import time
 import random
 
 # Get app instance for decorators
@@ -1170,6 +1170,255 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
         'cookie_path': cookie_file_path
     }
     return False
+
+def is_youtube_cookie_error(error_message: str) -> bool:
+    """
+    Определяет, связана ли ошибка скачивания с проблемами куков YouTube.
+    
+    Args:
+        error_message (str): Сообщение об ошибке от yt-dlp
+        
+    Returns:
+        bool: True если ошибка связана с куками, False если нет
+    """
+    error_lower = error_message.lower()
+    
+    # Ключевые слова, указывающие на проблемы с куками/авторизацией
+    cookie_related_keywords = [
+        'sign in', 'login required', 'private video', 'age restricted',
+        'video unavailable', 'cookies', 'authentication', 'format not found',
+        'no formats found', 'unable to extract', 'http error 403',
+        'http error 401', 'forbidden', 'unauthorized', 'access denied',
+        'this video is not available', 'video is private', 'members only',
+        'premium content', 'subscription required', 'copyright', 'dmca'
+    ]
+    
+    return any(keyword in error_lower for keyword in cookie_related_keywords)
+
+def is_youtube_geo_error(error_message: str) -> bool:
+    """
+    Определяет, связана ли ошибка скачивания с региональными ограничениями YouTube.
+    
+    Args:
+        error_message (str): Сообщение об ошибке от yt-dlp
+        
+    Returns:
+        bool: True если ошибка связана с региональными ограничениями, False если нет
+    """
+    error_lower = error_message.lower()
+    
+    # Ключевые слова, указывающие на региональные ограничения
+    geo_related_keywords = [
+        'region blocked', 'geo-blocked', 'country restricted', 'not available in your country',
+        'this video is not available in your country', 'video unavailable in your region',
+        'blocked in your region', 'geographic restriction', 'location restricted',
+        'not available in this region', 'country not supported', 'regional restriction'
+    ]
+    
+    return any(keyword in error_lower for keyword in geo_related_keywords)
+
+def retry_download_with_proxy(user_id: int, url: str, download_func, *args, **kwargs):
+    """
+    Повторяет скачивание через прокси при региональных ошибках.
+    
+    Args:
+        user_id (int): ID пользователя
+        url (str): URL для скачивания
+        download_func: Функция скачивания для повторного вызова
+        *args, **kwargs: Аргументы для функции скачивания
+        
+    Returns:
+        Результат успешного скачивания или None если все попытки неудачны
+    """
+    from URL_PARSERS.youtube import is_youtube_url
+    
+    # Проверяем только для YouTube URL
+    if not is_youtube_url(url):
+        return None
+    
+    logger.info(f"Attempting to retry download with proxy for user {user_id}")
+    
+    # Получаем конфигурацию прокси
+    try:
+        from COMMANDS.proxy_cmd import get_proxy_config
+        proxy_config = get_proxy_config()
+        
+        if not proxy_config or 'type' not in proxy_config or 'ip' not in proxy_config or 'port' not in proxy_config:
+            logger.warning(f"No proxy configuration available for retry for user {user_id}")
+            return None
+        
+        # Строим URL прокси
+        if proxy_config['type'] == 'http':
+            if proxy_config.get('user') and proxy_config.get('password'):
+                proxy_url = f"http://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+            else:
+                proxy_url = f"http://{proxy_config['ip']}:{proxy_config['port']}"
+        elif proxy_config['type'] == 'https':
+            if proxy_config.get('user') and proxy_config.get('password'):
+                proxy_url = f"https://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+            else:
+                proxy_url = f"https://{proxy_config['ip']}:{proxy_config['port']}"
+        elif proxy_config['type'] in ['socks4', 'socks5', 'socks5h']:
+            if proxy_config.get('user') and proxy_config.get('password'):
+                proxy_url = f"{proxy_config['type']}://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+            else:
+                proxy_url = f"{proxy_config['type']}://{proxy_config['ip']}:{proxy_config['port']}"
+        else:
+            if proxy_config.get('user') and proxy_config.get('password'):
+                proxy_url = f"http://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+            else:
+                proxy_url = f"http://{proxy_config['ip']}:{proxy_config['port']}"
+        
+        logger.info(f"Retrying download with proxy: {proxy_url}")
+        
+        # Повторяем скачивание с прокси
+        try:
+            # Добавляем параметр use_proxy=True для функции скачивания
+            kwargs['use_proxy'] = True
+            result = download_func(*args, **kwargs)
+            if result is not None:
+                logger.info(f"Download retry with proxy successful for user {user_id}")
+                return result
+            else:
+                logger.warning(f"Download retry with proxy failed for user {user_id}")
+                return None
+        except Exception as e:
+            logger.warning(f"Download retry with proxy failed for user {user_id}: {e}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Error setting up proxy retry for user {user_id}: {e}")
+        return None
+
+def retry_download_with_different_cookies(user_id: int, url: str, download_func, *args, **kwargs):
+    """
+    Повторяет скачивание с разными куками при ошибках, связанных с куками.
+    
+    Args:
+        user_id (int): ID пользователя
+        url (str): URL для скачивания
+        download_func: Функция скачивания для повторного вызова
+        *args, **kwargs: Аргументы для функции скачивания
+        
+    Returns:
+        Результат успешного скачивания или None если все попытки неудачны
+    """
+    from URL_PARSERS.youtube import is_youtube_url
+    
+    # Проверяем только для YouTube URL
+    if not is_youtube_url(url):
+        return None
+    
+    logger.info(f"Attempting to retry download with different cookies for user {user_id}")
+    
+    # Получаем список источников куков
+    cookie_urls = get_youtube_cookie_urls()
+    if not cookie_urls:
+        logger.warning(f"No YouTube cookie sources available for retry for user {user_id}")
+        return None
+    
+    user_dir = os.path.join("users", str(user_id))
+    create_directory(user_dir)
+    cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
+    cookie_file_path = os.path.join(user_dir, cookie_filename)
+    
+    # Определяем порядок попыток
+    indices = list(range(len(cookie_urls)))
+    global _yt_round_robin_index
+    order = getattr(Config, 'YOUTUBE_COOKIE_ORDER', 'round_robin')
+    if order == 'random':
+        import random
+        random.shuffle(indices)
+    else:
+        # round_robin: начинаем со следующего источника
+        if len(indices) > 0:
+            start = _yt_round_robin_index % len(indices)
+            indices = indices[start:] + indices[:start]
+            _yt_round_robin_index = (start + 1) % len(indices)
+    
+    logger.info(f"Retrying download with cookie sources in order: {[i+1 for i in indices]}")
+    
+    # Пробуем каждый источник куков
+    for attempt, idx in enumerate(indices, 1):
+        try:
+            logger.info(f"Retry attempt {attempt}/{len(indices)} with cookie source {idx + 1} for user {user_id}")
+            
+            # Скачиваем куки
+            ok, status, content, err = _download_content(cookie_urls[idx], timeout=30)
+            if not ok:
+                logger.warning(f"Failed to download cookie from source {idx + 1}: status={status}, error={err}")
+                continue
+            
+            # Проверяем формат и размер
+            if not cookie_urls[idx].lower().endswith('.txt'):
+                logger.warning(f"Cookie URL {idx + 1} is not .txt file")
+                continue
+                
+            content_size = len(content or b"")
+            if content_size > 100 * 1024:
+                logger.warning(f"Cookie file {idx + 1} is too large: {content_size} bytes")
+                continue
+            
+            # Сохраняем куки
+            with open(cookie_file_path, "wb") as cf:
+                cf.write(content)
+            
+            # Проверяем работоспособность
+            if test_youtube_cookies(cookie_file_path):
+                logger.info(f"Cookie source {idx + 1} is working, retrying download for user {user_id}")
+                
+                # Обновляем кеш
+                current_time = time.time()
+                _youtube_cookie_cache[user_id] = {
+                    'result': True,
+                    'timestamp': current_time,
+                    'cookie_path': cookie_file_path
+                }
+                
+                # Повторяем скачивание
+                try:
+                    result = download_func(*args, **kwargs)
+                    if result is not None:
+                        logger.info(f"Download retry successful with cookie source {idx + 1} for user {user_id}")
+                        return result
+                    else:
+                        logger.warning(f"Download retry failed with cookie source {idx + 1} for user {user_id}")
+                except Exception as e:
+                    logger.warning(f"Download retry failed with cookie source {idx + 1} for user {user_id}: {e}")
+                    # Проверяем, связана ли ошибка с куками
+                    if is_youtube_cookie_error(str(e)):
+                        logger.info(f"Error is cookie-related, trying next source for user {user_id}")
+                        continue
+                    else:
+                        logger.info(f"Error is not cookie-related, stopping retry for user {user_id}")
+                        return None
+            else:
+                logger.warning(f"Cookie source {idx + 1} failed validation for user {user_id}")
+                # Удаляем нерабочие куки
+                if os.path.exists(cookie_file_path):
+                    os.remove(cookie_file_path)
+                    
+        except Exception as e:
+            logger.error(f"Error processing cookie source {idx + 1} for user {user_id}: {e}")
+            # Удаляем файл в случае ошибки
+            if os.path.exists(cookie_file_path):
+                os.remove(cookie_file_path)
+            continue
+    
+    # Если все источники не сработали
+    logger.warning(f"All cookie sources failed for retry download for user {user_id}")
+    if os.path.exists(cookie_file_path):
+        os.remove(cookie_file_path)
+    
+    # Обновляем кеш
+    current_time = time.time()
+    _youtube_cookie_cache[user_id] = {
+        'result': False,
+        'timestamp': current_time,
+        'cookie_path': cookie_file_path
+    }
+    
+    return None
 
 def clear_youtube_cookie_cache(user_id: int = None):
     """
