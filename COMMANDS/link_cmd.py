@@ -167,27 +167,36 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
                 else:
                     logger.info(f"No domain-specific proxy required for {url}")
         else:
-            # use_proxy=False: Only use proxy if user has proxy enabled AND domain requires it
-            from COMMANDS.proxy_cmd import is_proxy_enabled, select_proxy_for_domain, build_proxy_url
-            from CONFIG.domains import DomainsConfig
+            # use_proxy=False: Check if user has global proxy enabled OR domain requires proxy
+            from COMMANDS.proxy_cmd import is_proxy_enabled, select_proxy_for_user, select_proxy_for_domain, build_proxy_url
             
-            # Check if user has proxy enabled
+            # Check if user has global proxy enabled
             proxy_enabled = is_proxy_enabled(user_id)
             
             if proxy_enabled:
-                # User has proxy enabled - check if domain requires proxy
+                # User has global proxy enabled - use proxy for ALL requests
+                proxy_config = select_proxy_for_user()
+                if proxy_config:
+                    proxy_url = build_proxy_url(proxy_config)
+                    if proxy_url:
+                        ytdl_opts['proxy'] = proxy_url
+                        logger.info(f"Using global proxy for link extraction (user enabled): {proxy_url}")
+                    else:
+                        logger.warning("Failed to build proxy URL from global config")
+                else:
+                    logger.warning("Global proxy enabled but no proxy configuration available")
+            else:
+                # User proxy disabled - check if domain requires specific proxy
                 proxy_config = select_proxy_for_domain(url)
                 if proxy_config:
                     proxy_url = build_proxy_url(proxy_config)
                     if proxy_url:
                         ytdl_opts['proxy'] = proxy_url
-                        logger.info(f"Using proxy for link extraction (user enabled + domain requires): {proxy_url}")
+                        logger.info(f"Using domain-specific proxy for link extraction: {proxy_url}")
                     else:
                         logger.warning("Failed to build proxy URL for domain-specific proxy")
                 else:
-                    logger.info(f"User has proxy enabled but domain {url} doesn't require proxy - using direct connection")
-            else:
-                logger.info(f"User proxy disabled and use_proxy=False - using direct connection for {url}")
+                    logger.info(f"User proxy disabled and domain doesn't require proxy - using direct connection for {url}")
         
         # Get video information
         with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
