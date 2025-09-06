@@ -16,6 +16,139 @@ https://t.me/tgytdlp_bot
 
 ---
 
+## PO Token Provider Setup (YouTube Bypass)
+
+The bot now supports **PO Token Provider** for bypassing YouTube's "Sign in to confirm you're not a bot" restrictions and other blocking mechanisms.
+
+### What is PO Token Provider?
+
+PO (Proof-of-Origin) Token Provider is a service that generates tokens to make your yt-dlp requests appear more legitimate to YouTube, helping bypass various blocking mechanisms including:
+- "Sign in to confirm you're not a bot" messages
+- IP-based restrictions
+- Rate limiting
+- Other anti-bot measures
+
+### Docker Installation (Recommended)
+
+#### 1. Install Docker (if not already installed)
+
+**Ubuntu/Debian:**
+```bash
+sudo apt update
+sudo apt install -y docker.io
+sudo systemctl enable --now docker
+```
+
+**CentOS/RHEL:**
+```bash
+sudo yum install -y docker
+sudo systemctl enable --now docker
+```
+
+#### 2. Run PO Token Provider Container
+
+```bash
+docker run -d \
+  --name bgutil-provider \
+  -p 4416:4416 \
+  --init \
+  --restart unless-stopped \
+  brainicism/bgutil-ytdlp-pot-provider
+```
+
+**Parameters:**
+- `-d`: Run in background (detached mode)
+- `--name bgutil-provider`: Container name
+- `-p 4416:4416`: Map port 4416 (container) to 4416 (host)
+- `--init`: Proper process handling
+- `--restart unless-stopped`: Auto-restart on reboot or crash
+
+#### 3. Verify Installation
+
+Check if container is running:
+```bash
+docker ps
+```
+
+Test the provider:
+```bash
+curl http://127.0.0.1:4416
+```
+
+#### 4. Install yt-dlp Plugin
+
+Install the PO token provider plugin for yt-dlp:
+```bash
+python3 -m pip install -U bgutil-ytdlp-pot-provider
+```
+
+#### 5. Configure Bot
+
+The bot is already configured to use PO token provider. Settings in `CONFIG/config.py`:
+
+```python
+# PO Token Provider configuration for YouTube
+YOUTUBE_POT_ENABLED = True
+YOUTUBE_POT_BASE_URL = "http://127.0.0.1:4416"
+YOUTUBE_POT_DISABLE_INNERTUBE = False
+```
+
+### Container Management
+
+**Stop container:**
+```bash
+docker stop bgutil-provider
+```
+
+**Start container:**
+```bash
+docker start bgutil-provider
+```
+
+**View logs:**
+```bash
+docker logs -f bgutil-provider
+```
+
+**Remove container:**
+```bash
+docker stop bgutil-provider
+docker rm bgutil-provider
+```
+
+### Troubleshooting
+
+**Container won't start:**
+- Check if port 4416 is already in use: `netstat -tulpn | grep 4416`
+- Verify Docker is running: `systemctl status docker`
+
+**Provider not responding:**
+- Check container logs: `docker logs bgutil-provider`
+- Verify container is running: `docker ps`
+- Test connectivity: `curl http://127.0.0.1:4416`
+
+**yt-dlp errors:**
+- Ensure plugin is installed: `pip list | grep bgutil`
+- Check bot logs for PO token messages
+- Verify `YOUTUBE_POT_ENABLED = True` in config
+
+### How It Works
+
+1. **Automatic Detection**: Bot automatically detects YouTube URLs
+2. **Token Generation**: PO token provider generates legitimate tokens
+3. **Request Enhancement**: yt-dlp uses these tokens to bypass restrictions
+4. **Transparent Operation**: Works seamlessly with existing proxy and cookie systems
+
+### Benefits
+
+- ✅ Bypasses "Sign in to confirm you're not a bot" messages
+- ✅ Reduces IP-based blocking
+- ✅ Improves download success rates
+- ✅ Works with existing proxy and cookie configurations
+- ✅ Automatic integration - no user action required
+
+---
+
 ## Deploy on a VM 
 
 - First, add your bot to the **logging channel** and **subscription channel**. Both are required.
@@ -305,6 +438,7 @@ python3 magic.py
 - **/audio** - Download audio from a video URL.
 - **/link** - Get direct video links with quality selection (e.g., `/link 720 URL`, `/link 4k URL`). Also provides direct links for media players (VLC, MX Player, Infuse, IINA, nPlayer, MPV).
 - **/proxy** - Enable/disable proxy for all yt-dlp downloads (`/proxy on`, `/proxy off`). When enabled, all downloads use the configured proxy server.
+- **PO Token Provider** - Automatically bypasses YouTube restrictions including "Sign in to confirm you're not a bot" messages. Works transparently with all YouTube operations.
 - **/format** - Choose media format options with advanced codec selection (H.264/AVC, AV1, VP9) and container preferences (MP4, MKV).
   - **With arguments**: `/format 720`, `/format 4k`, `/format 8k` - Set quality directly
 - **/split** - Change splitted video part size (100MB-2GB).
@@ -325,6 +459,35 @@ python3 magic.py
 ---
 
 ## Advanced Features
+
+### PO Token Provider (YouTube Bypass)
+
+The bot automatically uses PO Token Provider for all YouTube operations to bypass various restrictions:
+
+**Features:**
+- **Automatic Detection**: Works transparently with all YouTube URLs
+- **Restriction Bypass**: Handles "Sign in to confirm you're not a bot" messages
+- **IP Protection**: Reduces IP-based blocking and rate limiting
+- **Seamless Integration**: Works with existing proxy and cookie systems
+- **No User Action**: Completely automatic - no commands needed
+
+**How it works:**
+1. Bot detects YouTube URLs automatically
+2. PO token provider generates legitimate tokens
+3. yt-dlp uses these tokens to bypass restrictions
+4. Downloads proceed normally with enhanced success rates
+
+**Configuration:**
+```python
+# In CONFIG/config.py
+YOUTUBE_POT_ENABLED = True
+YOUTUBE_POT_BASE_URL = "http://127.0.0.1:4416"
+YOUTUBE_POT_DISABLE_INNERTUBE = False
+```
+
+**Requirements:**
+- Docker container running `brainicism/bgutil-ytdlp-pot-provider`
+- yt-dlp plugin: `bgutil-ytdlp-pot-provider`
 
 ### Proxy Download Support (`/proxy`)
 - **Global Proxy Control**: Enable/disable proxy for all yt-dlp operations
