@@ -716,7 +716,7 @@ def test_youtube_cookies(cookie_file_path: str) -> bool:
     """
     try:
         # Test URL - use a short YouTube video for testing
-        test_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"  # Rick Roll - short video
+        test_url = Config.YOUTUBE_COOKIE_TEST_URL
         
         ydl_opts = {
             'quiet': True,
