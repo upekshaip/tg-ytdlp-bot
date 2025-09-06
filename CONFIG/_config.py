@@ -14,7 +14,7 @@ class Config(object):
     # Your bot name - Required (str)
     BOT_NAME = "tgytdlp_test_bot"
     # A name for users - Required (str)
-    BOT_NAME_FOR_USERS = "tg-ytdlp-bot" #name in database
+    BOT_NAME_FOR_USERS = "tgytdlp_bot" #name in database
     # Список ID администраторов
     ADMIN = [00000000, 111111111111]
     # Add allowed group IDs - Only these groups will be served by the bot
@@ -44,6 +44,8 @@ class Config(object):
     #YOUTUBE_COOKIE_URL_4 = "https://XXX/cookie4.txt"
     #YOUTUBE_COOKIE_URL_10 = "https://XXX/cookie10.txt"
     YOUTUBE_COOKIE_ORDER = "round_robin" # random, round_robin
+    # YouTube test URL for cookie validation
+    YOUTUBE_COOKIE_TEST_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"  # Rick Roll - short video
     #INSTAGRAM_COOKIE_URL = "https://XXX/instagram_cookie.txt"
     TIKTOK_COOKIE_URL = "https://XXX/tiktok_cookie.txt"
     #FACEBOOK_COOKIE_URL = "https://XXX/facebook_cookie.txt"
