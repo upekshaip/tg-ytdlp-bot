@@ -45,7 +45,8 @@ class Config(object):
     #YOUTUBE_COOKIE_URL_10 = "https://XXX/cookie10.txt"
     YOUTUBE_COOKIE_ORDER = "round_robin" # random, round_robin
     # YouTube test URL for cookie validation
-    YOUTUBE_COOKIE_TEST_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"  # Rick Roll - short video
+    YOUTUBE_COOKIE_TEST_URL = "https://youtu.be/XqZsoesa55w"  # Short video
+    #YOUTUBE_COOKIE_TEST_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"  # Rick Roll - short video
     #INSTAGRAM_COOKIE_URL = "https://XXX/instagram_cookie.txt"
     TIKTOK_COOKIE_URL = "https://XXX/tiktok_cookie.txt"
     #FACEBOOK_COOKIE_URL = "https://XXX/facebook_cookie.txt"
@@ -73,6 +74,14 @@ class Config(object):
     PROXY_2_PASSWORD="XXXXXXXXX"
     # Proxy selection method for /proxy on command
     PROXY_SELECT = "round_robin" # random, round_robin
+    #######################################################
+    # PO Token Provider configuration for YouTube
+    # Enable PO token provider for YouTube domains
+    YOUTUBE_POT_ENABLED = True
+    # PO token provider server URL (Docker container)
+    YOUTUBE_POT_BASE_URL = "http://127.0.0.1:4416"
+    # Disable innertube if tokens stop working
+    YOUTUBE_POT_DISABLE_INNERTUBE = False
     #######################################################
     # Firebase initialization
     # your firebase DB path

@@ -13,6 +13,7 @@ from HELPERS.limitter import is_user_in_channel
 from HELPERS.safe_messeger import safe_forward_messages
 from DOWN_AND_UP.yt_dlp_hook import get_video_formats
 from URL_PARSERS.youtube import is_youtube_url
+from HELPERS.pot_helper import add_pot_to_ytdl_opts
 import math
 from pyrogram import filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
@@ -1203,6 +1204,9 @@ def download_subtitles_ytdlp(url, user_id, video_dir, available_langs):
             # Add proxy configuration if needed for this domain
             from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
             info_opts = add_proxy_to_ytdl_opts(info_opts, url)
+            
+            # Add PO token provider for YouTube domains
+            info_opts = add_pot_to_ytdl_opts(info_opts, url)
 
             with yt_dlp.YoutubeDL(info_opts) as ydl:
                 info = ydl.extract_info(url, download=False)

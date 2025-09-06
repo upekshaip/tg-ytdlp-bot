@@ -17,6 +17,7 @@ from HELPERS.filesystem_hlp import sanitize_filename, create_directory, check_di
 from DATABASE.firebase_init import write_logs
 from URL_PARSERS.tags import generate_final_tags
 from URL_PARSERS.nocookie import is_no_cookie_domain
+from HELPERS.pot_helper import add_pot_to_ytdl_opts
 from CONFIG.config import Config
 from COMMANDS.subtitles_cmd import is_subs_enabled, check_subs_availability, get_user_subs_auto_mode, _subs_check_cache, download_subtitles_ytdlp
 from COMMANDS.mediainfo_cmd import send_mediainfo_if_enabled
@@ -371,7 +372,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                'outtmpl': os.path.join(user_folder, "%(title).50s.%(ext)s"),
                'progress_hooks': [progress_hook],
                'extractor_args': {
-                  'generic': ['impersonate=chrome']
+                  'generic': {
+                      'impersonate': ['chrome']
+                  }
                },
                'referer': url,
                'geo_bypass': True,
@@ -423,6 +426,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 # Add proxy configuration if needed for this domain
                 from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
                 ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url, user_id)   
+            
+            # Add PO token provider for YouTube domains
+            ytdl_opts = add_pot_to_ytdl_opts(ytdl_opts, url)
+            
             try:
                 with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
                     info_dict = ydl.extract_info(url, download=False)

@@ -24,6 +24,7 @@ from URL_PARSERS.tags import generate_final_tags, save_user_tags
 from URL_PARSERS.youtube import is_youtube_url, download_thumbnail
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.thumbnail_downloader import download_thumbnail as download_universal_thumbnail
+from HELPERS.pot_helper import add_pot_to_ytdl_opts
 from CONFIG.config import Config
 from COMMANDS.subtitles_cmd import is_subs_enabled, check_subs_availability, get_user_subs_auto_mode, _subs_check_cache, download_subtitles_ytdlp, get_user_subs_language, clear_subs_check_cache, is_subs_always_ask
 from COMMANDS.split_sizer import get_user_split_size
@@ -703,6 +704,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Add proxy configuration if needed for this domain
                 from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
                 ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url, user_id)
+            
+            # Add PO token provider for YouTube domains
+            ytdl_opts = add_pot_to_ytdl_opts(ytdl_opts, url)
             
             # If MKV is ON, remux to mkv; else to mp4
             if mkv_on:

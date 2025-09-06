@@ -116,7 +116,6 @@ from COMMANDS.settings_cmd import *
 from COMMANDS.split_sizer import *
 from COMMANDS.subtitles_cmd import *
 from COMMANDS.tag_cmd import *
-
 # Register proxy command handler
 from COMMANDS.proxy_cmd import proxy_command
 app.on_message(filters.command("proxy", prefixes="/"))(proxy_command)
