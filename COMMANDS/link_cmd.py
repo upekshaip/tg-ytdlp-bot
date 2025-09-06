@@ -83,8 +83,12 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
             'extract_flat': False,
             'simulate': True,
             'extractor_args': {
-                'generic': ['impersonate=chrome'],
-                'youtubetab': ['skip=authcheck']
+                'generic': {
+                    'impersonate': ['chrome']
+                },
+                'youtubetab': {
+                    'skip': ['authcheck']
+                }
             },
             'referer': url,
             'geo_bypass': True,

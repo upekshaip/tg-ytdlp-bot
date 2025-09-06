@@ -372,7 +372,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                'outtmpl': os.path.join(user_folder, "%(title).50s.%(ext)s"),
                'progress_hooks': [progress_hook],
                'extractor_args': {
-                  'generic': ['impersonate=chrome']
+                  'generic': {
+                      'impersonate': ['chrome']
+                  }
                },
                'referer': url,
                'geo_bypass': True,

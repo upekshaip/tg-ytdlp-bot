@@ -439,6 +439,9 @@ python3 magic.py
 - **/link** - Get direct video links with quality selection (e.g., `/link 720 URL`, `/link 4k URL`). Also provides direct links for media players (VLC, MX Player, Infuse, IINA, nPlayer, MPV).
 - **/proxy** - Enable/disable proxy for all yt-dlp downloads (`/proxy on`, `/proxy off`). When enabled, all downloads use the configured proxy server.
 - **PO Token Provider** - Automatically bypasses YouTube restrictions including "Sign in to confirm you're not a bot" messages. Works transparently with all YouTube operations.
+- **/pot_status** - Check PO token provider status (admin only)
+- **/pot_retry** - Force recheck PO token provider availability (admin only)
+- **/pot_disable** - Temporarily disable PO token provider (admin only)
 - **/format** - Choose media format options with advanced codec selection (H.264/AVC, AV1, VP9) and container preferences (MP4, MKV).
   - **With arguments**: `/format 720`, `/format 4k`, `/format 8k` - Set quality directly
 - **/split** - Change splitted video part size (100MB-2GB).
@@ -485,9 +488,29 @@ YOUTUBE_POT_BASE_URL = "http://127.0.0.1:4416"
 YOUTUBE_POT_DISABLE_INNERTUBE = False
 ```
 
+**Technical Details:**
+- Uses proper Python API format for `extractor_args`: `dict -> dict -> list[str]`
+- `disable_innertube` is only added when enabled (as `["1"]` string in list)
+- Compatible with yt-dlp >= 2025.05.22
+- Works with both HTTP and script-based providers
+- **Automatic Fallback**: If PO token provider is unavailable, bot automatically falls back to standard YouTube extraction
+- **Health Monitoring**: Provider availability is cached and checked every 30 seconds
+
 **Requirements:**
 - Docker container running `brainicism/bgutil-ytdlp-pot-provider`
 - yt-dlp plugin: `bgutil-ytdlp-pot-provider`
+
+**Fallback Mechanism:**
+- **Automatic Detection**: Bot checks provider availability before each YouTube request
+- **Cached Health Checks**: Provider status is cached for 30 seconds to avoid excessive requests
+- **Graceful Degradation**: If provider is unavailable, bot automatically falls back to standard YouTube extraction
+- **No User Impact**: Fallback is completely transparent to users
+- **Admin Monitoring**: Use `/pot_status` to check provider health
+
+**Admin Commands:**
+- `/pot_status` - Shows current provider status and configuration
+- `/pot_retry` - Forces immediate recheck of provider availability
+- `/pot_disable` - Temporarily disables provider (until restart or retry)
 
 ### Proxy Download Support (`/proxy`)
 - **Global Proxy Control**: Enable/disable proxy for all yt-dlp operations
