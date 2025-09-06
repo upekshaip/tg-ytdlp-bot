@@ -33,15 +33,16 @@ def check_pot_provider_availability(base_url: str) -> bool:
     
     try:
         # Быстрая проверка доступности провайдера
+        # PO token провайдер может возвращать 404 для корневого пути, но это означает что сервис работает
         response = requests.get(base_url, timeout=5)
-        is_available = response.status_code == 200
+        is_available = response.status_code in [200, 404]  # 404 означает что сервис работает, но эндпоинт не найден
         
         # Обновляем кэш
         _pot_provider_cache['available'] = is_available
         _pot_provider_cache['last_check'] = current_time
         
         if is_available:
-            logger.info(f"PO token provider is available at {base_url}")
+            logger.info(f"PO token provider is available at {base_url} (status: {response.status_code})")
         else:
             logger.warning(f"PO token provider returned status {response.status_code} at {base_url}")
         
@@ -85,6 +86,7 @@ def add_pot_to_ytdl_opts(ytdl_opts: dict, url: str) -> dict:
     if not check_pot_provider_availability(base_url):
         logger.warning(f"PO token provider is not available at {base_url}, falling back to standard YouTube extraction")
         return ytdl_opts
+
     
     # Добавляем extractor_args к опциям yt-dlp
     if 'extractor_args' not in ytdl_opts:

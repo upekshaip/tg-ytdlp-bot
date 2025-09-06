@@ -116,10 +116,17 @@ from COMMANDS.settings_cmd import *
 from COMMANDS.split_sizer import *
 from COMMANDS.subtitles_cmd import *
 from COMMANDS.tag_cmd import *
+from COMMANDS.pot_status_cmd import *
 
 # Register proxy command handler
 from COMMANDS.proxy_cmd import proxy_command
 app.on_message(filters.command("proxy", prefixes="/"))(proxy_command)
+
+# Register PO token command handlers
+from COMMANDS.pot_status_cmd import pot_status_command, pot_retry_command, pot_disable_command
+app.on_message(filters.command("pot_status", prefixes="/") & filters.private)(pot_status_command)
+app.on_message(filters.command("pot_retry", prefixes="/") & filters.private)(pot_retry_command)
+app.on_message(filters.command("pot_disable", prefixes="/") & filters.private)(pot_disable_command)
 
 # Register cookie command handler
 from COMMANDS.cookies_cmd import download_cookie

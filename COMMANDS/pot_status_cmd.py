@@ -5,12 +5,11 @@ from pyrogram import filters
 from CONFIG.config import Config
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger, send_to_user
-from HELPERS.pot_helper import is_pot_provider_available, clear_pot_provider_cache, is_pot_enabled, get_pot_base_url
+from HELPERS.pot_helper import is_pot_provider_available, clear_pot_provider_cache, is_pot_enabled, get_pot_base_url, _pot_provider_cache
 
 # Get app instance for decorators
 app = get_app()
 
-@app.on_message(filters.command("pot_status") & filters.private)
 def pot_status_command(app, message):
     """
     Показывает статус PO token провайдера
@@ -62,7 +61,6 @@ def pot_status_command(app, message):
         logger.error(f"Error in pot_status command: {e}")
         send_to_user(message, f"❌ Ошибка при проверке статуса: {e}")
 
-@app.on_message(filters.command("pot_retry") & filters.private)
 def pot_retry_command(app, message):
     """
     Принудительно перепроверяет доступность PO token провайдера
@@ -92,7 +90,6 @@ def pot_retry_command(app, message):
         logger.error(f"Error in pot_retry command: {e}")
         send_to_user(message, f"❌ Ошибка при перепроверке: {e}")
 
-@app.on_message(filters.command("pot_disable") & filters.private)
 def pot_disable_command(app, message):
     """
     Временно отключает PO token провайдер (только для текущей сессии)
