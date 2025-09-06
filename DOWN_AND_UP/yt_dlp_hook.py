@@ -6,6 +6,7 @@ from HELPERS.logger import logger
 from HELPERS.filesystem_hlp import create_directory
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url
+from HELPERS.pot_helper import add_pot_to_ytdl_opts
 
 def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already_checked=False, use_proxy=False):
     ytdl_opts = {
@@ -120,6 +121,10 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
             # Add proxy configuration if needed for this domain
             from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
             ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url, user_id)
+    
+    # Add PO token provider for YouTube domains
+    ytdl_opts = add_pot_to_ytdl_opts(ytdl_opts, url)
+    
     # Try with proxy fallback if user proxy is enabled
     def extract_info_operation(opts):
         with yt_dlp.YoutubeDL(opts) as ydl:

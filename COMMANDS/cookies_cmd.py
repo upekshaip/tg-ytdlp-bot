@@ -21,6 +21,7 @@ from requests import Session
 from requests.adapters import HTTPAdapter
 import yt_dlp
 import random
+from HELPERS.pot_helper import add_pot_to_ytdl_opts
 
 # Get app instance for decorators
 app = get_app()
@@ -732,6 +733,9 @@ def test_youtube_cookies(cookie_file_path: str) -> bool:
             'retries': 3,
             'extractor_retries': 2,
         }
+        
+        # Add PO token provider for YouTube domains
+        ydl_opts = add_pot_to_ytdl_opts(ydl_opts, test_url)
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(test_url, download=False)

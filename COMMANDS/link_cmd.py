@@ -15,6 +15,7 @@ from CONFIG.config import Config
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url
 from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
+from HELPERS.pot_helper import add_pot_to_ytdl_opts
 from COMMANDS.cookies_cmd import ensure_working_youtube_cookies
 
 # Get app instance for decorators
@@ -197,6 +198,9 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
                         logger.warning("Failed to build proxy URL for domain-specific proxy")
                 else:
                     logger.info(f"User proxy disabled and domain doesn't require proxy - using direct connection for {url}")
+        
+        # Add PO token provider for YouTube domains
+        ytdl_opts = add_pot_to_ytdl_opts(ytdl_opts, url)
         
         # Get video information
         with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
