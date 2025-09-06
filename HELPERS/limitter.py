@@ -35,13 +35,19 @@ def TimeFormatter(milliseconds: int) -> str:
 
 def is_user_in_channel(app, message):
     try:
+        logger.info(f"[CHANNEL_CHECK] Checking membership for user {message.chat.id} in channel {Config.SUBSCRIBE_CHANNEL}")
         cht_member = app.get_chat_member(
             Config.SUBSCRIBE_CHANNEL, message.chat.id)
+        logger.info(f"[CHANNEL_CHECK] User {message.chat.id} status: {cht_member.status}")
         if cht_member.status == ChatMemberStatus.MEMBER or cht_member.status == ChatMemberStatus.OWNER or cht_member.status == ChatMemberStatus.ADMINISTRATOR:
+            logger.info(f"[CHANNEL_CHECK] User {message.chat.id} is member of channel")
             return True
+        else:
+            logger.info(f"[CHANNEL_CHECK] User {message.chat.id} is not member of channel")
+            return False
 
-    except:
-
+    except Exception as e:
+        logger.error(f"Error checking channel membership for user {message.chat.id}: {e}")
         text = f"{Config.TO_USE_MSG}\n \n{Config.CREDITS_MSG}"
         button = InlineKeyboardButton(
             "Join Channel", url=Config.SUBSCRIBE_CHANNEL_URL)

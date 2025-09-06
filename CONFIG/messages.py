@@ -4,12 +4,13 @@ class MessagesConfig(object):
     #######################################################
     # Messages and errors
     #######################################################
-    CREDITS_MSG = "<i>Developed by</i> @upekshaip"
-    TO_USE_MSG = "<i>To use this bot you need to subscribe to @upekshaip Telegram channel.</i>\nAfter you join the channel, <b>resend your video link again and I will download it for you</b> ❤️  "
+    CREDITS_MSG = "<blockquote><i>Managed by</i> @iilililiiillliiliililliilliliiil\n🇮🇹 @tgytdlp_bot\n🇦🇪 @tgytdlp_uae_bot\n🇬🇧 @tgytdlp_uk_bot\n🇫🇷 @tgytdlp_fr_bot</blockquote>"
+    TO_USE_MSG = "<i>To use this bot you need to subscribe to @tg_ytdlp Telegram channel.</i>\nAfter you join the channel, <b>resend your video link again and bot will download it for you</b> ❤️  "
     MSG1 = "Hello "
-    MSG2 = "This is the second message. which means my own message... 😁"
+    MSG2 = "This is the second message. which means bot's own message... 😁"
     ERROR1 = "Did not found a url link. Please enter a url with <b>https://</b> or <b>http://</b>"
     INDEX_ERROR = "You did not give a valid information. Try again..."
+
     PLAYLIST_HELP_MSG = """
 📋 <b>How to download playlists:</b>
 
@@ -63,106 +64,114 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 🎬 <b>Video Download Bot - Help</b>
 
 📥 <b>Basic Usage:</b>
-• Send any video link and the bot will download it
-• For audio extraction, use <code>/audio URL</code>
-• Reply to any video with text to change its caption
+• Send video link → download
+• <code>/audio URL</code> → extract audio
+• <code>/link [quality] URL</code> → get direct links
+• <code>/proxy</code> → enable/disable proxy for all downloads
+• Reply to video with text → change caption
 
 📋 <b>Playlists:</b>
-• <code>URL*1*5</code> - Download videos 1-5 from playlist
-• <code>URL*1*5*My Playlist</code> - With custom name
+• <code>URL*1*5</code> → download videos 1-5
 
-🍪 <b>Cookies & Private Content:</b>
-• Upload *.txt cookie file for private videos downloading
-• <code>/cookie</code> - Get my YouTube cookie
-• <code>/cookies_from_browser</code> - Extract from browser
-• <code>/check_cookie</code> - Verify your cookie
-• <code>/save_as_cookie</code> - Save text as cookie
+🍪 <b>Cookies & Private:</b>
+• Upload *.txt cookie for private videos
+• <code>/cookie [service]</code> → download cookies (youtube/tiktok/x/custom)
+• <code>/cookie youtube 1</code> → pick source by index (1–N)
+• <code>/cookies_from_browser</code> → extract from browser
+• <code>/check_cookie</code> → verify cookie
+• <code>/save_as_cookie</code> → save text as cookie
 
 🧹 <b>Cleaning:</b>
-• <code>/clean</code> - Remove media files only
-• <code>/clean all</code> - Remove everything
-• <code>/clean cookies</code> - Remove cookie file
-• <code>/clean logs</code> - Remove logs file
-• <code>/clean tags</code> - Remove tags file
-• <code>/clean format</code> - Remove format settings
-• <code>/clean split</code> - Remove split settings
-• <code>/clean mediainfo</code> - Remove mediainfo settings
-• <code>/clean sub</code> - Remove subtitle settings
-• <code>/clean keyboard</code> - Remove keyboard settings
+• <code>/clean</code> → media files only
+• <code>/clean all</code> → everything
+• <code>/clean cookies/logs/tags/format/split/mediainfo/sub/keyboard</code>
 
 ⚙️ <b>Settings:</b>
-• <code>/settings</code> - Open settings menu
-• <code>/format</code> - Change video quality & format
-• <code>/split</code> - Set max part size (250MB-2GB)
-• <code>/mediainfo on/off</code> - Enable/disable file info
-• <code>/tags</code> - View your saved tags
-• <code>/sub on/off</code> - Turn on/off subtitles
-• <code>/keyboard</code> - Manage keyboard settings (OFF/1x3/2x3)
+• <code>/settings</code> → settings menu
+• <code>/format</code> → quality & format
+• <code>/split</code> → part size (250MB-2GB)
+• <code>/mediainfo on/off</code> → media info
+• <code>/tags</code> → view saved tags
+• <code>/sub on/off</code> → subtitles
+• <code>/keyboard</code> → keyboard (OFF/1x3/2x3)
 
-🏷️ <b>Tags System:</b>
-• Add <code>#tag1#tag2</code> after any URL
-• Tags appear in captions and are saved
-• Use <code>/tags</code> to view all your tags
+🏷️ <b>Tags:</b>
+• Add <code>#tag1#tag2</code> after URL
+• Tags appear in captions
+• <code>/tags</code> → view all tags
 
-📊 <b>Information:</b>
-• <code>/usage</code> - View your download history
-• <code>/help</code> - Show this help message
+🔗 <b>Direct Links:</b>
+• <code>/link URL</code> → best quality
+• <code>/link [144-4320]/720p/1080p/4k/8k URL</code> → specific quality
 
-🔍 <b>Search:</b>
-• <code>/search</code> - Activate inline search via @vid bot
+⚙️ <b>Quick Commands:</b>
+• <code>/format [144-4320]/720p/1080p/4k/8k</code> → set quality
+• <code>/keyboard off/1x3/2x3/full</code> → keyboard layout
+• <code>/split 100mb-2000mb</code> → part size (100MB to 2GB)
+• <code>/subs off/ru/en auto</code> → subtitle language
+• <code>/mediainfo on/off</code> → on/off media info
+• <code>/proxy on/off</code> → enable/disable proxy for all downloads
+
+📊 <b>Info:</b>
+• <code>/usage</code> → download history
+• <code>/search</code> → inline search via @vid
 
 <blockquote expandable>🇷🇺 <b>Бот для скачивания видео - Помощь</b>
-(нажми, чтобы развернуть 👇)
 
-📥 <b>Основное использование:</b>
-• Отправьте ссылку на видео для загрузки
-• <code>/audio URL</code> - Извлечь аудио
-• Ответьте на видео текстом для изменения подписи
+📥 <b>Основное:</b>
+• Отправьте ссылку → скачать
+• <code>/audio URL</code> → аудио
+• <code>/link [качество] URL</code> → прямые ссылки
+• <code>/proxy</code> → включить/выключить прокси для всех загрузок
+• Ответьте на видео текстом → изменить подпись
 
 📋 <b>Плейлисты:</b>
-• <code>URL*1*5</code> - Скачать видео 1-5 из плейлиста
-• <code>URL*1*5*Мой плейлист</code> - С собственным названием
+• <code>URL*1*5</code> → скачать видео 1-5
 
-🍪 <b>Cookies и приватный контент:</b>
-• Загрузите *.txt cookie для скачивания приватных видео
-• <code>/cookie</code> - Получить мой YouTube cookie
-• <code>/cookies_from_browser</code> - Извлечь из браузера
-• <code>/check_cookie</code> - Проверить ваш cookie
-• <code>/save_as_cookie</code> - Сохранить текст как cookie
+🍪 <b>Cookies:</b>
+• Загрузите *.txt для приватных видео
+• <code>/cookie [сервис]</code> → скачать куки (youtube/tiktok/x/custom)
+• <code>/cookie youtube 1</code> → выбрать источник по индексу (1–N)
+• <code>/cookies_from_browser</code> → из браузера
+• <code>/check_cookie</code> → проверить cookie
+• <code>/save_as_cookie</code> → сохранить текст как cookie
 
 🧹 <b>Очистка:</b>
-• <code>/clean</code> - Удалить только медиа файлы
-• <code>/clean all</code> - Удалить всё
-• <code>/clean cookies</code> - Удалить cookie файл
-• <code>/clean logs</code> - Удалить файл логов
-• <code>/clean tags</code> - Удалить файл тегов
-• <code>/clean format</code> - Удалить настройки формата
-• <code>/clean split</code> - Удалить настройки нарезки
-• <code>/clean mediainfo</code> - Удалить настройки mediainfo
-• <code>/clean sub</code> - Удалить настройки субтитров
-• <code>/clean keyboard</code> - Удалить настройки клавиатуры
+• <code>/clean</code> → медиа файлы
+• <code>/clean all</code> → всё
+• <code>/clean cookies/logs/tags/format/split/mediainfo/sub/keyboard</code>
 
 ⚙️ <b>Настройки:</b>
-• <code>/settings</code> - Открыть меню настроек
-• <code>/format</code> - Изменить качество и формат
-• <code>/split</code> - Установить размер части (250MB-2GB)
-• <code>/mediainfo on/off</code> - Включить/выключить информацию о файле
-• <code>/tags</code> - Посмотреть ваши теги
-• <code>/sub on/off</code> - Включить/выключить субтитры
-• <code>/keyboard</code> - Управление настройками клавиатуры (OFF/1x3/2x3)
+• <code>/settings</code> → меню настроек
+• <code>/format</code> → качество и формат
+• <code>/split</code> → размер части (250MB-2GB)
+• <code>/mediainfo on/off</code> → информация о файле
+• <code>/tags</code> → ваши теги
+• <code>/sub on/off</code> → субтитры
+• <code>/keyboard</code> → клавиатура (OFF/1x3/2x3)
 
-🏷️ <b>Система тегов:</b>
-• Добавьте <code>#тег1#тег2</code> после любой ссылки
-• Теги появляются в подписях и сохраняются
-• <code>/tags</code> - Посмотреть все ваши теги
+🏷️ <b>Теги:</b>
+• Добавьте <code>#тег1#тег2</code> после ссылки
+• Теги появляются в подписях
+• <code>/tags</code> → все теги
+
+🔗 <b>Прямые ссылки:</b>
+• <code>/link URL</code> → лучшее качество
+• <code>/link [144-4320]/720p/1080p/4k/8k URL</code> → конкретное качество
+
+⚙️ <b>Быстрые команды:</b>
+• <code>/format [144-4320]/720p/1080p/4k/8k</code> → качество
+• <code>/keyboard off/1x3/2x3/full</code> → клавиатура
+• <code>/split 100mb-2000mb</code> → размер части (100MB до 2GB)
+• <code>/subs off/ru/en auto</code> → язык субтитров
+• <code>/mediainfo on/off</code> → вкл/выкл медиаинфо
+• <code>/proxy on/off</code> → включить/выключить прокси для всех загрузок
 
 📊 <b>Информация:</b>
-• <code>/usage</code> - История загрузок
-• <code>/help</code> - Показать эту справку
-
-🔍 <b>Поиск:</b>
-• <code>/search</code> - Активировать inline поиск через @vid бота
+• <code>/usage</code> → история загрузок
+• <code>/search</code> → поиск через @vid
 </blockquote>
+
 👨‍💻 <i>Developer:</i> @upekshaip 
 <a href="https://github.com/upekshaip/tg-ytdlp-bot">[🛠 github]</a>
 🤝 <i>Contributor:</i> @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl 

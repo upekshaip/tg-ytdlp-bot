@@ -357,16 +357,16 @@ def check_user(message):
         shutil.copy(cookie_src, cookie_dest)
 
     # Register the User in the Database if Not Already Registered
-    user_db = db.child("bot").child("tgytdlp_bot").child("users").get().each()
+    user_db = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").get().each()
     users = [user.key() for user in user_db] if user_db else []
     if user_id_str not in users:
         data = {"ID": message.chat.id, "timestamp": math.floor(time.time())}
-        db.child("bot").child("tgytdlp_bot").child("users").child(user_id_str).set(data)
+        db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").child(user_id_str).set(data)
 
 
 # Checking user is Blocked or not
 def is_user_blocked(message):
-    blocked = db.child("bot").child("tgytdlp_bot").child("blocked_users").get().each()
+    blocked = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("blocked_users").get().each()
     blocked_users = [int(b_user.key()) for b_user in blocked] if blocked else []
     if int(message.chat.id) in blocked_users:
         send_to_all(message, "🚫 You are banned from the bot!")
@@ -379,7 +379,7 @@ def write_logs(message, video_url, video_title):
     ts = str(math.floor(time.time()))
     data = {"ID": str(message.chat.id), "timestamp": ts,
             "name": message.chat.first_name, "urls": str(video_url), "title": video_title}
-    db.child("bot").child("tgytdlp_bot").child("logs").child(str(message.chat.id)).child(str(ts)).set(data)
+    db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("logs").child(str(message.chat.id)).child(str(ts)).set(data)
     logger.info("Log for user added")
 
 
@@ -387,9 +387,9 @@ def write_logs(message, video_url, video_title):
 # Initialize minimal structure
 _format = {"ID": '0', "timestamp": math.floor(time.time())}
 try:
-    db.child("bot").child("tgytdlp_bot").child("users").child("0").set(_format)
-    db.child("bot").child("tgytdlp_bot").child("blocked_users").child("0").set(_format)
-    db.child("bot").child("tgytdlp_bot").child("unblocked_users").child("0").set(_format)
+    db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").child("0").set(_format)
+    db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("blocked_users").child("0").set(_format)
+    db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("unblocked_users").child("0").set(_format)
     logger.info("db created")
 except Exception as e:
     logger.error(f"❌ Error initializing base db structure: {e}")

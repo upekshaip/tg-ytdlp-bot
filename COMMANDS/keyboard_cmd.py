@@ -15,28 +15,53 @@ def keyboard_command(app, message):
     if not os.path.exists(user_dir):
         os.makedirs(user_dir)
     
+    # Check if arguments are provided
+    if hasattr(message, 'command') and message.command and len(message.command) > 1:
+        arg = message.command[1].lower()
+        if arg in ["off", "1x3", "2x3", "full"]:
+            # Apply setting directly
+            with open(keyboard_file, 'w') as f:
+                f.write(arg.upper())
+            
+            # Show confirmation
+            app.send_message(
+                message.chat.id,
+                f"🎹 **Keyboard setting updated!**\n\nNew setting: **{arg.upper()}**"
+            )
+            
+            # Apply visual keyboard immediately
+            apply_keyboard_setting(app, message.chat.id, arg.upper())
+            
+            # Log the action
+            send_to_logger(message, f"User {user_id} set keyboard to {arg.upper()}")
+            return
+        else:
+            app.send_message(
+                message.chat.id,
+                "❌ **Invalid argument!**\n\nValid options: `off`, `1x3`, `2x3`, `full`\n\nExample: `/keyboard off`"
+            )
+            return
+    
     # Read current keyboard setting
     current_setting = "2x3"  # Default setting
     if os.path.exists(keyboard_file):
         try:
             with open(keyboard_file, 'r') as f:
                 setting = f.read().strip()
-                if setting in ["OFF", "1x3", "2x3"]:
+                if setting in ["OFF", "1x3", "2x3", "FULL"]:
                     current_setting = setting
                 else:
                     current_setting = "2x3"  # Fallback to default
         except:
             current_setting = "2x3"  # Fallback to default
     
-    # Create inline keyboard for options
+    # Create inline keyboard for options in 2 rows
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔴 OFF", callback_data=f"keyboard|OFF")],
-        [InlineKeyboardButton("📱 1x3", callback_data=f"keyboard|1x3")],
-        [InlineKeyboardButton("📱 2x3", callback_data=f"keyboard|2x3")],
-        [InlineKeyboardButton("🔣 FULL", callback_data=f"keyboard|FULL")]
+        [InlineKeyboardButton("🔴 OFF", callback_data=f"keyboard|OFF"), InlineKeyboardButton("🔣 FULL", callback_data=f"keyboard|FULL")],
+        [InlineKeyboardButton("📱 1x3", callback_data=f"keyboard|1x3"), InlineKeyboardButton("📱 2x3", callback_data=f"keyboard|2x3")]
     ])
     
-    status_text = f"🎹 **Keyboard Settings**\n\nCurrent: **{current_setting}**\n\nChoose an option:"
+    status_text = f"🎹 **Keyboard Settings**\n\nCurrent: **{current_setting}**\n\nChoose an option:\n\nOr use: `/keyboard off`, `/keyboard 1x3`, `/keyboard 2x3`, `/keyboard full`"
     
     # Send the settings message
     app.send_message(
@@ -117,9 +142,9 @@ def keyboard_callback_handler(app, callback_query):
             )
         elif setting == "FULL":
             emoji_keyboard = [
-                ["🧹", "🍪", "⚙️", "🔍", "🌐"],
-                ["📼", "📊", "✂️", "🎧", "💬"],
-                ["#️⃣", "🆘", "📃", "⏯️", "🎹"]
+                ["🧹", "🍪", "⚙️", "🌐", "✅", "🔍"],
+                ["📼", "📊", "✂️", "🎧", "💬", "🌎"],
+                ["#️⃣", "🆘", "📃", "⏯️", "🎹", "🔗"]
             ]
             app.send_message(
                 callback_query.message.chat.id,
@@ -134,3 +159,44 @@ def keyboard_callback_handler(app, callback_query):
         callback_query.answer("Error processing setting", show_alert=True)
         from HELPERS.logger import logger
         logger.error(f"Error processing keyboard setting: {e}")
+
+def apply_keyboard_setting(app, chat_id, setting):
+    """Apply keyboard setting immediately"""
+    try:
+        if setting == "OFF":
+            app.send_message(
+                chat_id,
+                "⌨️ Keyboard hidden",
+                reply_markup=ReplyKeyboardRemove(selective=False)
+            )
+        elif setting == "1x3":
+            one_by_three = [["/clean", "/cookie", "/settings"]]
+            app.send_message(
+                chat_id,
+                "📱 1x3 keyboard activated!",
+                reply_markup=ReplyKeyboardMarkup(one_by_three, resize_keyboard=True)
+            )
+        elif setting == "2x3":
+            two_by_three = [
+                ["/clean", "/cookie", "/settings"],
+                ["/playlist", "/search", "/help"]
+            ]
+            app.send_message(
+                chat_id,
+                "📱 2x3 keyboard activated!",
+                reply_markup=ReplyKeyboardMarkup(two_by_three, resize_keyboard=True)
+            )
+        elif setting == "FULL":
+            emoji_keyboard = [
+                ["🧹", "🍪", "⚙️", "🌐", "✅", "🔍"],
+                ["📼", "📊", "✂️", "🎧", "💬", "🌎"],
+                ["#️⃣", "🆘", "📃", "⏯️", "🎹", "🔗"]
+            ]
+            app.send_message(
+                chat_id,
+                "🔣 Emoji keyboard activated!",
+                reply_markup=ReplyKeyboardMarkup(emoji_keyboard, resize_keyboard=True)
+            )
+    except Exception as e:
+        from HELPERS.logger import logger
+        logger.error(f"Error applying keyboard setting {setting}: {e}")

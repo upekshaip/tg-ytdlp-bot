@@ -24,7 +24,7 @@ def command2(app, message):
     from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     from pyrogram import enums
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔚 Close", callback_data="help_msg|close")]
+        [InlineKeyboardButton("🔚Close", callback_data="help_msg|close")]
     ])
 
     result = safe_send_message(message.chat.id, (Config.HELP_MSG),
@@ -51,7 +51,7 @@ def settings_command(app, message):
             InlineKeyboardButton("🎞 MEDIA", callback_data="settings__menu__media"),
             InlineKeyboardButton("📖 INFO", callback_data="settings__menu__logs"),
         ],
-        [InlineKeyboardButton("🔚 Close", callback_data="settings__menu__close")]
+        [InlineKeyboardButton("🔚Close", callback_data="settings__menu__close")]
     ])
     safe_send_message(
         user_id,
@@ -100,7 +100,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [
                 InlineKeyboardButton("🗑  All files", callback_data="clean_option|all"),
             ],
-            [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
                                "<b>🧹 Clean Options</b>\n\nChoose what to clean:",
@@ -123,7 +123,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
                                   callback_data="settings__cmd__check_cookie")],
             [InlineKeyboardButton("🔖 /save_as_cookie - Upload custom cookie",
                                   callback_data="settings__cmd__save_as_cookie")],
-            [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
                                "<b>🍪 COOKIES</b>\n\nChoose an action:",
@@ -144,7 +144,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("🎧 /audio - Download video as audio", callback_data="settings__cmd__audio")],
             [InlineKeyboardButton("💬 /subs - Subtitles language settings", callback_data="settings__cmd__subs")],
             [InlineKeyboardButton("⏯️ /playlist - How to download playlists", callback_data="settings__cmd__playlist")],
-            [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
                                "<b>🎞 MEDIA</b>\n\nChoose an action:",
@@ -163,7 +163,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("🆘 /help - Get instructions", callback_data="settings__cmd__help")],
             [InlineKeyboardButton("📃 /usage -Send your logs", callback_data="settings__cmd__usage")],
             [InlineKeyboardButton("⏯️ /playlist - Playlist's help", callback_data="settings__cmd__playlist")],
-            [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
                                "<b>📖 INFO</b>\n\nChoose an action:",
@@ -187,7 +187,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
                 InlineKeyboardButton("🎞 MEDIA", callback_data="settings__menu__media"),
                 InlineKeyboardButton("📖 INFO", callback_data="settings__menu__logs"),
             ],
-            [InlineKeyboardButton("🔚 Close", callback_data="settings__menu__close")]
+            [InlineKeyboardButton("🔚Close", callback_data="settings__menu__close")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
                                "<b>Bot Settings</b>\n\nChoose a category:",
@@ -233,7 +233,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             [
                 InlineKeyboardButton("🗑  All files", callback_data="clean_option|all"),
             ],
-            [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
         try:
             callback_query.edit_message_text(
@@ -304,7 +304,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         return
     if data == "save_as_cookie":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚 Close", callback_data="save_as_cookie_hint|close")]
+            [InlineKeyboardButton("🔚Close", callback_data="save_as_cookie_hint|close")]
         ])
         safe_send_message(user_id, Config.SAVE_AS_COOKIE_HINT, reply_parameters=ReplyParameters(message_id=callback_query.message.id),
                           parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
@@ -384,7 +384,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         return
     if data == "audio":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚 Close", callback_data="audio_hint|close")]
+            [InlineKeyboardButton("🔚Close", callback_data="audio_hint|close")]
         ])
         safe_send_message(user_id,
                           "Download only audio from video source.\n\nUsage: /audio + URL \n\n(ex. /audio https://youtu.be/abc123)\n(ex. /audio https://youtu.be/playlist?list=abc123*1*10)",

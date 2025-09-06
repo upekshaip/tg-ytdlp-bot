@@ -17,6 +17,7 @@ from HELPERS.filesystem_hlp import sanitize_filename, create_directory, check_di
 from DATABASE.firebase_init import write_logs
 from URL_PARSERS.tags import generate_final_tags
 from URL_PARSERS.nocookie import is_no_cookie_domain
+from HELPERS.pot_helper import add_pot_to_ytdl_opts
 from CONFIG.config import Config
 from COMMANDS.subtitles_cmd import is_subs_enabled, check_subs_availability, get_user_subs_auto_mode, _subs_check_cache, download_subtitles_ytdlp
 from COMMANDS.mediainfo_cmd import send_mediainfo_if_enabled
@@ -25,20 +26,90 @@ from URL_PARSERS.playlist_utils import is_playlist_with_range
 from URL_PARSERS.normalizer import get_clean_playlist_url
 from DATABASE.cache_db import get_cached_playlist_videos, get_cached_message_ids, save_to_video_cache, save_to_playlist_cache
 from pyrogram.types import ReplyParameters
+from pyrogram import enums
 
 # Get app instance for decorators
 app = get_app()
 
 # @reply_with_keyboard
-def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None, video_count=1, video_start_with=1, format_override=None):
+def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None, video_count=1, video_start_with=1, format_override=None, cookies_already_checked=False, use_proxy=False):
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
     """
+    # Import required modules at the beginning
+    from COMMANDS.cookies_cmd import is_youtube_cookie_error, is_youtube_geo_error, retry_download_with_different_cookies, retry_download_with_proxy
+    
     playlist_indices = []
     playlist_msg_ids = []  
         
     user_id = message.chat.id
     logger.info(f"down_and_audio called: url={url}, quality_key={quality_key}, video_count={video_count}, video_start_with={video_start_with}")
+    
+    # Check if LINK mode is enabled - if yes, get direct link instead of downloading
+    try:
+        from DOWN_AND_UP.always_ask_menu import get_link_mode
+        if get_link_mode(user_id):
+            logger.info(f"LINK mode enabled for user {user_id}, getting direct link instead of downloading audio")
+            
+            # Import link function
+            from COMMANDS.link_cmd import get_direct_link
+            
+            # Convert quality key to quality argument
+            quality_arg = None
+            if quality_key and quality_key != "best" and quality_key != "mp3":
+                quality_arg = quality_key
+            
+            # Get direct link
+            result = get_direct_link(url, user_id, quality_arg, cookies_already_checked=cookies_already_checked, use_proxy=True)
+            
+            if result.get('success'):
+                title = result.get('title', 'Unknown')
+                duration = result.get('duration', 0)
+                video_url = result.get('video_url')
+                audio_url = result.get('audio_url')
+                format_spec = result.get('format', 'best')
+                
+                # Form response
+                response = f"🔗 <b>Direct link obtained</b>\n\n"
+                response += f"📹 <b>Title:</b> {title}\n"
+                if duration > 0:
+                    response += f"⏱ <b>Duration:</b> {duration} sec\n"
+                response += f"🎛 <b>Format:</b> <code>{format_spec}</code>\n\n"
+                
+                if video_url:
+                    response += f"🎬 <b>Video stream:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
+                
+                if audio_url:
+                    response += f"🎵 <b>Audio stream:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
+                
+                if not video_url and not audio_url:
+                    response += "❌ Failed to get stream links"
+                
+                # Send response
+                app.send_message(
+                    user_id, 
+                    response, 
+                    reply_parameters=ReplyParameters(message_id=message.id),
+                    parse_mode=enums.ParseMode.HTML
+                )
+                
+                send_to_logger(message, f"Direct link extracted via down_and_audio for user {user_id} from {url}")
+                
+            else:
+                error_msg = result.get('error', 'Unknown error')
+                app.send_message(
+                    user_id,
+                    f"❌ <b>Error getting link:</b>\n{error_msg}",
+                    reply_parameters=ReplyParameters(message_id=message.id),
+                    parse_mode=enums.ParseMode.HTML
+                )
+                
+                send_to_logger(message, f"Failed to extract direct link via down_and_audio for user {user_id} from {url}: {error_msg}")
+            
+            return
+    except Exception as e:
+        logger.error(f"Error checking LINK mode for user {user_id}: {e}")
+        # Continue with normal download if LINK mode check fails
     
     # We define a playlist not only by the number of videos, but also by the presence of a range in the URL
     original_text = message.text or message.caption or ""
@@ -160,8 +231,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         # Check if cookie.txt exists in the user's folder
         user_cookie_path = os.path.join(user_folder, "cookie.txt")
         
-        # For YouTube URLs, ensure working cookies
-        if is_youtube_url(url):
+        # For YouTube URLs, ensure working cookies (skip if already checked in Always Ask menu)
+        if is_youtube_url(url) and not cookies_already_checked:
             from COMMANDS.cookies_cmd import ensure_working_youtube_cookies
             has_working_cookies = ensure_working_youtube_cookies(user_id)
             if has_working_cookies and os.path.exists(user_cookie_path):
@@ -170,6 +241,22 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             else:
                 cookie_file = None
                 logger.info(f"No working YouTube cookies available for user {user_id}, will try without cookies")
+        elif is_youtube_url(url) and cookies_already_checked:
+            # Cookies already checked in Always Ask menu - use them directly without verification
+            if os.path.exists(user_cookie_path):
+                cookie_file = user_cookie_path
+                logger.info(f"Using YouTube cookies for user {user_id} (already validated in Always Ask menu)")
+            else:
+                # Cookies were deleted - try to restore them
+                logger.info(f"No YouTube cookies found for user {user_id}, attempting to restore...")
+                from COMMANDS.cookies_cmd import ensure_working_youtube_cookies
+                has_working_cookies = ensure_working_youtube_cookies(user_id)
+                if has_working_cookies and os.path.exists(user_cookie_path):
+                    cookie_file = user_cookie_path
+                    logger.info(f"Successfully restored working YouTube cookies for user {user_id}")
+                else:
+                    cookie_file = None
+                    logger.info(f"Failed to restore YouTube cookies for user {user_id}, will try without cookies")
         else:
             # For non-YouTube URLs, use existing logic
             if os.path.exists(user_cookie_path):
@@ -285,7 +372,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                'outtmpl': os.path.join(user_folder, "%(title).50s.%(ext)s"),
                'progress_hooks': [progress_hook],
                'extractor_args': {
-                  'generic': ['impersonate=chrome']
+                  'generic': {
+                      'impersonate': ['chrome']
+                  }
                },
                'referer': url,
                'geo_bypass': True,
@@ -298,7 +387,49 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 ytdl_opts['cookiefile'] = None  # Equivalent to --no-cookies
                 logger.info(f"Using --no-cookies for domain: {url}")
             else:
-                ytdl_opts['cookiefile'] = cookie_file   
+                ytdl_opts['cookiefile'] = cookie_file
+            
+            # Add proxy configuration if needed
+            if use_proxy:
+                # Force proxy for this download
+                from COMMANDS.proxy_cmd import get_proxy_config
+                proxy_config = get_proxy_config()
+                
+                if proxy_config and 'type' in proxy_config and 'ip' in proxy_config and 'port' in proxy_config:
+                    # Build proxy URL
+                    if proxy_config['type'] == 'http':
+                        if proxy_config.get('user') and proxy_config.get('password'):
+                            proxy_url = f"http://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+                        else:
+                            proxy_url = f"http://{proxy_config['ip']}:{proxy_config['port']}"
+                    elif proxy_config['type'] == 'https':
+                        if proxy_config.get('user') and proxy_config.get('password'):
+                            proxy_url = f"https://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+                        else:
+                            proxy_url = f"https://{proxy_config['ip']}:{proxy_config['port']}"
+                    elif proxy_config['type'] in ['socks4', 'socks5', 'socks5h']:
+                        if proxy_config.get('user') and proxy_config.get('password'):
+                            proxy_url = f"{proxy_config['type']}://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+                        else:
+                            proxy_url = f"{proxy_config['type']}://{proxy_config['ip']}:{proxy_config['port']}"
+                    else:
+                        if proxy_config.get('user') and proxy_config.get('password'):
+                            proxy_url = f"http://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+                        else:
+                            proxy_url = f"http://{proxy_config['ip']}:{proxy_config['port']}"
+                    
+                    ytdl_opts['proxy'] = proxy_url
+                    logger.info(f"Force using proxy for audio download: {proxy_url}")
+                else:
+                    logger.warning("Proxy requested but proxy configuration is incomplete")
+            else:
+                # Add proxy configuration if needed for this domain
+                from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
+                ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url, user_id)   
+            
+            # Add PO token provider for YouTube domains
+            ytdl_opts = add_pot_to_ytdl_opts(ytdl_opts, url)
+            
             try:
                 with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
                     info_dict = ydl.extract_info(url, download=False)
@@ -320,8 +451,16 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 except Exception as e:
                     logger.error(f"Status update error: {e}")
                 
-                with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
-                    ydl.download([url])
+                # Try with proxy fallback if user proxy is enabled
+                def download_operation(opts):
+                    with yt_dlp.YoutubeDL(opts) as ydl:
+                        ydl.download([url])
+                    return True
+                
+                from HELPERS.proxy_helper import try_with_proxy_fallback
+                result = try_with_proxy_fallback(ytdl_opts, url, user_id, download_operation)
+                if result is None:
+                    raise Exception("Failed to download audio with all available proxies")
                 
                 try:
                     full_bar = "🟩" * 10
@@ -332,6 +471,37 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             except yt_dlp.utils.DownloadError as e:
                 error_text = str(e)
                 logger.error(f"DownloadError: {error_text}")
+                
+                # Проверяем, связана ли ошибка с куками или региональными ограничениями YouTube
+                if is_youtube_url(url):
+                    if is_youtube_geo_error(error_text):
+                        logger.info(f"YouTube geo-blocked error detected for user {user_id}, attempting retry with proxy")
+                        
+                        # Пробуем скачать через прокси
+                        retry_result = retry_download_with_proxy(
+                            user_id, url, try_download_audio, url, current_index
+                        )
+                        
+                        if retry_result is not None:
+                            logger.info(f"Audio download retry with proxy successful for user {user_id}")
+                            return retry_result
+                        else:
+                            logger.warning(f"Audio download retry with proxy failed for user {user_id}")
+                    
+                    elif is_youtube_cookie_error(error_text):
+                        logger.info(f"YouTube cookie-related error detected for user {user_id}, attempting retry with different cookies")
+                        
+                        # Пробуем скачать с другими куками
+                        retry_result = retry_download_with_different_cookies(
+                            user_id, url, try_download_audio, url, current_index
+                        )
+                        
+                        if retry_result is not None:
+                            logger.info(f"Audio download retry successful for user {user_id}")
+                            return retry_result
+                        else:
+                            logger.warning(f"All cookie retry attempts failed for user {user_id}")
+                
                 # Send full error message with instructions immediately
                 send_to_all(
                     message,

@@ -9,25 +9,24 @@ from HELPERS.app_instance import get_app
 from HELPERS.filesystem_hlp import create_directory
 from HELPERS.logger import send_to_logger, logger, send_to_all
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
+from HELPERS.limitter import is_user_in_channel
 
 # Get app instance for decorators
 app = get_app()
-
-def is_user_in_channel(app, message):
-    """Check if user is member of the subscription channel"""
-    try:
-        user_id = message.chat.id
-        member = app.get_chat_member(Config.SUBSCRIBE_CHANNEL, user_id)
-        return member.status in ["member", "administrator", "creator"]
-    except Exception:
-        return False
 
 @app.on_message(filters.command("mediainfo") & filters.private)
 # @reply_with_keyboard
 def mediainfo_command(app, message):
     user_id = message.chat.id
+    logger.info(f"[MEDIAINFO] User {user_id} requested mediainfo command")
+    logger.info(f"[MEDIAINFO] User {user_id} is admin: {int(user_id) in Config.ADMIN}")
+    logger.info(f"[MEDIAINFO] User {user_id} is in channel: {is_user_in_channel(app, message)}")
+    
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+        logger.info(f"[MEDIAINFO] User {user_id} access denied - not admin and not in channel")
         return
+    
+    logger.info(f"[MEDIAINFO] User {user_id} access granted")
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
     # Fast toggle via args: /mediainfo on|off
@@ -46,7 +45,7 @@ def mediainfo_command(app, message):
         pass
     buttons = [
         [InlineKeyboardButton("✅ ON", callback_data="mediainfo_option|on"), InlineKeyboardButton("❌ OFF", callback_data="mediainfo_option|off")],
-        [InlineKeyboardButton("🔚 Close", callback_data="mediainfo_option|close")],
+        [InlineKeyboardButton("🔚Close", callback_data="mediainfo_option|close")],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
     safe_send_message(

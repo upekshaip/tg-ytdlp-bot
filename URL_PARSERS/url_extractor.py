@@ -18,6 +18,8 @@ from COMMANDS.split_sizer import split_command
 from COMMANDS.tag_cmd import tags_command
 from COMMANDS.search import search_command
 from COMMANDS.keyboard_cmd import keyboard_command, keyboard_callback_handler
+from COMMANDS.proxy_cmd import proxy_command
+from COMMANDS.link_cmd import link_command
 from COMMANDS.admin_cmd import get_user_log, send_promo_message, block_user, unblock_user, check_runtime, get_user_details, uncache_command, reload_firebase_cache_command
 from DATABASE.cache_db import auto_cache_command
 from DATABASE.firebase_init import is_user_blocked
@@ -43,21 +45,24 @@ def url_distractor(app, message):
 
     # Emoji keyboard mapping to commands (from FULL layout)
     emoji_to_command = {
-        "🧹": "/clean",
-        "🍪": "/cookie",
-        "⚙️": "/settings",
-        "🔍": "/search",
-        "🌐": "/cookies_from_browser",
-        "📼": "/format",
-        "📊": "/mediainfo",
-        "✂️": "/split",
-        "🎧": "/audio",
-        "💬": "/subs",
-        "#️⃣": "/tags",
+        "🧹": Config.CLEAN_COMMAND,
+        "🍪": Config.DOWNLOAD_COOKIE_COMMAND,
+        "⚙️": Config.SETTINGS_COMMAND,
+        "🔍": Config.SEARCH_COMMAND,
+        "🌐": Config.COOKIES_FROM_BROWSER_COMMAND,
+        "🔗": Config.LINK_COMMAND,
+        "📼": Config.FORMAT_COMMAND,
+        "📊": Config.MEDIINFO_COMMAND,
+        "✂️": Config.SPLIT_COMMAND,
+        "🎧": Config.AUDIO_COMMAND,
+        "💬": Config.SUBS_COMMAND,
+        "#️⃣": Config.TAGS_COMMAND,
         "🆘": "/help",
-        "📃": "/usage",
-        "⏯️": "/playlist",
-        "🎹": "/keyboard",
+        "📃": Config.USAGE_COMMAND,
+        "⏯️": Config.PLAYLIST_COMMAND,
+        "🎹": Config.KEYBOARD_COMMAND,
+        "🌎": Config.PROXY_COMMAND,
+        "✅": Config.CHECK_COOKIE_COMMAND,
     }
 
     if text in emoji_to_command:
@@ -94,7 +99,7 @@ def url_distractor(app, message):
     # /Help Command
     if text == "/help":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚 Close", callback_data="help_msg|close")]
+            [InlineKeyboardButton("🔚Close", callback_data="help_msg|close")]
         ])
         app.send_message(message.chat.id, (Config.HELP_MSG),
                          parse_mode=enums.ParseMode.HTML,
@@ -110,6 +115,16 @@ def url_distractor(app, message):
         
     # /Keyboard Command
     if text == Config.KEYBOARD_COMMAND:
+        # Ensure message has command attribute
+        if not hasattr(message, 'command') or message.command is None:
+            # Parse command from text
+            parts = text.strip().split()
+            if parts:
+                cmd = parts[0][1:] if len(parts[0]) > 1 else ''
+                args = parts[1:] if len(parts) > 1 else []
+                message.command = [cmd] + args
+            else:
+                message.command = []
         keyboard_command(app, message)
         return
         
@@ -123,10 +138,201 @@ def url_distractor(app, message):
         subs_command(app, message)
         return
 
-    # /cookie Command
-    if text == Config.DOWNLOAD_COOKIE_COMMAND:
-        download_cookie(app, message)
+    # /Proxy Command
+    if text.startswith(Config.PROXY_COMMAND):
+        # Ensure message has command attribute
+        if not hasattr(message, 'command') or message.command is None:
+            # Parse command from text
+            parts = text.strip().split()
+            if parts:
+                cmd = parts[0][1:] if len(parts[0]) > 1 else ''
+                args = parts[1:] if len(parts) > 1 else []
+                message.command = [cmd] + args
+            else:
+                message.command = []
+        proxy_command(app, message)
         return
+
+    # /Link Command
+    if text.startswith(Config.LINK_COMMAND):
+        # Ensure message has command attribute
+        if not hasattr(message, 'command') or message.command is None:
+            # Parse command from text
+            parts = text.strip().split()
+            if parts:
+                cmd = parts[0][1:] if len(parts[0]) > 1 else ''
+                args = parts[1:] if len(parts) > 1 else []
+                message.command = [cmd] + args
+            else:
+                message.command = []
+        link_command(app, message)
+        return
+
+    # /cookie Command (exact or with arguments only). Avoid matching '/cookies_from_browser'.
+    if text == Config.DOWNLOAD_COOKIE_COMMAND or text.startswith(Config.DOWNLOAD_COOKIE_COMMAND + " "):
+        raw_args = text[len(Config.DOWNLOAD_COOKIE_COMMAND):].strip()
+        cookie_args = raw_args.lower()
+        
+        # Handle direct arguments
+        if cookie_args.startswith("youtube"):
+            # Support optional index: /cookie youtube <n>
+            selected_index = None
+            try:
+                parts = raw_args.split()
+                if len(parts) >= 1 and parts[0].lower() == "youtube":
+                    if len(parts) >= 2 and parts[1].isdigit():
+                        selected_index = int(parts[1])
+            except Exception:
+                selected_index = None
+
+            # Simulate YouTube button click or call handler directly when index provided
+            from collections import namedtuple
+            FakeCallbackQuery = namedtuple('FakeCallbackQuery', ['from_user', 'message', 'data', 'id'])
+            FakeUser = namedtuple('FakeUser', ['id'])
+            fake_callback = FakeCallbackQuery(
+                from_user=FakeUser(id=user_id),
+                message=message,
+                data="download_cookie|youtube",
+                id="fake_callback_id"
+            )
+            from COMMANDS.cookies_cmd import download_and_validate_youtube_cookies
+            download_and_validate_youtube_cookies(app, fake_callback, selected_index=selected_index)
+            return
+            
+        #elif cookie_args == "instagram":
+            # Simulate Instagram button click
+            #from pyrogram.types import CallbackQuery
+            #from collections import namedtuple
+            
+            #FakeCallbackQuery = namedtuple('FakeCallbackQuery', ['from_user', 'message', 'data', 'id'])
+            #FakeUser = namedtuple('FakeUser', ['id'])
+            
+            #fake_callback = FakeCallbackQuery(
+                #from_user=FakeUser(id=user_id),
+                #message=message,
+                #data="download_cookie|instagram",
+                #id="fake_callback_id"
+            #)
+            
+            #from COMMANDS.cookies_cmd import download_and_save_cookie
+            #download_and_save_cookie(app, fake_callback, Config.INSTAGRAM_COOKIE_URL, "instagram")
+            #return
+            
+        elif cookie_args == "tiktok":
+            # Simulate TikTok button click
+            from pyrogram.types import CallbackQuery
+            from collections import namedtuple
+            
+            FakeCallbackQuery = namedtuple('FakeCallbackQuery', ['from_user', 'message', 'data'])
+            FakeUser = namedtuple('FakeUser', ['id'])
+            
+            fake_callback = FakeCallbackQuery(
+                from_user=FakeUser(id=user_id),
+                message=message,
+                data="download_cookie|tiktok"
+            )
+            
+            from COMMANDS.cookies_cmd import download_and_save_cookie
+            download_and_save_cookie(app, fake_callback, Config.TIKTOK_COOKIE_URL, "tiktok")
+            return
+            
+        elif cookie_args in ["x", "twitter"]:
+            # Simulate Twitter/X button click
+            from pyrogram.types import CallbackQuery
+            from collections import namedtuple
+            
+            FakeCallbackQuery = namedtuple('FakeCallbackQuery', ['from_user', 'message', 'data'])
+            FakeUser = namedtuple('FakeUser', ['id'])
+            
+            fake_callback = FakeCallbackQuery(
+                from_user=FakeUser(id=user_id),
+                message=message,
+                data="download_cookie|twitter"
+            )
+            
+            from COMMANDS.cookies_cmd import download_and_save_cookie
+            download_and_save_cookie(app, fake_callback, Config.TWITTER_COOKIE_URL, "twitter")
+            return
+            
+        #elif cookie_args == "facebook":
+            # Simulate Facebook button click
+            #from pyrogram.types import CallbackQuery
+            #from collections import namedtuple
+            
+            #FakeCallbackQuery = namedtuple('FakeCallbackQuery', ['from_user', 'message', 'data'])
+            #FakeUser = namedtuple('FakeUser', ['id'])
+            
+            #fake_callback = FakeCallbackQuery(
+                #from_user=FakeUser(id=user_id),
+                #message=message,
+                #data="download_cookie|facebook"
+            #)
+            
+            #from COMMANDS.cookies_cmd import download_and_save_cookie
+            #download_and_save_cookie(app, fake_callback, Config.FACEBOOK_COOKIE_URL, "facebook")
+            #return
+            
+        elif cookie_args == "custom":
+            # Simulate "Your Own" button click
+            from pyrogram.types import CallbackQuery
+            from collections import namedtuple
+            
+            FakeCallbackQuery = namedtuple('FakeCallbackQuery', ['from_user', 'message', 'data'])
+            FakeUser = namedtuple('FakeUser', ['id'])
+            
+            fake_callback = FakeCallbackQuery(
+                from_user=FakeUser(id=user_id),
+                message=message,
+                data="download_cookie|own"
+            )
+            
+            # Show custom cookie hint
+            try:
+                app.answer_callback_query(fake_callback.id)
+            except Exception:
+                pass
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔚Close", callback_data="save_as_cookie_hint|close")]
+            ])
+            from HELPERS.safe_messeger import safe_send_message
+            from pyrogram.types import ReplyParameters
+            safe_send_message(
+                fake_callback.message.chat.id,
+                Config.SAVE_AS_COOKIE_HINT,
+                reply_parameters=ReplyParameters(message_id=fake_callback.message.id if hasattr(fake_callback.message, 'id') else None),
+                reply_markup=keyboard,
+                _callback_query=fake_callback,
+                _fallback_notice="⏳ Flood limit. Try later."
+            )
+            return
+            
+        elif cookie_args == "" or cookie_args is None:
+            # No arguments - show regular menu
+            download_cookie(app, message)
+            return
+        else:
+            # Invalid argument - show usage message
+            from pyrogram.types import ReplyParameters
+            usage_text = """
+<b>🍪 Cookie Command Usage</b>
+
+<code>/cookie</code> - Show cookie menu
+<code>/cookie youtube</code> - Download YouTube cookies
+<code>/cookie instagram</code> - Download Instagram cookies
+<code>/cookie tiktok</code> - Download TikTok cookies
+<code>/cookie x</code> or <code>/cookie twitter</code> - Download Twitter/X cookies
+<code>/cookie facebook</code> - Download Facebook cookies
+<code>/cookie custom</code> - Show custom cookie instructions
+
+<i>Available services depend on bot configuration.</i>
+"""
+            app.send_message(
+                message.chat.id,
+                usage_text,
+                parse_mode=enums.ParseMode.HTML,
+                reply_parameters=ReplyParameters(message_id=message.id)
+            )
+            return
 
     # /Check_cookie Command
     if text == Config.CHECK_COOKIE_COMMAND:
@@ -158,6 +364,8 @@ def url_distractor(app, message):
         settings_command(app, message)
         return
 
+    # (handled via Config.LINK_COMMAND and Config.PROXY_COMMAND branches above)
+
         # /Playlist Command
     if text.startswith(Config.PLAYLIST_COMMAND):
         playlist_command(app, message)
@@ -168,7 +376,13 @@ def url_distractor(app, message):
         clean_args = text[len(Config.CLEAN_COMMAND):].strip().lower()
         if clean_args in ["cookie", "cookies"]:
             remove_media(message, only=["cookie.txt"])
-            send_to_all(message, "🗑 Cookie file removed.")
+            # Clear YouTube cookie validation cache for this user
+            try:
+                from COMMANDS.cookies_cmd import clear_youtube_cookie_cache
+                clear_youtube_cookie_cache(message.chat.id)
+            except Exception as e:
+                logger.error(f"Failed to clear YouTube cookie cache: {e}")
+            send_to_all(message, "🗑 Cookie file removed and cache cleared.")
             return
         elif clean_args in ["log", "logs"]:
             remove_media(message, only=["logs.txt"])
@@ -221,6 +435,13 @@ def url_distractor(app, message):
                 except Exception as e:
                     logger.error(f"Failed to remove file {file_path}: {e}")
 
+            # Clear YouTube cookie validation cache for this user
+            try:
+                from COMMANDS.cookies_cmd import clear_youtube_cookie_cache
+                clear_youtube_cookie_cache(message.chat.id)
+            except Exception as e:
+                logger.error(f"Failed to clear YouTube cookie cache: {e}")
+            
             if removed_files:
                 files_list = "\n".join([f"• {file}" for file in removed_files])
                 send_to_all(message, f"🗑 All files removed successfully!\n\nRemoved files:\n{files_list}")
@@ -231,6 +452,11 @@ def url_distractor(app, message):
             # Regular command /clean - delete only media files with filtering
             remove_media(message)
             send_to_all(message, "🗑 All media files are removed.")
+            try:
+                from COMMANDS.cookies_cmd import clear_youtube_cookie_cache
+                clear_youtube_cookie_cache(message.chat.id)
+            except Exception as e:
+                logger.error(f"Failed to clear YouTube cookie cache: {e}")
             clear_subs_check_cache()
             return
 
@@ -246,6 +472,16 @@ def url_distractor(app, message):
 
     # /Split Command
     if text.startswith(Config.SPLIT_COMMAND):
+        # Ensure message has command attribute
+        if not hasattr(message, 'command') or message.command is None:
+            # Parse command from text
+            parts = text.strip().split()
+            if parts:
+                cmd = parts[0][1:] if len(parts[0]) > 1 else ''
+                args = parts[1:] if len(parts) > 1 else []
+                message.command = [cmd] + args
+            else:
+                message.command = []
         split_command(app, message)
         return
 
