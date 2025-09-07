@@ -370,7 +370,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             ydl_opts = {
                 'quiet': True,
                 'extractor_args': {
-                    'youtubetab': ['skip=authcheck']
+                    'youtubetab': {'skip': ['authcheck']}
                 }
             }
             user_cookie_path = os.path.join("users", str(user_id), "cookie.txt")
@@ -543,8 +543,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     {'key': 'FFmpegMetadata'}
                 ],
                 'extractor_args': {
-                    'generic': ['impersonate=chrome'],
-                    'youtubetab': ['skip=authcheck']
+                    'generic': {'impersonate': ['chrome']},
+                    'youtubetab': {'skip': ['authcheck']}
                 },
                 'referer': url,
                 'geo_bypass': True,
