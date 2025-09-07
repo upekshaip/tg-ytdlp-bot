@@ -20,6 +20,9 @@ from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url, download_thumbnail
 from URL_PARSERS.thumbnail_downloader import download_thumbnail as download_universal_thumbnail
 from HELPERS.pot_helper import add_pot_to_ytdl_opts
+import subprocess
+from PIL import Image
+import io
 from CONFIG.config import Config
 from COMMANDS.subtitles_cmd import is_subs_enabled, check_subs_availability, get_user_subs_auto_mode, _subs_check_cache, download_subtitles_ytdlp
 from COMMANDS.mediainfo_cmd import send_mediainfo_if_enabled
@@ -31,6 +34,126 @@ from pyrogram import enums
 
 # Get app instance for decorators
 app = get_app()
+
+def create_telegram_thumbnail(cover_path, output_path, size=320):
+    """Create a Telegram-compliant thumbnail from cover image."""
+    try:
+        logger.info(f"Creating Telegram thumbnail: {cover_path} -> {output_path}")
+        
+        # Open image with PIL
+        with Image.open(cover_path) as img:
+            # Convert to RGB (handles CMYK and other color spaces)
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+            
+            # Resize to square (320x320) with proper aspect ratio handling
+            img.thumbnail((size, size), Image.Resampling.LANCZOS)
+            
+            # Create a square canvas
+            square_img = Image.new('RGB', (size, size), (0, 0, 0))
+            
+            # Paste the resized image in the center
+            x = (size - img.width) // 2
+            y = (size - img.height) // 2
+            square_img.paste(img, (x, y))
+            
+            # Save as JPEG with baseline encoding and quality 0.8
+            square_img.save(output_path, 'JPEG', quality=80, optimize=True, progressive=False)
+            
+            # Check file size
+            file_size = os.path.getsize(output_path)
+            logger.info(f"Telegram thumbnail created: {output_path}, size: {file_size} bytes")
+            
+            if file_size > 200 * 1024:  # 200KB
+                logger.warning(f"Thumbnail size ({file_size} bytes) exceeds 200KB limit")
+                # Try with lower quality
+                square_img.save(output_path, 'JPEG', quality=60, optimize=True, progressive=False)
+                new_size = os.path.getsize(output_path)
+                logger.info(f"Reduced quality thumbnail size: {new_size} bytes")
+            
+            return True
+            
+    except Exception as e:
+        logger.error(f"Error creating Telegram thumbnail: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return False
+
+def embed_cover_mp3(mp3_path, cover_path, title=None, artist=None, album=None):
+    """Embed cover into MP3 using ID3v2 APIC via ffmpeg."""
+    try:
+        logger.info(f"Starting cover embedding: MP3={mp3_path}, Cover={cover_path}")
+        
+        # Check if files exist
+        if not os.path.exists(mp3_path):
+            logger.error(f"MP3 file not found: {mp3_path}")
+            return False
+        if not os.path.exists(cover_path):
+            logger.error(f"Cover file not found: {cover_path}")
+            return False
+        
+        # Convert cover to JPEG if needed
+        if cover_path.lower().endswith(('.webp', '.png')):
+            jpeg_path = cover_path.rsplit('.', 1)[0] + '.jpg'
+            logger.info(f"Converting cover to JPEG: {cover_path} -> {jpeg_path}")
+            result = subprocess.run([
+                "ffmpeg", "-y", "-i", cover_path, jpeg_path
+            ], check=True, capture_output=True, text=True)
+            cover_path = jpeg_path
+        
+        out_path = mp3_path.rsplit('.', 1)[0] + '_tagged.mp3'
+        
+        # Build ffmpeg command for MP3 cover embedding
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", mp3_path,
+            "-i", cover_path,
+            "-map", "0:a:0", "-map", "1:v:0",
+            "-c:a", "copy",
+            "-c:v", "mjpeg",
+            "-id3v2_version", "3",
+            "-metadata:s:v", "title=Album cover",
+            "-metadata:s:v", "comment=Cover (front)",
+            "-disposition:v", "attached_pic"
+        ]
+        
+        # Add metadata if provided
+        if title:
+            cmd.extend(["-metadata", f"title={title}"])
+        if artist:
+            cmd.extend(["-metadata", f"artist={artist}"])
+        if album:
+            cmd.extend(["-metadata", f"album={album}"])
+        
+        cmd.append(out_path)
+        
+        logger.info(f"Running ffmpeg command: {' '.join(cmd)}")
+        
+        # Run ffmpeg command
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        
+        logger.info(f"FFmpeg stdout: {result.stdout}")
+        if result.stderr:
+            logger.info(f"FFmpeg stderr: {result.stderr}")
+        
+        # Replace original file with tagged version
+        if os.path.exists(out_path):
+            os.replace(out_path, mp3_path)
+            logger.info(f"Successfully embedded cover in MP3: {mp3_path}")
+            return True
+        else:
+            logger.error(f"Failed to create tagged MP3 file: {out_path}")
+            return False
+            
+    except subprocess.CalledProcessError as e:
+        logger.error(f"FFmpeg error embedding cover: {e.stderr}")
+        logger.error(f"FFmpeg command that failed: {' '.join(cmd) if 'cmd' in locals() else 'Unknown'}")
+        return False
+    except Exception as e:
+        logger.error(f"Error embedding cover: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return False
 
 # @reply_with_keyboard
 def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None, video_count=1, video_start_with=1, format_override=None, cookies_already_checked=False, use_proxy=False):
@@ -353,54 +476,12 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             nonlocal current_total_process
             # Use format_override if provided, otherwise use default 'ba'
             download_format = format_override if format_override else 'ba'
-            
-            # Download thumbnail for embedding into audio files
-            # This ensures thumbnails are available for the EmbedThumbnail postprocessor
-            thumb_dir = None
-            try:
-                # Try to download YouTube thumbnail first
-                if ("youtube.com" in url or "youtu.be" in url):
-                    try:
-                        # Extract YouTube video ID
-                        import re
-                        yt_id = None
-                        if "youtube.com/watch?v=" in url:
-                            yt_id = re.search(r'v=([^&]+)', url).group(1)
-                        elif "youtu.be/" in url:
-                            yt_id = re.search(r'youtu\.be/([^?]+)', url).group(1)
-                        elif "youtube.com/shorts/" in url:
-                            yt_id = re.search(r'shorts/([^?]+)', url).group(1)
-                        
-                        if yt_id:
-                            youtube_thumb_path = os.path.join(user_folder, f"yt_thumb_{yt_id}.jpg")
-                            download_thumbnail(yt_id, youtube_thumb_path, url)
-                            if os.path.exists(youtube_thumb_path):
-                                thumb_dir = youtube_thumb_path
-                                logger.info(f"Using YouTube thumbnail for audio: {youtube_thumb_path}")
-                    except Exception as e:
-                        logger.warning(f"YouTube thumbnail download failed for audio: {e}")
-                
-                # If not YouTube or YouTube thumb not found, try universal thumbnail downloader
-                if not thumb_dir:
-                    try:
-                        universal_thumb_path = os.path.join(user_folder, "universal_thumb.jpg")
-                        if download_universal_thumbnail(url, universal_thumb_path):
-                            if os.path.exists(universal_thumb_path):
-                                thumb_dir = universal_thumb_path
-                                logger.info(f"Using universal thumbnail for audio: {universal_thumb_path}")
-                    except Exception as e:
-                        logger.info(f"Universal thumbnail not available for audio: {e}")
-            except Exception as e:
-                logger.warning(f"Thumbnail download failed for audio: {e}")
             ytdl_opts = {
                'format': download_format,
                'postprocessors': [{
                   'key': 'FFmpegExtractAudio',
                   'preferredcodec': 'mp3',
                   'preferredquality': '192',
-               },
-               {
-                  'key': 'EmbedThumbnail'   # equivalent to --embed-thumbnail
                },
                {
                   'key': 'FFmpegMetadata'   # equivalent to --add-metadata
@@ -420,7 +501,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                'geo_bypass': True,
                'check_certificate': False,
                'live_from_start': True,
-               'writethumbnail': True,  # Enable thumbnail writing for embedding
+               'writethumbnail': True,  # Enable thumbnail writing for manual embedding
                'writesubtitles': False,  # Disable subtitles for audio
                'writeautomaticsub': False,  # Disable auto subtitles for audio
             }
@@ -576,6 +657,45 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     send_to_user(message, f"❌ Unknown error: {e}")
                 return None
 
+        # Download thumbnail for embedding (only once for the URL)
+        thumbnail_path = None
+        try:
+            logger.info(f"Downloading thumbnail for URL: {url}")
+            # Try to download YouTube thumbnail first
+            if ("youtube.com" in url or "youtu.be" in url):
+                try:
+                    # Extract YouTube video ID
+                    import re
+                    yt_id = None
+                    if "youtube.com/watch?v=" in url:
+                        yt_id = re.search(r'v=([^&]+)', url).group(1)
+                    elif "youtu.be/" in url:
+                        yt_id = re.search(r'youtu\.be/([^?]+)', url).group(1)
+                    elif "youtube.com/shorts/" in url:
+                        yt_id = re.search(r'shorts/([^?]+)', url).group(1)
+                    
+                    if yt_id:
+                        youtube_thumb_path = os.path.join(user_folder, f"yt_thumb_{yt_id}.jpg")
+                        download_thumbnail(yt_id, youtube_thumb_path, url)
+                        if os.path.exists(youtube_thumb_path):
+                            thumbnail_path = youtube_thumb_path
+                            logger.info(f"Downloaded YouTube thumbnail: {youtube_thumb_path}")
+                except Exception as e:
+                    logger.warning(f"YouTube thumbnail download failed: {e}")
+            
+            # If not YouTube or YouTube thumb not found, try universal thumbnail downloader
+            if not thumbnail_path:
+                try:
+                    universal_thumb_path = os.path.join(user_folder, "universal_thumb.jpg")
+                    if download_universal_thumbnail(url, universal_thumb_path):
+                        if os.path.exists(universal_thumb_path):
+                            thumbnail_path = universal_thumb_path
+                            logger.info(f"Downloaded universal thumbnail: {universal_thumb_path}")
+                except Exception as e:
+                    logger.info(f"Universal thumbnail not available: {e}")
+        except Exception as e:
+            logger.warning(f"Thumbnail download failed: {e}")
+
         if is_playlist and quality_key:
             indices_to_download = uncached_indices
         else:
@@ -673,6 +793,52 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 send_to_user(message, "Audio file not found after download.")
                 continue
 
+            # Embed cover into MP3 file if thumbnail is available
+            try:
+                logger.info(f"Looking for thumbnails for audio file: {audio_file}")
+                logger.info(f"User folder contents: {os.listdir(user_folder)}")
+                
+                # Use pre-downloaded thumbnail if available
+                cover_path = None
+                if thumbnail_path and os.path.exists(thumbnail_path):
+                    cover_path = thumbnail_path
+                    logger.info(f"Using pre-downloaded thumbnail: {cover_path}")
+                else:
+                    # Fallback: look for any thumbnail files
+                    logger.info("Pre-downloaded thumbnail not found, searching for any thumbnails")
+                    for file in os.listdir(user_folder):
+                        if file.endswith(('.jpg', '.jpeg', '.png', '.webp')) and file != final_name:
+                            thumb_path = os.path.join(user_folder, file)
+                            if os.path.exists(thumb_path):
+                                cover_path = thumb_path
+                                logger.info(f"Found thumbnail: {cover_path}")
+                                break
+                
+                # Embed cover if found
+                if cover_path and os.path.exists(cover_path):
+                    logger.info(f"Embedding cover {cover_path} into {audio_file}")
+                    
+                    # Extract metadata for embedding
+                    title = info_dict.get("title", "")
+                    artist = info_dict.get("artist") or info_dict.get("uploader") or info_dict.get("channel", "")
+                    album = info_dict.get("album", "")
+                    
+                    logger.info(f"Metadata - Title: {title}, Artist: {artist}, Album: {album}")
+                    
+                    success = embed_cover_mp3(audio_file, cover_path, title=title, artist=artist, album=album)
+                    if success:
+                        logger.info(f"Successfully embedded cover in audio file: {audio_file}")
+                    else:
+                        logger.warning(f"Failed to embed cover in audio file: {audio_file}")
+                else:
+                    logger.warning(f"No thumbnail found for audio file: {audio_file}")
+                    logger.warning(f"Available files in {user_folder}: {os.listdir(user_folder)}")
+                    
+            except Exception as e:
+                logger.error(f"Error embedding cover in audio file {audio_file}: {e}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+
             audio_files.append(audio_file)
 
             try:
@@ -691,7 +857,35 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             caption_with_link = f"{audio_title}\n{tags_block}[🔗 Audio URL]({url}){bot_mention}"
             
             try:
-                audio_msg = app.send_audio(chat_id=user_id, audio=audio_file, caption=caption_with_link, reply_parameters=ReplyParameters(message_id=message.id))
+                # Create Telegram-compliant thumbnail if cover is available
+                telegram_thumb = None
+                if cover_path and os.path.exists(cover_path):
+                    telegram_thumb_path = os.path.join(user_folder, f"telegram_thumb_{idx}.jpg")
+                    if create_telegram_thumbnail(cover_path, telegram_thumb_path):
+                        telegram_thumb = telegram_thumb_path
+                        logger.info(f"Using Telegram thumbnail: {telegram_thumb}")
+                    else:
+                        logger.warning("Failed to create Telegram thumbnail")
+                
+                # Send audio with thumbnail
+                if telegram_thumb and os.path.exists(telegram_thumb):
+                    audio_msg = app.send_audio(
+                        chat_id=user_id, 
+                        audio=audio_file, 
+                        caption=caption_with_link, 
+                        reply_parameters=ReplyParameters(message_id=message.id),
+                        thumb=telegram_thumb
+                    )
+                    logger.info(f"Audio sent with Telegram thumbnail: {telegram_thumb}")
+                else:
+                    audio_msg = app.send_audio(
+                        chat_id=user_id, 
+                        audio=audio_file, 
+                        caption=caption_with_link, 
+                        reply_parameters=ReplyParameters(message_id=message.id)
+                    )
+                    logger.info("Audio sent without thumbnail")
+                
                 forwarded_msg = safe_forward_messages(Config.LOGS_ID, user_id, [audio_msg.id])
                 
                 # Save to cache after sending audio
@@ -795,6 +989,22 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         os.remove(universal_thumb)
                     except Exception as e:
                         logger.error(f"Failed to delete universal thumbnail: {e}")
+                
+                # Clean up any yt-dlp generated thumbnails
+                for thumb_file in os.listdir(user_folder):
+                    if thumb_file.endswith(('.jpg', '.jpeg', '.png', '.webp')) and not thumb_file.startswith("yt_thumb_"):
+                        try:
+                            os.remove(os.path.join(user_folder, thumb_file))
+                        except Exception as e:
+                            logger.error(f"Failed to delete thumbnail {thumb_file}: {e}")
+                
+                # Clean up Telegram thumbnails
+                for thumb_file in os.listdir(user_folder):
+                    if thumb_file.startswith("telegram_thumb_") and thumb_file.endswith(".jpg"):
+                        try:
+                            os.remove(os.path.join(user_folder, thumb_file))
+                        except Exception as e:
+                            logger.error(f"Failed to delete Telegram thumbnail {thumb_file}: {e}")
         except Exception as e:
             logger.error(f"Error cleaning up thumbnails: {e}")
 

@@ -12,6 +12,7 @@ format - Change quality & format options
 mediainfo - Turn ON/OFF sending mediainfo
 split - Change splitted video part size (100MB-2GB)
 subs - Enable/disable subtitle embedding for videos
+img - + URL - Download image from source 
 link - + [quality] URL - Get direct video/audio stream links for media players
 proxy - on/off - Enable/disable proxy for all yt-dlp downloads
 check_cookie - Check and validate cookie file

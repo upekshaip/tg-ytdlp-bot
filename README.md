@@ -409,6 +409,7 @@ python3 magic.py
 - **/keyboard** - Manage reply keyboard settings (OFF/1x3/2x3/full).
   - **With arguments**: `/keyboard off`, `/keyboard 1x3`, `/keyboard 2x3`, `/keyboard full` - Set layout directly
 - **/search** - Open inline search helper for quick `@vid` usage (see below).
+- **/img** - Download images from various platforms using gallery-dl.
 
 ---
 
@@ -1068,6 +1069,38 @@ If you encounter issues:
 
 ---
 
+### Image Download Support (`/img`)
+
+The bot now supports downloading images from various platforms using gallery-dl:
+
+**Features:**
+- **Multiple Platforms**: Supports direct image URLs and popular image hosting services
+- **Smart Detection**: Automatically detects image URLs and formats
+- **Proxy Support**: Works with configured proxy settings for restricted domains
+- **Cookie Integration**: Uses user's cookie settings for private content access
+- **Format Support**: JPG, PNG, GIF, WebP, BMP, TIFF, SVG and more
+
+**Supported Platforms:**
+- **Direct URLs**: Any direct image link with common extensions
+- **Image Hosting**: Imgur, Flickr, DeviantArt, Pinterest, Instagram, Twitter/X, Reddit
+- **Cloud Storage**: Google Drive, Dropbox, Mega.nz
+- **And many more** via gallery-dl's extensive extractor support
+
+**Usage Examples:**
+```bash
+/img https://example.com/image.jpg          # Direct image URL
+/img https://imgur.com/abc123              # Imgur link
+/img https://flickr.com/photos/user/123456 # Flickr photo
+/img https://instagram.com/p/abc123        # Instagram post
+```
+
+**How it works:**
+1. User runs `/img URL` to download an image
+2. Bot analyzes the URL using gallery-dl
+3. Downloads the image to user's directory
+4. Sends the image back to the user
+5. Cleans up temporary files automatically
+
 ## Inline search helper (/search)
 
 Use this command to quickly activate inline search via `@vid`.
@@ -1078,4 +1111,4 @@ Use this command to quickly activate inline search via `@vid`.
 
 Notes:
 - Desktop Telegram does not always send `/start` payloads from links repeatedly; avoid relying on `https://t.me/<bot>?start=...` for inline prefill.
-- The bot’s `/search` shows only working options and a concise manual hint.
+- The bot's `/search` shows only working options and a concise manual hint.

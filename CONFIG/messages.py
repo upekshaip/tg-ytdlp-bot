@@ -116,6 +116,9 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 • <code>/usage</code> → download history
 • <code>/search</code> → inline search via @vid
 
+🖼 <b>Images:</b>
+• <code>/img URL</code> → download images from various platforms
+
 <blockquote expandable>🇷🇺 <b>Бот для скачивания видео - Помощь</b>
 
 📥 <b>Основное:</b>
@@ -170,6 +173,9 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 📊 <b>Информация:</b>
 • <code>/usage</code> → история загрузок
 • <code>/search</code> → поиск через @vid
+
+🖼 <b>Изображения:</b>
+• <code>/img URL</code> → скачать изображения с различных платформ
 </blockquote>
 
 👨‍💻 <i>Developer:</i> @upekshaip 

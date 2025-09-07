@@ -33,4 +33,5 @@ class CommandsConfig(object):
     KEYBOARD_COMMAND = "/keyboard"
     LINK_COMMAND = "/link"
     PROXY_COMMAND = "/proxy"
+    IMG_COMMAND = "/img"
     #######################################################

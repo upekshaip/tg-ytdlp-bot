@@ -20,6 +20,7 @@ from COMMANDS.search import search_command
 from COMMANDS.keyboard_cmd import keyboard_command, keyboard_callback_handler
 from COMMANDS.proxy_cmd import proxy_command
 from COMMANDS.link_cmd import link_command
+from COMMANDS.image_cmd import image_command
 from COMMANDS.admin_cmd import get_user_log, send_promo_message, block_user, unblock_user, check_runtime, get_user_details, uncache_command, reload_firebase_cache_command
 from DATABASE.cache_db import auto_cache_command
 from DATABASE.firebase_init import is_user_blocked
@@ -63,6 +64,7 @@ def url_distractor(app, message):
         "🎹": Config.KEYBOARD_COMMAND,
         "🌎": Config.PROXY_COMMAND,
         "✅": Config.CHECK_COOKIE_COMMAND,
+        "🖼": Config.IMG_COMMAND,
     }
 
     if text in emoji_to_command:
@@ -166,6 +168,11 @@ def url_distractor(app, message):
             else:
                 message.command = []
         link_command(app, message)
+        return
+
+    # /Img Command
+    if text.startswith(Config.IMG_COMMAND):
+        image_command(app, message)
         return
 
     # /cookie Command (exact or with arguments only). Avoid matching '/cookies_from_browser'.
