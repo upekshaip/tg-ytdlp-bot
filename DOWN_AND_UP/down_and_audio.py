@@ -17,11 +17,12 @@ from HELPERS.filesystem_hlp import sanitize_filename, create_directory, check_di
 from DATABASE.firebase_init import write_logs
 from URL_PARSERS.tags import generate_final_tags
 from URL_PARSERS.nocookie import is_no_cookie_domain
+from URL_PARSERS.youtube import is_youtube_url, download_thumbnail
+from URL_PARSERS.thumbnail_downloader import download_thumbnail as download_universal_thumbnail
 from HELPERS.pot_helper import add_pot_to_ytdl_opts
 from CONFIG.config import Config
 from COMMANDS.subtitles_cmd import is_subs_enabled, check_subs_availability, get_user_subs_auto_mode, _subs_check_cache, download_subtitles_ytdlp
 from COMMANDS.mediainfo_cmd import send_mediainfo_if_enabled
-from URL_PARSERS.youtube import is_youtube_url
 from URL_PARSERS.playlist_utils import is_playlist_with_range
 from URL_PARSERS.normalizer import get_clean_playlist_url
 from DATABASE.cache_db import get_cached_playlist_videos, get_cached_message_ids, save_to_video_cache, save_to_playlist_cache
@@ -352,6 +353,45 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             nonlocal current_total_process
             # Use format_override if provided, otherwise use default 'ba'
             download_format = format_override if format_override else 'ba'
+            
+            # Download thumbnail for embedding into audio files
+            # This ensures thumbnails are available for the EmbedThumbnail postprocessor
+            thumb_dir = None
+            try:
+                # Try to download YouTube thumbnail first
+                if ("youtube.com" in url or "youtu.be" in url):
+                    try:
+                        # Extract YouTube video ID
+                        import re
+                        yt_id = None
+                        if "youtube.com/watch?v=" in url:
+                            yt_id = re.search(r'v=([^&]+)', url).group(1)
+                        elif "youtu.be/" in url:
+                            yt_id = re.search(r'youtu\.be/([^?]+)', url).group(1)
+                        elif "youtube.com/shorts/" in url:
+                            yt_id = re.search(r'shorts/([^?]+)', url).group(1)
+                        
+                        if yt_id:
+                            youtube_thumb_path = os.path.join(user_folder, f"yt_thumb_{yt_id}.jpg")
+                            download_thumbnail(yt_id, youtube_thumb_path, url)
+                            if os.path.exists(youtube_thumb_path):
+                                thumb_dir = youtube_thumb_path
+                                logger.info(f"Using YouTube thumbnail for audio: {youtube_thumb_path}")
+                    except Exception as e:
+                        logger.warning(f"YouTube thumbnail download failed for audio: {e}")
+                
+                # If not YouTube or YouTube thumb not found, try universal thumbnail downloader
+                if not thumb_dir:
+                    try:
+                        universal_thumb_path = os.path.join(user_folder, "universal_thumb.jpg")
+                        if download_universal_thumbnail(url, universal_thumb_path):
+                            if os.path.exists(universal_thumb_path):
+                                thumb_dir = universal_thumb_path
+                                logger.info(f"Using universal thumbnail for audio: {universal_thumb_path}")
+                    except Exception as e:
+                        logger.info(f"Universal thumbnail not available for audio: {e}")
+            except Exception as e:
+                logger.warning(f"Thumbnail download failed for audio: {e}")
             ytdl_opts = {
                'format': download_format,
                'postprocessors': [{
@@ -380,6 +420,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                'geo_bypass': True,
                'check_certificate': False,
                'live_from_start': True,
+               'writethumbnail': True,  # Enable thumbnail writing for embedding
+               'writesubtitles': False,  # Disable subtitles for audio
+               'writeautomaticsub': False,  # Disable auto subtitles for audio
             }
             
             # Check if we need to use --no-cookies for this domain
@@ -732,6 +775,28 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     os.remove(audio_file)
             except Exception as e:
                 logger.error(f"Failed to delete file {audio_file}: {e}")
+        
+        # Clean up any downloaded thumbnails
+        try:
+            user_folder = os.path.join("users", str(user_id))
+            if os.path.exists(user_folder):
+                # Clean up YouTube thumbnails
+                for thumb_file in os.listdir(user_folder):
+                    if thumb_file.startswith("yt_thumb_") and thumb_file.endswith(".jpg"):
+                        try:
+                            os.remove(os.path.join(user_folder, thumb_file))
+                        except Exception as e:
+                            logger.error(f"Failed to delete thumbnail {thumb_file}: {e}")
+                
+                # Clean up universal thumbnails
+                universal_thumb = os.path.join(user_folder, "universal_thumb.jpg")
+                if os.path.exists(universal_thumb):
+                    try:
+                        os.remove(universal_thumb)
+                    except Exception as e:
+                        logger.error(f"Failed to delete universal thumbnail: {e}")
+        except Exception as e:
+            logger.error(f"Error cleaning up thumbnails: {e}")
 
         set_active_download(user_id, False)
         clear_download_start_time(user_id)  # Cleaning the start time

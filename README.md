@@ -16,139 +16,6 @@ https://t.me/tgytdlp_bot
 
 ---
 
-## PO Token Provider Setup (YouTube Bypass)
-
-The bot now supports **PO Token Provider** for bypassing YouTube's "Sign in to confirm you're not a bot" restrictions and other blocking mechanisms.
-
-### What is PO Token Provider?
-
-PO (Proof-of-Origin) Token Provider is a service that generates tokens to make your yt-dlp requests appear more legitimate to YouTube, helping bypass various blocking mechanisms including:
-- "Sign in to confirm you're not a bot" messages
-- IP-based restrictions
-- Rate limiting
-- Other anti-bot measures
-
-### Docker Installation (Recommended)
-
-#### 1. Install Docker (if not already installed)
-
-**Ubuntu/Debian:**
-```bash
-sudo apt update
-sudo apt install -y docker.io
-sudo systemctl enable --now docker
-```
-
-**CentOS/RHEL:**
-```bash
-sudo yum install -y docker
-sudo systemctl enable --now docker
-```
-
-#### 2. Run PO Token Provider Container
-
-```bash
-docker run -d \
-  --name bgutil-provider \
-  -p 4416:4416 \
-  --init \
-  --restart unless-stopped \
-  brainicism/bgutil-ytdlp-pot-provider
-```
-
-**Parameters:**
-- `-d`: Run in background (detached mode)
-- `--name bgutil-provider`: Container name
-- `-p 4416:4416`: Map port 4416 (container) to 4416 (host)
-- `--init`: Proper process handling
-- `--restart unless-stopped`: Auto-restart on reboot or crash
-
-#### 3. Verify Installation
-
-Check if container is running:
-```bash
-docker ps
-```
-
-Test the provider:
-```bash
-curl http://127.0.0.1:4416
-```
-
-#### 4. Install yt-dlp Plugin
-
-Install the PO token provider plugin for yt-dlp:
-```bash
-python3 -m pip install -U bgutil-ytdlp-pot-provider
-```
-
-#### 5. Configure Bot
-
-The bot is already configured to use PO token provider. Settings in `CONFIG/config.py`:
-
-```python
-# PO Token Provider configuration for YouTube
-YOUTUBE_POT_ENABLED = True
-YOUTUBE_POT_BASE_URL = "http://127.0.0.1:4416"
-YOUTUBE_POT_DISABLE_INNERTUBE = False
-```
-
-### Container Management
-
-**Stop container:**
-```bash
-docker stop bgutil-provider
-```
-
-**Start container:**
-```bash
-docker start bgutil-provider
-```
-
-**View logs:**
-```bash
-docker logs -f bgutil-provider
-```
-
-**Remove container:**
-```bash
-docker stop bgutil-provider
-docker rm bgutil-provider
-```
-
-### Troubleshooting
-
-**Container won't start:**
-- Check if port 4416 is already in use: `netstat -tulpn | grep 4416`
-- Verify Docker is running: `systemctl status docker`
-
-**Provider not responding:**
-- Check container logs: `docker logs bgutil-provider`
-- Verify container is running: `docker ps`
-- Test connectivity: `curl http://127.0.0.1:4416`
-
-**yt-dlp errors:**
-- Ensure plugin is installed: `pip list | grep bgutil`
-- Check bot logs for PO token messages
-- Verify `YOUTUBE_POT_ENABLED = True` in config
-
-### How It Works
-
-1. **Automatic Detection**: Bot automatically detects YouTube URLs
-2. **Token Generation**: PO token provider generates legitimate tokens
-3. **Request Enhancement**: yt-dlp uses these tokens to bypass restrictions
-4. **Transparent Operation**: Works seamlessly with existing proxy and cookie systems
-
-### Benefits
-
-- ✅ Bypasses "Sign in to confirm you're not a bot" messages
-- ✅ Reduces IP-based blocking
-- ✅ Improves download success rates
-- ✅ Works with existing proxy and cookie configurations
-- ✅ Automatic integration - no user action required
-
----
-
 ## Deploy on a VM 
 
 - First, add your bot to the **logging channel** and **subscription channel**. Both are required.
@@ -157,65 +24,6 @@ docker rm bgutil-provider
 - Install required dependencies and start the bot.
 
 ---
-
-#### Get YouTube cookies
-
-YouTube rotates account cookies frequently on open YouTube browser tabs as a security measure. To export cookies that will remain working with yt-dlp, you will need to export cookies in such a way that they are never rotated.
-
-One way to do this is through a private browsing/incognito window:
-
-- Open a new private browsing/incognito window and log into YouTube
-- Open a new tab and close the YouTube tab
-- Export youtube.com cookies from the browser then close the private browsing/incognito window so the session is never opened in the browser again.
-
-For export you can use browser extension [Cookie-Editor](https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm)
-
-create in project folder subfolder `TXT` and place `cookie.txt` extracted from YouTube here
-
-```sh
-cd tg-ytdlp-bot/TXT
-nano cookie.txt
-```
-
-#### Advanced YouTube Cookie Management
-
-The bot now supports automatic downloading and validation of YouTube cookies from multiple sources:
-
-**Features:**
-- **Multiple Sources**: Configure up to 10 different cookie sources
-- **Automatic Validation**: Each downloaded cookie is tested for functionality
-- **Fallback System**: If one source fails, automatically tries the next
-- **Real-time Progress**: Shows download and validation progress to users
-
-**Configuration in `CONFIG/config.py`:**
-```python
-# YouTube cookies URLs - main URL and backups
-# The bot will check cookies in the order: YOUTUBE_COOKIE_URL, YOUTUBE_COOKIE_URL_1, YOUTUBE_COOKIE_URL_2, etc.
-# If one URL does not work or the cookies are expired, the bot will automatically try the next one
-YOUTUBE_COOKIE_URL = "https://your-domain.com/cookies/youtube/cookie1.txt"
-YOUTUBE_COOKIE_URL_1 = "https://your-domain.com/cookies/youtube/cookie2.txt"
-YOUTUBE_COOKIE_URL_2 = "https://your-domain.com/cookies/youtube/cookie3.txt"
-YOUTUBE_COOKIE_URL_3 = "https://your-domain.com/cookies/youtube/cookie4.txt"
-YOUTUBE_COOKIE_URL_4 = "https://your-domain.com/cookies/youtube/cookie5.txt"
-# Add more sources as needed (up to YOUTUBE_COOKIE_URL_9)
-```
-
-**How it works:**
-1. User runs `/cookie` and selects YouTube
-2. Bot downloads cookies from the first available source
-3. Validates cookies by testing them with a YouTube video
-4. If validation fails, automatically tries the next source
-5. Continues until working cookies are found or all sources are exhausted
-
-**User Experience:**
-- Progress updates: "🔄 Downloading and checking YouTube cookies... Attempt 1 of 4"
-- Success message: "✅ YouTube cookies successfully downloaded and validated! Used source 2 of 4"
-- Failure message: "❌ All YouTube cookies are expired or unavailable! Contact the bot administrator to replace them."
-
-Also you may fill in `porn_domains.txt` `porn_keywords.txt` files in `TXT` folder if you want to tag #nsfw videos and hide them under spoiler
-
----
-
 ##  local deployment on a VM 
 For local deployment you should use this commands:
 
@@ -415,6 +223,152 @@ If you need to support extra languages such as arabic, chinese, japanese, korean
    (Also in that case you must install desktop environment (GUI) and any supported by `yt-dlp` browser by yourself)
 
 </details>
+
+---
+
+#### Get YouTube cookies
+
+YouTube rotates account cookies frequently on open YouTube browser tabs as a security measure. To export cookies that will remain working with yt-dlp, you will need to export cookies in such a way that they are never rotated.
+
+One way to do this is through a private browsing/incognito window:
+
+- Open a new private browsing/incognito window and log into YouTube
+- In same window and same tab from step 1, navigate to https://www.youtube.com/robots.txt (this should be the only private/incognito browsing tab open)
+- Export youtube.com cookies from the browser, then close the private browsing/incognito window so that the session is never opened in the browser again.
+
+For export you can use browser extension [Cookie-Editor](https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm)
+
+create in project folder subfolder `TXT` and place `cookie.txt` extracted from YouTube here
+
+```sh
+cd tg-ytdlp-bot/TXT
+nano cookie.txt
+```
+
+#### Advanced YouTube Cookie Management
+
+The bot now supports automatic downloading and validation of YouTube cookies from multiple sources:
+
+**Features:**
+- **Multiple Sources**: Configure up to 10 different cookie sources
+- **Automatic Validation**: Each downloaded cookie is tested for functionality
+- **Fallback System**: If one source fails, automatically tries the next
+- **Real-time Progress**: Shows download and validation progress to users
+
+**Configuration in `CONFIG/config.py`:**
+```python
+# YouTube cookies URLs - main URL and backups
+# The bot will check cookies in the order: YOUTUBE_COOKIE_URL, YOUTUBE_COOKIE_URL_1, YOUTUBE_COOKIE_URL_2, etc.
+# If one URL does not work or the cookies are expired, the bot will automatically try the next one
+YOUTUBE_COOKIE_URL = "https://your-domain.com/cookies/youtube/cookie1.txt"
+YOUTUBE_COOKIE_URL_1 = "https://your-domain.com/cookies/youtube/cookie2.txt"
+YOUTUBE_COOKIE_URL_2 = "https://your-domain.com/cookies/youtube/cookie3.txt"
+YOUTUBE_COOKIE_URL_3 = "https://your-domain.com/cookies/youtube/cookie4.txt"
+YOUTUBE_COOKIE_URL_4 = "https://your-domain.com/cookies/youtube/cookie5.txt"
+# Add more sources as needed (up to YOUTUBE_COOKIE_URL_9)
+```
+
+**How it works:**
+1. User runs `/cookie` and selects YouTube
+2. Bot downloads cookies from the first available source
+3. Validates cookies by testing them with a YouTube video
+4. If validation fails, automatically tries the next source
+5. Continues until working cookies are found or all sources are exhausted
+
+**User Experience:**
+- Progress updates: "🔄 Downloading and checking YouTube cookies... Attempt 1 of 4"
+- Success message: "✅ YouTube cookies successfully downloaded and validated! Used source 2 of 4"
+- Failure message: "❌ All YouTube cookies are expired or unavailable! Contact the bot administrator to replace them."
+
+Also you may fill in `porn_domains.txt` `porn_keywords.txt` files in `TXT` folder if you want to tag #nsfw videos and hide them under spoiler
+
+---
+
+## PO Token Provider Setup (YouTube Bypass)
+
+The bot now supports **PO Token Provider** for bypassing YouTube's "Sign in to confirm you're not a bot" restrictions and other blocking mechanisms.
+
+### What is PO Token Provider?
+
+PO (Proof-of-Origin) Token Provider is a service that generates tokens to make your yt-dlp requests appear more legitimate to YouTube, helping bypass various blocking mechanisms including:
+- "Sign in to confirm you're not a bot" messages
+- IP-based restrictions
+- Rate limiting
+- Other anti-bot measures
+
+### Docker Installation (Recommended)
+
+#### 1. Install Docker (if not already installed)
+
+**Ubuntu/Debian:**
+```bash
+sudo apt update
+sudo apt install -y docker.io
+sudo systemctl enable --now docker
+```
+
+#### 2. Run PO Token Provider Container
+
+```bash
+docker run -d \
+  --name bgutil-provider \
+  -p 4416:4416 \
+  --init \
+  --restart unless-stopped \
+  brainicism/bgutil-ytdlp-pot-provider
+```
+
+**Parameters:**
+- `-d`: Run in background (detached mode)
+- `--name bgutil-provider`: Container name
+- `-p 4416:4416`: Map port 4416 (container) to 4416 (host)
+- `--init`: Proper process handling
+- `--restart unless-stopped`: Auto-restart on reboot or crash
+
+#### 3. Verify Installation
+
+Check if container is running:
+```bash
+docker ps
+```
+
+Test the provider:
+```bash
+curl http://127.0.0.1:4416
+```
+
+#### 4. Install yt-dlp Plugin
+
+Install the PO token provider plugin for yt-dlp:
+```bash
+python3 -m pip install -U bgutil-ytdlp-pot-provider
+```
+
+#### 5. Configure Bot
+
+The bot is already configured to use PO token provider. Settings in `CONFIG/config.py`:
+
+```python
+# PO Token Provider configuration for YouTube
+YOUTUBE_POT_ENABLED = True
+YOUTUBE_POT_BASE_URL = "http://127.0.0.1:4416"
+YOUTUBE_POT_DISABLE_INNERTUBE = False
+```
+
+### How It Works
+
+1. **Automatic Detection**: Bot automatically detects YouTube URLs
+2. **Token Generation**: PO token provider generates legitimate tokens
+3. **Request Enhancement**: yt-dlp uses these tokens to bypass restrictions
+4. **Transparent Operation**: Works seamlessly with existing proxy and cookie systems
+
+### Benefits
+
+- ✅ Bypasses "Sign in to confirm you're not a bot" messages
+- ✅ Reduces IP-based blocking
+- ✅ Improves download success rates
+- ✅ Works with existing proxy and cookie configurations
+- ✅ Automatic integration - no user action required
 
 ---
 
