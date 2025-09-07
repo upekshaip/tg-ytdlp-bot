@@ -515,7 +515,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("🔚Close", callback_data="img_hint|close")]
         ])
         safe_send_message(user_id,
-                          "Download images from various platforms using gallery-dl.\n\nUsage: /img + URL \n\n(ex. /img https://imgur.com/abc123)\n(ex. /img https://flickr.com/photos/user/123456)",
+                          "Download images from various platforms using gallery-dl.\n\nUsage: /img + URL \n\n(ex. /img https://imgur.com/abc123)\n(ex. /img https://flickr.com/photos/user/123456)\n\nsee all supported sites here: https://github.com/mikf/gallery-dl/blob/master/docs/supportedsites.md",
                           reply_parameters=ReplyParameters(message_id=callback_query.message.id),
                           reply_markup=keyboard,
                           _callback_query=callback_query,
