@@ -12,7 +12,7 @@ class MessagesConfig(object):
     INDEX_ERROR = "You did not give a valid information. Try again..."
 
     PLAYLIST_HELP_MSG = """
-📋 <b>How to download playlists:</b>
+<blockquote expandable>📋 <b>Playlists (yt-dlp)</b>
 
 To download playlists send its URL with <code>*start*end</code> ranges in the end.
 
@@ -58,7 +58,26 @@ To download playlists send its URL with <code>*start*end</code> ranges in the en
 (downloads first 3 video from search results by your prompt)
 
 and so on...
-see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/supportedsites.md">supported sites list</a>
+see <a href=\"https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/supportedsites.md\">supported sites list</a>
+</blockquote>
+
+<blockquote expandable>🖼 <b>Images (gallery-dl)</b>
+
+Use <code>/img URL</code> to download images/photos/albums from many platforms.
+
+<b>Examples:</b>
+<code>/img https://vk.com/wall-160916577_408508</code>
+<code>/img https://2ch.hk/fd/res/1747651.html</code>
+<code>/img https://x.com/username/status/1234567890123456789</code>
+<code>/img https://imgur.com/a/abc123</code>
+
+<b>Ranges:</b>
+<code>/img 11-20 https://example.com/album</code> — items 11..20
+<code>/img 11- https://example.com/album</code> — from 11 to the end (or bot limit)
+
+<i>Supported platforms include vk, 2ch, 35photo, 4chan, 500px, ArtStation, Boosty, Civitai, Cyberdrop, DeviantArt, Discord, Facebook, Fansly, Instagram, Pinterest, Reddit, TikTok, Tumblr, Twitter/X, JoyReactor, etc. Full list:</i>
+<a href=\"https://raw.githubusercontent.com/mikf/gallery-dl/refs/heads/master/docs/supportedsites.md\">gallery-dl supported sites</a>
+</blockquote>
 """
     HELP_MSG = """
 🎬 <b>Video Download Bot - Help</b>

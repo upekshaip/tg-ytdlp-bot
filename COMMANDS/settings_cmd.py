@@ -223,8 +223,8 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             ],
             [
                 InlineKeyboardButton("⚙️ MORE", callback_data="settings__menu__more"),
-            ],
-            [InlineKeyboardButton("🔚Close", callback_data="settings__menu__close")]
+                InlineKeyboardButton("🔚Close", callback_data="settings__menu__close"),
+            ]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
                                "<b>Bot Settings</b>\n\nChoose a category:",
