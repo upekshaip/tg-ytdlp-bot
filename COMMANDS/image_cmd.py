@@ -3,15 +3,24 @@ import os
 import re
 import subprocess
 import tempfile
+import threading
+import time
 from pyrogram import filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ReplyParameters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ReplyParameters, InputMediaPhoto, InputMediaVideo
 from pyrogram import enums
 from HELPERS.logger import send_to_logger, logger
 from HELPERS.app_instance import get_app
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
-from DOWN_AND_UP.gallery_dl_hook import get_image_info, download_image
+from DOWN_AND_UP.gallery_dl_hook import (
+    get_image_info,
+    download_image,
+    get_total_media_count,
+    download_image_range,
+    download_image_range_cli,
+)
 from HELPERS.filesystem_hlp import create_directory
 from COMMANDS.proxy_cmd import is_proxy_enabled
+from CONFIG.limits import LimitsConfig
 
 # Get app instance for decorators
 app = get_app()
@@ -70,9 +79,10 @@ def convert_file_to_telegram_format(file_path):
                 logger.warning(f"Failed to convert WebP: {result.stderr}")
                 return file_path
         
-        # Convert WebM videos to MP4
+        # Convert WebM videos to MP4 (add thumbnail to avoid black preview)
         elif file_ext == '.webm':
             output_path = os.path.join(file_dir, f"{file_name}.mp4")
+            # We will generate/send thumbnail later during sending
             cmd = [
                 'ffmpeg', '-i', file_path,
                 '-c:v', 'libx264', '-c:a', 'aac',
@@ -90,6 +100,7 @@ def convert_file_to_telegram_format(file_path):
         # Convert other unsupported video formats to MP4
         elif file_ext in ['.avi', '.mov', '.mkv', '.flv']:
             output_path = os.path.join(file_dir, f"{file_name}.mp4")
+            # We will generate/send thumbnail later during sending
             cmd = [
                 'ffmpeg', '-i', file_path,
                 '-c:v', 'libx264', '-c:a', 'aac',
@@ -150,14 +161,11 @@ def image_command(app, message):
             "Usage: <code>/img URL</code>\n\n"
             "<b>Examples:</b>\n"
             "• <code>/img https://example.com/image.jpg</code>\n"
-            "• <code>/img https://imgur.com/abc123</code>\n"
-            "• <code>/img https://flickr.com/photos/user/123456</code>\n\n"
-            "<b>Supported platforms:</b>\n"
-            "• Direct image URLs (jpg, png, gif, webp, etc.)\n"
-            "• Imgur, Flickr, DeviantArt, Pinterest\n"
-            "• Instagram, Twitter/X, Reddit\n"
-            "• Google Drive, Dropbox, Mega\n"
-            "• And many more via gallery-dl",
+            "• <code>/img https://vk.com/wall-160916577_408508</code>\n"
+            "• <code>/img https://2ch.hk/fd/res/1747651.html</code>\n"
+            "• <code>/img https://imgur.com/abc123</code>\n\n"
+            "<b>Supported platforms (examples):</b>\n"
+            "<blockquote>vk, 2ch, 35photo, 4chan, 500px, ArtStation, Boosty, Civitai, Cyberdrop, DeviantArt, Discord, Facebook, Fansly, Instagram, Patreon, Pinterest, Reddit, TikTok, Tumblr, Twitter/X, JoyReactor, etc. — <a href=\"https://github.com/mikf/gallery-dl/blob/master/docs/supportedsites.md\">full list</a></blockquote>",
             reply_markup=keyboard,
             parse_mode=enums.ParseMode.HTML,
             reply_parameters=ReplyParameters(message_id=message.id)
@@ -218,179 +226,381 @@ def image_command(app, message):
         user_dir = os.path.join("users", str(user_id))
         create_directory(user_dir)
         
-        # Download the images
-        downloaded_files = download_image(url, user_id, use_proxy, user_dir)
-        
-        if not downloaded_files:
-            safe_edit_message_text(
-                user_id, status_msg.id,
-                f"❌ <b>Failed to download images</b>\n\n<code>{url}</code>\n\n"
-                "The images might be protected or the URL might be invalid.",
-                parse_mode=enums.ParseMode.HTML
-            )
-            send_to_logger(message, f"Failed to download images: {url}")
-            return
-        
-        # Verify all downloaded files exist
-        valid_files = []
-        for file_path in downloaded_files:
-            if os.path.exists(file_path):
-                valid_files.append(file_path)
-            else:
-                logger.warning(f"Downloaded file not found: {file_path}")
-        
-        if not valid_files:
-            safe_edit_message_text(
-                user_id, status_msg.id,
-                f"❌ <b>No valid files found after download</b>\n\n<code>{url}</code>\n\n"
-                f"Expected files: <code>{downloaded_files}</code>",
-                parse_mode=enums.ParseMode.HTML
-            )
-            send_to_logger(message, f"No valid files found: {downloaded_files}")
-            return
-        
-        # Initialize files to cleanup list
+        # Determine expected total via --get-urls analog
+        detected_total = get_total_media_count(url, user_id, use_proxy)
+        if detected_total and detected_total > 0:
+            total_expected = min(detected_total, LimitsConfig.MAX_IMG_FILES)
+        # Streaming download: run range-based batches (1-10, 11-20, ...) and send immediately
         files_to_cleanup = []
-        
-        # Send the downloaded images
-        try:
-            # Delete status message
+
+        def _run_download():
             try:
-                status_msg.delete()
-            except:
+                # We ignore the return; files will appear while it runs
+                download_image(url, user_id, use_proxy, user_dir)
+            except Exception as _:
                 pass
-            
-            logger.info(f"Attempting to send {len(valid_files)} files: {valid_files}")
-            
-            # Send images in batches of 10 (Telegram album limit)
-            batch_size = 10
-            total_batches = (len(valid_files) + batch_size - 1) // batch_size
-            
-            # Send files and forward to log channel
-            sent_message_ids = []
-            
-            for batch_num in range(total_batches):
-                start_idx = batch_num * batch_size
-                end_idx = min(start_idx + batch_size, len(valid_files))
-                batch_files = valid_files[start_idx:end_idx]
-                
-                logger.info(f"Sending batch {batch_num + 1}/{total_batches} with {len(batch_files)} files")
-                
-                # Send files individually and collect message IDs
-                for file_path in batch_files:
-                    try:
-                        # Convert file to Telegram-supported format if needed
-                        converted_file_path = convert_file_to_telegram_format(file_path)
-                        file_ext = os.path.splitext(converted_file_path)[1].lower()
-                        
-                        # Track files for cleanup
-                        files_to_cleanup.append(converted_file_path)
-                        if converted_file_path != file_path:
-                            files_to_cleanup.append(file_path)  # Also clean up original if converted
-                        
-                        with open(converted_file_path, 'rb') as f:
-                            # Определяем тип файла и отправляем соответствующим методом
-                            if file_ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff']:
-                                # Изображения
-                                sent_msg = app.send_photo(user_id, photo=f)
-                                sent_message_ids.append(sent_msg.id)
-                                logger.info(f"Successfully sent photo: {converted_file_path}")
-                            elif file_ext in ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv']:
-                                # Видео
-                                sent_msg = app.send_video(user_id, video=f)
-                                sent_message_ids.append(sent_msg.id)
-                                logger.info(f"Successfully sent video: {converted_file_path}")
-                            elif file_ext in ['.mp3', '.wav', '.ogg', '.m4a']:
-                                # Аудио
-                                sent_msg = app.send_audio(user_id, audio=f)
-                                sent_message_ids.append(sent_msg.id)
-                                logger.info(f"Successfully sent audio: {converted_file_path}")
+
+        # We'll not start full download thread; we'll pull ranges to enforce batching
+
+        batch_size = 10
+        sent_message_ids = []
+        seen_files = set()
+        photos_videos_buffer = []  # store (converted_path, type, original_path)
+        others_buffer = []  # store (converted_path, original_path)
+        total_downloaded = 0
+        total_sent = 0
+        total_limit = LimitsConfig.MAX_IMG_FILES
+        # Using detected_total if present; else metadata-based fallback
+        total_expected = locals().get('total_expected') or None
+        try:
+            for key in ("count", "total", "num", "items", "files", "num_images", "images_count"):
+                if isinstance(image_info.get(key), int) and image_info.get(key) > 0:
+                    total_expected = min(image_info.get(key), total_limit)
+                    break
+        except Exception:
+            pass
+
+        def update_status():
+            try:
+                safe_edit_message_text(
+                    user_id,
+                    status_msg.id,
+                    f"📥 <b>Downloading media...</b>\n\n"
+                    f"Downloaded: <b>{total_downloaded}</b> / <b>{total_expected or total_limit}</b>\n"
+                    f"Sent: <b>{total_sent}</b>\n"
+                    f"Pending to send: <b>{len(photos_videos_buffer) + len(others_buffer)}</b>",
+                    parse_mode=enums.ParseMode.HTML,
+                )
+            except Exception:
+                pass
+
+        gallery_dl_dir = "gallery-dl"
+        last_status_update = 0.0
+        current_start = 1
+        # helper to run one range and wait for files to appear
+        def run_and_collect(next_end: int):
+            range_expr = f"{current_start}-{next_end}"
+            # Prefer CLI to enforce strict range behavior across gallery-dl versions
+            logger.info(f"Prepared range: {range_expr}")
+            ok = download_image_range_cli(url, range_expr, user_id, use_proxy)
+            if not ok:
+                logger.warning(f"CLI range download failed or rejected for {range_expr}, trying Python API.")
+                return download_image_range(url, range_expr, user_id, use_proxy, user_dir)
+            return True
+
+        while True:
+            # If buffer has room for a new batch, trigger next range
+            if len(photos_videos_buffer) < batch_size:
+                if total_expected and current_start > total_expected:
+                    pass
+                else:
+                    next_end = current_start + batch_size - 1
+                    if total_expected:
+                        next_end = min(next_end, total_expected)
+                    run_and_collect(next_end)
+                    current_start = next_end + 1
+            # Find new files
+            if os.path.exists(gallery_dl_dir):
+                for root, _, files in os.walk(gallery_dl_dir):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        if file_path in seen_files:
+                            continue
+                        # Only consider media-like files
+                        if not file.lower().endswith((
+                            '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff',
+                            '.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv',
+                            '.mp3', '.wav', '.ogg', '.m4a',
+                            '.pdf', '.doc', '.docx', '.txt', '.zip', '.rar', '.7z'
+                        )):
+                            continue
+                        seen_files.add(file_path)
+                        total_downloaded += 1
+
+                        # Enforce cap
+                        if total_downloaded > total_limit:
+                            continue
+
+                        # Convert if needed, then classify
+                        original_path = file_path
+                        converted = convert_file_to_telegram_format(file_path)
+                        files_to_cleanup.append(converted)
+                        if converted != original_path:
+                            files_to_cleanup.append(original_path)
+                        ext = os.path.splitext(converted)[1].lower()
+                        if ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']:
+                            photos_videos_buffer.append((converted, 'photo', original_path))
+                        elif ext in ['.mp4']:
+                            photos_videos_buffer.append((converted, 'video', original_path))
+                        elif ext in ['.avi', '.mov', '.mkv', '.webm', '.flv']:
+                            # Try to convert to mp4 if not already
+                            converted = convert_file_to_telegram_format(converted)
+                            ext2 = os.path.splitext(converted)[1].lower()
+                            if ext2 != '.mp4':
+                                # keep as document if still not mp4
+                                others_buffer.append((converted, original_path))
                             else:
-                                # Все остальные файлы как документы
-                                sent_msg = app.send_document(user_id, document=f)
+                                photos_videos_buffer.append((converted, 'video', original_path))
+                        else:
+                            others_buffer.append((converted, original_path))
+
+                        # Send status occasionally
+                        now = time.time()
+                        if now - last_status_update > 1.5:
+                            update_status()
+                            last_status_update = now
+
+                        # If we have 10 media for album, send
+                        if len(photos_videos_buffer) >= batch_size:
+                            media_group = []
+                            group_items = photos_videos_buffer[:batch_size]
+                            for p, t, _orig in group_items:
+                                if t == 'photo':
+                                    media_group.append(InputMediaPhoto(p))
+                                else:
+                                    # generate thumbnail for better preview
+                                    thumb = None
+                                    try:
+                                        thumb = os.path.join(os.path.dirname(p), os.path.splitext(os.path.basename(p))[0] + '.jpg')
+                                        subprocess.run([
+                                            'ffmpeg', '-y', '-i', p, '-vf', 'thumbnail,scale=640:-1', '-frames:v', '1', thumb
+                                        ], capture_output=True, text=True, timeout=30)
+                                    except Exception:
+                                        thumb = None
+                                    if thumb and os.path.exists(thumb):
+                                        media_group.append(InputMediaVideo(p, thumb=thumb))
+                                    else:
+                                        media_group.append(InputMediaVideo(p))
+                            try:
+                                sent = app.send_media_group(user_id, media=media_group)
+                                sent_message_ids.extend([m.id for m in sent])
+                                total_sent += len(media_group)
+                                # Zero out files to keep placeholders for re-run skipping
+                                def zero_file(path):
+                                    try:
+                                        if os.path.exists(path):
+                                            with open(path, 'wb') as zf:
+                                                pass
+                                    except Exception:
+                                        pass
+                                for p, _t, orig in group_items:
+                                    zero_file(p)
+                                    zero_file(orig)
+                                photos_videos_buffer = photos_videos_buffer[batch_size:]
+                                update_status()
+                            except Exception as e:
+                                logger.error(f"Failed to send media group: {e}")
+                                # fallback: send individually
+                                fallback = photos_videos_buffer[:batch_size]
+                                photos_videos_buffer = photos_videos_buffer[batch_size:]
+                                for p, t, orig in fallback:
+                                    try:
+                                        with open(p, 'rb') as f:
+                                            if t == 'photo':
+                                                sent_msg = app.send_photo(user_id, photo=f)
+                                            else:
+                                                # try generate thumbnail
+                                                thumb = None
+                                                try:
+                                                    thumb = os.path.join(os.path.dirname(p), os.path.splitext(os.path.basename(p))[0] + '.jpg')
+                                                    subprocess.run([
+                                                        'ffmpeg', '-y', '-i', p, '-vf', 'thumbnail,scale=640:-1', '-frames:v', '1', thumb
+                                                    ], capture_output=True, text=True, timeout=30)
+                                                except Exception:
+                                                    thumb = None
+                                                if thumb and os.path.exists(thumb):
+                                                    sent_msg = app.send_video(user_id, video=f, thumb=thumb)
+                                                else:
+                                                    sent_msg = app.send_video(user_id, video=f)
+                                            sent_message_ids.append(sent_msg.id)
+                                            total_sent += 1
+                                        # zero out both converted and original
+                                        try:
+                                            with open(p, 'wb') as zf:
+                                                pass
+                                        except Exception:
+                                            pass
+                                        try:
+                                            if os.path.exists(orig):
+                                                with open(orig, 'wb') as zf2:
+                                                    pass
+                                        except Exception:
+                                            pass
+                                    except Exception as ee:
+                                        logger.error(f"Failed to send file in fallback: {ee}")
+
+                        # Send non-groupable immediately
+                        while others_buffer:
+                            p, orig = others_buffer.pop(0)
+                            try:
+                                with open(p, 'rb') as f:
+                                    sent_msg = app.send_document(user_id, document=f)
                                 sent_message_ids.append(sent_msg.id)
-                                logger.info(f"Successfully sent document: {converted_file_path}")
-                    except Exception as e:
-                        logger.error(f"Failed to send file {converted_file_path}: {e}")
-                        continue
-            
-            # Forward sent messages to log channel
-            try:
-                from CONFIG.config import Config
-                from HELPERS.safe_messeger import safe_forward_messages
-                
-                # Forward all sent messages to log channel
-                if sent_message_ids:
-                    safe_forward_messages(Config.LOGS_ID, user_id, sent_message_ids)
-                    
-            except Exception as e:
-                logger.error(f"Failed to forward messages to log channel: {e}")
+                                total_sent += 1
+                                update_status()
+                                # zero out placeholders
+                                try:
+                                    with open(p, 'wb') as zf:
+                                        pass
+                                except Exception:
+                                    pass
+                                try:
+                                    if os.path.exists(orig):
+                                        with open(orig, 'wb') as zf2:
+                                            pass
+                                except Exception:
+                                    pass
+                            except Exception as e:
+                                logger.error(f"Failed to send document: {e}")
 
-            # Clean up all files (original + converted)
-            try:
-                for file_path in files_to_cleanup:
-                    try:
-                        # Check if file still exists before trying to remove it
-                        if os.path.exists(file_path):
-                            # Get the directory of the file
-                            file_dir = os.path.dirname(file_path)
-                            
-                            # Remove only the specific file
-                            os.remove(file_path)
-                            logger.info(f"Cleaned up file: {file_path}")
-                            
-                            # If directory is empty after removing file, remove it too
-                            try:
-                                if os.path.exists(file_dir) and not os.listdir(file_dir):
-                                    os.rmdir(file_dir)
-                                    logger.info(f"Removed empty directory: {file_dir}")
-                            except:
-                                pass  # Directory not empty or other error
+                        # Stop if limit reached
+                        if total_sent >= total_limit:
+                            break
+
+            # Flush remainder if no more ranges pending
+            if (total_expected and (total_sent >= total_expected or current_start > total_expected)) or (total_sent >= total_limit):
+                # Send remaining media groups
+                if photos_videos_buffer:
+                    group = photos_videos_buffer[:batch_size]
+                    media_group = []
+                    for p, t, _orig in group:
+                        if t == 'photo':
+                            media_group.append(InputMediaPhoto(p))
                         else:
-                            logger.info(f"File already removed: {file_path}")
-                    except Exception as e:
-                        logger.warning(f"Failed to clean up file {file_path}: {e}")
-            except Exception as e:
-                logger.warning(f"Failed to clean up downloaded files: {e}")
+                            # generate thumbnail
+                            thumb = None
+                            try:
+                                thumb = os.path.join(os.path.dirname(p), os.path.splitext(os.path.basename(p))[0] + '.jpg')
+                                subprocess.run([
+                                    'ffmpeg', '-y', '-i', p, '-vf', 'thumbnail,scale=640:-1', '-frames:v', '1', thumb
+                                ], capture_output=True, text=True, timeout=30)
+                            except Exception:
+                                thumb = None
+                            if thumb and os.path.exists(thumb):
+                                media_group.append(InputMediaVideo(p, thumb=thumb))
+                            else:
+                                media_group.append(InputMediaVideo(p))
+                    try:
+                        sent = app.send_media_group(user_id, media=media_group)
+                        sent_message_ids.extend([m.id for m in sent])
+                        total_sent += len(media_group)
+                        # zero out
+                        for p, _t, orig in group:
+                            try:
+                                with open(p, 'wb') as zf:
+                                    pass
+                            except Exception:
+                                pass
+                            try:
+                                if os.path.exists(orig):
+                                    with open(orig, 'wb') as zf2:
+                                        pass
+                            except Exception:
+                                pass
+                    except Exception:
+                        for p, t, orig in group:
+                            try:
+                                with open(p, 'rb') as f:
+                                    if t == 'photo':
+                                        sent_msg = app.send_photo(user_id, photo=f)
+                                    else:
+                                        # try generate thumbnail
+                                        thumb = None
+                                        try:
+                                            thumb = os.path.join(os.path.dirname(p), os.path.splitext(os.path.basename(p))[0] + '.jpg')
+                                            subprocess.run([
+                                                'ffmpeg', '-y', '-i', p, '-vf', 'thumbnail,scale=640:-1', '-frames:v', '1', thumb
+                                            ], capture_output=True, text=True, timeout=30)
+                                        except Exception:
+                                            thumb = None
+                                        if thumb and os.path.exists(thumb):
+                                            sent_msg = app.send_video(user_id, video=f, thumb=thumb)
+                                        else:
+                                            sent_msg = app.send_video(user_id, video=f)
+                                    sent_message_ids.append(sent_msg.id)
+                                    total_sent += 1
+                                # zero out
+                                try:
+                                    with open(p, 'wb') as zf:
+                                        pass
+                                except Exception:
+                                    pass
+                                try:
+                                    if os.path.exists(orig):
+                                        with open(orig, 'wb') as zf2:
+                                            pass
+                                except Exception:
+                                    pass
+                            except Exception:
+                                pass
+                    photos_videos_buffer = photos_videos_buffer[len(group):]
 
-            send_to_logger(message, f"Successfully downloaded and sent {len(valid_files)} images: {url}")
-            
+                # Send remaining others
+                while others_buffer:
+                    p, orig = others_buffer.pop(0)
+                    try:
+                        with open(p, 'rb') as f:
+                            sent_msg = app.send_document(user_id, document=f)
+                        sent_message_ids.append(sent_msg.id)
+                        total_sent += 1
+                        # zero out
+                        try:
+                            with open(p, 'wb') as zf:
+                                pass
+                        except Exception:
+                            pass
+                        try:
+                            if os.path.exists(orig):
+                                with open(orig, 'wb') as zf2:
+                                    pass
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+                # Final update and replace header to 'Download complete'
+                final_expected = total_expected or min(total_downloaded, total_limit)
+                try:
+                    safe_edit_message_text(
+                        user_id,
+                        status_msg.id,
+                        f"✅ <b>Download complete</b>\n\n"
+                        f"Downloaded: <b>{total_downloaded}</b> / <b>{final_expected}</b>\n"
+                        f"Sent: <b>{total_sent}</b>",
+                        parse_mode=enums.ParseMode.HTML,
+                    )
+                except Exception:
+                    pass
+                break
+
+            if total_sent >= total_limit:
+                break
+
+            time.sleep(0.5)
+
+        # Forward sent messages to log channel
+        try:
+            from CONFIG.config import Config
+            from HELPERS.safe_messeger import safe_forward_messages
+            if sent_message_ids:
+                safe_forward_messages(Config.LOGS_ID, user_id, sent_message_ids)
         except Exception as e:
-            logger.error(f"Failed to send images: {e}")
-            
-            # Clean up all files (original + converted) on error
-            try:
-                for file_path in files_to_cleanup:
-                    try:
-                        # Check if file still exists before trying to remove it
-                        if os.path.exists(file_path):
-                            # Get the directory of the file
-                            file_dir = os.path.dirname(file_path)
-                            
-                            # Remove only the specific file
-                            os.remove(file_path)
-                            logger.info(f"Cleaned up file after error: {file_path}")
-                            
-                            # If directory is empty after removing file, remove it too
-                            try:
-                                if os.path.exists(file_dir) and not os.listdir(file_dir):
-                                    os.rmdir(file_dir)
-                                    logger.info(f"Removed empty directory after error: {file_dir}")
-                            except:
-                                pass  # Directory not empty or other error
-                        else:
-                            logger.info(f"File already removed after error: {file_path}")
-                    except Exception as e:
-                        logger.warning(f"Failed to clean up file after error {file_path}: {e}")
-            except Exception as cleanup_e:
-                logger.warning(f"Failed to clean up downloaded files after error: {cleanup_e}")
-            
-            safe_edit_message_text(
-                user_id, status_msg.id,
-                f"❌ <b>Failed to send images</b>\n\n<code>{url}</code>\n\nError: {str(e)}",
-                parse_mode=enums.ParseMode.HTML
-            )
-            send_to_logger(message, f"Failed to send images: {url}, error: {e}")
+            logger.error(f"Failed to forward messages to log channel: {e}")
+
+        # Cleanup files
+        try:
+            for file_path in files_to_cleanup:
+                try:
+                    if os.path.exists(file_path):
+                        file_dir = os.path.dirname(file_path)
+                        os.remove(file_path)
+                        if os.path.exists(file_dir) and not os.listdir(file_dir):
+                            os.rmdir(file_dir)
+                except Exception as e:
+                    logger.warning(f"Failed to clean up file {file_path}: {e}")
+        except Exception:
+            pass
+
+        send_to_logger(message, f"Streamed and sent {total_sent} media: {url}")
             
     except Exception as e:
         logger.error(f"Error in image command: {e}")
@@ -398,7 +608,6 @@ def image_command(app, message):
         # Clean up only the specific media files that were downloaded on general error
         try:
             # Try to find and clean up any recently downloaded files
-            import time
             current_time = time.time()
             gallery_dl_dir = "gallery-dl"
             if os.path.exists(gallery_dl_dir):
