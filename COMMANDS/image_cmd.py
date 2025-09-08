@@ -21,6 +21,8 @@ from DOWN_AND_UP.gallery_dl_hook import (
 from HELPERS.filesystem_hlp import create_directory
 from COMMANDS.proxy_cmd import is_proxy_enabled
 from CONFIG.limits import LimitsConfig
+from CONFIG.config import Config
+from HELPERS.limitter import is_user_in_channel
 
 # Get app instance for decorators
 app = get_app()
@@ -148,6 +150,15 @@ def image_command(app, message):
     """Handle /img command for downloading images"""
     user_id = message.chat.id
     text = message.text.strip()
+    # Subscription check for non-admins
+    if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+        try:
+            text_join = f"{Config.TO_USE_MSG}\n \n{Config.CREDITS_MSG}"
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Join Channel", url=Config.SUBSCRIBE_CHANNEL_URL)]])
+            safe_send_message(user_id, text_join, reply_markup=keyboard)
+        except Exception:
+            pass
+        return
     
     # Extract URL from command
     if len(text.split()) < 2:
@@ -161,6 +172,8 @@ def image_command(app, message):
             "Usage: <code>/img URL</code>\n\n"
             "<b>Examples:</b>\n"
             "• <code>/img https://example.com/image.jpg</code>\n"
+            "• <code>/img 11-20 https://example.com/album</code>\n"
+            "• <code>/img 11- https://example.com/album</code>\n"
             "• <code>/img https://vk.com/wall-160916577_408508</code>\n"
             "• <code>/img https://2ch.hk/fd/res/1747651.html</code>\n"
             "• <code>/img https://imgur.com/abc123</code>\n\n"
@@ -173,8 +186,29 @@ def image_command(app, message):
         send_to_logger(message, "Showed /img help")
         return
     
-    # Extract URL from command
-    url = text.split(' ', 1)[1].strip()
+    # Extract optional range and URL from command
+    # Allow: /img URL  OR  /img 11-20 URL  OR  /img 11- URL
+    manual_range = None  # tuple (start:int, end:int|None)
+    rest = text.split(' ', 1)[1].strip()
+    parts = rest.split()
+    if len(parts) >= 2:
+        rng_candidate = parts[0]
+        if re.fullmatch(r"\d+-\d*", rng_candidate):
+            start_str, end_str = rng_candidate.split('-', 1)
+            try:
+                start_val = int(start_str)
+                end_val = int(end_str) if end_str != '' else None
+                if start_val >= 1:
+                    manual_range = (start_val, end_val)
+                    url = ' '.join(parts[1:]).strip()
+                else:
+                    url = rest
+            except Exception:
+                url = rest
+        else:
+            url = rest
+    else:
+        url = rest
     
     # Basic URL validation
     if not url.startswith(('http://', 'https://')):
@@ -227,10 +261,14 @@ def image_command(app, message):
         create_directory(user_dir)
         
         # Determine expected total via --get-urls analog
-        detected_total = get_total_media_count(url, user_id, use_proxy)
+        detected_total = None
+        if manual_range is None or manual_range[1] is None:
+            detected_total = get_total_media_count(url, user_id, use_proxy)
         if detected_total and detected_total > 0:
             total_expected = min(detected_total, LimitsConfig.MAX_IMG_FILES)
-        # Streaming download: run range-based batches (1-10, 11-20, ...) and send immediately
+        # Streaming download: run range-based batches (1-10, 11-20, ...) scoped to a unique per-run directory
+        run_dir = os.path.join("users", str(user_id), f"run_{int(time.time())}")
+        create_directory(run_dir)
         files_to_cleanup = []
 
         def _run_download():
@@ -274,29 +312,38 @@ def image_command(app, message):
             except Exception:
                 pass
 
-        gallery_dl_dir = "gallery-dl"
+        gallery_dl_dir = run_dir
         last_status_update = 0.0
+        # Seed current_start and upper bound from manual range if provided
         current_start = 1
+        manual_end_cap = None
+        if manual_range is not None:
+            current_start = manual_range[0]
+            # Upper cap: if user provided end, respect it (but not above limit)
+            if manual_range[1] is not None:
+                manual_end_cap = min(manual_range[1], total_limit)
+                total_expected = manual_end_cap  # show as expected
         # helper to run one range and wait for files to appear
         def run_and_collect(next_end: int):
             range_expr = f"{current_start}-{next_end}"
             # Prefer CLI to enforce strict range behavior across gallery-dl versions
             logger.info(f"Prepared range: {range_expr}")
-            ok = download_image_range_cli(url, range_expr, user_id, use_proxy)
+            ok = download_image_range_cli(url, range_expr, user_id, use_proxy, output_dir=run_dir)
             if not ok:
                 logger.warning(f"CLI range download failed or rejected for {range_expr}, trying Python API.")
-                return download_image_range(url, range_expr, user_id, use_proxy, user_dir)
+                return download_image_range(url, range_expr, user_id, use_proxy, run_dir)
             return True
 
         while True:
             # If buffer has room for a new batch, trigger next range
             if len(photos_videos_buffer) < batch_size:
-                if total_expected and current_start > total_expected:
+                upper_cap = manual_end_cap or total_expected
+                if upper_cap and current_start > upper_cap:
                     pass
                 else:
                     next_end = current_start + batch_size - 1
-                    if total_expected:
-                        next_end = min(next_end, total_expected)
+                    if upper_cap:
+                        next_end = min(next_end, upper_cap)
                     run_and_collect(next_end)
                     current_start = next_end + 1
             # Find new files
@@ -313,6 +360,12 @@ def image_command(app, message):
                             '.mp3', '.wav', '.ogg', '.m4a',
                             '.pdf', '.doc', '.docx', '.txt', '.zip', '.rar', '.7z'
                         )):
+                            continue
+                        # Skip incomplete/zero-byte files
+                        try:
+                            if os.path.getsize(file_path) == 0:
+                                continue
+                        except Exception:
                             continue
                         seen_files.add(file_path)
                         total_downloaded += 1
@@ -458,7 +511,8 @@ def image_command(app, message):
                             break
 
             # Flush remainder if no more ranges pending
-            if (total_expected and (total_sent >= total_expected or current_start > total_expected)) or (total_sent >= total_limit):
+            upper_cap = manual_end_cap or total_expected
+            if (upper_cap and (total_sent >= upper_cap or current_start > upper_cap)) or (total_sent >= total_limit):
                 # Send remaining media groups
                 if photos_videos_buffer:
                     group = photos_videos_buffer[:batch_size]
@@ -579,7 +633,6 @@ def image_command(app, message):
 
         # Forward sent messages to log channel
         try:
-            from CONFIG.config import Config
             from HELPERS.safe_messeger import safe_forward_messages
             if sent_message_ids:
                 safe_forward_messages(Config.LOGS_ID, user_id, sent_message_ids)

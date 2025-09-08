@@ -118,6 +118,8 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 
 🖼 <b>Images:</b>
 • <code>/img URL</code> → download images from various platforms
+• <code>/img 11-20 URL</code> → download specific range (batchwise)
+• <code>/img 11- URL</code> → download from 11th to the end (up to limit)
 
 <blockquote expandable>🇷🇺 <b>Бот для скачивания видео - Помощь</b>
 
@@ -176,6 +178,8 @@ see <a href="https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/s
 
 🖼 <b>Изображения:</b>
 • <code>/img URL</code> → скачать изображения с различных платформ
+• <code>/img 11-20 URL</code> → скачать конкретный диапазон
+• <code>/img 11- URL</code> → скачать с 11-го до конца (до лимита)
 </blockquote>
 
 👨‍💻 <i>Developer:</i> @upekshaip 

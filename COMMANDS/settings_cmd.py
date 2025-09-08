@@ -4,6 +4,7 @@ from CONFIG.config import Config
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ReplyParameters
 from pyrogram import enums
 from HELPERS.logger import send_to_logger
+from HELPERS.limitter import is_user_in_channel
 
 from HELPERS.app_instance import get_app
 from HELPERS.safe_messeger import fake_message, safe_send_message, safe_edit_message_text
@@ -41,6 +42,15 @@ app = get_app()
 # @reply_with_keyboard
 def settings_command(app, message):
     user_id = message.chat.id
+    # Subscription check for non-admins
+    if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+        try:
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Join Channel", url=Config.SUBSCRIBE_CHANNEL_URL)]])
+            safe_send_message(user_id, f"{Config.TO_USE_MSG}\n \n{Config.CREDITS_MSG}", reply_markup=keyboard,
+                              reply_parameters=ReplyParameters(message_id=message.id))
+        except Exception:
+            pass
+        return
     # Main settings menu
     keyboard = InlineKeyboardMarkup([
         [
@@ -520,6 +530,8 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             "Usage: <code>/img URL</code>\n\n"
             "<b>Examples:</b>\n"
             "• <code>/img https://example.com/image.jpg</code>\n"
+            "• <code>/img 11-20 https://example.com/album</code>\n"
+            "• <code>/img 11- https://example.com/album</code>\n"
             "• <code>/img https://vk.com/wall-160916577_408508</code>\n"
             "• <code>/img https://2ch.hk/fd/res/1747651.html</code>\n"
             "• <code>/img https://imgur.com/abc123</code>\n\n"

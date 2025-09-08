@@ -17,6 +17,7 @@ from HELPERS.filesystem_hlp import create_directory
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url
 import subprocess
+import sys
 import json
 import tempfile
 
@@ -419,7 +420,8 @@ def get_total_media_count(url: str, user_id=None, use_proxy: bool = False) -> in
             json.dump(cfg, f)
             cfg_path = f.name
         try:
-            cmd = ["gallery-dl", "--config", cfg_path, "--get-urls", url]
+            # Use the same Python interpreter to invoke gallery-dl module (no PATH dependency)
+            cmd = [sys.executable, "-m", "gallery_dl", "--config", cfg_path, "--get-urls", url]
             logger.info(f"Counting total media via: {' '.join(cmd)}")
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
             if result.returncode == 0:
@@ -468,7 +470,7 @@ def download_image_range(url: str, range_expr: str, user_id=None, use_proxy: boo
         return False
 
 
-def download_image_range_cli(url: str, range_expr: str, user_id=None, use_proxy: bool = False) -> bool:
+def download_image_range_cli(url: str, range_expr: str, user_id=None, use_proxy: bool = False, output_dir: str | None = None) -> bool:
     """
     Strict range download using gallery-dl CLI with --range to avoid Python API variances.
     Returns True if exit code 0.
@@ -480,13 +482,22 @@ def download_image_range_cli(url: str, range_expr: str, user_id=None, use_proxy:
         return False
 
     cfg = {"extractor": {"timeout": 30, "retries": 3}}
+    # Scope outputs to a specific run directory if provided
+    if output_dir:
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+        except Exception:
+            pass
+        cfg["extractor"]["base-directory"] = output_dir
+        cfg["extractor"]["directory"] = []  # flatten into base-directory
     cfg = _prepare_user_cookies_and_proxy(url, user_id, use_proxy, cfg)
     try:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump(cfg, f)
             cfg_path = f.name
         try:
-            cmd = ["gallery-dl", "--config", cfg_path, "--range", range_expr, url]
+            # Use module invocation to avoid PATH issues
+            cmd = [sys.executable, "-m", "gallery_dl", "--config", cfg_path, "--range", range_expr, url]
             cmd_pretty = ' '.join(cmd)
             # Final safety check that command includes proper --range
             if "--range" not in cmd or range_expr not in cmd:
