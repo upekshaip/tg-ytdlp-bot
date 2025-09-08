@@ -633,7 +633,6 @@ def image_command(app, message):
 
         # Forward sent messages to log channel
         try:
-            from CONFIG.config import Config
             from HELPERS.safe_messeger import safe_forward_messages
             if sent_message_ids:
                 safe_forward_messages(Config.LOGS_ID, user_id, sent_message_ids)
