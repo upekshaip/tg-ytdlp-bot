@@ -36,7 +36,7 @@ from pyrogram import enums
 app = get_app()
 
 def create_telegram_thumbnail(cover_path, output_path, size=320):
-    """Create a Telegram-compliant thumbnail from cover image."""
+    """Create a Telegram-compliant thumbnail from cover image using center crop (no black bars)."""
     try:
         logger.info(f"Creating Telegram thumbnail: {cover_path} -> {output_path}")
         
@@ -46,28 +46,28 @@ def create_telegram_thumbnail(cover_path, output_path, size=320):
             if img.mode != 'RGB':
                 img = img.convert('RGB')
             
-            # Resize to square (320x320) with proper aspect ratio handling
-            img.thumbnail((size, size), Image.Resampling.LANCZOS)
+            # Center-crop to a square (no padding)
+            width, height = img.size
+            side = min(width, height)
+            left = (width - side) // 2
+            top = (height - side) // 2
+            right = left + side
+            bottom = top + side
+            img_cropped = img.crop((left, top, right, bottom))
             
-            # Create a square canvas
-            square_img = Image.new('RGB', (size, size), (0, 0, 0))
-            
-            # Paste the resized image in the center
-            x = (size - img.width) // 2
-            y = (size - img.height) // 2
-            square_img.paste(img, (x, y))
+            # Resize to required size
+            img_resized = img_cropped.resize((size, size), Image.Resampling.LANCZOS)
             
             # Save as JPEG with baseline encoding and quality 0.8
-            square_img.save(output_path, 'JPEG', quality=80, optimize=True, progressive=False)
+            img_resized.save(output_path, 'JPEG', quality=80, optimize=True, progressive=False)
             
-            # Check file size
+            # Check file size and reduce quality if needed (<200KB)
             file_size = os.path.getsize(output_path)
             logger.info(f"Telegram thumbnail created: {output_path}, size: {file_size} bytes")
             
             if file_size > 200 * 1024:  # 200KB
-                logger.warning(f"Thumbnail size ({file_size} bytes) exceeds 200KB limit")
-                # Try with lower quality
-                square_img.save(output_path, 'JPEG', quality=60, optimize=True, progressive=False)
+                logger.warning(f"Thumbnail size ({file_size} bytes) exceeds 200KB limit, reducing quality")
+                img_resized.save(output_path, 'JPEG', quality=60, optimize=True, progressive=False)
                 new_size = os.path.getsize(output_path)
                 logger.info(f"Reduced quality thumbnail size: {new_size} bytes")
             

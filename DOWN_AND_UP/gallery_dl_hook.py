@@ -468,7 +468,7 @@ def download_image_range(url: str, range_expr: str, user_id=None, use_proxy: boo
         return False
 
 
-def download_image_range_cli(url: str, range_expr: str, user_id=None, use_proxy: bool = False) -> bool:
+def download_image_range_cli(url: str, range_expr: str, user_id=None, use_proxy: bool = False, output_dir: str | None = None) -> bool:
     """
     Strict range download using gallery-dl CLI with --range to avoid Python API variances.
     Returns True if exit code 0.
@@ -480,6 +480,14 @@ def download_image_range_cli(url: str, range_expr: str, user_id=None, use_proxy:
         return False
 
     cfg = {"extractor": {"timeout": 30, "retries": 3}}
+    # Scope outputs to a specific run directory if provided
+    if output_dir:
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+        except Exception:
+            pass
+        cfg["extractor"]["base-directory"] = output_dir
+        cfg["extractor"]["directory"] = []  # flatten into base-directory
     cfg = _prepare_user_cookies_and_proxy(url, user_id, use_proxy, cfg)
     try:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:

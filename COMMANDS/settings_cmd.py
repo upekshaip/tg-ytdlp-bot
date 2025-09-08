@@ -520,6 +520,8 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             "Usage: <code>/img URL</code>\n\n"
             "<b>Examples:</b>\n"
             "• <code>/img https://example.com/image.jpg</code>\n"
+            "• <code>/img 11-20 https://example.com/album</code>\n"
+            "• <code>/img 11- https://example.com/album</code>\n"
             "• <code>/img https://vk.com/wall-160916577_408508</code>\n"
             "• <code>/img https://2ch.hk/fd/res/1747651.html</code>\n"
             "• <code>/img https://imgur.com/abc123</code>\n\n"
