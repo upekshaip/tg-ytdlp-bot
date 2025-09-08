@@ -53,8 +53,8 @@ def settings_command(app, message):
         ],
         [
             InlineKeyboardButton("⚙️ MORE", callback_data="settings__menu__more"),
-        ],
-        [InlineKeyboardButton("🔚Close", callback_data="settings__menu__close")]
+            InlineKeyboardButton("🔚Close", callback_data="settings__menu__close"),
+        ]
     ])
     safe_send_message(
         user_id,
@@ -147,7 +147,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("🎧 /audio - Download video as audio", callback_data="settings__cmd__audio")],
             [InlineKeyboardButton("💬 /subs - Subtitles language settings", callback_data="settings__cmd__subs")],
             [InlineKeyboardButton("⏯️ /playlist - How to download playlists", callback_data="settings__cmd__playlist")],
-            [InlineKeyboardButton("🖼 /img - Download images", callback_data="settings__cmd__img")],
+            [InlineKeyboardButton("🖼 /img - Download images via gallery-dl", callback_data="settings__cmd__img")],
             [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
@@ -184,7 +184,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
     if data == "more":
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔗 /link - Get direct video links", callback_data="settings__cmd__link")],
-            [InlineKeyboardButton("🌐 /proxy - Enable/disable proxy", callback_data="settings__cmd__proxy")],
+            [InlineKeyboardButton("🌍 /proxy - Enable/disable proxy", callback_data="settings__cmd__proxy")],
             [InlineKeyboardButton("🎹 /keyboard - Keyboard layout", callback_data="settings__cmd__keyboard")],
             [InlineKeyboardButton("🔍 /search - Inline search helper", callback_data="settings__cmd__search")],
             [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
@@ -514,12 +514,23 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔚Close", callback_data="img_hint|close")]
         ])
-        safe_send_message(user_id,
-                          "Download images from various platforms using gallery-dl.\n\nUsage: /img + URL \n\n(ex. /img https://imgur.com/abc123)\n(ex. /img https://flickr.com/photos/user/123456)\n\nsee all supported sites here: https://github.com/mikf/gallery-dl/blob/master/docs/supportedsites.md",
-                          reply_parameters=ReplyParameters(message_id=callback_query.message.id),
-                          reply_markup=keyboard,
-                          _callback_query=callback_query,
-                          _fallback_notice="⏳ Flood limit. Try later.")
+        safe_send_message(
+            user_id,
+            "<b>🖼 Image Download Command</b>\n\n"
+            "Usage: <code>/img URL</code>\n\n"
+            "<b>Examples:</b>\n"
+            "• <code>/img https://example.com/image.jpg</code>\n"
+            "• <code>/img https://vk.com/wall-160916577_408508</code>\n"
+            "• <code>/img https://2ch.hk/fd/res/1747651.html</code>\n"
+            "• <code>/img https://imgur.com/abc123</code>\n\n"
+            "<b>Supported platforms (examples):</b>\n"
+            "<blockquote>vk, 2ch, 35photo, 4chan, 500px, ArtStation, Boosty, Civitai, Cyberdrop, DeviantArt, Discord, Facebook, Fansly, Instagram, Patreon, Pinterest, Reddit, TikTok, Tumblr, Twitter/X, JoyReactor, etc. — <a href=\"https://github.com/mikf/gallery-dl/blob/master/docs/supportedsites.md\">full list</a></blockquote>",
+            reply_parameters=ReplyParameters(message_id=callback_query.message.id),
+            reply_markup=keyboard,
+            _callback_query=callback_query,
+            _fallback_notice="⏳ Flood limit. Try later.",
+            parse_mode=enums.ParseMode.HTML,
+        )
         try:
             callback_query.answer("Hint sent.")
         except Exception:

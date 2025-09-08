@@ -16,6 +16,9 @@ from HELPERS.logger import logger
 from HELPERS.filesystem_hlp import create_directory
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url
+import subprocess
+import json
+import tempfile
 
 
 # ---------- Low-level helpers ----------
@@ -207,7 +210,7 @@ def get_image_info(url: str, user_id=None, use_proxy: bool = False):
         logger.info(f"Setting gallery-dl config: {config}")
         _apply_config(config)
 
-        # ---- Strategy A: extractor.find + items() ----
+        # ---- Strategy A: extractor.find + items() (no downloads) ----
         try:
             logger.info("Trying Strategy A: extractor.find + items()")
             ex_find = getattr(gallery_dl, "extractor", None)
@@ -249,91 +252,15 @@ def get_image_info(url: str, user_id=None, use_proxy: bool = False):
         except Exception as inner_e:
             logger.warning(f"Strategy A (extractor.find) failed: {inner_e}")
 
-        # ---- Strategy B: DownloadJob with simulate mode ----
+        # Fallback: use --get-urls count only (no downloads)
         try:
-            logger.info("Trying Strategy B: DownloadJob with simulate mode")
-            job_mod = getattr(gallery_dl, "job", None)
-            if job_mod is None:
-                raise AttributeError("gallery_dl.job module not found")
+            total = get_total_media_count(url, user_id, use_proxy)
+            if isinstance(total, int) and total > 0:
+                logger.info(f"Fallback metadata from --get-urls: total={total}")
+                return {"total": total, "title": "Unknown"}
+        except Exception as _:
+            pass
 
-            DownloadJob = getattr(job_mod, "DownloadJob", None)
-            if DownloadJob is None:
-                raise AttributeError("DownloadJob not available")
-
-            # Set output mode to simulate for info only
-            _gdl_set("output", "mode", "simulate")
-            
-            logger.info(f"Creating DownloadJob for {url}")
-            dj = DownloadJob(url)
-            logger.info("Running DownloadJob in simulate mode")
-            status = dj.run()
-            logger.info(f"DownloadJob finished with status: {status}")
-
-            # Some builds expose dj.extractor
-            extractor = getattr(dj, "extractor", None)
-            if extractor is not None:
-                logger.info("DownloadJob has extractor, trying items()")
-                info = _first_info_from_items(extractor.items())
-                if info:
-                    logger.info(f"Strategy B succeeded, got info: {info}")
-                    return info
-            else:
-                logger.warning("Strategy B: DownloadJob has no extractor attribute")
-
-        except Exception as inner2_e:
-            logger.warning(f"Strategy B (DownloadJob simulate) failed: {inner2_e}")
-
-        # ---- Strategy C: Direct CLI simulation ----
-        try:
-            logger.info("Trying Strategy C: Direct CLI simulation")
-            import subprocess
-            import tempfile
-            import json
-            
-            # Create a temporary config file
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-                config_data = {
-                    "extractor": config.get("extractor", {}),
-                    "output": {"mode": "json", "indent": 2}
-                }
-                json.dump(config_data, f)
-                config_file = f.name
-            
-            try:
-                # Run gallery-dl with correct flags (no --info, use --simulate for info mode)
-                cmd = ["gallery-dl", "--config", config_file, "--simulate", url]
-                logger.info(f"Running command: {' '.join(cmd)}")
-                
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-                logger.info(f"CLI command exit code: {result.returncode}")
-                logger.info(f"CLI stdout: {result.stdout[:500]}...")
-                if result.stderr:
-                    logger.warning(f"CLI stderr: {result.stderr[:500]}...")
-                
-                if result.returncode == 0 and result.stdout:
-                    # Try to parse JSON output
-                    try:
-                        data = json.loads(result.stdout)
-                        if isinstance(data, list) and len(data) > 0:
-                            info = data[0]
-                            logger.info(f"Strategy C succeeded, got info: {info}")
-                            return info
-                    except json.JSONDecodeError:
-                        logger.warning("Strategy C: Failed to parse JSON output")
-                else:
-                    logger.warning(f"Strategy C: CLI command failed with code {result.returncode}")
-                    
-            finally:
-                # Clean up temp file
-                try:
-                    os.unlink(config_file)
-                except:
-                    pass
-                    
-        except Exception as inner3_e:
-            logger.warning(f"Strategy C (CLI simulation) failed: {inner3_e}")
-
-        # If all strategies fail:
         logger.error("All strategies failed to obtain metadata")
         return None
 
@@ -471,3 +398,115 @@ def gallery_dl_hook(extractor, url, info):
     except Exception:
         title = "Unknown"
     logger.info(f"Gallery-dl extracting from {url}: {title}")
+
+
+# ---------- New utilities for batching ----------
+
+def get_total_media_count(url: str, user_id=None, use_proxy: bool = False) -> int | None:
+    """
+    Estimate total media count using CLI equivalent of --get-urls and counting lines.
+    Returns integer or None if failed.
+    """
+    cfg = {
+        "extractor": {
+            "timeout": 30,
+            "retries": 3,
+        }
+    }
+    cfg = _prepare_user_cookies_and_proxy(url, user_id, use_proxy, cfg)
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(cfg, f)
+            cfg_path = f.name
+        try:
+            cmd = ["gallery-dl", "--config", cfg_path, "--get-urls", url]
+            logger.info(f"Counting total media via: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            if result.returncode == 0:
+                # each URL per line
+                lines = [ln for ln in result.stdout.splitlines() if ln.strip()]
+                return len(lines)
+            else:
+                logger.warning(f"get_total_media_count failed: {result.stderr[:400]}")
+                return None
+        finally:
+            try:
+                os.unlink(cfg_path)
+            except Exception:
+                pass
+    except Exception as e:
+        logger.error(f"get_total_media_count error: {e}")
+        return None
+
+
+def download_image_range(url: str, range_expr: str, user_id=None, use_proxy: bool = False, output_dir: str = None) -> bool:
+    """
+    Download only a range of items using extractor.range option.
+    Returns True on success (status 0), False otherwise.
+    """
+    config = {
+        "extractor": {
+            "timeout": 30,
+            "retries": 3,
+            "range": range_expr,
+        },
+    }
+    config = _prepare_user_cookies_and_proxy(url, user_id, use_proxy, config)
+    try:
+        _apply_config(config)
+        job_mod = getattr(gallery_dl, "job", None)
+        if job_mod is None:
+            raise RuntimeError("gallery_dl.job module not found (broken install?)")
+        DownloadJob = getattr(job_mod, "DownloadJob", None)
+        if DownloadJob is None:
+            raise RuntimeError("gallery_dl.job.DownloadJob not available in this build")
+        job = DownloadJob(url)
+        status = job.run()
+        return status == 0
+    except Exception as e:
+        logger.error(f"Failed to download range {range_expr}: {e}")
+        return False
+
+
+def download_image_range_cli(url: str, range_expr: str, user_id=None, use_proxy: bool = False) -> bool:
+    """
+    Strict range download using gallery-dl CLI with --range to avoid Python API variances.
+    Returns True if exit code 0.
+    """
+    # Validate range expression to avoid accidental full downloads
+    import re as _re
+    if not isinstance(range_expr, str) or not _re.fullmatch(r"\d+-\d*", range_expr):
+        logger.error(f"Invalid range expression: '{range_expr}'. Expected 'start-end' or 'start-' format.")
+        return False
+
+    cfg = {"extractor": {"timeout": 30, "retries": 3}}
+    cfg = _prepare_user_cookies_and_proxy(url, user_id, use_proxy, cfg)
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(cfg, f)
+            cfg_path = f.name
+        try:
+            cmd = ["gallery-dl", "--config", cfg_path, "--range", range_expr, url]
+            cmd_pretty = ' '.join(cmd)
+            # Final safety check that command includes proper --range
+            if "--range" not in cmd or range_expr not in cmd:
+                logger.error(f"Safety check failed for command (missing --range): {cmd_pretty}")
+                return False
+            logger.info(f"Downloading range via CLI: {cmd_pretty}")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            if result.returncode != 0:
+                logger.warning(f"CLI range download failed [{result.returncode}]: {result.stderr[:400]}")
+                return False
+            # Log short stdout to confirm ranged downloads occurred
+            if result.stdout:
+                preview = '\n'.join(result.stdout.splitlines()[:5])
+                logger.info(f"CLI stdout (first lines):\n{preview}")
+            return True
+        finally:
+            try:
+                os.unlink(cfg_path)
+            except Exception:
+                pass
+    except Exception as e:
+        logger.error(f"download_image_range_cli error: {e}")
+        return False
