@@ -1092,7 +1092,14 @@ The bot now supports downloading images from various platforms using gallery-dl:
 /img https://imgur.com/abc123              # Imgur link
 /img https://flickr.com/photos/user/123456 # Flickr photo
 /img https://instagram.com/p/abc123        # Instagram post
+# Ranges (albums/feeds supported):
+/img 11-20 https://example.com/album       # Download items 11..20
+/img 11- https://example.com/album         # Download from item 11 up to limit
 ```
+
+Notes:
+- You can specify a numeric range as N-M (inclusive) or N- (from N to the end or until bot limit).
+- If no range is provided, the bot autodetects total count and downloads up to the configured limit.
 
 **How it works:**
 1. User runs `/img URL` to download an image
