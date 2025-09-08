@@ -37,7 +37,7 @@ def proxy_command(app, message):
             if arg in ("on", "off"):
                 with open(proxy_file, "w", encoding="utf-8") as f:
                     f.write("ON" if arg == "on" else "OFF")
-                safe_send_message(user_id, f"✅ Proxy {'enabled' if arg=='on' else 'disabled'}.")
+                safe_send_message(user_id, f"✅ Proxy {'enabled' if arg=='on' else 'disabled' }.", message=message)
                 send_to_logger(message, f"Proxy set via command: {arg}")
                 return
     except Exception:
@@ -60,7 +60,8 @@ def proxy_command(app, message):
     safe_send_message(
         user_id,
         proxy_text,
-        reply_markup=keyboard
+        reply_markup=keyboard,
+        message=message
     )
     send_to_logger(message, "User opened /proxy menu.")
 

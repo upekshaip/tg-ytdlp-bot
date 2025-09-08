@@ -276,7 +276,7 @@ def subs_command(app, message):
             save_subs_always_ask(user_id, False)
             save_user_subs_language(user_id, "OFF")
             from HELPERS.safe_messeger import safe_send_message
-            safe_send_message(user_id, "✅ Subtitles disabled and Always Ask mode turned off.")
+            safe_send_message(user_id, "✅ Subtitles disabled and Always Ask mode turned off.", message=message)
             send_to_logger(message, f"SUBS disabled via command: {arg}")
             return
         
@@ -284,7 +284,7 @@ def subs_command(app, message):
         elif arg == "on":
             save_subs_always_ask(user_id, True)
             from HELPERS.safe_messeger import safe_send_message
-            safe_send_message(user_id, "✅ SUBS Always Ask enabled.")
+            safe_send_message(user_id, "✅ SUBS Always Ask enabled.", message=message)
             send_to_logger(message, f"SUBS Always Ask enabled via command: {arg}")
             return
         
@@ -293,7 +293,7 @@ def subs_command(app, message):
             save_user_subs_language(user_id, arg)
             lang_info = LANGUAGES[arg]
             from HELPERS.safe_messeger import safe_send_message
-            safe_send_message(user_id, f"✅ Subtitle language set to: {lang_info['flag']} {lang_info['name']}")
+            safe_send_message(user_id, f"✅ Subtitle language set to: {lang_info['flag']} {lang_info['name']}", message=message)
             send_to_logger(message, f"SUBS language set via command: {arg}")
             return
         
@@ -303,7 +303,7 @@ def subs_command(app, message):
             save_user_subs_auto_mode(user_id, True)
             lang_info = LANGUAGES[arg]
             from HELPERS.safe_messeger import safe_send_message
-            safe_send_message(user_id, f"✅ Subtitle language set to: {lang_info['flag']} {lang_info['name']} with AUTO/TRANS enabled.")
+            safe_send_message(user_id, f"✅ Subtitle language set to: {lang_info['flag']} {lang_info['name']} with AUTO/TRANS enabled.", message=message)
             send_to_logger(message, f"SUBS language + auto mode set via command: {arg} auto")
             return
         
@@ -317,7 +317,8 @@ def subs_command(app, message):
                 "• `/subs on` - enable Always Ask mode\n"
                 "• `/subs ru` - set language (any language code)\n"
                 "• `/subs ru auto` - set language with AUTO/TRANS enabled\n\n"
-                "Example: `/subs en auto`"
+                "Example: `/subs en auto`",
+                message=message
             )
             return
 
@@ -351,7 +352,8 @@ def subs_command(app, message):
         "• <code>/subs ru</code> - set language\n"
         "• <code>/subs ru auto</code> - set language with AUTO/TRANS",
         reply_markup=get_language_keyboard(page=0, user_id=user_id, per_page_rows=8),
-        parse_mode=enums.ParseMode.HTML
+        parse_mode=enums.ParseMode.HTML,
+        message=message
     )
     send_to_logger(message, "User opened /subs menu.")
 

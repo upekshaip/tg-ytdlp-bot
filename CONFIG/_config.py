@@ -18,7 +18,7 @@ class Config(object):
     # Список ID администраторов
     ADMIN = [00000000, 111111111111]
     # Add allowed group IDs - Only these groups will be served by the bot
-    #ALLOWED_GROUP = [-100111111111111, -1002222222222222]
+    ALLOWED_GROUP = [-100111111111111, -1002222222222222]
     # API ID Telegram
     API_ID = 00000000000000
     # API HASH Telegram

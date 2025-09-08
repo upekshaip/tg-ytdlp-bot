@@ -105,7 +105,7 @@ def playlist_command(app, message):
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔚Close", callback_data="playlist_help|close")]
     ])
-    safe_send_message(user_id, Config.PLAYLIST_HELP_MSG, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+    safe_send_message(user_id, Config.PLAYLIST_HELP_MSG, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, message=message)
     send_to_logger(message, "User requested playlist help.")
 
 @app.on_callback_query(filters.regex(r"^playlist_help\|"))

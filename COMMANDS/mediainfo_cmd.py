@@ -38,7 +38,7 @@ def mediainfo_command(app, message):
             if arg in ("on", "off"):
                 with open(mediainfo_file, "w", encoding="utf-8") as f:
                     f.write("ON" if arg == "on" else "OFF")
-                safe_send_message(user_id, f"✅ MediaInfo {'enabled' if arg=='on' else 'disabled'}.")
+                safe_send_message(user_id, f"✅ MediaInfo {'enabled' if arg=='on' else 'disabled' }.", message=message)
                 send_to_logger(message, f"MediaInfo set via command: {arg}")
                 return
     except Exception:
@@ -51,7 +51,8 @@ def mediainfo_command(app, message):
     safe_send_message(
         user_id,
         "Enable or disable sending MediaInfo for downloaded files?",
-        reply_markup=keyboard
+        reply_markup=keyboard,
+        message=message
     )
     send_to_logger(message, "User opened /mediainfo menu.")
 

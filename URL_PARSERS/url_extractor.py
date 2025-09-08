@@ -28,6 +28,7 @@ import os
 from URL_PARSERS.video_extractor import video_url_extractor
 from URL_PARSERS.playlist_utils import is_playlist_with_range
 from pyrogram import filters
+import re
 from CONFIG.config import Config
 from HELPERS.logger import logger
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -43,6 +44,13 @@ def url_distractor(app, message):
     user_id = message.chat.id
     is_admin = int(user_id) in Config.ADMIN
     text = message.text.strip()
+    # Normalize commands like /cmd@bot to /cmd for group mentions
+    try:
+        bot_mention = f"@{getattr(Config, 'BOT_NAME', '').strip()}"
+        if bot_mention and bot_mention in text:
+            text = text.replace(bot_mention, "").strip()
+    except Exception:
+        pass
 
     # Emoji keyboard mapping to commands (from FULL layout)
     emoji_to_command = {
@@ -71,11 +79,11 @@ def url_distractor(app, message):
         mapped = emoji_to_command[text]
         # Special case: headphones emoji should show audio usage hint
         if mapped == "/audio":
-            from pyrogram.types import ReplyParameters
-            app.send_message(
+            from HELPERS.safe_messeger import safe_send_message
+            safe_send_message(
                 message.chat.id,
                 "Download only audio from video source.\n\nUsage: /audio + URL \n\n(ex. /audio https://youtu.be/abc123)\n(ex. /audio https://youtu.be/playlist?list=abc123*1*10)",
-                reply_parameters=ReplyParameters(message_id=message.id)
+                message=message
             )
             return
         # Emulate a user command for the mapped emoji
@@ -127,9 +135,12 @@ def url_distractor(app, message):
             send_to_user(message, "Welcome Master 🥷")
         else:
             check_user(message)
-            app.send_message(
+            from HELPERS.safe_messeger import safe_send_message
+            safe_send_message(
                 message.chat.id,
-                f"Hello {message.chat.first_name},\n \n<i>This bot🤖 can download any videos into telegram directly.😊 For more information press <b>/help</b></i> 👈\n \n {Config.CREDITS_MSG}")
+                f"Hello {message.chat.first_name},\n \n<i>This bot🤖 can download any videos into telegram directly.😊 For more information press <b>/help</b></i> 👈\n \n {Config.CREDITS_MSG}",
+                parse_mode=enums.ParseMode.HTML,
+                message=message)
             send_to_logger(message, f"{message.chat.id} - user started the bot")
         return
 
@@ -138,9 +149,11 @@ def url_distractor(app, message):
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔚Close", callback_data="help_msg|close")]
         ])
-        app.send_message(message.chat.id, (Config.HELP_MSG),
+        from HELPERS.safe_messeger import safe_send_message
+        safe_send_message(message.chat.id, (Config.HELP_MSG),
                          parse_mode=enums.ParseMode.HTML,
-                         reply_markup=keyboard)
+                         reply_markup=keyboard,
+                         message=message)
         send_to_logger(message, f"Send help txt to user")
         return
 

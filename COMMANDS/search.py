@@ -43,11 +43,13 @@ def search_command(app, message):
         "<blockquote>For example: <b>@vid funny cats</b></blockquote>"
     )
 
-    app.send_message(
+    from HELPERS.safe_messeger import safe_send_message
+    safe_send_message(
         message.chat.id,
         text,
         parse_mode=enums.ParseMode.HTML,
-        reply_markup=keyboard
+        reply_markup=keyboard,
+        message=message
     )
 
     # Log the action

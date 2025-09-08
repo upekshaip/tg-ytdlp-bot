@@ -437,7 +437,12 @@ def image_command(app, message):
                                     else:
                                         media_group.append(InputMediaVideo(p, has_spoiler=nsfw_flag))
                             try:
-                                sent = app.send_media_group(user_id, media=media_group)
+                                sent = app.send_media_group(
+                                    user_id,
+                                    media=media_group,
+                                    reply_to_message_id=message.id,
+                                    message_thread_id=getattr(message, 'message_thread_id', None)
+                                )
                                 sent_message_ids.extend([m.id for m in sent])
                                 total_sent += len(media_group)
                                 # Zero out files to keep placeholders for re-run skipping
@@ -462,7 +467,13 @@ def image_command(app, message):
                                     try:
                                         with open(p, 'rb') as f:
                                             if t == 'photo':
-                                                sent_msg = app.send_photo(user_id, photo=f, has_spoiler=nsfw_flag)
+                                                sent_msg = app.send_photo(
+                                                    user_id,
+                                                    photo=f,
+                                                    has_spoiler=nsfw_flag,
+                                                    reply_to_message_id=message.id,
+                                                    message_thread_id=getattr(message, 'message_thread_id', None)
+                                                )
                                             else:
                                                 # try generate thumbnail
                                                 thumb = None
@@ -474,9 +485,22 @@ def image_command(app, message):
                                                 except Exception:
                                                     thumb = None
                                                 if thumb and os.path.exists(thumb):
-                                                    sent_msg = app.send_video(user_id, video=f, thumb=thumb, has_spoiler=nsfw_flag)
+                                                    sent_msg = app.send_video(
+                                                        user_id,
+                                                        video=f,
+                                                        thumb=thumb,
+                                                        has_spoiler=nsfw_flag,
+                                                        reply_to_message_id=message.id,
+                                                        message_thread_id=getattr(message, 'message_thread_id', None)
+                                                    )
                                                 else:
-                                                    sent_msg = app.send_video(user_id, video=f, has_spoiler=nsfw_flag)
+                                                    sent_msg = app.send_video(
+                                                        user_id,
+                                                        video=f,
+                                                        has_spoiler=nsfw_flag,
+                                                        reply_to_message_id=message.id,
+                                                        message_thread_id=getattr(message, 'message_thread_id', None)
+                                                    )
                                             sent_message_ids.append(sent_msg.id)
                                             total_sent += 1
                                         # zero out both converted and original
@@ -499,7 +523,12 @@ def image_command(app, message):
                             p, orig = others_buffer.pop(0)
                             try:
                                 with open(p, 'rb') as f:
-                                    sent_msg = app.send_document(user_id, document=f)
+                                    sent_msg = app.send_document(
+                                        user_id,
+                                        document=f,
+                                        reply_to_message_id=message.id,
+                                        message_thread_id=getattr(message, 'message_thread_id', None)
+                                    )
                                 sent_message_ids.append(sent_msg.id)
                                 total_sent += 1
                                 update_status()
@@ -547,7 +576,12 @@ def image_command(app, message):
                             else:
                                 media_group.append(InputMediaVideo(p, has_spoiler=nsfw_flag))
                     try:
-                        sent = app.send_media_group(user_id, media=media_group)
+                        sent = app.send_media_group(
+                            user_id,
+                            media=media_group,
+                            reply_to_message_id=message.id,
+                            message_thread_id=getattr(message, 'message_thread_id', None)
+                        )
                         sent_message_ids.extend([m.id for m in sent])
                         total_sent += len(media_group)
                         # zero out
@@ -568,7 +602,13 @@ def image_command(app, message):
                             try:
                                 with open(p, 'rb') as f:
                                     if t == 'photo':
-                                        sent_msg = app.send_photo(user_id, photo=f, has_spoiler=nsfw_flag)
+                                        sent_msg = app.send_photo(
+                                            user_id,
+                                            photo=f,
+                                            has_spoiler=nsfw_flag,
+                                            reply_to_message_id=message.id,
+                                            message_thread_id=getattr(message, 'message_thread_id', None)
+                                        )
                                     else:
                                         # try generate thumbnail
                                         thumb = None
@@ -580,9 +620,22 @@ def image_command(app, message):
                                         except Exception:
                                             thumb = None
                                         if thumb and os.path.exists(thumb):
-                                            sent_msg = app.send_video(user_id, video=f, thumb=thumb, has_spoiler=nsfw_flag)
+                                            sent_msg = app.send_video(
+                                                user_id,
+                                                video=f,
+                                                thumb=thumb,
+                                                has_spoiler=nsfw_flag,
+                                                reply_to_message_id=message.id,
+                                                message_thread_id=getattr(message, 'message_thread_id', None)
+                                            )
                                         else:
-                                            sent_msg = app.send_video(user_id, video=f, has_spoiler=nsfw_flag)
+                                            sent_msg = app.send_video(
+                                                user_id,
+                                                video=f,
+                                                has_spoiler=nsfw_flag,
+                                                reply_to_message_id=message.id,
+                                                message_thread_id=getattr(message, 'message_thread_id', None)
+                                            )
                                     sent_message_ids.append(sent_msg.id)
                                     total_sent += 1
                                 # zero out
@@ -606,7 +659,12 @@ def image_command(app, message):
                     p, orig = others_buffer.pop(0)
                     try:
                         with open(p, 'rb') as f:
-                            sent_msg = app.send_document(user_id, document=f)
+                            sent_msg = app.send_document(
+                                user_id,
+                                document=f,
+                                reply_to_message_id=message.id,
+                                message_thread_id=getattr(message, 'message_thread_id', None)
+                            )
                         sent_message_ids.append(sent_msg.id)
                         total_sent += 1
                         # zero out

@@ -34,6 +34,12 @@ def TimeFormatter(milliseconds: int) -> str:
 # Check the USAGE of the BOT
 
 def is_user_in_channel(app, message):
+    # Bypass subscription checks for explicitly allowed groups
+    try:
+        if int(getattr(message.chat, 'id', 0)) in getattr(Config, 'ALLOWED_GROUP', []):
+            return True
+    except Exception:
+        pass
     try:
         logger.info(f"[CHANNEL_CHECK] Checking membership for user {message.chat.id} in channel {Config.SUBSCRIBE_CHANNEL}")
         cht_member = app.get_chat_member(
@@ -70,14 +76,48 @@ def check_user(message):
     if not os.path.exists(user_dir):
         os.makedirs(user_dir, exist_ok=True)
     
-    # Check if user is in channel (for non-admins)
-    if int(message.chat.id) not in Config.ADMIN:
+    # Check if user is in channel (for non-admins), but always allow in allowed groups
+    if int(message.chat.id) not in Config.ADMIN and int(message.chat.id) not in getattr(Config, 'ALLOWED_GROUP', []):
         app = get_app()
         if app is None:
             logger.error("App instance is None in check_user")
             return False
         return is_user_in_channel(app, message)
     return True
+
+
+def ensure_group_admin(app, message):
+    """
+    For allowed groups, ensure the bot has admin rights. If not, ask to grant admin.
+    Returns True if ok to proceed, False if should stop.
+    """
+    try:
+        chat = getattr(message, 'chat', None)
+        chat_id = int(getattr(chat, 'id', 0)) if chat else 0
+        if chat_id in getattr(Config, 'ALLOWED_GROUP', []):
+            try:
+                me = app.get_me()
+                member = app.get_chat_member(chat_id, me.id)
+                status = getattr(member, 'status', None)
+                if status not in (ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER):
+                    # Ask to grant admin. Reply in the same topic/thread when possible
+                    safe_send_message(
+                        chat_id,
+                        "❗️ Для работы в группе боту нужны права администратора. Пожалуйста, сделайте бота админом этой группы.",
+                        message=message
+                    )
+                    return False
+            except Exception:
+                # If check failed for any reason, be safe and request admin
+                safe_send_message(
+                    chat_id,
+                    "❗️ Для работы в группе боту нужны права администратора. Пожалуйста, сделайте бота админом этой группы.",
+                    message=message
+                )
+                return False
+        return True
+    except Exception:
+        return True
 
 def check_file_size_limit(info_dict, max_size_bytes=None):
     """

@@ -1433,14 +1433,28 @@ def askq_callback(app, callback_query):
         if cached_videos:
             # Reposting cached videos
             callback_query.answer("🚀 Found in cache! Reposting...", show_alert=False)
+            try:
+                target_chat_id = getattr(original_message.chat, 'id', user_id)
+            except Exception:
+                target_chat_id = user_id
             for index in requested_indices:
                 if index in cached_videos:
                     try:
-                        app.forward_messages(
-                            chat_id=user_id,
-                            from_chat_id=Config.LOGS_ID,
-                            message_ids=[cached_videos[index]]
-                        )
+                        thread_id = getattr(original_message, 'message_thread_id', None)
+                        # Use forward everywhere; in groups try to keep topic via message_thread_id
+                        if thread_id:
+                            app.forward_messages(
+                                chat_id=target_chat_id,
+                                from_chat_id=Config.LOGS_ID,
+                                message_ids=[cached_videos[index]],
+                                message_thread_id=thread_id
+                            )
+                        else:
+                            app.forward_messages(
+                                chat_id=target_chat_id,
+                                from_chat_id=Config.LOGS_ID,
+                                message_ids=[cached_videos[index]]
+                            )
                     except Exception as e:
                         logger.warning(f"askq_callback: cached video for index {index} not found: {e}")
             
@@ -1487,7 +1501,7 @@ def askq_callback(app, callback_query):
                     down_and_up(app, original_message, url, playlist_name, new_count, new_start, tags_text, force_no_title=False, format_override=format_override, quality_key=used_quality_key, cookies_already_checked=True)
             else:
                 # All videos were in the cache
-                app.send_message(user_id, f"✅ Sent from cache: {len(cached_videos)}/{len(requested_indices)} files.", reply_parameters=ReplyParameters(message_id=original_message.id))
+                app.send_message(target_chat_id, f"✅ Sent from cache: {len(cached_videos)}/{len(requested_indices)} files.", reply_parameters=ReplyParameters(message_id=original_message.id))
                 media_type = "Audio" if data == "mp3" else "Video"
                 log_msg = f"{media_type} playlist sent from cache to user.\nURL: {url}\nUser: {callback_query.from_user.first_name} ({user_id})"
                 send_to_logger(original_message, log_msg)
@@ -1546,12 +1560,27 @@ def askq_callback(app, callback_query):
             callback_query.answer("🚀 Found in cache! Forwarding instantly...", show_alert=False)
             # found_type = None
             try:
-                app.forward_messages(
-                    chat_id=user_id,
-                    from_chat_id=Config.LOGS_ID,
-                    message_ids=message_ids
-                )
-                app.send_message(user_id, "✅ Video successfully sent from cache.", reply_parameters=ReplyParameters(message_id=original_message.id))
+                try:
+                    target_chat_id = getattr(original_message.chat, 'id', user_id)
+                except Exception:
+                    target_chat_id = user_id
+                thread_id = getattr(original_message, 'message_thread_id', None)
+                if thread_id:
+                    # Forward each to ensure thread id is applied
+                    for mid in message_ids:
+                        app.forward_messages(
+                            chat_id=target_chat_id,
+                            from_chat_id=Config.LOGS_ID,
+                            message_ids=[mid],
+                            message_thread_id=thread_id
+                        )
+                else:
+                    app.forward_messages(
+                        chat_id=target_chat_id,
+                        from_chat_id=Config.LOGS_ID,
+                        message_ids=message_ids
+                    )
+                app.send_message(target_chat_id, "✅ Video successfully sent from cache.", reply_parameters=ReplyParameters(message_id=original_message.id))
                 media_type = "Audio" if data == "mp3" else "Video"
                 log_msg = f"{media_type} sent from cache to user.\nURL: {url}\nUser: {callback_query.from_user.first_name} ({user_id})"
                 send_to_logger(original_message, log_msg)
@@ -2301,12 +2330,21 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         action_buttons = []
         action_buttons.extend(filter_action_buttons)
         
-        # Добавляем WATCH кнопку для YouTube (без LINK кнопки)
+        # Добавляем WATCH кнопку для YouTube
+        # - в личке: WebApp (удобный просмотр)
+        # - в группах: обычная URL-кнопка (WebApp может давать BUTTON_TYPE_INVALID в некоторых контекстах)
         try:
             if is_youtube_url(url):
                 piped_url = youtube_to_piped_url(url)
-                wa = WebAppInfo(url=piped_url)
-                action_buttons.append(InlineKeyboardButton("👁Watch", web_app=wa))
+                try:
+                    is_group = isinstance(user_id, int) and user_id < 0
+                except Exception:
+                    is_group = False
+                if is_group:
+                    action_buttons.append(InlineKeyboardButton("👁Watch", url=piped_url))
+                else:
+                    wa = WebAppInfo(url=piped_url)
+                    action_buttons.append(InlineKeyboardButton("👁Watch", web_app=wa))
         except Exception as e:
             logger.error(f"Error adding WATCH button: {e}")
         
