@@ -4,6 +4,7 @@ from CONFIG.config import Config
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ReplyParameters
 from pyrogram import enums
 from HELPERS.logger import send_to_logger
+from HELPERS.limitter import is_user_in_channel
 
 from HELPERS.app_instance import get_app
 from HELPERS.safe_messeger import fake_message, safe_send_message, safe_edit_message_text
@@ -41,6 +42,15 @@ app = get_app()
 # @reply_with_keyboard
 def settings_command(app, message):
     user_id = message.chat.id
+    # Subscription check for non-admins
+    if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+        try:
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Join Channel", url=Config.SUBSCRIBE_CHANNEL_URL)]])
+            safe_send_message(user_id, f"{Config.TO_USE_MSG}\n \n{Config.CREDITS_MSG}", reply_markup=keyboard,
+                              reply_parameters=ReplyParameters(message_id=message.id))
+        except Exception:
+            pass
+        return
     # Main settings menu
     keyboard = InlineKeyboardMarkup([
         [

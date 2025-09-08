@@ -85,6 +85,41 @@ def url_distractor(app, message):
     if not is_admin and not is_user_in_channel(app, message):
         return
 
+    # ----- Admin-only denial for non-admins -----
+    if not is_admin:
+        # /uncache
+        if text.startswith(Config.UNCACHE_COMMAND):
+            send_to_user(message, "❌ Access denied. Admin only.")
+            return
+        # /auto_cache
+        if text.startswith(Config.AUTO_CACHE_COMMAND):
+            send_to_user(message, "❌ Access denied. Admin only.")
+            return
+        # /all_* (user details)
+        if Config.GET_USER_DETAILS_COMMAND in text:
+            send_to_user(message, "❌ Access denied. Admin only.")
+            return
+        # /unblock_user
+        if Config.UNBLOCK_USER_COMMAND in text:
+            send_to_user(message, "❌ Access denied. Admin only.")
+            return
+        # /block_user
+        if Config.BLOCK_USER_COMMAND in text:
+            send_to_user(message, "❌ Access denied. Admin only.")
+            return
+        # /broadcast
+        if text.startswith(Config.BROADCAST_MESSAGE):
+            send_to_user(message, "❌ Access denied. Admin only.")
+            return
+        # /log (user logs)
+        if Config.GET_USER_LOGS_COMMAND in text:
+            send_to_user(message, "❌ Access denied. Admin only.")
+            return
+        # /reload_cache
+        if text.startswith(Config.RELOAD_CACHE_COMMAND):
+            send_to_user(message, "❌ Access denied. Admin only.")
+            return
+
     # ----- Basic Commands -----
     # /Start Command
     if text == "/start":

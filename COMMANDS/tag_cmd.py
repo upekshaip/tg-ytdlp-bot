@@ -5,6 +5,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyPara
 from HELPERS.safe_messeger import safe_send_message
 from CONFIG.config import Config
 from HELPERS.logger import send_to_logger
+from HELPERS.limitter import is_user_in_channel
 
 # Get app instance for decorators
 app = get_app()
@@ -13,6 +14,15 @@ app = get_app()
 # @reply_with_keyboard
 def tags_command(app, message):
     user_id = message.chat.id
+    # Subscription check for non-admins
+    if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+        try:
+            text_join = f"{Config.TO_USE_MSG}\n \n{Config.CREDITS_MSG}"
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Join Channel", url=Config.SUBSCRIBE_CHANNEL_URL)]])
+            safe_send_message(user_id, text_join, reply_markup=keyboard)
+        except Exception:
+            pass
+        return
     user_dir = os.path.join("users", str(user_id))
     tags_file = os.path.join(user_dir, "tags.txt")
     if not os.path.exists(tags_file):

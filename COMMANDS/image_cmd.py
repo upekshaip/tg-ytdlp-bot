@@ -21,6 +21,8 @@ from DOWN_AND_UP.gallery_dl_hook import (
 from HELPERS.filesystem_hlp import create_directory
 from COMMANDS.proxy_cmd import is_proxy_enabled
 from CONFIG.limits import LimitsConfig
+from CONFIG.config import Config
+from HELPERS.limitter import is_user_in_channel
 
 # Get app instance for decorators
 app = get_app()
@@ -148,6 +150,15 @@ def image_command(app, message):
     """Handle /img command for downloading images"""
     user_id = message.chat.id
     text = message.text.strip()
+    # Subscription check for non-admins
+    if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+        try:
+            text_join = f"{Config.TO_USE_MSG}\n \n{Config.CREDITS_MSG}"
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Join Channel", url=Config.SUBSCRIBE_CHANNEL_URL)]])
+            safe_send_message(user_id, text_join, reply_markup=keyboard)
+        except Exception:
+            pass
+        return
     
     # Extract URL from command
     if len(text.split()) < 2:
