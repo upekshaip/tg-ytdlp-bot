@@ -1,21 +1,22 @@
 start - Start the bot
+vid - + URL - Download video from link
+img - + URL - Download image from link
+audio - + URL - Extract only audio from link
 keyboard - Show keyboard
 help - Show help instructions
 settings - All commands of bot
 clean - Delete cookies & broken downloads
 search - Find videos directly in bot
-cookie - Download cookie from web [youtube/tiktok/x/twitter/custom]
-cookies_from_browser - Get cookies from embedded browser
-playlist - Show how to download playlists
-audio - + URL - Download only audio (mp3)
+cookie - Download cookie from web
+cookies_from_browser - Cookies from browser
+playlist - How to download playlists
 format - Change quality & format options
 mediainfo - Turn ON/OFF sending mediainfo
-split - Change splitted video part size (100MB-2GB)
-subs - Enable/disable subtitle embedding for videos
-img - + URL - Download image from source 
-link - + [quality] URL - Get direct video/audio stream links for media players
-proxy - on/off - Enable/disable proxy for all yt-dlp downloads
-check_cookie - Check and validate cookie file
-save_as_cookie - Save text as cookie (or upload TXT-doc)
+split - Change splitted video part size
+subs - Enable/disable subtitle embedding
+link - + [quality] URL - Get direct stream links
+proxy - on/off - Enable/disable proxy
+check_cookie - Check and validate cookie
+save_as_cookie - Save text as cookie (or upload *.TXT)
 tags - Get all your #tags
-usage - Get your logs
+usage - Get all your logs

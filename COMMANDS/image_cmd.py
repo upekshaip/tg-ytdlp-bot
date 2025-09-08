@@ -299,7 +299,9 @@ def image_command(app, message):
         others_buffer = []  # store (converted_path, original_path)
         total_downloaded = 0
         total_sent = 0
-        total_limit = LimitsConfig.MAX_IMG_FILES
+        # Admin users have no limit, regular users have MAX_IMG_FILES limit
+        is_admin = int(user_id) in Config.ADMIN
+        total_limit = float('inf') if is_admin else LimitsConfig.MAX_IMG_FILES
         # Using detected_total if present; else metadata-based fallback
         total_expected = locals().get('total_expected') or None
         try:
@@ -547,13 +549,13 @@ def image_command(app, message):
                             except Exception as e:
                                 logger.error(f"Failed to send document: {e}")
 
-                        # Stop if limit reached
-                        if total_sent >= total_limit:
+                        # Stop if limit reached (but not for admins)
+                        if not is_admin and total_sent >= total_limit:
                             break
 
             # Flush remainder if no more ranges pending
             upper_cap = manual_end_cap or total_expected
-            if (upper_cap and (total_sent >= upper_cap or current_start > upper_cap)) or (total_sent >= total_limit):
+            if (upper_cap and (total_sent >= upper_cap or current_start > upper_cap)) or (not is_admin and total_sent >= total_limit):
                 # Send remaining media groups
                 if photos_videos_buffer:
                     group = photos_videos_buffer[:batch_size]
