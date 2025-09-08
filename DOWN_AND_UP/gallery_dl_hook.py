@@ -69,6 +69,7 @@ def _prepare_user_cookies_and_proxy(url: str, user_id, use_proxy: bool, config: 
     # cookies
     if os.path.exists(user_cookie_path):
         config['extractor']['cookies'] = user_cookie_path
+        logger.info(f"[gallery-dl] Using user cookies: {user_cookie_path}")
         if is_youtube_url(url):
             logger.info(f"Using YouTube cookies for user {user_id}")
     else:
@@ -79,6 +80,7 @@ def _prepare_user_cookies_and_proxy(url: str, user_id, use_proxy: bool, config: 
                 shutil.copy2(global_cookie_path, user_cookie_path)
                 logger.info(f"Copied global cookie file to user {user_id} folder")
                 config['extractor']['cookies'] = user_cookie_path
+                logger.info(f"[gallery-dl] Using copied global cookies as user cookies: {user_cookie_path}")
             except Exception as e:
                 logger.error(f"Failed to copy global cookie file for user {user_id}: {e}")
 
@@ -421,6 +423,7 @@ def get_total_media_count(url: str, user_id=None, use_proxy: bool = False) -> in
             cfg_path = f.name
         try:
             # Use the same Python interpreter to invoke gallery-dl module (no PATH dependency)
+            logger.info(f"[gallery-dl] cookies for --get-urls: {cfg.get('extractor',{}).get('cookies')}")
             cmd = [sys.executable, "-m", "gallery_dl", "--config", cfg_path, "--get-urls", url]
             logger.info(f"Counting total media via: {' '.join(cmd)}")
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
@@ -497,6 +500,7 @@ def download_image_range_cli(url: str, range_expr: str, user_id=None, use_proxy:
             cfg_path = f.name
         try:
             # Use module invocation to avoid PATH issues
+            logger.info(f"[gallery-dl] cookies for --range {range_expr}: {cfg.get('extractor',{}).get('cookies')}")
             cmd = [sys.executable, "-m", "gallery_dl", "--config", cfg_path, "--range", range_expr, url]
             cmd_pretty = ' '.join(cmd)
             # Final safety check that command includes proper --range
