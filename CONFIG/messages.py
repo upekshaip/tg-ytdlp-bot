@@ -76,7 +76,7 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 <code>/img 11- https://example.com/album</code> — from 11 to the end (or bot limit)
 
 <i>Supported platforms include vk, 2ch, 35photo, 4chan, 500px, ArtStation, Boosty, Civitai, Cyberdrop, DeviantArt, Discord, Facebook, Fansly, Instagram, Pinterest, Reddit, TikTok, Tumblr, Twitter/X, JoyReactor, etc. Full list:</i>
-<a href=\"https://github.com/mikf/gallery-dl/blob/master/docs/supportedsites.md\">gallery-dl supported sites</a>
+<a href=\"https://raw.githubusercontent.com/mikf/gallery-dl/refs/heads/master/docs/supportedsites.md\">gallery-dl supported sites</a>
 </blockquote>
 """
     HELP_MSG = """

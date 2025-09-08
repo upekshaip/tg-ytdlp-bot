@@ -312,6 +312,22 @@ def download_cookie_callback(app, callback_query):
         download_and_save_cookie(app, callback_query, Config.TWITTER_COOKIE_URL, "twitter")
     elif data == "tiktok":
         download_and_save_cookie(app, callback_query, Config.TIKTOK_COOKIE_URL, "tiktok")
+    elif data == "vk":
+        download_and_save_cookie(app, callback_query, Config.VK_COOKIE_URL, "vk")
+    elif data == "check_cookie":
+        try:
+            # Run cookie checking directly using a fake message
+            checking_cookie_file(app, fake_message(Config.CHECK_COOKIE_COMMAND, user_id))
+            try:
+                app.answer_callback_query(callback_query.id)
+            except Exception:
+                pass
+        except Exception as e:
+            logger.error(f"Failed to trigger check_cookie from cookie menu: {e}")
+            try:
+                app.answer_callback_query(callback_query.id, "❌ Failed to run /check_cookie", show_alert=False)
+            except Exception:
+                pass
     #elif data == "facebook":
         #download_and_save_cookie(app, callback_query, Config.FACEBOOK_COOKIE_URL, "facebook")
     elif data == "own":
@@ -397,7 +413,7 @@ def checking_cookie_file(app, message):
         if cookie_content.startswith("# Netscape HTTP Cookie File"):
             # Check the functionality of YouTube cookies
             from HELPERS.safe_messeger import safe_send_message
-            initial_msg = safe_send_message(message.chat.id, "✅ Cookie file exists and has correct format\n\n🔄 Checking YouTube cookies...", parse_mode=enums.ParseMode.HTML)
+            initial_msg = safe_send_message(message.chat.id, "✅ Cookie file exists and has correct format", parse_mode=enums.ParseMode.HTML)
             
             # Check if the file contains YouTube cookies (by domain column)
             def _has_youtube_domain(text: str) -> bool:
@@ -416,14 +432,14 @@ def checking_cookie_file(app, message):
             if _has_youtube_domain(cookie_content):
                 if test_youtube_cookies(file_path):
                     if initial_msg is not None and hasattr(initial_msg, 'id'):
-                        safe_edit_message_text(message.chat.id, initial_msg.id, "✅ Cookie file exists and has correct format\n✅ YouTube cookies are working properly")
+                        safe_edit_message_text(message.chat.id, initial_msg.id, "✅ YouTube cookies are working properly")
                     send_to_logger(message, "Cookie file exists, has correct format, and YouTube cookies are working.")
                 else:
                     if initial_msg is not None and hasattr(initial_msg, 'id'):
-                        safe_edit_message_text(message.chat.id, initial_msg.id, "✅ Cookie file exists and has correct format\n❌ YouTube cookies are expired or invalid\n\nUse /cookie to get new cookies")
+                        safe_edit_message_text(message.chat.id, initial_msg.id, "❌ YouTube cookies are expired or invalid\n\nUse /cookie to get new cookies")
                     send_to_logger(message, "Cookie file exists and has correct format, but YouTube cookies are expired.")
             else:
-                send_to_user(message, "✅ Cookie file exists and has correct format")
+                send_to_user(message, "✅ Skipped validation for non-YouTube cookies")
                 send_to_logger(message, "Cookie file exists and has correct format.")
         else:
             send_to_user(message, "⚠️ Cookie file exists but has incorrect format")
@@ -482,7 +498,7 @@ def download_cookie(app, message):
                 # Download and validate new cookies (optionally a specific source)
                 download_and_validate_youtube_cookies(app, message, selected_index=selected_index)
                 return
-            elif service in ["instagram", "twitter", "tiktok", "facebook", "own", "from_browser"]:
+            elif service in ["instagram", "twitter", "tiktok", "facebook", "own", "from_browser", "vk"]:
                 # Fast command - directly call the callback
                 fake_callback = fake_message(f"/cookie {service}", user_id)
                 fake_callback.data = f"download_cookie|{service}"
@@ -507,13 +523,14 @@ def download_cookie(app, message):
             InlineKeyboardButton("🐦 Twitter/X", callback_data="download_cookie|twitter"),
             InlineKeyboardButton("🎵 TikTok", callback_data="download_cookie|tiktok"),
         ],
+        [
+            InlineKeyboardButton("📘 Vkontakte", callback_data="download_cookie|vk"),
+            InlineKeyboardButton("✅ Check Cookie", callback_data="download_cookie|check_cookie"),
+        ],
         #[
             #InlineKeyboardButton("📘 Facebook", callback_data="download_cookie|facebook"),
             #InlineKeyboardButton("📷 Instagram", callback_data="download_cookie|instagram"),
         #],
-        [
-
-        ],
         [
             InlineKeyboardButton("📝 Your Own", callback_data="download_cookie|own"),            
             InlineKeyboardButton("🔚Close", callback_data="download_cookie|close")

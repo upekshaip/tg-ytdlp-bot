@@ -23,6 +23,7 @@ from COMMANDS.proxy_cmd import is_proxy_enabled
 from CONFIG.limits import LimitsConfig
 from CONFIG.config import Config
 from HELPERS.limitter import is_user_in_channel
+from HELPERS.porn import is_porn
 
 # Get app instance for decorators
 app = get_app()
@@ -235,6 +236,17 @@ def image_command(app, message):
     try:
         # Get image information first
         image_info = get_image_info(url, user_id, use_proxy)
+        # NSFW detection using domain and metadata
+        try:
+            info_title = (image_info or {}).get('title') if isinstance(image_info, dict) else None
+            info_desc = (image_info or {}).get('description') if isinstance(image_info, dict) else None
+            info_caption = (image_info or {}).get('caption') if isinstance(image_info, dict) else None
+        except Exception:
+            info_title = info_desc = info_caption = None
+        try:
+            nsfw_flag = bool(is_porn(url, info_title, info_desc, info_caption))
+        except Exception:
+            nsfw_flag = False
         
         if not image_info:
             safe_edit_message_text(
@@ -409,7 +421,7 @@ def image_command(app, message):
                             group_items = photos_videos_buffer[:batch_size]
                             for p, t, _orig in group_items:
                                 if t == 'photo':
-                                    media_group.append(InputMediaPhoto(p))
+                                    media_group.append(InputMediaPhoto(p, has_spoiler=nsfw_flag))
                                 else:
                                     # generate thumbnail for better preview
                                     thumb = None
@@ -421,9 +433,9 @@ def image_command(app, message):
                                     except Exception:
                                         thumb = None
                                     if thumb and os.path.exists(thumb):
-                                        media_group.append(InputMediaVideo(p, thumb=thumb))
+                                        media_group.append(InputMediaVideo(p, thumb=thumb, has_spoiler=nsfw_flag))
                                     else:
-                                        media_group.append(InputMediaVideo(p))
+                                        media_group.append(InputMediaVideo(p, has_spoiler=nsfw_flag))
                             try:
                                 sent = app.send_media_group(user_id, media=media_group)
                                 sent_message_ids.extend([m.id for m in sent])
@@ -450,7 +462,7 @@ def image_command(app, message):
                                     try:
                                         with open(p, 'rb') as f:
                                             if t == 'photo':
-                                                sent_msg = app.send_photo(user_id, photo=f)
+                                                sent_msg = app.send_photo(user_id, photo=f, has_spoiler=nsfw_flag)
                                             else:
                                                 # try generate thumbnail
                                                 thumb = None
@@ -462,9 +474,9 @@ def image_command(app, message):
                                                 except Exception:
                                                     thumb = None
                                                 if thumb and os.path.exists(thumb):
-                                                    sent_msg = app.send_video(user_id, video=f, thumb=thumb)
+                                                    sent_msg = app.send_video(user_id, video=f, thumb=thumb, has_spoiler=nsfw_flag)
                                                 else:
-                                                    sent_msg = app.send_video(user_id, video=f)
+                                                    sent_msg = app.send_video(user_id, video=f, has_spoiler=nsfw_flag)
                                             sent_message_ids.append(sent_msg.id)
                                             total_sent += 1
                                         # zero out both converted and original
@@ -519,7 +531,7 @@ def image_command(app, message):
                     media_group = []
                     for p, t, _orig in group:
                         if t == 'photo':
-                            media_group.append(InputMediaPhoto(p))
+                            media_group.append(InputMediaPhoto(p, has_spoiler=nsfw_flag))
                         else:
                             # generate thumbnail
                             thumb = None
@@ -531,9 +543,9 @@ def image_command(app, message):
                             except Exception:
                                 thumb = None
                             if thumb and os.path.exists(thumb):
-                                media_group.append(InputMediaVideo(p, thumb=thumb))
+                                media_group.append(InputMediaVideo(p, thumb=thumb, has_spoiler=nsfw_flag))
                             else:
-                                media_group.append(InputMediaVideo(p))
+                                media_group.append(InputMediaVideo(p, has_spoiler=nsfw_flag))
                     try:
                         sent = app.send_media_group(user_id, media=media_group)
                         sent_message_ids.extend([m.id for m in sent])
@@ -556,7 +568,7 @@ def image_command(app, message):
                             try:
                                 with open(p, 'rb') as f:
                                     if t == 'photo':
-                                        sent_msg = app.send_photo(user_id, photo=f)
+                                        sent_msg = app.send_photo(user_id, photo=f, has_spoiler=nsfw_flag)
                                     else:
                                         # try generate thumbnail
                                         thumb = None
@@ -568,9 +580,9 @@ def image_command(app, message):
                                         except Exception:
                                             thumb = None
                                         if thumb and os.path.exists(thumb):
-                                            sent_msg = app.send_video(user_id, video=f, thumb=thumb)
+                                            sent_msg = app.send_video(user_id, video=f, thumb=thumb, has_spoiler=nsfw_flag)
                                         else:
-                                            sent_msg = app.send_video(user_id, video=f)
+                                            sent_msg = app.send_video(user_id, video=f, has_spoiler=nsfw_flag)
                                     sent_message_ids.append(sent_msg.id)
                                     total_sent += 1
                                 # zero out

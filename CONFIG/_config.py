@@ -51,6 +51,7 @@ class Config(object):
     TIKTOK_COOKIE_URL = "https://XXX/tiktok_cookie.txt"
     #FACEBOOK_COOKIE_URL = "https://XXX/facebook_cookie.txt"
     TWITTER_COOKIE_URL = "https://XXX/twitter_cookie.txt"
+    VK_COOKIE_URL = "https://XXX/vk_cookie.txt"
     # Do not chanege this
     COOKIE_FILE_PATH = "TXT/cookie.txt"
     # Do not chanege this
