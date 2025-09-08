@@ -2369,10 +2369,20 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
                     if "MESSAGE_ID_INVALID" in str(edit_error):
                         logger.warning(f"Message ID invalid, sending new message: {edit_error}")
                         app.send_message(user_id, cap, reply_parameters=ReplyParameters(message_id=message.id), parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+                    elif "BUTTON_TYPE_INVALID" in str(edit_error):
+                        logger.warning(f"Button type invalid, sending without keyboard: {edit_error}")
+                        app.send_message(user_id, cap, reply_parameters=ReplyParameters(message_id=message.id), parse_mode=enums.ParseMode.HTML)
                     else:
                         raise edit_error
             else:
-                app.send_message(user_id, cap, reply_parameters=ReplyParameters(message_id=message.id), parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+                try:
+                    app.send_message(user_id, cap, reply_parameters=ReplyParameters(message_id=message.id), parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+                except Exception as send_error:
+                    if "BUTTON_TYPE_INVALID" in str(send_error):
+                        logger.warning(f"Button type invalid, sending without keyboard: {send_error}")
+                        app.send_message(user_id, cap, reply_parameters=ReplyParameters(message_id=message.id), parse_mode=enums.ParseMode.HTML)
+                    else:
+                        raise send_error
             
             logger.info(f"Successfully created cached qualities menu for user {user_id}")
             return True
@@ -3297,8 +3307,16 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 logger.info(f"Processing YouTube URL for WATCH button: {url}")
                 piped_url = youtube_to_piped_url(url)
                 logger.info(f"Converted to Piped URL: {piped_url}")
-                wa = WebAppInfo(url=piped_url)
-                action_buttons.append(InlineKeyboardButton("👁Watch", web_app=wa))
+                # Check if this is a group (negative user_id)
+                try:
+                    is_group = isinstance(user_id, int) and user_id < 0
+                except Exception:
+                    is_group = False
+                if is_group:
+                    action_buttons.append(InlineKeyboardButton("👁Watch", url=piped_url))
+                else:
+                    wa = WebAppInfo(url=piped_url)
+                    action_buttons.append(InlineKeyboardButton("👁Watch", web_app=wa))
                 logger.info(f"Added WATCH button to action_buttons for user {user_id}")
         except Exception as e:
             logger.error(f"Error adding WATCH button for user {user_id}: {e}")
@@ -3398,18 +3416,34 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 except Exception:
                     pass
                 proc_msg = None
-            if thumb_path and os.path.exists(thumb_path):
-                app.send_photo(
-                    user_id,
-                    thumb_path,
-                    caption=cap,
-                    parse_mode=enums.ParseMode.HTML,
-                    reply_markup=keyboard,
-                    reply_parameters=ReplyParameters(message_id=message.id),
-                    has_spoiler=is_nsfw
-                )
-            else:
-                app.send_message(user_id, cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_parameters=ReplyParameters(message_id=message.id))
+            # Try to send with keyboard first
+            try:
+                if thumb_path and os.path.exists(thumb_path):
+                    app.send_photo(
+                        user_id,
+                        thumb_path,
+                        caption=cap,
+                        parse_mode=enums.ParseMode.HTML,
+                        reply_markup=keyboard,
+                        reply_parameters=ReplyParameters(message_id=message.id),
+                        has_spoiler=is_nsfw
+                    )
+                else:
+                    app.send_message(user_id, cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_parameters=ReplyParameters(message_id=message.id))
+            except Exception as keyboard_error:
+                # If keyboard fails (e.g., BUTTON_TYPE_INVALID), try without keyboard
+                logger.warning(f"Failed to send with keyboard, retrying without: {keyboard_error}")
+                if thumb_path and os.path.exists(thumb_path):
+                    app.send_photo(
+                        user_id,
+                        thumb_path,
+                        caption=cap,
+                        parse_mode=enums.ParseMode.HTML,
+                        reply_parameters=ReplyParameters(message_id=message.id),
+                        has_spoiler=is_nsfw
+                    )
+                else:
+                    app.send_message(user_id, cap, parse_mode=enums.ParseMode.HTML, reply_parameters=ReplyParameters(message_id=message.id))
         send_to_logger(message, f"Always Ask menu sent for {url}")
     except FloodWait as e:
         wait_time = e.value
