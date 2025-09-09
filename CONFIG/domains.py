@@ -24,7 +24,7 @@ class DomainsConfig(object):
     
     # --- Greylist of domains excluded only from domain list check but still checked for keywords ---
     GREYLIST = [
-        'vkvideo.ru', 'vkontakte.ru', 'vk.com'
+        'vkvideo.ru', 'vkontakte.ru', 'vk.com', 'twitter.com', 'x.com', 't.co'
         # Add domains here that should be excluded from porn_domains.txt check
         # but still checked against porn_keywords.txt
     ]
