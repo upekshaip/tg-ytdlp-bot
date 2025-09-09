@@ -1443,16 +1443,18 @@ def askq_callback(app, callback_query):
                         thread_id = getattr(original_message, 'message_thread_id', None)
                         # Use forward everywhere; in groups try to keep topic via message_thread_id
                         if thread_id:
+                            from HELPERS.logger import get_log_channel
                             app.forward_messages(
                                 chat_id=target_chat_id,
-                                from_chat_id=Config.LOGS_ID,
+                                from_chat_id=get_log_channel("video"),
                                 message_ids=[cached_videos[index]],
                                 message_thread_id=thread_id
                             )
                         else:
+                            from HELPERS.logger import get_log_channel
                             app.forward_messages(
                                 chat_id=target_chat_id,
-                                from_chat_id=Config.LOGS_ID,
+                                from_chat_id=get_log_channel("video"),
                                 message_ids=[cached_videos[index]]
                             )
                     except Exception as e:
@@ -1568,16 +1570,18 @@ def askq_callback(app, callback_query):
                 if thread_id:
                     # Forward each to ensure thread id is applied
                     for mid in message_ids:
+                        from HELPERS.logger import get_log_channel
                         app.forward_messages(
                             chat_id=target_chat_id,
-                            from_chat_id=Config.LOGS_ID,
+                            from_chat_id=get_log_channel("video"),
                             message_ids=[mid],
                             message_thread_id=thread_id
                         )
                 else:
+                    from HELPERS.logger import get_log_channel
                     app.forward_messages(
                         chat_id=target_chat_id,
-                        from_chat_id=Config.LOGS_ID,
+                        from_chat_id=get_log_channel("video"),
                         message_ids=message_ids
                     )
                 app.send_message(target_chat_id, "✅ Video successfully sent from cache.", reply_parameters=ReplyParameters(message_id=original_message.id))

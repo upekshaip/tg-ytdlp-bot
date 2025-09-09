@@ -27,6 +27,9 @@ class Config(object):
     BOT_TOKEN = "00000000000:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
     # ID канала для логов
     LOGS_ID = -100111111111111  # ID канала для логов
+    LOGS_VIDEO_ID = -100111111111111  # ID канала для логов видео
+    LOGS_NSWF_ID = -100111111111111  # ID канала для логов видео с тэгами NSWF
+    LOGS_IMG_ID = -100111111111111  # ID канала для логов медиа команды /img     
     # ID канала для подписки
     SUBSCRIBE_CHANNEL = -100222222222222222222
     # Add subscription channel - Required (str)

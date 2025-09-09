@@ -8,7 +8,7 @@ import time
 from pyrogram import filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ReplyParameters, InputMediaPhoto, InputMediaVideo
 from pyrogram import enums
-from HELPERS.logger import send_to_logger, logger
+from HELPERS.logger import send_to_logger, logger, get_log_channel
 from HELPERS.app_instance import get_app
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
 import HELPERS.safe_messeger as sm
@@ -247,6 +247,8 @@ def image_command(app, message):
     except Exception:
         pass
 
+    # Default NSFW flag before any analysis
+    nsfw_flag = False
     # Early cache serve before any analysis/downloading
     try:
         requested_indices = None
@@ -267,9 +269,9 @@ def image_command(app, message):
                     if thread_id:
                         kwargs['message_thread_id'] = thread_id
                     try:
-                        sm.safe_forward_messages(user_id, Config.LOGS_ID, ids, **kwargs)
+                        sm.safe_forward_messages(user_id, get_log_channel("image", nsfw=nsfw_flag), ids, **kwargs)
                     except Exception:
-                        app.forward_messages(user_id, Config.LOGS_ID, ids, **kwargs)
+                        app.forward_messages(user_id, get_log_channel("image", nsfw=nsfw_flag), ids, **kwargs)
                 except Exception as _e:
                     logger.warning(f"Failed to forward cached album {album_idx}: {_e}")
             try:
@@ -339,9 +341,9 @@ def image_command(app, message):
                         if thread_id:
                             kwargs['message_thread_id'] = thread_id
                         try:
-                            sm.safe_forward_messages(user_id, Config.LOGS_ID, ids, **kwargs)
+                            sm.safe_forward_messages(user_id, get_log_channel("image", nsfw=nsfw_flag), ids, **kwargs)
                         except Exception:
-                            app.forward_messages(user_id, Config.LOGS_ID, ids, **kwargs)
+                            app.forward_messages(user_id, get_log_channel("image", nsfw=nsfw_flag), ids, **kwargs)
                     except Exception as _e:
                         logger.warning(f"Failed to forward cached album {album_idx}: {_e}")
                 # If we found anything in cache, finish early (do not re-download)
@@ -548,7 +550,7 @@ def image_command(app, message):
                                     f_ids = []
                                     for _mid in orig_ids:
                                         try:
-                                            msg = app.copy_message(chat_id=Config.LOGS_ID, from_chat_id=user_id, message_id=_mid)
+                                            msg = app.copy_message(chat_id=get_log_channel("image", nsfw=nsfw_flag), from_chat_id=user_id, message_id=_mid)
                                             if msg:
                                                 f_ids.append(msg.id)
                                                 time.sleep(0.05)
@@ -643,7 +645,7 @@ def image_command(app, message):
                                         f_ids = []
                                         for _mid in tmp_ids:
                                             try:
-                                                msg = app.copy_message(chat_id=Config.LOGS_ID, from_chat_id=user_id, message_id=_mid)
+                                                msg = app.copy_message(chat_id=get_log_channel("image", nsfw=nsfw_flag), from_chat_id=user_id, message_id=_mid)
                                                 if msg:
                                                     f_ids.append(msg.id)
                                                     time.sleep(0.05)
@@ -731,7 +733,7 @@ def image_command(app, message):
                             f_ids = []
                             for _mid in orig_ids2:
                                 try:
-                                    msg = app.copy_message(chat_id=Config.LOGS_ID, from_chat_id=user_id, message_id=_mid)
+                                    msg = app.copy_message(chat_id=get_log_channel("image", nsfw=nsfw_flag), from_chat_id=user_id, message_id=_mid)
                                     if msg:
                                         f_ids.append(msg.id)
                                         time.sleep(0.05)
@@ -822,7 +824,7 @@ def image_command(app, message):
                                 f_ids = []
                                 for _mid in tmp_ids2:
                                     try:
-                                        msg = app.copy_message(chat_id=Config.LOGS_ID, from_chat_id=user_id, message_id=_mid)
+                                        msg = app.copy_message(chat_id=get_log_channel("image", nsfw=nsfw_flag), from_chat_id=user_id, message_id=_mid)
                                         if msg:
                                             f_ids.append(msg.id)
                                             time.sleep(0.05)
@@ -889,7 +891,7 @@ def image_command(app, message):
         try:
             from HELPERS.safe_messeger import safe_forward_messages
             if sent_message_ids:
-                safe_forward_messages(Config.LOGS_ID, user_id, sent_message_ids)
+                safe_forward_messages(get_log_channel("image", nsfw=nsfw_flag), user_id, sent_message_ids)
         except Exception as e:
             logger.error(f"Failed to forward messages to log channel: {e}")
 

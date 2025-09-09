@@ -1406,7 +1406,8 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
                     parse_mode=enums.ParseMode.HTML
                 )
                 # We send this message to the log channel
-                safe_forward_messages(Config.LOGS_ID, user_id, [sent_msg.id])
+                from HELPERS.logger import get_log_channel
+                safe_forward_messages(get_log_channel("video"), user_id, [sent_msg.id])
                 send_to_logger(message, "💬 Subtitles SRT-file sent to user.")
                 # Remove temporary file
                 try:

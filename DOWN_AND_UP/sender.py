@@ -183,7 +183,8 @@ def send_videos(
                     reply_parameters=ReplyParameters(message_id=message.id),
                     parse_mode=enums.ParseMode.HTML
                 )
-                safe_forward_messages(Config.LOGS_ID, user_id, [user_doc_msg.id])
+                from HELPERS.logger import get_log_channel
+                safe_forward_messages(get_log_channel("video"), user_id, [user_doc_msg.id])
             except Exception as e:
                 logger.error(f"Error sending full description file: {e}")
         return video_msg

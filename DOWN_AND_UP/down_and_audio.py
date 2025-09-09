@@ -4,6 +4,7 @@
 # ########################################
 
 import os
+from HELPERS.logger import get_log_channel
 import threading
 import time
 import yt_dlp
@@ -251,7 +252,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     try:
                         app.forward_messages(
                             chat_id=user_id,
-                            from_chat_id=Config.LOGS_ID,
+                            from_chat_id=get_log_channel("video"),
                             message_ids=[cached_videos[index]]
                         )
                     except Exception as e:
@@ -268,7 +269,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             try:
                 app.forward_messages(
                     chat_id=user_id,
-                    from_chat_id=Config.LOGS_ID,
+                    from_chat_id=get_log_channel("video"),
                     message_ids=cached_ids
                 )
                 app.send_message(user_id, "✅ Audio sent from cache.", reply_parameters=ReplyParameters(message_id=message.id))
@@ -891,7 +892,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     )
                     logger.info("Audio sent without thumbnail")
                 
-                forwarded_msg = safe_forward_messages(Config.LOGS_ID, user_id, [audio_msg.id])
+                forwarded_msg = safe_forward_messages(get_log_channel("video"), user_id, [audio_msg.id])
                 
                 # Save to cache after sending audio
                 if quality_key and forwarded_msg:

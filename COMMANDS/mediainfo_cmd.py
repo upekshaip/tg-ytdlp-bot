@@ -142,7 +142,8 @@ def send_mediainfo_if_enabled(user_id, file_path, message):
 
             app.send_document(user_id, mediainfo_path, caption="<blockquote>📊 MediaInfo</blockquote>",
                               reply_parameters=ReplyParameters(message_id=msg_id))
-            app.send_document(Config.LOGS_ID, mediainfo_path,
+            from HELPERS.logger import get_log_channel
+            app.send_document(get_log_channel("video"), mediainfo_path,
                               caption=f"<blockquote>📊 MediaInfo</blockquote> for user {user_id}")
 
             if os.path.exists(mediainfo_path):

@@ -153,7 +153,8 @@ def get_user_log(app, message):
     from HELPERS.safe_messeger import safe_send_message
     safe_send_message(message.chat.id, f"Total: <b>{total}</b>\n<b>{user_id}</b> - logs (Last 10):\n\n{format_str}", parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
     app.send_document(message.chat.id, log_path, caption=f"{user_id} - all logs")
-    app.send_document(Config.LOGS_ID, log_path, caption=f"{user_id} - all logs")
+    from HELPERS.logger import get_log_channel
+    app.send_document(get_log_channel("general"), log_path, caption=f"{user_id} - all logs")
 
 
 # Get All Kinds of Users (Users/ Blocked/ Unblocked)
@@ -198,7 +199,8 @@ def get_user_details(app, message):
 
     send_to_all(message, mod)
     app.send_document(message.chat.id, f"./{file}", caption=f"{Config.BOT_NAME_FOR_USERS} - all {path}")
-    app.send_document(Config.LOGS_ID, f"./{file}", caption=f"{Config.BOT_NAME_FOR_USERS} - all {path}")
+    from HELPERS.logger import get_log_channel
+    app.send_document(get_log_channel("general"), f"./{file}", caption=f"{Config.BOT_NAME_FOR_USERS} - all {path}")
     logger.info(mod)
 
 # Block User

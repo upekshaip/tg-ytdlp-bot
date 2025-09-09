@@ -177,7 +177,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     try:
                         app.forward_messages(
                             chat_id=user_id,
-                            from_chat_id=Config.LOGS_ID,
+                            from_chat_id=get_log_channel("video"),
                             message_ids=[cached_videos[index]]
                         )
                     except Exception as e:
@@ -199,7 +199,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 try:
                     app.forward_messages(
                         chat_id=user_id,
-                        from_chat_id=Config.LOGS_ID,
+                        from_chat_id=get_log_channel("video"),
                         message_ids=cached_ids
                     )
                     app.send_message(user_id, "✅ Video sent from cache.", reply_parameters=ReplyParameters(message_id=message.id))
@@ -1230,7 +1230,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         continue
                     #found_type = None
                     try:
-                        forwarded_msgs = safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
+                        forwarded_msgs = safe_forward_messages(get_log_channel("video"), user_id, [video_msg.id])
                         logger.info(f"down_and_up: forwarded_msgs result: {forwarded_msgs}")
                         if forwarded_msgs:
                             logger.info(f"down_and_up: collecting forwarded message IDs for split video: {[m.id for m in forwarded_msgs]}")
@@ -1455,7 +1455,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         
                         #found_type = None
                         try:
-                            forwarded_msgs = safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
+                            forwarded_msgs = safe_forward_messages(get_log_channel("video"), user_id, [video_msg.id])
                             logger.info(f"down_and_up: forwarded_msgs result: {forwarded_msgs}")
                             if forwarded_msgs:
                                 logger.info(f"down_and_up: saving to cache with forwarded message IDs: {[m.id for m in forwarded_msgs]}")

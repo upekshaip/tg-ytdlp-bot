@@ -1,6 +1,6 @@
 from HELPERS.app_instance import get_app
 from CONFIG.config import Config
-from HELPERS.logger import logger
+from HELPERS.logger import logger, get_log_channel
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from pyrogram.enums import ChatMemberStatus
 import os
@@ -234,7 +234,7 @@ def check_playlist_range_limits(url, video_start_with, video_end_with, app, mess
         )
         # We send a notification to the log channel
         safe_send_message(
-            Config.LOGS_ID,
+            get_log_channel("general"),
             f"❗️ Range limit exceeded for {service}: {count} (maximum {max_count})\nUser ID: {message.chat.id}",
         )
         return False

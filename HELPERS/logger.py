@@ -41,13 +41,33 @@ if SDNOTIFY_AVAILABLE:
     logger.info("[Watchdog] Sent READY=1")
 else:
     logger.info("[Watchdog] SystemdNotifier not available - watchdog disabled")
+# Utility: pick proper log channel per kind
+
+def get_log_channel(kind: str = "general", nsfw: bool = False) -> int:
+    """Returns the appropriate Telegram chat ID for logs.
+
+    kind: "general" | "video" | "image"
+    nsfw: if True and kind is media, route to NSFW channel
+    """
+    try:
+        kind_normalized = (kind or "general").strip().lower()
+        if nsfw and kind_normalized in ("video", "image"):
+            return getattr(Config, "LOGS_NSWF_ID", getattr(Config, "LOGS_ID", 0))
+        if kind_normalized == "video":
+            return getattr(Config, "LOGS_VIDEO_ID", getattr(Config, "LOGS_ID", 0))
+        if kind_normalized == "image":
+            return getattr(Config, "LOGS_IMG_ID", getattr(Config, "LOGS_ID", 0))
+        return getattr(Config, "LOGS_ID", 0)
+    except Exception:
+        return getattr(Config, "LOGS_ID", 0)
+
 # Send Message to Logger
 
 def send_to_logger(message, msg):
     user_id = message.chat.id
     msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
     # Print (user_id, "-", msg)
-    safe_send_message(Config.LOGS_ID, msg_with_id,
+    safe_send_message(get_log_channel("general"), msg_with_id,
                      parse_mode=enums.ParseMode.HTML)
 
 # Send Message to User Only
@@ -61,5 +81,5 @@ def send_to_user(message, msg):
 def send_to_all(message, msg):
     user_id = message.chat.id
     msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
-    safe_send_message(Config.LOGS_ID, msg_with_id, parse_mode=enums.ParseMode.HTML)
+    safe_send_message(get_log_channel("general"), msg_with_id, parse_mode=enums.ParseMode.HTML)
     safe_send_message(user_id, msg, parse_mode=enums.ParseMode.HTML, message=message)

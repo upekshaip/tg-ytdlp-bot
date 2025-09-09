@@ -3,7 +3,10 @@
 #        GLOBAL IMPORTS
 ###########################################################
 import glob
-from sdnotify import SystemdNotifier
+try:
+    from sdnotify import SystemdNotifier  # optional, used for watchdog
+except Exception:
+    SystemdNotifier = None
 from datetime import datetime, timedelta
 import hashlib
 import io
