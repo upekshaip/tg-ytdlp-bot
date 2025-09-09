@@ -89,11 +89,9 @@ class Config(object):
     BOT_DB_PATH = f"bot/{BOT_NAME_FOR_USERS}/"
     VIDEO_CACHE_DB_PATH = f"bot/video_cache"
     PLAYLIST_CACHE_DB_PATH = f"bot/video_cache/playlists"
+    IMAGE_CACHE_DB_PATH = f"bot/video_cache/images"    
     # Firebase Config - Required (str for all)
     # Firebase настройки
-    BOT_DB_PATH = f"bot/{BOT_NAME_FOR_USERS}/"
-    VIDEO_CACHE_DB_PATH = f"bot/video_cache"
-    PLAYLIST_CACHE_DB_PATH = f"bot/video_cache/playlists"
     FIREBASE_USER = "XXX@gmail.com"
     FIREBASE_PASSWORD = "XXXXXXXXXXXXXXXxx"
     FIREBASE_CONF = {

@@ -150,10 +150,14 @@ def url_distractor(app, message):
             [InlineKeyboardButton("🔚Close", callback_data="help_msg|close")]
         ])
         from HELPERS.safe_messeger import safe_send_message
-        safe_send_message(message.chat.id, (Config.HELP_MSG),
-                         parse_mode=enums.ParseMode.HTML,
-                         reply_markup=keyboard,
-                         message=message)
+        try:
+            safe_send_message(message.chat.id, (Config.HELP_MSG),
+                             parse_mode=enums.ParseMode.HTML,
+                             reply_markup=keyboard,
+                             message=message)
+        except Exception:
+            # Fallback without parse_mode if enums shadowed unexpectedly
+            safe_send_message(message.chat.id, (Config.HELP_MSG), reply_markup=keyboard, message=message)
         send_to_logger(message, f"Send help txt to user")
         return
 
@@ -552,6 +556,33 @@ def url_distractor(app, message):
         else:
             send_to_all(message, "❌ This command is only available for administrators.")
         return
+
+    # /vid help (no args) — ensure hint is shown even when handled by text pipeline
+    if text.strip().lower().startswith('/vid'):
+        parts = text.strip().split(maxsplit=1)
+        if len(parts) == 1:
+            try:
+                from HELPERS.safe_messeger import safe_send_message
+                # Use top-level imports to avoid shadowing names in function scope
+                kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔚Close", callback_data="vid_help|close")]])
+                help_text = (
+                    "<b>🎬 Video Download Command</b>\n\n"
+                    "Usage: <code>/vid URL</code>\n\n"
+                    "<b>Examples:</b>\n"
+                    "• <code>/vid https://youtube.com/watch?v=123abc</code>\n"
+                    "• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n\n"
+                    "Also see: /audio, /img, /help, /playlist, /settings"
+                )
+                safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
+            except Exception:
+                pass
+            return
+        else:
+            # Strip command and reuse the URL handler path
+            try:
+                message.text = parts[1]
+            except Exception:
+                pass
 
     # If the Message Contains a URL, Launch The Video Download Function.
     if ("https://" in text) or ("http://" in text):

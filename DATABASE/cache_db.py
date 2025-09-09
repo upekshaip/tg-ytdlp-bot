@@ -647,6 +647,173 @@ def get_url_hash(url: str) -> str:
     logger.info(f"get_url_hash: '{url}' -> '{hash_result}'")
     return hashlib.md5(url.encode()).hexdigest()
 
+def _split_path_to_parts(path: str) -> list:
+    try:
+        return [p for p in str(path).strip('/').split('/') if p]
+    except Exception:
+        return ["bot", "image_cache"]
+
+def save_to_image_cache(url: str, post_index: int, message_ids: list):
+    """Save sent album (post) message IDs for an image URL into cache.
+    Stored under local cache path: bot -> image_cache -> url_hash -> str(post_index) -> comma-separated ids
+    And mirrored to Firebase using db_child_by_path when available.
+    """
+    from URL_PARSERS.normalizer import normalize_url_for_cache
+    try:
+        logger.info(f"[IMG CACHE] save_to_image_cache called: url={url}, post_index={post_index}, message_ids={message_ids}")
+        if not url or not message_ids or post_index is None:
+            logger.warning("[IMG CACHE] save_to_image_cache skipped: empty args")
+            return
+        u = normalize_url_for_cache(url)
+        url_hash = get_url_hash(u)
+        # Avoid duplicate write if already present in local cache (use config path)
+        image_root = getattr(Config, 'IMAGE_CACHE_DB_PATH', 'bot/video_cache/images')
+        root_parts = _split_path_to_parts(image_root)
+        local_path_parts = root_parts + [url_hash, str(int(post_index))]
+        existing = get_from_local_cache(local_path_parts)
+        if existing:
+            logger.info(f"[IMG CACHE] Skip save: already exists in local cache: {'/'.join(local_path_parts)}")
+            return
+        ids_string = ",".join(map(str, message_ids))
+        # Write to Firebase dump path (1:1 style with save_to_video_cache)
+        try:
+            # parent path without index, then child(index)
+            path_parts = [*root_parts, url_hash]
+            path_dbg_parent = "/".join(path_parts)
+            logger.info(f"[IMG CACHE] Writing parent path: {path_dbg_parent}; index={post_index}; ids={ids_string}")
+            cache_ref = db.child(*path_parts)
+            try:
+                cache_ref.child(str(int(post_index))).set(ids_string)
+            except Exception as inner:
+                logger.error(f"[IMG CACHE] Primary write failed ({path_dbg_parent}): {inner}")
+                # Fallback to db_child_by_path to mimic other modules exactly
+                try:
+                    db_child_by_path(db, f"{image_root}/{url_hash}/{int(post_index)}").set(ids_string)
+                    logger.info(f"[IMG CACHE] Fallback write via db_child_by_path succeeded: {image_root}/{url_hash}/{int(post_index)}")
+                except Exception as inner2:
+                    logger.error(f"[IMG CACHE] Fallback write failed: {inner2}")
+            logger.info(f"[IMG CACHE] Saved album to Firebase: {path_dbg_parent}/{int(post_index)}")
+            # Optional verification
+            try:
+                val = cache_ref.child(str(int(post_index))).get().val()
+                logger.info(f"[IMG CACHE] Verify read: {path_dbg_parent}/{int(post_index)} -> {val}")
+            except Exception as ve:
+                logger.warning(f"[IMG CACHE] Verify read failed (child-chain): {ve}")
+                try:
+                    val = db_child_by_path(db, f"{image_root}/{url_hash}/{int(post_index)}").get().val()
+                    logger.info(f"[IMG CACHE] Verify read (fallback): {image_root}/{url_hash}/{int(post_index)} -> {val}")
+                except Exception as ve2:
+                    logger.warning(f"[IMG CACHE] Verify read fallback failed: {ve2}")
+        except Exception as we:
+            logger.error(f"[IMG CACHE] Write error: {we}")
+    except Exception as e:
+        logger.error(f"[IMG CACHE] Failed to save image cache: {e}")
+
+def get_cached_image_posts(url: str, requested_indices: list | None = None) -> dict:
+    """Return dict {post_index: [msg_ids]} for cached image posts for URL.
+    If requested_indices is provided, only return intersection.
+    """
+    from URL_PARSERS.normalizer import normalize_url_for_cache
+    try:
+        u = normalize_url_for_cache(url)
+        url_hash = get_url_hash(u)
+        image_root = getattr(Config, 'IMAGE_CACHE_DB_PATH', 'bot/video_cache/images')
+        root_parts = _split_path_to_parts(image_root)
+        base = get_from_local_cache(root_parts + [url_hash])
+        result = {}
+        # Dict layout: {"1": "id,id,..."}
+        if isinstance(base, dict):
+            for k, v in base.items():
+                try:
+                    idx = int(k)
+                except Exception:
+                    continue
+                if requested_indices is not None and idx not in requested_indices:
+                    continue
+                if isinstance(v, list):
+                    ids = [int(x) for x in v if x]
+                elif isinstance(v, str):
+                    ids = [int(x) for x in v.split(',') if x]
+                else:
+                    continue
+                if ids:
+                    result[idx] = ids
+            return result
+        # List layout: [None, "id,id,...", ...] or ["id,id,...", ...]
+        if isinstance(base, list):
+            start_from_one = False
+            try:
+                start_from_one = (len(base) > 1 and (base[0] is None or base[0] in ("", [])))
+            except Exception:
+                start_from_one = False
+            for i, v in enumerate(base):
+                idx = i if not start_from_one else i
+                if start_from_one:
+                    # Skip index 0 placeholder
+                    if i == 0:
+                        continue
+                    idx = i  # already 1-based positions
+                else:
+                    # convert to 1-based index for consistency
+                    idx = i + 1
+                if requested_indices is not None and idx not in requested_indices:
+                    continue
+                if not v:
+                    continue
+                if isinstance(v, list):
+                    ids = [int(x) for x in v if x]
+                elif isinstance(v, str):
+                    ids = [int(x) for x in v.split(',') if x]
+                else:
+                    continue
+                if ids:
+                    result[idx] = ids
+            return result
+        return {}
+    except Exception as e:
+        logger.error(f"Failed to get cached image posts: {e}")
+        return {}
+
+def get_cached_image_post_indices(url: str) -> set:
+    """Return set of cached post indices for image URL."""
+    from URL_PARSERS.normalizer import normalize_url_for_cache
+    try:
+        u = normalize_url_for_cache(url)
+        url_hash = get_url_hash(u)
+        image_root = getattr(Config, 'IMAGE_CACHE_DB_PATH', 'bot/video_cache/images')
+        root_parts = _split_path_to_parts(image_root)
+        base = get_from_local_cache(root_parts + [url_hash])
+        indices = set()
+        if isinstance(base, dict):
+            for k in base.keys():
+                try:
+                    indices.add(int(k))
+                except Exception:
+                    continue
+            return indices
+        if isinstance(base, list):
+            if len(base) == 0:
+                return set()
+            start_from_one = False
+            try:
+                start_from_one = (len(base) > 1 and (base[0] is None or base[0] in ("", [])))
+            except Exception:
+                start_from_one = False
+            for i, v in enumerate(base):
+                if not v:
+                    continue
+                if start_from_one:
+                    if i == 0:
+                        continue
+                    indices.add(i)
+                else:
+                    indices.add(i + 1)
+            return indices
+        return set()
+    except Exception as e:
+        logger.error(f"Failed to get cached image indices: {e}")
+        return set()
+
 def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bool = False, original_text: str = None, user_id: int = None):
     """Saves message IDs to Firebase video cache after checking local cache to avoid duplication."""
     from URL_PARSERS.normalizer import normalize_url_for_cache

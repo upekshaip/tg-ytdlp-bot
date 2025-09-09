@@ -264,6 +264,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
         # If there is no flood error, send a normal message
         proc_msg = app.send_message(user_id, "🔄 Processing...", reply_parameters=ReplyParameters(message_id=message.id))
+        # Pin proc/status message for visibility
+        try:
+            app.pin_chat_message(user_id, proc_msg.id, disable_notification=True)
+        except Exception:
+            pass
         proc_msg_id = proc_msg.id
         error_message = ""
         status_msg = None

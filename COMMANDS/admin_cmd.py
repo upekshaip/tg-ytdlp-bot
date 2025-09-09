@@ -294,6 +294,13 @@ def uncache_command(app, message):
         video_cache_path = f"{Config.VIDEO_CACHE_DB_PATH}/{url_hash}"
         db_child_by_path(db, video_cache_path).remove()
         removed_any = True
+        # Clear cache by image posts (for /img)
+        try:
+            img_cache_path = f"{Config.IMAGE_CACHE_DB_PATH}/{url_hash}"
+            db_child_by_path(db, img_cache_path).remove()
+            removed_any = True
+        except Exception:
+            pass
         # Clear cache by playlist (if any)
         playlist_url = get_clean_playlist_url(url)
         if playlist_url:

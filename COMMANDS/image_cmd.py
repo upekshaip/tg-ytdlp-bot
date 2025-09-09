@@ -11,6 +11,7 @@ from pyrogram import enums
 from HELPERS.logger import send_to_logger, logger
 from HELPERS.app_instance import get_app
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
+import HELPERS.safe_messeger as sm
 from DOWN_AND_UP.gallery_dl_hook import (
     get_image_info,
     download_image,
@@ -24,10 +25,18 @@ from CONFIG.limits import LimitsConfig
 from CONFIG.config import Config
 from HELPERS.limitter import is_user_in_channel
 from HELPERS.porn import is_porn
+from DATABASE.cache_db import save_to_image_cache, get_cached_image_posts, get_cached_image_post_indices
 
 # Get app instance for decorators
 app = get_app()
 
+def _save_album_now(url: str, album_index: int, message_ids: list):
+    try:
+        logger.info(f"[IMG CACHE] About to save album: index={album_index}, ids={message_ids}")
+        save_to_image_cache(url, album_index, message_ids)
+        logger.info(f"[IMG CACHE] Save requested for index={album_index}")
+    except Exception as e:
+        logger.error(f"[IMG CACHE] Save failed for index={album_index}: {e}")
 def is_image_url(url):
     """Check if URL is likely an image URL"""
     image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.svg']
@@ -228,10 +237,53 @@ def image_command(app, message):
     # Send initial message
     status_msg = safe_send_message(
         user_id,
-        f"🔄 <b>Analyzing image URL...</b>\n\n<code>{url}</code>",
+        f"🔄 <b>Checking cache...</b>\n\n<code>{url}</code>",
         parse_mode=enums.ParseMode.HTML,
         reply_parameters=ReplyParameters(message_id=message.id)
     )
+    # Pin the status message for visibility
+    try:
+        app.pin_chat_message(user_id, status_msg.id, disable_notification=True)
+    except Exception:
+        pass
+
+    # Early cache serve before any analysis/downloading
+    try:
+        requested_indices = None
+        if manual_range is not None:
+            start_i, end_i = manual_range
+            if end_i is not None:
+                requested_indices = list(range(int(start_i), int(end_i) + 1))
+            else:
+                cached_all = sorted(list(get_cached_image_post_indices(url)))
+                requested_indices = [i for i in cached_all if i >= int(start_i)]
+        cached_map = get_cached_image_posts(url, requested_indices)
+        if cached_map:
+            for album_idx in sorted(cached_map.keys()):
+                ids = cached_map[album_idx]
+                try:
+                    kwargs = {}
+                    thread_id = getattr(message, 'message_thread_id', None)
+                    if thread_id:
+                        kwargs['message_thread_id'] = thread_id
+                    try:
+                        sm.safe_forward_messages(user_id, Config.LOGS_ID, ids, **kwargs)
+                    except Exception:
+                        app.forward_messages(user_id, Config.LOGS_ID, ids, **kwargs)
+                except Exception as _e:
+                    logger.warning(f"Failed to forward cached album {album_idx}: {_e}")
+            try:
+                safe_edit_message_text(
+                    user_id, status_msg.id,
+                    f"✅ <b>Sent from cache</b>\n\nSent albums: <b>{len(cached_map)}</b>",
+                    parse_mode=enums.ParseMode.HTML,
+                )
+            except Exception:
+                pass
+            send_to_logger(message, f"Reposted {len(cached_map)} cached albums for {url}")
+            return
+    except Exception as _e:
+        logger.warning(f"Image cache forward (early) failed: {_e}")
     
     try:
         # Get image information first
@@ -267,17 +319,60 @@ def image_command(app, message):
             f"<b>URL:</b> <code>{url}</code>",
             parse_mode=enums.ParseMode.HTML
         )
+        # Try to serve from cache again (after analysis) — safe redundancy
+        try:
+            requested_indices = None
+            if manual_range is not None:
+                start_i, end_i = manual_range
+                if end_i is not None:
+                    requested_indices = list(range(int(start_i), int(end_i) + 1))
+                else:
+                    cached_all = sorted(list(get_cached_image_post_indices(url)))
+                    requested_indices = [i for i in cached_all if i >= int(start_i)]
+            cached_map = get_cached_image_posts(url, requested_indices)
+            if cached_map:
+                for album_idx in sorted(cached_map.keys()):
+                    ids = cached_map[album_idx]
+                    try:
+                        kwargs = {}
+                        thread_id = getattr(message, 'message_thread_id', None)
+                        if thread_id:
+                            kwargs['message_thread_id'] = thread_id
+                        try:
+                            sm.safe_forward_messages(user_id, Config.LOGS_ID, ids, **kwargs)
+                        except Exception:
+                            app.forward_messages(user_id, Config.LOGS_ID, ids, **kwargs)
+                    except Exception as _e:
+                        logger.warning(f"Failed to forward cached album {album_idx}: {_e}")
+                # If we found anything in cache, finish early (do not re-download)
+                try:
+                    safe_edit_message_text(
+                        user_id,
+                        status_msg.id,
+                        f"✅ <b>Sent from cache</b>\n\nSent albums: <b>{len(cached_map)}</b>",
+                        parse_mode=enums.ParseMode.HTML,
+                    )
+                except Exception:
+                    pass
+                send_to_logger(message, f"Reposted {len(cached_map)} cached albums for {url}")
+                return
+        except Exception as _e:
+            logger.warning(f"Image cache forward failed: {_e}")
         
         # Create user directory
         user_dir = os.path.join("users", str(user_id))
         create_directory(user_dir)
+        # Admin users have no limit, regular users have MAX_IMG_FILES limit
+        is_admin = int(user_id) in Config.ADMIN
+        total_limit = float('inf') if is_admin else LimitsConfig.MAX_IMG_FILES
+        logger.info(f"[IMG] User {user_id} is admin: {is_admin}, limit: {'unlimited' if is_admin else total_limit}")
         
         # Determine expected total via --get-urls analog
         detected_total = None
         if manual_range is None or manual_range[1] is None:
             detected_total = get_total_media_count(url, user_id, use_proxy)
         if detected_total and detected_total > 0:
-            total_expected = min(detected_total, LimitsConfig.MAX_IMG_FILES)
+            total_expected = detected_total if is_admin else min(detected_total, LimitsConfig.MAX_IMG_FILES)
         # Streaming download: run range-based batches (1-10, 11-20, ...) scoped to a unique per-run directory
         run_dir = os.path.join("users", str(user_id), f"run_{int(time.time())}")
         create_directory(run_dir)
@@ -299,15 +394,14 @@ def image_command(app, message):
         others_buffer = []  # store (converted_path, original_path)
         total_downloaded = 0
         total_sent = 0
-        # Admin users have no limit, regular users have MAX_IMG_FILES limit
-        is_admin = int(user_id) in Config.ADMIN
-        total_limit = float('inf') if is_admin else LimitsConfig.MAX_IMG_FILES
+        album_index = 0  # index of posts we send (albums only)
+        # is_admin and total_limit already defined above
         # Using detected_total if present; else metadata-based fallback
         total_expected = locals().get('total_expected') or None
         try:
             for key in ("count", "total", "num", "items", "files", "num_images", "images_count"):
                 if isinstance(image_info.get(key), int) and image_info.get(key) > 0:
-                    total_expected = min(image_info.get(key), total_limit)
+                    total_expected = image_info.get(key) if is_admin else min(image_info.get(key), total_limit)
                     break
         except Exception:
             pass
@@ -333,9 +427,9 @@ def image_command(app, message):
         manual_end_cap = None
         if manual_range is not None:
             current_start = manual_range[0]
-            # Upper cap: if user provided end, respect it (but not above limit)
+            # Upper cap: if user provided end, respect it (but not above limit for non-admins)
             if manual_range[1] is not None:
-                manual_end_cap = min(manual_range[1], total_limit)
+                manual_end_cap = manual_range[1] if is_admin else min(manual_range[1], total_limit)
                 total_expected = manual_end_cap  # show as expected
         # helper to run one range and wait for files to appear
         def run_and_collect(next_end: int):
@@ -384,8 +478,8 @@ def image_command(app, message):
                         seen_files.add(file_path)
                         total_downloaded += 1
 
-                        # Enforce cap
-                        if total_downloaded > total_limit:
+                        # Enforce cap (but not for admins)
+                        if not is_admin and total_downloaded > total_limit:
                             continue
 
                         # Convert if needed, then classify
@@ -442,11 +536,32 @@ def image_command(app, message):
                                 sent = app.send_media_group(
                                     user_id,
                                     media=media_group,
-                                    reply_to_message_id=message.id,
+                                    reply_parameters=ReplyParameters(message_id=message.id),
                                     message_thread_id=getattr(message, 'message_thread_id', None)
                                 )
                                 sent_message_ids.extend([m.id for m in sent])
                                 total_sent += len(media_group)
+                                # Forward album to logs and save forwarded IDs to cache
+                                try:
+                                    orig_ids = [m.id for m in sent]
+                                    logger.info(f"[IMG CACHE] Copying album to logs, orig_ids={orig_ids}")
+                                    f_ids = []
+                                    for _mid in orig_ids:
+                                        try:
+                                            msg = app.copy_message(chat_id=Config.LOGS_ID, from_chat_id=user_id, message_id=_mid)
+                                            if msg:
+                                                f_ids.append(msg.id)
+                                                time.sleep(0.05)
+                                        except Exception as ce:
+                                            logger.error(f"[IMG CACHE] copy_message failed for id={_mid}: {ce}")
+                                    album_index += 1
+                                    if f_ids:
+                                        logger.info(f"[IMG CACHE] Album index={album_index} collected log_ids={f_ids}")
+                                        _save_album_now(url, album_index, f_ids)
+                                    else:
+                                        logger.error("[IMG CACHE] No log IDs collected; skipping cache save for this album")
+                                except Exception as e_copy:
+                                    logger.error(f"[IMG CACHE] Unexpected error while copying album to logs: {e_copy}")
                                 # Zero out files to keep placeholders for re-run skipping
                                 def zero_file(path):
                                     try:
@@ -465,6 +580,7 @@ def image_command(app, message):
                                 # fallback: send individually
                                 fallback = photos_videos_buffer[:batch_size]
                                 photos_videos_buffer = photos_videos_buffer[batch_size:]
+                                tmp_ids = []
                                 for p, t, orig in fallback:
                                     try:
                                         with open(p, 'rb') as f:
@@ -473,7 +589,7 @@ def image_command(app, message):
                                                     user_id,
                                                     photo=f,
                                                     has_spoiler=nsfw_flag,
-                                                    reply_to_message_id=message.id,
+                                                    reply_parameters=ReplyParameters(message_id=message.id),
                                                     message_thread_id=getattr(message, 'message_thread_id', None)
                                                 )
                                             else:
@@ -492,7 +608,7 @@ def image_command(app, message):
                                                         video=f,
                                                         thumb=thumb,
                                                         has_spoiler=nsfw_flag,
-                                                        reply_to_message_id=message.id,
+                                                        reply_parameters=ReplyParameters(message_id=message.id),
                                                         message_thread_id=getattr(message, 'message_thread_id', None)
                                                     )
                                                 else:
@@ -500,10 +616,11 @@ def image_command(app, message):
                                                         user_id,
                                                         video=f,
                                                         has_spoiler=nsfw_flag,
-                                                        reply_to_message_id=message.id,
+                                                        reply_parameters=ReplyParameters(message_id=message.id),
                                                         message_thread_id=getattr(message, 'message_thread_id', None)
                                                     )
                                             sent_message_ids.append(sent_msg.id)
+                                            tmp_ids.append(sent_msg.id)
                                             total_sent += 1
                                         # zero out both converted and original
                                         try:
@@ -519,6 +636,27 @@ def image_command(app, message):
                                             pass
                                     except Exception as ee:
                                         logger.error(f"Failed to send file in fallback: {ee}")
+                                # Forward fallback album and save forwarded IDs
+                                try:
+                                    if tmp_ids:
+                                        logger.info(f"[IMG CACHE] Copying fallback album to logs, orig_ids={tmp_ids}")
+                                        f_ids = []
+                                        for _mid in tmp_ids:
+                                            try:
+                                                msg = app.copy_message(chat_id=Config.LOGS_ID, from_chat_id=user_id, message_id=_mid)
+                                                if msg:
+                                                    f_ids.append(msg.id)
+                                                    time.sleep(0.05)
+                                            except Exception as ce:
+                                                logger.error(f"[IMG CACHE] copy_message (fallback) failed for id={_mid}: {ce}")
+                                        album_index += 1
+                                        if f_ids:
+                                            logger.info(f"[IMG CACHE] Fallback album index={album_index} collected log_ids={f_ids}")
+                                            _save_album_now(url, album_index, f_ids)
+                                        else:
+                                            logger.error("[IMG CACHE] No log IDs collected in fallback; skipping cache save for this album")
+                                except Exception as e_copy2:
+                                    logger.error(f"[IMG CACHE] Unexpected error while copying fallback album to logs: {e_copy2}")
 
                         # Send non-groupable immediately
                         while others_buffer:
@@ -528,7 +666,7 @@ def image_command(app, message):
                                     sent_msg = app.send_document(
                                         user_id,
                                         document=f,
-                                        reply_to_message_id=message.id,
+                                        reply_parameters=ReplyParameters(message_id=message.id),
                                         message_thread_id=getattr(message, 'message_thread_id', None)
                                     )
                                 sent_message_ids.append(sent_msg.id)
@@ -581,11 +719,32 @@ def image_command(app, message):
                         sent = app.send_media_group(
                             user_id,
                             media=media_group,
-                            reply_to_message_id=message.id,
+                            reply_parameters=ReplyParameters(message_id=message.id),
                             message_thread_id=getattr(message, 'message_thread_id', None)
                         )
                         sent_message_ids.extend([m.id for m in sent])
                         total_sent += len(media_group)
+                        # Forward tail album and save forwarded IDs
+                        try:
+                            orig_ids2 = [m.id for m in sent]
+                            logger.info(f"[IMG CACHE] Copying tail album to logs, orig_ids={orig_ids2}")
+                            f_ids = []
+                            for _mid in orig_ids2:
+                                try:
+                                    msg = app.copy_message(chat_id=Config.LOGS_ID, from_chat_id=user_id, message_id=_mid)
+                                    if msg:
+                                        f_ids.append(msg.id)
+                                        time.sleep(0.05)
+                                except Exception as ce:
+                                    logger.error(f"[IMG CACHE] copy_message (tail) failed for id={_mid}: {ce}")
+                            album_index += 1
+                            if f_ids:
+                                logger.info(f"[IMG CACHE] Tail album index={album_index} collected log_ids={f_ids}")
+                                _save_album_now(url, album_index, f_ids)
+                            else:
+                                logger.error("[IMG CACHE] No log IDs collected in tail; skipping cache save for this album")
+                        except Exception as e_tail:
+                            logger.error(f"[IMG CACHE] Unexpected error while copying tail album to logs: {e_tail}")
                         # zero out
                         for p, _t, orig in group:
                             try:
@@ -600,6 +759,7 @@ def image_command(app, message):
                             except Exception:
                                 pass
                     except Exception:
+                        tmp_ids2 = []
                         for p, t, orig in group:
                             try:
                                 with open(p, 'rb') as f:
@@ -608,7 +768,7 @@ def image_command(app, message):
                                             user_id,
                                             photo=f,
                                             has_spoiler=nsfw_flag,
-                                            reply_to_message_id=message.id,
+                                            reply_parameters=ReplyParameters(message_id=message.id),
                                             message_thread_id=getattr(message, 'message_thread_id', None)
                                         )
                                     else:
@@ -627,7 +787,7 @@ def image_command(app, message):
                                                 video=f,
                                                 thumb=thumb,
                                                 has_spoiler=nsfw_flag,
-                                                reply_to_message_id=message.id,
+                                                reply_parameters=ReplyParameters(message_id=message.id),
                                                 message_thread_id=getattr(message, 'message_thread_id', None)
                                             )
                                         else:
@@ -635,10 +795,11 @@ def image_command(app, message):
                                                 user_id,
                                                 video=f,
                                                 has_spoiler=nsfw_flag,
-                                                reply_to_message_id=message.id,
+                                                reply_parameters=ReplyParameters(message_id=message.id),
                                                 message_thread_id=getattr(message, 'message_thread_id', None)
                                             )
                                     sent_message_ids.append(sent_msg.id)
+                                    tmp_ids2.append(sent_msg.id)
                                     total_sent += 1
                                 # zero out
                                 try:
@@ -654,6 +815,27 @@ def image_command(app, message):
                                     pass
                             except Exception:
                                 pass
+                        # Forward tail fallback album and save forwarded IDs
+                        try:
+                            if tmp_ids2:
+                                logger.info(f"[IMG CACHE] Copying tail-fallback album to logs, orig_ids={tmp_ids2}")
+                                f_ids = []
+                                for _mid in tmp_ids2:
+                                    try:
+                                        msg = app.copy_message(chat_id=Config.LOGS_ID, from_chat_id=user_id, message_id=_mid)
+                                        if msg:
+                                            f_ids.append(msg.id)
+                                            time.sleep(0.05)
+                                    except Exception as ce:
+                                        logger.error(f"[IMG CACHE] copy_message (tail-fallback) failed for id={_mid}: {ce}")
+                                album_index += 1
+                                if f_ids:
+                                    logger.info(f"[IMG CACHE] Tail-fallback album index={album_index} collected log_ids={f_ids}")
+                                    _save_album_now(url, album_index, f_ids)
+                                else:
+                                    logger.error("[IMG CACHE] No log IDs collected in tail-fallback; skipping cache save for this album")
+                        except Exception as e_tail2:
+                            logger.error(f"[IMG CACHE] Unexpected error while copying tail-fallback album to logs: {e_tail2}")
                     photos_videos_buffer = photos_videos_buffer[len(group):]
 
                 # Send remaining others
@@ -664,7 +846,7 @@ def image_command(app, message):
                             sent_msg = app.send_document(
                                 user_id,
                                 document=f,
-                                reply_to_message_id=message.id,
+                                reply_parameters=ReplyParameters(message_id=message.id),
                                 message_thread_id=getattr(message, 'message_thread_id', None)
                             )
                         sent_message_ids.append(sent_msg.id)
@@ -698,7 +880,7 @@ def image_command(app, message):
                     pass
                 break
 
-            if total_sent >= total_limit:
+            if not is_admin and total_sent >= total_limit:
                 break
 
             time.sleep(0.5)

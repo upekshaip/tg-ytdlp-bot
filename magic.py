@@ -216,15 +216,55 @@ def _vid_handler(app, message):
             return url_distractor(app, message)
         else:
             from HELPERS.safe_messeger import safe_send_message
-            safe_send_message(message.chat.id, "Usage: /vid URL", message=message)
+            from pyrogram import enums
+            from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔚Close", callback_data="vid_help|close")]])
+            help_text = (
+                "<b>🎬 Video Download Command</b>\n\n"
+                "Usage: <code>/vid URL</code>\n\n"
+                "<b>Examples:</b>\n"
+                "• <code>/vid https://youtube.com/watch?v=...</code>\n"
+                "• <code>/vid 5-15 https://youtube.com/playlist?list=...</code>\n\n"
+                "Also see: /audio, /format, /playlist, /link"
+            )
+            safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
     except Exception:
         from HELPERS.safe_messeger import safe_send_message
-        safe_send_message(message.chat.id, "Usage: /vid URL", message=message)
+        from pyrogram import enums
+        from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔚Close", callback_data="vid_help|close")]])
+        help_text = (
+            "<b>🎬 Video Download Command</b>\n\n"
+            "Usage: <code>/vid URL</code>\n\n"
+            "<b>Examples:</b>\n"
+            "• <code>/vid https://youtube.com/watch?v=...</code>\n"
+            "• <code>/vid 5-15 https://youtube.com/playlist?list=...</code>\n\n"
+            "Also see: /audio, /format, /playlist, /link"
+        )
+        safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
 
 # Register /vid in private and allowed groups
 app.on_message(filters.command("vid") & filters.private)(_vid_handler)
 if _allowed_groups:
     app.on_message(filters.group & filters.command("vid"))(_wrap_group(lambda a, m: _vid_handler(a, m) if _is_allowed_group(m) else None))
+
+# Help close handler for /vid
+@app.on_callback_query(filters.regex(r"^vid_help\|"))
+def vid_help_callback(app, callback_query):
+    data = callback_query.data.split("|")[1]
+    if data == "close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            try:
+                callback_query.edit_message_reply_markup(reply_markup=None)
+            except Exception:
+                pass
+        try:
+            callback_query.answer("Help closed.")
+        except Exception:
+            pass
+        return
 
 ###########################################################
 #        APP STARTS

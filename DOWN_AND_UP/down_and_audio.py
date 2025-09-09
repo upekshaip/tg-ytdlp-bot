@@ -328,6 +328,11 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
         # If there is no flood error, send a normal message (only once)
         proc_msg = app.send_message(user_id, "🔄 Processing...", reply_parameters=ReplyParameters(message_id=message.id))
+        # Pin proc/status message for visibility
+        try:
+            app.pin_chat_message(user_id, proc_msg.id, disable_notification=True)
+        except Exception:
+            pass
         proc_msg_id = proc_msg.id
         status_msg = app.send_message(user_id, "🎙️ Audio is processing...")
         hourglass_msg = app.send_message(user_id, "⏳ Please wait...")
