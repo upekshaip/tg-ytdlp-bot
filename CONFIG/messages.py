@@ -249,9 +249,9 @@ Add this bot to your group or channel to get enhanced features and higher limits
 
 <blockquote>📊 <b>Current Limits (Private Chat):</b>
 • Max file size: 8 GB
-• Max subtitle duration: 1.5 hours (5400s)
-• Max subtitle file size: 500 MB
-• Max subtitle quality: 720p
+• Max video+subs duration: 1.5 hours (5400s)
+• Max video+subs file size: 500 MB
+• Max video+subs quality: 720p
 • Max playlist items: 50
 • Max TikTok videos: 500
 • Max images: 1000
@@ -261,9 +261,9 @@ Add this bot to your group or channel to get enhanced features and higher limits
 
 <blockquote>🚀 <b>Group/Channel Benefits (2x Limits):</b>
 • Max file size: 16 GB ⬆️
-• Max subtitle duration: 3 hours (10800s) ⬆️
-• Max subtitle file size: 1000 MB ⬆️
-• Max subtitle quality: 1080p ⬆️
+• Max video+subs duration: 3 hours (10800s) ⬆️
+• Max video+subs file size: 1000 MB ⬆️
+• Max video+subs quality: 1080p ⬆️
 • Max playlist items: 100 ⬆️
 • Max TikTok videos: 1000 ⬆️
 • Max images: 2000 ⬆️
@@ -274,7 +274,7 @@ Add this bot to your group or channel to get enhanced features and higher limits
 <blockquote>💰 <b>Pricing & Setup:</b>
 • <b>Price:</b> $5/month per 1 bot in group/channel
 • <b>Setup:</b> Contact @iilililiiillliiliililliilliliiil
-• <b>Payment:</b> TON or other methods
+• <b>Payment:</b> 💎TON or other methods💲
 • <b>Support:</b> Full technical support included
 </blockquote>
 
@@ -284,9 +284,9 @@ Add this bot to your group or channel to get enhanced features and higher limits
 
 📊 <b>Текущие лимиты (приватный чат):</b>
 • Макс. размер файла: 8 ГБ
-• Макс. длительность субтитров: 1.5 часа (5400с)
-• Макс. размер файла субтитров: 500 МБ
-• Макс. качество субтитров: 720p
+• Макс. длительность видео+сабы: 1.5 часа (5400с)
+• Макс. размер файла видео+сабы: 500 МБ
+• Макс. качество видео+сабы: 720p
 • Макс. элементов плейлиста: 50
 • Макс. видео TikTok: 500
 • Макс. изображений: 1000
@@ -295,9 +295,9 @@ Add this bot to your group or channel to get enhanced features and higher limits
 
 🚀 <b>Преимущества группы/канала (x2 лимиты):</b>
 • Макс. размер файла: 16 ГБ ⬆️
-• Макс. длительность субтитров: 3 часа (10800с) ⬆️
-• Макс. размер файла субтитров: 1000 МБ ⬆️
-• Макс. качество субтитров: 1080p ⬆️
+• Макс. длительность видео+сабы: 3 часа (10800с) ⬆️
+• Макс. размер файла видео+сабы: 1000 МБ ⬆️
+• Макс. качество видео+сабы: 1080p ⬆️
 • Макс. элементов плейлиста: 100 ⬆️
 • Макс. видео TikTok: 1000 ⬆️
 • Макс. изображений: 2000 ⬆️
@@ -307,7 +307,7 @@ Add this bot to your group or channel to get enhanced features and higher limits
 💰 <b>Цены и настройка:</b>
 • <b>Цена:</b> $5/месяц за 1 бота в группе/канале
 • <b>Настройка:</b> Свяжитесь с @iilililiiillliiliililliilliliiil
-• <b>Оплата:</b> TON или другие способы
+• <b>Оплата:</b> 💎TON или другие способы💲
 • <b>Поддержка:</b> Полная техническая поддержка включена
 </blockquote>
 

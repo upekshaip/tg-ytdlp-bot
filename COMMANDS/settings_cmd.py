@@ -177,7 +177,6 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("🆘 /help - Get instructions", callback_data="settings__cmd__help")],
             [InlineKeyboardButton("📃 /usage -Send your logs", callback_data="settings__cmd__usage")],
             [InlineKeyboardButton("⏯️ /playlist - Playlist's help", callback_data="settings__cmd__playlist")],
-            [InlineKeyboardButton("🔍 /search - Inline search helper", callback_data="settings__cmd__search")],
             [InlineKeyboardButton("🤖 /add_bot_to_group - howto", callback_data="settings__cmd__add_bot_to_group")],
             [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
@@ -197,7 +196,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("🔗 /link - Get direct video links", callback_data="settings__cmd__link")],
             [InlineKeyboardButton("🌍 /proxy - Enable/disable proxy", callback_data="settings__cmd__proxy")],
             [InlineKeyboardButton("🎹 /keyboard - Keyboard layout", callback_data="settings__cmd__keyboard")],
-            [InlineKeyboardButton("🔍 /search - Inline search helper", callback_data="settings__cmd__search")],
+            [InlineKeyboardButton("🔍 /search - Inline search helper", callback_data="settings__cmd__search_menu")],
             [InlineKeyboardButton("🔞 /nsfw - NSFW blur settings", callback_data="settings__cmd__nsfw")],
             [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
@@ -601,18 +600,46 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         except Exception:
             pass
         return
-    if data == "search":
+    if data == "search_menu":
+        # Get bot name from config
+        bot_name = Config.BOT_NAME
+        
+        # Create inline keyboard with mobile button and close button (same as search.py)
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚Close", callback_data="search_hint|close")]
+            [
+                InlineKeyboardButton(
+                    "📱 Mobile: Activate @vid search",
+                    url=f"tg://msg?text=%40vid%20%E2%80%8B&to=%40{bot_name}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "🔚Close",
+                    callback_data="search_msg|close"
+                )
+            ]
         ])
-        safe_send_message(user_id,
-                          "Open inline search helper for quick @vid usage.\n\nMobile: tap the button to open chat with prefilled @vid\nDesktop: type @vid Your_Search_Query manually",
-                          reply_parameters=ReplyParameters(message_id=callback_query.message.id),
-                          reply_markup=keyboard,
-                          _callback_query=callback_query,
-                          _fallback_notice="⏳ Flood limit. Try later.")
+        
+        # Send message with search instructions (same as search.py)
+        text = (
+            "🔍 <b>YouTube Video search</b>\n\n"
+            "📱 <b>For mobile:</b> tap button below and type your search query after text @vid.\n\n"
+            "💻 <b>For PC:</b> type <code>@vid Your_Search_Query</code> in any chat\n\n"
+            "<blockquote>For example: <b>@vid funny cats</b></blockquote>"
+        )
+        
+        safe_send_message(
+            user_id,
+            text,
+            parse_mode=enums.ParseMode.HTML,
+            reply_markup=keyboard,
+            reply_parameters=ReplyParameters(message_id=callback_query.message.id),
+            _callback_query=callback_query,
+            _fallback_notice="⏳ Flood limit. Try later."
+        )
+        
         try:
-            callback_query.answer("Hint sent.")
+            callback_query.answer("Search helper opened.")
         except Exception:
             pass
         return
@@ -658,7 +685,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
     except Exception:
         pass
 
-@app.on_callback_query(filters.regex(r"^(img_hint|link_hint|search_hint)\|"))
+@app.on_callback_query(filters.regex(r"^(img_hint|link_hint|search_hint|search_msg)\|"))
 def hint_callback(app, callback_query: CallbackQuery):
     """Handle hint callback close buttons"""
     data = callback_query.data.split("|")[-1]
