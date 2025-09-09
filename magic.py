@@ -226,9 +226,9 @@ def _vid_handler(app, message):
                 "<b>🎬 Video Download Command</b>\n\n"
                 "Usage: <code>/vid URL</code>\n\n"
                 "<b>Examples:</b>\n"
-                "• <code>/vid https://youtube.com/watch?v=...</code>\n"
-                "• <code>/vid 5-15 https://youtube.com/playlist?list=...</code>\n\n"
-                "Also see: /audio, /format, /playlist, /link"
+                "• <code>/vid https://youtube.com/watch?v=123abc</code>\n"
+                "• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n\n"
+                "Also see: /audio, /img, /help, /playlist, /settings"
             )
             safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
     except Exception:
@@ -240,9 +240,9 @@ def _vid_handler(app, message):
             "<b>🎬 Video Download Command</b>\n\n"
             "Usage: <code>/vid URL</code>\n\n"
             "<b>Examples:</b>\n"
-            "• <code>/vid https://youtube.com/watch?v=...</code>\n"
-            "• <code>/vid 5-15 https://youtube.com/playlist?list=...</code>\n\n"
-            "Also see: /audio, /format, /playlist, /link"
+            "• <code>/vid https://youtube.com/watch?v=123abc</code>\n"
+            "• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n\n"
+            "Also see: /audio, /img, /help, /playlist, /settings"
         )
         safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
 

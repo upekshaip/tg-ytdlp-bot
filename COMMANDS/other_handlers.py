@@ -61,7 +61,23 @@ def audio_command_handler(app, message):
         safe_send_message(user_id, f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}", reply_parameters=ReplyParameters(message_id=message.id))
         return
     if not url:
-        send_to_user(message, "Please, send valid URL.")
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔚Close", callback_data="audio_hint|close")]
+        ])
+        safe_send_message(
+            user_id,
+            "<b>🎧 Audio Download Command</b>\n\n"
+            "Usage: <code>/audio URL</code>\n\n"
+            "<b>Examples:</b>\n"
+            "• <code>/audio https://youtu.be/abc123</code>\n"
+            "• <code>/audio https://www.youtube.com/watch?v=abc123</code>\n"
+            "• <code>/audio https://www.youtube.com/playlist?list=PL123*1*10</code>\n\n"
+            "Also see: /vid, /img, /help, /playlist, /settings",
+            parse_mode=enums.ParseMode.HTML,
+            reply_parameters=ReplyParameters(message_id=message.id),
+            reply_markup=keyboard
+        )
+        send_to_logger(message, "Showed /audio help")
         return
     save_user_tags(user_id, tags)
     
