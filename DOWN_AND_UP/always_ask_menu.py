@@ -26,6 +26,7 @@ from COMMANDS.subtitles_cmd import (
     save_user_subs_language, save_user_subs_auto_mode,
 )
 from COMMANDS.split_sizer import get_user_split_size
+from COMMANDS.nsfw_cmd import should_apply_spoiler
 
 from DATABASE.cache_db import (
     get_cached_qualities, get_cached_playlist_count, get_cached_playlist_videos, 
@@ -369,7 +370,7 @@ def ask_filter_callback(app, callback_query):
         if kind == "subs" and value == "open":
             original_message = callback_query.message.reply_to_message
             if not original_message:
-                callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+                callback_query.answer(Config.ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
                 return
             url_text = original_message.text or (original_message.caption or "")
             import re as _re
@@ -401,7 +402,7 @@ def ask_filter_callback(app, callback_query):
             page = int(value)
             original_message = callback_query.message.reply_to_message
             if not original_message:
-                callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+                callback_query.answer(Config.ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
                 return
             url_text = original_message.text or (original_message.caption or "")
             import re as _re
@@ -464,7 +465,7 @@ def ask_filter_callback(app, callback_query):
         if kind == "dubs" and value == "open":
             original_message = callback_query.message.reply_to_message
             if not original_message:
-                callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+                callback_query.answer(Config.ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
                 return
             url_text = original_message.text or (original_message.caption or "")
             import re as _re
@@ -715,7 +716,17 @@ def build_filter_rows(user_id, url=None):
     
     # When filters are hidden – show compact row with CODEC + audio (+ optional DUBS, SUBS)
     if not visible:
-        row = [InlineKeyboardButton("📼CODEC", callback_data="askf|toggle|on"), InlineKeyboardButton("🎧MP3", callback_data="askq|mp3")]
+        # Determine NSFW for star icon on MP3
+        is_nsfw = False
+        if url:
+            try:
+                info = load_ask_info(user_id, url) or {}
+                tags_text = ' '.join(generate_final_tags(url, [], info)) if isinstance(generate_final_tags(url, [], info), list) else generate_final_tags(url, [], info)
+                is_nsfw = isinstance(tags_text, str) and ('#nsfw' in tags_text.lower())
+            except Exception:
+                is_nsfw = False
+        mp3_label = ("1⭐️MP3" if is_nsfw else "🎧MP3")
+        row = [InlineKeyboardButton("📼CODEC", callback_data="askf|toggle|on"), InlineKeyboardButton(mp3_label, callback_data="askq|mp3")]
         # Show DUBS button only if audio dubs are detected for this video (set elsewhere)
         if has_dubs:
             row.insert(1, InlineKeyboardButton("🗣 DUBS", callback_data="askf|dubs|open"))
@@ -743,9 +754,19 @@ def build_filter_rows(user_id, url=None):
     mp4_btn = ("✅ MP4" if ext == "mp4" else "☑️ MP4") if mp4_available else "❌ MP4"
     mkv_btn = ("✅ MKV" if ext == "mkv" else "☑️ MKV") if mkv_available else "❌ MKV"
     
+    # NSFW detection for expanded filters
+    is_nsfw = False
+    if url:
+        try:
+            info = load_ask_info(user_id, url) or {}
+            tags_text = ' '.join(generate_final_tags(url, [], info)) if isinstance(generate_final_tags(url, [], info), list) else generate_final_tags(url, [], info)
+            is_nsfw = isinstance(tags_text, str) and ('#nsfw' in tags_text.lower())
+        except Exception:
+            is_nsfw = False
+    mp3_label = ("1⭐️MP3" if is_nsfw else "🎧MP3")
     rows = [
         [InlineKeyboardButton(avc1_btn, callback_data="askf|codec|avc1"), InlineKeyboardButton(av01_btn, callback_data="askf|codec|av01"), InlineKeyboardButton(vp9_btn, callback_data="askf|codec|vp9")],
-        [InlineKeyboardButton(mp4_btn, callback_data="askf|ext|mp4"), InlineKeyboardButton(mkv_btn, callback_data="askf|ext|mkv"), InlineKeyboardButton("🎧MP3", callback_data="askq|mp3")]
+        [InlineKeyboardButton(mp4_btn, callback_data="askf|ext|mp4"), InlineKeyboardButton(mkv_btn, callback_data="askf|ext|mkv"), InlineKeyboardButton(mp3_label, callback_data="askq|mp3")]
     ]
     action_buttons = []
     if has_dubs:
@@ -826,8 +847,8 @@ def askq_callback(app, callback_query):
             # Browser button will be sent in main message
             
             # Send main response with browser button
-            main_response = f"🔗 <b>Direct Stream Links</b>\n\n"
-            main_response += f"📹 <b>Title:</b> {title}\n"
+            main_response = Config.STREAM_LINKS_TITLE_MSG
+            main_response += Config.STREAM_TITLE_MSG.format(title=title)
             if duration > 0:
                 main_response += f"⏱ <b>Duration:</b> {duration} sec\n"
             main_response += f"🎛 <b>Format:</b> <code>bv+ba/best</code>\n\n"
@@ -938,7 +959,7 @@ def askq_callback(app, callback_query):
             # Get original message and URL
             original_message = callback_query.message.reply_to_message
             if not original_message:
-                callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+                callback_query.answer(Config.ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
                 return
             url = original_message.text or (original_message.caption or "")
             # try to extract url
@@ -970,7 +991,7 @@ def askq_callback(app, callback_query):
             # Build and show dubs selection menu with flags
             original_message = callback_query.message.reply_to_message
             if not original_message:
-                callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+                callback_query.answer(Config.ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
                 return
             url_text = original_message.text or (original_message.caption or "")
             import re as _re
@@ -1008,7 +1029,7 @@ def askq_callback(app, callback_query):
             original_message = callback_query.message.reply_to_message
             if not original_message:
                 logger.error(f"[ASKQ] No original message found for SUBS menu")
-                callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+                callback_query.answer(Config.ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
                 return
             url_text = original_message.text or (original_message.caption or "")
             import re as _re
@@ -1050,7 +1071,7 @@ def askq_callback(app, callback_query):
             page = int(value)
             original_message = callback_query.message.reply_to_message
             if not original_message:
-                callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+                callback_query.answer(Config.ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
                 return
             url_text = original_message.text or (original_message.caption or "")
             import re as _re
@@ -1444,17 +1465,27 @@ def askq_callback(app, callback_query):
                         # Use forward everywhere; in groups try to keep topic via message_thread_id
                         if thread_id:
                             from HELPERS.logger import get_log_channel
+                            from HELPERS.porn import is_porn
+                            # Determine if this is paid media (NSFW in private chat)
+                            is_nsfw = is_porn(url)
+                            is_private_chat = getattr(original_message.chat, "type", None) == enums.ChatType.PRIVATE
+                            is_paid = is_nsfw and is_private_chat
                             app.forward_messages(
                                 chat_id=target_chat_id,
-                                from_chat_id=get_log_channel("video"),
+                                from_chat_id=get_log_channel("video", paid=is_paid),
                                 message_ids=[cached_videos[index]],
                                 message_thread_id=thread_id
                             )
                         else:
                             from HELPERS.logger import get_log_channel
+                            from HELPERS.porn import is_porn
+                            # Determine if this is paid media (NSFW in private chat)
+                            is_nsfw = is_porn(url)
+                            is_private_chat = getattr(original_message.chat, "type", None) == enums.ChatType.PRIVATE
+                            is_paid = is_nsfw and is_private_chat
                             app.forward_messages(
                                 chat_id=target_chat_id,
-                                from_chat_id=get_log_channel("video"),
+                                from_chat_id=get_log_channel("video", paid=is_paid),
                                 message_ids=[cached_videos[index]]
                             )
                     except Exception as e:
@@ -1571,17 +1602,27 @@ def askq_callback(app, callback_query):
                     # Forward each to ensure thread id is applied
                     for mid in message_ids:
                         from HELPERS.logger import get_log_channel
+                        from HELPERS.porn import is_porn
+                        # Determine if this is paid media (NSFW in private chat)
+                        is_nsfw = is_porn(url)
+                        is_private_chat = getattr(original_message.chat, "type", None) == enums.ChatType.PRIVATE
+                        is_paid = is_nsfw and is_private_chat
                         app.forward_messages(
                             chat_id=target_chat_id,
-                            from_chat_id=get_log_channel("video"),
+                            from_chat_id=get_log_channel("video", paid=is_paid),
                             message_ids=[mid],
                             message_thread_id=thread_id
                         )
                 else:
                     from HELPERS.logger import get_log_channel
+                    from HELPERS.porn import is_porn
+                    # Determine if this is paid media (NSFW in private chat)
+                    is_nsfw = is_porn(url)
+                    is_private_chat = getattr(original_message.chat, "type", None) == enums.ChatType.PRIVATE
+                    is_paid = is_nsfw and is_private_chat
                     app.forward_messages(
                         chat_id=target_chat_id,
-                        from_chat_id=get_log_channel("video"),
+                        from_chat_id=get_log_channel("video", paid=is_paid),
                         message_ids=message_ids
                     )
                 app.send_message(target_chat_id, "✅ Video successfully sent from cache.", reply_parameters=ReplyParameters(message_id=original_message.id))
@@ -1641,6 +1682,11 @@ def show_manual_quality_menu(app, callback_query):
         if tag_matches:
             tags = tag_matches
     tags_text = ' '.join(tags)
+    # NSFW detection for paid media warning
+    try:
+        is_nsfw = isinstance(tags_text, str) and ('#nsfw' in tags_text.lower())
+    except Exception:
+        is_nsfw = False
     
     # Check if it's a playlist
     original_text = original_message.text or original_message.caption or ""
@@ -1662,11 +1708,11 @@ def show_manual_quality_menu(app, callback_query):
             indices = list(range(playlist_range[0], playlist_range[1]+1))
             n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality, indices)
             total = len(indices)
-            icon = "🚀" if n_cached > 0 else "📹"
+            icon = "🚀" if n_cached > 0 else ("1⭐️" if is_nsfw else "📹")
             postfix = f" ({n_cached}/{total})" if total > 1 else ""
             button_text = f"{icon}{quality}{postfix}"
         else:
-            icon = "🚀" if quality in cached_qualities else "📹"
+            icon = "🚀" if (quality in cached_qualities) else ("1⭐️" if is_nsfw else "📹")
             button_text = f"{icon}{quality}"
         buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|manual_{quality}"))
 
@@ -1675,11 +1721,11 @@ def show_manual_quality_menu(app, callback_query):
         indices = list(range(playlist_range[0], playlist_range[1]+1))
         n_cached = get_cached_playlist_count(get_clean_playlist_url(url), "best", indices)
         total = len(indices)
-        icon = "🚀" if n_cached > 0 else "📹"
+        icon = "🚀" if n_cached > 0 else ("1⭐️" if is_nsfw else "📹")
         postfix = f" ({n_cached}/{total})" if total > 1 else ""
         button_text = f"{icon}Best Quality{postfix}"
     else:
-        icon = "🚀" if "best" in cached_qualities else "📹"
+        icon = "🚀" if ("best" in cached_qualities) else ("1⭐️" if is_nsfw else "📹")
         button_text = f"{icon}Best Quality"
     buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|manual_best"))
     
@@ -1694,11 +1740,11 @@ def show_manual_quality_menu(app, callback_query):
         indices = list(range(playlist_range[0], playlist_range[1]+1))
         n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
         total = len(indices)
-        icon = "🚀" if n_cached > 0 else "🎧"
+        icon = "🚀" if n_cached > 0 else ("1⭐️" if is_nsfw else "🎧")
         postfix = f" ({n_cached}/{total})" if total > 1 else ""
         button_text = f"{icon} audio (mp3){postfix}"
     else:
-        icon = "🚀" if quality_key in cached_qualities else "🎧"
+        icon = "🚀" if (quality_key in cached_qualities) else ("1⭐️" if is_nsfw else "🎧")
         button_text = f"{icon} audio (mp3)"
     keyboard_rows.append([InlineKeyboardButton(button_text, callback_data=f"askq|manual_{quality_key}")])
     
@@ -1732,10 +1778,18 @@ def show_manual_quality_menu(app, callback_query):
     cap = f"<b>{video_title}</b>\n"
     if tags_text:
         cap += f"{tags_text}\n"
+    try:
+        is_nsfw = isinstance(tags_text, str) and ('#nsfw' in tags_text.lower())
+    except Exception:
+        is_nsfw = False
+    if is_nsfw:
+        cap += "\n<b>⭐️ — 🔞NSFW is paid (⭐️$0.02)</b>\n"
+    if is_nsfw:
+        cap += "\n<b>⭐️ — 🔞NSFW is paid (⭐️$0.02)</b>\n"
     cap += f"\n<b>🎛 Manual Quality Selection</b>\n"
     cap += f"\n<i>Choose quality manually since automatic detection failed:</i>\n"
     
-    # Обновление текущего меню; при ошибке MESSAGE_ID_INVALID отправляем новое сообщение
+    # Update current menu; if MESSAGE_ID_INVALID, send new message
     if callback_query and getattr(callback_query, 'message', None):
         try:
             if callback_query.message.photo:
@@ -1846,6 +1900,10 @@ def show_other_qualities_menu(app, callback_query, page=0):
         if tag_matches:
             tags = tag_matches
     tags_text = ' '.join(tags)
+    try:
+        is_nsfw = isinstance(tags_text, str) and ('#nsfw' in tags_text.lower())
+    except Exception:
+        is_nsfw = False
     
     # Check if it's a playlist
     original_text = original_message.text or original_message.caption or ""
@@ -1863,6 +1921,8 @@ def show_other_qualities_menu(app, callback_query, page=0):
     cap = f"<b>{video_title}</b>\n"
     if tags_text:
         cap += f"{tags_text}\n"
+    if is_nsfw:
+        cap += "\n<b>⭐️ — 🔞NSFW is paid (⭐️$0.02)</b>\n"
     cap += f"\n<b>🎛 All Available Formats</b>\n"
     cap += f"\n<i>Page {page + 1}</i>\n"
     
@@ -2047,6 +2107,8 @@ def show_other_qualities_menu(app, callback_query, page=0):
                 if button_parts:  # Only create button if we have valid data
                     # Join with | separator
                     button_text = ' | '.join(button_parts)
+                    if is_nsfw:
+                        button_text = f"1⭐️ {button_text}"
                     
                     # Limit button text length
                     if len(button_text) > 40:
@@ -2092,11 +2154,7 @@ def show_other_qualities_menu(app, callback_query, page=0):
                 callback_query.answer("❌ Error showing formats menu", show_alert=True)
         
             # Clean up temp file
-        try:
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
-        except:
-            pass
+        # No temp file used here; keep block for future extensions
             
     except Exception as e:
         logger.error(f"Error getting formats: {e}")
@@ -2127,6 +2185,13 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
     # Form caption
     cap = f"<b>{video_title}</b>\n"
     cap += f"\n<b>🎛 All Available Formats</b>\n"
+    try:
+        orig_text = callback_query.message.reply_to_message.text or callback_query.message.reply_to_message.caption or ""
+    except Exception:
+        orig_text = ""
+    is_nsfw = isinstance(orig_text, str) and ('#nsfw' in orig_text.lower())
+    if isinstance(url, str) and is_nsfw:
+        cap += "\n<b>⭐️ — 🔞NSFW is paid (⭐️$0.02)</b>\n"
     cap += f"\n<i>Page {page + 1}</i>\n"
     
     # Pagination: 10 formats per page (1 column × 10 rows)
@@ -2151,6 +2216,8 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
             if button_parts:  # Only create button if we have valid data
                 # Join with | separator
                 button_text = ' | '.join(button_parts)
+                if is_nsfw:
+                    button_text = f"1⭐️ {button_text}"
                 
                 # Limit button text length
                 if len(button_text) > 64:
@@ -2268,6 +2335,10 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         cap = f"<b>{title}</b>\n"
         if tags_text:
             cap += f"{tags_text}\n"
+        if is_nsfw:
+            cap += "\n<b>⭐️ — 🔞NSFW is paid (⭐️$0.02)</b>\n"
+        if is_nsfw:
+            cap += "\n<b>⭐️ — 🔞NSFW is paid (⭐️$0.02)</b>\n"
         cap += f"\n<b>📹 Available Qualities (from cache)</b>\n"
         cap += f"\n<i>⚠️ Using cached qualities - new formats may not be available</i>\n"
         
@@ -2283,11 +2354,11 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
                     indices = list(range(playlist_range[0], playlist_range[1]+1))
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
                     total = len(indices)
-                    icon = "🚀" if n_cached > 0 else "📹"
+                    icon = "🚀" if n_cached > 0 else ("1⭐️" if is_nsfw else "📹")
                     postfix = f" ({n_cached}/{total})" if total > 1 else ""
                     button_text = f"{icon}{quality_key}{postfix}"
                 else:
-                    icon = "🚀" if quality_key in cached_qualities else "📹"
+                    icon = "🚀" if (quality_key in cached_qualities) else ("1⭐️" if is_nsfw else "📹")
                     button_text = f"{icon}{quality_key}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         
@@ -2297,11 +2368,11 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
             indices = list(range(playlist_range[0], playlist_range[1]+1))
             n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
             total = len(indices)
-            icon = "🚀" if n_cached > 0 else "📹"
+            icon = "🚀" if n_cached > 0 else ("1⭐️" if is_nsfw else "📹")
             postfix = f" ({n_cached}/{total})" if total > 1 else ""
             button_text = f"{icon}Best{postfix}"
         else:
-            icon = "🚀" if quality_key in cached_qualities else "📹"
+            icon = "🚀" if (quality_key in cached_qualities) else ("1⭐️" if is_nsfw else "📹")
             button_text = f"{icon}Best"
         buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         
@@ -3141,7 +3212,9 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         repost_line = "\n🚀 — Instant repost from cache" if show_repost_hint else ""
         # Add DUBS hint if available
         dubs_hint = "\n🗣 — Choose audio language" if get_filters(user_id).get("has_dubs") else ""
-        hint = "<pre language=\"info\">📼 — Сhange video ext/codec\n📹 — Choose download quality" + repost_line + subs_hint + subs_warn + dubs_hint + "</pre>"
+        # Replace quality hint with paid note for NSFW
+        paid_hint = "\n⭐️ — 🔞NSFW is paid (⭐️$0.02)" if is_nsfw else "\n📹 — Choose download quality"
+        hint = "<pre language=\"info\">📼 — Сhange video ext/codec" + paid_hint + repost_line + subs_hint + subs_warn + dubs_hint + "</pre>"
         cap += f"\n{hint}\n"
         buttons = []
         # Sort buttons by quality from lowest to highest
@@ -3201,7 +3274,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                     indices = list(range(playlist_range[0], playlist_range[1]+1))
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
                     total = len(indices)
-                    icon = "🚀" if n_cached > 0 else "📹"
+                    icon = "🚀" if n_cached > 0 else ("1⭐️" if is_nsfw else "📹")
                     postfix = f" ({n_cached}/{total})" if total > 1 else ""
                     button_text = f"{icon}{quality_key}{subs_available}{postfix}"
                 else:
@@ -3215,7 +3288,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                         # In manual mode, respect user's auto_mode setting
                         need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
                     
-                    icon = "🚀" if quality_key in cached_qualities and not need_subs else "📹"
+                    icon = "🚀" if (quality_key in cached_qualities and not need_subs) else ("1⭐️" if is_nsfw else "📹")
                     button_text = f"{icon}{quality_key}{subs_available}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         else:
@@ -3237,11 +3310,11 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                     indices = list(range(playlist_range[0], playlist_range[1]+1))
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
                     total = len(indices)
-                    icon = "🚀" if n_cached > 0 else "📹"
+                    icon = "🚀" if n_cached > 0 else ("1⭐️" if is_nsfw else "📹")
                     postfix = f" ({n_cached}/{total})" if total > 1 else ""
                     button_text = f"{icon}{quality_key}{postfix}"
                 else:
-                    icon = "🚀" if quality_key in cached_qualities else "📹"
+                    icon = "🚀" if (quality_key in cached_qualities) else ("1⭐️" if is_nsfw else "📹")
                     button_text = f"{icon}{quality_key}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
 
@@ -3251,16 +3324,17 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             indices = list(range(playlist_range[0], playlist_range[1]+1))
             n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
             total = len(indices)
-            icon = "🚀" if n_cached > 0 else "📹"
+            icon = "🚀" if n_cached > 0 else ("1⭐️" if is_nsfw else "📹")
             postfix = f" ({n_cached}/{total})" if total > 1 else ""
             button_text = f"{icon}Best{postfix}"
         else:
-            icon = "🚀" if quality_key in cached_qualities else "📹"
+            icon = "🚀" if (quality_key in cached_qualities) else ("1⭐️" if is_nsfw else "📹")
             button_text = f"{icon}Best"
         buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         
         # Always add Other Qualities button
-        buttons.append(InlineKeyboardButton("🎛Other", callback_data=f"askq|other_qualities"))
+        other_label = "🎛Other" if not is_nsfw else "🎛Other"
+        buttons.append(InlineKeyboardButton(other_label, callback_data=f"askq|other_qualities"))
         
         if not found_quality_keys:
             # Add explanation when automatic quality detection fails
@@ -3430,7 +3504,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                         parse_mode=enums.ParseMode.HTML,
                         reply_markup=keyboard,
                         reply_parameters=ReplyParameters(message_id=message.id),
-                        has_spoiler=is_nsfw
+                        has_spoiler=should_apply_spoiler(user_id, is_nsfw, getattr(message.chat, "type", None) == enums.ChatType.PRIVATE)
                     )
                 else:
                     app.send_message(user_id, cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_parameters=ReplyParameters(message_id=message.id))
@@ -3444,7 +3518,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                         caption=cap,
                         parse_mode=enums.ParseMode.HTML,
                         reply_parameters=ReplyParameters(message_id=message.id),
-                        has_spoiler=is_nsfw
+                        has_spoiler=should_apply_spoiler(user_id, is_nsfw, getattr(message.chat, "type", None) == enums.ChatType.PRIVATE)
                     )
                 else:
                     app.send_message(user_id, cap, parse_mode=enums.ParseMode.HTML, reply_parameters=ReplyParameters(message_id=message.id))

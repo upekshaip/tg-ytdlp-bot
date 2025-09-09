@@ -43,14 +43,17 @@ else:
     logger.info("[Watchdog] SystemdNotifier not available - watchdog disabled")
 # Utility: pick proper log channel per kind
 
-def get_log_channel(kind: str = "general", nsfw: bool = False) -> int:
+def get_log_channel(kind: str = "general", nsfw: bool = False, paid: bool = False) -> int:
     """Returns the appropriate Telegram chat ID for logs.
 
     kind: "general" | "video" | "image"
     nsfw: if True and kind is media, route to NSFW channel
+    paid: if True, route to paid media channel
     """
     try:
         kind_normalized = (kind or "general").strip().lower()
+        if paid:
+            return getattr(Config, "LOGS_PAID_ID", getattr(Config, "LOGS_ID", 0))
         if nsfw and kind_normalized in ("video", "image"):
             return getattr(Config, "LOGS_NSWF_ID", getattr(Config, "LOGS_ID", 0))
         if kind_normalized == "video":

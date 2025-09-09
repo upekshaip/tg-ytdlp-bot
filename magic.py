@@ -140,6 +140,7 @@ from HELPERS.decorators import reply_with_keyboard, get_main_reply_keyboard, sen
 ###########################################################
 from COMMANDS.image_cmd import image_command
 from COMMANDS.mediainfo_cmd import mediainfo_command
+from COMMANDS.nsfw_cmd import nsfw_command
 from COMMANDS.settings_cmd import settings_command
 from COMMANDS.format_cmd import set_format
 from COMMANDS.split_sizer import split_command
@@ -177,6 +178,7 @@ def _is_allowed_group(message):
 if _allowed_groups:
     app.on_message(filters.group & filters.command("img"))(_wrap_group(lambda a, m: image_command(a, m) if _is_allowed_group(m) else None))
     app.on_message(filters.group & filters.command("mediainfo"))(_wrap_group(lambda a, m: mediainfo_command(a, m) if _is_allowed_group(m) else None))
+    app.on_message(filters.group & filters.command("nsfw"))(_wrap_group(lambda a, m: nsfw_command(a, m) if _is_allowed_group(m) else None))
     app.on_message(filters.group & filters.command("proxy"))(_wrap_group(lambda a, m: proxy_command(a, m) if _is_allowed_group(m) else None))
     app.on_message(filters.group & filters.command("settings"))(_wrap_group(lambda a, m: settings_command(a, m) if _is_allowed_group(m) else None))
     app.on_message(filters.group & filters.command("format"))(_wrap_group(lambda a, m: set_format(a, m) if _is_allowed_group(m) else None))

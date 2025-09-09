@@ -6,7 +6,7 @@ import tempfile
 import threading
 import time
 from pyrogram import filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ReplyParameters, InputMediaPhoto, InputMediaVideo
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ReplyParameters, InputMediaPhoto, InputMediaVideo, InputPaidMediaPhoto, InputPaidMediaVideo
 from pyrogram import enums
 from HELPERS.logger import send_to_logger, logger, get_log_channel
 from HELPERS.app_instance import get_app
@@ -25,6 +25,7 @@ from CONFIG.limits import LimitsConfig
 from CONFIG.config import Config
 from HELPERS.limitter import is_user_in_channel
 from HELPERS.porn import is_porn
+from COMMANDS.nsfw_cmd import should_apply_spoiler
 from DATABASE.cache_db import save_to_image_cache, get_cached_image_posts, get_cached_image_post_indices
 
 # Get app instance for decorators
@@ -225,7 +226,7 @@ def image_command(app, message):
     if not url.startswith(('http://', 'https://')):
         safe_send_message(
             user_id,
-            "❌ <b>Invalid URL</b>\n\nPlease provide a valid URL starting with http:// or https://",
+            Config.INVALID_URL_MSG,
             parse_mode=enums.ParseMode.HTML,
             reply_parameters=ReplyParameters(message_id=message.id)
         )
@@ -238,7 +239,7 @@ def image_command(app, message):
     # Send initial message
     status_msg = safe_send_message(
         user_id,
-        f"🔄 <b>Checking cache...</b>\n\n<code>{url}</code>",
+        Config.CHECKING_CACHE_MSG.format(url=url),
         parse_mode=enums.ParseMode.HTML,
         reply_parameters=ReplyParameters(message_id=message.id)
     )
@@ -270,15 +271,15 @@ def image_command(app, message):
                     if thread_id:
                         kwargs['message_thread_id'] = thread_id
                     try:
-                        sm.safe_forward_messages(user_id, get_log_channel("image", nsfw=nsfw_flag), ids, **kwargs)
+                        sm.safe_forward_messages(user_id, get_log_channel("image", nsfw=nsfw_flag, paid=True), ids, **kwargs)
                     except Exception:
-                        app.forward_messages(user_id, get_log_channel("image", nsfw=nsfw_flag), ids, **kwargs)
+                        app.forward_messages(user_id, get_log_channel("image", nsfw=nsfw_flag, paid=True), ids, **kwargs)
                 except Exception as _e:
                     logger.warning(f"Failed to forward cached album {album_idx}: {_e}")
             try:
                 safe_edit_message_text(
                     user_id, status_msg.id,
-                    f"✅ <b>Sent from cache</b>\n\nSent albums: <b>{len(cached_map)}</b>",
+                    Config.SENT_FROM_CACHE_MSG.format(count=len(cached_map)),
                     parse_mode=enums.ParseMode.HTML,
                 )
             except Exception:
@@ -306,7 +307,7 @@ def image_command(app, message):
         if not image_info:
             safe_edit_message_text(
                 user_id, status_msg.id,
-                f"❌ <b>Failed to analyze image</b>\n\n<code>{url}</code>\n\n"
+                Config.FAILED_ANALYZE_MSG.format(url=url) +
                 "The URL might not be accessible or not contain a valid image.",
                 parse_mode=enums.ParseMode.HTML
             )
@@ -317,7 +318,7 @@ def image_command(app, message):
         title = image_info.get('title', 'Unknown')
         safe_edit_message_text(
             user_id, status_msg.id,
-            f"📥 <b>Downloading image...</b>\n\n"
+            Config.DOWNLOADING_IMAGE_MSG +
             f"<b>Title:</b> {title}\n"
             f"<b>URL:</b> <code>{url}</code>",
             parse_mode=enums.ParseMode.HTML
@@ -342,9 +343,9 @@ def image_command(app, message):
                         if thread_id:
                             kwargs['message_thread_id'] = thread_id
                         try:
-                            sm.safe_forward_messages(user_id, get_log_channel("image", nsfw=nsfw_flag), ids, **kwargs)
+                            sm.safe_forward_messages(user_id, get_log_channel("image", nsfw=nsfw_flag, paid=True), ids, **kwargs)
                         except Exception:
-                            app.forward_messages(user_id, get_log_channel("image", nsfw=nsfw_flag), ids, **kwargs)
+                            app.forward_messages(user_id, get_log_channel("image", nsfw=nsfw_flag, paid=True), ids, **kwargs)
                     except Exception as _e:
                         logger.warning(f"Failed to forward cached album {album_idx}: {_e}")
                 # If we found anything in cache, finish early (do not re-download)
@@ -352,7 +353,7 @@ def image_command(app, message):
                     safe_edit_message_text(
                         user_id,
                         status_msg.id,
-                        f"✅ <b>Sent from cache</b>\n\nSent albums: <b>{len(cached_map)}</b>",
+                        Config.SENT_FROM_CACHE_MSG.format(count=len(cached_map)),
                         parse_mode=enums.ParseMode.HTML,
                     )
                 except Exception:
@@ -414,7 +415,7 @@ def image_command(app, message):
                 safe_edit_message_text(
                     user_id,
                     status_msg.id,
-                    f"📥 <b>Downloading media...</b>\n\n"
+                    Config.DOWNLOADING_MSG +
                     f"Downloaded: <b>{total_downloaded}</b> / <b>{total_expected or total_limit}</b>\n"
                     f"Sent: <b>{total_sent}</b>\n"
                     f"Pending to send: <b>{len(photos_videos_buffer) + len(others_buffer)}</b>",
@@ -520,7 +521,9 @@ def image_command(app, message):
                             group_items = photos_videos_buffer[:batch_size]
                             for p, t, _orig in group_items:
                                 if t == 'photo':
-                                    media_group.append(InputMediaPhoto(p, has_spoiler=nsfw_flag))
+                                    # No spoiler in groups, only in private chats for paid media
+                                    is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                                    media_group.append(InputMediaPhoto(p, has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
                                 else:
                                     # generate thumbnail for better preview
                                     thumb = None
@@ -531,16 +534,94 @@ def image_command(app, message):
                                         ], capture_output=True, text=True, timeout=30)
                                     except Exception:
                                         thumb = None
+                                    # No spoiler in groups, only in private chats for paid media
+                                    is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                                     if thumb and os.path.exists(thumb):
-                                        media_group.append(InputMediaVideo(p, thumb=thumb, has_spoiler=nsfw_flag))
+                                        media_group.append(InputMediaVideo(p, thumb=thumb, has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
                                     else:
-                                        media_group.append(InputMediaVideo(p, has_spoiler=nsfw_flag))
+                                        media_group.append(InputMediaVideo(p, has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
                             try:
-                                sent = app.send_media_group(
+                                # For paid media, only send in private chats (not groups/channels)
+                                is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                                if nsfw_flag and is_private_chat:
+                                    # Send each file individually as paid media (Telegram doesn't support paid media groups)
+                                    sent = []
+                                    for m in media_group:
+                                        try:
+                                            if isinstance(m, InputMediaPhoto):
+                                                paid_msg = app.send_paid_media(
                                     user_id,
-                                    media=media_group,
+                                                    media=[InputPaidMediaPhoto(media=m.media)],
+                                                    star_count=LimitsConfig.NSFW_STAR_COST,
+                                                    payload=str(Config.STAR_RECEIVER),
+                                                    reply_parameters=ReplyParameters(message_id=message.id)
+                                                )
+                                            else:
+                                                # Try to use existing thumb; if none, generate one for cover
+                                                _cover = getattr(m, 'thumb', None)
+                                                if not _cover:
+                                                    try:
+                                                        import subprocess
+                                                        _cover = os.path.join(os.path.dirname(m.media), os.path.splitext(os.path.basename(m.media))[0] + '.jpg')
+                                                        subprocess.run([
+                                                            'ffmpeg','-y','-i', m.media,
+                                                            '-vf','thumbnail,scale=640:-1','-frames:v','1', _cover
+                                                        ], capture_output=True, text=True, timeout=30)
+                                                        if not os.path.exists(_cover):
+                                                            _cover = None
+                                                    except Exception:
+                                                        _cover = None
+                                                try:
+                                                    paid_msg = app.send_paid_media(
+                                                        user_id,
+                                                        media=[InputPaidMediaVideo(media=m.media, cover=_cover)],
+                                                        star_count=LimitsConfig.NSFW_STAR_COST,
+                                                        payload=str(Config.STAR_RECEIVER),
+                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                    )
+                                                except TypeError:
+                                                    paid_msg = app.send_paid_media(
+                                                        user_id,
+                                                        media=[InputPaidMediaVideo(media=m.media)],
+                                                        star_count=LimitsConfig.NSFW_STAR_COST,
+                                                        payload=str(Config.STAR_RECEIVER),
+                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                    )
+                                            if isinstance(paid_msg, list):
+                                                sent.extend(paid_msg)
+                                            elif paid_msg is not None:
+                                                sent.append(paid_msg)
+                                        except Exception as e:
+                                            logger.error(f"Failed to send individual paid media: {e}")
+                                            # Fallback to regular media
+                                            if isinstance(m, InputMediaPhoto):
+                                                fallback_msg = app.send_photo(
+                                                    user_id,
+                                                    photo=m.media,
+                                                    caption=m.caption,
+                                                    has_spoiler=False,
+                                                    reply_parameters=ReplyParameters(message_id=message.id)
+                                                )
+                                            else:
+                                                fallback_msg = app.send_video(
+                                                    user_id,
+                                                    video=m.media,
+                                                    caption=m.caption,
+                                                    duration=m.duration,
+                                                    width=m.width,
+                                                    height=m.height,
+                                                    thumb=m.thumb,
+                                                    has_spoiler=False,
                                     reply_parameters=ReplyParameters(message_id=message.id),
                                     message_thread_id=getattr(message, 'message_thread_id', None)
+                                                )
+                                            sent.extend(fallback_msg)
+                                else:
+                                    # In groups/channels or non-NSFW content, send as regular media group
+                                    sent = app.send_media_group(
+                                        user_id,
+                                        media=media_group,
+                                        reply_parameters=ReplyParameters(message_id=message.id)
                                 )
                                 sent_message_ids.extend([m.id for m in sent])
                                 total_sent += len(media_group)
@@ -549,9 +630,24 @@ def image_command(app, message):
                                     orig_ids = [m.id for m in sent]
                                     logger.info(f"[IMG CACHE] Copying album to logs, orig_ids={orig_ids}")
                                     f_ids = []
+                                    
+                                    # Determine correct log channel based on media type and chat type
+                                    is_private_chat = message.chat.type == enums.ChatType.PRIVATE
+                                    is_paid_media = nsfw_flag and is_private_chat
+                                    
                                     for _mid in orig_ids:
                                         try:
-                                            msg = app.copy_message(chat_id=get_log_channel("image", nsfw=nsfw_flag), from_chat_id=user_id, message_id=_mid)
+                                            if is_paid_media:
+                                                # NSFW content in private chat -> LOGS_PAID_ID
+                                                log_channel = get_log_channel("image", nsfw=False, paid=True)
+                                            elif nsfw_flag and not is_private_chat:
+                                                # NSFW content in groups -> LOGS_NSWF_ID
+                                                log_channel = get_log_channel("image", nsfw=True, paid=False)
+                                            else:
+                                                # Regular content -> LOGS_IMG_ID
+                                                log_channel = get_log_channel("image", nsfw=False, paid=False)
+                                            
+                                            msg = app.copy_message(chat_id=log_channel, from_chat_id=user_id, message_id=_mid)
                                             if msg:
                                                 f_ids.append(msg.id)
                                                 time.sleep(0.05)
@@ -588,10 +684,22 @@ def image_command(app, message):
                                     try:
                                         with open(p, 'rb') as f:
                                             if t == 'photo':
+                                                is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                                                if nsfw_flag and is_private_chat:
+                                                    sent_msg = app.send_paid_media(
+                                                        user_id,
+                                                        media=[InputPaidMediaPhoto(media=f)],
+                                                        star_count=LimitsConfig.NSFW_STAR_COST,
+                                                        payload=str(Config.STAR_RECEIVER),
+                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                    )
+                                                else:
+                                                    # No spoiler in groups, only in private chats for paid media
+                                                    is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                                                 sent_msg = app.send_photo(
                                                     user_id,
                                                     photo=f,
-                                                    has_spoiler=nsfw_flag,
+                                                        has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
                                                     reply_parameters=ReplyParameters(message_id=message.id),
                                                     message_thread_id=getattr(message, 'message_thread_id', None)
                                                 )
@@ -606,19 +714,63 @@ def image_command(app, message):
                                                 except Exception:
                                                     thumb = None
                                                 if thumb and os.path.exists(thumb):
+                                                    is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                                                    if nsfw_flag and is_private_chat:
+                                                        # Ensure we have a cover
+                                                        _cover = thumb
+                                                        if not _cover:
+                                                            try:
+                                                                import subprocess
+                                                                _cover = os.path.join(os.path.dirname(p), os.path.splitext(os.path.basename(p))[0] + '.jpg')
+                                                                subprocess.run([
+                                                                    'ffmpeg','-y','-i', p,
+                                                                    '-vf','thumbnail,scale=640:-1','-frames:v','1', _cover
+                                                                ], capture_output=True, text=True, timeout=30)
+                                                                if not os.path.exists(_cover):
+                                                                    _cover = None
+                                                            except Exception:
+                                                                _cover = None
+                                                        try:
+                                                            media_item = InputPaidMediaVideo(media=f, cover=_cover)
+                                                        except TypeError:
+                                                            media_item = InputPaidMediaVideo(media=f)
+                                                        sent_msg = app.send_paid_media(
+                                                            user_id,
+                                                            media=[media_item],
+                                                            star_count=LimitsConfig.NSFW_STAR_COST,
+                                                            payload=str(Config.STAR_RECEIVER),
+                                                            reply_parameters=ReplyParameters(message_id=message.id),
+                                                            message_thread_id=getattr(message, 'message_thread_id', None)
+                                                        )
+                                                    else:
+                                                        # No spoiler in groups, only in private chats for paid media
+                                                        is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                                                     sent_msg = app.send_video(
                                                         user_id,
                                                         video=f,
                                                         thumb=thumb,
-                                                        has_spoiler=nsfw_flag,
+                                                            has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
                                                         reply_parameters=ReplyParameters(message_id=message.id),
                                                         message_thread_id=getattr(message, 'message_thread_id', None)
                                                     )
                                                 else:
+                                                    is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                                                    if nsfw_flag and is_private_chat:
+                                                        sent_msg = app.send_paid_media(
+                                                            user_id,
+                                                            media=[InputPaidMediaVideo(media=f)],
+                                                            star_count=LimitsConfig.NSFW_STAR_COST,
+                                                            payload=str(Config.STAR_RECEIVER),
+                                                            reply_parameters=ReplyParameters(message_id=message.id),
+                                                            message_thread_id=getattr(message, 'message_thread_id', None)
+                                                        )
+                                                    else:
+                                                        # No spoiler in groups, only in private chats for paid media
+                                                        is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                                                     sent_msg = app.send_video(
                                                         user_id,
                                                         video=f,
-                                                        has_spoiler=nsfw_flag,
+                                                            has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
                                                         reply_parameters=ReplyParameters(message_id=message.id),
                                                         message_thread_id=getattr(message, 'message_thread_id', None)
                                                     )
@@ -644,9 +796,24 @@ def image_command(app, message):
                                     if tmp_ids:
                                         logger.info(f"[IMG CACHE] Copying fallback album to logs, orig_ids={tmp_ids}")
                                         f_ids = []
+                                        
+                                        # Determine correct log channel based on media type and chat type
+                                        is_private_chat = message.chat.type == enums.ChatType.PRIVATE
+                                        is_paid_media = nsfw_flag and is_private_chat
+                                        
                                         for _mid in tmp_ids:
                                             try:
-                                                msg = app.copy_message(chat_id=get_log_channel("image", nsfw=nsfw_flag), from_chat_id=user_id, message_id=_mid)
+                                                if is_paid_media:
+                                                    # NSFW content in private chat -> LOGS_PAID_ID
+                                                    log_channel = get_log_channel("image", nsfw=False, paid=True)
+                                                elif nsfw_flag and not is_private_chat:
+                                                    # NSFW content in groups -> LOGS_NSWF_ID
+                                                    log_channel = get_log_channel("image", nsfw=True, paid=False)
+                                                else:
+                                                    # Regular content -> LOGS_IMG_ID
+                                                    log_channel = get_log_channel("image", nsfw=False, paid=False)
+                                                
+                                                msg = app.copy_message(chat_id=log_channel, from_chat_id=user_id, message_id=_mid)
                                                 if msg:
                                                     f_ids.append(msg.id)
                                                     time.sleep(0.05)
@@ -703,7 +870,9 @@ def image_command(app, message):
                     media_group = []
                     for p, t, _orig in group:
                         if t == 'photo':
-                            media_group.append(InputMediaPhoto(p, has_spoiler=nsfw_flag))
+                            # No spoiler in groups, only in private chats for paid media
+                            is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                            media_group.append(InputMediaPhoto(p, has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
                         else:
                             # generate thumbnail
                             thumb = None
@@ -714,11 +883,101 @@ def image_command(app, message):
                                 ], capture_output=True, text=True, timeout=30)
                             except Exception:
                                 thumb = None
+                            # No spoiler in groups, only in private chats for paid media
+                            is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                             if thumb and os.path.exists(thumb):
-                                media_group.append(InputMediaVideo(p, thumb=thumb, has_spoiler=nsfw_flag))
+                                media_group.append(InputMediaVideo(p, thumb=thumb, has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
                             else:
-                                media_group.append(InputMediaVideo(p, has_spoiler=nsfw_flag))
+                                media_group.append(InputMediaVideo(p, has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
                     try:
+                        # For paid media, only send in private chats (not groups/channels)
+                        is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                        if nsfw_flag and is_private_chat:
+                            # Send each file individually as paid media (Telegram doesn't support paid media groups)
+                            sent = []
+                            for m in media_group:
+                                try:
+                                    if isinstance(m, InputMediaPhoto):
+                                        paid_msg = app.send_paid_media(
+                                            user_id,
+                                            media=[InputPaidMediaPhoto(media=m.media)],
+                                            star_count=LimitsConfig.NSFW_STAR_COST,
+                                            payload=str(Config.STAR_RECEIVER),
+                                            reply_parameters=ReplyParameters(message_id=message.id),
+                                            message_thread_id=getattr(message, 'message_thread_id', None)
+                                        )
+                                        if isinstance(paid_msg, list):
+                                            sent.extend(paid_msg)
+                                        elif paid_msg is not None:
+                                            sent.append(paid_msg)
+                                    else:
+                                        # Generate cover for video if needed
+                                        _cover = None
+                                        try:
+                                            if hasattr(m, 'thumb') and m.thumb and os.path.exists(m.thumb):
+                                                _cover = m.thumb
+                                            else:
+                                                # Try to generate cover via FFmpeg
+                                                video_path = m.media
+                                                if hasattr(video_path, 'name'):
+                                                    video_path = video_path.name
+                                                _cover = os.path.join(os.path.dirname(video_path), os.path.splitext(os.path.basename(video_path))[0] + '_cover.jpg')
+                                                if not os.path.exists(_cover):
+                                                    subprocess.run([
+                                                        'ffmpeg', '-i', video_path, '-ss', '00:00:01', '-vframes', '1', '-q:v', '2', '-y', _cover
+                                                    ], capture_output=True, timeout=10)
+                                                if not os.path.exists(_cover):
+                                                    _cover = None
+                                        except Exception:
+                                            _cover = None
+                                        try:
+                                            paid_msg = app.send_paid_media(
+                                                user_id,
+                                                media=[InputPaidMediaVideo(media=m.media, cover=_cover)],
+                                                star_count=LimitsConfig.NSFW_STAR_COST,
+                                                payload=str(Config.STAR_RECEIVER),
+                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                            )
+                                        except TypeError:
+                                            paid_msg = app.send_paid_media(
+                                                user_id,
+                                                media=[InputPaidMediaVideo(media=m.media)],
+                                                star_count=LimitsConfig.NSFW_STAR_COST,
+                                                payload=str(Config.STAR_RECEIVER),
+                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                            )
+                                        if isinstance(paid_msg, list):
+                                            sent.extend(paid_msg)
+                                        elif paid_msg is not None:
+                                            sent.append(paid_msg)
+                                except Exception as e:
+                                    logger.error(f"Failed to send individual paid media: {e}")
+                                    # Fallback to regular media
+                                    if isinstance(m, InputMediaPhoto):
+                                        fallback_msg = app.send_photo(
+                                            user_id,
+                                            photo=m.media,
+                                            caption=m.caption,
+                                            has_spoiler=False,
+                                            reply_parameters=ReplyParameters(message_id=message.id),
+                                            message_thread_id=getattr(message, 'message_thread_id', None)
+                                        )
+                                    else:
+                                        fallback_msg = app.send_video(
+                                            user_id,
+                                            video=m.media,
+                                            caption=m.caption,
+                                            duration=m.duration,
+                                            width=m.width,
+                                            height=m.height,
+                                            thumb=m.thumb,
+                                            has_spoiler=False,
+                                            reply_parameters=ReplyParameters(message_id=message.id),
+                                            message_thread_id=getattr(message, 'message_thread_id', None)
+                                        )
+                                    sent.extend(fallback_msg)
+                        else:
+                            # In groups/channels or non-NSFW content, send as regular media group
                         sent = app.send_media_group(
                             user_id,
                             media=media_group,
@@ -732,9 +991,24 @@ def image_command(app, message):
                             orig_ids2 = [m.id for m in sent]
                             logger.info(f"[IMG CACHE] Copying tail album to logs, orig_ids={orig_ids2}")
                             f_ids = []
+                            
+                            # Determine correct log channel based on media type and chat type
+                            is_private_chat = message.chat.type == enums.ChatType.PRIVATE
+                            is_paid_media = nsfw_flag and is_private_chat
+                            
                             for _mid in orig_ids2:
                                 try:
-                                    msg = app.copy_message(chat_id=get_log_channel("image", nsfw=nsfw_flag), from_chat_id=user_id, message_id=_mid)
+                                    if is_paid_media:
+                                        # NSFW content in private chat -> LOGS_PAID_ID
+                                        log_channel = get_log_channel("image", nsfw=False, paid=True)
+                                    elif nsfw_flag and not is_private_chat:
+                                        # NSFW content in groups -> LOGS_NSWF_ID
+                                        log_channel = get_log_channel("image", nsfw=True, paid=False)
+                                    else:
+                                        # Regular content -> LOGS_IMG_ID
+                                        log_channel = get_log_channel("image", nsfw=False, paid=False)
+                                    
+                                    msg = app.copy_message(chat_id=log_channel, from_chat_id=user_id, message_id=_mid)
                                     if msg:
                                         f_ids.append(msg.id)
                                         time.sleep(0.05)
@@ -767,10 +1041,22 @@ def image_command(app, message):
                             try:
                                 with open(p, 'rb') as f:
                                     if t == 'photo':
+                                        is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                                        if nsfw_flag and is_private_chat:
+                                            sent_msg = app.send_paid_media(
+                                                user_id,
+                                                media=[InputPaidMediaPhoto(media=f)],
+                                                star_count=LimitsConfig.NSFW_STAR_COST,
+                                                payload=str(Config.STAR_RECEIVER),
+                                                reply_parameters=ReplyParameters(message_id=message.id),
+                                                message_thread_id=getattr(message, 'message_thread_id', None)
+                                            )
+                                        else:
+                                            # No spoiler in groups, only in private chats for paid media
                                         sent_msg = app.send_photo(
                                             user_id,
                                             photo=f,
-                                            has_spoiler=nsfw_flag,
+                                                has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
                                             reply_parameters=ReplyParameters(message_id=message.id),
                                             message_thread_id=getattr(message, 'message_thread_id', None)
                                         )
@@ -784,12 +1070,42 @@ def image_command(app, message):
                                             ], capture_output=True, text=True, timeout=30)
                                         except Exception:
                                             thumb = None
+                                        is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                                        if nsfw_flag and is_private_chat:
+                                            # Generate cover for video if needed
+                                            _cover = None
+                                            if thumb and os.path.exists(thumb):
+                                                _cover = thumb
+                                            else:
+                                                try:
+                                                    _cover = os.path.join(os.path.dirname(p), os.path.splitext(os.path.basename(p))[0] + '_cover.jpg')
+                                                    if not os.path.exists(_cover):
+                                                        subprocess.run([
+                                                            'ffmpeg', '-i', p, '-ss', '00:00:01', '-vframes', '1', '-q:v', '2', '-y', _cover
+                                                        ], capture_output=True, timeout=10)
+                                                    if not os.path.exists(_cover):
+                                                        _cover = None
+                                                except Exception:
+                                                    _cover = None
+                                            try:
+                                                media_item = InputPaidMediaVideo(media=f, cover=_cover)
+                                            except TypeError:
+                                                media_item = InputPaidMediaVideo(media=f)
+                                            sent_msg = app.send_paid_media(
+                                                user_id,
+                                                media=[media_item],
+                                                star_count=LimitsConfig.NSFW_STAR_COST,
+                                                payload=str(Config.STAR_RECEIVER),
+                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                            )
+                                        else:
+                                            # No spoiler in groups, only in private chats for paid media
                                         if thumb and os.path.exists(thumb):
                                             sent_msg = app.send_video(
                                                 user_id,
                                                 video=f,
                                                 thumb=thumb,
-                                                has_spoiler=nsfw_flag,
+                                                    has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
                                                 reply_parameters=ReplyParameters(message_id=message.id),
                                                 message_thread_id=getattr(message, 'message_thread_id', None)
                                             )
@@ -797,7 +1113,7 @@ def image_command(app, message):
                                             sent_msg = app.send_video(
                                                 user_id,
                                                 video=f,
-                                                has_spoiler=nsfw_flag,
+                                                    has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
                                                 reply_parameters=ReplyParameters(message_id=message.id),
                                                 message_thread_id=getattr(message, 'message_thread_id', None)
                                             )
@@ -823,9 +1139,24 @@ def image_command(app, message):
                             if tmp_ids2:
                                 logger.info(f"[IMG CACHE] Copying tail-fallback album to logs, orig_ids={tmp_ids2}")
                                 f_ids = []
+                                
+                                # Determine correct log channel based on media type and chat type
+                                is_private_chat = message.chat.type == enums.ChatType.PRIVATE
+                                is_paid_media = nsfw_flag and is_private_chat
+                                
                                 for _mid in tmp_ids2:
                                     try:
-                                        msg = app.copy_message(chat_id=get_log_channel("image", nsfw=nsfw_flag), from_chat_id=user_id, message_id=_mid)
+                                        if is_paid_media:
+                                            # NSFW content in private chat -> LOGS_PAID_ID
+                                            log_channel = get_log_channel("image", nsfw=False, paid=True)
+                                        elif nsfw_flag and not is_private_chat:
+                                            # NSFW content in groups -> LOGS_NSWF_ID
+                                            log_channel = get_log_channel("image", nsfw=True, paid=False)
+                                        else:
+                                            # Regular content -> LOGS_IMG_ID
+                                            log_channel = get_log_channel("image", nsfw=False, paid=False)
+                                        
+                                        msg = app.copy_message(chat_id=log_channel, from_chat_id=user_id, message_id=_mid)
                                         if msg:
                                             f_ids.append(msg.id)
                                             time.sleep(0.05)
@@ -874,7 +1205,7 @@ def image_command(app, message):
                     safe_edit_message_text(
                         user_id,
                         status_msg.id,
-                        f"✅ <b>Download complete</b>\n\n"
+                        Config.DOWNLOAD_COMPLETE_MSG +
                         f"Downloaded: <b>{total_downloaded}</b> / <b>{final_expected}</b>\n"
                         f"Sent: <b>{total_sent}</b>",
                         parse_mode=enums.ParseMode.HTML,
@@ -892,7 +1223,7 @@ def image_command(app, message):
         try:
             from HELPERS.safe_messeger import safe_forward_messages
             if sent_message_ids:
-                safe_forward_messages(get_log_channel("image", nsfw=nsfw_flag), user_id, sent_message_ids)
+                safe_forward_messages(get_log_channel("image", nsfw=nsfw_flag, paid=True), user_id, sent_message_ids)
         except Exception as e:
             logger.error(f"Failed to forward messages to log channel: {e}")
 
@@ -950,7 +1281,7 @@ def image_command(app, message):
         
         safe_edit_message_text(
             user_id, status_msg.id,
-            f"❌ <b>Error occurred</b>\n\n<code>{url}</code>\n\nError: {str(e)}",
+            Config.ERROR_OCCURRED_MSG.format(url=url, error=str(e)),
             parse_mode=enums.ParseMode.HTML
         )
         send_to_logger(message, f"Error in image command: {url}, error: {e}")

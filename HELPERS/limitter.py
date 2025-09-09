@@ -5,6 +5,8 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from pyrogram.enums import ChatMemberStatus
 import os
 from HELPERS.safe_messeger import safe_send_message
+from CONFIG.limits import LimitsConfig
+from pyrogram import enums
 
 def humanbytes(size):
     # https://stackoverflow.com/a/49361727/4723940
@@ -119,13 +121,20 @@ def ensure_group_admin(app, message):
     except Exception:
         return True
 
-def check_file_size_limit(info_dict, max_size_bytes=None):
+def check_file_size_limit(info_dict, max_size_bytes=None, message=None):
     """
     Checks if the size of the file is the global limit.
     Returns True if the size is within the limit, otherwise false.
     """
     if max_size_bytes is None:
-        max_size_gb = getattr(Config, 'MAX_FILE_SIZE_GB', 10)  # GiB
+        max_size_gb = getattr(Config, 'MAX_FILE_SIZE_GB', 8)  # GiB
+        # Apply group multiplier for groups/channels
+        try:
+            if message and getattr(message.chat, 'type', None) != enums.ChatType.PRIVATE:
+                mult = getattr(LimitsConfig, 'GROUP_MULTIPLIER', 1)
+                max_size_gb = int(max_size_gb * mult)
+        except Exception:
+            pass
         max_size_bytes = int(max_size_gb * 1024 ** 3)
 
     # Check if info_dict is None
@@ -171,6 +180,16 @@ def check_subs_limits(info_dict, quality_key=None):
         max_quality = Config.MAX_SUB_QUALITY
         max_duration = Config.MAX_SUB_DURATION
         max_size = Config.MAX_SUB_SIZE
+        # Apply group multiplier in groups/channels
+        try:
+            if getattr(info_dict, 'message', None) and getattr(info_dict.message.chat, 'type', None) != enums.ChatType.PRIVATE:
+                mult = getattr(LimitsConfig, 'GROUP_MULTIPLIER', 1)
+                max_duration = int(max_duration * mult)
+                max_size = int(max_size * mult)
+                # For groups, allow up to 1080p for subtitles
+                max_quality = 1080
+        except Exception:
+            pass
         
         logger.info(f"check_subs_limits: checking limits - max_quality={max_quality}p, max_duration={max_duration}s, max_size={max_size}MB")
         logger.info(f"check_subs_limits: info_dict keys: {list(info_dict.keys()) if info_dict else 'None'}")

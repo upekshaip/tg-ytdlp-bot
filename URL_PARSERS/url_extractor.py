@@ -161,6 +161,28 @@ def url_distractor(app, message):
         send_to_logger(message, f"Send help txt to user")
         return
 
+    # /add_bot_to_group Command
+    if text == Config.ADD_BOT_TO_GROUP_COMMAND:
+        # Subscription gate similar to /help: if not subscribed, prompt to subscribe
+        if not check_user(message):
+            return
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔚Close", callback_data="add_group_msg|close")]
+        ])
+        from HELPERS.safe_messeger import safe_send_message
+        try:
+            safe_send_message(
+                message.chat.id,
+                (Config.ADD_BOT_TO_GROUP_MSG),
+                parse_mode=enums.ParseMode.HTML,
+                reply_markup=keyboard,
+                message=message,
+            )
+        except Exception:
+            safe_send_message(message.chat.id, (Config.ADD_BOT_TO_GROUP_MSG), reply_markup=keyboard, message=message)
+        send_to_logger(message, "Send add_bot_to_group txt to user")
+        return
+
     # ----- User Commands -----
     # /Search Command
     if text.startswith(Config.SEARCH_COMMAND):

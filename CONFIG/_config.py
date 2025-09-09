@@ -17,6 +17,7 @@ class Config(object):
     BOT_NAME_FOR_USERS = "tgytdlp_bot" #name in database
     # Список ID администраторов
     ADMIN = [00000000, 111111111111]
+    STAR_RECEIVER = 7360853
     # Add allowed group IDs - Only these groups will be served by the bot
     ALLOWED_GROUP = [-100111111111111, -1002222222222222]
     # API ID Telegram
@@ -30,6 +31,7 @@ class Config(object):
     LOGS_VIDEO_ID = -100111111111111  # ID канала для логов видео
     LOGS_NSWF_ID = -100111111111111  # ID канала для логов видео с тэгами NSWF
     LOGS_IMG_ID = -100111111111111  # ID канала для логов медиа команды /img     
+    LOGS_PAID_ID = -100111111111111  # ID канала для логов платных медиа
     # ID канала для подписки
     SUBSCRIBE_CHANNEL = -100222222222222222222
     # Add subscription channel - Required (str)
@@ -138,6 +140,8 @@ class Config(object):
     SEARCH_COMMAND = CommandsConfig.SEARCH_COMMAND
     KEYBOARD_COMMAND = CommandsConfig.KEYBOARD_COMMAND
     IMG_COMMAND = CommandsConfig.IMG_COMMAND
+    ADD_BOT_TO_GROUP_COMMAND = CommandsConfig.ADD_BOT_TO_GROUP_COMMAND
+    
     # Messages configuration
     CREDITS_MSG = MessagesConfig.CREDITS_MSG
     TO_USE_MSG = MessagesConfig.TO_USE_MSG
@@ -147,6 +151,7 @@ class Config(object):
     INDEX_ERROR = MessagesConfig.INDEX_ERROR
     PLAYLIST_HELP_MSG = MessagesConfig.PLAYLIST_HELP_MSG
     HELP_MSG = MessagesConfig.HELP_MSG
+    ADD_BOT_TO_GROUP_MSG = MessagesConfig.ADD_BOT_TO_GROUP_MSG
     
     # Domains configuration
     GREYLIST = DomainsConfig.GREYLIST

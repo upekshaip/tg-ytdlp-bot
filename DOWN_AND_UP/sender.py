@@ -1,6 +1,6 @@
 # @reply_with_keyboard
 from pyrogram import enums
-from pyrogram.types import ReplyParameters
+from pyrogram.types import ReplyParameters, InputPaidMediaVideo
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger
 from HELPERS.download_status import progress_bar
@@ -9,6 +9,7 @@ from HELPERS.caption import truncate_caption
 from DOWN_AND_UP.ffmpeg import get_video_info_ffprobe
 from HELPERS.safe_messeger import safe_forward_messages
 from CONFIG.config import Config
+from CONFIG.limits import LimitsConfig
 import time
 
 # Get app instance for decorators
@@ -79,6 +80,62 @@ def send_videos(
         cap += link_block
 
         def _try_send_video(caption_text: str):
+            # Ensure we have a thumbnail for cover if possible
+            local_thumb = thumb_file_path
+            try:
+                if not local_thumb or not os.path.exists(local_thumb):
+                    # generate a frame thumbnail 640px wide
+                    local_thumb = os.path.join(os.path.dirname(video_abs_path), os.path.splitext(os.path.basename(video_abs_path))[0] + ".jpg")
+                    import subprocess
+                    try:
+                        middle_sec = max(1, int(duration) // 2 if isinstance(duration, int) else 1)
+                        subprocess.run([
+                            'ffmpeg','-y','-ss', str(middle_sec), '-i', video_abs_path,
+                            '-vframes','1','-vf','scale=640:-1', local_thumb
+                        ], capture_output=True, text=True, timeout=30)
+                        if not os.path.exists(local_thumb):
+                            local_thumb = None
+                    except Exception:
+                        local_thumb = None
+            except Exception:
+                local_thumb = thumb_file_path
+            # Paid media only in private chats; in groups/channels send regular video
+            try:
+                chat_type = getattr(message.chat, "type", None)
+                is_private_chat = chat_type == enums.ChatType.PRIVATE
+            except Exception:
+                is_private_chat = True
+            if is_spoiler and is_private_chat:
+                try:
+                    paid_media = InputPaidMediaVideo(
+                        media=video_abs_path,
+                        cover=local_thumb if local_thumb else None,
+                    )
+                except TypeError:
+                    paid_media = InputPaidMediaVideo(
+                        media=video_abs_path,
+                    )
+                allow_broadcast = getattr(message.chat, "type", None) != enums.ChatType.PRIVATE
+                result = app.send_paid_media(
+                    chat_id=user_id,
+                    media=[paid_media],
+                    star_count=LimitsConfig.NSFW_STAR_COST,
+                    **({"allow_paid_broadcast": True} if allow_broadcast else {}),
+                    payload=str(Config.STAR_RECEIVER),
+                    reply_parameters=ReplyParameters(message_id=message.id),
+                )
+                try:
+                    # Some forks return list for albums; wrap to single message for uniformity
+                    video_msg = result[0] if isinstance(result, list) and result else result
+                    # Log paid media to LOGS_PAID_ID
+                    try:
+                        from HELPERS.logger import get_log_channel
+                        safe_forward_messages(get_log_channel("video", paid=True), user_id, [video_msg.id])
+                    except Exception as e:
+                        logger.error(f"Error forwarding paid video to logger: {e}")
+                    return video_msg
+                except Exception:
+                    return result
             return app.send_video(
                 chat_id=user_id,
                 video=video_abs_path,
@@ -87,8 +144,8 @@ def send_videos(
                 width=width,
                 height=height,
                 supports_streaming=True,
-                thumb=thumb_file_path,
-                has_spoiler=is_spoiler,
+                thumb=local_thumb or thumb_file_path,
+                has_spoiler=False,
                 progress=progress_bar,
                 progress_args=(
                     user_id,
@@ -100,11 +157,64 @@ def send_videos(
             )
 
         def _fallback_send_document(caption_text: str):
+            # Ensure we have a thumbnail for cover if possible
+            local_thumb = thumb_file_path
+            try:
+                if not local_thumb or not os.path.exists(local_thumb):
+                    local_thumb = os.path.join(os.path.dirname(video_abs_path), os.path.splitext(os.path.basename(video_abs_path))[0] + ".jpg")
+                    import subprocess
+                    try:
+                        middle_sec = max(1, int(duration) // 2 if isinstance(duration, int) else 1)
+                        subprocess.run([
+                            'ffmpeg','-y','-ss', str(middle_sec), '-i', video_abs_path,
+                            '-vframes','1','-vf','scale=640:-1', local_thumb
+                        ], capture_output=True, text=True, timeout=30)
+                        if not os.path.exists(local_thumb):
+                            local_thumb = None
+                    except Exception:
+                        local_thumb = None
+            except Exception:
+                local_thumb = thumb_file_path
+            try:
+                chat_type = getattr(message.chat, "type", None)
+                is_private_chat = chat_type == enums.ChatType.PRIVATE
+            except Exception:
+                is_private_chat = True
+            if is_spoiler and is_private_chat:
+                try:
+                    paid_media = InputPaidMediaVideo(
+                        media=video_abs_path,
+                        cover=local_thumb if local_thumb else None,
+                    )
+                except TypeError:
+                    paid_media = InputPaidMediaVideo(
+                        media=video_abs_path,
+                    )
+                allow_broadcast = getattr(message.chat, "type", None) != enums.ChatType.PRIVATE
+                result = app.send_paid_media(
+                    chat_id=user_id,
+                    media=[paid_media],
+                    star_count=LimitsConfig.NSFW_STAR_COST,
+                    **({"allow_paid_broadcast": True} if allow_broadcast else {}),
+                    payload=str(Config.STAR_RECEIVER),
+                    reply_parameters=ReplyParameters(message_id=message.id),
+                )
+                try:
+                    video_msg = result[0] if isinstance(result, list) and result else result
+                    # Log paid media to LOGS_PAID_ID
+                    try:
+                        from HELPERS.logger import get_log_channel
+                        safe_forward_messages(get_log_channel("video", paid=True), user_id, [video_msg.id])
+                    except Exception as e:
+                        logger.error(f"Error forwarding paid video to logger: {e}")
+                    return video_msg
+                except Exception:
+                    return result
             return app.send_document(
                 chat_id=user_id,
                 document=video_abs_path,
                 caption=caption_text,
-                thumb=thumb_file_path,
+                thumb=local_thumb or thumb_file_path,
                 progress=progress_bar,
                 progress_args=(
                     user_id,

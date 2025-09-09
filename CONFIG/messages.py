@@ -110,6 +110,7 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 • <code>/format</code> → quality & format
 • <code>/split</code> → part size (250MB-2GB)
 • <code>/mediainfo on/off</code> → media info
+• <code>/nsfw on/off</code> → NSFW blur
 • <code>/tags</code> → view saved tags
 • <code>/sub on/off</code> → subtitles
 • <code>/keyboard</code> → keyboard (OFF/1x3/2x3)
@@ -170,6 +171,7 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 • <code>/format</code> → качество и формат
 • <code>/split</code> → размер части (250MB-2GB)
 • <code>/mediainfo on/off</code> → информация о файле
+• <code>/nsfw on/off</code> → размытие NSFW
 • <code>/tags</code> → ваши теги
 • <code>/sub on/off</code> → субтитры
 • <code>/keyboard</code> → клавиатура (OFF/1x3/2x3)
@@ -238,4 +240,211 @@ Press the button below to activate inline search via @vid.
 This helps you quickly find and download videos from various platforms.
 </blockquote>
     """
+    
+    # Add bot to group command message
+    ADD_BOT_TO_GROUP_MSG = """
+🤖 <b>Add Bot to Group</b>
+
+Add this bot to your group or channel to get enhanced features and higher limits!
+
+<blockquote>📊 <b>Current Limits (Private Chat):</b>
+• Max file size: 8 GB
+• Max subtitle duration: 1.5 hours (5400s)
+• Max subtitle file size: 500 MB
+• Max subtitle quality: 720p
+• Max playlist items: 50
+• Max TikTok videos: 500
+• Max images: 1000
+• Download timeout: 2 hours
+• 🔞 NSFW content is paid! 1⭐️ = $0.02
+</blockquote>
+
+<blockquote>🚀 <b>Group/Channel Benefits (2x Limits):</b>
+• Max file size: 16 GB ⬆️
+• Max subtitle duration: 3 hours (10800s) ⬆️
+• Max subtitle file size: 1000 MB ⬆️
+• Max subtitle quality: 1080p ⬆️
+• Max playlist items: 100 ⬆️
+• Max TikTok videos: 1000 ⬆️
+• Max images: 2000 ⬆️
+• Download timeout: 4 hours ⬆️
+• 🔞NSFW content: Free with full metadata 🆓
+• Regular content: Same as private chat
+</blockquote>
+
+<blockquote>💰 <b>Pricing & Setup:</b>
+• <b>Price:</b> $5/month per group/channel
+• <b>Setup:</b> Contact @iilililiiillliiliililliilliliiil
+• <b>Payment:</b> Telegram Stars or other methods
+• <b>Support:</b> Full technical support included
+</blockquote>
+
+<blockquote expandable>🇷🇺 <b>Добавить бота в группу</b>
+
+Добавьте этого бота в свою группу или канал для получения расширенных функций и повышенных лимитов!
+
+📊 <b>Текущие лимиты (приватный чат):</b>
+• Макс. размер файла: 8 ГБ
+• Макс. длительность субтитров: 1.5 часа (5400с)
+• Макс. размер файла субтитров: 500 МБ
+• Макс. качество субтитров: 720p
+• Макс. элементов плейлиста: 50
+• Макс. видео TikTok: 500
+• Макс. изображений: 1000
+• Таймаут загрузки: 2 часа
+• 🔞 NSFW контент платный! 1⭐️ = $0.02
+
+🚀 <b>Преимущества группы/канала (x2 лимиты):</b>
+• Макс. размер файла: 16 ГБ ⬆️
+• Макс. длительность субтитров: 3 часа (10800с) ⬆️
+• Макс. размер файла субтитров: 1000 МБ ⬆️
+• Макс. качество субтитров: 1080p ⬆️
+• Макс. элементов плейлиста: 100 ⬆️
+• Макс. видео TikTok: 1000 ⬆️
+• Макс. изображений: 2000 ⬆️
+• Таймаут загрузки: 4 часа ⬆️
+• NSFW контент: Бесплатно с полными метаданными 🆓
+• Обычный контент: Как в приватном чате
+
+💰 <b>Цены и настройка:</b>
+• <b>Цена:</b> $5/месяц за группу/канал
+• <b>Настройка:</b> Свяжитесь с @iilililiiillliiliililliilliliiil
+• <b>Оплата:</b> Telegram Stars или другие способы
+• <b>Поддержка:</b> Полная техническая поддержка включена
+</blockquote>
+
+<blockquote>
+<b>Contact for setup:</b> @iilililiiillliiliililliilliliiil
+</blockquote>
+    """
+    
+    # NSFW Command Messages
+    NSFW_ON_MSG = """
+🔞 <b>NSFW Mode: ON✅</b>
+
+• NSFW content will be displayed without blurring.
+• Spoilers will not apply to NSFW media.
+• The content will be visible immediately
+
+<i>Use /nsfw off to enable blur</i>
+    """
+    
+    NSFW_OFF_MSG = """
+🔞 <b>NSFW Mode: OFF</b>
+
+⚠️ <b>Blur enabled</b>
+• NSFW content will be hidden under spoiler   
+• To view, you will need to click on the media
+• Spoilers will not apply to NSFW media.
+
+<i>Use /nsfw on to disable blur</i>
+    """
+    
+    NSFW_INVALID_MSG = """
+❌ <b>Invalid parameter</b>
+
+Use:
+• <code>/nsfw on</code> - disable blur
+• <code>/nsfw off</code> - enable blur
+    """
+    
+    # UI Messages - Status and Progress
+    CHECKING_CACHE_MSG = "🔄 <b>Checking cache...</b>\n\n<code>{url}</code>"
+    PROCESSING_MSG = "🔄 Processing..."
+    DOWNLOADING_MSG = "📥 <b>Downloading media...</b>\n\n"
+    DOWNLOADING_VIDEO_MSG = "📥 <b>Downloading video...</b>\n\n"
+    DOWNLOADING_IMAGE_MSG = "📥 <b>Downloading image...</b>\n\n"
+    UPLOAD_COMPLETE_MSG = "✅ <b>Upload complete</b> - {count} files uploaded.\n{credits}"
+    DOWNLOAD_COMPLETE_MSG = "✅ <b>Download complete</b>\n\n"
+    VIDEO_PROCESSING_MSG = "📽 Video is processing..."
+    WAITING_HOURGLASS_MSG = "⌛️"
+    
+    # Cache Messages
+    SENT_FROM_CACHE_MSG = "✅ <b>Sent from cache</b>\n\nSent albums: <b>{count}</b>"
+    VIDEO_SENT_FROM_CACHE_MSG = "✅ Video successfully sent from cache."
+    PLAYLIST_SENT_FROM_CACHE_MSG = "✅ Playlist videos sent from cache ({cached}/{total} files)."
+    CACHE_PARTIAL_MSG = "📥 {cached}/{total} videos sent from cache, downloading missing ones..."
+    CACHE_FAILED_VIDEO_MSG = "⚠️ Unable to get video from cache, starting new download..."
+    CACHE_FAILED_GENERIC_MSG = "⚠️ Failed to get video from cache, starting a new download..."
+    
+    # Error Messages
+    INVALID_URL_MSG = "❌ <b>Invalid URL</b>\n\nPlease provide a valid URL starting with http:// or https://"
+    FAILED_ANALYZE_MSG = "❌ <b>Failed to analyze image</b>\n\n<code>{url}</code>\n\n"
+    ERROR_OCCURRED_MSG = "❌ <b>Error occurred</b>\n\n<code>{url}</code>\n\nError: {error}"
+    ERROR_DOWNLOAD_MSG = "❌ Sorry... Some error occurred during download."
+    ERROR_SENDING_VIDEO_MSG = "❌ Error sending video: {error}"
+    ERROR_UNKNOWN_MSG = "❌ Unknown error: {error}"
+    ERROR_NO_DISK_SPACE_MSG = "❌ Not enough disk space to download videos."
+    ERROR_FILE_SIZE_LIMIT_MSG = "❌ The file size exceeds the {limit} GB limit. Please select a smaller file within the allowed size."
+    ERROR_NO_VIDEOS_PLAYLIST_MSG = "❌ No videos found in playlist at index {index}."
+    ERROR_TIKTOK_API_MSG = "⚠️ TikTok API error at index {index}, skipping to next video..."
+    ERROR_FFMPEG_NOT_FOUND_MSG = "❌ FFmpeg not found. Please install FFmpeg."
+    ERROR_CONVERSION_FAILED_MSG = "❌ Conversion to MP4 failed: {error}"
+    ERROR_GETTING_LINK_MSG = "❌ <b>Error getting link:</b>\n{error}"
+    ERROR_AV1_NOT_AVAILABLE_MSG = "❌ AV1 format is not available for this video.\n\nAvailable formats:\n{formats}"
+    ERROR_AV1_NOT_AVAILABLE_SHORT_MSG = "❌ **AV1 format is not available for this video.**\n\n"
+    
+    # Telegram Rate Limit Messages
+    RATE_LIMIT_WITH_TIME_MSG = "⚠️ Telegram has limited message sending.\n⏳ Please wait: {time}\nTo update timer send URL again 2 times."
+    RATE_LIMIT_NO_TIME_MSG = "⚠️ Telegram has limited message sending.\n⏳ Please wait: \nTo update timer send URL again 2 times."
+    
+    # Subtitles Messages
+    SUBTITLES_FAILED_MSG = "⚠️ Failed to download subtitles"
+    SUBTITLES_NOT_FOUND_MSG = "⚠️ Subtitles for {flag} {name} not found for this video. Download without subtitles."
+    SUBTITLES_EMBEDDING_MSG = "⚠️ Embedding subtitles may take a long time (up to 1 min per 1 min of video)!\n🔥 Starting to burn subtitles..."
+    SUBTITLES_SUCCESS_MSG = "Subtitles successfully embedded! ✅"
+    SUBTITLES_NOT_FOUND_VIDEO_MSG = "⚠️ Subtitles not found for this video"
+    SUBTITLES_SIZE_LIMIT_MSG = "⚠️ Subtitles not embedded: exceeded size/duration limits"
+    
+    # Video Processing Messages
+    HLS_STREAM_MSG = "Detected HLS stream.\n📥 Downloading..."
+    DOWNLOADING_FORMAT_MSG = "> <i>📥 Downloading using format: {format}...</i>"
+    DOWNLOADED_PROCESSING_MSG = "☑️ Downloaded video.\n📤 Processing for upload..."
+    FILE_TOO_LARGE_MSG = "⚠️ Your video size ({size}) is too large.\nSplitting file... ✂️"
+    SPLIT_PART_UPLOADED_MSG = "📤 Splitted part {part} file uploaded"
+    
+    # Stream/Link Messages
+    STREAM_LINKS_TITLE_MSG = "🔗 <b>Direct Stream Links</b>\n\n"
+    STREAM_TITLE_MSG = "📹 <b>Title:</b> {title}\n"
+    STREAM_DURATION_MSG = "⏱ <b>Duration:</b> {duration} sec\n"
+    STREAM_FORMAT_MSG = "🎛 <b>Format:</b> <code>bv+ba/best</code>\n\n"
+    STREAM_BROWSER_MSG = "🌐 <b>Browser:</b> Open in web browser\n\n"
+    VLC_PLAYER_IOS_MSG = "🎬 <b><a href=\"https://itunes.apple.com/app/apple-store/id650377962\">VLC Player (iOS)</a></b>\n\n<i>Click button to copy stream URL, then paste it in VLC app</i>"
+    VLC_PLAYER_ANDROID_MSG = "🎬 <b><a href=\"https://play.google.com/store/apps/details?id=org.videolan.vlc\">VLC Player (Android)</a></b>\n\n<i>Click button to copy stream URL, then paste it in VLC app</i>"
+    
+    # Download Progress Messages
+    DOWNLOADING_FORMAT_ID_MSG = "📥 Downloading format {format_id}..."
+    DOWNLOADING_QUALITY_MSG = "📥 Downloading {quality}..."
+    
+    # Quality Selection Messages
+    MANUAL_QUALITY_TITLE_MSG = "🎛 Manual Quality Selection"
+    MANUAL_QUALITY_DESC_MSG = "Choose quality manually since automatic detection failed:"
+    ALL_FORMATS_TITLE_MSG = "🎛 All Available Formats"
+    ALL_FORMATS_PAGE_MSG = "Page {page}"
+    CACHED_QUALITIES_TITLE_MSG = "📹 Available Qualities (from cache)"
+    CACHED_QUALITIES_DESC_MSG = "⚠️ Using cached qualities - new formats may not be available"
+    ERROR_GETTING_FORMATS_MSG = "❌ Error getting available formats.\nPlease try again later."
+    
+    # NSFW Paid Content Messages
+    NSFW_PAID_WARNING_MSG = "⭐️ — 🔞NSFW is paid (⭐️$0.02)"
+    NSFW_PAID_INFO_MSG = "⭐️ — 🔞NSFW is paid (⭐️$0.02)"
+    
+    # Callback Error Messages
+    ERROR_ORIGINAL_NOT_FOUND_MSG = "❌ Error: Original message not found."
+    ERROR_ORIGINAL_NOT_FOUND_DELETED_MSG = "❌ Error: Original message not found. It might have been deleted. Please send the link again."
+    ERROR_URL_NOT_FOUND_MSG = "❌ Error: URL not found."
+    ERROR_ORIGINAL_URL_NOT_FOUND_MSG = "❌ Error: Original URL not found. Please send the link again."
+    ERROR_URL_NOT_EMBEDDABLE_MSG = "❌ This URL cannot be embedded."
+    ERROR_CODEC_NOT_AVAILABLE_MSG = "❌ {codec} codec not available for this video"
+    ERROR_FORMAT_NOT_AVAILABLE_MSG = "❌ {format} format not available for this video"
+    
+    # Tags Error Messages
+    TAG_FORBIDDEN_CHARS_MSG = "❌ Tag #{tag} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}"
+    
+    # Playlist Messages
+    PLAYLIST_SENT_MSG = "✅ Playlist videos sent: {sent}/{total} files."
+    PLAYLIST_CACHE_SENT_MSG = "✅ Sent from cache: {cached}/{total} files."
+    
+    # Failed Stream Messages
+    FAILED_STREAM_LINKS_MSG = "❌ Failed to get stream links"
     #######################################################
