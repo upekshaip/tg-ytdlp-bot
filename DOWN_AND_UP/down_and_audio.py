@@ -250,11 +250,17 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             for index in requested_indices:
                 if index in cached_videos:
                     try:
-                        app.forward_messages(
-                            chat_id=user_id,
-                            from_chat_id=get_log_channel("video"),
-                            message_ids=[cached_videos[index]]
-                        )
+                        forward_kwargs = {
+                            'chat_id': user_id,
+                            'from_chat_id': get_log_channel("video"),
+                            'message_ids': [cached_videos[index]]
+                        }
+                        # Only apply thread_id in groups/channels, not in private chats
+                        if message.chat.type != enums.ChatType.PRIVATE:
+                            thread_id = getattr(message, 'message_thread_id', None)
+                            if thread_id:
+                                forward_kwargs['message_thread_id'] = thread_id
+                        app.forward_messages(**forward_kwargs)
                     except Exception as e:
                         logger.error(f"down_and_audio: error reposting cached audio index={index}: {e}")
             if len(uncached_indices) == 0:
@@ -267,11 +273,17 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         cached_ids = get_cached_message_ids(url, quality_key)
         if cached_ids:
             try:
-                app.forward_messages(
-                    chat_id=user_id,
-                    from_chat_id=get_log_channel("video"),
-                    message_ids=cached_ids
-                )
+                forward_kwargs = {
+                    'chat_id': user_id,
+                    'from_chat_id': get_log_channel("video"),
+                    'message_ids': cached_ids
+                }
+                # Only apply thread_id in groups/channels, not in private chats
+                if message.chat.type != enums.ChatType.PRIVATE:
+                    thread_id = getattr(message, 'message_thread_id', None)
+                    if thread_id:
+                        forward_kwargs['message_thread_id'] = thread_id
+                app.forward_messages(**forward_kwargs)
                 app.send_message(user_id, "✅ Audio sent from cache.", reply_parameters=ReplyParameters(message_id=message.id))
                 send_to_logger(message, f"Audio sent from cache (quality={quality_key}) to user{user_id}")
                 return

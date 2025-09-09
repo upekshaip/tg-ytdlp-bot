@@ -1483,11 +1483,15 @@ def askq_callback(app, callback_query):
                             is_nsfw = is_porn(url)
                             is_private_chat = getattr(original_message.chat, "type", None) == enums.ChatType.PRIVATE
                             is_paid = is_nsfw and is_private_chat
-                            app.forward_messages(
-                                chat_id=target_chat_id,
-                                from_chat_id=get_log_channel("video", paid=is_paid),
-                                message_ids=[cached_videos[index]]
-                            )
+                            forward_kwargs = {
+                                'chat_id': target_chat_id,
+                                'from_chat_id': get_log_channel("video", paid=is_paid),
+                                'message_ids': [cached_videos[index]]
+                            }
+                            # Only apply thread_id in groups/channels, not in private chats
+                            if original_message.chat.type != enums.ChatType.PRIVATE and thread_id:
+                                forward_kwargs['message_thread_id'] = thread_id
+                            app.forward_messages(**forward_kwargs)
                     except Exception as e:
                         logger.warning(f"askq_callback: cached video for index {index} not found: {e}")
             
@@ -1598,7 +1602,8 @@ def askq_callback(app, callback_query):
                 except Exception:
                     target_chat_id = user_id
                 thread_id = getattr(original_message, 'message_thread_id', None)
-                if thread_id:
+                # Only apply thread_id in groups/channels, not in private chats
+                if thread_id and original_message.chat.type != enums.ChatType.PRIVATE:
                     # Forward each to ensure thread id is applied
                     for mid in message_ids:
                         from HELPERS.logger import get_log_channel

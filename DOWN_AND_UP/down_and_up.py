@@ -175,11 +175,17 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             for index in requested_indices:
                 if index in cached_videos:
                     try:
-                        app.forward_messages(
-                            chat_id=user_id,
-                            from_chat_id=get_log_channel("video"),
-                            message_ids=[cached_videos[index]]
-                        )
+                        forward_kwargs = {
+                            'chat_id': user_id,
+                            'from_chat_id': get_log_channel("video"),
+                            'message_ids': [cached_videos[index]]
+                        }
+                        # Only apply thread_id in groups/channels, not in private chats
+                        if message.chat.type != enums.ChatType.PRIVATE:
+                            thread_id = getattr(message, 'message_thread_id', None)
+                            if thread_id:
+                                forward_kwargs['message_thread_id'] = thread_id
+                        app.forward_messages(**forward_kwargs)
                     except Exception as e:
                         logger.error(f"down_and_up: error reposting cached video index={index}: {e}")
             if len(uncached_indices) == 0:
@@ -197,11 +203,17 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             if cached_ids:
                 #found_type = None
                 try:
-                    app.forward_messages(
-                        chat_id=user_id,
-                        from_chat_id=get_log_channel("video"),
-                        message_ids=cached_ids
-                    )
+                    forward_kwargs = {
+                        'chat_id': user_id,
+                        'from_chat_id': get_log_channel("video"),
+                        'message_ids': cached_ids
+                    }
+                    # Only apply thread_id in groups/channels, not in private chats
+                    if message.chat.type != enums.ChatType.PRIVATE:
+                        thread_id = getattr(message, 'message_thread_id', None)
+                        if thread_id:
+                            forward_kwargs['message_thread_id'] = thread_id
+                    app.forward_messages(**forward_kwargs)
                     app.send_message(user_id, Config.VIDEO_SENT_FROM_CACHE_MSG, reply_parameters=ReplyParameters(message_id=message.id))
                     send_to_logger(message, f"Video sent from cache (quality={quality_key}) to user {user_id}")
                     return
