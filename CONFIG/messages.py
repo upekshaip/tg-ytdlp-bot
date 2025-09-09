@@ -269,13 +269,12 @@ Add this bot to your group or channel to get enhanced features and higher limits
 • Max images: 2000 ⬆️
 • Download timeout: 4 hours ⬆️
 • 🔞NSFW content: Free with full metadata 🆓
-• Regular content: Same as private chat
 </blockquote>
 
 <blockquote>💰 <b>Pricing & Setup:</b>
-• <b>Price:</b> $5/month per group/channel
+• <b>Price:</b> $5/month per 1 bot in group/channel
 • <b>Setup:</b> Contact @iilililiiillliiliililliilliliiil
-• <b>Payment:</b> Telegram Stars or other methods
+• <b>Payment:</b> TON or other methods
 • <b>Support:</b> Full technical support included
 </blockquote>
 
@@ -304,12 +303,11 @@ Add this bot to your group or channel to get enhanced features and higher limits
 • Макс. изображений: 2000 ⬆️
 • Таймаут загрузки: 4 часа ⬆️
 • NSFW контент: Бесплатно с полными метаданными 🆓
-• Обычный контент: Как в приватном чате
 
 💰 <b>Цены и настройка:</b>
-• <b>Цена:</b> $5/месяц за группу/канал
+• <b>Цена:</b> $5/месяц за 1 бота в группе/канале
 • <b>Настройка:</b> Свяжитесь с @iilililiiillliiliililliilliliiil
-• <b>Оплата:</b> Telegram Stars или другие способы
+• <b>Оплата:</b> TON или другие способы
 • <b>Поддержка:</b> Полная техническая поддержка включена
 </blockquote>
 
@@ -335,7 +333,7 @@ Add this bot to your group or channel to get enhanced features and higher limits
 ⚠️ <b>Blur enabled</b>
 • NSFW content will be hidden under spoiler   
 • To view, you will need to click on the media
-• Spoilers will not apply to NSFW media.
+• Spoilers will apply to NSFW media.
 
 <i>Use /nsfw on to disable blur</i>
     """

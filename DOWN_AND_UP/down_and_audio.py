@@ -278,7 +278,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             except Exception as e:
                 logger.error(f"Error reposting audio from cache: {e}")
                 save_to_video_cache(url, quality_key, [], clear=True)
-                app.send_message(user_id, "⚠️ Failed to get audio from cache, starting new download...", reply_parameters=ReplyParameters(message_id=message.id))
+                # Don't show error message if we successfully got audio from cache
+                # The audio was already sent successfully in the try block
     else:
         logger.info(f"down_and_audio: quality_key is None, skipping cache check")
 

@@ -64,14 +64,21 @@ def nsfw_command(app, message):
         pass
     
     # Show menu if no args provided
+    # Check current setting to show proper status
+    current_setting = is_nsfw_blur_enabled(storage_id)
+    on_text = "✅ ON (No Blur)" if not current_setting else "☑️ ON (No Blur)"
+    off_text = "✅ OFF (Blur)" if current_setting else "☑️ OFF (Blur)"
+    
     buttons = [
-        [InlineKeyboardButton("✅ ON (No Blur)", callback_data="nsfw_option|on"), InlineKeyboardButton("❌ OFF (Blur)", callback_data="nsfw_option|off")],
+        [InlineKeyboardButton(on_text, callback_data="nsfw_option|on"), InlineKeyboardButton(off_text, callback_data="nsfw_option|off")],
         [InlineKeyboardButton("🔚Close", callback_data="nsfw_option|close")],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
+    
+    status_text = "currently blurred" if current_setting else "currently not blurred"
     safe_send_message(
         chat_id,
-        "🔞 <b>NSFW Blur Settings</b>\n\nChoose whether to blur NSFW content:",
+        f"🔞 <b>NSFW Blur Settings</b>\n\nNSFW content is <b>{status_text}</b>.\n\nChoose whether to blur NSFW content:",
         reply_markup=keyboard,
         parse_mode=enums.ParseMode.HTML,
         message=message

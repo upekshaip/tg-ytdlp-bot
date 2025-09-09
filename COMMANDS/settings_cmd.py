@@ -197,6 +197,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("🌍 /proxy - Enable/disable proxy", callback_data="settings__cmd__proxy")],
             [InlineKeyboardButton("🎹 /keyboard - Keyboard layout", callback_data="settings__cmd__keyboard")],
             [InlineKeyboardButton("🔍 /search - Inline search helper", callback_data="settings__cmd__search")],
+            [InlineKeyboardButton("🔞 /nsfw - NSFW blur settings", callback_data="settings__cmd__nsfw")],
             [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
@@ -611,6 +612,25 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
                           _fallback_notice="⏳ Flood limit. Try later.")
         try:
             callback_query.answer("Hint sent.")
+        except Exception:
+            pass
+        return
+    if data == "nsfw":
+        try:
+            from COMMANDS.nsfw_cmd import nsfw_command
+            nsfw_command(app, fake_message("/nsfw", user_id))
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+            try:
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
+            return
+        try:
+            callback_query.answer("Command executed.")
         except Exception:
             pass
         return

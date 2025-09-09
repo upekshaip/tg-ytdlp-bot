@@ -212,7 +212,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         save_to_video_cache(url, quality_key, [], clear=True)
                     else:
                         logger.info("Video with subs (subs.txt found) is not cached!")
-                    app.send_message(user_id, Config.CACHE_FAILED_VIDEO_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+                    # Don't show error message if we successfully got video from cache
+                    # The video was already sent successfully in the try block
     else:
         logger.info(f"down_and_up: quality_key is None, skipping cache check")
 

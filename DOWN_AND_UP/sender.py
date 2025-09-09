@@ -127,12 +127,7 @@ def send_videos(
                 try:
                     # Some forks return list for albums; wrap to single message for uniformity
                     video_msg = result[0] if isinstance(result, list) and result else result
-                    # Log paid media to LOGS_PAID_ID
-                    try:
-                        from HELPERS.logger import get_log_channel
-                        safe_forward_messages(get_log_channel("video", paid=True), user_id, [video_msg.id])
-                    except Exception as e:
-                        logger.error(f"Error forwarding paid video to logger: {e}")
+                    # Paid media will be forwarded to LOGS_PAID_ID in image_cmd.py for caching
                     return video_msg
                 except Exception:
                     return result
@@ -201,12 +196,7 @@ def send_videos(
                 )
                 try:
                     video_msg = result[0] if isinstance(result, list) and result else result
-                    # Log paid media to LOGS_PAID_ID
-                    try:
-                        from HELPERS.logger import get_log_channel
-                        safe_forward_messages(get_log_channel("video", paid=True), user_id, [video_msg.id])
-                    except Exception as e:
-                        logger.error(f"Error forwarding paid video to logger: {e}")
+                    # Paid media will be forwarded to LOGS_PAID_ID in image_cmd.py for caching
                     return video_msg
                 except Exception:
                     return result
