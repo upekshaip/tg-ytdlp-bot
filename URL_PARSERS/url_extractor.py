@@ -689,4 +689,39 @@ def keyboard_callback_handler_wrapper(app, callback_query):
     keyboard_callback_handler(app, callback_query)
 
 # The function is_playlist_with_range is now imported from URL_PARSERS.playlist_utils
+
+# Callback handler for add_bot_to_group close button
+@app.on_callback_query(filters.regex(r"^add_group_msg\|"))
+def add_group_msg_callback(app, callback_query):
+    """Handle add_bot_to_group command callback queries"""
+    try:
+        data = callback_query.data.split("|")[1]
+        user_id = callback_query.from_user.id
+        
+        if data == "close":
+            # Delete the message with add_bot_to_group instructions
+            try:
+                app.delete_messages(
+                    callback_query.message.chat.id,
+                    callback_query.message.id
+                )
+            except Exception:
+                # If can't delete, just edit to show closed message
+                app.edit_message_text(
+                    callback_query.message.chat.id,
+                    callback_query.message.id,
+                    "🤖 Add bot to group helper closed"
+                )
+            
+            # Answer callback query
+            callback_query.answer("Closed")
+            
+            # Log the action
+            send_to_logger(callback_query.message, f"User {user_id} closed add_bot_to_group command")
+            
+    except Exception as e:
+        # Log error and answer callback
+        send_to_logger(callback_query.message, f"Error in add_group_msg callback handler: {e}")
+        callback_query.answer("Error occurred", show_alert=True)
+
 ######################################################  

@@ -424,8 +424,8 @@ Use:
     ERROR_GETTING_FORMATS_MSG = "❌ Error getting available formats.\nPlease try again later."
     
     # NSFW Paid Content Messages
-    NSFW_PAID_WARNING_MSG = "⭐️ — 🔞NSFW is paid (⭐️$0.02)"
-    NSFW_PAID_INFO_MSG = "⭐️ — 🔞NSFW is paid (⭐️$0.02)"
+    NSFW_PAID_WARNING_MSG = "⭐️ — 🔞NSFW is paid (⭐️$0.02)\nUse /add_bot_to_group to make NSFW free"
+    NSFW_PAID_INFO_MSG = "⭐️ — 🔞NSFW is paid (⭐️$0.02)\nUse /add_bot_to_group to make NSFW free"
     
     # Callback Error Messages
     ERROR_ORIGINAL_NOT_FOUND_MSG = "❌ Error: Original message not found."
