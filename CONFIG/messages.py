@@ -235,7 +235,7 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 
 Press the button below to activate inline search via @vid.
 
-<blockquote>This helps you quickly find and download videos from various platforms.</blockquote>
+<blockquote>On PC just type <b>@vid Your_Search_Query</b> in any chat.</blockquote>
     """
     
     # Settings and Hints (English)
@@ -320,7 +320,7 @@ Add my bots to your groups to get enhanced features and higher limits!
 You can add my bots to your group to unblock free 🔞<b>NSFW</b> and to double (x2️⃣) all limits.
 Contact me if you want me to allow your group to use my bots @iilililiiillliiliililliilliliiil
 ————————————
-💡TIP: <blockquote>You can chip in money with any amount of your friends (for example 100 people) and made 1 purchase for whole group - ALL GROUP MEMBERS WILL HAVE FULL UNLIMITED ACCESS to all bots functions in that group for just <b>0.05$</b></blockquote>
+💡<b>TIP:</b> <blockquote>You can chip in money with any amount of your friends (for example 100 people) and made 1 purchase for whole group - ALL GROUP MEMBERS WILL HAVE FULL UNLIMITED ACCESS to all bots functions in that group for just <b>0.05$</b></blockquote>
     """
     
     # NSFW Command Messages
