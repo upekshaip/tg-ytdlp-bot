@@ -235,7 +235,7 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 
 Press the button below to activate inline search via @vid.
 
-<blockquote>On PC just type <b>@vid Your_Search_Query</b> in any chat.</blockquote>
+<blockquote>On PC just type <b>"@vid Your_Search_Query"</b> in any chat.</blockquote>
     """
     
     # Settings and Hints (English)
