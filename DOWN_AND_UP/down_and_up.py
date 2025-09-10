@@ -1590,15 +1590,53 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                             is_paid = is_nsfw and is_private_chat
                             
-                            # Get the log channel where the video should be forwarded
+                            # Handle different content types according to new logic
                             if is_paid:
-                                log_channel = get_log_channel("video", paid=True)
+                                # For NSFW content in private chat, send to both channels but don't cache
+                                # Send to LOGS_PAID_ID (for paid content)
+                                log_channel_paid = get_log_channel("video", paid=True)
+                                try:
+                                    safe_forward_messages(log_channel_paid, user_id, [video_msg.id])
+                                    logger.info(f"down_and_up: NSFW content sent to paid channel")
+                                except Exception as e:
+                                    logger.error(f"down_and_up: failed to forward to paid channel: {e}")
+                                
+                                # Send to LOGS_NSWF_ID (for history) - send open copy, not paid media
+                                log_channel_nsfw = get_log_channel("video", nsfw=True)
+                                try:
+                                    # Create open copy for history (without stars)
+                                    open_video_msg = send_videos(
+                                        message=message,
+                                        video_abs_path=after_rename_abs_path,
+                                        caption='' if force_no_title else original_video_title,
+                                        duration=duration,
+                                        thumb_file_path=thumb_dir,
+                                        info_text=info_text,
+                                        msg_id=proc_msg.id,
+                                        full_video_title=full_video_title,
+                                        tags_text=tags_text_final
+                                    )
+                                    # Forward the open copy to NSFW channel
+                                    safe_forward_messages(log_channel_nsfw, user_id, [open_video_msg.id])
+                                    logger.info(f"down_and_up: NSFW content open copy sent to NSFW channel for history")
+                                except Exception as e:
+                                    logger.error(f"down_and_up: failed to send open copy to NSFW channel: {e}")
+                                
+                                # Don't cache NSFW content
+                                logger.info(f"down_and_up: NSFW content sent to both channels (paid + history), not cached")
+                                forwarded_msgs = None
+                                
                             elif is_nsfw:
+                                # NSFW content in groups -> LOGS_NSWF_ID only
                                 log_channel = get_log_channel("video", nsfw=True)
+                                forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                # Don't cache NSFW content
+                                logger.info(f"down_and_up: NSFW content sent to NSFW channel, not cached")
+                                forwarded_msgs = None
                             else:
+                                # Regular content -> LOGS_VIDEO_ID and cache
                                 log_channel = get_log_channel("video")
-                            
-                            forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
                             logger.info(f"down_and_up: forwarded_msgs result: {forwarded_msgs}")
                             if forwarded_msgs:
                                 logger.info(f"down_and_up: saving to cache with forwarded message IDs: {[m.id for m in forwarded_msgs]}")
