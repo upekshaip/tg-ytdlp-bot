@@ -629,6 +629,21 @@ You can select a specific YouTube cookie source by index and then verify it:
 
 ---
 
+## Paid posts (Telegram Stars) and Group Mode
+
+- **Paid posts (Stars)**: The bot can send paid posts via Telegram Stars for NSFW content in private chats.
+  - The cover is prepared automatically (320×320 with padding) to meet Telegram requirements.
+  - Price is configured in `CONFIG/limits.py` via `NSFW_STAR_COST`.
+  - For channels/groups, relay is supported (when the bot is added as an admin); paid media is cached properly.
+
+- **Adding the bot to a group**: Add the bot as an admin to your group/supergroup to use commands inside the chat.
+  - In group mode, extended limits apply: **limits are doubled** (sizes/queues), reducing fallbacks to document mode for large files.
+  - All other features (formats, proxy, cookies, direct links) work the same as in private chats.
+  - NSFW content has no Telegram Stars cost in groups
+
+Note: You can tune exact limit values and behavior in `CONFIG/limits.py` and `CONFIG/config.py` according to your hosting and needs.
+
+
 ## Cookie Management System
 
 The bot features a comprehensive cookie management system that supports multiple services and automatic validation.

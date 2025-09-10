@@ -1,4 +1,5 @@
 start - Start the bot
+add_bot_to_group - How to use bot in Groups
 vid - + URL - Download video from link
 img - + URL - Download image from link
 audio - + URL - Extract only audio from link
@@ -20,3 +21,4 @@ check_cookie - Check and validate cookie
 save_as_cookie - Save text as cookie (or upload *.TXT)
 tags - Get all your #tags
 usage - Get all your logs
+nsfw - on/off - turn on/off blur nsfw content
