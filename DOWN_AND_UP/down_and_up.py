@@ -1700,20 +1700,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         # No need to forward to LOGS_PAID_ID as it's already sent
                                         
                                         # Send to LOGS_NSFW_ID (for history) - send open copy, not paid media
-                                        # Send paid copy to LOGS_PAID_ID
-                                        log_channel_paid = get_log_channel("video", paid=True)
-                                        try:
-                                            # Forward the paid video to LOGS_PAID_ID
-                                            safe_forward_messages(log_channel_paid, user_id, [video_msg.id])
-                                            logger.info(f"down_and_up: NSFW content paid copy sent to PAID channel (manual)")
-                                        except Exception as e:
-                                            logger.error(f"down_and_up: failed to send paid copy to PAID channel (manual): {e}")
-                                        
-                                        # LOGS_NSWF_ID was already handled in the main logic above
+                                        # LOGS_PAID_ID and LOGS_NSWF_ID were already handled in the main logic above
                                         # No need to send again in manual forward
                                         
                                         # Don't cache NSFW content
-                                        logger.info(f"down_and_up: NSFW content sent to user (paid) and PAID channel (paid copy), not cached (manual)")
+                                        logger.info(f"down_and_up: NSFW content already sent to user (paid), PAID channel (paid copy), and NSFW channel (open copy), not cached (manual)")
                                         forwarded_msgs = None
                                         
                                     elif is_nsfw:
@@ -1783,14 +1774,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     # No need to forward to LOGS_PAID_ID as it's already sent
                                     
                                     # Send to LOGS_NSFW_ID (for history) - send open copy, not paid media
-                                    # Send paid copy to LOGS_PAID_ID
-                                    log_channel_paid = get_log_channel("video", paid=True)
-                                    try:
-                                        # Forward the paid video to LOGS_PAID_ID
-                                        safe_forward_messages(log_channel_paid, user_id, [video_msg.id])
-                                        logger.info(f"down_and_up: NSFW content paid copy sent to PAID channel (error recovery)")
-                                    except Exception as e:
-                                        logger.error(f"down_and_up: failed to send paid copy to PAID channel (error recovery): {e}")
+                                    # LOGS_PAID_ID was already handled in the main logic above
+                                    # No need to send again in error recovery
                                     
                                     # Send open copy to LOGS_NSWF_ID for history
                                     log_channel_nsfw = get_log_channel("video", nsfw=True)
@@ -1817,7 +1802,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         logger.error(f"down_and_up: failed to send open copy to NSFW channel (error recovery): {e}")
                                     
                                     # Don't cache NSFW content
-                                    logger.info(f"down_and_up: NSFW content sent to user (paid) and NSFW channel (open copy), not cached (error recovery)")
+                                    logger.info(f"down_and_up: NSFW content already sent to user (paid), PAID channel (paid copy), and NSFW channel (open copy), not cached (error recovery)")
                                     forwarded_msgs = None
                                     
                                 elif is_nsfw:
