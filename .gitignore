@@ -47,6 +47,7 @@ yt-dlp
 *.tmp
 
 # Sample / experimental scripts
+gallery-dl/
 test.py
 torrent.py
 bot_sample.py

@@ -1471,14 +1471,20 @@ def askq_callback(app, callback_query):
                             is_nsfw = is_porn(url, "", "")
                             is_private_chat = getattr(original_message.chat, "type", None) == enums.ChatType.PRIVATE
                             is_paid = is_nsfw and is_private_chat
+                            logger.info(f"[VIDEO CACHE] URL analysis: url={url}, is_nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}")
                             
                             # Get the correct log channel for reposting
                             if is_paid:
                                 from_chat_id = get_log_channel("video", paid=True)
+                                channel_type = "PAID"
                             elif is_nsfw:
                                 from_chat_id = get_log_channel("video", nsfw=True)
+                                channel_type = "NSFW"
                             else:
                                 from_chat_id = get_log_channel("video")
+                                channel_type = "regular"
+                            
+                            logger.info(f"[VIDEO CACHE] Channel selection: nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}, channel_type={channel_type}, from_chat_id={from_chat_id}")
                             
                             # Verify we're reposting from a valid log channel
                             valid_channels = [
@@ -1504,14 +1510,20 @@ def askq_callback(app, callback_query):
                             is_nsfw = is_porn(url, "", "")
                             is_private_chat = getattr(original_message.chat, "type", None) == enums.ChatType.PRIVATE
                             is_paid = is_nsfw and is_private_chat
+                            logger.info(f"[VIDEO CACHE] URL analysis: url={url}, is_nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}")
                             
                             # Get the correct log channel for reposting
                             if is_paid:
                                 from_chat_id = get_log_channel("video", paid=True)
+                                channel_type = "PAID"
                             elif is_nsfw:
                                 from_chat_id = get_log_channel("video", nsfw=True)
+                                channel_type = "NSFW"
                             else:
                                 from_chat_id = get_log_channel("video")
+                                channel_type = "regular"
+                            
+                            logger.info(f"[VIDEO CACHE] Channel selection: nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}, channel_type={channel_type}, from_chat_id={from_chat_id}")
                             
                             # Verify we're reposting from a valid log channel
                             valid_channels = [
@@ -1653,9 +1665,31 @@ def askq_callback(app, callback_query):
                         is_nsfw = is_porn(url, "", "")
                         is_private_chat = getattr(original_message.chat, "type", None) == enums.ChatType.PRIVATE
                         is_paid = is_nsfw and is_private_chat
+                        logger.info(f"[VIDEO CACHE] URL analysis: url={url}, is_nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}")
+                        # Get the correct log channel for reposting
+                        if is_paid:
+                            from_chat_id = get_log_channel("video", paid=True)
+                            channel_type = "PAID"
+                        elif is_nsfw:
+                            from_chat_id = get_log_channel("video", nsfw=True)
+                            channel_type = "NSFW"
+                        else:
+                            from_chat_id = get_log_channel("video")
+                            channel_type = "regular"
+                        
+                        logger.info(f"[VIDEO CACHE] Channel selection: nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}, channel_type={channel_type}, from_chat_id={from_chat_id}")
+                        
+                        # Check channel access restrictions
+                        if is_private_chat and channel_type == "NSFW":
+                            logger.info(f"[VIDEO CACHE] Access denied: NSFW cache not allowed in private chat, skipping message {mid}")
+                            continue  # Skip this message
+                        elif not is_private_chat and channel_type == "PAID":
+                            logger.info(f"[VIDEO CACHE] Access denied: Paid cache not allowed in group chat, skipping message {mid}")
+                            continue  # Skip this message
+                        
                         app.forward_messages(
                             chat_id=target_chat_id,
-                            from_chat_id=get_log_channel("video", paid=is_paid),
+                            from_chat_id=from_chat_id,
                             message_ids=[mid],
                             message_thread_id=thread_id
                         )
@@ -1666,9 +1700,33 @@ def askq_callback(app, callback_query):
                     is_nsfw = is_porn(url, "", "")
                     is_private_chat = getattr(original_message.chat, "type", None) == enums.ChatType.PRIVATE
                     is_paid = is_nsfw and is_private_chat
+                    logger.info(f"[VIDEO CACHE] URL analysis: url={url}, is_nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}")
+                    # Get the correct log channel for reposting
+                    if is_paid:
+                        from_chat_id = get_log_channel("video", paid=True)
+                        channel_type = "PAID"
+                    elif is_nsfw:
+                        from_chat_id = get_log_channel("video", nsfw=True)
+                        channel_type = "NSFW"
+                    else:
+                        from_chat_id = get_log_channel("video")
+                        channel_type = "regular"
+                    
+                    logger.info(f"[VIDEO CACHE] Channel selection: nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}, channel_type={channel_type}, from_chat_id={from_chat_id}")
+                    
+                    # Check channel access restrictions
+                    if is_private_chat and channel_type == "NSFW":
+                        logger.info(f"[VIDEO CACHE] Access denied: NSFW cache not allowed in private chat, forcing re-download")
+                        # Don't forward, let the function continue to download
+                        return
+                    elif not is_private_chat and channel_type == "PAID":
+                        logger.info(f"[VIDEO CACHE] Access denied: Paid cache not allowed in group chat, forcing re-download")
+                        # Don't forward, let the function continue to download
+                        return
+                    
                     app.forward_messages(
                         chat_id=target_chat_id,
-                        from_chat_id=get_log_channel("video", paid=is_paid),
+                        from_chat_id=from_chat_id,
                         message_ids=message_ids
                     )
                 app.send_message(target_chat_id, "✅ Video successfully sent from cache.", reply_parameters=ReplyParameters(message_id=original_message.id))

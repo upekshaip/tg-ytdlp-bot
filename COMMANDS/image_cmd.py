@@ -146,9 +146,16 @@ app = get_app()
 
 def _save_album_now(url: str, album_index: int, message_ids: list):
     try:
-        logger.info(f"[IMG CACHE] About to save album: index={album_index}, ids={message_ids}")
+        # Determine channel type for logging
+        try:
+            is_nsfw = bool(is_porn(url, "", "", ""))
+            channel_type = "NSFW" if is_nsfw else "regular"
+        except Exception:
+            channel_type = "unknown"
+        
+        logger.info(f"[IMG CACHE] About to save album: index={album_index}, ids={message_ids}, channel_type={channel_type}")
         save_to_image_cache(url, album_index, message_ids)
-        logger.info(f"[IMG CACHE] Save requested for index={album_index}")
+        logger.info(f"[IMG CACHE] Save requested for index={album_index}, channel_type={channel_type}")
     except Exception as e:
         logger.error(f"[IMG CACHE] Save failed for index={album_index}: {e}")
 def is_image_url(url):
@@ -377,8 +384,12 @@ def image_command(app, message):
     except Exception:
         pass
 
-    # Default NSFW flag before any analysis
-    nsfw_flag = False
+    # Determine NSFW flag based on URL for cache operations
+    try:
+        nsfw_flag = bool(is_porn(url, "", "", ""))
+    except Exception:
+        nsfw_flag = False
+    
     # Early cache serve before any analysis/downloading
     try:
         requested_indices = None
@@ -401,13 +412,27 @@ def image_command(app, message):
                     # Determine the correct log channel for reposting
                     is_private_chat = message.chat.type == enums.ChatType.PRIVATE
                     is_paid_media = nsfw_flag and is_private_chat
+                    logger.info(f"[IMG CACHE] URL analysis: url={url}, nsfw_flag={nsfw_flag}, is_private_chat={is_private_chat}, is_paid_media={is_paid_media}")
                     
                     if is_paid_media:
                         from_chat_id = get_log_channel("image", paid=True)
+                        channel_type = "PAID"
                     elif nsfw_flag:
                         from_chat_id = get_log_channel("image", nsfw=True)
+                        channel_type = "NSFW"
                     else:
                         from_chat_id = get_log_channel("image")
+                        channel_type = "regular"
+                    
+                    logger.info(f"[IMG CACHE] Channel selection: nsfw_flag={nsfw_flag}, is_private_chat={is_private_chat}, is_paid_media={is_paid_media}, channel_type={channel_type}, from_chat_id={from_chat_id}")
+                    
+                    # Check channel access restrictions
+                    if is_private_chat and channel_type == "NSFW":
+                        logger.info(f"[IMG CACHE] Access denied: NSFW cache not allowed in private chat, skipping album {album_idx}")
+                        continue  # Skip this album
+                    elif not is_private_chat and channel_type == "PAID":
+                        logger.info(f"[IMG CACHE] Access denied: Paid cache not allowed in group chat, skipping album {album_idx}")
+                        continue  # Skip this album
                     
                     # Verify we're reposting from a valid log channel
                     valid_channels = [
@@ -451,7 +476,7 @@ def image_command(app, message):
         except Exception:
             info_title = info_desc = info_caption = None
         try:
-            nsfw_flag = bool(is_porn(url, info_title, info_desc, info_caption))
+            nsfw_flag = bool(is_porn(url, "", "", ""))
         except Exception:
             nsfw_flag = False
         
@@ -496,13 +521,27 @@ def image_command(app, message):
                         # Determine the correct log channel for reposting
                         is_private_chat = message.chat.type == enums.ChatType.PRIVATE
                         is_paid_media = nsfw_flag and is_private_chat
+                        logger.info(f"[IMG CACHE] URL analysis: url={url}, nsfw_flag={nsfw_flag}, is_private_chat={is_private_chat}, is_paid_media={is_paid_media}")
                         
                         if is_paid_media:
                             from_chat_id = get_log_channel("image", paid=True)
+                            channel_type = "PAID"
                         elif nsfw_flag:
                             from_chat_id = get_log_channel("image", nsfw=True)
+                            channel_type = "NSFW"
                         else:
                             from_chat_id = get_log_channel("image")
+                            channel_type = "regular"
+                        
+                        logger.info(f"[IMG CACHE] Channel selection: nsfw_flag={nsfw_flag}, is_private_chat={is_private_chat}, is_paid_media={is_paid_media}, channel_type={channel_type}, from_chat_id={from_chat_id}")
+                        
+                        # Check channel access restrictions
+                        if is_private_chat and channel_type == "NSFW":
+                            logger.info(f"[IMG CACHE] Access denied: NSFW cache not allowed in private chat, skipping album {album_idx}")
+                            continue  # Skip this album
+                        elif not is_private_chat and channel_type == "PAID":
+                            logger.info(f"[IMG CACHE] Access denied: Paid cache not allowed in group chat, skipping album {album_idx}")
+                            continue  # Skip this album
                         
                         # Verify we're reposting from a valid log channel
                         valid_channels = [
