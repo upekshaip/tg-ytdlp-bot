@@ -121,11 +121,11 @@ def send_videos(
                 cover_path = os.path.join(base_dir, base_name + '.__tgcover_paid.jpg')
                 if os.path.exists(cover_path) and os.path.getsize(cover_path) > 0:
                     return cover_path
-                # Preserve original aspect (no square forcing); scale width to 640 or height to 640 keeping AR
+                # 320x320 максимум: уменьшаем с сохранением пропорций и паддингом до квадрата
                 subprocess.run([
                     'ffmpeg','-y','-i', video_path,
-                    '-vf','scale=w=if(gte(a,1),640,-2):h=if(lt(a,1),640,-2)',
-                    '-vframes','1','-q:v','2', cover_path
+                    '-vf','scale=320:320:force_original_aspect_ratio=decrease,pad=320:320:(ow-iw)/2:(oh-ih)/2:black',
+                    '-vframes','1','-q:v','4', cover_path
                 ], capture_output=True, text=True, timeout=30)
                 return cover_path if os.path.exists(cover_path) and os.path.getsize(cover_path) > 0 else None
             except Exception:
@@ -142,10 +142,18 @@ def send_videos(
                 is_private_chat = True
             if is_spoiler and is_private_chat:
                 try:
-                    # Always try to provide a non-distorted cover (same aspect, no square forcing)
+                    # Пробиваем метаданные и добавляем корректный cover и параметры
+                    try:
+                        v_w, v_h, v_dur = get_video_info_ffprobe(video_abs_path)
+                    except Exception:
+                        v_w, v_h, v_dur = width, height, duration
                     paid_media = InputPaidMediaVideo(
                         media=video_abs_path,
                         cover=_gen_paid_cover(video_abs_path),
+                        width=int(v_w) if v_w else None,
+                        height=int(v_h) if v_h else None,
+                        duration=int(v_dur) if v_dur else None,
+                        supports_streaming=True
                     )
                 except TypeError:
                     paid_media = InputPaidMediaVideo(
@@ -220,9 +228,17 @@ def send_videos(
                 is_private_chat = True
             if is_spoiler and is_private_chat:
                 try:
+                    try:
+                        v_w, v_h, v_dur = get_video_info_ffprobe(video_abs_path)
+                    except Exception:
+                        v_w, v_h, v_dur = width, height, duration
                     paid_media = InputPaidMediaVideo(
                         media=video_abs_path,
-                        cover=local_thumb if local_thumb else None,
+                        cover=_gen_paid_cover(video_abs_path),
+                        width=int(v_w) if v_w else None,
+                        height=int(v_h) if v_h else None,
+                        duration=int(v_dur) if v_dur else None,
+                        supports_streaming=True
                     )
                 except TypeError:
                     paid_media = InputPaidMediaVideo(

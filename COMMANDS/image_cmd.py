@@ -112,7 +112,7 @@ def generate_video_thumbnail(video_path):
         return None
 
 def ensure_paid_cover(video_path, existing_thumb=None):
-    """Ensure a square padded cover for paid video that preserves aspect ratio. Returns path or None."""
+    """Ensure a small JPEG cover (~<=320x320) with сохранением пропорций (паддинг), для платных медиа."""
     try:
         if not _should_generate_cover(video_path):
             return None
@@ -124,12 +124,11 @@ def ensure_paid_cover(video_path, existing_thumb=None):
         cover_path = os.path.join(base_dir, base_name + '.__tgcover_paid.jpg')
         if os.path.exists(cover_path) and os.path.getsize(cover_path) > 0:
             return cover_path
-        # Create a 640x640 square image, letterboxed/pillarboxed to preserve aspect
-        # Scale to fit within 640 keeping aspect, then pad to 640x640 centered
+        # 320x320 максимум: уменьшаем c сохранением пропорций, затем pad до 320x320; стараемся держать файл маленьким
         subprocess.run([
             'ffmpeg', '-y', '-i', video_path,
-            '-vf', 'scale=w=if(gte(a,1),640,-2):h=if(lt(a,1),640,-2),pad=640:640:(ow-iw)/2:(oh-ih)/2:black',
-            '-vframes', '1', '-q:v', '2', cover_path
+            '-vf', 'scale=320:320:force_original_aspect_ratio=decrease,pad=320:320:(ow-iw)/2:(oh-ih)/2:black',
+            '-vframes', '1', '-q:v', '4', cover_path
         ], capture_output=True, text=True, timeout=30)
         if os.path.exists(cover_path) and os.path.getsize(cover_path) > 0:
             return cover_path
@@ -139,23 +138,7 @@ def ensure_paid_cover(video_path, existing_thumb=None):
     except Exception:
         return None
 
-def embed_poster_into_mp4(video_path: str, poster_path: str) -> str | None:
-    """Embed poster as the first frame for a brief moment to ensure non-black cover in players.
-    Returns path to a new mp4 or None on failure."""
-    try:
-        if not video_path or not poster_path or not os.path.exists(video_path) or not os.path.exists(poster_path):
-            return None
-        out_path = os.path.join(os.path.dirname(video_path), os.path.splitext(os.path.basename(video_path))[0] + '.__poster.mp4')
-        # Re-encode video minimally, copy audio, faststart. Overlay poster for first 0.04s, centered, keep aspect.
-        cmd = [
-            'ffmpeg','-y','-i', video_path,'-loop','1','-i', poster_path,
-            '-filter_complex', "[1:v]scale=main_w:-2[cv];[0:v][cv]overlay=(main_w-w)/2:(main_h-h)/2:enable='lte(t,0.04)',format=yuv420p",
-            '-c:v','libx264','-preset','veryfast','-crf','20','-c:a','copy','-movflags','+faststart', out_path
-        ]
-        subprocess.run(cmd, capture_output=True, text=True, timeout=180)
-        return out_path if os.path.exists(out_path) and os.path.getsize(out_path) > 0 else None
-    except Exception:
-        return None
+# removed unused embed_poster_into_mp4
 
 # Get app instance for decorators
 app = get_app()
@@ -716,20 +699,21 @@ def image_command(app, message):
                                                     reply_parameters=ReplyParameters(message_id=message.id)
                                                 )
                                             else:
-                                                # Ensure a cover for paid media and try to embed poster into the video head
-                                                _cover = ensure_paid_cover(m.media, getattr(m, 'thumb', None))
+                                                # Ensure cover for paid media and pass explicit metadata
                                                 media_path = m.media
-                                                try:
-                                                    if _cover:
-                                                        _embedded = embed_poster_into_mp4(m.media, _cover)
-                                                        if _embedded and os.path.exists(_embedded):
-                                                            media_path = _embedded
-                                                except Exception:
-                                                    pass
+                                                vinfo_paid = _probe_video_info(media_path)
+                                                _cover = ensure_paid_cover(media_path, getattr(m, 'thumb', None))
                                                 try:
                                                     paid_msg = app.send_paid_media(
                                                         user_id,
-                                                        media=[InputPaidMediaVideo(media=media_path, cover=_cover)],
+                                                        media=[InputPaidMediaVideo(
+                                                            media=media_path,
+                                                            cover=_cover,
+                                                            width=vinfo_paid.get('width'),
+                                                            height=vinfo_paid.get('height'),
+                                                            duration=vinfo_paid.get('duration'),
+                                                            supports_streaming=True
+                                                        )],
                                                         star_count=LimitsConfig.NSFW_STAR_COST,
                                                         payload=str(Config.STAR_RECEIVER),
                                                         reply_parameters=ReplyParameters(message_id=message.id)
