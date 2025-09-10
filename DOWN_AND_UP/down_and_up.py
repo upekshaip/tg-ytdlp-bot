@@ -1306,37 +1306,27 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         # Handle different content types according to new logic
                         if is_paid:
                             # For NSFW content in private chat, send to both channels but don't cache
-                            # Send to LOGS_PAID_ID (for paid content)
-                            log_channel_paid = get_log_channel("video", paid=True)
-                            try:
-                                safe_forward_messages(log_channel_paid, user_id, [video_msg.id])
-                                logger.info(f"down_and_up: NSFW content sent to paid channel")
-                            except Exception as e:
-                                logger.error(f"down_and_up: failed to forward to paid channel: {e}")
+                            # For NSFW content in private chat, send_videos already sent paid media to user
+                            # No need to forward to LOGS_PAID_ID as it's already sent
                             
                             # Send to LOGS_NSFW_ID (for history) - send open copy, not paid media
                             log_channel_nsfw = get_log_channel("video", nsfw=True)
                             try:
-                                # Create open copy for history (without stars)
-                                open_video_msg = send_videos(
-                                    message=message,
-                                    video_abs_path=video_abs_path,
-                                    caption=caption,
-                                    duration=duration,
-                                    thumb_file_path=thumb_file_path,
-                                    info_text=info_text,
-                                    msg_id=msg_id,
-                                    full_video_title=full_video_title,
-                                    tags_text=tags_text
+                                # Create open copy for history (without stars) - send directly to NSFW channel
+                                open_video_msg = app.send_video(
+                                    chat_id=log_channel_nsfw,
+                                    video=path_lst[p],
+                                    caption=caption_lst[p],
+                                    duration=part_duration,
+                                    thumb=splited_thumb_dir,
+                                    reply_parameters=ReplyParameters(message_id=message.id)
                                 )
-                                # Forward the open copy to NSFW channel
-                                safe_forward_messages(log_channel_nsfw, user_id, [open_video_msg.id])
                                 logger.info(f"down_and_up: NSFW content open copy sent to NSFW channel for history")
                             except Exception as e:
                                 logger.error(f"down_and_up: failed to send open copy to NSFW channel: {e}")
                             
                             # Don't cache NSFW content
-                            logger.info(f"down_and_up: NSFW content sent to both channels (paid + history), not cached")
+                            logger.info(f"down_and_up: NSFW content sent to user (paid) and NSFW channel (open copy), not cached")
                             forwarded_msgs = None
                             
                         elif is_nsfw:
@@ -1423,10 +1413,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             playlist_indices.append(current_video_index)
                             playlist_msg_ids.append(video_msg.id)
                         else:
-                                                          # Accumulate IDs of parts for split video
-                              split_msg_ids.append(video_msg.id)
-                              safe_edit_message_text(user_id, proc_msg_id,
-                                  f"{info_text}\n{full_bar}   100.0%\n<i>📤 Splitted part {p + 1} file uploaded</i>")
+                            # Accumulate IDs of parts for split video
+                            split_msg_ids.append(video_msg.id)
+                            safe_edit_message_text(user_id, proc_msg_id,
+                                f"{info_text}\n{full_bar}   100.0%\n<i>📤 Splitted part {p + 1} file uploaded</i>")
                     if p < len(caption_lst) - 1:
                         pass
                     if os.path.exists(splited_thumb_dir):
@@ -1592,38 +1582,25 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             
                             # Handle different content types according to new logic
                             if is_paid:
-                                # For NSFW content in private chat, send to both channels but don't cache
-                                # Send to LOGS_PAID_ID (for paid content)
-                                log_channel_paid = get_log_channel("video", paid=True)
-                                try:
-                                    safe_forward_messages(log_channel_paid, user_id, [video_msg.id])
-                                    logger.info(f"down_and_up: NSFW content sent to paid channel")
-                                except Exception as e:
-                                    logger.error(f"down_and_up: failed to forward to paid channel: {e}")
-                                
-                                # Send to LOGS_NSWF_ID (for history) - send open copy, not paid media
+                                # For NSFW content in private chat, send_videos already sent paid media to user
+                                # We only need to send open copy to LOGS_NSWF_ID for history
                                 log_channel_nsfw = get_log_channel("video", nsfw=True)
                                 try:
-                                    # Create open copy for history (without stars)
-                                    open_video_msg = send_videos(
-                                        message=message,
-                                        video_abs_path=after_rename_abs_path,
+                                    # Create open copy for history (without stars) - send directly to NSFW channel
+                                    open_video_msg = app.send_video(
+                                        chat_id=log_channel_nsfw,
+                                        video=after_rename_abs_path,
                                         caption='' if force_no_title else original_video_title,
                                         duration=duration,
-                                        thumb_file_path=thumb_dir,
-                                        info_text=info_text,
-                                        msg_id=proc_msg.id,
-                                        full_video_title=full_video_title,
-                                        tags_text=tags_text_final
+                                        thumb=thumb_dir,
+                                        reply_parameters=ReplyParameters(message_id=message.id)
                                     )
-                                    # Forward the open copy to NSFW channel
-                                    safe_forward_messages(log_channel_nsfw, user_id, [open_video_msg.id])
                                     logger.info(f"down_and_up: NSFW content open copy sent to NSFW channel for history")
                                 except Exception as e:
                                     logger.error(f"down_and_up: failed to send open copy to NSFW channel: {e}")
                                 
                                 # Don't cache NSFW content
-                                logger.info(f"down_and_up: NSFW content sent to both channels (paid + history), not cached")
+                                logger.info(f"down_and_up: NSFW content sent to user (paid) and NSFW channel (open copy), not cached")
                                 forwarded_msgs = None
                                 
                             elif is_nsfw:
@@ -1682,37 +1659,27 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     # Handle different content types according to new logic
                                     if is_paid:
                                         # For NSFW content in private chat, send to both channels but don't cache
-                                        # Send to LOGS_PAID_ID (for paid content)
-                                        log_channel_paid = get_log_channel("video", paid=True)
-                                        try:
-                                            safe_forward_messages(log_channel_paid, user_id, [video_msg.id])
-                                            logger.info(f"down_and_up: NSFW content sent to paid channel (manual)")
-                                        except Exception as e:
-                                            logger.error(f"down_and_up: failed to forward to paid channel (manual): {e}")
+                                        # For NSFW content in private chat, send_videos already sent paid media to user
+                                        # No need to forward to LOGS_PAID_ID as it's already sent
                                         
                                         # Send to LOGS_NSFW_ID (for history) - send open copy, not paid media
                                         log_channel_nsfw = get_log_channel("video", nsfw=True)
                                         try:
-                                            # Create open copy for history (without stars)
-                                            open_video_msg = send_videos(
-                                                message=message,
-                                                video_abs_path=video_abs_path,
-                                                caption=caption,
+                                            # Create open copy for history (without stars) - send directly to NSFW channel
+                                            open_video_msg = app.send_video(
+                                                chat_id=log_channel_nsfw,
+                                                video=after_rename_abs_path,
+                                                caption='' if force_no_title else original_video_title,
                                                 duration=duration,
-                                                thumb_file_path=thumb_file_path,
-                                                info_text=info_text,
-                                                msg_id=msg_id,
-                                                full_video_title=full_video_title,
-                                                tags_text=tags_text
+                                                thumb=thumb_dir,
+                                                reply_parameters=ReplyParameters(message_id=message.id)
                                             )
-                                            # Forward the open copy to NSFW channel
-                                            safe_forward_messages(log_channel_nsfw, user_id, [open_video_msg.id])
                                             logger.info(f"down_and_up: NSFW content open copy sent to NSFW channel for history (manual)")
                                         except Exception as e:
                                             logger.error(f"down_and_up: failed to send open copy to NSFW channel (manual): {e}")
                                         
                                         # Don't cache NSFW content
-                                        logger.info(f"down_and_up: NSFW content sent to both channels (paid + history), not cached (manual)")
+                                        logger.info(f"down_and_up: NSFW content sent to user (paid) and NSFW channel (open copy), not cached (manual)")
                                         forwarded_msgs = None
                                         
                                     elif is_nsfw:
@@ -1778,37 +1745,27 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 # Handle different content types according to new logic
                                 if is_paid:
                                     # For NSFW content in private chat, send to both channels but don't cache
-                                    # Send to LOGS_PAID_ID (for paid content)
-                                    log_channel_paid = get_log_channel("video", paid=True)
-                                    try:
-                                        safe_forward_messages(log_channel_paid, user_id, [video_msg.id])
-                                        logger.info(f"down_and_up: NSFW content sent to paid channel (error recovery)")
-                                    except Exception as e:
-                                        logger.error(f"down_and_up: failed to forward to paid channel (error recovery): {e}")
+                                    # For NSFW content in private chat, send_videos already sent paid media to user
+                                    # No need to forward to LOGS_PAID_ID as it's already sent
                                     
                                     # Send to LOGS_NSFW_ID (for history) - send open copy, not paid media
                                     log_channel_nsfw = get_log_channel("video", nsfw=True)
                                     try:
-                                        # Create open copy for history (without stars)
-                                        open_video_msg = send_videos(
-                                            message=message,
-                                            video_abs_path=video_abs_path,
-                                            caption=caption,
+                                        # Create open copy for history (without stars) - send directly to NSFW channel
+                                        open_video_msg = app.send_video(
+                                            chat_id=log_channel_nsfw,
+                                            video=after_rename_abs_path,
+                                            caption='' if force_no_title else original_video_title,
                                             duration=duration,
-                                            thumb_file_path=thumb_file_path,
-                                            info_text=info_text,
-                                            msg_id=msg_id,
-                                            full_video_title=full_video_title,
-                                            tags_text=tags_text
+                                            thumb=thumb_dir,
+                                            reply_parameters=ReplyParameters(message_id=message.id)
                                         )
-                                        # Forward the open copy to NSFW channel
-                                        safe_forward_messages(log_channel_nsfw, user_id, [open_video_msg.id])
                                         logger.info(f"down_and_up: NSFW content open copy sent to NSFW channel for history (error recovery)")
                                     except Exception as e:
                                         logger.error(f"down_and_up: failed to send open copy to NSFW channel (error recovery): {e}")
                                     
                                     # Don't cache NSFW content
-                                    logger.info(f"down_and_up: NSFW content sent to both channels (paid + history), not cached (error recovery)")
+                                    logger.info(f"down_and_up: NSFW content sent to user (paid) and NSFW channel (open copy), not cached (error recovery)")
                                     forwarded_msgs = None
                                     
                                 elif is_nsfw:

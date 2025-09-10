@@ -952,41 +952,77 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     else:
                         logger.warning("Failed to create Telegram thumbnail")
                 
-                # Send audio with thumbnail
-                if telegram_thumb and os.path.exists(telegram_thumb):
-                    audio_msg = app.send_audio(
-                        chat_id=user_id, 
-                        audio=audio_file, 
-                        caption=caption_with_link, 
-                        reply_parameters=ReplyParameters(message_id=message.id),
-                        thumb=telegram_thumb
-                    )
-                    logger.info(f"Audio sent with Telegram thumbnail: {telegram_thumb}")
-                else:
-                    audio_msg = app.send_audio(
-                        chat_id=user_id, 
-                        audio=audio_file, 
-                        caption=caption_with_link, 
-                        reply_parameters=ReplyParameters(message_id=message.id)
-                    )
-                    logger.info("Audio sent without thumbnail")
-                
-                # Determine the correct log channel based on content type
+                # Determine if this is NSFW content in private chat (paid media)
                 from HELPERS.porn import is_porn
                 is_nsfw = is_porn(url, "", "", None)
                 is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                 is_paid = is_nsfw and is_private_chat
                 
+                # Send audio with appropriate method based on content type
+                if is_paid:
+                    # Send paid audio for NSFW content in private chats
+                    try:
+                        from pyrogram.types import InputPaidMediaAudio
+                        from CONFIG.limits import LimitsConfig
+                        
+                        paid_audio = InputPaidMediaAudio(
+                            media=audio_file,
+                            thumb=telegram_thumb if telegram_thumb and os.path.exists(telegram_thumb) else None
+                        )
+                        
+                        audio_msg = app.send_paid_media(
+                            chat_id=user_id,
+                            media=[paid_audio],
+                            star_count=LimitsConfig.NSFW_STAR_COST,
+                            payload=str(Config.STAR_RECEIVER),
+                            reply_parameters=ReplyParameters(message_id=message.id),
+                        )
+                        logger.info("Paid NSFW audio sent to user")
+                    except Exception as e:
+                        logger.error(f"Failed to send paid audio, falling back to regular: {e}")
+                        # Fallback to regular audio
+                        if telegram_thumb and os.path.exists(telegram_thumb):
+                            audio_msg = app.send_audio(
+                                chat_id=user_id, 
+                                audio=audio_file, 
+                                caption=caption_with_link, 
+                                reply_parameters=ReplyParameters(message_id=message.id),
+                                thumb=telegram_thumb
+                            )
+                        else:
+                            audio_msg = app.send_audio(
+                                chat_id=user_id, 
+                                audio=audio_file, 
+                                caption=caption_with_link, 
+                                reply_parameters=ReplyParameters(message_id=message.id)
+                            )
+                else:
+                    # Send regular audio for non-NSFW content or group chats
+                    if telegram_thumb and os.path.exists(telegram_thumb):
+                        audio_msg = app.send_audio(
+                            chat_id=user_id, 
+                            audio=audio_file, 
+                            caption=caption_with_link, 
+                            reply_parameters=ReplyParameters(message_id=message.id),
+                            thumb=telegram_thumb
+                        )
+                        logger.info(f"Audio sent with Telegram thumbnail: {telegram_thumb}")
+                    else:
+                        audio_msg = app.send_audio(
+                            chat_id=user_id, 
+                            audio=audio_file, 
+                            caption=caption_with_link, 
+                            reply_parameters=ReplyParameters(message_id=message.id)
+                        )
+                        logger.info("Audio sent without thumbnail")
+                
+                # Use already determined content type
+                
                 # Handle different content types according to new logic
                 if is_paid:
                     # For NSFW content in private chat, send to both channels but don't cache
-                    # Send to LOGS_PAID_ID (for paid content)
-                    log_channel_paid = get_log_channel("video", paid=True)
-                    try:
-                        safe_forward_messages(log_channel_paid, user_id, [audio_msg.id])
-                        logger.info(f"down_and_audio: NSFW audio sent to paid channel")
-                    except Exception as e:
-                        logger.error(f"down_and_audio: failed to forward to paid channel: {e}")
+                    # For NSFW content in private chat, paid audio already sent to user
+                    # No need to forward to LOGS_PAID_ID as it's already sent
                     
                     # Send to LOGS_NSWF_ID (for history) - send open copy, not paid media
                     log_channel_nsfw = get_log_channel("video", nsfw=True)
@@ -1004,7 +1040,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         logger.error(f"down_and_audio: failed to send open copy to NSFW channel: {e}")
                     
                     # Don't cache NSFW content
-                    logger.info(f"down_and_audio: NSFW audio sent to both channels (paid + history), not cached")
+                    logger.info(f"down_and_audio: NSFW audio sent to user (paid) and NSFW channel (open copy), not cached")
                     forwarded_msg = None
                     
                 elif is_nsfw:
