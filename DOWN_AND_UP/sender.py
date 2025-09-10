@@ -107,7 +107,7 @@ def send_videos(
                 middle_sec = max(1, int(duration) // 2 if isinstance(duration, int) else 1)
                 subprocess.run([
                     'ffmpeg','-y','-ss', str(middle_sec), '-i', video_abs_path,
-                    '-vframes','1','-vf','scale=640:-1', thumb_path
+                    '-vframes','1','-vf','scale=320:-1', thumb_path
                 ], capture_output=True, text=True, timeout=30)
                 return thumb_path if os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0 else None
             except Exception:
@@ -184,7 +184,7 @@ def send_videos(
             try:
                 subprocess.run([
                     'ffmpeg','-y','-i', src_path,
-                    '-vf','scale=640:-1',
+                    '-vf','scale=320:-1',
                     '-vframes','1','-q:v','4', dest_path
                 ], capture_output=True, text=True, timeout=30)
                 return os.path.exists(dest_path) and os.path.getsize(dest_path) > 0
@@ -193,6 +193,9 @@ def send_videos(
 
         def _gen_free_cover(video_path: str) -> str | None:
             try:
+                # Встраиваем миниатюру только если файл >10MB или длительность >=60 сек
+                if not _should_generate_cover(video_path, duration):
+                    return None
                 base_dir = os.path.dirname(video_path)
                 base_name = os.path.splitext(os.path.basename(video_path))[0]
                 cover_path = os.path.join(base_dir, base_name + '.__tgthumb_ext.jpg')
@@ -310,7 +313,7 @@ def send_videos(
                         middle_sec = max(1, int(duration) // 2 if isinstance(duration, int) else 1)
                         subprocess.run([
                             'ffmpeg','-y','-ss', str(middle_sec), '-i', video_abs_path,
-                            '-vframes','1','-vf','scale=640:-1', local_thumb
+                            '-vframes','1','-vf','scale=320:-1', local_thumb
                         ], capture_output=True, text=True, timeout=30)
                         if not os.path.exists(local_thumb):
                             local_thumb = None
