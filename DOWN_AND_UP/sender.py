@@ -11,6 +11,7 @@ import os
 import subprocess
 import json
 from HELPERS.safe_messeger import safe_forward_messages
+from URL_PARSERS.thumbnail_downloader import download_thumbnail
 from CONFIG.config import Config
 from CONFIG.limits import LimitsConfig
 import time
@@ -112,6 +113,17 @@ def send_videos(
             except Exception:
                 return None
 
+        def _resize_to_cover(src_path: str, dest_path: str) -> bool:
+            try:
+                subprocess.run([
+                    'ffmpeg','-y','-i', src_path,
+                    '-vf','scale=w=if(gte(a,1),640,-2):h=if(lt(a,1),640,-2)',
+                    '-vframes','1','-q:v','4', dest_path
+                ], capture_output=True, text=True, timeout=30)
+                return os.path.exists(dest_path) and os.path.getsize(dest_path) > 0
+            except Exception:
+                return False
+
         def _gen_paid_cover(video_path: str) -> str | None:
             try:
                 if not _should_generate_cover(video_path, duration):
@@ -121,12 +133,49 @@ def send_videos(
                 cover_path = os.path.join(base_dir, base_name + '.__tgcover_paid.jpg')
                 if os.path.exists(cover_path) and os.path.getsize(cover_path) > 0:
                     return cover_path
-                # 320x320 максимум: уменьшаем с сохранением пропорций и паддингом до квадрата
-                subprocess.run([
-                    'ffmpeg','-y','-i', video_path,
-                    '-vf','scale=320:320:force_original_aspect_ratio=decrease,pad=320:320:(ow-iw)/2:(oh-ih)/2:black',
-                    '-vframes','1','-q:v','4', cover_path
-                ], capture_output=True, text=True, timeout=30)
+                # 1) Попробовать скачать внешнюю миниатюру (приоритетно)
+                try:
+                    tmp_dl = os.path.join(base_dir, base_name + '.__ext_thumb.jpg')
+                    if video_url:
+                        if download_thumbnail(video_url, tmp_dl):
+                            if _resize_to_cover(tmp_dl, cover_path):
+                                try:
+                                    if os.path.exists(tmp_dl):
+                                        os.remove(tmp_dl)
+                                except Exception:
+                                    pass
+                                return cover_path
+                    # удалить временный, если остался
+                    try:
+                        if os.path.exists(tmp_dl):
+                            os.remove(tmp_dl)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+                # 2) Фолбэк: кадр из видео, затем привести к нужному размеру без паддинга (с сохранением пропорций)
+                try:
+                    tmp_frame = os.path.join(base_dir, base_name + '.__frame.jpg')
+                    middle_sec = max(1, int(duration) // 2 if isinstance(duration, int) else 1)
+                    subprocess.run([
+                        'ffmpeg','-y','-ss', str(middle_sec), '-i', video_path,
+                        '-vframes','1','-q:v','4', tmp_frame
+                    ], capture_output=True, text=True, timeout=30)
+                    if os.path.exists(tmp_frame) and os.path.getsize(tmp_frame) > 0:
+                        if _resize_to_cover(tmp_frame, cover_path):
+                            try:
+                                if os.path.exists(tmp_frame):
+                                    os.remove(tmp_frame)
+                            except Exception:
+                                pass
+                            return cover_path
+                    try:
+                        if os.path.exists(tmp_frame):
+                            os.remove(tmp_frame)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
                 return cover_path if os.path.exists(cover_path) and os.path.getsize(cover_path) > 0 else None
             except Exception:
                 return None
@@ -175,15 +224,20 @@ def send_videos(
                     return video_msg
                 except Exception:
                     return result
+            # Для бесплатных тоже удерживаем правильные метаданные и мини-обложку по правилу
+            try:
+                v_w2, v_h2, v_dur2 = get_video_info_ffprobe(video_abs_path)
+            except Exception:
+                v_w2, v_h2, v_dur2 = width, height, duration
             result = app.send_video(
                 chat_id=user_id,
                 video=video_abs_path,
                 caption=caption_text,
-                duration=duration,
-                width=width,
-                height=height,
+                duration=int(v_dur2) if v_dur2 else duration,
+                width=int(v_w2) if v_w2 else width,
+                height=int(v_h2) if v_h2 else height,
                 supports_streaming=True,
-                thumb=local_thumb,
+                thumb=_gen_paid_cover(video_abs_path) or local_thumb,
                 has_spoiler=False,
                 progress=progress_bar,
                 progress_args=(

@@ -509,13 +509,6 @@ def image_command(app, message):
         create_directory(run_dir)
         files_to_cleanup = []
 
-        def _run_download():
-            try:
-                # We ignore the return; files will appear while it runs
-                download_image(url, user_id, use_proxy, user_dir)
-            except Exception as _:
-                pass
-
         # We'll not start full download thread; we'll pull ranges to enforce batching
 
         batch_size = 10
@@ -661,7 +654,7 @@ def image_command(app, message):
                                 else:
                                     # probe metadata
                                     vinfo = _probe_video_info(p)
-                                    # generate thumbnail for better preview if needed
+                                    # generate thumbnail for better preview if needed (old behavior for free media)
                                     thumb = generate_video_thumbnail(p)
                                     # No spoiler in groups, only in private chats for paid media
                                     is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
@@ -1038,7 +1031,7 @@ def image_command(app, message):
                         else:
                             # probe metadata
                             vinfo = _probe_video_info(p)
-                            # generate thumbnail
+                            # generate thumbnail for better preview (old behavior for free media)
                             thumb = generate_video_thumbnail(p)
                             # No spoiler in groups, only in private chats for paid media
                             is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
