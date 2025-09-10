@@ -409,14 +409,21 @@ def image_command(app, message):
                     else:
                         from_chat_id = get_log_channel("image")
                     
-                    # Verify we're reposting from the correct channel
-                    if from_chat_id != get_log_channel("image") and from_chat_id != get_log_channel("image", nsfw=True) and from_chat_id != get_log_channel("image", paid=True):
+                    # Verify we're reposting from a valid log channel
+                    valid_channels = [
+                        get_log_channel("image"),
+                        get_log_channel("image", nsfw=True),
+                        get_log_channel("image", paid=True)
+                    ]
+                    if from_chat_id not in valid_channels:
                         logger.error(f"CRITICAL: Attempting to repost from wrong channel {from_chat_id}")
                         continue
                     
                     try:
+                        logger.info(f"[IMG CACHE] Reposting album {album_idx} from channel {from_chat_id} to user {user_id}, message_ids={ids}")
                         sm.safe_forward_messages(user_id, from_chat_id, ids, **kwargs)
                     except Exception:
+                        logger.info(f"[IMG CACHE] Fallback reposting album {album_idx} from channel {from_chat_id} to user {user_id}, message_ids={ids}")
                         app.forward_messages(user_id, from_chat_id, ids, **kwargs)
                 except Exception as _e:
                     logger.warning(f"Failed to forward cached album {album_idx}: {_e}")
@@ -497,14 +504,21 @@ def image_command(app, message):
                         else:
                             from_chat_id = get_log_channel("image")
                         
-                        # Verify we're reposting from the correct channel
-                        if from_chat_id != get_log_channel("image") and from_chat_id != get_log_channel("image", nsfw=True) and from_chat_id != get_log_channel("image", paid=True):
+                        # Verify we're reposting from a valid log channel
+                        valid_channels = [
+                            get_log_channel("image"),
+                            get_log_channel("image", nsfw=True),
+                            get_log_channel("image", paid=True)
+                        ]
+                        if from_chat_id not in valid_channels:
                             logger.error(f"CRITICAL: Attempting to repost from wrong channel {from_chat_id}")
                             continue
                         
                         try:
+                            logger.info(f"[IMG CACHE] Reposting album {album_idx} from channel {from_chat_id} to user {user_id}, message_ids={ids}")
                             sm.safe_forward_messages(user_id, from_chat_id, ids, **kwargs)
                         except Exception:
+                            logger.info(f"[IMG CACHE] Fallback reposting album {album_idx} from channel {from_chat_id} to user {user_id}, message_ids={ids}")
                             app.forward_messages(user_id, from_chat_id, ids, **kwargs)
                     except Exception as _e:
                         logger.warning(f"Failed to forward cached album {album_idx}: {_e}")

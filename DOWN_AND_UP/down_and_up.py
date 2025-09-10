@@ -190,11 +190,17 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         else:
                             from_chat_id = get_log_channel("video")
                         
-                        # Verify we're reposting from the correct channel
-                        if from_chat_id != get_log_channel("video") and from_chat_id != get_log_channel("video", nsfw=True) and from_chat_id != get_log_channel("video", paid=True):
+                        # Verify we're reposting from a valid log channel
+                        valid_channels = [
+                            get_log_channel("video"),
+                            get_log_channel("video", nsfw=True),
+                            get_log_channel("video", paid=True)
+                        ]
+                        if from_chat_id not in valid_channels:
                             logger.error(f"CRITICAL: Attempting to repost from wrong channel {from_chat_id}")
                             continue
                         
+                        logger.info(f"[VIDEO CACHE] Reposting video {index} from channel {from_chat_id} to user {user_id}, message_id={cached_videos[index]}")
                         forward_kwargs = {
                             'chat_id': user_id,
                             'from_chat_id': from_chat_id,
@@ -237,11 +243,17 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     else:
                         from_chat_id = get_log_channel("video")
                     
-                    # Verify we're reposting from the correct channel
-                    if from_chat_id != get_log_channel("video") and from_chat_id != get_log_channel("video", nsfw=True) and from_chat_id != get_log_channel("video", paid=True):
+                    # Verify we're reposting from a valid log channel
+                    valid_channels = [
+                        get_log_channel("video"),
+                        get_log_channel("video", nsfw=True),
+                        get_log_channel("video", paid=True)
+                    ]
+                    if from_chat_id not in valid_channels:
                         logger.error(f"CRITICAL: Attempting to repost from wrong channel {from_chat_id}")
                         raise Exception("Wrong channel for repost")
                     
+                    logger.info(f"[VIDEO CACHE] Reposting video from channel {from_chat_id} to user {user_id}, message_ids={cached_ids}")
                     forward_kwargs = {
                         'chat_id': user_id,
                         'from_chat_id': from_chat_id,
