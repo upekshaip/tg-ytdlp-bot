@@ -89,7 +89,20 @@ def send_promo_message(app, message):
                             elif reply.video:
                                 app.send_video(user, reply.video.file_id, caption=reply.caption)
                             elif reply.photo:
-                                app.send_photo(user, reply.photo.file_id, caption=reply.caption)
+                                try:
+                                    # Use supported API: take the largest available size's file_id
+                                    largest = reply.photo.sizes[-1] if getattr(reply.photo, 'sizes', None) else None
+                                    file_id = largest.file_id if largest else None
+                                except Exception:
+                                    file_id = None
+                                if file_id:
+                                    app.send_photo(user, file_id, caption=reply.caption)
+                                else:
+                                    # Fallback: try to forward original message with photo
+                                    try:
+                                        app.copy_message(chat_id=user, from_chat_id=message.chat.id, message_id=reply.id)
+                                    except Exception:
+                                        pass
                             elif reply.sticker:
                                 app.send_sticker(user, reply.sticker.file_id)
                             elif reply.document:

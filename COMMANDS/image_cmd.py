@@ -8,6 +8,7 @@ import time
 from pyrogram import filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ReplyParameters, InputMediaPhoto, InputMediaVideo, InputPaidMediaPhoto, InputPaidMediaVideo
 from pyrogram import enums
+from pyrogram.errors import FloodWait
 from HELPERS.logger import send_to_logger, logger, get_log_channel
 from CONFIG.logger_msg import LoggerMsg
 from HELPERS.app_instance import get_app
@@ -750,11 +751,27 @@ def image_command(app, message):
                                             sent.extend(fallback_msg)
                                 else:
                                     # In groups/channels or non-NSFW content, send as regular media group
-                                    sent = app.send_media_group(
-                                        user_id,
-                                        media=media_group,
-                                        reply_parameters=ReplyParameters(message_id=message.id)
-                                )
+                                    attempts = 0
+                                    last_exc = None
+                                    while attempts < 5:
+                                        try:
+                                            sent = app.send_media_group(
+                                                user_id,
+                                                media=media_group,
+                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                            )
+                                            break
+                                        except FloodWait as fw:
+                                            wait_s = int(getattr(fw, 'value', 0) or 0)
+                                            logger.warning(f"FloodWait while send_media_group: waiting {wait_s}s and retrying (attempt {attempts+1}/5)")
+                                            time.sleep(wait_s + 1)
+                                            attempts += 1
+                                            last_exc = fw
+                                        except Exception as ex:
+                                            last_exc = ex
+                                            break
+                                    if attempts >= 5 and last_exc is not None:
+                                        raise last_exc
                                 sent_message_ids.extend([m.id for m in sent])
                                 total_sent += len(media_group)
                                 # Forward album to logs and save forwarded IDs to cache
@@ -844,76 +861,100 @@ def image_command(app, message):
                                         with open(p, 'rb') as f:
                                             if t == 'photo':
                                                 is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                                                if nsfw_flag and is_private_chat:
-                                                    sent_msg = app.send_paid_media(
-                                                        user_id,
-                                                        media=[InputPaidMediaPhoto(media=f)],
-                                                        star_count=LimitsConfig.NSFW_STAR_COST,
-                                                        payload=str(Config.STAR_RECEIVER),
-                                                        reply_parameters=ReplyParameters(message_id=message.id)
-                                                    )
-                                                else:
-                                                    # No spoiler in groups, only in private chats for paid media
-                                                    is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                                                sent_msg = app.send_photo(
-                                                    user_id,
-                                                    photo=f,
-                                                        has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
-                                                    reply_parameters=ReplyParameters(message_id=message.id),
-                                                    message_thread_id=getattr(message, 'message_thread_id', None)
-                                                )
+                                                attempts = 0
+                                                last_exc = None
+                                                while attempts < 5:
+                                                    try:
+                                                        if nsfw_flag and is_private_chat:
+                                                            sent_msg = app.send_paid_media(
+                                                                user_id,
+                                                                media=[InputPaidMediaPhoto(media=f)],
+                                                                star_count=LimitsConfig.NSFW_STAR_COST,
+                                                                payload=str(Config.STAR_RECEIVER),
+                                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                                            )
+                                                        else:
+                                                            sent_msg = app.send_photo(
+                                                                user_id,
+                                                                photo=f,
+                                                                has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
+                                                                reply_parameters=ReplyParameters(message_id=message.id),
+                                                                message_thread_id=getattr(message, 'message_thread_id', None)
+                                                            )
+                                                        break
+                                                    except FloodWait as fw:
+                                                        wait_s = int(getattr(fw, 'value', 0) or 0)
+                                                        logger.warning(f"FloodWait while send_photo: waiting {wait_s}s and retrying (attempt {attempts+1}/5)")
+                                                        time.sleep(wait_s + 1)
+                                                        attempts += 1
+                                                        last_exc = fw
+                                                    except Exception as ex:
+                                                        last_exc = ex
+                                                        break
+                                                if attempts >= 5 and last_exc is not None:
+                                                    raise last_exc
                                             else:
                                                 # ensure thumbnail
                                                 thumb = generate_video_thumbnail(p)
-                                                if thumb and os.path.exists(thumb):
-                                                    is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                                                    if nsfw_flag and is_private_chat:
-                                                        # Ensure we have a cover
-                                                        _cover = ensure_paid_cover(p, thumb)
-                                                        try:
-                                                            media_item = InputPaidMediaVideo(media=f, cover=_cover)
-                                                        except TypeError:
-                                                            media_item = InputPaidMediaVideo(media=f)
-                                                        sent_msg = app.send_paid_media(
-                                                            user_id,
-                                                            media=[media_item],
-                                                            star_count=LimitsConfig.NSFW_STAR_COST,
-                                                            payload=str(Config.STAR_RECEIVER),
-                                                            reply_parameters=ReplyParameters(message_id=message.id),
-                                                            message_thread_id=getattr(message, 'message_thread_id', None)
-                                                        )
-                                                    else:
-                                                        # No spoiler in groups, only in private chats for paid media
-                                                        is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                                                    sent_msg = app.send_video(
-                                                        user_id,
-                                                        video=f,
-                                                        thumb=thumb,
-                                                            has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
-                                                        reply_parameters=ReplyParameters(message_id=message.id),
-                                                        message_thread_id=getattr(message, 'message_thread_id', None)
-                                                    )
-                                                else:
-                                                    is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                                                    if nsfw_flag and is_private_chat:
-                                                        sent_msg = app.send_paid_media(
-                                                            user_id,
-                                                            media=[InputPaidMediaVideo(media=f)],
-                                                            star_count=LimitsConfig.NSFW_STAR_COST,
-                                                            payload=str(Config.STAR_RECEIVER),
-                                                            reply_parameters=ReplyParameters(message_id=message.id),
-                                                            message_thread_id=getattr(message, 'message_thread_id', None)
-                                                        )
-                                                    else:
-                                                        # No spoiler in groups, only in private chats for paid media
-                                                        is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                                                    sent_msg = app.send_video(
-                                                        user_id,
-                                                        video=f,
-                                                            has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
-                                                        reply_parameters=ReplyParameters(message_id=message.id),
-                                                        message_thread_id=getattr(message, 'message_thread_id', None)
-                                                    )
+                                                is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                                                attempts = 0
+                                                last_exc = None
+                                                while attempts < 5:
+                                                    try:
+                                                        if thumb and os.path.exists(thumb):
+                                                            if nsfw_flag and is_private_chat:
+                                                                _cover = ensure_paid_cover(p, thumb)
+                                                                try:
+                                                                    media_item = InputPaidMediaVideo(media=f, cover=_cover)
+                                                                except TypeError:
+                                                                    media_item = InputPaidMediaVideo(media=f)
+                                                                sent_msg = app.send_paid_media(
+                                                                    user_id,
+                                                                    media=[media_item],
+                                                                    star_count=LimitsConfig.NSFW_STAR_COST,
+                                                                    payload=str(Config.STAR_RECEIVER),
+                                                                    reply_parameters=ReplyParameters(message_id=message.id),
+                                                                    message_thread_id=getattr(message, 'message_thread_id', None)
+                                                                )
+                                                            else:
+                                                                sent_msg = app.send_video(
+                                                                    user_id,
+                                                                    video=f,
+                                                                    thumb=thumb,
+                                                                    has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
+                                                                    reply_parameters=ReplyParameters(message_id=message.id),
+                                                                    message_thread_id=getattr(message, 'message_thread_id', None)
+                                                                )
+                                                        else:
+                                                            if nsfw_flag and is_private_chat:
+                                                                sent_msg = app.send_paid_media(
+                                                                    user_id,
+                                                                    media=[InputPaidMediaVideo(media=f)],
+                                                                    star_count=LimitsConfig.NSFW_STAR_COST,
+                                                                    payload=str(Config.STAR_RECEIVER),
+                                                                    reply_parameters=ReplyParameters(message_id=message.id),
+                                                                    message_thread_id=getattr(message, 'message_thread_id', None)
+                                                                )
+                                                            else:
+                                                                sent_msg = app.send_video(
+                                                                    user_id,
+                                                                    video=f,
+                                                                    has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
+                                                                    reply_parameters=ReplyParameters(message_id=message.id),
+                                                                    message_thread_id=getattr(message, 'message_thread_id', None)
+                                                                )
+                                                        break
+                                                    except FloodWait as fw:
+                                                        wait_s = int(getattr(fw, 'value', 0) or 0)
+                                                        logger.warning(f"FloodWait while send_video: waiting {wait_s}s and retrying (attempt {attempts+1}/5)")
+                                                        time.sleep(wait_s + 1)
+                                                        attempts += 1
+                                                        last_exc = fw
+                                                    except Exception as ex:
+                                                        last_exc = ex
+                                                        break
+                                                if attempts >= 5 and last_exc is not None:
+                                                    raise last_exc
                                             sent_message_ids.append(sent_msg.id)
                                             tmp_ids.append(sent_msg.id)
                                             total_sent += 1
@@ -988,12 +1029,28 @@ def image_command(app, message):
                             p, orig = others_buffer.pop(0)
                             try:
                                 with open(p, 'rb') as f:
-                                    sent_msg = app.send_document(
-                                        user_id,
-                                        document=f,
-                                        reply_parameters=ReplyParameters(message_id=message.id),
-                                        message_thread_id=getattr(message, 'message_thread_id', None)
-                                    )
+                                    attempts = 0
+                                    last_exc = None
+                                    while attempts < 5:
+                                        try:
+                                            sent_msg = app.send_document(
+                                                user_id,
+                                                document=f,
+                                                reply_parameters=ReplyParameters(message_id=message.id),
+                                                message_thread_id=getattr(message, 'message_thread_id', None)
+                                            )
+                                            break
+                                        except FloodWait as fw:
+                                            wait_s = int(getattr(fw, 'value', 0) or 0)
+                                            logger.warning(f"FloodWait while send_document: waiting {wait_s}s and retrying (attempt {attempts+1}/5)")
+                                            time.sleep(wait_s + 1)
+                                            attempts += 1
+                                            last_exc = fw
+                                        except Exception as ex:
+                                            last_exc = ex
+                                            break
+                                    if attempts >= 5 and last_exc is not None:
+                                        raise last_exc
                                 sent_message_ids.append(sent_msg.id)
                                 total_sent += 1
                                 update_status()
@@ -1125,12 +1182,28 @@ def image_command(app, message):
                                     sent.extend(fallback_msg)
                         else:
                             # In groups/channels or non-NSFW content, send as regular media group
-                            sent = app.send_media_group(
-                                user_id,
-                                media=media_group,
-                                reply_parameters=ReplyParameters(message_id=message.id),
-                                message_thread_id=getattr(message, 'message_thread_id', None)
-                            )
+                            attempts = 0
+                            last_exc = None
+                            while attempts < 5:
+                                try:
+                                    sent = app.send_media_group(
+                                        user_id,
+                                        media=media_group,
+                                        reply_parameters=ReplyParameters(message_id=message.id),
+                                        message_thread_id=getattr(message, 'message_thread_id', None)
+                                    )
+                                    break
+                                except FloodWait as fw:
+                                    wait_s = int(getattr(fw, 'value', 0) or 0)
+                                    logger.warning(f"FloodWait while send_media_group (tail): waiting {wait_s}s and retrying (attempt {attempts+1}/5)")
+                                    time.sleep(wait_s + 1)
+                                    attempts += 1
+                                    last_exc = fw
+                                except Exception as ex:
+                                    last_exc = ex
+                                    break
+                            if attempts >= 5 and last_exc is not None:
+                                raise last_exc
                         sent_message_ids.extend([m.id for m in sent])
                         total_sent += len(media_group)
                         # Forward tail album and save forwarded IDs
@@ -1204,52 +1277,81 @@ def image_command(app, message):
                                 with open(p, 'rb') as f:
                                     if t == 'photo':
                                         is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                                        if nsfw_flag and is_private_chat:
-                                            sent_msg = app.send_paid_media(
-                                                user_id,
-                                                media=[InputPaidMediaPhoto(media=f)],
-                                                star_count=LimitsConfig.NSFW_STAR_COST,
-                                                payload=str(Config.STAR_RECEIVER),
-                                                reply_parameters=ReplyParameters(message_id=message.id),
-                                                message_thread_id=getattr(message, 'message_thread_id', None)
-                                            )
-                                        else:
-                                            # No spoiler in groups, only in private chats for paid media
-                                            sent_msg = app.send_photo(
-                                                user_id,
-                                                photo=f,
-                                                has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
-                                                reply_parameters=ReplyParameters(message_id=message.id),
-                                                message_thread_id=getattr(message, 'message_thread_id', None)
-                                            )
+                                        attempts = 0
+                                        last_exc = None
+                                        while attempts < 5:
+                                            try:
+                                                if nsfw_flag and is_private_chat:
+                                                    sent_msg = app.send_paid_media(
+                                                        user_id,
+                                                        media=[InputPaidMediaPhoto(media=f)],
+                                                        star_count=LimitsConfig.NSFW_STAR_COST,
+                                                        payload=str(Config.STAR_RECEIVER),
+                                                        reply_parameters=ReplyParameters(message_id=message.id),
+                                                        message_thread_id=getattr(message, 'message_thread_id', None)
+                                                    )
+                                                else:
+                                                    sent_msg = app.send_photo(
+                                                        user_id,
+                                                        photo=f,
+                                                        has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
+                                                        reply_parameters=ReplyParameters(message_id=message.id),
+                                                        message_thread_id=getattr(message, 'message_thread_id', None)
+                                                    )
+                                                break
+                                            except FloodWait as fw:
+                                                wait_s = int(getattr(fw, 'value', 0) or 0)
+                                                logger.warning(f"FloodWait while send_photo (tail): waiting {wait_s}s and retrying (attempt {attempts+1}/5)")
+                                                time.sleep(wait_s + 1)
+                                                attempts += 1
+                                                last_exc = fw
+                                            except Exception as ex:
+                                                last_exc = ex
+                                                break
+                                        if attempts >= 5 and last_exc is not None:
+                                            raise last_exc
                                     else:
                                         # try generate thumbnail
                                         thumb = generate_video_thumbnail(p)
                                         is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                                        if nsfw_flag and is_private_chat:
-                                            # Generate/ensure cover for video
-                                            _cover = ensure_paid_cover(p, thumb)
+                                        attempts = 0
+                                        last_exc = None
+                                        while attempts < 5:
                                             try:
-                                                media_item = InputPaidMediaVideo(media=f, cover=_cover)
-                                            except TypeError:
-                                                media_item = InputPaidMediaVideo(media=f)
-                                            sent_msg = app.send_paid_media(
-                                                user_id,
-                                                media=[media_item],
-                                                star_count=LimitsConfig.NSFW_STAR_COST,
-                                                payload=str(Config.STAR_RECEIVER),
-                                                reply_parameters=ReplyParameters(message_id=message.id)
-                                            )
-                                        else:
-                                            # No spoiler in groups, only in private chats for paid media
-                                            sent_msg = app.send_video(
-                                                user_id,
-                                                video=f,
-                                                thumb=thumb if thumb and os.path.exists(thumb) else None,
-                                                has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
-                                                reply_parameters=ReplyParameters(message_id=message.id),
-                                                message_thread_id=getattr(message, 'message_thread_id', None)
-                                            )
+                                                if nsfw_flag and is_private_chat:
+                                                    _cover = ensure_paid_cover(p, thumb)
+                                                    try:
+                                                        media_item = InputPaidMediaVideo(media=f, cover=_cover)
+                                                    except TypeError:
+                                                        media_item = InputPaidMediaVideo(media=f)
+                                                    sent_msg = app.send_paid_media(
+                                                        user_id,
+                                                        media=[media_item],
+                                                        star_count=LimitsConfig.NSFW_STAR_COST,
+                                                        payload=str(Config.STAR_RECEIVER),
+                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                    )
+                                                else:
+                                                    sent_msg = app.send_video(
+                                                        user_id,
+                                                        video=f,
+                                                        thumb=thumb if thumb and os.path.exists(thumb) else None,
+                                                        has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
+                                                        reply_parameters=ReplyParameters(message_id=message.id),
+                                                        message_thread_id=getattr(message, 'message_thread_id', None)
+                                                    )
+                                                break
+                                            except FloodWait as fw:
+                                                wait_s = int(getattr(fw, 'value', 0) or 0)
+                                                logger.warning(f"FloodWait while send_video (tail): waiting {wait_s}s and retrying (attempt {attempts+1}/5)")
+                                                time.sleep(wait_s + 1)
+                                                attempts += 1
+                                                last_exc = fw
+                                            except Exception as ex:
+                                                last_exc = ex
+                                                break
+                                        if attempts >= 5 and last_exc is not None:
+                                            raise last_exc
                                     sent_message_ids.append(sent_msg.id)
                                     tmp_ids2.append(sent_msg.id)
                                     total_sent += 1
@@ -1369,11 +1471,12 @@ def image_command(app, message):
 
         # Messages are already forwarded to log channels during caching process above
 
-        # Cleanup files
+        # Cleanup files: удаляем только нулевые плейсхолдеры (уже отправленные),
+        # чтобы не потерять неотправленные файлы при FLOOD_WAIT
         try:
             for file_path in files_to_cleanup:
                 try:
-                    if os.path.exists(file_path):
+                    if os.path.exists(file_path) and os.path.getsize(file_path) == 0:
                         file_dir = os.path.dirname(file_path)
                         os.remove(file_path)
                         if os.path.exists(file_dir) and not os.listdir(file_dir):
