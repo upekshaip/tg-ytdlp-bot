@@ -251,9 +251,28 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             for index in requested_indices:
                 if index in cached_videos:
                     try:
+                        # Determine the correct log channel based on content type
+                        from HELPERS.porn import is_porn
+                        is_nsfw = is_porn(url, "", "")
+                        is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                        is_paid = is_nsfw and is_private_chat
+                        
+                        # Get the correct log channel for reposting
+                        if is_paid:
+                            from_chat_id = get_log_channel("video", paid=True)
+                        elif is_nsfw:
+                            from_chat_id = get_log_channel("video", nsfw=True)
+                        else:
+                            from_chat_id = get_log_channel("video")
+                        
+                        # Verify we're reposting from the correct channel
+                        if from_chat_id != get_log_channel("video") and from_chat_id != get_log_channel("video", nsfw=True) and from_chat_id != get_log_channel("video", paid=True):
+                            logger.error(f"CRITICAL: Attempting to repost from wrong channel {from_chat_id}")
+                            continue
+                        
                         forward_kwargs = {
                             'chat_id': user_id,
-                            'from_chat_id': get_log_channel("video"),
+                            'from_chat_id': from_chat_id,
                             'message_ids': [cached_videos[index]]
                         }
                         # Only apply thread_id in groups/channels, not in private chats
@@ -274,9 +293,28 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         cached_ids = get_cached_message_ids(url, quality_key)
         if cached_ids:
             try:
+                # Determine the correct log channel based on content type
+                from HELPERS.porn import is_porn
+                is_nsfw = is_porn(url, "", "")
+                is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                is_paid = is_nsfw and is_private_chat
+                
+                # Get the correct log channel for reposting
+                if is_paid:
+                    from_chat_id = get_log_channel("video", paid=True)
+                elif is_nsfw:
+                    from_chat_id = get_log_channel("video", nsfw=True)
+                else:
+                    from_chat_id = get_log_channel("video")
+                
+                # Verify we're reposting from the correct channel
+                if from_chat_id != get_log_channel("video") and from_chat_id != get_log_channel("video", nsfw=True) and from_chat_id != get_log_channel("video", paid=True):
+                    logger.error(f"CRITICAL: Attempting to repost from wrong channel {from_chat_id}")
+                    raise Exception("Wrong channel for repost")
+                
                 forward_kwargs = {
                     'chat_id': user_id,
-                    'from_chat_id': get_log_channel("video"),
+                    'from_chat_id': from_chat_id,
                     'message_ids': cached_ids
                 }
                 # Only apply thread_id in groups/channels, not in private chats
@@ -906,7 +944,21 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     )
                     logger.info("Audio sent without thumbnail")
                 
-                forwarded_msg = safe_forward_messages(get_log_channel("video"), user_id, [audio_msg.id])
+                # Determine the correct log channel based on content type
+                from HELPERS.porn import is_porn
+                is_nsfw = is_porn(url, "", "")
+                is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                is_paid = is_nsfw and is_private_chat
+                
+                # Get the log channel where the audio should be forwarded
+                if is_paid:
+                    log_channel = get_log_channel("video", paid=True)
+                elif is_nsfw:
+                    log_channel = get_log_channel("video", nsfw=True)
+                else:
+                    log_channel = get_log_channel("video")
+                
+                forwarded_msg = safe_forward_messages(log_channel, user_id, [audio_msg.id])
                 
                 # Save to cache after sending audio
                 if quality_key and forwarded_msg:

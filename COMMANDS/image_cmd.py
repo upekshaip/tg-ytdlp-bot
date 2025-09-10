@@ -398,10 +398,26 @@ def image_command(app, message):
                     thread_id = getattr(message, 'message_thread_id', None)
                     if thread_id:
                         kwargs['message_thread_id'] = thread_id
+                    # Determine the correct log channel for reposting
+                    is_private_chat = message.chat.type == enums.ChatType.PRIVATE
+                    is_paid_media = nsfw_flag and is_private_chat
+                    
+                    if is_paid_media:
+                        from_chat_id = get_log_channel("image", paid=True)
+                    elif nsfw_flag:
+                        from_chat_id = get_log_channel("image", nsfw=True)
+                    else:
+                        from_chat_id = get_log_channel("image")
+                    
+                    # Verify we're reposting from the correct channel
+                    if from_chat_id != get_log_channel("image") and from_chat_id != get_log_channel("image", nsfw=True) and from_chat_id != get_log_channel("image", paid=True):
+                        logger.error(f"CRITICAL: Attempting to repost from wrong channel {from_chat_id}")
+                        continue
+                    
                     try:
-                        sm.safe_forward_messages(user_id, get_log_channel("image", nsfw=nsfw_flag, paid=True), ids, **kwargs)
+                        sm.safe_forward_messages(user_id, from_chat_id, ids, **kwargs)
                     except Exception:
-                        app.forward_messages(user_id, get_log_channel("image", nsfw=nsfw_flag, paid=True), ids, **kwargs)
+                        app.forward_messages(user_id, from_chat_id, ids, **kwargs)
                 except Exception as _e:
                     logger.warning(f"Failed to forward cached album {album_idx}: {_e}")
             try:
@@ -470,10 +486,26 @@ def image_command(app, message):
                         thread_id = getattr(message, 'message_thread_id', None)
                         if thread_id:
                             kwargs['message_thread_id'] = thread_id
+                        # Determine the correct log channel for reposting
+                        is_private_chat = message.chat.type == enums.ChatType.PRIVATE
+                        is_paid_media = nsfw_flag and is_private_chat
+                        
+                        if is_paid_media:
+                            from_chat_id = get_log_channel("image", paid=True)
+                        elif nsfw_flag:
+                            from_chat_id = get_log_channel("image", nsfw=True)
+                        else:
+                            from_chat_id = get_log_channel("image")
+                        
+                        # Verify we're reposting from the correct channel
+                        if from_chat_id != get_log_channel("image") and from_chat_id != get_log_channel("image", nsfw=True) and from_chat_id != get_log_channel("image", paid=True):
+                            logger.error(f"CRITICAL: Attempting to repost from wrong channel {from_chat_id}")
+                            continue
+                        
                         try:
-                            sm.safe_forward_messages(user_id, get_log_channel("image", nsfw=nsfw_flag, paid=True), ids, **kwargs)
+                            sm.safe_forward_messages(user_id, from_chat_id, ids, **kwargs)
                         except Exception:
-                            app.forward_messages(user_id, get_log_channel("image", nsfw=nsfw_flag, paid=True), ids, **kwargs)
+                            app.forward_messages(user_id, from_chat_id, ids, **kwargs)
                     except Exception as _e:
                         logger.warning(f"Failed to forward cached album {album_idx}: {_e}")
                 # If we found anything in cache, finish early (do not re-download)
@@ -804,16 +836,32 @@ def image_command(app, message):
                                             elif nsfw_flag and not is_private_chat:
                                                 # NSFW content in groups -> LOGS_NSWF_ID
                                                 log_channel = get_log_channel("image", nsfw=True, paid=False)
-                                                msg = app.copy_message(chat_id=log_channel, from_chat_id=user_id, message_id=_mid)
-                                                if msg:
-                                                    f_ids.append(msg.id)
+                                                try:
+                                                    forwarded_msgs = app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
+                                                    if forwarded_msgs:
+                                                        # forward_messages returns a list of forwarded messages
+                                                        forwarded_msg = forwarded_msgs[0] if isinstance(forwarded_msgs, list) else forwarded_msgs
+                                                        f_ids.append(forwarded_msg.id)
+                                                        time.sleep(0.05)
+                                                except Exception as fe:
+                                                    logger.error(f"[IMG CACHE] forward_messages failed for NSFW media id={_mid}: {fe}")
+                                                    # Fallback to original ID if forwarding fails
+                                                    f_ids.append(_mid)
                                                     time.sleep(0.05)
                                             else:
                                                 # Regular content -> LOGS_IMG_ID
                                                 log_channel = get_log_channel("image", nsfw=False, paid=False)
-                                                msg = app.copy_message(chat_id=log_channel, from_chat_id=user_id, message_id=_mid)
-                                                if msg:
-                                                    f_ids.append(msg.id)
+                                                try:
+                                                    forwarded_msgs = app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
+                                                    if forwarded_msgs:
+                                                        # forward_messages returns a list of forwarded messages
+                                                        forwarded_msg = forwarded_msgs[0] if isinstance(forwarded_msgs, list) else forwarded_msgs
+                                                        f_ids.append(forwarded_msg.id)
+                                                        time.sleep(0.05)
+                                                except Exception as fe:
+                                                    logger.error(f"[IMG CACHE] forward_messages failed for regular media id={_mid}: {fe}")
+                                                    # Fallback to original ID if forwarding fails
+                                                    f_ids.append(_mid)
                                                     time.sleep(0.05)
                                         except Exception as ce:
                                             logger.error(f"[IMG CACHE] copy_message failed for id={_mid}: {ce}")
@@ -1002,16 +1050,32 @@ def image_command(app, message):
                                                 elif nsfw_flag and not is_private_chat:
                                                     # NSFW content in groups -> LOGS_NSWF_ID
                                                     log_channel = get_log_channel("image", nsfw=True, paid=False)
-                                                    msg = app.copy_message(chat_id=log_channel, from_chat_id=user_id, message_id=_mid)
-                                                    if msg:
-                                                        f_ids.append(msg.id)
+                                                    try:
+                                                        forwarded_msgs = app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
+                                                        if forwarded_msgs:
+                                                            # forward_messages returns a list of forwarded messages
+                                                            forwarded_msg = forwarded_msgs[0] if isinstance(forwarded_msgs, list) else forwarded_msgs
+                                                            f_ids.append(forwarded_msg.id)
+                                                            time.sleep(0.05)
+                                                    except Exception as fe:
+                                                        logger.error(f"[IMG CACHE] forward_messages (fallback) failed for NSFW media id={_mid}: {fe}")
+                                                        # Fallback to original ID if forwarding fails
+                                                        f_ids.append(_mid)
                                                         time.sleep(0.05)
                                                 else:
                                                     # Regular content -> LOGS_IMG_ID
                                                     log_channel = get_log_channel("image", nsfw=False, paid=False)
-                                                    msg = app.copy_message(chat_id=log_channel, from_chat_id=user_id, message_id=_mid)
-                                                    if msg:
-                                                        f_ids.append(msg.id)
+                                                    try:
+                                                        forwarded_msgs = app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
+                                                        if forwarded_msgs:
+                                                            # forward_messages returns a list of forwarded messages
+                                                            forwarded_msg = forwarded_msgs[0] if isinstance(forwarded_msgs, list) else forwarded_msgs
+                                                            f_ids.append(forwarded_msg.id)
+                                                            time.sleep(0.05)
+                                                    except Exception as fe:
+                                                        logger.error(f"[IMG CACHE] forward_messages (fallback) failed for regular media id={_mid}: {fe}")
+                                                        # Fallback to original ID if forwarding fails
+                                                        f_ids.append(_mid)
                                                         time.sleep(0.05)
                                             except Exception as ce:
                                                 logger.error(f"[IMG CACHE] copy_message (fallback) failed for id={_mid}: {ce}")
@@ -1236,16 +1300,32 @@ def image_command(app, message):
                                     elif nsfw_flag and not is_private_chat:
                                         # NSFW content in groups -> LOGS_NSWF_ID
                                         log_channel = get_log_channel("image", nsfw=True, paid=False)
-                                        msg = app.copy_message(chat_id=log_channel, from_chat_id=user_id, message_id=_mid)
-                                        if msg:
-                                            f_ids.append(msg.id)
+                                        try:
+                                            forwarded_msgs = app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
+                                            if forwarded_msgs:
+                                                # forward_messages returns a list of forwarded messages
+                                                forwarded_msg = forwarded_msgs[0] if isinstance(forwarded_msgs, list) else forwarded_msgs
+                                                f_ids.append(forwarded_msg.id)
+                                                time.sleep(0.05)
+                                        except Exception as fe:
+                                            logger.error(f"[IMG CACHE] forward_messages (tail) failed for NSFW media id={_mid}: {fe}")
+                                            # Fallback to original ID if forwarding fails
+                                            f_ids.append(_mid)
                                             time.sleep(0.05)
                                     else:
                                         # Regular content -> LOGS_IMG_ID
                                         log_channel = get_log_channel("image", nsfw=False, paid=False)
-                                        msg = app.copy_message(chat_id=log_channel, from_chat_id=user_id, message_id=_mid)
-                                        if msg:
-                                            f_ids.append(msg.id)
+                                        try:
+                                            forwarded_msgs = app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
+                                            if forwarded_msgs:
+                                                # forward_messages returns a list of forwarded messages
+                                                forwarded_msg = forwarded_msgs[0] if isinstance(forwarded_msgs, list) else forwarded_msgs
+                                                f_ids.append(forwarded_msg.id)
+                                                time.sleep(0.05)
+                                        except Exception as fe:
+                                            logger.error(f"[IMG CACHE] forward_messages (tail) failed for regular media id={_mid}: {fe}")
+                                            # Fallback to original ID if forwarding fails
+                                            f_ids.append(_mid)
                                             time.sleep(0.05)
                                 except Exception as ce:
                                     logger.error(f"[IMG CACHE] copy_message (tail) failed for id={_mid}: {ce}")
@@ -1399,16 +1479,32 @@ def image_command(app, message):
                                         elif nsfw_flag and not is_private_chat:
                                             # NSFW content in groups -> LOGS_NSWF_ID
                                             log_channel = get_log_channel("image", nsfw=True, paid=False)
-                                            msg = app.copy_message(chat_id=log_channel, from_chat_id=user_id, message_id=_mid)
-                                            if msg:
-                                                f_ids.append(msg.id)
+                                            try:
+                                                forwarded_msgs = app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
+                                                if forwarded_msgs:
+                                                    # forward_messages returns a list of forwarded messages
+                                                    forwarded_msg = forwarded_msgs[0] if isinstance(forwarded_msgs, list) else forwarded_msgs
+                                                    f_ids.append(forwarded_msg.id)
+                                                    time.sleep(0.05)
+                                            except Exception as fe:
+                                                logger.error(f"[IMG CACHE] forward_messages (tail-fallback) failed for NSFW media id={_mid}: {fe}")
+                                                # Fallback to original ID if forwarding fails
+                                                f_ids.append(_mid)
                                                 time.sleep(0.05)
                                         else:
                                             # Regular content -> LOGS_IMG_ID
                                             log_channel = get_log_channel("image", nsfw=False, paid=False)
-                                            msg = app.copy_message(chat_id=log_channel, from_chat_id=user_id, message_id=_mid)
-                                            if msg:
-                                                f_ids.append(msg.id)
+                                            try:
+                                                forwarded_msgs = app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
+                                                if forwarded_msgs:
+                                                    # forward_messages returns a list of forwarded messages
+                                                    forwarded_msg = forwarded_msgs[0] if isinstance(forwarded_msgs, list) else forwarded_msgs
+                                                    f_ids.append(forwarded_msg.id)
+                                                    time.sleep(0.05)
+                                            except Exception as fe:
+                                                logger.error(f"[IMG CACHE] forward_messages (tail-fallback) failed for regular media id={_mid}: {fe}")
+                                                # Fallback to original ID if forwarding fails
+                                                f_ids.append(_mid)
                                                 time.sleep(0.05)
                                     except Exception as ce:
                                         logger.error(f"[IMG CACHE] copy_message (tail-fallback) failed for id={_mid}: {ce}")

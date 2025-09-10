@@ -176,9 +176,28 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             for index in requested_indices:
                 if index in cached_videos:
                     try:
+                        # Determine the correct log channel based on content type
+                        from HELPERS.porn import is_porn
+                        is_nsfw = is_porn(url, original_video_title or "", full_video_title or "")
+                        is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                        is_paid = is_nsfw and is_private_chat
+                        
+                        # Get the correct log channel for reposting
+                        if is_paid:
+                            from_chat_id = get_log_channel("video", paid=True)
+                        elif is_nsfw:
+                            from_chat_id = get_log_channel("video", nsfw=True)
+                        else:
+                            from_chat_id = get_log_channel("video")
+                        
+                        # Verify we're reposting from the correct channel
+                        if from_chat_id != get_log_channel("video") and from_chat_id != get_log_channel("video", nsfw=True) and from_chat_id != get_log_channel("video", paid=True):
+                            logger.error(f"CRITICAL: Attempting to repost from wrong channel {from_chat_id}")
+                            continue
+                        
                         forward_kwargs = {
                             'chat_id': user_id,
-                            'from_chat_id': get_log_channel("video"),
+                            'from_chat_id': from_chat_id,
                             'message_ids': [cached_videos[index]]
                         }
                         # Only apply thread_id in groups/channels, not in private chats
@@ -204,9 +223,28 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             if cached_ids:
                 #found_type = None
                 try:
+                    # Determine the correct log channel based on content type
+                    from HELPERS.porn import is_porn
+                    is_nsfw = is_porn(url, original_video_title or "", full_video_title or "")
+                    is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                    is_paid = is_nsfw and is_private_chat
+                    
+                    # Get the correct log channel for reposting
+                    if is_paid:
+                        from_chat_id = get_log_channel("video", paid=True)
+                    elif is_nsfw:
+                        from_chat_id = get_log_channel("video", nsfw=True)
+                    else:
+                        from_chat_id = get_log_channel("video")
+                    
+                    # Verify we're reposting from the correct channel
+                    if from_chat_id != get_log_channel("video") and from_chat_id != get_log_channel("video", nsfw=True) and from_chat_id != get_log_channel("video", paid=True):
+                        logger.error(f"CRITICAL: Attempting to repost from wrong channel {from_chat_id}")
+                        raise Exception("Wrong channel for repost")
+                    
                     forward_kwargs = {
                         'chat_id': user_id,
-                        'from_chat_id': get_log_channel("video"),
+                        'from_chat_id': from_chat_id,
                         'message_ids': cached_ids
                     }
                     # Only apply thread_id in groups/channels, not in private chats
@@ -1243,8 +1281,25 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         logger.error("send_videos returned None for split part; skipping cache save for this part")
                         continue
                     #found_type = None
+                    # Note: Forwarding to log channels is now handled in send_videos function
+                    # We need to get the forwarded message IDs from the log channel for caching
                     try:
-                        forwarded_msgs = safe_forward_messages(get_log_channel("video"), user_id, [video_msg.id])
+                        # Determine the correct log channel based on content type
+                        from HELPERS.porn import is_porn
+                        is_nsfw = is_porn(url, original_video_title or "", full_video_title or "")
+                        is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                        is_paid = is_nsfw and is_private_chat
+                        
+                        # Get the log channel where the video was forwarded
+                        if is_paid:
+                            log_channel = get_log_channel("video", paid=True)
+                        elif is_nsfw:
+                            log_channel = get_log_channel("video", nsfw=True)
+                        else:
+                            log_channel = get_log_channel("video")
+                        
+                        # Forward to log channel and get forwarded message IDs
+                        forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
                         logger.info(f"down_and_up: forwarded_msgs result: {forwarded_msgs}")
                         if forwarded_msgs:
                             logger.info(f"down_and_up: collecting forwarded message IDs for split video: {[m.id for m in forwarded_msgs]}")
@@ -1469,7 +1524,21 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         
                         #found_type = None
                         try:
-                            forwarded_msgs = safe_forward_messages(get_log_channel("video"), user_id, [video_msg.id])
+                            # Determine the correct log channel based on content type
+                            from HELPERS.porn import is_porn
+                            is_nsfw = is_porn(url, original_video_title or "", full_video_title or "")
+                            is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                            is_paid = is_nsfw and is_private_chat
+                            
+                            # Get the log channel where the video should be forwarded
+                            if is_paid:
+                                log_channel = get_log_channel("video", paid=True)
+                            elif is_nsfw:
+                                log_channel = get_log_channel("video", nsfw=True)
+                            else:
+                                log_channel = get_log_channel("video")
+                            
+                            forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
                             logger.info(f"down_and_up: forwarded_msgs result: {forwarded_msgs}")
                             if forwarded_msgs:
                                 logger.info(f"down_and_up: saving to cache with forwarded message IDs: {[m.id for m in forwarded_msgs]}")
@@ -1499,60 +1568,103 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     else:
                                         logger.info("Video with subtitles (subs.txt found) is not cached!")
                             else:
-                                logger.info(f"down_and_up: saving to cache with video_msg.id: {video_msg.id}")
-                                if is_playlist:
-                                    # For playlists, save to playlist cache with video index
-                                    current_video_index = x + video_start_with
-                                    #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                                    subs_enabled = is_subs_enabled(user_id)
-                                    auto_mode = get_user_subs_auto_mode(user_id)
-                                    need_subs = determine_need_subs(subs_enabled, found_type, user_id)
-                                    if not need_subs:
-                                        save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
+                                # If forwarding failed, try to forward manually and get log channel IDs
+                                logger.info(f"down_and_up: forwarding failed, trying manual forward for video: {video_msg.id}")
+                                try:
+                                    # Determine the correct log channel based on content type
+                                    from HELPERS.porn import is_porn
+                                    is_nsfw = is_porn(url, original_video_title or "", full_video_title or "")
+                                    is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                                    is_paid = is_nsfw and is_private_chat
+                                    
+                                    # Get the log channel where the video should be forwarded
+                                    if is_paid:
+                                        log_channel = get_log_channel("video", paid=True)
+                                    elif is_nsfw:
+                                        log_channel = get_log_channel("video", nsfw=True)
                                     else:
-                                        logger.info("Video with subtitles (subs.txt found) is not cached!")
-                                    cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, [current_video_index])
-                                    logger.info(f"Checking the cache immediately after writing: {cached_check}")
-                                    playlist_indices.append(current_video_index)
-                                    playlist_msg_ids.append(video_msg.id)
-                                else:
-                                    #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                                    subs_enabled = is_subs_enabled(user_id)
-                                    auto_mode = get_user_subs_auto_mode(user_id)
-                                    need_subs = determine_need_subs(subs_enabled, found_type, user_id)
-                                    if not need_subs:
-                                        # For single videos, save to regular cache
-                                        save_to_video_cache(url, quality_key, [video_msg.id], original_text=message.text or message.caption or "")
+                                        log_channel = get_log_channel("video")
+                                    
+                                    # Forward to log channel and get forwarded message IDs
+                                    forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                    if forwarded_msgs:
+                                        logger.info(f"down_and_up: manual forward successful, got IDs: {[m.id for m in forwarded_msgs]}")
+                                        if is_playlist:
+                                            # For playlists, save to playlist cache with video index
+                                            current_video_index = x + video_start_with
+                                            subs_enabled = is_subs_enabled(user_id)
+                                            auto_mode = get_user_subs_auto_mode(user_id)
+                                            need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+                                            if not need_subs:
+                                                save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                            else:
+                                                logger.info("Video with subtitles (subs.txt found) is not cached!")
+                                            cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, [current_video_index])
+                                            logger.info(f"Checking the cache immediately after writing: {cached_check}")
+                                            playlist_indices.append(current_video_index)
+                                            playlist_msg_ids.extend([m.id for m in forwarded_msgs])
+                                        else:
+                                            # For single videos, save to regular cache
+                                            subs_enabled = is_subs_enabled(user_id)
+                                            auto_mode = get_user_subs_auto_mode(user_id)
+                                            need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+                                            if not need_subs:
+                                                save_to_video_cache(url, quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                            else:
+                                                logger.info("Video with subtitles (subs.txt found) is not cached!")
                                     else:
-                                        logger.info("Video with subtitles (subs.txt found) is not cached!")
+                                        logger.error("Manual forward also failed, cannot cache video")
+                                except Exception as e:
+                                    logger.error(f"Error in manual forward: {e}")
                         except Exception as e:
                             logger.error(f"Error forwarding video to logger: {e}")
-                            logger.info(f"down_and_up: saving to cache with video_msg.id after error: {video_msg.id}")
-                            if is_playlist:
-                                # For playlists, save to playlist cache with video index
-                                current_video_index = x + video_start_with
-                                #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                                subs_enabled = is_subs_enabled(user_id)
-                                auto_mode = get_user_subs_auto_mode(user_id)
-                                need_subs = determine_need_subs(subs_enabled, found_type, user_id)
-                                if not need_subs:
-                                    save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
+                            # Try to forward manually even after error
+                            try:
+                                # Determine the correct log channel based on content type
+                                from HELPERS.porn import is_porn
+                                is_nsfw = is_porn(url, original_video_title or "", full_video_title or "")
+                                is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                                is_paid = is_nsfw and is_private_chat
+                                
+                                # Get the log channel where the video should be forwarded
+                                if is_paid:
+                                    log_channel = get_log_channel("video", paid=True)
+                                elif is_nsfw:
+                                    log_channel = get_log_channel("video", nsfw=True)
                                 else:
-                                    logger.info("Video with subtitles (subs.txt found) is not cached!")
-                                cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, [current_video_index])
-                                logger.info(f"Checking the cache immediately after writing: {cached_check}")
-                                playlist_indices.append(current_video_index)
-                                playlist_msg_ids.append(video_msg.id)
-                            else:
-                                # For single videos, save to regular cache
-                                #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                                subs_enabled = is_subs_enabled(user_id)
-                                auto_mode = get_user_subs_auto_mode(user_id)
-                                need_subs = determine_need_subs(subs_enabled, found_type, user_id)
-                                if not need_subs:
-                                    save_to_video_cache(url, quality_key, [video_msg.id], original_text=message.text or message.caption or "")
+                                    log_channel = get_log_channel("video")
+                                
+                                # Forward to log channel and get forwarded message IDs
+                                forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                if forwarded_msgs:
+                                    logger.info(f"down_and_up: manual forward after error successful, got IDs: {[m.id for m in forwarded_msgs]}")
+                                    if is_playlist:
+                                        # For playlists, save to playlist cache with video index
+                                        current_video_index = x + video_start_with
+                                        subs_enabled = is_subs_enabled(user_id)
+                                        auto_mode = get_user_subs_auto_mode(user_id)
+                                        need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+                                        if not need_subs:
+                                            save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                        else:
+                                            logger.info("Video with subtitles (subs.txt found) is not cached!")
+                                        cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, [current_video_index])
+                                        logger.info(f"Checking the cache immediately after writing: {cached_check}")
+                                        playlist_indices.append(current_video_index)
+                                        playlist_msg_ids.extend([m.id for m in forwarded_msgs])
+                                    else:
+                                        # For single videos, save to regular cache
+                                        subs_enabled = is_subs_enabled(user_id)
+                                        auto_mode = get_user_subs_auto_mode(user_id)
+                                        need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+                                        if not need_subs:
+                                            save_to_video_cache(url, quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                        else:
+                                            logger.info("Video with subtitles (subs.txt found) is not cached!")
                                 else:
-                                    logger.info("Video with subtitles (subs.txt found) is not cached!")
+                                    logger.error("Manual forward after error also failed, cannot cache video")
+                            except Exception as e2:
+                                logger.error(f"Error in manual forward after error: {e2}")
                         safe_edit_message_text(user_id, proc_msg_id,
                             f"{info_text}\n{full_bar}   100.0%\n<b>🎞 Video duration:</b> <i>{TimeFormatter(duration * 1000)}</i>\n1 file uploaded.")
                         send_mediainfo_if_enabled(user_id, after_rename_abs_path, message)

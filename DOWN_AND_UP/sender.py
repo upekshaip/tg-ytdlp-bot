@@ -444,19 +444,8 @@ def send_videos(
             else:
                 # If the error is not related to the length of the caption, pass it further
                 raise e
-        # Форвард отправленного видео в нужный лог-канал
-        try:
-            log_key = "paid" if was_paid else ("nsfw" if is_spoiler else "video")
-            try:
-                # Some forks return list for albums; ensure we have id
-                msg_id_to_forward = getattr(video_msg, "id", None) or (video_msg[0].id if isinstance(video_msg, list) and video_msg else None)
-                if msg_id_to_forward:
-                    safe_forward_messages(get_log_channel(log_key), user_id, [msg_id_to_forward])
-            except Exception:
-                # Fallback if structure unexpected
-                safe_forward_messages(get_log_channel(log_key), user_id, [video_msg.id])
-        except Exception as e:
-            logger.error(f"Error forwarding video to log channel: {e}")
+        # Note: Forwarding to log channels is now handled in down_and_up.py
+        # to avoid double forwarding and ensure proper channel routing
 
         if was_truncated and full_video_title:
             with open(temp_desc_path, "w", encoding="utf-8") as f:
@@ -470,11 +459,7 @@ def send_videos(
                     reply_parameters=ReplyParameters(message_id=message.id),
                     parse_mode=enums.ParseMode.HTML
                 )
-                try:
-                    log_key_doc = "paid" if was_paid else ("nsfw" if is_spoiler else "video")
-                    safe_forward_messages(get_log_channel(log_key_doc), user_id, [user_doc_msg.id])
-                except Exception as e:
-                    logger.error(f"Error forwarding description file to log channel: {e}")
+                # Note: Description file forwarding is handled in down_and_up.py
             except Exception as e:
                 logger.error(f"Error sending full description file: {e}")
         return video_msg
