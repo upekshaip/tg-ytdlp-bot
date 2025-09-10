@@ -270,50 +270,57 @@ Press the button below to activate inline search via @vid.
     
     # Add bot to group command message
     ADD_BOT_TO_GROUP_MSG = """
-🤖 Add Bot to Group
+🤖 <b>Add Bot to Group</b>
 
 Add my bots to your groups to get enhanced features and higher limits!
-
-📊 Current FREE Limits (in Bot’s DM):
+————————————
+📊 <b>Current FREE Limits (in Bot’s DM):</b>
 <blockquote>•🗑 Messy junk from all the files unsorted 👎
-• Max 1 file size: 8 GB 
-• Max 1 file quality: UNLIM
-• Max 1 file duration: UNLIM
-• Max number of downloads: UNLIM
-• Max playlist items per 1 time: 50
-• Max TikTok videos per 1 time: 500
-• Max images per 1 time: 1000
-• 1 Download max time: 2 hours
+• Max 1 file size: <b>8 GB </b>
+• Max 1 file quality: <b>UNLIM</b>
+• Max 1 file duration: <b>UNLIM</b>
+• Max number of downloads: <b>UNLIM</b>
+• Max playlist items per 1 time: <b>50</b>
+• Max TikTok videos per 1 time: <b>500</b>
+• Max images per 1 time: <b>1000</b>
+• 1 Download max time: <b>2 hours</b>
 • 🔞 NSFW content is paid! 1⭐️ = $0.02
 • 🆓 ALL OTHER MEDIA ARE TOTALY FREE</blockquote>
 
-💬This limits only for video with subtitles:
-<blockquote>• Max video+subs duration: 1.5 hours (5400s)
-• Max video+subs file size: 500 MB
-• Max video+subs quality: 720p</blockquote>
-
-🚀 Paid Group Benefits (2x Limits):
+💬<b>This limits only for video with subtitles:</b>
+<blockquote>• Max video+subs duration: <b>1.5 hours</b>
+• Max video+subs file size: <b>500 MB</b>
+• Max video+subs quality: <b>720p</b></blockquote>
+————————————
+🚀 <b>Paid Group Benefits (2️⃣x Limits):</b>
 <blockquote>•  🗂 Structured neat media vault sorted by topics 👍
-• Max 1 file size: 16 GB ⬆️
-• Max playlist items per 1 time: 100 ⬆️
+•  📁 Bots reply in the topic you call them
+•  📌 Auto pin status message with download progress
+•  🖼 /img command downloads media as 10-item albums
+• Max 1 file size: <b>16 GB</b> ⬆️
+• Max playlist items per 1 time: <b>100</b> ⬆️
 • Max TikTok videos per 1 time: 1000 ⬆️
 • Max images per 1 time: 2000 ⬆️
-• 1 Download ma time: 4 hours ⬆️
-• 🔞NSFW content: Free with full metadata 🆓</blockquote>
+• 1 Download ma time: <b>4 hours</b> ⬆️
+• 🔞 NSFW content: Free with full metadata 🆓
+• 📢 No need to subscribe to my channel for groups
+• 👥 All group members will have access to paid functions!</blockquote>
 
-💬This limits only for video with subtitles:
-<blockquote>• Max video+subs duration: 3 hours (10800s) ⬆️
-• Max video+subs file size: 1000 MB ⬆️
-• Max video+subs quality: 1080p ⬆️</blockquote>
-
-💰 Pricing & Setup:
-<blockquote>• Price: $5/month per 1 bot in group
+💬 <b>2️⃣x limits for video with subtitles:</b>
+<blockquote>• Max video+subs duration: <b>3 hours</b> ⬆️
+• Max video+subs file size: <b>1000 MB</b> ⬆️
+• Max video+subs quality: <b>1080p</b> ⬆️</blockquote>
+————————————
+💰 <b>Pricing & Setup:</b>
+<blockquote>• Price: <b>$5/month</b> per 1 bot in group
 • Setup: Contact @iilililiiillliiliililliilliliiil
 • Payment: 💎TON or other methods💲
 • Support: Full technical support included</blockquote>
-
-you can add my bots to your group to unblock free 🔞NSFW and to double (x2) all limits.
-contact me if you want me to allow your group to use my bots @iilililiiillliiliililliilliliiil
+————————————
+You can add my bots to your group to unblock free 🔞<b>NSFW</b> and to double (x2️⃣) all limits.
+Contact me if you want me to allow your group to use my bots @iilililiiillliiliililliilliliiil
+————————————
+💡TIP: <blockquote>You can chip in money with any amount of your friends (for example 100 people) and made 1 purchase for whole group - ALL GROUP MEMBERS WILL HAVE FULL UNLIMITED ACCESS to all bots functions in that group for just <b>0.05$</b></blockquote>
     """
     
     # NSFW Command Messages
