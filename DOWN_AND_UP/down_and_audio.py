@@ -244,8 +244,16 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     cached_videos = {}
     uncached_indices = []
     if quality_key and is_playlist:
-        cached_videos = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, requested_indices)
-        uncached_indices = [i for i in requested_indices if i not in cached_videos]
+        # Check if content is NSFW - if so, skip cache lookup
+        from HELPERS.porn import is_porn
+        is_nsfw = is_porn(url, "", "", None)
+        if not is_nsfw:
+            cached_videos = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, requested_indices)
+            uncached_indices = [i for i in requested_indices if i not in cached_videos]
+        else:
+            logger.info(f"down_and_audio: skipping cache lookup for NSFW playlist content (url={url})")
+            cached_videos = {}
+            uncached_indices = requested_indices
         # First, repost the cached ones
         if cached_videos:
             for index in requested_indices:
@@ -253,7 +261,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     try:
                         # Determine the correct log channel based on content type
                         from HELPERS.porn import is_porn
-                        is_nsfw = is_porn(url, "", "")
+                        is_nsfw = is_porn(url, "", "", None)
                         is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                         is_paid = is_nsfw and is_private_chat
                         
@@ -296,12 +304,19 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             else:
                 app.send_message(user_id, f"📥 {len(cached_videos)}/{len(requested_indices)} audio sent from cache, downloading missing ones...", reply_parameters=ReplyParameters(message_id=message.id))
     elif quality_key and not is_playlist:
-        cached_ids = get_cached_message_ids(url, quality_key)
+        # Check if content is NSFW - if so, skip cache lookup
+        from HELPERS.porn import is_porn
+        is_nsfw = is_porn(url, "", "", None)
+        if not is_nsfw:
+            cached_ids = get_cached_message_ids(url, quality_key)
+        else:
+            logger.info(f"down_and_audio: skipping cache lookup for NSFW single audio content (url={url})")
+            cached_ids = None
+        
         if cached_ids:
             try:
                 # Determine the correct log channel based on content type
-                from HELPERS.porn import is_porn
-                is_nsfw = is_porn(url, "", "")
+                # is_nsfw already determined above
                 is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                 is_paid = is_nsfw and is_private_chat
                 
@@ -958,7 +973,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 
                 # Determine the correct log channel based on content type
                 from HELPERS.porn import is_porn
-                is_nsfw = is_porn(url, "", "")
+                is_nsfw = is_porn(url, "", "", None)
                 is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                 is_paid = is_nsfw and is_private_chat
                 
@@ -972,8 +987,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 
                 forwarded_msg = safe_forward_messages(log_channel, user_id, [audio_msg.id])
                 
-                # Save to cache after sending audio
-                if quality_key and forwarded_msg:
+                # Save to cache after sending audio (only for non-NSFW content)
+                if quality_key and forwarded_msg and not is_nsfw:
                     if isinstance(forwarded_msg, list):
                         msg_ids = [m.id for m in forwarded_msg]
                     else:
@@ -992,6 +1007,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         # For single audios, save to regular cache
                         logger.info(f"down_and_audio: saving to video cache: msg_ids={msg_ids}")
                         save_to_video_cache(url, quality_key, msg_ids, original_text=message.text or message.caption or "", user_id=user_id)
+                elif is_nsfw:
+                    logger.info(f"down_and_audio: skipping cache for NSFW content (url={url})")
             except Exception as send_error:
                 logger.error(f"Error sending audio: {send_error}")
                 send_to_user(message, f"❌ Failed to send audio: {send_error}")

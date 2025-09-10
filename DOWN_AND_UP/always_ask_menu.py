@@ -1468,7 +1468,7 @@ def askq_callback(app, callback_query):
                             from HELPERS.logger import get_log_channel
                             from HELPERS.porn import is_porn
                             # Determine the correct log channel based on content type
-                            is_nsfw = is_porn(url, "", "")
+                            is_nsfw = is_porn(url, "", "", None)
                             is_private_chat = getattr(original_message.chat, "type", None) == enums.ChatType.PRIVATE
                             is_paid = is_nsfw and is_private_chat
                             logger.info(f"[VIDEO CACHE] URL analysis: url={url}, is_nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}")
@@ -1507,7 +1507,7 @@ def askq_callback(app, callback_query):
                             from HELPERS.logger import get_log_channel
                             from HELPERS.porn import is_porn
                             # Determine the correct log channel based on content type
-                            is_nsfw = is_porn(url, "", "")
+                            is_nsfw = is_porn(url, "", "", None)
                             is_private_chat = getattr(original_message.chat, "type", None) == enums.ChatType.PRIVATE
                             is_paid = is_nsfw and is_private_chat
                             logger.info(f"[VIDEO CACHE] URL analysis: url={url}, is_nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}")
@@ -1662,7 +1662,7 @@ def askq_callback(app, callback_query):
                         from HELPERS.logger import get_log_channel
                         from HELPERS.porn import is_porn
                         # Determine if this is paid media (NSFW in private chat)
-                        is_nsfw = is_porn(url, "", "")
+                        is_nsfw = is_porn(url, "", "", None)
                         is_private_chat = getattr(original_message.chat, "type", None) == enums.ChatType.PRIVATE
                         is_paid = is_nsfw and is_private_chat
                         logger.info(f"[VIDEO CACHE] URL analysis: url={url}, is_nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}")
@@ -1697,7 +1697,7 @@ def askq_callback(app, callback_query):
                     from HELPERS.logger import get_log_channel
                     from HELPERS.porn import is_porn
                     # Determine if this is paid media (NSFW in private chat)
-                    is_nsfw = is_porn(url, "", "")
+                    is_nsfw = is_porn(url, "", "", None)
                     is_private_chat = getattr(original_message.chat, "type", None) == enums.ChatType.PRIVATE
                     is_paid = is_nsfw and is_private_chat
                     logger.info(f"[VIDEO CACHE] URL analysis: url={url}, is_nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}")
@@ -1817,11 +1817,11 @@ def show_manual_quality_menu(app, callback_query):
             indices = list(range(playlist_range[0], playlist_range[1]+1))
             n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality, indices)
             total = len(indices)
-            icon = "🚀" if n_cached > 0 else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
+            icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
             postfix = f" ({n_cached}/{total})" if total > 1 else ""
             button_text = f"{icon}{quality}{postfix}"
         else:
-            icon = "🚀" if (quality in cached_qualities) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
+            icon = "🚀" if (quality in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
             button_text = f"{icon}{quality}"
         buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|manual_{quality}"))
 
@@ -1830,11 +1830,11 @@ def show_manual_quality_menu(app, callback_query):
         indices = list(range(playlist_range[0], playlist_range[1]+1))
         n_cached = get_cached_playlist_count(get_clean_playlist_url(url), "best", indices)
         total = len(indices)
-        icon = "🚀" if n_cached > 0 else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
+        icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
         postfix = f" ({n_cached}/{total})" if total > 1 else ""
         button_text = f"{icon}Best Quality{postfix}"
     else:
-        icon = "🚀" if ("best" in cached_qualities) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
+        icon = "🚀" if ("best" in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
         button_text = f"{icon}Best Quality"
     buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|manual_best"))
     
@@ -1849,11 +1849,11 @@ def show_manual_quality_menu(app, callback_query):
         indices = list(range(playlist_range[0], playlist_range[1]+1))
         n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
         total = len(indices)
-        icon = "🚀" if n_cached > 0 else ("1⭐️" if (is_nsfw and is_private_chat) else "🎧")
+        icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "🎧")
         postfix = f" ({n_cached}/{total})" if total > 1 else ""
         button_text = f"{icon} audio (mp3){postfix}"
     else:
-        icon = "🚀" if (quality_key in cached_qualities) else ("1⭐️" if (is_nsfw and is_private_chat) else "🎧")
+        icon = "🚀" if (quality_key in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "🎧")
         button_text = f"{icon} audio (mp3)"
     keyboard_rows.append([InlineKeyboardButton(button_text, callback_data=f"askq|manual_{quality_key}")])
     
@@ -2469,11 +2469,11 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
                     indices = list(range(playlist_range[0], playlist_range[1]+1))
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
                     total = len(indices)
-                    icon = "🚀" if n_cached > 0 else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
+                    icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     postfix = f" ({n_cached}/{total})" if total > 1 else ""
                     button_text = f"{icon}{quality_key}{postfix}"
                 else:
-                    icon = "🚀" if (quality_key in cached_qualities) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
+                    icon = "🚀" if (quality_key in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     button_text = f"{icon}{quality_key}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         
@@ -2483,11 +2483,11 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
             indices = list(range(playlist_range[0], playlist_range[1]+1))
             n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
             total = len(indices)
-            icon = "🚀" if n_cached > 0 else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
+            icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
             postfix = f" ({n_cached}/{total})" if total > 1 else ""
             button_text = f"{icon}Best{postfix}"
         else:
-            icon = "🚀" if (quality_key in cached_qualities) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
+            icon = "🚀" if (quality_key in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
             button_text = f"{icon}Best"
         buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         
@@ -2902,7 +2902,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                     is_cached = q in cached_qualities
                     postfix = ""
                 need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-                emoji = "🚀" if is_cached and not need_subs else "📹"
+                emoji = "🚀" if (is_cached and not need_subs and not is_nsfw) else "📹"
                 # Show selected audio language if any
                 sel_audio_lang = get_filters(user_id).get("audio_lang")
                 audio_mark = f" 🗣{sel_audio_lang}" if sel_audio_lang else ""
@@ -3392,7 +3392,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                     indices = list(range(playlist_range[0], playlist_range[1]+1))
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
                     total = len(indices)
-                    icon = "🚀" if n_cached > 0 else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
+                    icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     postfix = f" ({n_cached}/{total})" if total > 1 else ""
                     button_text = f"{icon}{quality_key}{subs_available}{postfix}"
                 else:
@@ -3406,7 +3406,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                         # In manual mode, respect user's auto_mode setting
                         need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
                     
-                    icon = "🚀" if (quality_key in cached_qualities and not need_subs) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
+                    icon = "🚀" if (quality_key in cached_qualities and not need_subs and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     button_text = f"{icon}{quality_key}{subs_available}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         else:
@@ -3428,11 +3428,11 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                     indices = list(range(playlist_range[0], playlist_range[1]+1))
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
                     total = len(indices)
-                    icon = "🚀" if n_cached > 0 else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
+                    icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     postfix = f" ({n_cached}/{total})" if total > 1 else ""
                     button_text = f"{icon}{quality_key}{postfix}"
                 else:
-                    icon = "🚀" if (quality_key in cached_qualities) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
+                    icon = "🚀" if (quality_key in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     button_text = f"{icon}{quality_key}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
 
@@ -3442,11 +3442,11 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             indices = list(range(playlist_range[0], playlist_range[1]+1))
             n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
             total = len(indices)
-            icon = "🚀" if n_cached > 0 else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
+            icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
             postfix = f" ({n_cached}/{total})" if total > 1 else ""
             button_text = f"{icon}Best{postfix}"
         else:
-            icon = "🚀" if (quality_key in cached_qualities) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
+            icon = "🚀" if (quality_key in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
             button_text = f"{icon}Best"
         buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         

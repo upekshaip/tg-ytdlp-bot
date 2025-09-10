@@ -144,14 +144,47 @@ def ensure_paid_cover(video_path, existing_thumb=None):
 # Get app instance for decorators
 app = get_app()
 
+def _send_open_copy_to_nsfw_channel(file_path: str, caption: str, user_id: int, message_id: int, is_video: bool = False):
+    """Send open copy of media to NSFW channel for history"""
+    try:
+        log_channel_nsfw = get_log_channel("image", nsfw=True, paid=False)
+        
+        if is_video:
+            # Send as video
+            open_msg = app.send_video(
+                chat_id=log_channel_nsfw,
+                video=file_path,
+                caption=caption,
+                reply_parameters=ReplyParameters(message_id=message_id)
+            )
+        else:
+            # Send as photo
+            open_msg = app.send_photo(
+                chat_id=log_channel_nsfw,
+                photo=file_path,
+                caption=caption,
+                reply_parameters=ReplyParameters(message_id=message_id)
+            )
+        
+        logger.info(f"[IMG LOG] Open copy sent to NSFW channel for history: {file_path}")
+        return open_msg
+    except Exception as e:
+        logger.error(f"[IMG LOG] Failed to send open copy to NSFW channel: {e}")
+        return None
+
 def _save_album_now(url: str, album_index: int, message_ids: list):
     try:
         # Determine channel type for logging
         try:
-            is_nsfw = bool(is_porn(url, "", "", ""))
+            is_nsfw = bool(is_porn(url, "", "", None))
             channel_type = "NSFW" if is_nsfw else "regular"
         except Exception:
             channel_type = "unknown"
+        
+        # Don't cache NSFW content
+        if is_nsfw:
+            logger.info(f"[IMG CACHE] Skipping cache save for NSFW content: index={album_index}, channel_type={channel_type}")
+            return
         
         logger.info(f"[IMG CACHE] About to save album: index={album_index}, ids={message_ids}, channel_type={channel_type}")
         save_to_image_cache(url, album_index, message_ids)
@@ -386,21 +419,28 @@ def image_command(app, message):
 
     # Determine NSFW flag based on URL for cache operations
     try:
-        nsfw_flag = bool(is_porn(url, "", "", ""))
+        nsfw_flag = bool(is_porn(url, "", "", None))
     except Exception:
         nsfw_flag = False
     
-    # Early cache serve before any analysis/downloading
+    # Early cache serve before any analysis/downloading (only for non-NSFW content)
+    cached_map = {}
+    if not nsfw_flag:
+        try:
+            requested_indices = None
+            if manual_range is not None:
+                start_i, end_i = manual_range
+                if end_i is not None:
+                    requested_indices = list(range(int(start_i), int(end_i) + 1))
+                else:
+                    cached_all = sorted(list(get_cached_image_post_indices(url)))
+                    requested_indices = [i for i in cached_all if i >= int(start_i)]
+            cached_map = get_cached_image_posts(url, requested_indices)
+        except Exception as e:
+            logger.error(f"Error getting cached image posts: {e}")
+            cached_map = {}
+    
     try:
-        requested_indices = None
-        if manual_range is not None:
-            start_i, end_i = manual_range
-            if end_i is not None:
-                requested_indices = list(range(int(start_i), int(end_i) + 1))
-            else:
-                cached_all = sorted(list(get_cached_image_post_indices(url)))
-                requested_indices = [i for i in cached_all if i >= int(start_i)]
-        cached_map = get_cached_image_posts(url, requested_indices)
         if cached_map:
             for album_idx in sorted(cached_map.keys()):
                 ids = cached_map[album_idx]
@@ -409,49 +449,18 @@ def image_command(app, message):
                     thread_id = getattr(message, 'message_thread_id', None)
                     if thread_id:
                         kwargs['message_thread_id'] = thread_id
-                    # Determine the correct log channel for reposting
-                    is_private_chat = message.chat.type == enums.ChatType.PRIVATE
-                    is_paid_media = nsfw_flag and is_private_chat
-                    logger.info(f"[IMG CACHE] URL analysis: url={url}, nsfw_flag={nsfw_flag}, is_private_chat={is_private_chat}, is_paid_media={is_paid_media}")
+                    # For cached content, always use regular channel (no NSFW/PAID in cache)
+                    from_chat_id = get_log_channel("image")
+                    channel_type = "regular"
                     
-                    if is_paid_media:
-                        from_chat_id = get_log_channel("image", paid=True)
-                        channel_type = "PAID"
-                    elif nsfw_flag:
-                        from_chat_id = get_log_channel("image", nsfw=True)
-                        channel_type = "NSFW"
-                    else:
-                        from_chat_id = get_log_channel("image")
-                        channel_type = "regular"
-                    
-                    logger.info(f"[IMG CACHE] Channel selection: nsfw_flag={nsfw_flag}, is_private_chat={is_private_chat}, is_paid_media={is_paid_media}, channel_type={channel_type}, from_chat_id={from_chat_id}")
-                    
-                    # Check channel access restrictions
-                    if is_private_chat and channel_type == "NSFW":
-                        logger.info(f"[IMG CACHE] Access denied: NSFW cache not allowed in private chat, skipping album {album_idx}")
-                        continue  # Skip this album
-                    elif not is_private_chat and channel_type == "PAID":
-                        logger.info(f"[IMG CACHE] Access denied: Paid cache not allowed in group chat, skipping album {album_idx}")
-                        continue  # Skip this album
-                    
-                    # Verify we're reposting from a valid log channel
-                    valid_channels = [
-                        get_log_channel("image"),
-                        get_log_channel("image", nsfw=True),
-                        get_log_channel("image", paid=True)
-                    ]
-                    if from_chat_id not in valid_channels:
-                        logger.error(f"CRITICAL: Attempting to repost from wrong channel {from_chat_id}")
-                        continue
-                    
-                    try:
-                        logger.info(f"[IMG CACHE] Reposting album {album_idx} from channel {from_chat_id} to user {user_id}, message_ids={ids}")
-                        sm.safe_forward_messages(user_id, from_chat_id, ids, **kwargs)
-                    except Exception:
-                        logger.info(f"[IMG CACHE] Fallback reposting album {album_idx} from channel {from_chat_id} to user {user_id}, message_ids={ids}")
-                        app.forward_messages(user_id, from_chat_id, ids, **kwargs)
+                    logger.info(f"[IMG CACHE] Reposting album {album_idx} from channel {from_chat_id} to user {user_id}, message_ids={ids}")
+                    sm.safe_forward_messages(user_id, from_chat_id, ids, **kwargs)
+                except Exception:
+                    logger.info(f"[IMG CACHE] Fallback reposting album {album_idx} from channel {from_chat_id} to user {user_id}, message_ids={ids}")
+                    app.forward_messages(user_id, from_chat_id, ids, **kwargs)
                 except Exception as _e:
                     logger.warning(f"Failed to forward cached album {album_idx}: {_e}")
+            
             try:
                 safe_edit_message_text(
                     user_id, status_msg.id,
@@ -476,7 +485,7 @@ def image_command(app, message):
         except Exception:
             info_title = info_desc = info_caption = None
         try:
-            nsfw_flag = bool(is_porn(url, "", "", ""))
+            nsfw_flag = bool(is_porn(url, "", "", None))
         except Exception:
             nsfw_flag = False
         
@@ -499,82 +508,6 @@ def image_command(app, message):
             f"<b>URL:</b> <code>{url}</code>",
             parse_mode=enums.ParseMode.HTML
         )
-        # Try to serve from cache again (after analysis) — safe redundancy
-        try:
-            requested_indices = None
-            if manual_range is not None:
-                start_i, end_i = manual_range
-                if end_i is not None:
-                    requested_indices = list(range(int(start_i), int(end_i) + 1))
-                else:
-                    cached_all = sorted(list(get_cached_image_post_indices(url)))
-                    requested_indices = [i for i in cached_all if i >= int(start_i)]
-            cached_map = get_cached_image_posts(url, requested_indices)
-            if cached_map:
-                for album_idx in sorted(cached_map.keys()):
-                    ids = cached_map[album_idx]
-                    try:
-                        kwargs = {}
-                        thread_id = getattr(message, 'message_thread_id', None)
-                        if thread_id:
-                            kwargs['message_thread_id'] = thread_id
-                        # Determine the correct log channel for reposting
-                        is_private_chat = message.chat.type == enums.ChatType.PRIVATE
-                        is_paid_media = nsfw_flag and is_private_chat
-                        logger.info(f"[IMG CACHE] URL analysis: url={url}, nsfw_flag={nsfw_flag}, is_private_chat={is_private_chat}, is_paid_media={is_paid_media}")
-                        
-                        if is_paid_media:
-                            from_chat_id = get_log_channel("image", paid=True)
-                            channel_type = "PAID"
-                        elif nsfw_flag:
-                            from_chat_id = get_log_channel("image", nsfw=True)
-                            channel_type = "NSFW"
-                        else:
-                            from_chat_id = get_log_channel("image")
-                            channel_type = "regular"
-                        
-                        logger.info(f"[IMG CACHE] Channel selection: nsfw_flag={nsfw_flag}, is_private_chat={is_private_chat}, is_paid_media={is_paid_media}, channel_type={channel_type}, from_chat_id={from_chat_id}")
-                        
-                        # Check channel access restrictions
-                        if is_private_chat and channel_type == "NSFW":
-                            logger.info(f"[IMG CACHE] Access denied: NSFW cache not allowed in private chat, skipping album {album_idx}")
-                            continue  # Skip this album
-                        elif not is_private_chat and channel_type == "PAID":
-                            logger.info(f"[IMG CACHE] Access denied: Paid cache not allowed in group chat, skipping album {album_idx}")
-                            continue  # Skip this album
-                        
-                        # Verify we're reposting from a valid log channel
-                        valid_channels = [
-                            get_log_channel("image"),
-                            get_log_channel("image", nsfw=True),
-                            get_log_channel("image", paid=True)
-                        ]
-                        if from_chat_id not in valid_channels:
-                            logger.error(f"CRITICAL: Attempting to repost from wrong channel {from_chat_id}")
-                            continue
-                        
-                        try:
-                            logger.info(f"[IMG CACHE] Reposting album {album_idx} from channel {from_chat_id} to user {user_id}, message_ids={ids}")
-                            sm.safe_forward_messages(user_id, from_chat_id, ids, **kwargs)
-                        except Exception:
-                            logger.info(f"[IMG CACHE] Fallback reposting album {album_idx} from channel {from_chat_id} to user {user_id}, message_ids={ids}")
-                            app.forward_messages(user_id, from_chat_id, ids, **kwargs)
-                    except Exception as _e:
-                        logger.warning(f"Failed to forward cached album {album_idx}: {_e}")
-                # If we found anything in cache, finish early (do not re-download)
-                try:
-                    safe_edit_message_text(
-                        user_id,
-                        status_msg.id,
-                        Config.SENT_FROM_CACHE_MSG.format(count=len(cached_map)),
-                        parse_mode=enums.ParseMode.HTML,
-                    )
-                except Exception:
-                    pass
-                send_to_logger(message, LoggerMsg.REPOSTED_CACHED_ALBUMS.format(count=len(cached_map), url=url))
-                return
-        except Exception as _e:
-            logger.warning(f"Image cache forward failed: {_e}")
         
         # Create user directory
         user_dir = os.path.join("users", str(user_id))
@@ -809,6 +742,20 @@ def image_command(app, message):
                                                 sent.extend(paid_msg)
                                             elif paid_msg is not None:
                                                 sent.append(paid_msg)
+                                                
+                                                # Send open copy to NSFW channel for history
+                                                try:
+                                                    caption = m.caption or ""
+                                                    is_video = not isinstance(m, InputMediaPhoto)
+                                                    _send_open_copy_to_nsfw_channel(
+                                                        file_path=m.media,
+                                                        caption=caption,
+                                                        user_id=user_id,
+                                                        message_id=message.id,
+                                                        is_video=is_video
+                                                    )
+                                                except Exception as e:
+                                                    logger.error(f"[IMG LOG] Failed to send open copy for album item: {e}")
                                         except Exception as e:
                                             logger.error(f"Failed to send individual paid media: {e}")
                                             # Fallback to regular media
@@ -872,37 +819,36 @@ def image_command(app, message):
                                     for _mid in orig_ids:
                                         try:
                                             if is_paid_media:
-                                                # For paid media, forward to LOGS_PAID_ID and save forwarded IDs
-                                                log_channel = get_log_channel("image", nsfw=False, paid=True)
+                                                # For NSFW content in private chat, send to both channels but don't cache
+                                                # Send to LOGS_PAID_ID (for paid content)
+                                                log_channel_paid = get_log_channel("image", nsfw=False, paid=True)
                                                 try:
-                                                    forwarded_msgs = app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
-                                                    if forwarded_msgs:
-                                                        # forward_messages returns a list of forwarded messages
-                                                        forwarded_msg = forwarded_msgs[0] if isinstance(forwarded_msgs, list) else forwarded_msgs
-                                                        f_ids.append(forwarded_msg.id)
-                                                        time.sleep(0.05)
-                                                except Exception as fe:
-                                                    logger.error(f"[IMG CACHE] forward_messages failed for paid media id={_mid}: {fe}")
-                                                    # Fallback to original ID if forwarding fails
-                                                    f_ids.append(_mid)
+                                                    app.forward_messages(chat_id=log_channel_paid, from_chat_id=user_id, message_ids=[_mid])
                                                     time.sleep(0.05)
+                                                except Exception as fe:
+                                                    logger.error(f"[IMG LOG] forward_messages failed for paid media id={_mid}: {fe}")
+                                                
+                                                # Send to LOGS_NSFW_ID (for history) - open copy is sent directly after paid media creation
+                                                # No need to forward paid media here as open copy is already sent
+                                                logger.info(f"[IMG LOG] Open copy for album message {_mid} already sent during paid media creation")
+                                                
+                                                # Don't cache NSFW content
+                                                logger.info(f"[IMG LOG] NSFW content sent to both channels (paid + history), not cached")
+                                                
                                             elif nsfw_flag and not is_private_chat:
-                                                # NSFW content in groups -> LOGS_NSWF_ID
+                                                # NSFW content in groups -> LOGS_NSFW_ID only
                                                 log_channel = get_log_channel("image", nsfw=True, paid=False)
                                                 try:
-                                                    forwarded_msgs = app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
-                                                    if forwarded_msgs:
-                                                        # forward_messages returns a list of forwarded messages
-                                                        forwarded_msg = forwarded_msgs[0] if isinstance(forwarded_msgs, list) else forwarded_msgs
-                                                        f_ids.append(forwarded_msg.id)
-                                                        time.sleep(0.05)
-                                                except Exception as fe:
-                                                    logger.error(f"[IMG CACHE] forward_messages failed for NSFW media id={_mid}: {fe}")
-                                                    # Fallback to original ID if forwarding fails
-                                                    f_ids.append(_mid)
+                                                    app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
                                                     time.sleep(0.05)
+                                                except Exception as fe:
+                                                    logger.error(f"[IMG LOG] forward_messages failed for NSFW media id={_mid}: {fe}")
+                                                
+                                                # Don't cache NSFW content
+                                                logger.info(f"[IMG LOG] NSFW content sent to NSFW channel, not cached")
+                                                
                                             else:
-                                                # Regular content -> LOGS_IMG_ID
+                                                # Regular content -> LOGS_IMG_ID and cache
                                                 log_channel = get_log_channel("image", nsfw=False, paid=False)
                                                 try:
                                                     forwarded_msgs = app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
@@ -917,11 +863,14 @@ def image_command(app, message):
                                                     f_ids.append(_mid)
                                                     time.sleep(0.05)
                                         except Exception as ce:
-                                            logger.error(f"[IMG CACHE] copy_message failed for id={_mid}: {ce}")
+                                            logger.error(f"[IMG LOG] forward_messages failed for id={_mid}: {ce}")
                                     album_index += 1
-                                    if f_ids:
+                                    # Only cache regular content (not NSFW)
+                                    if f_ids and not nsfw_flag:
                                         logger.info(f"[IMG CACHE] Album index={album_index} collected log_ids={f_ids}")
                                         _save_album_now(url, album_index, f_ids)
+                                    elif nsfw_flag:
+                                        logger.info(f"[IMG CACHE] Skipping cache save for NSFW content, album index={album_index}")
                                     else:
                                         logger.error("[IMG CACHE] No log IDs collected; skipping cache save for this album")
                                 except Exception as e_copy:
@@ -974,6 +923,18 @@ def image_command(app, message):
                                                                 payload=str(Config.STAR_RECEIVER),
                                                                 reply_parameters=ReplyParameters(message_id=message.id)
                                                             )
+                                                            
+                                                            # Send open copy to NSFW channel for history
+                                                            try:
+                                                                _send_open_copy_to_nsfw_channel(
+                                                                    file_path=f,
+                                                                    caption="",
+                                                                    user_id=user_id,
+                                                                    message_id=message.id,
+                                                                    is_video=False
+                                                                )
+                                                            except Exception as e:
+                                                                logger.error(f"[IMG LOG] Failed to send open copy for single photo: {e}")
                                                         else:
                                                             sent_msg = app.send_photo(
                                                                 user_id,
@@ -1017,6 +978,18 @@ def image_command(app, message):
                                                                     reply_parameters=ReplyParameters(message_id=message.id),
                                                                     message_thread_id=getattr(message, 'message_thread_id', None)
                                                                 )
+                                                                
+                                                                # Send open copy to NSFW channel for history
+                                                                try:
+                                                                    _send_open_copy_to_nsfw_channel(
+                                                                        file_path=f,
+                                                                        caption="",
+                                                                        user_id=user_id,
+                                                                        message_id=message.id,
+                                                                        is_video=True
+                                                                    )
+                                                                except Exception as e:
+                                                                    logger.error(f"[IMG LOG] Failed to send open copy for single video: {e}")
                                                             else:
                                                                 sent_msg = app.send_video(
                                                                     user_id,
@@ -1036,6 +1009,18 @@ def image_command(app, message):
                                                                     reply_parameters=ReplyParameters(message_id=message.id),
                                                                     message_thread_id=getattr(message, 'message_thread_id', None)
                                                                 )
+                                                                
+                                                                # Send open copy to NSFW channel for history
+                                                                try:
+                                                                    _send_open_copy_to_nsfw_channel(
+                                                                        file_path=f,
+                                                                        caption="",
+                                                                        user_id=user_id,
+                                                                        message_id=message.id,
+                                                                        is_video=True
+                                                                    )
+                                                                except Exception as e:
+                                                                    logger.error(f"[IMG LOG] Failed to send open copy for single video (fallback): {e}")
                                                             else:
                                                                 sent_msg = app.send_video(
                                                                     user_id,
@@ -1086,37 +1071,36 @@ def image_command(app, message):
                                         for _mid in tmp_ids:
                                             try:
                                                 if is_paid_media:
-                                                    # For paid media, forward to LOGS_PAID_ID and save forwarded IDs
-                                                    log_channel = get_log_channel("image", nsfw=False, paid=True)
+                                                    # For NSFW content in private chat, send to both channels but don't cache
+                                                    # Send to LOGS_PAID_ID (for paid content)
+                                                    log_channel_paid = get_log_channel("image", nsfw=False, paid=True)
                                                     try:
-                                                        forwarded_msgs = app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
-                                                        if forwarded_msgs:
-                                                            # forward_messages returns a list of forwarded messages
-                                                            forwarded_msg = forwarded_msgs[0] if isinstance(forwarded_msgs, list) else forwarded_msgs
-                                                            f_ids.append(forwarded_msg.id)
-                                                            time.sleep(0.05)
-                                                    except Exception as fe:
-                                                        logger.error(f"[IMG CACHE] forward_messages (fallback) failed for paid media id={_mid}: {fe}")
-                                                        # Fallback to original ID if forwarding fails
-                                                        f_ids.append(_mid)
+                                                        app.forward_messages(chat_id=log_channel_paid, from_chat_id=user_id, message_ids=[_mid])
                                                         time.sleep(0.05)
+                                                    except Exception as fe:
+                                                        logger.error(f"[IMG LOG] forward_messages (fallback) failed for paid media id={_mid}: {fe}")
+                                                    
+                                                    # Send to LOGS_NSFW_ID (for history) - open copy is sent directly after paid media creation
+                                                    # No need to forward paid media here as open copy is already sent
+                                                    logger.info(f"[IMG LOG] Open copy for fallback message {_mid} already sent during paid media creation")
+                                                    
+                                                    # Don't cache NSFW content
+                                                    logger.info(f"[IMG LOG] NSFW content sent to both channels (paid + history), not cached")
+                                                    
                                                 elif nsfw_flag and not is_private_chat:
-                                                    # NSFW content in groups -> LOGS_NSWF_ID
+                                                    # NSFW content in groups -> LOGS_NSFW_ID only
                                                     log_channel = get_log_channel("image", nsfw=True, paid=False)
                                                     try:
-                                                        forwarded_msgs = app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
-                                                        if forwarded_msgs:
-                                                            # forward_messages returns a list of forwarded messages
-                                                            forwarded_msg = forwarded_msgs[0] if isinstance(forwarded_msgs, list) else forwarded_msgs
-                                                            f_ids.append(forwarded_msg.id)
-                                                            time.sleep(0.05)
-                                                    except Exception as fe:
-                                                        logger.error(f"[IMG CACHE] forward_messages (fallback) failed for NSFW media id={_mid}: {fe}")
-                                                        # Fallback to original ID if forwarding fails
-                                                        f_ids.append(_mid)
+                                                        app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
                                                         time.sleep(0.05)
+                                                    except Exception as fe:
+                                                        logger.error(f"[IMG LOG] forward_messages (fallback) failed for NSFW media id={_mid}: {fe}")
+                                                    
+                                                    # Don't cache NSFW content
+                                                    logger.info(f"[IMG LOG] NSFW content sent to NSFW channel, not cached")
+                                                    
                                                 else:
-                                                    # Regular content -> LOGS_IMG_ID
+                                                    # Regular content -> LOGS_IMG_ID and cache
                                                     log_channel = get_log_channel("image", nsfw=False, paid=False)
                                                     try:
                                                         forwarded_msgs = app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
@@ -1131,11 +1115,14 @@ def image_command(app, message):
                                                         f_ids.append(_mid)
                                                         time.sleep(0.05)
                                             except Exception as ce:
-                                                logger.error(f"[IMG CACHE] copy_message (fallback) failed for id={_mid}: {ce}")
+                                                logger.error(f"[IMG LOG] forward_messages (fallback) failed for id={_mid}: {ce}")
                                         album_index += 1
-                                        if f_ids:
+                                        # Only cache regular content (not NSFW)
+                                        if f_ids and not nsfw_flag:
                                             logger.info(f"[IMG CACHE] Fallback album index={album_index} collected log_ids={f_ids}")
                                             _save_album_now(url, album_index, f_ids)
+                                        elif nsfw_flag:
+                                            logger.info(f"[IMG CACHE] Fallback: Skipping cache save for NSFW content, album index={album_index}")
                                         else:
                                             logger.error("[IMG CACHE] No log IDs collected in fallback; skipping cache save for this album")
                                 except Exception as e_copy2:
@@ -1247,6 +1234,20 @@ def image_command(app, message):
                                             sent.extend(paid_msg)
                                         elif paid_msg is not None:
                                             sent.append(paid_msg)
+                                            
+                                            # Send open copy to NSFW channel for history
+                                            try:
+                                                caption = m.caption or ""
+                                                is_video = not isinstance(m, InputMediaPhoto)
+                                                _send_open_copy_to_nsfw_channel(
+                                                    file_path=m.media,
+                                                    caption=caption,
+                                                    user_id=user_id,
+                                                    message_id=message.id,
+                                                    is_video=is_video
+                                                )
+                                            except Exception as e:
+                                                logger.error(f"[IMG LOG] Failed to send open copy for album item (fallback): {e}")
                                     else:
                                         # Ensure cover for video
                                         video_path = m.media if not hasattr(m.media, 'name') else m.media.name
@@ -1271,6 +1272,20 @@ def image_command(app, message):
                                             sent.extend(paid_msg)
                                         elif paid_msg is not None:
                                             sent.append(paid_msg)
+                                            
+                                            # Send open copy to NSFW channel for history
+                                            try:
+                                                caption = m.caption or ""
+                                                is_video = not isinstance(m, InputMediaPhoto)
+                                                _send_open_copy_to_nsfw_channel(
+                                                    file_path=m.media,
+                                                    caption=caption,
+                                                    user_id=user_id,
+                                                    message_id=message.id,
+                                                    is_video=is_video
+                                                )
+                                            except Exception as e:
+                                                logger.error(f"[IMG LOG] Failed to send open copy for album video (fallback): {e}")
                                 except Exception as e:
                                     logger.error(f"Failed to send individual paid media: {e}")
                                     # Fallback to regular media
@@ -1336,37 +1351,36 @@ def image_command(app, message):
                             for _mid in orig_ids2:
                                 try:
                                     if is_paid_media:
-                                        # For paid media, forward to LOGS_PAID_ID and save forwarded IDs
-                                        log_channel = get_log_channel("image", nsfw=False, paid=True)
+                                        # For NSFW content in private chat, send to both channels but don't cache
+                                        # Send to LOGS_PAID_ID (for paid content)
+                                        log_channel_paid = get_log_channel("image", nsfw=False, paid=True)
                                         try:
-                                            forwarded_msgs = app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
-                                            if forwarded_msgs:
-                                                # forward_messages returns a list of forwarded messages
-                                                forwarded_msg = forwarded_msgs[0] if isinstance(forwarded_msgs, list) else forwarded_msgs
-                                                f_ids.append(forwarded_msg.id)
-                                                time.sleep(0.05)
-                                        except Exception as fe:
-                                            logger.error(f"[IMG CACHE] forward_messages (tail) failed for paid media id={_mid}: {fe}")
-                                            # Fallback to original ID if forwarding fails
-                                            f_ids.append(_mid)
+                                            app.forward_messages(chat_id=log_channel_paid, from_chat_id=user_id, message_ids=[_mid])
                                             time.sleep(0.05)
+                                        except Exception as fe:
+                                            logger.error(f"[IMG LOG] forward_messages (tail) failed for paid media id={_mid}: {fe}")
+                                        
+                                        # Send to LOGS_NSFW_ID (for history) - open copy is sent directly after paid media creation
+                                        # No need to forward paid media here as open copy is already sent
+                                        logger.info(f"[IMG LOG] Open copy for tail message {_mid} already sent during paid media creation")
+                                        
+                                        # Don't cache NSFW content
+                                        logger.info(f"[IMG LOG] NSFW content sent to both channels (paid + history), not cached")
+                                        
                                     elif nsfw_flag and not is_private_chat:
-                                        # NSFW content in groups -> LOGS_NSWF_ID
+                                        # NSFW content in groups -> LOGS_NSFW_ID only
                                         log_channel = get_log_channel("image", nsfw=True, paid=False)
                                         try:
-                                            forwarded_msgs = app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
-                                            if forwarded_msgs:
-                                                # forward_messages returns a list of forwarded messages
-                                                forwarded_msg = forwarded_msgs[0] if isinstance(forwarded_msgs, list) else forwarded_msgs
-                                                f_ids.append(forwarded_msg.id)
-                                                time.sleep(0.05)
-                                        except Exception as fe:
-                                            logger.error(f"[IMG CACHE] forward_messages (tail) failed for NSFW media id={_mid}: {fe}")
-                                            # Fallback to original ID if forwarding fails
-                                            f_ids.append(_mid)
+                                            app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
                                             time.sleep(0.05)
+                                        except Exception as fe:
+                                            logger.error(f"[IMG LOG] forward_messages (tail) failed for NSFW media id={_mid}: {fe}")
+                                        
+                                        # Don't cache NSFW content
+                                        logger.info(f"[IMG LOG] NSFW content sent to NSFW channel, not cached")
+                                        
                                     else:
-                                        # Regular content -> LOGS_IMG_ID
+                                        # Regular content -> LOGS_IMG_ID and cache
                                         log_channel = get_log_channel("image", nsfw=False, paid=False)
                                         try:
                                             forwarded_msgs = app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
@@ -1381,11 +1395,14 @@ def image_command(app, message):
                                             f_ids.append(_mid)
                                             time.sleep(0.05)
                                 except Exception as ce:
-                                    logger.error(f"[IMG CACHE] copy_message (tail) failed for id={_mid}: {ce}")
+                                    logger.error(f"[IMG LOG] forward_messages (tail) failed for id={_mid}: {ce}")
                             album_index += 1
-                            if f_ids:
+                            # Only cache regular content (not NSFW)
+                            if f_ids and not nsfw_flag:
                                 logger.info(f"[IMG CACHE] Tail album index={album_index} collected log_ids={f_ids}")
                                 _save_album_now(url, album_index, f_ids)
+                            elif nsfw_flag:
+                                logger.info(f"[IMG CACHE] Tail: Skipping cache save for NSFW content, album index={album_index}")
                             else:
                                 logger.error("[IMG CACHE] No log IDs collected in tail; skipping cache save for this album")
                         except Exception as e_tail:
@@ -1515,37 +1532,36 @@ def image_command(app, message):
                                 for _mid in tmp_ids2:
                                     try:
                                         if is_paid_media:
-                                            # For paid media, forward to LOGS_PAID_ID and save forwarded IDs
-                                            log_channel = get_log_channel("image", nsfw=False, paid=True)
+                                            # For NSFW content in private chat, send to both channels but don't cache
+                                            # Send to LOGS_PAID_ID (for paid content)
+                                            log_channel_paid = get_log_channel("image", nsfw=False, paid=True)
                                             try:
-                                                forwarded_msgs = app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
-                                                if forwarded_msgs:
-                                                    # forward_messages returns a list of forwarded messages
-                                                    forwarded_msg = forwarded_msgs[0] if isinstance(forwarded_msgs, list) else forwarded_msgs
-                                                    f_ids.append(forwarded_msg.id)
-                                                    time.sleep(0.05)
-                                            except Exception as fe:
-                                                logger.error(f"[IMG CACHE] forward_messages (tail-fallback) failed for paid media id={_mid}: {fe}")
-                                                # Fallback to original ID if forwarding fails
-                                                f_ids.append(_mid)
+                                                app.forward_messages(chat_id=log_channel_paid, from_chat_id=user_id, message_ids=[_mid])
                                                 time.sleep(0.05)
+                                            except Exception as fe:
+                                                logger.error(f"[IMG LOG] forward_messages (tail-fallback) failed for paid media id={_mid}: {fe}")
+                                            
+                                            # Send to LOGS_NSFW_ID (for history) - open copy is sent directly after paid media creation
+                                            # No need to forward paid media here as open copy is already sent
+                                            logger.info(f"[IMG LOG] Open copy for tail-fallback message {_mid} already sent during paid media creation")
+                                            
+                                            # Don't cache NSFW content
+                                            logger.info(f"[IMG LOG] NSFW content sent to both channels (paid + history), not cached")
+                                            
                                         elif nsfw_flag and not is_private_chat:
-                                            # NSFW content in groups -> LOGS_NSWF_ID
+                                            # NSFW content in groups -> LOGS_NSFW_ID only
                                             log_channel = get_log_channel("image", nsfw=True, paid=False)
                                             try:
-                                                forwarded_msgs = app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
-                                                if forwarded_msgs:
-                                                    # forward_messages returns a list of forwarded messages
-                                                    forwarded_msg = forwarded_msgs[0] if isinstance(forwarded_msgs, list) else forwarded_msgs
-                                                    f_ids.append(forwarded_msg.id)
-                                                    time.sleep(0.05)
-                                            except Exception as fe:
-                                                logger.error(f"[IMG CACHE] forward_messages (tail-fallback) failed for NSFW media id={_mid}: {fe}")
-                                                # Fallback to original ID if forwarding fails
-                                                f_ids.append(_mid)
+                                                app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
                                                 time.sleep(0.05)
+                                            except Exception as fe:
+                                                logger.error(f"[IMG LOG] forward_messages (tail-fallback) failed for NSFW media id={_mid}: {fe}")
+                                            
+                                            # Don't cache NSFW content
+                                            logger.info(f"[IMG LOG] NSFW content sent to NSFW channel, not cached")
+                                            
                                         else:
-                                            # Regular content -> LOGS_IMG_ID
+                                            # Regular content -> LOGS_IMG_ID and cache
                                             log_channel = get_log_channel("image", nsfw=False, paid=False)
                                             try:
                                                 forwarded_msgs = app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
@@ -1560,11 +1576,14 @@ def image_command(app, message):
                                                 f_ids.append(_mid)
                                                 time.sleep(0.05)
                                     except Exception as ce:
-                                        logger.error(f"[IMG CACHE] copy_message (tail-fallback) failed for id={_mid}: {ce}")
+                                        logger.error(f"[IMG LOG] forward_messages (tail-fallback) failed for id={_mid}: {ce}")
                                 album_index += 1
-                                if f_ids:
+                                # Only cache regular content (not NSFW)
+                                if f_ids and not nsfw_flag:
                                     logger.info(f"[IMG CACHE] Tail-fallback album index={album_index} collected log_ids={f_ids}")
                                     _save_album_now(url, album_index, f_ids)
+                                elif nsfw_flag:
+                                    logger.info(f"[IMG CACHE] Tail-fallback: Skipping cache save for NSFW content, album index={album_index}")
                                 else:
                                     logger.error("[IMG CACHE] No log IDs collected in tail-fallback; skipping cache save for this album")
                         except Exception as e_tail2:

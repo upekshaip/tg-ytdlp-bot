@@ -55,7 +55,7 @@ def get_log_channel(kind: str = "general", nsfw: bool = False, paid: bool = Fals
         if paid:
             return getattr(Config, "LOGS_PAID_ID", getattr(Config, "LOGS_ID", 0))
         if nsfw and kind_normalized in ("video", "image"):
-            return getattr(Config, "LOGS_NSWF_ID", getattr(Config, "LOGS_ID", 0))
+            return getattr(Config, "LOGS_NSFW_ID", getattr(Config, "LOGS_ID", 0))
         if kind_normalized == "video":
             return getattr(Config, "LOGS_VIDEO_ID", getattr(Config, "LOGS_ID", 0))
         if kind_normalized == "image":
