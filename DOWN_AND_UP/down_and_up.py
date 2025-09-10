@@ -1709,24 +1709,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         except Exception as e:
                                             logger.error(f"down_and_up: failed to send paid copy to PAID channel (manual): {e}")
                                         
-                                        # Send open copy to LOGS_NSWF_ID for history
-                                        log_channel_nsfw = get_log_channel("video", nsfw=True)
-                                        try:
-                                            # Create open copy for history (without stars) - send directly to NSFW channel
-                                            open_video_msg = app.send_video(
-                                                chat_id=log_channel_nsfw,
-                                                video=after_rename_abs_path,
-                                                caption='' if force_no_title else original_video_title,
-                                                duration=duration,
-                                                thumb=thumb_dir,
-                                                reply_parameters=ReplyParameters(message_id=message.id)
-                                            )
-                                            logger.info(f"down_and_up: NSFW content open copy sent to NSFW channel for history (manual)")
-                                        except Exception as e:
-                                            logger.error(f"down_and_up: failed to send open copy to NSFW channel (manual): {e}")
+                                        # LOGS_NSWF_ID was already handled in the main logic above
+                                        # No need to send again in manual forward
                                         
                                         # Don't cache NSFW content
-                                        logger.info(f"down_and_up: NSFW content sent to user (paid) and NSFW channel (open copy), not cached (manual)")
+                                        logger.info(f"down_and_up: NSFW content sent to user (paid) and PAID channel (paid copy), not cached (manual)")
                                         forwarded_msgs = None
                                         
                                     elif is_nsfw:
