@@ -977,15 +977,47 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                 is_paid = is_nsfw and is_private_chat
                 
-                # Get the log channel where the audio should be forwarded
+                # Handle different content types according to new logic
                 if is_paid:
-                    log_channel = get_log_channel("video", paid=True)
+                    # For NSFW content in private chat, send to both channels but don't cache
+                    # Send to LOGS_PAID_ID (for paid content)
+                    log_channel_paid = get_log_channel("video", paid=True)
+                    try:
+                        safe_forward_messages(log_channel_paid, user_id, [audio_msg.id])
+                        logger.info(f"down_and_audio: NSFW audio sent to paid channel")
+                    except Exception as e:
+                        logger.error(f"down_and_audio: failed to forward to paid channel: {e}")
+                    
+                    # Send to LOGS_NSWF_ID (for history) - send open copy, not paid media
+                    log_channel_nsfw = get_log_channel("video", nsfw=True)
+                    try:
+                        # Create open copy for history (without stars)
+                        open_audio_msg = app.send_audio(
+                            chat_id=log_channel_nsfw,
+                            audio=audio_file,
+                            caption=caption_with_link,
+                            reply_parameters=ReplyParameters(message_id=message.id),
+                            thumb=telegram_thumb if telegram_thumb and os.path.exists(telegram_thumb) else None
+                        )
+                        logger.info(f"down_and_audio: NSFW audio open copy sent to NSFW channel for history")
+                    except Exception as e:
+                        logger.error(f"down_and_audio: failed to send open copy to NSFW channel: {e}")
+                    
+                    # Don't cache NSFW content
+                    logger.info(f"down_and_audio: NSFW audio sent to both channels (paid + history), not cached")
+                    forwarded_msg = None
+                    
                 elif is_nsfw:
+                    # NSFW content in groups -> LOGS_NSWF_ID only
                     log_channel = get_log_channel("video", nsfw=True)
+                    forwarded_msg = safe_forward_messages(log_channel, user_id, [audio_msg.id])
+                    # Don't cache NSFW content
+                    logger.info(f"down_and_audio: NSFW audio sent to NSFW channel, not cached")
+                    forwarded_msg = None
                 else:
+                    # Regular content -> LOGS_VIDEO_ID and cache
                     log_channel = get_log_channel("video")
-                
-                forwarded_msg = safe_forward_messages(log_channel, user_id, [audio_msg.id])
+                    forwarded_msg = safe_forward_messages(log_channel, user_id, [audio_msg.id])
                 
                 # Save to cache after sending audio (only for non-NSFW content)
                 if quality_key and forwarded_msg and not is_nsfw:
