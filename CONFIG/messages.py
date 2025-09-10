@@ -243,77 +243,60 @@ This helps you quickly find and download videos from various platforms.
     
     # Add bot to group command message
     ADD_BOT_TO_GROUP_MSG = """
-🤖 <b>Add Bot to Group</b>
+🤖 Add Bot to Group
 
-Add this bot to your group or channel to get enhanced features and higher limits!
+Add my bots to your groups to get enhanced features and higher limits!
 
-<blockquote>📊 <b>Current Limits (Private Chat):</b>
-• Max file size: 8 GB
+📊 Current FREE Limits (in Bot’s DM):
+<blockquote>
+•🗑 Messy junk from all the files unsorted 👎
+• Max 1 file size: 8 GB 
+• Max 1 file quality: UNLIM
+• Max 1 file duration: UNLIM
+• Max number of downloads: UNLIM
+• Max playlist items per 1 time: 50
+• Max TikTok videos per 1 time: 500
+• Max images per 1 time: 1000
+• 1 Download max time: 2 hours
+• 🔞 NSFW content is paid! 1⭐️ = $0.02
+• 🆓 ALL OTHER MEDIA ARE TOTALY FREE
+</blockquote>
+
+💬This limits only for video with subtitles:
+<blockquote>
 • Max video+subs duration: 1.5 hours (5400s)
 • Max video+subs file size: 500 MB
 • Max video+subs quality: 720p
-• Max playlist items: 50
-• Max TikTok videos: 500
-• Max images: 1000
-• Download timeout: 2 hours
-• 🔞 NSFW content is paid! 1⭐️ = $0.02
 </blockquote>
 
-<blockquote>🚀 <b>Group/Channel Benefits (2x Limits):</b>
-• Max file size: 16 GB ⬆️
-• Max video+subs duration: 3 hours (10800s) ⬆️
-• Max video+subs file size: 1000 MB ⬆️
-• Max video+subs quality: 1080p ⬆️
-• Max playlist items: 100 ⬆️
-• Max TikTok videos: 1000 ⬆️
-• Max images: 2000 ⬆️
-• Download timeout: 4 hours ⬆️
+🚀 Paid Group Benefits (2x Limits):
+<blockquote>
+•  🗂 Structured neat media vault sorted by topics 👍
+• Max 1 file size: 16 GB ⬆️
+• Max playlist items per 1 time: 100 ⬆️
+• Max TikTok videos per 1 time: 1000 ⬆️
+• Max images per 1 time: 2000 ⬆️
+• 1 Download ma time: 4 hours ⬆️
 • 🔞NSFW content: Free with full metadata 🆓
 </blockquote>
 
-<blockquote>💰 <b>Pricing & Setup:</b>
-• <b>Price:</b> $5/month per 1 bot in group/channel
-• <b>Setup:</b> Contact @iilililiiillliiliililliilliliiil
-• <b>Payment:</b> 💎TON or other methods💲
-• <b>Support:</b> Full technical support included
-</blockquote>
-
-<blockquote expandable>🇷🇺 <b>Добавить бота в группу</b>
-
-Добавьте этого бота в свою группу или канал для получения расширенных функций и повышенных лимитов!
-
-📊 <b>Текущие лимиты (приватный чат):</b>
-• Макс. размер файла: 8 ГБ
-• Макс. длительность видео+сабы: 1.5 часа (5400с)
-• Макс. размер файла видео+сабы: 500 МБ
-• Макс. качество видео+сабы: 720p
-• Макс. элементов плейлиста: 50
-• Макс. видео TikTok: 500
-• Макс. изображений: 1000
-• Таймаут загрузки: 2 часа
-• 🔞 NSFW контент платный! 1⭐️ = $0.02
-
-🚀 <b>Преимущества группы/канала (x2 лимиты):</b>
-• Макс. размер файла: 16 ГБ ⬆️
-• Макс. длительность видео+сабы: 3 часа (10800с) ⬆️
-• Макс. размер файла видео+сабы: 1000 МБ ⬆️
-• Макс. качество видео+сабы: 1080p ⬆️
-• Макс. элементов плейлиста: 100 ⬆️
-• Макс. видео TikTok: 1000 ⬆️
-• Макс. изображений: 2000 ⬆️
-• Таймаут загрузки: 4 часа ⬆️
-• NSFW контент: Бесплатно с полными метаданными 🆓
-
-💰 <b>Цены и настройка:</b>
-• <b>Цена:</b> $5/месяц за 1 бота в группе/канале
-• <b>Настройка:</b> Свяжитесь с @iilililiiillliiliililliilliliiil
-• <b>Оплата:</b> 💎TON или другие способы💲
-• <b>Поддержка:</b> Полная техническая поддержка включена
-</blockquote>
-
+💬This limits only for video with subtitles:
 <blockquote>
-<b>Contact for setup:</b> @iilililiiillliiliililliilliliiil
+• Max video+subs duration: 3 hours (10800s) ⬆️
+• Max video+subs file size: 1000 MB ⬆️
+• Max video+subs quality: 1080p ⬆️
 </blockquote>
+
+💰 Pricing & Setup:
+<blockquote>
+• Price: $5/month per 1 bot in group
+• Setup: Contact @iilililiiillliiliililliilliliiil
+• Payment: 💎TON or other methods💲
+• Support: Full technical support included
+</blockquote>
+
+you can add my bots to your group to unblock free 🔞NSFW and to double (x2) all limits.
+contact me if you want me to allow your group to use my bots @iilililiiillliiliililliilliliiil
     """
     
     # NSFW Command Messages

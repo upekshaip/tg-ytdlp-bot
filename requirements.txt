@@ -1,5 +1,5 @@
 # Базовые зависимости (обычная установка)
-# pyrogram is outdated; switch to actively maintained PyroFork (Mayuri)
+# pyrogram is outdated; switch to actively maintained PyroTGFork
 pyrotgfork
 requests<3,>=2.8.1
 TgCrypto>=1.2.5
