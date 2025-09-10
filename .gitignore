@@ -52,6 +52,9 @@ torrent.py
 bot_sample.py
 users.txt
 TOOLS/script.sh
+scripts/delete_video_cache.py
+scripts/create_video_cache_folders.py
+scripts/
 _cursor/TOOLS/script.sh
 script.sh
 log.txt

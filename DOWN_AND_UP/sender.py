@@ -3,6 +3,7 @@ from pyrogram import enums
 from pyrogram.types import ReplyParameters, InputPaidMediaVideo
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger
+from HELPERS.logger import get_log_channel
 from HELPERS.download_status import progress_bar
 from HELPERS.limitter import TimeFormatter
 from HELPERS.caption import truncate_caption
@@ -72,6 +73,8 @@ def send_videos(
             is_spoiler = bool(re.search(r"(?i)(?:^|\s)#nsfw(?:\s|$)", tags_text or ""))
         except Exception:
             is_spoiler = False
+        # Флаг: было ли отправлено как платное медиа
+        was_paid = False
         # Form HTML caption: title outside the quote, timecodes outside the quote, description in the quote, tags and link outside the quote
         cap = ''
         if title_html:
@@ -225,6 +228,7 @@ def send_videos(
                 return _gen_thumb(video_path)
 
         def _try_send_video(caption_text: str):
+            nonlocal was_paid
             # Для бесплатных сообщений — внешний превью без паддинга; для платных — обложка 320x320
             local_thumb_free = _gen_free_cover(video_abs_path)
             # Paid media only in private chats; in groups/channels send regular video
@@ -252,6 +256,7 @@ def send_videos(
                     paid_media = InputPaidMediaVideo(
                         media=video_abs_path,
                     )
+                was_paid = True
                 allow_broadcast = getattr(message.chat, "type", None) != enums.ChatType.PRIVATE
                 result = app.send_paid_media(
                     chat_id=user_id,
@@ -303,6 +308,7 @@ def send_videos(
             return result
 
         def _fallback_send_document(caption_text: str):
+            nonlocal was_paid
             # Для бесплатных документов — внешний превью без паддинга
             local_thumb = _gen_free_cover(video_abs_path) or thumb_file_path
             try:
@@ -344,6 +350,7 @@ def send_videos(
                     paid_media = InputPaidMediaVideo(
                         media=video_abs_path,
                     )
+                was_paid = True
                 allow_broadcast = getattr(message.chat, "type", None) != enums.ChatType.PRIVATE
                 result = app.send_paid_media(
                     chat_id=user_id,
@@ -437,6 +444,20 @@ def send_videos(
             else:
                 # If the error is not related to the length of the caption, pass it further
                 raise e
+        # Форвард отправленного видео в нужный лог-канал
+        try:
+            log_key = "paid" if was_paid else ("nsfw" if is_spoiler else "video")
+            try:
+                # Some forks return list for albums; ensure we have id
+                msg_id_to_forward = getattr(video_msg, "id", None) or (video_msg[0].id if isinstance(video_msg, list) and video_msg else None)
+                if msg_id_to_forward:
+                    safe_forward_messages(get_log_channel(log_key), user_id, [msg_id_to_forward])
+            except Exception:
+                # Fallback if structure unexpected
+                safe_forward_messages(get_log_channel(log_key), user_id, [video_msg.id])
+        except Exception as e:
+            logger.error(f"Error forwarding video to log channel: {e}")
+
         if was_truncated and full_video_title:
             with open(temp_desc_path, "w", encoding="utf-8") as f:
                 f.write(full_video_title)
@@ -449,8 +470,11 @@ def send_videos(
                     reply_parameters=ReplyParameters(message_id=message.id),
                     parse_mode=enums.ParseMode.HTML
                 )
-                from HELPERS.logger import get_log_channel
-                safe_forward_messages(get_log_channel("video"), user_id, [user_doc_msg.id])
+                try:
+                    log_key_doc = "paid" if was_paid else ("nsfw" if is_spoiler else "video")
+                    safe_forward_messages(get_log_channel(log_key_doc), user_id, [user_doc_msg.id])
+                except Exception as e:
+                    logger.error(f"Error forwarding description file to log channel: {e}")
             except Exception as e:
                 logger.error(f"Error sending full description file: {e}")
         return video_msg
