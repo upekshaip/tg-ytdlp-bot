@@ -1020,11 +1020,19 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 
                 # Handle different content types according to new logic
                 if is_paid:
-                    # For NSFW content in private chat, send to both channels but don't cache
                     # For NSFW content in private chat, paid audio already sent to user
-                    # No need to forward to LOGS_PAID_ID as it's already sent
+                    # We need to send paid copy to LOGS_PAID_ID and open copy to LOGS_NSWF_ID for history
                     
-                    # Send to LOGS_NSWF_ID (for history) - send open copy, not paid media
+                    # Send paid copy to LOGS_PAID_ID
+                    log_channel_paid = get_log_channel("video", paid=True)
+                    try:
+                        # Forward the paid audio to LOGS_PAID_ID
+                        safe_forward_messages(log_channel_paid, user_id, [audio_msg.id])
+                        logger.info(f"down_and_audio: NSFW audio paid copy sent to PAID channel")
+                    except Exception as e:
+                        logger.error(f"down_and_audio: failed to send paid copy to PAID channel: {e}")
+                    
+                    # Send open copy to LOGS_NSWF_ID for history
                     log_channel_nsfw = get_log_channel("video", nsfw=True)
                     try:
                         # Create open copy for history (without stars)
@@ -1040,7 +1048,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         logger.error(f"down_and_audio: failed to send open copy to NSFW channel: {e}")
                     
                     # Don't cache NSFW content
-                    logger.info(f"down_and_audio: NSFW audio sent to user (paid) and NSFW channel (open copy), not cached")
+                    logger.info(f"down_and_audio: NSFW audio sent to user (paid), PAID channel (paid copy), and NSFW channel (open copy), not cached")
                     forwarded_msg = None
                     
                 elif is_nsfw:

@@ -1307,17 +1307,35 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         if is_paid:
                             # For NSFW content in private chat, send to both channels but don't cache
                             # For NSFW content in private chat, send_videos already sent paid media to user
-                            # No need to forward to LOGS_PAID_ID as it's already sent
+                            # We need to send paid copy to LOGS_PAID_ID and open copy to LOGS_NSWF_ID for history
                             
                             # Send to LOGS_NSFW_ID (for history) - send open copy, not paid media
+                            # Send paid copy to LOGS_PAID_ID
+                            log_channel_paid = get_log_channel("video", paid=True)
+                            try:
+                                # Forward the paid video to LOGS_PAID_ID
+                                safe_forward_messages(log_channel_paid, user_id, [video_msg.id])
+                                logger.info(f"down_and_up: NSFW content paid copy sent to PAID channel")
+                            except Exception as e:
+                                logger.error(f"down_and_up: failed to send paid copy to PAID channel: {e}")
+                            
+                            # Send open copy to LOGS_NSWF_ID for history
                             log_channel_nsfw = get_log_channel("video", nsfw=True)
                             try:
+                                # Get video dimensions for proper aspect ratio
+                                try:
+                                    v_w, v_h, v_dur = get_video_info_ffprobe(path_lst[p])
+                                except Exception:
+                                    v_w, v_h, v_dur = width, height, part_duration
+                                
                                 # Create open copy for history (without stars) - send directly to NSFW channel
                                 open_video_msg = app.send_video(
                                     chat_id=log_channel_nsfw,
                                     video=path_lst[p],
                                     caption=caption_lst[p],
-                                    duration=part_duration,
+                                    duration=int(v_dur) if v_dur else part_duration,
+                                    width=int(v_w) if v_w else width,
+                                    height=int(v_h) if v_h else height,
                                     thumb=splited_thumb_dir,
                                     reply_parameters=ReplyParameters(message_id=message.id)
                                 )
@@ -1583,15 +1601,34 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             # Handle different content types according to new logic
                             if is_paid:
                                 # For NSFW content in private chat, send_videos already sent paid media to user
-                                # We only need to send open copy to LOGS_NSWF_ID for history
+                                # We need to send paid copy to LOGS_PAID_ID and open copy to LOGS_NSWF_ID for history
+                                
+                                # Send paid copy to LOGS_PAID_ID
+                                log_channel_paid = get_log_channel("video", paid=True)
+                                try:
+                                    # Forward the paid video to LOGS_PAID_ID
+                                    safe_forward_messages(log_channel_paid, user_id, [video_msg.id])
+                                    logger.info(f"down_and_up: NSFW content paid copy sent to PAID channel")
+                                except Exception as e:
+                                    logger.error(f"down_and_up: failed to send paid copy to PAID channel: {e}")
+                                
+                                # Send open copy to LOGS_NSWF_ID for history
                                 log_channel_nsfw = get_log_channel("video", nsfw=True)
                                 try:
+                                    # Get video dimensions for proper aspect ratio
+                                    try:
+                                        v_w, v_h, v_dur = get_video_info_ffprobe(after_rename_abs_path)
+                                    except Exception:
+                                        v_w, v_h, v_dur = width, height, duration
+                                    
                                     # Create open copy for history (without stars) - send directly to NSFW channel
                                     open_video_msg = app.send_video(
                                         chat_id=log_channel_nsfw,
                                         video=after_rename_abs_path,
                                         caption='' if force_no_title else original_video_title,
-                                        duration=duration,
+                                        duration=int(v_dur) if v_dur else duration,
+                                        width=int(v_w) if v_w else width,
+                                        height=int(v_h) if v_h else height,
                                         thumb=thumb_dir,
                                         reply_parameters=ReplyParameters(message_id=message.id)
                                     )
@@ -1600,7 +1637,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     logger.error(f"down_and_up: failed to send open copy to NSFW channel: {e}")
                                 
                                 # Don't cache NSFW content
-                                logger.info(f"down_and_up: NSFW content sent to user (paid) and NSFW channel (open copy), not cached")
+                                logger.info(f"down_and_up: NSFW content sent to user (paid), PAID channel (paid copy), and NSFW channel (open copy), not cached")
                                 forwarded_msgs = None
                                 
                             elif is_nsfw:
@@ -1663,6 +1700,16 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         # No need to forward to LOGS_PAID_ID as it's already sent
                                         
                                         # Send to LOGS_NSFW_ID (for history) - send open copy, not paid media
+                                        # Send paid copy to LOGS_PAID_ID
+                                        log_channel_paid = get_log_channel("video", paid=True)
+                                        try:
+                                            # Forward the paid video to LOGS_PAID_ID
+                                            safe_forward_messages(log_channel_paid, user_id, [video_msg.id])
+                                            logger.info(f"down_and_up: NSFW content paid copy sent to PAID channel (manual)")
+                                        except Exception as e:
+                                            logger.error(f"down_and_up: failed to send paid copy to PAID channel (manual): {e}")
+                                        
+                                        # Send open copy to LOGS_NSWF_ID for history
                                         log_channel_nsfw = get_log_channel("video", nsfw=True)
                                         try:
                                             # Create open copy for history (without stars) - send directly to NSFW channel
@@ -1749,14 +1796,32 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     # No need to forward to LOGS_PAID_ID as it's already sent
                                     
                                     # Send to LOGS_NSFW_ID (for history) - send open copy, not paid media
+                                    # Send paid copy to LOGS_PAID_ID
+                                    log_channel_paid = get_log_channel("video", paid=True)
+                                    try:
+                                        # Forward the paid video to LOGS_PAID_ID
+                                        safe_forward_messages(log_channel_paid, user_id, [video_msg.id])
+                                        logger.info(f"down_and_up: NSFW content paid copy sent to PAID channel (error recovery)")
+                                    except Exception as e:
+                                        logger.error(f"down_and_up: failed to send paid copy to PAID channel (error recovery): {e}")
+                                    
+                                    # Send open copy to LOGS_NSWF_ID for history
                                     log_channel_nsfw = get_log_channel("video", nsfw=True)
                                     try:
+                                        # Get video dimensions for proper aspect ratio
+                                        try:
+                                            v_w, v_h, v_dur = get_video_info_ffprobe(after_rename_abs_path)
+                                        except Exception:
+                                            v_w, v_h, v_dur = width, height, duration
+                                        
                                         # Create open copy for history (without stars) - send directly to NSFW channel
                                         open_video_msg = app.send_video(
                                             chat_id=log_channel_nsfw,
                                             video=after_rename_abs_path,
                                             caption='' if force_no_title else original_video_title,
-                                            duration=duration,
+                                            duration=int(v_dur) if v_dur else duration,
+                                            width=int(v_w) if v_w else width,
+                                            height=int(v_h) if v_h else height,
                                             thumb=thumb_dir,
                                             reply_parameters=ReplyParameters(message_id=message.id)
                                         )
