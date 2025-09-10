@@ -117,7 +117,7 @@ def send_videos(
             try:
                 subprocess.run([
                     'ffmpeg','-y','-i', src_path,
-                    '-vf','scale=w=if(gte(a,1),640,-2):h=if(lt(a,1),640,-2)',
+                    '-vf','scale=if(gte(a,1),320,-2):if(gte(a,1),-2,320),pad=320:320:(320-iw)/2:(320-ih)/2:color=black',
                     '-vframes','1','-q:v','4', dest_path
                 ], capture_output=True, text=True, timeout=30)
                 return os.path.exists(dest_path) and os.path.getsize(dest_path) > 0
@@ -180,9 +180,50 @@ def send_videos(
             except Exception:
                 return None
 
+        def _resize_to_thumb_free(src_path: str, dest_path: str) -> bool:
+            try:
+                subprocess.run([
+                    'ffmpeg','-y','-i', src_path,
+                    '-vf','scale=640:-1',
+                    '-vframes','1','-q:v','4', dest_path
+                ], capture_output=True, text=True, timeout=30)
+                return os.path.exists(dest_path) and os.path.getsize(dest_path) > 0
+            except Exception:
+                return False
+
+        def _gen_free_cover(video_path: str) -> str | None:
+            try:
+                base_dir = os.path.dirname(video_path)
+                base_name = os.path.splitext(os.path.basename(video_path))[0]
+                cover_path = os.path.join(base_dir, base_name + '.__tgthumb_ext.jpg')
+                if os.path.exists(cover_path) and os.path.getsize(cover_path) > 0:
+                    return cover_path
+                # 1) Попробовать скачать внешнюю миниатюру (без паддинга, только масштаб до 640 по ширине)
+                try:
+                    tmp_dl = os.path.join(base_dir, base_name + '.__ext_thumb.jpg')
+                    if video_url and download_thumbnail(video_url, tmp_dl):
+                        if _resize_to_thumb_free(tmp_dl, cover_path):
+                            try:
+                                if os.path.exists(tmp_dl):
+                                    os.remove(tmp_dl)
+                            except Exception:
+                                pass
+                            return cover_path
+                    try:
+                        if os.path.exists(tmp_dl):
+                            os.remove(tmp_dl)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+                # 2) Фолбэк: кадр из видео (как и раньше)
+                return _gen_thumb(video_path)
+            except Exception:
+                return _gen_thumb(video_path)
+
         def _try_send_video(caption_text: str):
-            # Ensure we have a thumbnail for cover if possible
-            local_thumb = _gen_thumb(video_abs_path)
+            # Для бесплатных сообщений — внешний превью без паддинга; для платных — обложка 320x320
+            local_thumb_free = _gen_free_cover(video_abs_path)
             # Paid media only in private chats; in groups/channels send regular video
             try:
                 chat_type = getattr(message.chat, "type", None)
@@ -237,7 +278,7 @@ def send_videos(
                 width=int(v_w2) if v_w2 else width,
                 height=int(v_h2) if v_h2 else height,
                 supports_streaming=True,
-                thumb=_gen_paid_cover(video_abs_path) or local_thumb,
+                thumb=local_thumb_free,
                 has_spoiler=False,
                 progress=progress_bar,
                 progress_args=(
@@ -248,17 +289,19 @@ def send_videos(
                 reply_parameters=ReplyParameters(message_id=message.id),
                 parse_mode=enums.ParseMode.HTML
             )
-            # Cleanup special thumb
+            # Cleanup special thumb (free-only temp files)
             try:
-                if local_thumb and (local_thumb.endswith('.__tgthumb.jpg') or local_thumb.endswith('.__tgcover_paid.jpg')) and os.path.exists(local_thumb):
-                    os.remove(local_thumb)
+                if local_thumb_free and (
+                    local_thumb_free.endswith('.__tgthumb.jpg') or local_thumb_free.endswith('.__tgthumb_ext.jpg')
+                ) and os.path.exists(local_thumb_free):
+                    os.remove(local_thumb_free)
             except Exception:
                 pass
             return result
 
         def _fallback_send_document(caption_text: str):
-            # Ensure we have a thumbnail for cover if possible
-            local_thumb = thumb_file_path
+            # Для бесплатных документов — внешний превью без паддинга
+            local_thumb = _gen_free_cover(video_abs_path) or thumb_file_path
             try:
                 if not local_thumb or not os.path.exists(local_thumb):
                     local_thumb = os.path.join(os.path.dirname(video_abs_path), os.path.splitext(os.path.basename(video_abs_path))[0] + ".jpg")
