@@ -12,6 +12,7 @@ import requests
 from HELPERS.app_instance import get_app
 from HELPERS.decorators import get_main_reply_keyboard
 from HELPERS.logger import send_to_logger, logger
+from CONFIG.logger_msg import LoggerMsg
 from HELPERS.filesystem_hlp import create_directory
 from HELPERS.qualifier import get_quality_by_min_side, get_real_height_for_quality
 from HELPERS.limitter import check_subs_limits, check_playlist_range_limits, TimeFormatter
@@ -3654,7 +3655,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
                 parse_mode=enums.ParseMode.HTML
             )
             
-            send_to_logger(original_message, f"Direct link extracted via Always Ask menu for user {user_id} from {url}")
+            send_to_logger(original_message, LoggerMsg.DIRECT_LINK_EXTRACTED.format(source="Always Ask menu", user_id=user_id, url=url))
             
         else:
             error_msg = result.get('error', 'Unknown error')
@@ -3665,7 +3666,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
                 parse_mode=enums.ParseMode.HTML
             )
             
-            send_to_logger(original_message, f"Failed to extract direct link via Always Ask menu for user {user_id} from {url}: {error_msg}")
+            send_to_logger(original_message, LoggerMsg.DIRECT_LINK_FAILED.format(source="Always Ask menu", user_id=user_id, url=url, error=error_msg))
         
         return
     # Read current filters to build correct format strings and container override

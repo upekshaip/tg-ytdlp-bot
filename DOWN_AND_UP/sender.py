@@ -7,6 +7,9 @@ from HELPERS.download_status import progress_bar
 from HELPERS.limitter import TimeFormatter
 from HELPERS.caption import truncate_caption
 from DOWN_AND_UP.ffmpeg import get_video_info_ffprobe
+import os
+import subprocess
+import json
 from HELPERS.safe_messeger import safe_forward_messages
 from CONFIG.config import Config
 from CONFIG.limits import LimitsConfig
@@ -79,26 +82,58 @@ def send_videos(
             cap += tags_block
         cap += link_block
 
+        def _should_generate_cover(video_path: str, duration_seconds: int) -> bool:
+            try:
+                size_mb = os.path.getsize(video_path) / (1024 * 1024)
+            except Exception:
+                size_mb = 0.0
+            try:
+                dur = float(duration_seconds or 0)
+            except Exception:
+                dur = 0.0
+            # Generate unless both duration<60 and size<10
+            return (dur >= 60.0) or (size_mb >= 10.0)
+
+        def _gen_thumb(video_path: str) -> str | None:
+            try:
+                if not _should_generate_cover(video_path, duration):
+                    return None
+                base_dir = os.path.dirname(video_path)
+                base_name = os.path.splitext(os.path.basename(video_path))[0]
+                thumb_path = os.path.join(base_dir, base_name + '.__tgthumb.jpg')
+                if os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0:
+                    return thumb_path
+                middle_sec = max(1, int(duration) // 2 if isinstance(duration, int) else 1)
+                subprocess.run([
+                    'ffmpeg','-y','-ss', str(middle_sec), '-i', video_abs_path,
+                    '-vframes','1','-vf','scale=640:-1', thumb_path
+                ], capture_output=True, text=True, timeout=30)
+                return thumb_path if os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0 else None
+            except Exception:
+                return None
+
+        def _gen_paid_cover(video_path: str) -> str | None:
+            try:
+                if not _should_generate_cover(video_path, duration):
+                    return None
+                base_dir = os.path.dirname(video_path)
+                base_name = os.path.splitext(os.path.basename(video_path))[0]
+                cover_path = os.path.join(base_dir, base_name + '.__tgcover_paid.jpg')
+                if os.path.exists(cover_path) and os.path.getsize(cover_path) > 0:
+                    return cover_path
+                # Preserve original aspect (no square forcing); scale width to 640 or height to 640 keeping AR
+                subprocess.run([
+                    'ffmpeg','-y','-i', video_path,
+                    '-vf','scale=w=if(gte(a,1),640,-2):h=if(lt(a,1),640,-2)',
+                    '-vframes','1','-q:v','2', cover_path
+                ], capture_output=True, text=True, timeout=30)
+                return cover_path if os.path.exists(cover_path) and os.path.getsize(cover_path) > 0 else None
+            except Exception:
+                return None
+
         def _try_send_video(caption_text: str):
             # Ensure we have a thumbnail for cover if possible
-            local_thumb = thumb_file_path
-            try:
-                if not local_thumb or not os.path.exists(local_thumb):
-                    # generate a frame thumbnail 640px wide
-                    local_thumb = os.path.join(os.path.dirname(video_abs_path), os.path.splitext(os.path.basename(video_abs_path))[0] + ".jpg")
-                    import subprocess
-                    try:
-                        middle_sec = max(1, int(duration) // 2 if isinstance(duration, int) else 1)
-                        subprocess.run([
-                            'ffmpeg','-y','-ss', str(middle_sec), '-i', video_abs_path,
-                            '-vframes','1','-vf','scale=640:-1', local_thumb
-                        ], capture_output=True, text=True, timeout=30)
-                        if not os.path.exists(local_thumb):
-                            local_thumb = None
-                    except Exception:
-                        local_thumb = None
-            except Exception:
-                local_thumb = thumb_file_path
+            local_thumb = _gen_thumb(video_abs_path)
             # Paid media only in private chats; in groups/channels send regular video
             try:
                 chat_type = getattr(message.chat, "type", None)
@@ -107,9 +142,10 @@ def send_videos(
                 is_private_chat = True
             if is_spoiler and is_private_chat:
                 try:
+                    # Always try to provide a non-distorted cover (same aspect, no square forcing)
                     paid_media = InputPaidMediaVideo(
                         media=video_abs_path,
-                        cover=local_thumb if local_thumb else None,
+                        cover=_gen_paid_cover(video_abs_path),
                     )
                 except TypeError:
                     paid_media = InputPaidMediaVideo(
@@ -131,7 +167,7 @@ def send_videos(
                     return video_msg
                 except Exception:
                     return result
-            return app.send_video(
+            result = app.send_video(
                 chat_id=user_id,
                 video=video_abs_path,
                 caption=caption_text,
@@ -139,7 +175,7 @@ def send_videos(
                 width=width,
                 height=height,
                 supports_streaming=True,
-                thumb=local_thumb or thumb_file_path,
+                thumb=local_thumb,
                 has_spoiler=False,
                 progress=progress_bar,
                 progress_args=(
@@ -150,6 +186,13 @@ def send_videos(
                 reply_parameters=ReplyParameters(message_id=message.id),
                 parse_mode=enums.ParseMode.HTML
             )
+            # Cleanup special thumb
+            try:
+                if local_thumb and (local_thumb.endswith('.__tgthumb.jpg') or local_thumb.endswith('.__tgcover_paid.jpg')) and os.path.exists(local_thumb):
+                    os.remove(local_thumb)
+            except Exception:
+                pass
+            return result
 
         def _fallback_send_document(caption_text: str):
             # Ensure we have a thumbnail for cover if possible
@@ -200,11 +243,11 @@ def send_videos(
                     return video_msg
                 except Exception:
                     return result
-            return app.send_document(
+            result = app.send_document(
                 chat_id=user_id,
                 document=video_abs_path,
                 caption=caption_text,
-                thumb=local_thumb or thumb_file_path,
+                thumb=local_thumb,
                 progress=progress_bar,
                 progress_args=(
                     user_id,
@@ -214,6 +257,13 @@ def send_videos(
                 reply_parameters=ReplyParameters(message_id=message.id),
                 parse_mode=enums.ParseMode.HTML
             )
+            # Cleanup special thumb
+            try:
+                if local_thumb and (local_thumb.endswith('.__tgthumb.jpg') or local_thumb.endswith('.__tgcover_paid.jpg')) and os.path.exists(local_thumb):
+                    os.remove(local_thumb)
+            except Exception:
+                pass
+            return result
 
         try:
             # Первая попытка с полным описанием, с ограничением на количество ретраев по таймауту

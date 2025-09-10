@@ -5,6 +5,7 @@
 
 import os
 from HELPERS.logger import get_log_channel
+from CONFIG.logger_msg import LoggerMsg
 import threading
 import time
 import yt_dlp
@@ -218,7 +219,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                send_to_logger(message, f"Direct link extracted via down_and_audio for user {user_id} from {url}")
+                send_to_logger(message, LoggerMsg.DIRECT_LINK_EXTRACTED.format(source="down_and_audio", user_id=user_id, url=url))
                 
             else:
                 error_msg = result.get('error', 'Unknown error')
@@ -229,7 +230,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                send_to_logger(message, f"Failed to extract direct link via down_and_audio for user {user_id} from {url}: {error_msg}")
+                send_to_logger(message, LoggerMsg.DIRECT_LINK_FAILED.format(source="down_and_audio", user_id=user_id, url=url, error=error_msg))
             
             return
     except Exception as e:
@@ -265,7 +266,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         logger.error(f"down_and_audio: error reposting cached audio index={index}: {e}")
             if len(uncached_indices) == 0:
                 app.send_message(user_id, f"✅ Playlist audio sent from cache ({len(cached_videos)}/{len(requested_indices)} files).", reply_parameters=ReplyParameters(message_id=message.id))
-                send_to_logger(message, f"Playlist audio sent from cache (quality={quality_key}) to user{user_id}")
+                send_to_logger(message, LoggerMsg.PLAYLIST_AUDIO_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
                 return
             else:
                 app.send_message(user_id, f"📥 {len(cached_videos)}/{len(requested_indices)} audio sent from cache, downloading missing ones...", reply_parameters=ReplyParameters(message_id=message.id))
@@ -285,7 +286,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         forward_kwargs['message_thread_id'] = thread_id
                 app.forward_messages(**forward_kwargs)
                 app.send_message(user_id, "✅ Audio sent from cache.", reply_parameters=ReplyParameters(message_id=message.id))
-                send_to_logger(message, f"Audio sent from cache (quality={quality_key}) to user{user_id}")
+                send_to_logger(message, LoggerMsg.AUDIO_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
                 return
             except Exception as e:
                 logger.error(f"Error reposting audio from cache: {e}")
@@ -963,7 +964,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     except Exception as e:
         if "Download timeout exceeded" in str(e):
             send_to_user(message, "⏰ Download cancelled due to timeout (2 hours)")
-            send_to_logger(message, "Download cancelled due to timeout")
+            send_to_logger(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG)
         else:
             logger.error(f"Error in audio download: {e}")
             send_to_user(message, f"❌ Failed to download audio: {e}")

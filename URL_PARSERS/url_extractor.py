@@ -6,6 +6,7 @@ from HELPERS.app_instance import get_app
 from HELPERS.decorators import reply_with_keyboard
 from HELPERS.limitter import is_user_in_channel, check_user
 from HELPERS.logger import send_to_all, send_to_logger, send_to_user
+from CONFIG.logger_msg import LoggerMsg
 from HELPERS.caption import caption_editor
 from HELPERS.filesystem_hlp import remove_media
 from COMMANDS.cookies_cmd import save_as_cookie_file, download_cookie, checking_cookie_file, cookies_from_browser
@@ -97,42 +98,42 @@ def url_distractor(app, message):
     if not is_admin:
         # /uncache
         if text.startswith(Config.UNCACHE_COMMAND):
-            send_to_user(message, "❌ Access denied. Admin only.")
+            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
             return
         # /auto_cache
         if text.startswith(Config.AUTO_CACHE_COMMAND):
-            send_to_user(message, "❌ Access denied. Admin only.")
+            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
             return
         # /all_* (user details)
         if Config.GET_USER_DETAILS_COMMAND in text:
-            send_to_user(message, "❌ Access denied. Admin only.")
+            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
             return
         # /unblock_user
         if Config.UNBLOCK_USER_COMMAND in text:
-            send_to_user(message, "❌ Access denied. Admin only.")
+            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
             return
         # /block_user
         if Config.BLOCK_USER_COMMAND in text:
-            send_to_user(message, "❌ Access denied. Admin only.")
+            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
             return
         # /broadcast
         if text.startswith(Config.BROADCAST_MESSAGE):
-            send_to_user(message, "❌ Access denied. Admin only.")
+            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
             return
         # /log (user logs)
         if Config.GET_USER_LOGS_COMMAND in text:
-            send_to_user(message, "❌ Access denied. Admin only.")
+            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
             return
         # /reload_cache
         if text.startswith(Config.RELOAD_CACHE_COMMAND):
-            send_to_user(message, "❌ Access denied. Admin only.")
+            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
             return
 
     # ----- Basic Commands -----
     # /Start Command
     if text == "/start":
         if is_admin:
-            send_to_user(message, "Welcome Master 🥷")
+            send_to_user(message, LoggerMsg.WELCOME_MASTER)
         else:
             check_user(message)
             from HELPERS.safe_messeger import safe_send_message
@@ -141,7 +142,7 @@ def url_distractor(app, message):
                 f"Hello {message.chat.first_name},\n \n<i>This bot🤖 can download any videos into telegram directly.😊 For more information press <b>/help</b></i> 👈\n \n {Config.CREDITS_MSG}",
                 parse_mode=enums.ParseMode.HTML,
                 message=message)
-            send_to_logger(message, f"{message.chat.id} - user started the bot")
+            send_to_logger(message, LoggerMsg.USER_STARTED_BOT.format(chat_id=message.chat.id))
         return
 
     # /Help Command
@@ -158,7 +159,7 @@ def url_distractor(app, message):
         except Exception:
             # Fallback without parse_mode if enums shadowed unexpectedly
             safe_send_message(message.chat.id, (Config.HELP_MSG), reply_markup=keyboard, message=message)
-        send_to_logger(message, f"Send help txt to user")
+        send_to_logger(message, LoggerMsg.HELP_SENT_TO_USER)
         return
 
     # /add_bot_to_group Command
@@ -180,7 +181,7 @@ def url_distractor(app, message):
             )
         except Exception:
             safe_send_message(message.chat.id, (Config.ADD_BOT_TO_GROUP_MSG), reply_markup=keyboard, message=message)
-        send_to_logger(message, "Send add_bot_to_group txt to user")
+        send_to_logger(message, LoggerMsg.ADD_BOT_TO_GROUP_SENT)
         return
 
     # ----- User Commands -----

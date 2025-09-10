@@ -200,8 +200,7 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 🖼 <b>Изображения:</b>
 • <code>/img URL</code> → скачать изображения с различных платформ
 • <code>/img 11-20 URL</code> → скачать конкретный диапазон
-• <code>/img 11- URL</code> → скачать с 11-го до конца (до лимита)
-</blockquote>
+• <code>/img 11- URL</code> → скачать с 11-го до конца (до лимита)</blockquote>
 
 👨‍💻 <i>Developer:</i> @upekshaip 
 <a href="https://github.com/upekshaip/tg-ytdlp-bot">[🛠 github]</a>
@@ -236,10 +235,38 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 
 Press the button below to activate inline search via @vid.
 
-<blockquote>
-This helps you quickly find and download videos from various platforms.
-</blockquote>
+<blockquote>This helps you quickly find and download videos from various platforms.</blockquote>
     """
+    
+    # Settings and Hints (English)
+    
+    AUDIO_HINT_MSG = (
+        "Download only audio from video source.\n\n"
+        "Usage: /audio + URL \n\n"
+        "(ex. /audio https://youtu.be/abc123)\n"
+        "(ex. /audio https://youtu.be/playlist?list=abc123*1*10)"
+    )
+    
+    IMG_HELP_MSG = (
+        "<b>🖼 Image Download Command</b>\n\n"
+        "Usage: <code>/img URL</code>\n\n"
+        "<b>Examples:</b>\n"
+        "• <code>/img https://example.com/image.jpg</code>\n"
+        "• <code>/img 11-20 https://example.com/album</code>\n"
+        "• <code>/img 11- https://example.com/album</code>\n"
+        "• <code>/img https://vk.com/wall-160916577_408508</code>\n"
+        "• <code>/img https://2ch.hk/fd/res/1747651.html</code>\n"
+        "• <code>/img https://imgur.com/abc123</code>\n\n"
+        "<b>Supported platforms (examples):</b>\n"
+        "<blockquote>vk, 2ch, 35photo, 4chan, 500px, ArtStation, Boosty, Civitai, Cyberdrop, DeviantArt, Discord, Facebook, Fansly, Instagram, Patreon, Pinterest, Reddit, TikTok, Tumblr, Twitter/X, JoyReactor, etc. — <a href=\"https://github.com/mikf/gallery-dl/blob/master/docs/supportedsites.md\">full list</a></blockquote>"
+    )
+    
+    LINK_HINT_MSG = (
+        "Get direct video links with quality selection.\n\n"
+        "Usage: /link + URL \n\n"
+        "(ex. /link https://youtu.be/abc123)\n"
+        "(ex. /link 720 https://youtu.be/abc123)"
+    )
     
     # Add bot to group command message
     ADD_BOT_TO_GROUP_MSG = """
@@ -248,8 +275,7 @@ This helps you quickly find and download videos from various platforms.
 Add my bots to your groups to get enhanced features and higher limits!
 
 📊 Current FREE Limits (in Bot’s DM):
-<blockquote>
-•🗑 Messy junk from all the files unsorted 👎
+<blockquote>•🗑 Messy junk from all the files unsorted 👎
 • Max 1 file size: 8 GB 
 • Max 1 file quality: UNLIM
 • Max 1 file duration: UNLIM
@@ -259,41 +285,32 @@ Add my bots to your groups to get enhanced features and higher limits!
 • Max images per 1 time: 1000
 • 1 Download max time: 2 hours
 • 🔞 NSFW content is paid! 1⭐️ = $0.02
-• 🆓 ALL OTHER MEDIA ARE TOTALY FREE
-</blockquote>
+• 🆓 ALL OTHER MEDIA ARE TOTALY FREE</blockquote>
 
 💬This limits only for video with subtitles:
-<blockquote>
-• Max video+subs duration: 1.5 hours (5400s)
+<blockquote>• Max video+subs duration: 1.5 hours (5400s)
 • Max video+subs file size: 500 MB
-• Max video+subs quality: 720p
-</blockquote>
+• Max video+subs quality: 720p</blockquote>
 
 🚀 Paid Group Benefits (2x Limits):
-<blockquote>
-•  🗂 Structured neat media vault sorted by topics 👍
+<blockquote>•  🗂 Structured neat media vault sorted by topics 👍
 • Max 1 file size: 16 GB ⬆️
 • Max playlist items per 1 time: 100 ⬆️
 • Max TikTok videos per 1 time: 1000 ⬆️
 • Max images per 1 time: 2000 ⬆️
 • 1 Download ma time: 4 hours ⬆️
-• 🔞NSFW content: Free with full metadata 🆓
-</blockquote>
+• 🔞NSFW content: Free with full metadata 🆓</blockquote>
 
 💬This limits only for video with subtitles:
-<blockquote>
-• Max video+subs duration: 3 hours (10800s) ⬆️
+<blockquote>• Max video+subs duration: 3 hours (10800s) ⬆️
 • Max video+subs file size: 1000 MB ⬆️
-• Max video+subs quality: 1080p ⬆️
-</blockquote>
+• Max video+subs quality: 1080p ⬆️</blockquote>
 
 💰 Pricing & Setup:
-<blockquote>
-• Price: $5/month per 1 bot in group
+<blockquote>• Price: $5/month per 1 bot in group
 • Setup: Contact @iilililiiillliiliililliilliliiil
 • Payment: 💎TON or other methods💲
-• Support: Full technical support included
-</blockquote>
+• Support: Full technical support included</blockquote>
 
 you can add my bots to your group to unblock free 🔞NSFW and to double (x2) all limits.
 contact me if you want me to allow your group to use my bots @iilililiiillliiliililliilliliiil

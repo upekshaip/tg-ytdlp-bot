@@ -9,6 +9,7 @@ from pyrogram import filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ReplyParameters, InputMediaPhoto, InputMediaVideo, InputPaidMediaPhoto, InputPaidMediaVideo
 from pyrogram import enums
 from HELPERS.logger import send_to_logger, logger, get_log_channel
+from CONFIG.logger_msg import LoggerMsg
 from HELPERS.app_instance import get_app
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
 import HELPERS.safe_messeger as sm
@@ -27,6 +28,134 @@ from HELPERS.limitter import is_user_in_channel
 from HELPERS.porn import is_porn
 from COMMANDS.nsfw_cmd import should_apply_spoiler
 from DATABASE.cache_db import save_to_image_cache, get_cached_image_posts, get_cached_image_post_indices
+import json
+
+# Unified helpers to create thumbnails/covers for videos
+def _get_file_mb(file_path):
+    try:
+        size_bytes = os.path.getsize(file_path)
+        return size_bytes / (1024 * 1024)
+    except Exception:
+        return 0.0
+
+def _get_video_duration_seconds(video_path):
+    try:
+        # Minimal ffprobe to get duration
+        result = subprocess.run([
+            'ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'format=duration', '-of', 'json', video_path
+        ], capture_output=True, text=True, timeout=10)
+        if result.returncode != 0:
+            return 0.0
+        data = json.loads(result.stdout or '{}')
+        dur = float(data.get('format', {}).get('duration', 0.0))
+        return dur if dur and dur > 0 else 0.0
+    except Exception:
+        return 0.0
+
+def _should_generate_cover(video_path):
+    """Generate cover unless both duration<60s AND size<10MB (i.e., generate if duration>=60s OR size>=10MB)."""
+    try:
+        duration = _get_video_duration_seconds(video_path)
+        size_mb = _get_file_mb(video_path)
+        return (duration >= 60.0) or (size_mb >= 10.0)
+    except Exception:
+        return False
+
+def _probe_video_info(video_path):
+    """Return dict with width,height,duration (seconds, int) using ffprobe."""
+    info = {"width": None, "height": None, "duration": None}
+    try:
+        result = subprocess.run([
+            'ffprobe', '-v', 'error',
+            '-select_streams', 'v:0',
+            '-show_entries', 'stream=width,height',
+            '-show_entries', 'format=duration',
+            '-of', 'json',
+            video_path
+        ], capture_output=True, text=True, timeout=10)
+        data = json.loads(result.stdout or '{}')
+        # Duration
+        dur = None
+        try:
+            dur = float(data.get('format', {}).get('duration', 0) or 0)
+        except Exception:
+            dur = 0.0
+        info["duration"] = int(dur) if dur and dur > 0 else None
+        # Resolution
+        streams = data.get('streams', []) or []
+        if streams:
+            w = streams[0].get('width')
+            h = streams[0].get('height')
+            info["width"] = int(w) if w else None
+            info["height"] = int(h) if h else None
+    except Exception:
+        pass
+    return info
+
+def generate_video_thumbnail(video_path):
+    """Generate a JPEG thumbnail for /img command. Named specially and skipped from sending. Returns path or None."""
+    try:
+        if not video_path or not _should_generate_cover(video_path):
+            return None
+        base_dir = os.path.dirname(video_path)
+        base_name = os.path.splitext(os.path.basename(video_path))[0]
+        thumb_path = os.path.join(base_dir, base_name + '.__tgthumb.jpg')
+        if os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0:
+            return thumb_path
+        subprocess.run([
+            'ffmpeg', '-y', '-i', video_path,
+            '-vf', 'thumbnail,scale=640:-1',
+            '-frames:v', '1', thumb_path
+        ], capture_output=True, text=True, timeout=30)
+        return thumb_path if os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0 else None
+    except Exception:
+        return None
+
+def ensure_paid_cover(video_path, existing_thumb=None):
+    """Ensure a square padded cover for paid video that preserves aspect ratio. Returns path or None."""
+    try:
+        if not _should_generate_cover(video_path):
+            return None
+        # Prefer an existing thumb if available
+        if existing_thumb and os.path.exists(existing_thumb) and os.path.getsize(existing_thumb) > 0:
+            return existing_thumb
+        base_dir = os.path.dirname(video_path)
+        base_name = os.path.splitext(os.path.basename(video_path))[0]
+        cover_path = os.path.join(base_dir, base_name + '.__tgcover_paid.jpg')
+        if os.path.exists(cover_path) and os.path.getsize(cover_path) > 0:
+            return cover_path
+        # Create a 640x640 square image, letterboxed/pillarboxed to preserve aspect
+        # Scale to fit within 640 keeping aspect, then pad to 640x640 centered
+        subprocess.run([
+            'ffmpeg', '-y', '-i', video_path,
+            '-vf', 'scale=w=if(gte(a,1),640,-2):h=if(lt(a,1),640,-2),pad=640:640:(ow-iw)/2:(oh-ih)/2:black',
+            '-vframes', '1', '-q:v', '2', cover_path
+        ], capture_output=True, text=True, timeout=30)
+        if os.path.exists(cover_path) and os.path.getsize(cover_path) > 0:
+            return cover_path
+        # Fallback to regular thumb if padding failed
+        reg_thumb = generate_video_thumbnail(video_path)
+        return reg_thumb if reg_thumb and os.path.getsize(reg_thumb) > 0 else None
+    except Exception:
+        return None
+
+def embed_poster_into_mp4(video_path: str, poster_path: str) -> str | None:
+    """Embed poster as the first frame for a brief moment to ensure non-black cover in players.
+    Returns path to a new mp4 or None on failure."""
+    try:
+        if not video_path or not poster_path or not os.path.exists(video_path) or not os.path.exists(poster_path):
+            return None
+        out_path = os.path.join(os.path.dirname(video_path), os.path.splitext(os.path.basename(video_path))[0] + '.__poster.mp4')
+        # Re-encode video minimally, copy audio, faststart. Overlay poster for first 0.04s, centered, keep aspect.
+        cmd = [
+            'ffmpeg','-y','-i', video_path,'-loop','1','-i', poster_path,
+            '-filter_complex', "[1:v]scale=main_w:-2[cv];[0:v][cv]overlay=(main_w-w)/2:(main_h-h)/2:enable='lte(t,0.04)',format=yuv420p",
+            '-c:v','libx264','-preset','veryfast','-crf','20','-c:a','copy','-movflags','+faststart', out_path
+        ]
+        subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        return out_path if os.path.exists(out_path) and os.path.getsize(out_path) > 0 else None
+    except Exception:
+        return None
 
 # Get app instance for decorators
 app = get_app()
@@ -110,16 +239,42 @@ def convert_file_to_telegram_format(file_path):
                 logger.warning(f"Failed to convert WebM: {result.stderr}")
                 return file_path
         
-        # Convert other unsupported video formats to MP4
-        elif file_ext in ['.avi', '.mov', '.mkv', '.flv']:
-            output_path = os.path.join(file_dir, f"{file_name}.mp4")
-            # We will generate/send thumbnail later during sending
+        # Faststart remux for MP4 to improve metadata parsing
+        elif file_ext == '.mp4':
+            output_path = os.path.join(file_dir, f"{file_name}._fast.mp4")
             cmd = [
                 'ffmpeg', '-i', file_path,
-                '-c:v', 'libx264', '-c:a', 'aac',
+                '-c:v', 'copy', '-c:a', 'copy',
                 '-movflags', '+faststart',
                 '-y', output_path
             ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            if result.returncode == 0 and os.path.exists(output_path):
+                logger.info(f"Remuxed MP4 with faststart: {file_path} -> {output_path}")
+                return output_path
+            else:
+                logger.warning(f"Failed to remux MP4 faststart: {result.stderr}")
+                return file_path
+
+        # Convert/Remux other video formats to MP4
+        elif file_ext in ['.avi', '.mov', '.mkv', '.flv', '.m4v']:
+            output_path = os.path.join(file_dir, f"{file_name}.mp4")
+            # Prefer stream copy for .m4v (usually MP4 container variant), else re-encode
+            if file_ext == '.m4v':
+                cmd = [
+                    'ffmpeg', '-i', file_path,
+                    '-c:v', 'copy', '-c:a', 'copy',
+                    '-movflags', '+faststart',
+                    '-y', output_path
+                ]
+            else:
+                # We will generate/send thumbnail later during sending
+                cmd = [
+                    'ffmpeg', '-i', file_path,
+                    '-c:v', 'libx264', '-c:a', 'aac',
+                    '-movflags', '+faststart',
+                    '-y', output_path
+                ]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
             if result.returncode == 0 and os.path.exists(output_path):
                 logger.info(f"Converted {file_ext} to MP4: {file_path} -> {output_path}")
@@ -179,23 +334,12 @@ def image_command(app, message):
         ])
         safe_send_message(
             user_id,
-            "<b>🖼 Image Download Command</b>\n\n"
-            "Usage: <code>/img URL</code>\n\n"
-            "<b>Examples:</b>\n"
-            "• <code>/img https://example.com/image.jpg</code>\n"
-            "• <code>/img 11-20 https://example.com/album</code>\n"
-            "• <code>/img 11- https://example.com/album</code>\n"
-            "• <code>/img https://vk.com/wall-160916577_408508</code>\n"
-            "• <code>/img https://2ch.hk/fd/res/1747651.html</code>\n"
-            "• <code>/img https://imgur.com/abc123</code>\n\n"
-            "<b>Supported platforms (examples):</b>\n"
-            "<blockquote>vk, 2ch, 35photo, 4chan, 500px, ArtStation, Boosty, Civitai, Cyberdrop, DeviantArt, Discord, Facebook, Fansly, Instagram, Patreon, Pinterest, Reddit, TikTok, Tumblr, Twitter/X, JoyReactor, etc. — <a href=\"https://github.com/mikf/gallery-dl/blob/master/docs/supportedsites.md\">full list</a></blockquote>"
-            "Also see: /audio, /vid, /help, /playlist, /settings",
+            Config.IMG_HELP_MSG + "Also see: /audio, /vid, /help, /playlist, /settings",
             reply_markup=keyboard,
             parse_mode=enums.ParseMode.HTML,
             reply_parameters=ReplyParameters(message_id=message.id)
         )
-        send_to_logger(message, "Showed /img help")
+        send_to_logger(message, LoggerMsg.IMG_HELP_SHOWN)
         return
     
     # Extract optional range and URL from command
@@ -230,7 +374,7 @@ def image_command(app, message):
             parse_mode=enums.ParseMode.HTML,
             reply_parameters=ReplyParameters(message_id=message.id)
         )
-        send_to_logger(message, f"Invalid URL provided: {url}")
+        send_to_logger(message, LoggerMsg.INVALID_URL_PROVIDED.format(url=url))
         return
     
     # Check if user has proxy enabled
@@ -284,7 +428,7 @@ def image_command(app, message):
                 )
             except Exception:
                 pass
-            send_to_logger(message, f"Reposted {len(cached_map)} cached albums for {url}")
+            send_to_logger(message, LoggerMsg.REPOSTED_CACHED_ALBUMS.format(count=len(cached_map), url=url))
             return
     except Exception as _e:
         logger.warning(f"Image cache forward (early) failed: {_e}")
@@ -311,7 +455,7 @@ def image_command(app, message):
                 "The URL might not be accessible or not contain a valid image.",
                 parse_mode=enums.ParseMode.HTML
             )
-            send_to_logger(message, f"Failed to analyze image URL: {url}")
+            send_to_logger(message, LoggerMsg.FAILED_ANALYZE_IMAGE.format(url=url))
             return
         
         # Update status message
@@ -358,7 +502,7 @@ def image_command(app, message):
                     )
                 except Exception:
                     pass
-                send_to_logger(message, f"Reposted {len(cached_map)} cached albums for {url}")
+                send_to_logger(message, LoggerMsg.REPOSTED_CACHED_ALBUMS.format(count=len(cached_map), url=url))
                 return
         except Exception as _e:
             logger.warning(f"Image cache forward failed: {_e}")
@@ -463,12 +607,19 @@ def image_command(app, message):
                 for root, _, files in os.walk(gallery_dl_dir):
                     for file in files:
                         file_path = os.path.join(root, file)
+                        # Skip special thumbs/covers generated for Telegram
+                        try:
+                            base = os.path.basename(file_path)
+                            if base.endswith('.__tgthumb.jpg') or base.endswith('.__tgcover_paid.jpg'):
+                                continue
+                        except Exception:
+                            pass
                         if file_path in seen_files:
                             continue
                         # Only consider media-like files
                         if not file.lower().endswith((
                             '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff',
-                            '.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv',
+                            '.mp4', '.m4v', '.avi', '.mov', '.mkv', '.webm', '.flv',
                             '.mp3', '.wav', '.ogg', '.m4a',
                             '.pdf', '.doc', '.docx', '.txt', '.zip', '.rar', '.7z'
                         )):
@@ -497,7 +648,7 @@ def image_command(app, message):
                             photos_videos_buffer.append((converted, 'photo', original_path))
                         elif ext in ['.mp4']:
                             photos_videos_buffer.append((converted, 'video', original_path))
-                        elif ext in ['.avi', '.mov', '.mkv', '.webm', '.flv']:
+                        elif ext in ['.avi', '.mov', '.mkv', '.webm', '.flv', '.m4v']:
                             # Try to convert to mp4 if not already
                             converted = convert_file_to_telegram_format(converted)
                             ext2 = os.path.splitext(converted)[1].lower()
@@ -525,21 +676,29 @@ def image_command(app, message):
                                     is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                                     media_group.append(InputMediaPhoto(p, has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
                                 else:
-                                    # generate thumbnail for better preview
-                                    thumb = None
-                                    try:
-                                        thumb = os.path.join(os.path.dirname(p), os.path.splitext(os.path.basename(p))[0] + '.jpg')
-                                        subprocess.run([
-                                            'ffmpeg', '-y', '-i', p, '-vf', 'thumbnail,scale=640:-1', '-frames:v', '1', thumb
-                                        ], capture_output=True, text=True, timeout=30)
-                                    except Exception:
-                                        thumb = None
+                                    # probe metadata
+                                    vinfo = _probe_video_info(p)
+                                    # generate thumbnail for better preview if needed
+                                    thumb = generate_video_thumbnail(p)
                                     # No spoiler in groups, only in private chats for paid media
                                     is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                                     if thumb and os.path.exists(thumb):
-                                        media_group.append(InputMediaVideo(p, thumb=thumb, has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
+                                        media_group.append(InputMediaVideo(
+                                            p,
+                                            thumb=thumb,
+                                            width=vinfo.get('width'),
+                                            height=vinfo.get('height'),
+                                            duration=vinfo.get('duration'),
+                                            has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
+                                        ))
                                     else:
-                                        media_group.append(InputMediaVideo(p, has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
+                                        media_group.append(InputMediaVideo(
+                                            p,
+                                            width=vinfo.get('width'),
+                                            height=vinfo.get('height'),
+                                            duration=vinfo.get('duration'),
+                                            has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
+                                        ))
                             try:
                                 # For paid media, only send in private chats (not groups/channels)
                                 is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
@@ -557,24 +716,20 @@ def image_command(app, message):
                                                     reply_parameters=ReplyParameters(message_id=message.id)
                                                 )
                                             else:
-                                                # Try to use existing thumb; if none, generate one for cover
-                                                _cover = getattr(m, 'thumb', None)
-                                                if not _cover:
-                                                    try:
-                                                        import subprocess
-                                                        _cover = os.path.join(os.path.dirname(m.media), os.path.splitext(os.path.basename(m.media))[0] + '.jpg')
-                                                        subprocess.run([
-                                                            'ffmpeg','-y','-i', m.media,
-                                                            '-vf','thumbnail,scale=640:-1','-frames:v','1', _cover
-                                                        ], capture_output=True, text=True, timeout=30)
-                                                        if not os.path.exists(_cover):
-                                                            _cover = None
-                                                    except Exception:
-                                                        _cover = None
+                                                # Ensure a cover for paid media and try to embed poster into the video head
+                                                _cover = ensure_paid_cover(m.media, getattr(m, 'thumb', None))
+                                                media_path = m.media
+                                                try:
+                                                    if _cover:
+                                                        _embedded = embed_poster_into_mp4(m.media, _cover)
+                                                        if _embedded and os.path.exists(_embedded):
+                                                            media_path = _embedded
+                                                except Exception:
+                                                    pass
                                                 try:
                                                     paid_msg = app.send_paid_media(
                                                         user_id,
-                                                        media=[InputPaidMediaVideo(media=m.media, cover=_cover)],
+                                                        media=[InputPaidMediaVideo(media=media_path, cover=_cover)],
                                                         star_count=LimitsConfig.NSFW_STAR_COST,
                                                         payload=str(Config.STAR_RECEIVER),
                                                         reply_parameters=ReplyParameters(message_id=message.id)
@@ -582,7 +737,7 @@ def image_command(app, message):
                                                 except TypeError:
                                                     paid_msg = app.send_paid_media(
                                                         user_id,
-                                                        media=[InputPaidMediaVideo(media=m.media)],
+                                                        media=[InputPaidMediaVideo(media=media_path)],
                                                         star_count=LimitsConfig.NSFW_STAR_COST,
                                                         payload=str(Config.STAR_RECEIVER),
                                                         reply_parameters=ReplyParameters(message_id=message.id)
@@ -689,6 +844,18 @@ def image_command(app, message):
                                     zero_file(orig)
                                 photos_videos_buffer = photos_videos_buffer[batch_size:]
                                 update_status()
+                                # Delete generated special thumbs/covers
+                                try:
+                                    for m in media_group:
+                                        tpath = getattr(m, 'thumb', None)
+                                        if tpath and isinstance(tpath, str) and (tpath.endswith('.__tgthumb.jpg') or tpath.endswith('.__tgcover_paid.jpg')):
+                                            try:
+                                                if os.path.exists(tpath):
+                                                    os.remove(tpath)
+                                            except Exception:
+                                                pass
+                                except Exception:
+                                    pass
                             except Exception as e:
                                 logger.error(f"Failed to send media group: {e}")
                                 # fallback: send individually
@@ -719,32 +886,13 @@ def image_command(app, message):
                                                     message_thread_id=getattr(message, 'message_thread_id', None)
                                                 )
                                             else:
-                                                # try generate thumbnail
-                                                thumb = None
-                                                try:
-                                                    thumb = os.path.join(os.path.dirname(p), os.path.splitext(os.path.basename(p))[0] + '.jpg')
-                                                    subprocess.run([
-                                                        'ffmpeg', '-y', '-i', p, '-vf', 'thumbnail,scale=640:-1', '-frames:v', '1', thumb
-                                                    ], capture_output=True, text=True, timeout=30)
-                                                except Exception:
-                                                    thumb = None
+                                                # ensure thumbnail
+                                                thumb = generate_video_thumbnail(p)
                                                 if thumb and os.path.exists(thumb):
                                                     is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                                                     if nsfw_flag and is_private_chat:
                                                         # Ensure we have a cover
-                                                        _cover = thumb
-                                                        if not _cover:
-                                                            try:
-                                                                import subprocess
-                                                                _cover = os.path.join(os.path.dirname(p), os.path.splitext(os.path.basename(p))[0] + '.jpg')
-                                                                subprocess.run([
-                                                                    'ffmpeg','-y','-i', p,
-                                                                    '-vf','thumbnail,scale=640:-1','-frames:v','1', _cover
-                                                                ], capture_output=True, text=True, timeout=30)
-                                                                if not os.path.exists(_cover):
-                                                                    _cover = None
-                                                            except Exception:
-                                                                _cover = None
+                                                        _cover = ensure_paid_cover(p, thumb)
                                                         try:
                                                             media_item = InputPaidMediaVideo(media=f, cover=_cover)
                                                         except TypeError:
@@ -904,21 +1052,29 @@ def image_command(app, message):
                             is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                             media_group.append(InputMediaPhoto(p, has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
                         else:
+                            # probe metadata
+                            vinfo = _probe_video_info(p)
                             # generate thumbnail
-                            thumb = None
-                            try:
-                                thumb = os.path.join(os.path.dirname(p), os.path.splitext(os.path.basename(p))[0] + '.jpg')
-                                subprocess.run([
-                                    'ffmpeg', '-y', '-i', p, '-vf', 'thumbnail,scale=640:-1', '-frames:v', '1', thumb
-                                ], capture_output=True, text=True, timeout=30)
-                            except Exception:
-                                thumb = None
+                            thumb = generate_video_thumbnail(p)
                             # No spoiler in groups, only in private chats for paid media
                             is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                             if thumb and os.path.exists(thumb):
-                                media_group.append(InputMediaVideo(p, thumb=thumb, has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
+                                media_group.append(InputMediaVideo(
+                                    p,
+                                    thumb=thumb,
+                                    width=vinfo.get('width'),
+                                    height=vinfo.get('height'),
+                                    duration=vinfo.get('duration'),
+                                    has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
+                                ))
                             else:
-                                media_group.append(InputMediaVideo(p, has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
+                                media_group.append(InputMediaVideo(
+                                    p,
+                                    width=vinfo.get('width'),
+                                    height=vinfo.get('height'),
+                                    duration=vinfo.get('duration'),
+                                    has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
+                                ))
                     try:
                         # For paid media, only send in private chats (not groups/channels)
                         is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
@@ -941,25 +1097,9 @@ def image_command(app, message):
                                         elif paid_msg is not None:
                                             sent.append(paid_msg)
                                     else:
-                                        # Generate cover for video if needed
-                                        _cover = None
-                                        try:
-                                            if hasattr(m, 'thumb') and m.thumb and os.path.exists(m.thumb):
-                                                _cover = m.thumb
-                                            else:
-                                                # Try to generate cover via FFmpeg
-                                                video_path = m.media
-                                                if hasattr(video_path, 'name'):
-                                                    video_path = video_path.name
-                                                _cover = os.path.join(os.path.dirname(video_path), os.path.splitext(os.path.basename(video_path))[0] + '_cover.jpg')
-                                                if not os.path.exists(_cover):
-                                                    subprocess.run([
-                                                        'ffmpeg', '-i', video_path, '-ss', '00:00:01', '-vframes', '1', '-q:v', '2', '-y', _cover
-                                                    ], capture_output=True, timeout=10)
-                                                if not os.path.exists(_cover):
-                                                    _cover = None
-                                        except Exception:
-                                            _cover = None
+                                        # Ensure cover for video
+                                        video_path = m.media if not hasattr(m.media, 'name') else m.media.name
+                                        _cover = ensure_paid_cover(video_path, getattr(m, 'thumb', None))
                                         try:
                                             paid_msg = app.send_paid_media(
                                                 user_id,
@@ -1107,31 +1247,11 @@ def image_command(app, message):
                                             )
                                     else:
                                         # try generate thumbnail
-                                        thumb = None
-                                        try:
-                                            thumb = os.path.join(os.path.dirname(p), os.path.splitext(os.path.basename(p))[0] + '.jpg')
-                                            subprocess.run([
-                                                'ffmpeg', '-y', '-i', p, '-vf', 'thumbnail,scale=640:-1', '-frames:v', '1', thumb
-                                            ], capture_output=True, text=True, timeout=30)
-                                        except Exception:
-                                            thumb = None
+                                        thumb = generate_video_thumbnail(p)
                                         is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                                         if nsfw_flag and is_private_chat:
-                                            # Generate cover for video if needed
-                                            _cover = None
-                                            if thumb and os.path.exists(thumb):
-                                                _cover = thumb
-                                            else:
-                                                try:
-                                                    _cover = os.path.join(os.path.dirname(p), os.path.splitext(os.path.basename(p))[0] + '_cover.jpg')
-                                                    if not os.path.exists(_cover):
-                                                        subprocess.run([
-                                                            'ffmpeg', '-i', p, '-ss', '00:00:01', '-vframes', '1', '-q:v', '2', '-y', _cover
-                                                        ], capture_output=True, timeout=10)
-                                                    if not os.path.exists(_cover):
-                                                        _cover = None
-                                                except Exception:
-                                                    _cover = None
+                                            # Generate/ensure cover for video
+                                            _cover = ensure_paid_cover(p, thumb)
                                             try:
                                                 media_item = InputPaidMediaVideo(media=f, cover=_cover)
                                             except TypeError:
@@ -1145,23 +1265,14 @@ def image_command(app, message):
                                             )
                                         else:
                                             # No spoiler in groups, only in private chats for paid media
-                                            if thumb and os.path.exists(thumb):
-                                                sent_msg = app.send_video(
-                                                    user_id,
-                                                    video=f,
-                                                    thumb=thumb,
-                                                    has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
-                                                    reply_parameters=ReplyParameters(message_id=message.id),
-                                                    message_thread_id=getattr(message, 'message_thread_id', None)
-                                                )
-                                            else:
-                                                sent_msg = app.send_video(
-                                                    user_id,
-                                                    video=f,
-                                                    has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
-                                                    reply_parameters=ReplyParameters(message_id=message.id),
-                                                    message_thread_id=getattr(message, 'message_thread_id', None)
-                                                )
+                                            sent_msg = app.send_video(
+                                                user_id,
+                                                video=f,
+                                                thumb=thumb if thumb and os.path.exists(thumb) else None,
+                                                has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
+                                                reply_parameters=ReplyParameters(message_id=message.id),
+                                                message_thread_id=getattr(message, 'message_thread_id', None)
+                                            )
                                     sent_message_ids.append(sent_msg.id)
                                     tmp_ids2.append(sent_msg.id)
                                     total_sent += 1
@@ -1295,7 +1406,7 @@ def image_command(app, message):
         except Exception:
             pass
 
-        send_to_logger(message, f"Streamed and sent {total_sent} media: {url}")
+        send_to_logger(message, LoggerMsg.STREAMED_AND_SENT_MEDIA.format(total_sent=total_sent, url=url))
             
     except Exception as e:
         logger.error(f"Error in image command: {e}")
@@ -1338,7 +1449,7 @@ def image_command(app, message):
             Config.ERROR_OCCURRED_MSG.format(url=url, error=str(e)),
             parse_mode=enums.ParseMode.HTML
         )
-        send_to_logger(message, f"Error in image command: {url}, error: {e}")
+        send_to_logger(message, LoggerMsg.IMAGE_COMMAND_ERROR.format(url=url, error=e))
 
 @app.on_callback_query(filters.regex(r"^img_help\|"))
 def img_help_callback(app, callback_query: CallbackQuery):

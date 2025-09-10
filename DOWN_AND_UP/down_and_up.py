@@ -13,6 +13,7 @@ import yt_dlp
 import re
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, get_log_channel
+from CONFIG.logger_msg import LoggerMsg
 from HELPERS.limitter import TimeFormatter, humanbytes, check_user, check_file_size_limit, check_subs_limits
 from HELPERS.download_status import set_active_download, clear_download_start_time, check_download_timeout, start_hourglass_animation, start_cycle_progress, playlist_errors_lock, playlist_errors
 from HELPERS.safe_messeger import safe_delete_messages, safe_edit_message_text, safe_forward_messages
@@ -124,7 +125,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                send_to_logger(message, f"Direct link extracted via down_and_up for user {user_id} from {url}")
+                send_to_logger(message, LoggerMsg.DIRECT_LINK_EXTRACTED.format(source="down_and_up", user_id=user_id, url=url))
                 
             else:
                 error_msg = result.get('error', 'Unknown error')
@@ -135,7 +136,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                send_to_logger(message, f"Failed to extract direct link via down_and_up for user {user_id} from {url}: {error_msg}")
+                send_to_logger(message, LoggerMsg.DIRECT_LINK_FAILED.format(source="down_and_up", user_id=user_id, url=url, error=error_msg))
             
             return
     except Exception as e:
@@ -190,7 +191,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         logger.error(f"down_and_up: error reposting cached video index={index}: {e}")
             if len(uncached_indices) == 0:
                 app.send_message(user_id, Config.PLAYLIST_SENT_FROM_CACHE_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
-                send_to_logger(message, f"Playlist videos sent from cache (quality={quality_key}) to user {user_id}")
+                send_to_logger(message, LoggerMsg.PLAYLIST_VIDEOS_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
                 return
             else:
                 app.send_message(user_id, Config.CACHE_PARTIAL_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
@@ -215,7 +216,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             forward_kwargs['message_thread_id'] = thread_id
                     app.forward_messages(**forward_kwargs)
                     app.send_message(user_id, Config.VIDEO_SENT_FROM_CACHE_MSG, reply_parameters=ReplyParameters(message_id=message.id))
-                    send_to_logger(message, f"Video sent from cache (quality={quality_key}) to user {user_id}")
+                    send_to_logger(message, LoggerMsg.VIDEO_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
                     return
                 except Exception as e:
                     logger.error(f"Error reposting video from cache: {e}")
@@ -467,10 +468,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         if not allowed:
             app.send_message(
                 user_id,
-                f"❌ The file size exceeds the {max_size_gb} GB limit. Please select a smaller file within the allowed size.",
+                Config.ERROR_FILE_SIZE_LIMIT_MSG.format(limit=max_size_gb),
                 reply_parameters=ReplyParameters(message_id=message.id)
             )
-            send_to_logger(message, f"❌ The file size exceeds the {max_size_gb} GB limit. Please select a smaller file within the allowed size.")
+            send_to_logger(message, LoggerMsg.SIZE_LIMIT_EXCEEDED.format(max_size_gb=max_size_gb))
             logger.warning(f"[SIZE CHECK] Download for quality_key={quality_key} was blocked due to size limit.")
             return
         else:
@@ -502,7 +503,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         logger.error(f"Error updating progress: {e}")
                 elif d.get("status") == "error":
                     logger.error("Error occurred during download.")
-                    send_to_all(message, "❌ Sorry... Some error occurred during download.")
+                    send_to_all(message, LoggerMsg.DOWNLOAD_ERROR_GENERIC)
                 return
             
             # Adaptive throttle: base 1.5s, doubles each minute (1m→1.5s, 2m→3s, 3m→6s,...)
@@ -545,7 +546,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     logger.error(f"Error updating progress: {e}")
             elif d.get("status") == "error":
                 logger.error("Error occurred during download.")
-                send_to_all(message, "❌ Sorry... Some error occurred during download.")
+                send_to_all(message, LoggerMsg.DOWNLOAD_ERROR_GENERIC)
             last_update = current_time
 
         successful_uploads = 0
@@ -1580,7 +1581,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     except Exception as e:
         if "Download timeout exceeded" in str(e):
             send_to_user(message, "⏰ Download cancelled due to timeout (2 hours)")
-            send_to_logger(message, "Download cancelled due to timeout")
+            send_to_logger(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG)
         else:
             logger.error(f"Error in video download: {e}")
             send_to_user(message, f"❌ Failed to download video: {e}")

@@ -425,7 +425,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("🔚Close", callback_data="audio_hint|close")]
         ])
         safe_send_message(user_id,
-                          "Download only audio from video source.\n\nUsage: /audio + URL \n\n(ex. /audio https://youtu.be/abc123)\n(ex. /audio https://youtu.be/playlist?list=abc123*1*10)",
+                          Config.AUDIO_HINT_MSG,
                           reply_parameters=ReplyParameters(message_id=callback_query.message.id),
 
                           reply_markup=keyboard,
@@ -527,17 +527,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         ])
         safe_send_message(
             user_id,
-            "<b>🖼 Image Download Command</b>\n\n"
-            "Usage: <code>/img URL</code>\n\n"
-            "<b>Examples:</b>\n"
-            "• <code>/img https://example.com/image.jpg</code>\n"
-            "• <code>/img 11-20 https://example.com/album</code>\n"
-            "• <code>/img 11- https://example.com/album</code>\n"
-            "• <code>/img https://vk.com/wall-160916577_408508</code>\n"
-            "• <code>/img https://2ch.hk/fd/res/1747651.html</code>\n"
-            "• <code>/img https://imgur.com/abc123</code>\n\n"
-            "<b>Supported platforms (examples):</b>\n"
-            "<blockquote>vk, 2ch, 35photo, 4chan, 500px, ArtStation, Boosty, Civitai, Cyberdrop, DeviantArt, Discord, Facebook, Fansly, Instagram, Patreon, Pinterest, Reddit, TikTok, Tumblr, Twitter/X, JoyReactor, etc. — <a href=\"https://github.com/mikf/gallery-dl/blob/master/docs/supportedsites.md\">full list</a></blockquote>",
+            Config.IMG_HELP_MSG,
             reply_parameters=ReplyParameters(message_id=callback_query.message.id),
             reply_markup=keyboard,
             _callback_query=callback_query,
@@ -554,7 +544,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("🔚Close", callback_data="link_hint|close")]
         ])
         safe_send_message(user_id,
-                          "Get direct video links with quality selection.\n\nUsage: /link + URL \n\n(ex. /link https://youtu.be/abc123)\n(ex. /link 720 https://youtu.be/abc123)",
+                          Config.LINK_HINT_MSG,
                           reply_parameters=ReplyParameters(message_id=callback_query.message.id),
                           reply_markup=keyboard,
                           _callback_query=callback_query,
@@ -621,12 +611,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         ])
         
         # Send message with search instructions (same as search.py)
-        text = (
-            "🔍 <b>YouTube Video search</b>\n\n"
-            "📱 <b>For mobile:</b> tap button below and type your search query after text @vid.\n\n"
-            "💻 <b>For PC:</b> type <code>@vid Your_Search_Query</code> in any chat\n\n"
-            "<blockquote>For example: <b>@vid funny cats</b></blockquote>"
-        )
+        text = Config.SEARCH_MSG
         
         safe_send_message(
             user_id,
