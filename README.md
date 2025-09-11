@@ -3,7 +3,7 @@
 Support me on [BuyMeACoffee](https://buymeacoffee.com/upekshaip) \
 Thanks to Contributor - [@IIlIlIlIIIlllIIlIIlIllIIllIlIIIl](https://t.me/IIlIlIlIIIlllIIlIIlIllIIllIlIIIl) - [chelaxian](https://github.com/chelaxian/tg-ytdlp-bot)
 
-Download private YouTube/videos using a cookie file with advanced format selection, codec support (H.264/AVC, AV1, VP9), and intelligent subtitle handling.
+Download private YouTube/videos using a cookie file with advanced format selection, codec support (H.264/AVC, AV1, VP9), intelligent subtitle handling, proxy support, and direct stream links.
 
 Test free Telegram bots - https://t.me/tg_ytdlp \
 https://t.me/tgytdlp_uae_bot \
@@ -24,65 +24,6 @@ https://t.me/tgytdlp_bot
 - Install required dependencies and start the bot.
 
 ---
-
-#### Get YouTube cookies
-
-YouTube rotates account cookies frequently on open YouTube browser tabs as a security measure. To export cookies that will remain working with yt-dlp, you will need to export cookies in such a way that they are never rotated.
-
-One way to do this is through a private browsing/incognito window:
-
-- Open a new private browsing/incognito window and log into YouTube
-- Open a new tab and close the YouTube tab
-- Export youtube.com cookies from the browser then close the private browsing/incognito window so the session is never opened in the browser again.
-
-For export you can use browser extension [Cookie-Editor](https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm)
-
-create in project folder subfolder `TXT` and place `cookie.txt` extracted from YouTube here
-
-```sh
-cd tg-ytdlp-bot/TXT
-nano cookie.txt
-```
-
-#### Advanced YouTube Cookie Management
-
-The bot now supports automatic downloading and validation of YouTube cookies from multiple sources:
-
-**Features:**
-- **Multiple Sources**: Configure up to 10 different cookie sources
-- **Automatic Validation**: Each downloaded cookie is tested for functionality
-- **Fallback System**: If one source fails, automatically tries the next
-- **Real-time Progress**: Shows download and validation progress to users
-
-**Configuration in `CONFIG/config.py`:**
-```python
-# YouTube cookies URLs - main URL and backups
-# The bot will check cookies in the order: YOUTUBE_COOKIE_URL, YOUTUBE_COOKIE_URL_1, YOUTUBE_COOKIE_URL_2, etc.
-# If one URL does not work or the cookies are expired, the bot will automatically try the next one
-YOUTUBE_COOKIE_URL = "https://your-domain.com/cookies/youtube/cookie1.txt"
-YOUTUBE_COOKIE_URL_1 = "https://your-domain.com/cookies/youtube/cookie2.txt"
-YOUTUBE_COOKIE_URL_2 = "https://your-domain.com/cookies/youtube/cookie3.txt"
-YOUTUBE_COOKIE_URL_3 = "https://your-domain.com/cookies/youtube/cookie4.txt"
-YOUTUBE_COOKIE_URL_4 = "https://your-domain.com/cookies/youtube/cookie5.txt"
-# Add more sources as needed (up to YOUTUBE_COOKIE_URL_9)
-```
-
-**How it works:**
-1. User runs `/cookie` and selects YouTube
-2. Bot downloads cookies from the first available source
-3. Validates cookies by testing them with a YouTube video
-4. If validation fails, automatically tries the next source
-5. Continues until working cookies are found or all sources are exhausted
-
-**User Experience:**
-- Progress updates: "🔄 Downloading and checking YouTube cookies... Attempt 1 of 4"
-- Success message: "✅ YouTube cookies successfully downloaded and validated! Used source 2 of 4"
-- Failure message: "❌ All YouTube cookies are expired or unavailable! Contact the bot administrator to replace them."
-
-Also you may fill in `porn_domains.txt` `porn_keywords.txt` files in `TXT` folder if you want to tag #porn videos and hide them under spoiler
-
----
-
 ##  local deployment on a VM 
 For local deployment you should use this commands:
 
@@ -127,9 +68,7 @@ YOUTUBE_COOKIE_URL_3 = "https://your-domain.com/cookies/youtube/cookie4.txt"
 YOUTUBE_COOKIE_URL_4 = "https://your-domain.com/cookies/youtube/cookie5.txt"
 
 # Other Service Cookies
-INSTAGRAM_COOKIE_URL = "https://your-domain.com/cookies/instagram_cookie.txt"
 TIKTOK_COOKIE_URL = "https://your-domain.com/cookies/tiktok_cookie.txt"
-FACEBOOK_COOKIE_URL = "https://your-domain.com/cookies/facebook_cookie.txt"
 TWITTER_COOKIE_URL = "https://your-domain.com/cookies/twitter_cookie.txt"
 
 # Firebase Configuration
@@ -287,6 +226,152 @@ If you need to support extra languages such as arabic, chinese, japanese, korean
 
 ---
 
+#### Get YouTube cookies
+
+YouTube rotates account cookies frequently on open YouTube browser tabs as a security measure. To export cookies that will remain working with yt-dlp, you will need to export cookies in such a way that they are never rotated.
+
+One way to do this is through a private browsing/incognito window:
+
+- Open a new private browsing/incognito window and log into YouTube
+- In same window and same tab from step 1, navigate to https://www.youtube.com/robots.txt (this should be the only private/incognito browsing tab open)
+- Export youtube.com cookies from the browser, then close the private browsing/incognito window so that the session is never opened in the browser again.
+
+For export you can use browser extension [Cookie-Editor](https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm)
+
+create in project folder subfolder `TXT` and place `cookie.txt` extracted from YouTube here
+
+```sh
+cd tg-ytdlp-bot/TXT
+nano cookie.txt
+```
+
+#### Advanced YouTube Cookie Management
+
+The bot now supports automatic downloading and validation of YouTube cookies from multiple sources:
+
+**Features:**
+- **Multiple Sources**: Configure up to 10 different cookie sources
+- **Automatic Validation**: Each downloaded cookie is tested for functionality
+- **Fallback System**: If one source fails, automatically tries the next
+- **Real-time Progress**: Shows download and validation progress to users
+
+**Configuration in `CONFIG/config.py`:**
+```python
+# YouTube cookies URLs - main URL and backups
+# The bot will check cookies in the order: YOUTUBE_COOKIE_URL, YOUTUBE_COOKIE_URL_1, YOUTUBE_COOKIE_URL_2, etc.
+# If one URL does not work or the cookies are expired, the bot will automatically try the next one
+YOUTUBE_COOKIE_URL = "https://your-domain.com/cookies/youtube/cookie1.txt"
+YOUTUBE_COOKIE_URL_1 = "https://your-domain.com/cookies/youtube/cookie2.txt"
+YOUTUBE_COOKIE_URL_2 = "https://your-domain.com/cookies/youtube/cookie3.txt"
+YOUTUBE_COOKIE_URL_3 = "https://your-domain.com/cookies/youtube/cookie4.txt"
+YOUTUBE_COOKIE_URL_4 = "https://your-domain.com/cookies/youtube/cookie5.txt"
+# Add more sources as needed (up to YOUTUBE_COOKIE_URL_9)
+```
+
+**How it works:**
+1. User runs `/cookie` and selects YouTube
+2. Bot downloads cookies from the first available source
+3. Validates cookies by testing them with a YouTube video
+4. If validation fails, automatically tries the next source
+5. Continues until working cookies are found or all sources are exhausted
+
+**User Experience:**
+- Progress updates: "🔄 Downloading and checking YouTube cookies... Attempt 1 of 4"
+- Success message: "✅ YouTube cookies successfully downloaded and validated! Used source 2 of 4"
+- Failure message: "❌ All YouTube cookies are expired or unavailable! Contact the bot administrator to replace them."
+
+Also you may fill in `porn_domains.txt` `porn_keywords.txt` files in `TXT` folder if you want to tag #nsfw videos and hide them under spoiler
+
+---
+
+## PO Token Provider Setup (YouTube Bypass)
+
+The bot now supports **PO Token Provider** for bypassing YouTube's "Sign in to confirm you're not a bot" restrictions and other blocking mechanisms.
+
+### What is PO Token Provider?
+
+PO (Proof-of-Origin) Token Provider is a service that generates tokens to make your yt-dlp requests appear more legitimate to YouTube, helping bypass various blocking mechanisms including:
+- "Sign in to confirm you're not a bot" messages
+- IP-based restrictions
+- Rate limiting
+- Other anti-bot measures
+
+### Docker Installation (Recommended)
+
+#### 1. Install Docker (if not already installed)
+
+**Ubuntu/Debian:**
+```bash
+sudo apt update
+sudo apt install -y docker.io
+sudo systemctl enable --now docker
+```
+
+#### 2. Run PO Token Provider Container
+
+```bash
+docker run -d \
+  --name bgutil-provider \
+  -p 4416:4416 \
+  --init \
+  --restart unless-stopped \
+  brainicism/bgutil-ytdlp-pot-provider
+```
+
+**Parameters:**
+- `-d`: Run in background (detached mode)
+- `--name bgutil-provider`: Container name
+- `-p 4416:4416`: Map port 4416 (container) to 4416 (host)
+- `--init`: Proper process handling
+- `--restart unless-stopped`: Auto-restart on reboot or crash
+
+#### 3. Verify Installation
+
+Check if container is running:
+```bash
+docker ps
+```
+
+Test the provider:
+```bash
+curl http://127.0.0.1:4416
+```
+
+#### 4. Install yt-dlp Plugin
+
+Install the PO token provider plugin for yt-dlp:
+```bash
+python3 -m pip install -U bgutil-ytdlp-pot-provider
+```
+
+#### 5. Configure Bot
+
+The bot is already configured to use PO token provider. Settings in `CONFIG/config.py`:
+
+```python
+# PO Token Provider configuration for YouTube
+YOUTUBE_POT_ENABLED = True
+YOUTUBE_POT_BASE_URL = "http://127.0.0.1:4416"
+YOUTUBE_POT_DISABLE_INNERTUBE = False
+```
+
+### How It Works
+
+1. **Automatic Detection**: Bot automatically detects YouTube URLs
+2. **Token Generation**: PO token provider generates legitimate tokens
+3. **Request Enhancement**: yt-dlp uses these tokens to bypass restrictions
+4. **Transparent Operation**: Works seamlessly with existing proxy and cookie systems
+
+### Benefits
+
+- ✅ Bypasses "Sign in to confirm you're not a bot" messages
+- ✅ Reduces IP-based blocking
+- ✅ Improves download success rates
+- ✅ Works with existing proxy and cookie configurations
+- ✅ Automatic integration - no user action required
+
+---
+
 ## Running Telegram bot
 Now you can start the bot via commands:
 ```sh
@@ -305,28 +390,189 @@ python3 magic.py
 - **/usage** - Show your usage statistics and logs.
 - **/tags** - Get all your #tags.
 - **/audio** - Download audio from a video URL.
+- **/link** - Get direct video links with quality selection (e.g., `/link 720 URL`, `/link 4k URL`). Also provides direct links for media players (VLC, MX Player, Infuse, IINA, nPlayer, MPV).
+- **/proxy** - Enable/disable proxy for all yt-dlp downloads (`/proxy on`, `/proxy off`). When enabled, all downloads use the configured proxy server.
+- **PO Token Provider** - Automatically bypasses YouTube restrictions including "Sign in to confirm you're not a bot" messages. Works transparently with all YouTube operations.
 - **/format** - Choose media format options with advanced codec selection (H.264/AVC, AV1, VP9) and container preferences (MP4, MKV).
-- **/split** - Change splitted video part size (0.25-2GB).
+  - **With arguments**: `/format 720`, `/format 4k`, `/format 8k` - Set quality directly
+- **/split** - Change splitted video part size (100MB-2GB).
+  - **With arguments**: `/split 100mb`, `/split 500mb`, `/split 1.5gb`, `/split 2gb` - Set size directly
+  - **Range**: Any value from 100MB to 2GB (e.g., `/split 300mb`, `/split 1.2gb`, `/split 1500mb`)
 - **/mediainfo** - Turn ON/OFF sending mediainfo (`/mediainfo on|off`).
 - **/check_cookie** - Check the cookie file.
 - **/cookie** - Download the cookie file with additional "From Browser" option.
+  - **With arguments**: `/cookie youtube`, `/cookie instagram`, `/cookie tiktok`, `/cookie x`, `/cookie twitter`, `/cookie facebook`, `/cookie custom` - Direct service selection
 - **/save_as_cookie** - Save text as cookie (or upload TXT-doc).
 - **/cookies_from_browser** - Get cookies from browser (if supported) with fallback to Config.COOKIE_URL.
 - **/subs** - Enable/disable subtitle embedding for videos with enhanced language selection and "Always Ask" mode.
+  - **With arguments**: `/subs off`, `/subs ru`, `/subs en auto` - Set language and mode directly
+- **/keyboard** - Manage reply keyboard settings (OFF/1x3/2x3/full).
+  - **With arguments**: `/keyboard off`, `/keyboard 1x3`, `/keyboard 2x3`, `/keyboard full` - Set layout directly
 - **/search** - Open inline search helper for quick `@vid` usage (see below).
+- **/img** - Download images from various platforms using gallery-dl.
 
 ---
 
 ## Advanced Features
+
+### PO Token Provider (YouTube Bypass)
+
+The bot automatically uses PO Token Provider for all YouTube operations to bypass various restrictions:
+
+**Features:**
+- **Automatic Detection**: Works transparently with all YouTube URLs
+- **Restriction Bypass**: Handles "Sign in to confirm you're not a bot" messages
+- **IP Protection**: Reduces IP-based blocking and rate limiting
+- **Seamless Integration**: Works with existing proxy and cookie systems
+- **No User Action**: Completely automatic - no commands needed
+
+**How it works:**
+1. Bot detects YouTube URLs automatically
+2. PO token provider generates legitimate tokens
+3. yt-dlp uses these tokens to bypass restrictions
+4. Downloads proceed normally with enhanced success rates
+
+**Configuration:**
+```python
+# In CONFIG/config.py
+YOUTUBE_POT_ENABLED = True
+YOUTUBE_POT_BASE_URL = "http://127.0.0.1:4416"
+YOUTUBE_POT_DISABLE_INNERTUBE = False
+```
+
+**Technical Details:**
+- Uses proper Python API format for `extractor_args`: `dict -> dict -> list[str]`
+- `disable_innertube` is only added when enabled (as `["1"]` string in list)
+- Compatible with yt-dlp >= 2025.05.22
+- Works with both HTTP and script-based providers
+- **Automatic Fallback**: If PO token provider is unavailable, bot automatically falls back to standard YouTube extraction
+- **Health Monitoring**: Provider availability is cached and checked every 30 seconds
+
+**Requirements:**
+- Docker container running `brainicism/bgutil-ytdlp-pot-provider`
+- yt-dlp plugin: `bgutil-ytdlp-pot-provider`
+
+**Fallback Mechanism:**
+- **Automatic Detection**: Bot checks provider availability before each YouTube request
+- **Cached Health Checks**: Provider status is cached for 30 seconds to avoid excessive requests
+- **Graceful Degradation**: If provider is unavailable, bot automatically falls back to standard YouTube extraction
+- **No User Impact**: Fallback is completely transparent to users
+- **Admin Monitoring**: Provider health is automatically monitored and logged
+
+### Proxy Download Support (`/proxy`)
+- **Global Proxy Control**: Enable/disable proxy for all yt-dlp operations
+- **User-Specific Settings**: Each user can independently control their proxy usage
+- **Automatic Integration**: When enabled, proxy is automatically applied to all downloads
+- **Cookie Support**: Works with user's cookie settings for private content
+- **Persistent Settings**: Proxy preference is saved per-user in `proxy.txt` file
+
+**Usage Examples:**
+```bash
+/proxy on                    # Enable proxy for all downloads
+/proxy off                   # Disable proxy for all downloads
+/proxy                      # Show proxy control menu
+```
+
+**How it works:**
+1. User runs `/proxy on` to enable proxy
+2. Bot saves preference to `users/{user_id}/proxy.txt`
+3. All subsequent yt-dlp operations automatically use the configured proxy
+4. User can disable with `/proxy off` at any time
+
+### Enhanced Direct Link Extraction (`/link`)
+- **Quality Selection**: Specify desired quality (e.g., `720`, `1080`, `4k`, `8k`)
+- **Flexible Format**: Support for both numeric (`720`) and descriptive (`720p`, `4k`, `8K`) quality specifications
+- **Smart Fallback**: Automatically falls back to best available quality if specified quality is not available
+- **Dual Stream Support**: Returns both video and audio stream URLs when available
+- **Proxy Support**: Works with configured proxy settings for restricted domains
+- **Cookie Integration**: Uses user's cookie settings for private content access
+- **Player Integration**: 🔗Link button in Always Ask menu now provides direct links for media players (VLC, MX Player, Infuse, IINA, nPlayer, MPV)
+
+**Usage Examples:**
+```bash
+/link https://youtube.com/watch?v=...          # Best quality
+/link 720 https://youtube.com/watch?v=...     # 720p or lower
+/link 720p https://youtube.com/watch?v=...    # Same as above
+/link 4k https://youtube.com/watch?v=...      # 4K or lower
+/link 8k https://youtube.com/watch?v=...      # 8K or lower
+```
+
+**Player Support:**
+- **🌐 Browser**: Direct stream URL for web browsers
+- **🎬 VLC (iOS)**: iOS VLC player with x-callback support
+- **🎬 VLC (Android)**: Android VLC player with intent support
 
 ### Enhanced Format Selection (`/format`)
 - **Codec Support**: Choose between H.264/AVC (avc1), AV1 (av01), and VP9 (vp9)
 - **Container Toggle**: Switch between MP4 and MKV containers
 - **Smart Quality Selection**: Prioritizes exact height matches before falling back to "less than or equal to"
 - **Persistent Preferences**: Your codec and container choices are saved per-user
+- **Quick Quality Setting**: Use arguments to set quality directly (e.g., `/format 720`, `/format 4k`)
+
+### Advanced Command Arguments
+The bot now supports command arguments for quick configuration without opening menus:
+
+#### `/format` with Quality Arguments
+```bash
+/format 720    # Set quality to 720p or lower
+/format 4k     # Set quality to 4K or lower  
+/format 8k     # Set quality to 8K or lower
+/format best   # Set to best quality
+```
+
+#### `/keyboard` with Layout Arguments
+```bash
+/keyboard off   # Hide reply keyboard
+/keyboard 1x3  # Set single row layout
+/keyboard 2x3  # Set double row layout (default)
+/keyboard full  # Set emoji keyboard
+```
+
+#### `/split` with Size Arguments
+```bash
+/split 100mb   # Set split size to 100MB (minimum)
+/split 250mb   # Set split size to 250MB
+/split 500mb   # Set split size to 500MB
+/split 750mb   # Set split size to 750MB
+/split 1gb     # Set split size to 1GB
+/split 1.5gb   # Set split size to 1.5GB
+/split 2gb     # Set split size to 2GB (maximum)
+/split 300mb   # Any custom size between 100MB-2GB
+/split 1.2gb   # Decimal values supported
+/split 1500mb  # Up to 2000MB (2GB)
+```
+
+#### `/subs` with Language and Mode Arguments
+```bash
+/subs off       # Disable subtitles
+/subs ru        # Set subtitle language to Russian
+/subs en        # Set subtitle language to English
+/subs en auto   # Set language to English with AUTO/TRANS enabled
+/subs fr auto   # Set language to French with AUTO/TRANS enabled
+```
+
+#### `/cookie` with Service Arguments
+```bash
+/cookie                # Show cookie menu
+/cookie youtube        # Download YouTube cookies directly
+/cookie tiktok         # Download TikTok cookies directly
+/cookie x              # Download Twitter/X cookies directly (alias)
+/cookie twitter        # Download Twitter/X cookies directly
+/cookie custom         # Show custom cookie instructions
+```
+
+#### YouTube Cookie Index Selection
+
+You can select a specific YouTube cookie source by index and then verify it:
+
+```bash
+/cookie youtube 1     # use source #1 (1–N as shown in the /cookie menu)
+/cookie youtube 3     # use source #3
+/check_cookie         # validate current YouTube cookies (tests on RickRoll)
+```
 
 ### Always Ask Menu
-- **📼 CODEC Button**: Access advanced codec and container filters
+- **📼CODEC Button**: Access advanced codec and container filters
   - AVC (H.264/AVC) - Traditional, widely supported
   - AV1 - Modern royalty-free codec with ~25-40% better efficiency
   - VP9 - Google's VP9 codec
@@ -338,6 +584,11 @@ python3 magic.py
   - Auto-generated vs. normal captions
   - Translation indicators
   - Pagination support
+- **☑️LINK Button**: Toggle direct link mode
+  - When enabled (✅LINK), clicking quality buttons returns direct links instead of downloading
+  - Respects all selected filters (codec, container, audio language, subtitles)
+  - No caching for direct links
+  - Always available in the main menu (not just in CODEC filters)
 - **Dynamic Filtering**: Real-time quality filtering based on selected codec/container
 - **Smart Subtitle Logic**: Differentiates between "Always Ask" mode and manual subtitle selection
 
@@ -356,17 +607,20 @@ python3 magic.py
 - **YouTube Cookie Validation**: Automatic testing and validation of YouTube cookies
 - **Multi-Source Fallback**: Automatic switching between multiple cookie sources
 - **Real-time Progress**: Live updates during cookie download and validation process
+- **Proxy Support**: Automatic proxy usage for restricted domains (configurable in `CONFIG/domains.py`)
 
 ### Reply Keyboard Management
-- **Customizable Layout**: Choose between 1x3 (single row) and 2x3 (double row) keyboard layouts
+- **Customizable Layout**: Choose between 1x3 (single row), 2x3 (double row), and FULL (emoji) keyboard layouts
 - **Smart Display**: Keyboard automatically shows/hides based on user preferences
 - **Persistent Settings**: User keyboard preferences are saved in `keyboard.txt` file
-- **Easy Toggle**: Quickly switch between OFF, 1x3, and 2x3 modes via `/keyboard` command
+- **Easy Toggle**: Quickly switch between OFF, 1x3, 2x3, and FULL modes via `/keyboard` command
+- **Quick Arguments**: Set layout directly with arguments (e.g., `/keyboard off`, `/keyboard full`)
 
 **Keyboard Modes:**
 - **OFF**: Completely hides the reply keyboard
 - **1x3**: Shows single row with `/clean`, `/cookie`, `/settings`
 - **2x3**: Shows two rows with full command set (default mode)
+- **FULL**: Shows emoji keyboard with visual command representation
 
 ### Improved Error Handling
 - **Upload Retries**: Smart retry logic for failed uploads with fallback to document mode
@@ -413,9 +667,7 @@ YOUTUBE_COOKIE_URL_2 = "https://your-domain.com/cookies/youtube/cookie3.txt"
 ### Other Service Cookies
 
 The bot also supports cookies for other platforms:
-- **Instagram**: `INSTAGRAM_COOKIE_URL`
 - **TikTok**: `TIKTOK_COOKIE_URL`
-- **Facebook**: `FACEBOOK_COOKIE_URL`
 - **Twitter**: `TWITTER_COOKIE_URL`
 
 ### Cookie File Requirements
@@ -440,7 +692,7 @@ The bot also supports cookies for other platforms:
 
 ---
 
-## Admin Commands
+## Commands
 
 - **/start** - Start the bot.
 - **/help** - Send help text.
@@ -534,11 +786,42 @@ TXT/
 script.sh                 # Update script (customizable)
 ```
 
+### Domain Filtering System
+The bot uses a three-tier domain filtering system:
+
+1. **WHITELIST** (`CONFIG/domains.py`): Domains completely excluded from porn detection
+   - These domains and their subdomains are never checked for porn content
+   - Example: `youtube.com`, `bilibili.com`, `dailymotion.com`
+
+2. **GREYLIST** (`CONFIG/domains.py`): Domains excluded only from domain list check
+   - These domains are still checked for porn keywords in titles/descriptions
+   - But they are excluded from the `porn_domains.txt` file check
+   - Useful for sites that might have adult content but aren't primarily porn sites
+
+3. **BLACKLIST** (`CONFIG/domains.py`): Domains explicitly blocked
+   - Currently empty by default, can be used to block specific domains
+
+**Configuration in `CONFIG/domains.py`:**
+```python
+# Whitelist - completely excluded from porn detection
+WHITELIST = [
+    'bilibili.com', 'dailymotion.com', 'youtube.com', 'youtu.be',
+    'twitch.tv', 'vimeo.com', 'facebook.com', 'tiktok.com'
+]
+
+# Greylist - excluded from domain list but still checked for keywords
+GREYLIST = [
+    'example.com', 'test.com'
+    # Add domains here that should be excluded from porn_domains.txt check
+    # but still checked against porn_keywords.txt
+]
+```
+
 ### Integration
 These commands integrate with the existing porn detection system:
 - **Domain Detection**: Checks video URLs against porn domain lists
 - **Keyword Detection**: Scans video titles, descriptions, and captions
-- **Auto-tagging**: Automatically adds `#porn` tag to detected content
+- **Auto-tagging**: Automatically adds `#nsfw` tag to detected content
 - **Spoiler Protection**: Hides porn content under spoiler tags in Telegram
 
 ### Security
@@ -786,6 +1069,45 @@ If you encounter issues:
 
 ---
 
+### Image Download Support (`/img`)
+
+The bot now supports downloading images from various platforms using gallery-dl:
+
+**Features:**
+- **Multiple Platforms**: Supports direct image URLs and popular image hosting services
+- **Smart Detection**: Automatically detects image URLs and formats
+- **Proxy Support**: Works with configured proxy settings for restricted domains
+- **Cookie Integration**: Uses user's cookie settings for private content access
+- **Format Support**: JPG, PNG, GIF, WebP, BMP, TIFF, SVG and more
+
+**Supported Platforms:**
+- **Direct URLs**: Any direct image link with common extensions
+- **Image Hosting**: Imgur, Flickr, DeviantArt, Pinterest, Instagram, Twitter/X, Reddit
+- **Cloud Storage**: Google Drive, Dropbox, Mega.nz
+- **And many more** via gallery-dl's extensive extractor support
+
+**Usage Examples:**
+```bash
+/img https://example.com/image.jpg          # Direct image URL
+/img https://imgur.com/abc123              # Imgur link
+/img https://flickr.com/photos/user/123456 # Flickr photo
+/img https://instagram.com/p/abc123        # Instagram post
+# Ranges (albums/feeds supported):
+/img 11-20 https://example.com/album       # Download items 11..20
+/img 11- https://example.com/album         # Download from item 11 up to limit
+```
+
+Notes:
+- You can specify a numeric range as N-M (inclusive) or N- (from N to the end or until bot limit).
+- If no range is provided, the bot autodetects total count and downloads up to the configured limit.
+
+**How it works:**
+1. User runs `/img URL` to download an image
+2. Bot analyzes the URL using gallery-dl
+3. Downloads the image to user's directory
+4. Sends the image back to the user
+5. Cleans up temporary files automatically
+
 ## Inline search helper (/search)
 
 Use this command to quickly activate inline search via `@vid`.
@@ -796,4 +1118,4 @@ Use this command to quickly activate inline search via `@vid`.
 
 Notes:
 - Desktop Telegram does not always send `/start` payloads from links repeatedly; avoid relying on `https://t.me/<bot>?start=...` for inline prefill.
-- The bot’s `/search` shows only working options and a concise manual hint.
+- The bot's `/search` shows only working options and a concise manual hint.

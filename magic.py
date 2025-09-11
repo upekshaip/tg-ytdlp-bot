@@ -108,12 +108,21 @@ from COMMANDS.admin_cmd import *
 from COMMANDS.clean_cmd import *
 from COMMANDS.cookies_cmd import *
 from COMMANDS.format_cmd import *
+from COMMANDS.link_cmd import *
 from COMMANDS.mediainfo_cmd import *
 from COMMANDS.other_handlers import *
+from COMMANDS.proxy_cmd import *
 from COMMANDS.settings_cmd import *
 from COMMANDS.split_sizer import *
 from COMMANDS.subtitles_cmd import *
 from COMMANDS.tag_cmd import *
+# Register proxy command handler
+from COMMANDS.proxy_cmd import proxy_command
+app.on_message(filters.command("proxy", prefixes="/"))(proxy_command)
+
+# Register cookie command handler
+from COMMANDS.cookies_cmd import download_cookie
+app.on_message(filters.command("cookie", prefixes="/"))(download_cookie)
 
 # DOWN_AND_UP (с обработчиками - импортируем после установки app)
 from DOWN_AND_UP.always_ask_menu import *

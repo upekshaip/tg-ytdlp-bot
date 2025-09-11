@@ -64,7 +64,7 @@ def send_videos(
         )
         # Define spoiler flag for porn-tagged content
         try:
-            is_spoiler = bool(re.search(r"(?i)(?:^|\s)#porn(?:\s|$)", tags_text or ""))
+            is_spoiler = bool(re.search(r"(?i)(?:^|\s)#nsfw(?:\s|$)", tags_text or ""))
         except Exception:
             is_spoiler = False
         # Form HTML caption: title outside the quote, timecodes outside the quote, description in the quote, tags and link outside the quote

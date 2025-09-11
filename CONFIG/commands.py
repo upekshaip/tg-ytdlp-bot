@@ -31,4 +31,7 @@ class CommandsConfig(object):
     AUTO_CACHE_COMMAND = "/auto_cache"
     SEARCH_COMMAND = "/search"
     KEYBOARD_COMMAND = "/keyboard"
+    LINK_COMMAND = "/link"
+    PROXY_COMMAND = "/proxy"
+    IMG_COMMAND = "/img"
     #######################################################

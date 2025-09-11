@@ -4,6 +4,7 @@ from CONFIG.config import Config
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ReplyParameters
 from pyrogram import enums
 from HELPERS.logger import send_to_logger
+from HELPERS.limitter import is_user_in_channel
 
 from HELPERS.app_instance import get_app
 from HELPERS.safe_messeger import fake_message, safe_send_message, safe_edit_message_text
@@ -24,7 +25,7 @@ def command2(app, message):
     from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     from pyrogram import enums
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔚 Close", callback_data="help_msg|close")]
+        [InlineKeyboardButton("🔚Close", callback_data="help_msg|close")]
     ])
 
     result = safe_send_message(message.chat.id, (Config.HELP_MSG),
@@ -41,6 +42,15 @@ app = get_app()
 # @reply_with_keyboard
 def settings_command(app, message):
     user_id = message.chat.id
+    # Subscription check for non-admins
+    if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+        try:
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Join Channel", url=Config.SUBSCRIBE_CHANNEL_URL)]])
+            safe_send_message(user_id, f"{Config.TO_USE_MSG}\n \n{Config.CREDITS_MSG}", reply_markup=keyboard,
+                              reply_parameters=ReplyParameters(message_id=message.id))
+        except Exception:
+            pass
+        return
     # Main settings menu
     keyboard = InlineKeyboardMarkup([
         [
@@ -51,7 +61,10 @@ def settings_command(app, message):
             InlineKeyboardButton("🎞 MEDIA", callback_data="settings__menu__media"),
             InlineKeyboardButton("📖 INFO", callback_data="settings__menu__logs"),
         ],
-        [InlineKeyboardButton("🔚 Close", callback_data="settings__menu__close")]
+        [
+            InlineKeyboardButton("⚙️ MORE", callback_data="settings__menu__more"),
+            InlineKeyboardButton("🔚Close", callback_data="settings__menu__close"),
+        ]
     ])
     safe_send_message(
         user_id,
@@ -100,7 +113,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [
                 InlineKeyboardButton("🗑  All files", callback_data="clean_option|all"),
             ],
-            [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
                                "<b>🧹 Clean Options</b>\n\nChoose what to clean:",
@@ -123,7 +136,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
                                   callback_data="settings__cmd__check_cookie")],
             [InlineKeyboardButton("🔖 /save_as_cookie - Upload custom cookie",
                                   callback_data="settings__cmd__save_as_cookie")],
-            [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
                                "<b>🍪 COOKIES</b>\n\nChoose an action:",
@@ -144,7 +157,8 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("🎧 /audio - Download video as audio", callback_data="settings__cmd__audio")],
             [InlineKeyboardButton("💬 /subs - Subtitles language settings", callback_data="settings__cmd__subs")],
             [InlineKeyboardButton("⏯️ /playlist - How to download playlists", callback_data="settings__cmd__playlist")],
-            [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
+            [InlineKeyboardButton("🖼 /img - Download images via gallery-dl", callback_data="settings__cmd__img")],
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
                                "<b>🎞 MEDIA</b>\n\nChoose an action:",
@@ -163,10 +177,30 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("🆘 /help - Get instructions", callback_data="settings__cmd__help")],
             [InlineKeyboardButton("📃 /usage -Send your logs", callback_data="settings__cmd__usage")],
             [InlineKeyboardButton("⏯️ /playlist - Playlist's help", callback_data="settings__cmd__playlist")],
-            [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
+            [InlineKeyboardButton("🔍 /search - Inline search helper", callback_data="settings__cmd__search")],
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
                                "<b>📖 INFO</b>\n\nChoose an action:",
+                               reply_markup=keyboard,
+                               parse_mode=enums.ParseMode.HTML)
+
+        try:
+            callback_query.answer()
+        except Exception:
+            pass
+
+        return
+    if data == "more":
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔗 /link - Get direct video links", callback_data="settings__cmd__link")],
+            [InlineKeyboardButton("🌍 /proxy - Enable/disable proxy", callback_data="settings__cmd__proxy")],
+            [InlineKeyboardButton("🎹 /keyboard - Keyboard layout", callback_data="settings__cmd__keyboard")],
+            [InlineKeyboardButton("🔍 /search - Inline search helper", callback_data="settings__cmd__search")],
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
+        ])
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
+                               "<b>⚙️ MORE COMMANDS</b>\n\nChoose an action:",
                                reply_markup=keyboard,
                                parse_mode=enums.ParseMode.HTML)
 
@@ -187,7 +221,10 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
                 InlineKeyboardButton("🎞 MEDIA", callback_data="settings__menu__media"),
                 InlineKeyboardButton("📖 INFO", callback_data="settings__menu__logs"),
             ],
-            [InlineKeyboardButton("🔚 Close", callback_data="settings__menu__close")]
+            [
+                InlineKeyboardButton("⚙️ MORE", callback_data="settings__menu__more"),
+                InlineKeyboardButton("🔚Close", callback_data="settings__menu__close"),
+            ]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
                                "<b>Bot Settings</b>\n\nChoose a category:",
@@ -233,7 +270,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             [
                 InlineKeyboardButton("🗑  All files", callback_data="clean_option|all"),
             ],
-            [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
         try:
             callback_query.edit_message_text(
@@ -304,7 +341,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         return
     if data == "save_as_cookie":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚 Close", callback_data="save_as_cookie_hint|close")]
+            [InlineKeyboardButton("🔚Close", callback_data="save_as_cookie_hint|close")]
         ])
         safe_send_message(user_id, Config.SAVE_AS_COOKIE_HINT, reply_parameters=ReplyParameters(message_id=callback_query.message.id),
                           parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
@@ -384,7 +421,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         return
     if data == "audio":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚 Close", callback_data="audio_hint|close")]
+            [InlineKeyboardButton("🔚Close", callback_data="audio_hint|close")]
         ])
         safe_send_message(user_id,
                           "Download only audio from video source.\n\nUsage: /audio + URL \n\n(ex. /audio https://youtu.be/abc123)\n(ex. /audio https://youtu.be/playlist?list=abc123*1*10)",
@@ -483,7 +520,122 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             pass
 
         return
+    if data == "img":
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔚Close", callback_data="img_hint|close")]
+        ])
+        safe_send_message(
+            user_id,
+            "<b>🖼 Image Download Command</b>\n\n"
+            "Usage: <code>/img URL</code>\n\n"
+            "<b>Examples:</b>\n"
+            "• <code>/img https://example.com/image.jpg</code>\n"
+            "• <code>/img 11-20 https://example.com/album</code>\n"
+            "• <code>/img 11- https://example.com/album</code>\n"
+            "• <code>/img https://vk.com/wall-160916577_408508</code>\n"
+            "• <code>/img https://2ch.hk/fd/res/1747651.html</code>\n"
+            "• <code>/img https://imgur.com/abc123</code>\n\n"
+            "<b>Supported platforms (examples):</b>\n"
+            "<blockquote>vk, 2ch, 35photo, 4chan, 500px, ArtStation, Boosty, Civitai, Cyberdrop, DeviantArt, Discord, Facebook, Fansly, Instagram, Patreon, Pinterest, Reddit, TikTok, Tumblr, Twitter/X, JoyReactor, etc. — <a href=\"https://github.com/mikf/gallery-dl/blob/master/docs/supportedsites.md\">full list</a></blockquote>",
+            reply_parameters=ReplyParameters(message_id=callback_query.message.id),
+            reply_markup=keyboard,
+            _callback_query=callback_query,
+            _fallback_notice="⏳ Flood limit. Try later.",
+            parse_mode=enums.ParseMode.HTML,
+        )
+        try:
+            callback_query.answer("Hint sent.")
+        except Exception:
+            pass
+        return
+    if data == "link":
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔚Close", callback_data="link_hint|close")]
+        ])
+        safe_send_message(user_id,
+                          "Get direct video links with quality selection.\n\nUsage: /link + URL \n\n(ex. /link https://youtu.be/abc123)\n(ex. /link 720 https://youtu.be/abc123)",
+                          reply_parameters=ReplyParameters(message_id=callback_query.message.id),
+                          reply_markup=keyboard,
+                          _callback_query=callback_query,
+                          _fallback_notice="⏳ Flood limit. Try later.")
+        try:
+            callback_query.answer("Hint sent.")
+        except Exception:
+            pass
+        return
+    if data == "proxy":
+        try:
+            url_distractor(app, fake_message("/proxy", user_id))
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+            try:
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
+            return
+        try:
+            callback_query.answer("Command executed.")
+        except Exception:
+            pass
+        return
+    if data == "keyboard":
+        try:
+            url_distractor(app, fake_message("/keyboard", user_id))
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+            try:
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
+            return
+        try:
+            callback_query.answer("Command executed.")
+        except Exception:
+            pass
+        return
+    if data == "search":
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔚Close", callback_data="search_hint|close")]
+        ])
+        safe_send_message(user_id,
+                          "Open inline search helper for quick @vid usage.\n\nMobile: tap the button to open chat with prefilled @vid\nDesktop: type @vid Your_Search_Query manually",
+                          reply_parameters=ReplyParameters(message_id=callback_query.message.id),
+                          reply_markup=keyboard,
+                          _callback_query=callback_query,
+                          _fallback_notice="⏳ Flood limit. Try later.")
+        try:
+            callback_query.answer("Hint sent.")
+        except Exception:
+            pass
+        return
     try:
         callback_query.answer("Unknown command.", show_alert=True)
+    except Exception:
+        pass
+
+@app.on_callback_query(filters.regex(r"^(img_hint|link_hint|search_hint)\|"))
+def hint_callback(app, callback_query: CallbackQuery):
+    """Handle hint callback close buttons"""
+    data = callback_query.data.split("|")[-1]
+    
+    if data == "close":
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        try:
+            callback_query.answer("Hint closed.")
+        except Exception:
+            pass
+        return
+    
+    try:
+        callback_query.answer()
     except Exception:
         pass

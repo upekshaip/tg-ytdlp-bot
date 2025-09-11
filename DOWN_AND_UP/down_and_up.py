@@ -23,6 +23,8 @@ from DATABASE.firebase_init import write_logs
 from URL_PARSERS.tags import generate_final_tags, save_user_tags
 from URL_PARSERS.youtube import is_youtube_url, download_thumbnail
 from URL_PARSERS.nocookie import is_no_cookie_domain
+from URL_PARSERS.thumbnail_downloader import download_thumbnail as download_universal_thumbnail
+from HELPERS.pot_helper import add_pot_to_ytdl_opts
 from CONFIG.config import Config
 from COMMANDS.subtitles_cmd import is_subs_enabled, check_subs_availability, get_user_subs_auto_mode, _subs_check_cache, download_subtitles_ytdlp, get_user_subs_language, clear_subs_check_cache, is_subs_always_ask
 from COMMANDS.split_sizer import get_user_split_size
@@ -59,16 +61,86 @@ def determine_need_subs(subs_enabled, found_type, user_id):
         return (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
 
 #@reply_with_keyboard
-def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None):
+def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None, cookies_already_checked=False, use_proxy=False):
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
     """
+    # Import required modules at the beginning
+    from URL_PARSERS.youtube import is_youtube_url
+    from COMMANDS.cookies_cmd import is_youtube_cookie_error, is_youtube_geo_error, retry_download_with_different_cookies, retry_download_with_proxy
+    
     playlist_indices = []
     playlist_msg_ids = []    
     found_type = None
     need_subs = False  # Will be determined once at the beginning
     user_id = message.chat.id
     logger.info(f"down_and_up called: url={url}, quality_key={quality_key}, format_override={format_override}, video_count={video_count}, video_start_with={video_start_with}")
+    
+    # Check if LINK mode is enabled - if yes, get direct link instead of downloading
+    try:
+        from DOWN_AND_UP.always_ask_menu import get_link_mode
+        if get_link_mode(user_id):
+            logger.info(f"LINK mode enabled for user {user_id}, getting direct link instead of downloading")
+            
+            # Import link function
+            from COMMANDS.link_cmd import get_direct_link
+            
+            # Convert quality key to quality argument
+            quality_arg = None
+            if quality_key and quality_key != "best" and quality_key != "mp3":
+                quality_arg = quality_key
+            
+            # Get direct link
+            result = get_direct_link(url, user_id, quality_arg, cookies_already_checked=cookies_already_checked, use_proxy=True)
+            
+            if result.get('success'):
+                title = result.get('title', 'Unknown')
+                duration = result.get('duration', 0)
+                video_url = result.get('video_url')
+                audio_url = result.get('audio_url')
+                format_spec = result.get('format', 'best')
+                
+                # Form response
+                response = f"🔗 <b>Direct link obtained</b>\n\n"
+                response += f"📹 <b>Title:</b> {title}\n"
+                if duration > 0:
+                    response += f"⏱ <b>Duration:</b> {duration} sec\n"
+                response += f"🎛 <b>Format:</b> <code>{format_spec}</code>\n\n"
+                
+                if video_url:
+                    response += f"🎬 <b>Video stream:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
+                
+                if audio_url:
+                    response += f"🎵 <b>Audio stream:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
+                
+                if not video_url and not audio_url:
+                    response += "❌ Failed to get stream links"
+                
+                # Send response
+                app.send_message(
+                    user_id, 
+                    response, 
+                    reply_parameters=ReplyParameters(message_id=message.id),
+                    parse_mode=enums.ParseMode.HTML
+                )
+                
+                send_to_logger(message, f"Direct link extracted via down_and_up for user {user_id} from {url}")
+                
+            else:
+                error_msg = result.get('error', 'Unknown error')
+                app.send_message(
+                    user_id,
+                    f"❌ <b>Error getting link:</b>\n{error_msg}",
+                    reply_parameters=ReplyParameters(message_id=message.id),
+                    parse_mode=enums.ParseMode.HTML
+                )
+                
+                send_to_logger(message, f"Failed to extract direct link via down_and_up for user {user_id} from {url}: {error_msg}")
+            
+            return
+    except Exception as e:
+        logger.error(f"Error checking LINK mode for user {user_id}: {e}")
+        # Continue with normal download if LINK mode check fails
     subs_enabled = is_subs_enabled(user_id)
     if subs_enabled and is_youtube_url(url):
         found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
@@ -209,7 +281,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         required_bytes = 2 * 1024 * 1024 * 1024
         try:
             from DOWN_AND_UP.yt_dlp_hook import get_video_formats
-            info_probe = get_video_formats(url, user_id)
+            info_probe = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked)
             size = 0
             if isinstance(info_probe, dict):
                 size = info_probe.get('filesize') or info_probe.get('filesize_approx') or 0
@@ -298,7 +370,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             ydl_opts = {
                 'quiet': True,
                 'extractor_args': {
-                    'youtubetab': ['skip=authcheck']
+                    'youtubetab': {'skip': ['authcheck']}
                 }
             }
             user_cookie_path = os.path.join("users", str(user_id), "cookie.txt")
@@ -471,8 +543,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     {'key': 'FFmpegMetadata'}
                 ],
                 'extractor_args': {
-                    'generic': ['impersonate=chrome'],
-                    'youtubetab': ['skip=authcheck']
+                    'generic': {'impersonate': ['chrome']},
+                    'youtubetab': {'skip': ['authcheck']}
                 },
                 'referer': url,
                 'geo_bypass': True,
@@ -519,8 +591,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Check if cookie.txt exists in the user's folder
                 user_cookie_path = os.path.join("users", str(user_id), "cookie.txt")
                 
-                # For YouTube URLs, ensure working cookies
-                if is_youtube_url(url):
+                # For YouTube URLs, ensure working cookies (skip if already checked in Always Ask menu)
+                if is_youtube_url(url) and not cookies_already_checked:
                     from COMMANDS.cookies_cmd import ensure_working_youtube_cookies
                     has_working_cookies = ensure_working_youtube_cookies(user_id)
                     if has_working_cookies and os.path.exists(user_cookie_path):
@@ -529,6 +601,22 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     else:
                         common_opts['cookiefile'] = None
                         logger.info(f"No working YouTube cookies available for user {user_id}, will try without cookies")
+                elif is_youtube_url(url) and cookies_already_checked:
+                    # Cookies already checked in Always Ask menu - use them directly without verification
+                    if os.path.exists(user_cookie_path):
+                        common_opts['cookiefile'] = user_cookie_path
+                        logger.info(f"Using YouTube cookies for user {user_id} (already validated in Always Ask menu)")
+                    else:
+                        # Cookies were deleted - try to restore them
+                        logger.info(f"No YouTube cookies found for user {user_id}, attempting to restore...")
+                        from COMMANDS.cookies_cmd import ensure_working_youtube_cookies
+                        has_working_cookies = ensure_working_youtube_cookies(user_id)
+                        if has_working_cookies and os.path.exists(user_cookie_path):
+                            common_opts['cookiefile'] = user_cookie_path
+                            logger.info(f"Successfully restored working YouTube cookies for user {user_id}")
+                        else:
+                            common_opts['cookiefile'] = None
+                            logger.info(f"Failed to restore YouTube cookies for user {user_id}, will try without cookies")
                 else:
                     # For non-YouTube URLs, use existing logic
                     if os.path.exists(user_cookie_path):
@@ -578,6 +666,48 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 pass
 
             ytdl_opts = {**common_opts, **attempt_opts}
+            
+            # Add proxy configuration if needed
+            if use_proxy:
+                # Force proxy for this download
+                from COMMANDS.proxy_cmd import get_proxy_config
+                proxy_config = get_proxy_config()
+                
+                if proxy_config and 'type' in proxy_config and 'ip' in proxy_config and 'port' in proxy_config:
+                    # Build proxy URL
+                    if proxy_config['type'] == 'http':
+                        if proxy_config.get('user') and proxy_config.get('password'):
+                            proxy_url = f"http://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+                        else:
+                            proxy_url = f"http://{proxy_config['ip']}:{proxy_config['port']}"
+                    elif proxy_config['type'] == 'https':
+                        if proxy_config.get('user') and proxy_config.get('password'):
+                            proxy_url = f"https://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+                        else:
+                            proxy_url = f"https://{proxy_config['ip']}:{proxy_config['port']}"
+                    elif proxy_config['type'] in ['socks4', 'socks5', 'socks5h']:
+                        if proxy_config.get('user') and proxy_config.get('password'):
+                            proxy_url = f"{proxy_config['type']}://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+                        else:
+                            proxy_url = f"{proxy_config['type']}://{proxy_config['ip']}:{proxy_config['port']}"
+                    else:
+                        if proxy_config.get('user') and proxy_config.get('password'):
+                            proxy_url = f"http://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+                        else:
+                            proxy_url = f"http://{proxy_config['ip']}:{proxy_config['port']}"
+                    
+                    ytdl_opts['proxy'] = proxy_url
+                    logger.info(f"Force using proxy for download: {proxy_url}")
+                else:
+                    logger.warning("Proxy requested but proxy configuration is incomplete")
+            else:
+                # Add proxy configuration if needed for this domain
+                from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
+                ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url, user_id)
+            
+            # Add PO token provider for YouTube domains
+            ytdl_opts = add_pot_to_ytdl_opts(ytdl_opts, url)
+            
             # If MKV is ON, remux to mkv; else to mp4
             if mkv_on:
                 ytdl_opts['remux_video'] = 'mkv'
@@ -591,7 +721,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 from DOWN_AND_UP.yt_dlp_hook import get_video_formats
                 
                 logger.info("Checking available formats...")
-                check_info = get_video_formats(url, user_id)
+                check_info = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked, use_proxy=use_proxy)
                 logger.info("Format check completed")
                 
                 # Check if requested format exists
@@ -655,10 +785,18 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             
                             return None
                 
-                with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
-                    logger.info("yt-dlp instance created, starting extract_info...")
-                    info_dict = ydl.extract_info(url, download=False)
-                    logger.info("extract_info completed successfully")
+                # Try with proxy fallback if user proxy is enabled
+                def extract_info_operation(opts):
+                    with yt_dlp.YoutubeDL(opts) as ydl:
+                        logger.info("yt-dlp instance created, starting extract_info...")
+                        info_dict = ydl.extract_info(url, download=False)
+                        logger.info("extract_info completed successfully")
+                        return info_dict
+                
+                from HELPERS.proxy_helper import try_with_proxy_fallback
+                info_dict = try_with_proxy_fallback(ytdl_opts, url, user_id, extract_info_operation)
+                if info_dict is None:
+                    raise Exception("Failed to extract video information with all available proxies")
                 if "entries" in info_dict:
                     entries = info_dict["entries"]
                     if not entries:
@@ -706,19 +844,27 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     logger.error(f"Status update error: {e}")
                 
                 logger.info("Starting download phase...")
-                with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
-                    if is_hls:
-                        cycle_stop = threading.Event()
-                        cycle_thread = start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_name, cycle_stop)
-                        try:
-                            with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
+                # Try with proxy fallback if user proxy is enabled
+                def download_operation(opts):
+                    with yt_dlp.YoutubeDL(opts) as ydl:
+                        if is_hls:
+                            cycle_stop = threading.Event()
+                            cycle_thread = start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_name, cycle_stop)
+                            try:
+                                with yt_dlp.YoutubeDL(opts) as ydl:
+                                    ydl.download([url])
+                            finally:
+                                cycle_stop.set()
+                                cycle_thread.join(timeout=1)
+                        else:
+                            with yt_dlp.YoutubeDL(opts) as ydl:
                                 ydl.download([url])
-                        finally:
-                            cycle_stop.set()
-                            cycle_thread.join(timeout=1)
-                    else:
-                        with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
-                            ydl.download([url])
+                        return True
+                
+                from HELPERS.proxy_helper import try_with_proxy_fallback
+                result = try_with_proxy_fallback(ytdl_opts, url, user_id, download_operation)
+                if result is None:
+                    raise Exception("Failed to download video with all available proxies")
                 try:
                     safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{full_bar}   100.0%")
                 except Exception as e:
@@ -730,6 +876,37 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 nonlocal error_message
                 error_message = str(e)
                 logger.error(f"DownloadError: {error_message}")
+                
+                # Проверяем, связана ли ошибка с куками или региональными ограничениями YouTube
+                if is_youtube_url(url):
+                    if is_youtube_geo_error(error_message):
+                        logger.info(f"YouTube geo-blocked error detected for user {user_id}, attempting retry with proxy")
+                        
+                        # Пробуем скачать через прокси
+                        retry_result = retry_download_with_proxy(
+                            user_id, url, try_download, url, attempt_opts
+                        )
+                        
+                        if retry_result is not None:
+                            logger.info(f"Download retry with proxy successful for user {user_id}")
+                            return retry_result
+                        else:
+                            logger.warning(f"Download retry with proxy failed for user {user_id}")
+                    
+                    elif is_youtube_cookie_error(error_message):
+                        logger.info(f"YouTube cookie-related error detected for user {user_id}, attempting retry with different cookies")
+                        
+                        # Пробуем скачать с другими куками
+                        retry_result = retry_download_with_different_cookies(
+                            user_id, url, try_download, url, attempt_opts
+                        )
+                        
+                        if retry_result is not None:
+                            logger.info(f"Download retry successful for user {user_id}")
+                            return retry_result
+                        else:
+                            logger.warning(f"All cookie retry attempts failed for user {user_id}")
+                
                 # Send full error message with instructions immediately
                 send_to_all(
                     message,                   
@@ -967,6 +1144,16 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             logger.info(f"Using YouTube thumbnail: {youtube_thumb_path}")
                 except Exception as e:
                     logger.warning(f"YouTube thumbnail download failed: {e}")
+            # If not YouTube or YouTube thumb not found, try universal thumbnail downloader
+            if not thumb_dir:
+                try:
+                    universal_thumb_path = os.path.join(dir_path, "universal_thumb.jpg")
+                    if download_universal_thumbnail(url, universal_thumb_path):
+                        if os.path.exists(universal_thumb_path):
+                            thumb_dir = universal_thumb_path
+                            logger.info(f"Using universal thumbnail: {universal_thumb_path}")
+                except Exception as e:
+                    logger.info(f"Universal thumbnail not available: {e}")
             
             # Get video duration (always needed)
             try:
@@ -993,7 +1180,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 logger.warning(f"Failed to get video duration: {e}")
                 duration = 0
             
-            # Use ffmpeg thumbnail only as fallback (when YouTube thumbnail failed)
+            # Use ffmpeg thumbnail only as fallback (when both YouTube/universal thumbnails failed)
             if not thumb_dir:
                 result = get_duration_thumb(message, dir_path, user_vid_path, sanitize_filename(caption_name))
                 if result is None:

@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 from CONFIG.config import Config
 from URL_PARSERS.tiktok import is_tiktok_url, extract_tiktok_profile, get_clean_url_for_tagging
 from HELPERS.filesystem_hlp import create_directory
-from HELPERS.porn import is_porn_domain, extract_domain_parts, SUPPORTED_SITES
+from HELPERS.porn import is_porn_domain, extract_domain_parts, SUPPORTED_SITES, unwrap_redirect_url
 from HELPERS.logger import logger
 
 def sanitize_autotag(tag: str) -> str:
@@ -13,7 +13,7 @@ def sanitize_autotag(tag: str) -> str:
     return '#' + re.sub(r'[^\w\d_]', '_', tag.lstrip('#'), flags=re.UNICODE)
 
 def generate_final_tags(url, user_tags, info_dict):
-    """Tags now include #porn if found by title, description or caption."""
+    """Tags now include #nsfw if found by title, description or caption."""
     final_tags = []
     seen = set()
     # 1. Custom tags
@@ -40,7 +40,8 @@ def generate_final_tags(url, user_tags, info_dict):
         if '#tiktok' not in seen:
             final_tags.append('#tiktok')
             seen.add('#tiktok')
-    clean_url_for_check = get_clean_url_for_tagging(url)
+    # Unwrap redirects before any domain-based checks
+    clean_url_for_check = get_clean_url_for_tagging(unwrap_redirect_url(url))
     if ("youtube.com" in clean_url_for_check or "youtu.be" in clean_url_for_check) and info_dict:
         channel_name = info_dict.get("channel") or info_dict.get("uploader")
         if channel_name:
@@ -48,15 +49,18 @@ def generate_final_tags(url, user_tags, info_dict):
             if channel_tag.lower() not in seen:
                 final_tags.append(channel_tag)
                 seen.add(channel_tag.lower())
-    # 4. #porn if defined by title, description or caption
+    # 4. #nsfw if defined by title, description or caption (keywords)
     video_title = info_dict.get("title") if info_dict else None
     video_description = info_dict.get("description") if info_dict else None
     video_caption = info_dict.get("caption") if info_dict else None
-    # Temporarily disable porn detection to avoid circular import
-    # if is_porn(url, video_title, video_description, video_caption):
-    #     if '#porn' not in seen:
-    #         final_tags.append('#porn')
-    #         seen.add('#porn')
+    try:
+        from HELPERS.porn import is_porn
+        if is_porn(url, video_title, video_description, video_caption):
+            if '#nsfw' not in seen:
+                final_tags.append('#nsfw')
+                seen.add('#nsfw')
+    except Exception:
+        pass
     result = ' '.join(final_tags)
     # Check if info_dict is None before accessing it
     title = info_dict.get('title', 'N/A') if info_dict else 'N/A'
@@ -146,22 +150,25 @@ def get_auto_tags(url, user_tags):
     ext = tldextract.extract(clean_url)
     second_level = ext.domain.lower() if ext.domain else ''
     full_domain = f"{ext.domain}.{ext.suffix}".lower() if ext.domain and ext.suffix else ''
-    # 1. Porn Check (for all the suffixes of the domain, but taking into account the whitelist)
+    # 1. Porn Check (domain-based). GREYLIST excluded inside is_porn_domain
     if is_porn_domain(domain_parts):
-        auto_tags.add(sanitize_autotag('porn'))
+        auto_tags.add(sanitize_autotag('nsfw'))
     # 2. YouTube Check (including YouTu.be)
     if ("youtube.com" in url_l or "youtu.be" in url_l):
         auto_tags.add("#youtube")
-    # 3. Twitter/X check (exact domain match)
+    # 3. VK Check (including VK.com)
+    if ("vk.com" in url_l or "vkontakte.ru" in url_l or "vkvideo.ru" in url_l):
+        auto_tags.add("#vk")
+    # 4. Twitter/X check (exact domain match)
     twitter_domains = {"twitter.com", "x.com", "t.co"}
     domain = parsed.netloc.lower()
     if domain in twitter_domains:
         auto_tags.add("#twitter")
-    # 4. Boosty check (boosty.to, boosty.com)
+    # 5. Boosty check (boosty.to, boosty.com)
     if ("boosty.to" in url_l or "boosty.com" in url_l):
         auto_tags.add("#boosty")
-        auto_tags.add("#porn")
-    # 5. Service tag for supported sites (by full domain or 2nd level)
+        auto_tags.add("#nsfw")
+    # 6. Service tag for supported sites (by full domain or 2nd level)
     for site in SUPPORTED_SITES:
         site_l = site.lower()
         if second_level == site_l or full_domain == site_l:

@@ -6,8 +6,9 @@ from HELPERS.logger import logger
 from HELPERS.filesystem_hlp import create_directory
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url
+from HELPERS.pot_helper import add_pot_to_ytdl_opts
 
-def get_video_formats(url, user_id=None, playlist_start_index=1):
+def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already_checked=False, use_proxy=False):
     ytdl_opts = {
         'quiet': True,
         'skip_download': True,
@@ -17,8 +18,12 @@ def get_video_formats(url, user_id=None, playlist_start_index=1):
         'simulate': True,
         'playlist_items': str(playlist_start_index),    
         'extractor_args': {
-            'generic': ['impersonate=chrome'],
-            'youtubetab': ['skip=authcheck']
+            'generic': {
+                'impersonate': ['chrome']
+            },
+            'youtubetab': {
+                'skip': ['authcheck']
+            }
         },
         'referer': url,
         'geo_bypass': True,
@@ -30,8 +35,8 @@ def get_video_formats(url, user_id=None, playlist_start_index=1):
         # Check the availability of cookie.txt in the user folder
         user_cookie_path = os.path.join(user_dir, "cookie.txt")
         
-        # For YouTube URLs, ensure working cookies
-        if is_youtube_url(url):
+        # For YouTube URLs, ensure working cookies (skip if already checked)
+        if is_youtube_url(url) and not cookies_already_checked:
             from COMMANDS.cookies_cmd import ensure_working_youtube_cookies
             has_working_cookies = ensure_working_youtube_cookies(user_id)
             if has_working_cookies and os.path.exists(user_cookie_path):
@@ -40,6 +45,22 @@ def get_video_formats(url, user_id=None, playlist_start_index=1):
             else:
                 cookie_file = None
                 logger.info(f"No working YouTube cookies available for format detection for user {user_id}, will try without cookies")
+        elif is_youtube_url(url) and cookies_already_checked:
+            # Cookies already checked in Always Ask menu - use them directly without verification
+            if os.path.exists(user_cookie_path):
+                cookie_file = user_cookie_path
+                logger.info(f"Using YouTube cookies for format detection for user {user_id} (already validated in Always Ask menu)")
+            else:
+                # Cookies were deleted - try to restore them
+                logger.info(f"No YouTube cookies found for format detection for user {user_id}, attempting to restore...")
+                from COMMANDS.cookies_cmd import ensure_working_youtube_cookies
+                has_working_cookies = ensure_working_youtube_cookies(user_id)
+                if has_working_cookies and os.path.exists(user_cookie_path):
+                    cookie_file = user_cookie_path
+                    logger.info(f"Successfully restored working YouTube cookies for format detection for user {user_id}")
+                else:
+                    cookie_file = None
+                    logger.info(f"Failed to restore YouTube cookies for format detection for user {user_id}, will try without cookies")
         else:
             # For non-YouTube URLs, use existing logic
             if os.path.exists(user_cookie_path):
@@ -66,17 +87,61 @@ def get_video_formats(url, user_id=None, playlist_start_index=1):
             logger.info(f"Using --no-cookies for domain in get_video_formats: {url}")
         elif cookie_file:
             ytdl_opts['cookiefile'] = cookie_file
-    try:
-        with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
+        
+        # Add proxy configuration if needed for this domain
+        if use_proxy:
+            # Force proxy for this request
+            from COMMANDS.proxy_cmd import get_proxy_config
+            proxy_config = get_proxy_config()
+            
+            if proxy_config and 'type' in proxy_config and 'ip' in proxy_config and 'port' in proxy_config:
+                # Build proxy URL
+                if proxy_config['type'] == 'http':
+                    if proxy_config.get('user') and proxy_config.get('password'):
+                        proxy_url = f"http://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+                    else:
+                        proxy_url = f"http://{proxy_config['ip']}:{proxy_config['port']}"
+                elif proxy_config['type'] == 'https':
+                    if proxy_config.get('user') and proxy_config.get('password'):
+                        proxy_url = f"https://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+                    else:
+                        proxy_url = f"https://{proxy_config['ip']}:{proxy_config['port']}"
+                elif proxy_config['type'] in ['socks4', 'socks5', 'socks5h']:
+                    if proxy_config.get('user') and proxy_config.get('password'):
+                        proxy_url = f"{proxy_config['type']}://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+                    else:
+                        proxy_url = f"{proxy_config['type']}://{proxy_config['ip']}:{proxy_config['port']}"
+                else:
+                    if proxy_config.get('user') and proxy_config.get('password'):
+                        proxy_url = f"http://{proxy_config['user']}:{proxy_config['password']}@{proxy_config['ip']}:{proxy_config['port']}"
+                    else:
+                        proxy_url = f"http://{proxy_config['ip']}:{proxy_config['port']}"
+                
+                ytdl_opts['proxy'] = proxy_url
+                logger.info(f"Force using proxy for format detection: {proxy_url}")
+            else:
+                logger.warning("Proxy requested but proxy configuration is incomplete")
+        else:
+            # Add proxy configuration if needed for this domain
+            from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
+            ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url, user_id)
+    
+    # Add PO token provider for YouTube domains
+    ytdl_opts = add_pot_to_ytdl_opts(ytdl_opts, url)
+    
+    # Try with proxy fallback if user proxy is enabled
+    def extract_info_operation(opts):
+        with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)
         if 'entries' in info and info.get('entries'):
             return info['entries'][0]
         return info
-    except yt_dlp.utils.DownloadError as e:
-        error_text = str(e)
-        return {'error': error_text}
-    except Exception as e:
-        return {'error': str(e)}
+    
+    from HELPERS.proxy_helper import try_with_proxy_fallback
+    result = try_with_proxy_fallback(ytdl_opts, url, user_id, extract_info_operation)
+    if result is None:
+        return {'error': 'Failed to extract video information with all available proxies'}
+    return result
 
 
 # YT-DLP HOOK

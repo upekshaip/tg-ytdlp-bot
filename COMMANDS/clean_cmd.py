@@ -66,7 +66,7 @@ def clean_option_callback(app, callback_query):
                                   callback_data="settings__cmd__check_cookie")],
             [InlineKeyboardButton("🔖 /save_as_cookie - Upload custom cookie",
                                   callback_data="settings__cmd__save_as_cookie")],
-            [InlineKeyboardButton("🔙 Back", callback_data="settings__menu__back")]
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
         callback_query.edit_message_text(
             "<b>🍪 COOKIES</b>\n\nChoose an action:",

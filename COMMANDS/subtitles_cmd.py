@@ -13,6 +13,7 @@ from HELPERS.limitter import is_user_in_channel
 from HELPERS.safe_messeger import safe_forward_messages
 from DOWN_AND_UP.yt_dlp_hook import get_video_formats
 from URL_PARSERS.youtube import is_youtube_url
+from HELPERS.pot_helper import add_pot_to_ytdl_opts
 import math
 from pyrogram import filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
@@ -265,15 +266,59 @@ def subs_command(app, message):
         return
 
 
-    # Fast args: /subs on|off  -> Always Ask mode toggle
+    # Fast args: /subs on|off|ru|ru auto  -> Various subtitle settings
     parts = (message.text or "").split()
     if len(parts) >= 2:
         arg = parts[1].lower()
-        if arg in ("on", "off"):
-            save_subs_always_ask(user_id, arg == "on")
+        
+        # /subs off
+        if arg == "off":
+            save_subs_always_ask(user_id, False)
+            save_user_subs_language(user_id, "OFF")
             from HELPERS.safe_messeger import safe_send_message
-            safe_send_message(user_id, f"✅ SUBS Always Ask {'enabled' if arg=='on' else 'disabled'}.")
-            send_to_logger(message, f"SUBS Always Ask set via command: {arg}")
+            safe_send_message(user_id, "✅ Subtitles disabled and Always Ask mode turned off.")
+            send_to_logger(message, f"SUBS disabled via command: {arg}")
+            return
+        
+        # /subs on
+        elif arg == "on":
+            save_subs_always_ask(user_id, True)
+            from HELPERS.safe_messeger import safe_send_message
+            safe_send_message(user_id, "✅ SUBS Always Ask enabled.")
+            send_to_logger(message, f"SUBS Always Ask enabled via command: {arg}")
+            return
+        
+        # /subs ru (language code)
+        elif arg in LANGUAGES:
+            save_user_subs_language(user_id, arg)
+            lang_info = LANGUAGES[arg]
+            from HELPERS.safe_messeger import safe_send_message
+            safe_send_message(user_id, f"✅ Subtitle language set to: {lang_info['flag']} {lang_info['name']}")
+            send_to_logger(message, f"SUBS language set via command: {arg}")
+            return
+        
+        # /subs ru auto (language + auto mode)
+        elif len(parts) >= 3 and parts[2].lower() == "auto" and arg in LANGUAGES:
+            save_user_subs_language(user_id, arg)
+            save_user_subs_auto_mode(user_id, True)
+            lang_info = LANGUAGES[arg]
+            from HELPERS.safe_messeger import safe_send_message
+            safe_send_message(user_id, f"✅ Subtitle language set to: {lang_info['flag']} {lang_info['name']} with AUTO/TRANS enabled.")
+            send_to_logger(message, f"SUBS language + auto mode set via command: {arg} auto")
+            return
+        
+        # Invalid argument
+        else:
+            from HELPERS.safe_messeger import safe_send_message
+            safe_send_message(user_id, 
+                "❌ **Invalid argument!**\n\n"
+                "Valid options:\n"
+                "• `/subs off` - disable subtitles\n"
+                "• `/subs on` - enable Always Ask mode\n"
+                "• `/subs ru` - set language (any language code)\n"
+                "• `/subs ru auto` - set language with AUTO/TRANS enabled\n\n"
+                "Example: `/subs en auto`"
+            )
             return
 
 
@@ -299,7 +344,12 @@ def subs_command(app, message):
         "<blockquote>❗️WARNING: due to high CPU impact this function is very slow (near real-time) and limited to:\n"
         "- 720p max quality\n"
         "- 1.5 hour max duration\n"
-        "- 500mb max video size</blockquote>",
+        "- 500mb max video size</blockquote>\n\n"
+        "<b>Quick commands:</b>\n"
+        "• <code>/subs off</code> - disable subtitles\n"
+        "• <code>/subs on</code> - enable Always Ask mode\n"
+        "• <code>/subs ru</code> - set language\n"
+        "• <code>/subs ru auto</code> - set language with AUTO/TRANS",
         reply_markup=get_language_keyboard(page=0, user_id=user_id, per_page_rows=8),
         parse_mode=enums.ParseMode.HTML
     )
@@ -323,7 +373,12 @@ def subs_page_callback(app, callback_query):
         status_text = f"{lang_info['flag']} Selected language: {lang_info['name']}{auto_text}"
     
     callback_query.edit_message_text(
-                    f"<b>💬 Subtitle settings</b>\n\n{status_text}\n\nSelect subtitle language:",
+        f"<b>💬 Subtitle settings</b>\n\n{status_text}\n\nSelect subtitle language:\n\n"
+        "<b>Quick commands:</b>\n"
+        "• <code>/subs off</code> - disable subtitles\n"
+        "• <code>/subs on</code> - enable Always Ask mode\n"
+        "• <code>/subs ru</code> - set language\n"
+        "• <code>/subs ru auto</code> - set language with AUTO/TRANS",
         reply_markup=get_language_keyboard(page, user_id=user_id)
     )
     callback_query.answer()
@@ -1145,6 +1200,13 @@ def download_subtitles_ytdlp(url, user_id, video_dir, available_langs):
                 info_opts['cookiefile'] = user_cookie_path
             elif hasattr(Config, "COOKIE_FILE_PATH") and os.path.exists(Config.COOKIE_FILE_PATH):
                 info_opts['cookiefile'] = Config.COOKIE_FILE_PATH
+            
+            # Add proxy configuration if needed for this domain
+            from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
+            info_opts = add_proxy_to_ytdl_opts(info_opts, url)
+            
+            # Add PO token provider for YouTube domains
+            info_opts = add_pot_to_ytdl_opts(info_opts, url)
 
             with yt_dlp.YoutubeDL(info_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -1434,7 +1496,7 @@ def get_language_keyboard(page=0, user_id=None, langs_override=None, per_page_ro
     ])
     # Close button
     keyboard.append([
-        InlineKeyboardButton("🔚 Close", callback_data="subs_lang_close|close")
+        InlineKeyboardButton("🔚Close", callback_data="subs_lang_close|close")
     ])
 
     return InlineKeyboardMarkup(keyboard)
@@ -1498,8 +1560,8 @@ def get_language_keyboard_always_ask(page=0, user_id=None, langs_override=None, 
 
     # Back and Close buttons
     keyboard.append([
-        InlineKeyboardButton("🔙 Back", callback_data="askf|subs|back"),
-        InlineKeyboardButton("🔚 Close", callback_data="askf|subs|close")
+        InlineKeyboardButton("🔙Back", callback_data="askf|subs|back"),
+        InlineKeyboardButton("🔚Close", callback_data="askf|subs|close")
     ])
 
     return InlineKeyboardMarkup(keyboard)

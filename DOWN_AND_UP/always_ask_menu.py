@@ -48,6 +48,9 @@ from URL_PARSERS.thumbnail_downloader import download_thumbnail as download_univ
 # Get app instance for decorators
 app = get_app()
 
+# Proxy functionality is now handled by COMMANDS.proxy_cmd
+logger.info(f"always_ask_menu.py imported, app instance: {app is not None}")
+
 def format_filesize(size_str):
     """Convert filesize to shortest readable format (kb, mb, gb)"""
     if not size_str or size_str in ['unknown', 'none', '|', '≈']:
@@ -355,10 +358,12 @@ def _dub_flag(lang_code: str) -> str:
 
 @app.on_callback_query(filters.regex(r"^askf\|"))
 def ask_filter_callback(app, callback_query):
+    logger.info(f"[ASKF] callback received: {callback_query.data}")
     user_id = callback_query.from_user.id
     parts = callback_query.data.split("|")
     if len(parts) >= 3:
         _, kind, value = parts[:3]
+        logger.info(f"[ASKF] parsed: kind={kind}, value={value}")
 
         # --- SUBS handlers must run BEFORE generic filter rebuild ---
         if kind == "subs" and value == "open":
@@ -481,7 +486,7 @@ def ask_filter_callback(app, callback_query):
                     row = []
             if row:
                 rows.append(row)
-            rows.append([InlineKeyboardButton("🔙 Back", callback_data="askf|dubs|back"), InlineKeyboardButton("🔚 Close", callback_data="askf|dubs|close")])
+            rows.append([InlineKeyboardButton("🔙Back", callback_data="askf|dubs|back"), InlineKeyboardButton("🔚Close", callback_data="askf|dubs|close")])
             try:
                 callback_query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(rows))
             except Exception:
@@ -666,6 +671,35 @@ def filter_qualities_by_codec_format(user_id, url, qualities):
         logger.warning(f"Error filtering qualities: {e}")
         return qualities
 
+def get_link_mode(user_id):
+    """
+    Получает состояние режима LINK для пользователя
+    """
+    try:
+        user_dir = os.path.join("users", str(user_id))
+        link_mode_file = os.path.join(user_dir, "link_mode.txt")
+        if os.path.exists(link_mode_file):
+            with open(link_mode_file, 'r') as f:
+                return f.read().strip() == "enabled"
+        return False
+    except Exception:
+        return False
+
+def set_link_mode(user_id, enabled):
+    """
+    Устанавливает состояние режима LINK для пользователя
+    """
+    try:
+        user_dir = os.path.join("users", str(user_id))
+        create_directory(user_dir)
+        link_mode_file = os.path.join(user_dir, "link_mode.txt")
+        with open(link_mode_file, 'w') as f:
+            f.write("enabled" if enabled else "disabled")
+        return True
+    except Exception as e:
+        logger.error(f"Error setting link mode for user {user_id}: {e}")
+        return False
+
 def build_filter_rows(user_id, url=None):
     f = get_filters(user_id)
     codec = f.get("codec", "avc1")
@@ -681,7 +715,7 @@ def build_filter_rows(user_id, url=None):
     
     # When filters are hidden – show compact row with CODEC + audio (+ optional DUBS, SUBS)
     if not visible:
-        row = [InlineKeyboardButton("📼 CODEC", callback_data="askf|toggle|on"), InlineKeyboardButton("🎧 audio (mp3)", callback_data="askq|mp3")]
+        row = [InlineKeyboardButton("📼CODEC", callback_data="askf|toggle|on"), InlineKeyboardButton("🎧MP3", callback_data="askq|mp3")]
         # Show DUBS button only if audio dubs are detected for this video (set elsewhere)
         if has_dubs:
             row.insert(1, InlineKeyboardButton("🗣 DUBS", callback_data="askf|dubs|open"))
@@ -711,7 +745,7 @@ def build_filter_rows(user_id, url=None):
     
     rows = [
         [InlineKeyboardButton(avc1_btn, callback_data="askf|codec|avc1"), InlineKeyboardButton(av01_btn, callback_data="askf|codec|av01"), InlineKeyboardButton(vp9_btn, callback_data="askf|codec|vp9")],
-        [InlineKeyboardButton(mp4_btn, callback_data="askf|ext|mp4"), InlineKeyboardButton(mkv_btn, callback_data="askf|ext|mkv"), InlineKeyboardButton("🎧 audio (mp3)", callback_data="askq|mp3")]
+        [InlineKeyboardButton(mp4_btn, callback_data="askf|ext|mp4"), InlineKeyboardButton(mkv_btn, callback_data="askf|ext|mkv"), InlineKeyboardButton("🎧MP3", callback_data="askq|mp3")]
     ]
     action_buttons = []
     if has_dubs:
@@ -721,6 +755,7 @@ def build_filter_rows(user_id, url=None):
             action_buttons.append(InlineKeyboardButton("💬 SUBS", callback_data="askf|subs|open"))
     except Exception:
         pass
+    
     return rows, action_buttons
 
 @app.on_callback_query(filters.regex(r"^askq\|"))
@@ -759,6 +794,103 @@ def askq_callback(app, callback_query):
         callback_query.answer("Menu closed.")
         return
         
+    # Handle LINK button - get direct link with BV+BA/BEST format
+    if data == "link":
+        # Get original URL from the reply message
+        original_message = callback_query.message.reply_to_message
+        if not original_message:
+            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            return
+            
+        url_text = original_message.text or (original_message.caption or "")
+        import re as _re
+        m = _re.search(r'https?://[^\s\*#]+', url_text)
+        url = m.group(0) if m else url_text
+        
+        try:
+            callback_query.answer("🔗 Getting direct link...")
+        except Exception:
+            pass
+        
+        # Import link function with proxy support
+        from HELPERS.proxy_link_helper import get_direct_link_with_proxy
+        
+        # Get direct link with BV+BA/BEST format using proxy
+        result = get_direct_link_with_proxy(url, "bv+ba/best", user_id)
+        
+        if result.get('success'):
+            title = result.get('title', 'Unknown')
+            duration = result.get('duration', 0)
+            player_urls = result.get('player_urls', {})
+            
+            # Browser button will be sent in main message
+            
+            # Send main response with browser button
+            main_response = f"🔗 <b>Direct Stream Links</b>\n\n"
+            main_response += f"📹 <b>Title:</b> {title}\n"
+            if duration > 0:
+                main_response += f"⏱ <b>Duration:</b> {duration} sec\n"
+            main_response += f"🎛 <b>Format:</b> <code>bv+ba/best</code>\n\n"
+            main_response += f"🌐 <b>Browser:</b> Open in web browser\n\n"
+            
+            # Create browser keyboard
+            browser_keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🌐 Browser", url=player_urls['direct'])],
+                [InlineKeyboardButton("🔚 Close", callback_data="askq|close")]
+            ])
+            
+            # Send main message with browser button
+            app.send_message(
+                user_id, 
+                main_response, 
+                reply_parameters=ReplyParameters(message_id=original_message.id),
+                reply_markup=browser_keyboard,
+                parse_mode=enums.ParseMode.HTML
+            )
+            
+            # Send VLC iOS message
+            if 'vlc_ios' in player_urls:
+                vlc_ios_keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🎬 VLC (iOS)", url=player_urls['vlc_ios'])],
+                    [InlineKeyboardButton("🔚 Close", callback_data="askq|close")]
+                ])
+                app.send_message(
+                    user_id,
+                    "🎬 <b><a href=\"https://itunes.apple.com/app/apple-store/id650377962\">VLC Player (iOS)</a></b>\n\n<i>Click button to copy stream URL, then paste it in VLC app</i>",
+                    reply_parameters=ReplyParameters(message_id=original_message.id),
+                    reply_markup=vlc_ios_keyboard,
+                    parse_mode=enums.ParseMode.HTML
+                )
+            
+            # Send VLC Android message
+            if 'vlc_android' in player_urls:
+                vlc_android_keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🎬 VLC (Android)", url=player_urls['vlc_android'])],
+                    [InlineKeyboardButton("🔚 Close", callback_data="askq|close")]
+                ])
+                app.send_message(
+                    user_id,
+                    "🎬 <b><a href=\"https://play.google.com/store/apps/details?id=org.videolan.vlc\">VLC Player (Android)</a></b>\n\n<i>Click button to copy stream URL, then paste it in VLC app</i>",
+                    reply_parameters=ReplyParameters(message_id=original_message.id),
+                    reply_markup=vlc_android_keyboard,
+                    parse_mode=enums.ParseMode.HTML
+                )
+            
+            send_to_logger(original_message, f"Direct link menu created via LINK button for user {user_id} from {url}")
+            
+        else:
+            error_msg = result.get('error', 'Unknown error')
+            app.send_message(
+                user_id,
+                f"❌ <b>Error getting link:</b>\n{error_msg}",
+                reply_parameters=ReplyParameters(message_id=original_message.id),
+                parse_mode=enums.ParseMode.HTML
+            )
+            
+            send_to_logger(original_message, f"Failed to extract direct link via LINK button for user {user_id} from {url}: {error_msg}")
+        
+        return
+    
     if data == "quick_embed":
         # Get original URL from the reply message
         original_message = callback_query.message.reply_to_message
@@ -860,7 +992,7 @@ def askq_callback(app, callback_query):
                     row = []
             if row:
                 rows.append(row)
-            rows.append([InlineKeyboardButton("🔙 Back", callback_data="askf|dubs|back"), InlineKeyboardButton("🔚 Close", callback_data="askf|dubs|close")])
+            rows.append([InlineKeyboardButton("🔙Back", callback_data="askf|dubs|back"), InlineKeyboardButton("🔚Close", callback_data="askf|dubs|close")])
             kb = InlineKeyboardMarkup(rows)
             try:
                 # Replace entire keyboard (keeping caption/text) to show dubs
@@ -869,6 +1001,7 @@ def askq_callback(app, callback_query):
                 pass
             callback_query.answer("Choose audio language")
             return
+        # LINK MENU HANDLER REMOVED - now using direct link approach
         if kind == "subs" and value == "open":
             # Open SUBS language menu (Always Ask)
             logger.info(f"[ASKQ] Opening SUBS menu for user {user_id}")
@@ -954,6 +1087,7 @@ def askq_callback(app, callback_query):
                 app.edit_message_reply_markup(chat_id=user_id, message_id=callback_query.message.id, reply_markup=None)
             callback_query.answer("Subtitle menu closed.")
             return
+        # OLD LINK TOGGLE HANDLER REMOVED - now using submenu approach
         if kind == "subs_lang":
             # Handle subtitle language selection in Always Ask
             selected_lang = value
@@ -1003,6 +1137,7 @@ def askq_callback(app, callback_query):
                 url = m.group(0) if m else url_text
                 ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
             return
+        # LINK BACK/CLOSE HANDLERS REMOVED - no longer needed
     
     # Handle other qualities page navigation
     if data.startswith("other_page_"):
@@ -1052,8 +1187,8 @@ def askq_callback(app, callback_query):
                     except Exception:
                         pass
         
-        # Fallback to full function if cache not available
-        show_other_qualities_menu(app, callback_query, page)
+                    # Fallback to full function if cache not available
+            show_other_qualities_menu(app, callback_query, page)
         return
     
     if data == "other_back":
@@ -1165,9 +1300,9 @@ def askq_callback(app, callback_query):
         if is_playlist_with_range(original_text):
             _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(original_text)
             video_count = video_end_with - video_start_with + 1
-            down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=format_id)
+            down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=format_id, cookies_already_checked=True)
         else:
-            down_and_up_with_format(app, original_message, url, format_override, tags_text, quality_key=format_id)
+                            down_and_up_with_format(app, original_message, url, format_override, tags_text, quality_key=format_id)
         return
     
     # Handle manual quality selection
@@ -1207,7 +1342,7 @@ def askq_callback(app, callback_query):
         if quality == "best":
             format_override = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bv+ba/best"
         elif quality == "mp3":
-            down_and_audio(app, original_message, url, tags, quality_key="mp3", format_override="ba")
+            down_and_audio(app, original_message, url, tags, quality_key="mp3", format_override="ba", cookies_already_checked=True)
             return
         else:
             try:
@@ -1241,9 +1376,9 @@ def askq_callback(app, callback_query):
         if is_playlist_with_range(original_text):
             _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(original_text)
             video_count = video_end_with - video_start_with + 1
-            down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=quality)
+            down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=quality, cookies_already_checked=True)
         else:
-            down_and_up_with_format(app, original_message, url, format_override, tags_text, quality_key=quality)
+                            down_and_up_with_format(app, original_message, url, format_override, tags_text, quality_key=quality)
         return
 
     original_message = callback_query.message.reply_to_message
@@ -1317,7 +1452,7 @@ def askq_callback(app, callback_query):
                 new_count = new_end - new_start + 1
                 
                 if data == "mp3":
-                    down_and_audio(app, original_message, url, tags, quality_key=used_quality_key, playlist_name=playlist_name, video_count=new_count, video_start_with=new_start, format_override="ba")
+                    down_and_audio(app, original_message, url, tags, quality_key=used_quality_key, playlist_name=playlist_name, video_count=new_count, video_start_with=new_start, format_override="ba", cookies_already_checked=True)
                 else:
                     try:
                         # Form the correct format for the missing videos
@@ -1349,7 +1484,7 @@ def askq_callback(app, callback_query):
                         logger.error(f"askq_callback: error forming format: {e}")
                         format_override = "bestvideo+bestaudio/best/bv+ba/best"
                     
-                    down_and_up(app, original_message, url, playlist_name, new_count, new_start, tags_text, force_no_title=False, format_override=format_override, quality_key=used_quality_key)
+                    down_and_up(app, original_message, url, playlist_name, new_count, new_start, tags_text, force_no_title=False, format_override=format_override, quality_key=used_quality_key, cookies_already_checked=True)
             else:
                 # All videos were in the cache
                 app.send_message(user_id, f"✅ Sent from cache: {len(cached_videos)}/{len(requested_indices)} files.", reply_parameters=ReplyParameters(message_id=original_message.id))
@@ -1361,7 +1496,7 @@ def askq_callback(app, callback_query):
             # If there is no cache at all - download everything again
             logger.info(f"askq_callback: no cache found for any quality, starting new download")
             if data == "mp3":
-                down_and_audio(app, original_message, url, tags, quality_key=data, playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with, format_override="ba")
+                down_and_audio(app, original_message, url, tags, quality_key=data, playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with, format_override="ba", cookies_already_checked=True)
             else:
                 try:
                     # Form the correct format for the new download
@@ -1392,7 +1527,7 @@ def askq_callback(app, callback_query):
                 except ValueError:
                     format_override = "bestvideo+bestaudio/best/bv+ba/best"
                 
-                down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=data)
+                down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=data, cookies_already_checked=True)
             return
     # --- other logic for single files ---
     found_type = check_subs_availability(url, user_id, data, return_type=True)
@@ -1542,19 +1677,19 @@ def show_manual_quality_menu(app, callback_query):
         need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
         
         if need_subs:
-            keyboard_rows.append([InlineKeyboardButton("💬 Subtitles Only", callback_data="askq|subs_only")])
+            keyboard_rows.append([InlineKeyboardButton("💬Subs", callback_data="askq|subs_only")])
     
     # Add Back and close buttons
     keyboard_rows.append([
-        InlineKeyboardButton("🔙 Back", callback_data="askq|manual_back"),
-        InlineKeyboardButton("🔚 Close", callback_data="askq|close")
+        InlineKeyboardButton("🔙Back", callback_data="askq|manual_back"),
+        InlineKeyboardButton("🔚Close", callback_data="askq|close")
     ])
     
     keyboard = InlineKeyboardMarkup(keyboard_rows)
     
     # Get video title for caption
     try:
-        info = get_video_formats(url, user_id)
+        info = get_video_formats(url, user_id, cookies_already_checked=True)
         title = info.get('title', 'Video')
         video_title = title
     except:
@@ -1685,7 +1820,7 @@ def show_other_qualities_menu(app, callback_query, page=0):
     
     # Get video title for caption
     try:
-        info = get_video_formats(url, user_id)
+        info = get_video_formats(url, user_id, cookies_already_checked=True)
         title = info.get('title', 'Video')
         video_title = title
     except:
@@ -1735,6 +1870,15 @@ def show_other_qualities_menu(app, callback_query, page=0):
             else:
                 logger.info("No user cookie file found, using default")
             
+            # Add proxy if needed for this domain
+            from HELPERS.proxy_helper import is_proxy_domain, get_proxy_config
+            if is_proxy_domain(url):
+                proxy_config = get_proxy_config()
+                if proxy_config and 'proxy' in proxy_config:
+                    proxy_url = proxy_config['proxy']
+                    cmd.extend(["--proxy", proxy_url])
+                    logger.info(f"Added proxy to yt-dlp command: {proxy_url}")
+            
             cmd.append(url)
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             
@@ -1742,7 +1886,7 @@ def show_other_qualities_menu(app, callback_query, page=0):
             if result.returncode != 0:
                 logger.warning(f"yt-dlp -F failed with stderr: {result.stderr}")
                 # Fallback: try to get formats from cached info
-                info = get_video_formats(url, user_id)
+                info = get_video_formats(url, user_id, cookies_already_checked=True)
                 formats = info.get('formats', [])
                 format_lines = []
                 for f in formats:
@@ -1889,8 +2033,8 @@ def show_other_qualities_menu(app, callback_query, page=0):
         
         # Add back and close buttons
         keyboard_rows.append([
-            InlineKeyboardButton("🔙 Back", callback_data="askq|other_back"),
-            InlineKeyboardButton("🔚 Close", callback_data="askq|close")
+            InlineKeyboardButton("🔙Back", callback_data="askq|other_back"),
+            InlineKeyboardButton("🔚Close", callback_data="askq|close")
         ])
         
         keyboard = InlineKeyboardMarkup(keyboard_rows)
@@ -1941,7 +2085,7 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
     
     # Get video title for caption
     try:
-        info = get_video_formats(url, user_id)
+        info = get_video_formats(url, user_id, cookies_already_checked=True)
         title = info.get('title', 'Video')
         video_title = title
     except:
@@ -1997,8 +2141,8 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
     
     # Add back and close buttons
     keyboard_rows.append([
-        InlineKeyboardButton("🔙 Back", callback_data="askq|other_back"),
-        InlineKeyboardButton("🔚 Close", callback_data="askq|close")
+        InlineKeyboardButton("🔙Back", callback_data="askq|other_back"),
+        InlineKeyboardButton("🔚Close", callback_data="askq|close")
     ])
     
     keyboard = InlineKeyboardMarkup(keyboard_rows)
@@ -2036,8 +2180,176 @@ def sort_quality_key(quality_key):
         except ValueError:
             return 0  # for unknown formats
 
+def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, original_text, is_playlist, playlist_range):
+    """
+    Создает меню качества из кэшированных данных когда не удается получить новые.
+    
+    Args:
+        app: Экземпляр приложения
+        message: Сообщение пользователя
+        url: URL видео
+        tags: Теги
+        proc_msg: Сообщение о процессе
+        user_id: ID пользователя
+        original_text: Оригинальный текст сообщения
+        is_playlist: Является ли плейлистом
+        playlist_range: Диапазон плейлиста
+        
+    Returns:
+        bool: True если меню создано успешно, False если нет кэшированных данных
+    """
+    try:
+        logger.info(f"Attempting to create menu from cached qualities for user {user_id}")
+        
+        # Получаем кэшированные качества
+        if is_playlist and playlist_range:
+            cached_qualities = get_cached_playlist_qualities(get_clean_playlist_url(url))
+        else:
+            cached_qualities = get_cached_qualities(url)
+        
+        if not cached_qualities:
+            logger.info(f"No cached qualities found for user {user_id}")
+            return False
+        
+        logger.info(f"Found cached qualities for user {user_id}: {list(cached_qualities)}")
+        
+        # Получаем базовую информацию о видео из кэша
+        try:
+            info = load_ask_info(user_id, url)
+            if not info:
+                # Пробуем получить минимальную информацию
+                info = {'title': 'Video (cached)', 'id': 'cached'}
+        except Exception:
+            info = {'title': 'Video (cached)', 'id': 'cached'}
+        
+        title = info.get('title', 'Video (cached)')
+        tags_text = generate_final_tags(url, tags, info)
+        
+        # Определяем NSFW
+        try:
+            is_nsfw = isinstance(tags_text, str) and ('#nsfw' in tags_text.lower())
+        except Exception:
+            is_nsfw = False
+        
+        # Создаем заголовок
+        cap = f"<b>{title}</b>\n"
+        if tags_text:
+            cap += f"{tags_text}\n"
+        cap += f"\n<b>📹 Available Qualities (from cache)</b>\n"
+        cap += f"\n<i>⚠️ Using cached qualities - new formats may not be available</i>\n"
+        
+        # Создаем кнопки качества из кэша
+        buttons = []
+        
+        # Добавляем кнопки для каждого кэшированного качества
+        quality_order = ["144p", "240p", "360p", "480p", "720p", "1080p", "1440p", "2160p", "4320p", "mp3"]
+        
+        for quality_key in quality_order:
+            if quality_key in cached_qualities:
+                if is_playlist and playlist_range:
+                    indices = list(range(playlist_range[0], playlist_range[1]+1))
+                    n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
+                    total = len(indices)
+                    icon = "🚀" if n_cached > 0 else "📹"
+                    postfix = f" ({n_cached}/{total})" if total > 1 else ""
+                    button_text = f"{icon}{quality_key}{postfix}"
+                else:
+                    icon = "🚀" if quality_key in cached_qualities else "📹"
+                    button_text = f"{icon}{quality_key}"
+                buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
+        
+        # Всегда добавляем Best Quality
+        quality_key = "best"
+        if is_playlist and playlist_range:
+            indices = list(range(playlist_range[0], playlist_range[1]+1))
+            n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
+            total = len(indices)
+            icon = "🚀" if n_cached > 0 else "📹"
+            postfix = f" ({n_cached}/{total})" if total > 1 else ""
+            button_text = f"{icon}Best{postfix}"
+        else:
+            icon = "🚀" if quality_key in cached_qualities else "📹"
+            button_text = f"{icon}Best"
+        buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
+        
+        # Всегда добавляем Other Qualities
+        buttons.append(InlineKeyboardButton("🎛Other", callback_data=f"askq|other_qualities"))
+        
+        # Создаем клавиатуру
+        keyboard_rows = []
+        
+        # Добавляем фильтры
+        filter_rows, filter_action_buttons = build_filter_rows(user_id, url)
+        keyboard_rows.extend(filter_rows)
+        
+        # Группируем кнопки качества по 3 в ряд
+        if buttons:
+            total_quality_buttons = len(buttons)
+            if total_quality_buttons % 3 == 0:
+                for i in range(0, total_quality_buttons, 3):
+                    keyboard_rows.append(buttons[i:i+3])
+            elif total_quality_buttons % 3 == 1 and total_quality_buttons > 1:
+                for i in range(0, total_quality_buttons - 4, 3):
+                    keyboard_rows.append(buttons[i:i+3])
+                keyboard_rows.append(buttons[-4:-2])
+                keyboard_rows.append(buttons[-2:])
+            else:
+                for i in range(0, total_quality_buttons, 3):
+                    keyboard_rows.append(buttons[i:i+3])
+        
+        # Собираем action buttons
+        action_buttons = []
+        action_buttons.extend(filter_action_buttons)
+        
+        # Добавляем WATCH кнопку для YouTube (без LINK кнопки)
+        try:
+            if is_youtube_url(url):
+                piped_url = youtube_to_piped_url(url)
+                wa = WebAppInfo(url=piped_url)
+                action_buttons.append(InlineKeyboardButton("👁Watch", web_app=wa))
+        except Exception as e:
+            logger.error(f"Error adding WATCH button: {e}")
+        
+        # Группируем action buttons
+        if action_buttons:
+            for i in range(0, len(action_buttons), 3):
+                keyboard_rows.append(action_buttons[i:i+3])
+        
+        # Добавляем кнопку закрытия
+        keyboard_rows.append([InlineKeyboardButton("🔚Close", callback_data="askq|close")])
+        
+        keyboard = InlineKeyboardMarkup(keyboard_rows)
+        
+        # Отправляем меню
+        try:
+            if proc_msg:
+                try:
+                    result = app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+                    if result is None:
+                        app.send_message(user_id, cap, reply_parameters=ReplyParameters(message_id=message.id), parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+                except Exception as edit_error:
+                    if "MESSAGE_ID_INVALID" in str(edit_error):
+                        logger.warning(f"Message ID invalid, sending new message: {edit_error}")
+                        app.send_message(user_id, cap, reply_parameters=ReplyParameters(message_id=message.id), parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+                    else:
+                        raise edit_error
+            else:
+                app.send_message(user_id, cap, reply_parameters=ReplyParameters(message_id=message.id), parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+            
+            logger.info(f"Successfully created cached qualities menu for user {user_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error sending cached qualities menu: {e}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error creating cached qualities menu: {e}")
+        return False
+
 # @reply_with_keyboard
 def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
+    """Show quality selection menu for video"""
     user_id = message.chat.id
     proc_msg = None
     
@@ -2129,7 +2441,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         # Try load cached info first to make UI instant
         info = load_ask_info(user_id, url)
         if not info:
-            info = get_video_formats(url, user_id, playlist_start_index)
+            info = get_video_formats(url, user_id, playlist_start_index, cookies_already_checked=True)
             # Save minimal info to cache
             try:
                 save_ask_info(user_id, url, info)
@@ -2140,7 +2452,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         tags_text = generate_final_tags(url, tags, info)
         # Determine NSFW to hide preview under spoiler in Always Ask Menu too
         try:
-            is_nsfw = isinstance(tags_text, str) and ('#porn' in tags_text.lower())
+            is_nsfw = isinstance(tags_text, str) and ('#nsfw' in tags_text.lower())
         except Exception:
             is_nsfw = False
         thumb_path = None
@@ -2165,6 +2477,64 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 service_name = "facebook"
             elif 'pornhub.com' in url or 'pornhub.org' in url:
                 service_name = "pornhub"
+            elif any(x in url for x in ['instagram.com', 'instagr.am']):
+                service_name = "instagram"
+            elif 'vimeo.com' in url:
+                service_name = "vimeo"
+            elif any(x in url for x in ['dailymotion.com', 'dai.ly']):
+                service_name = "dailymotion"
+            elif 'rutube.ru' in url:
+                service_name = "rutube"
+            elif 'twitch.tv' in url:
+                service_name = "twitch"
+            elif 'boosty.to' in url:
+                service_name = "boosty"
+            elif 'ok.ru' in url:
+                service_name = "okru"
+            elif any(x in url for x in ['reddit.com', 'redd.it']):
+                service_name = "reddit"
+            elif 'pikabu.ru' in url:
+                service_name = "pikabu"
+            elif 'zen.yandex.ru' in url:
+                service_name = "yandex_zen"
+            elif any(x in url for x in ['drive.google.com', 'docs.google.com']):
+                service_name = "google_drive"
+            elif 'redtube.com' in url:
+                service_name = "redtube"
+            elif 'bilibili.com' in url:
+                service_name = "bilibili"
+            elif 'nicovideo.jp' in url:
+                service_name = "niconico"
+            elif 'xvideos.com' in url:
+                service_name = "xvideos"
+            elif 'xnxx.com' in url:
+                service_name = "xnxx"
+            elif 'youporn.com' in url:
+                service_name = "youporn"
+            elif 'xhamster.com' in url:
+                service_name = "xhamster"
+            elif 'porntube.com' in url:
+                service_name = "porntube"
+            elif 'spankbang.com' in url:
+                service_name = "spankbang"
+            elif 'onlyfans.com' in url:
+                service_name = "onlyfans"
+            elif 'patreon.com' in url:
+                service_name = "patreon"
+            elif 'soundcloud.com' in url:
+                service_name = "soundcloud"
+            elif 'bandcamp.com' in url:
+                service_name = "bandcamp"
+            elif 'mixcloud.com' in url:
+                service_name = "mixcloud"
+            elif 'deezer.com' in url:
+                service_name = "deezer"
+            elif 'spotify.com' in url:
+                service_name = "spotify"
+            elif 'music.apple.com' in url:
+                service_name = "apple_music"
+            elif 'tidal.com' in url:
+                service_name = "tidal"
             
             if service_name != "unknown":
                 thumb_path = os.path.join(user_dir, f"{service_name}_thumb_{video_id or 'unknown'}.jpg")
@@ -2838,7 +3208,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         
         # Always add Other Qualities button
-        buttons.append(InlineKeyboardButton("🎛 Other", callback_data=f"askq|other_qualities"))
+        buttons.append(InlineKeyboardButton("🎛Other", callback_data=f"askq|other_qualities"))
         
         if not found_quality_keys:
             # Add explanation when automatic quality detection fails
@@ -2856,9 +3226,13 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         # Add filter action buttons (DUBS, SUBS)
         action_buttons.extend(filter_action_buttons)
         
+        # Add LINK button - always available
+        logger.info(f"Adding LINK button for user {user_id}")
+        action_buttons.append(InlineKeyboardButton("🔗Link", callback_data="askq|link"))
+        
         # Add Quick Embed button for supported services (but not for ranges)
         if (is_instagram_url(url) or is_twitter_url(url) or is_reddit_url(url)) and not is_playlist_with_range(original_text):
-            action_buttons.append(InlineKeyboardButton("🚀 Quick Embed", callback_data="askq|quick_embed"))
+            action_buttons.append(InlineKeyboardButton("🚀Embed", callback_data="askq|quick_embed"))
         
         # Smart grouping of quality buttons - prefer 3 per row, then 2, avoid single buttons
         if buttons:
@@ -2886,7 +3260,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 piped_url = youtube_to_piped_url(url)
                 logger.info(f"Converted to Piped URL: {piped_url}")
                 wa = WebAppInfo(url=piped_url)
-                action_buttons.append(InlineKeyboardButton("👁 WATCH", web_app=wa))
+                action_buttons.append(InlineKeyboardButton("👁Watch", web_app=wa))
                 logger.info(f"Added WATCH button to action_buttons for user {user_id}")
         except Exception as e:
             logger.error(f"Error adding WATCH button for user {user_id}: {e}")
@@ -2907,7 +3281,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
             
             if need_subs:
-                action_buttons.append(InlineKeyboardButton("💬 Subtitles Only", callback_data="askq|subs_only"))
+                action_buttons.append(InlineKeyboardButton("💬Subs", callback_data="askq|subs_only"))
         
         # Smart grouping of action buttons - prefer 3 buttons per row, then 2, avoid single buttons
         logger.info(f"Smart grouping {len(action_buttons)} action buttons for user {user_id}")
@@ -2940,9 +3314,9 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         # Smart grouping for bottom row - try to combine with action buttons if possible
         bottom_buttons = []
         if bool(filters_state.get('visible', False)):
-            bottom_buttons = [InlineKeyboardButton("🔙 Back", callback_data="askf|toggle|off"), InlineKeyboardButton("🔚 Close", callback_data="askq|close")]
+            bottom_buttons = [InlineKeyboardButton("🔙Back", callback_data="askf|toggle|off"), InlineKeyboardButton("🔚Close", callback_data="askq|close")]
         else:
-            bottom_buttons = [InlineKeyboardButton("🔚 Close", callback_data="askq|close")]
+            bottom_buttons = [InlineKeyboardButton("🔚Close", callback_data="askq|close")]
         
         # Try to add bottom buttons to last action row if it has space
         if keyboard_rows and len(keyboard_rows[-1]) < 3 and len(bottom_buttons) <= (3 - len(keyboard_rows[-1])):
@@ -3028,6 +3402,21 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 logger.warning(f"Failed to send flood notice: {e}")
         return
     except Exception as e:
+        logger.error(f"Error retrieving video information for user {user_id}: {e}")
+        
+        # Сначала пробуем создать меню из кэшированных качеств
+        try:
+            logger.info(f"Attempting to create menu from cached qualities for user {user_id}")
+            if create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, original_text, is_playlist, playlist_range):
+                logger.info(f"Successfully created cached qualities menu for user {user_id}")
+                send_to_logger(message, f"Created cached qualities menu for user {user_id} after error: {e}")
+                return
+            else:
+                logger.info(f"No cached qualities available for user {user_id}, showing error message")
+        except Exception as cache_error:
+            logger.error(f"Error creating cached qualities menu: {cache_error}")
+        
+        # Если кэшированных качеств нет, показываем ошибку
         error_text = f"❌ Error retrieving video information:\n{e}\n> Try the /clean command and try again. If the error persists, YouTube requires authorization. Update cookies.txt via /cookie or /cookies_from_browser and try again."
         try:
             if proc_msg:
@@ -3045,6 +3434,71 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
 def askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs):
     user_id = callback_query.from_user.id
     tags = tags_text.split() if tags_text else []
+    
+    # Check if LINK mode is enabled
+    if get_link_mode(user_id):
+        # Get direct link instead of downloading
+        try:
+            callback_query.answer("🔗 Getting direct link...")
+        except Exception:
+            pass
+        
+        # Import link function
+        from COMMANDS.link_cmd import get_direct_link
+        
+        # Convert quality key to quality argument
+        quality_arg = None
+        if data != "best" and data != "mp3":
+            quality_arg = data
+        
+        # Get direct link - use proxy only if user has proxy enabled and domain requires it
+        result = get_direct_link(url, user_id, quality_arg, cookies_already_checked=True, use_proxy=False)
+        
+        if result.get('success'):
+            title = result.get('title', 'Unknown')
+            duration = result.get('duration', 0)
+            video_url = result.get('video_url')
+            audio_url = result.get('audio_url')
+            format_spec = result.get('format', 'best')
+            
+            # Form response
+            response = f"🔗 <b>Direct link obtained</b>\n\n"
+            response += f"📹 <b>Title:</b> {title}\n"
+            if duration > 0:
+                response += f"⏱ <b>Duration:</b> {duration} sec\n"
+            response += f"🎛 <b>Format:</b> <code>{format_spec}</code>\n\n"
+            
+            if video_url:
+                response += f"🎬 <b>Video stream:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
+            
+            if audio_url:
+                response += f"🎵 <b>Audio stream:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
+            
+            if not video_url and not audio_url:
+                response += "❌ Failed to get stream links"
+            
+            # Send response
+            app.send_message(
+                user_id, 
+                response, 
+                reply_parameters=ReplyParameters(message_id=original_message.id),
+                parse_mode=enums.ParseMode.HTML
+            )
+            
+            send_to_logger(original_message, f"Direct link extracted via Always Ask menu for user {user_id} from {url}")
+            
+        else:
+            error_msg = result.get('error', 'Unknown error')
+            app.send_message(
+                user_id,
+                f"❌ <b>Error getting link:</b>\n{error_msg}",
+                reply_parameters=ReplyParameters(message_id=original_message.id),
+                parse_mode=enums.ParseMode.HTML
+            )
+            
+            send_to_logger(original_message, f"Failed to extract direct link via Always Ask menu for user {user_id} from {url}: {error_msg}")
+        
+        return
     # Read current filters to build correct format strings and container override
     try:
         filters_state = get_filters(user_id)
@@ -3066,7 +3520,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
         full_string = original_message.text or original_message.caption or ""
         _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
         video_count = video_end_with - video_start_with + 1
-        down_and_audio(app, original_message, url, tags, quality_key="mp3", playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with, format_override="ba")
+        down_and_audio(app, original_message, url, tags, quality_key="mp3", playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with, format_override="ba", cookies_already_checked=True)
         return
     
     if data == "subs_only":
@@ -3093,7 +3547,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
     else:
         try:
             # Get information about the video to determine the sizes
-            info = get_video_formats(url, user_id)
+            info = get_video_formats(url, user_id, cookies_already_checked=True)
             formats = info.get('formats', [])
             
             # Find the format with the highest quality to determine the sizes
@@ -3268,6 +3722,72 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
     
     # Check if there is a link to Tiktok
     is_tiktok = is_tiktok_url(url)
+    
+    # Check if LINK mode is enabled - if yes, get direct link instead of downloading
+    user_id = message.chat.id
+    try:
+        if get_link_mode(user_id):
+            logger.info(f"LINK mode enabled for user {user_id}, getting direct link instead of downloading")
+            
+            # Import link function
+            from COMMANDS.link_cmd import get_direct_link
+            
+            # Convert quality key to quality argument
+            quality_arg = None
+            if quality_key and quality_key != "best" and quality_key != "mp3":
+                quality_arg = quality_key
+            
+            # Get direct link
+            result = get_direct_link(url, user_id, quality_arg, cookies_already_checked=True, use_proxy=True)
+            
+            if result.get('success'):
+                title = result.get('title', 'Unknown')
+                duration = result.get('duration', 0)
+                video_url = result.get('video_url')
+                audio_url = result.get('audio_url')
+                format_spec = result.get('format', 'best')
+                
+                # Form response
+                response = f"🔗 <b>Direct link obtained</b>\n\n"
+                response += f"📹 <b>Title:</b> {title}\n"
+                if duration > 0:
+                    response += f"⏱ <b>Duration:</b> {duration} sec\n"
+                response += f"🎛 <b>Format:</b> <code>{format_spec}</code>\n\n"
+                
+                if video_url:
+                    response += f"🎬 <b>Video stream:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
+                
+                if audio_url:
+                    response += f"🎵 <b>Audio stream:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
+                
+                if not video_url and not audio_url:
+                    response += "❌ Failed to get stream links"
+                
+                # Send response
+                app.send_message(
+                    user_id, 
+                    response, 
+                    reply_parameters=ReplyParameters(message_id=message.id),
+                    parse_mode=enums.ParseMode.HTML
+                )
+                
+                send_to_logger(message, f"Direct link extracted via down_and_up_with_format for user {user_id} from {url}")
+                
+            else:
+                error_msg = result.get('error', 'Unknown error')
+                app.send_message(
+                    user_id,
+                    f"❌ <b>Error getting link:</b>\n{error_msg}",
+                    reply_parameters=ReplyParameters(message_id=message.id),
+                    parse_mode=enums.ParseMode.HTML
+                )
+                
+                send_to_logger(message, f"Failed to extract direct link via down_and_up_with_format for user {user_id} from {url}: {error_msg}")
+            
+            return
+    except Exception as e:
+        logger.error(f"Error checking LINK mode for user {user_id}: {e}")
+        # Continue with normal download if LINK mode check fails
 
     # Analyze the format to determine if it's audio-only, video-only, or full
     format_type = None
@@ -3276,7 +3796,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
     try:
         # Get video info to analyze the selected format
         user_id = message.chat.id
-        info = get_video_formats(url, user_id)
+        info = get_video_formats(url, user_id, cookies_already_checked=True)
         
         if quality_key and 'formats' in info:
             # Find the selected format
@@ -3292,7 +3812,8 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
                 # If it's audio-only, convert to mp3
                 if format_type == 'audio_only':
                     # Use audio download function with the selected format
-                    down_and_audio(app, message, url, tags_text, quality_key=quality_key, format_override=fmt)
+                    # Pass cookies_already_checked=True since we already checked cookies in get_video_formats
+                    down_and_audio(app, message, url, tags_text, quality_key=quality_key, format_override=fmt, cookies_already_checked=True)
                     return
                 
                 # If it's video-only, find complementary audio
@@ -3316,7 +3837,8 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
         # Continue with original format if analysis fails
 
     # We call the main function of loading with the correct parameters of the playlist
-    down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=is_tiktok, format_override=fmt, quality_key=quality_key)
+    # Pass cookies_already_checked=True since we already checked cookies in get_video_formats
+    down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=is_tiktok, format_override=fmt, quality_key=quality_key, cookies_already_checked=True)
     # Cleanup temp subs languages cache after we kicked off download
     try:
         delete_subs_langs_cache(message.chat.id, url)

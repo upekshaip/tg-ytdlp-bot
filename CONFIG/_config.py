@@ -14,7 +14,7 @@ class Config(object):
     # Your bot name - Required (str)
     BOT_NAME = "tgytdlp_test_bot"
     # A name for users - Required (str)
-    BOT_NAME_FOR_USERS = "tg-ytdlp-bot" #name in database
+    BOT_NAME_FOR_USERS = "tgytdlp_bot" #name in database
     # Список ID администраторов
     ADMIN = [00000000, 111111111111]
     # Add allowed group IDs - Only these groups will be served by the bot
@@ -43,10 +43,15 @@ class Config(object):
     YOUTUBE_COOKIE_URL_3 = "https://XXX/cookie3.txt"
     #YOUTUBE_COOKIE_URL_4 = "https://XXX/cookie4.txt"
     #YOUTUBE_COOKIE_URL_10 = "https://XXX/cookie10.txt"
-    INSTAGRAM_COOKIE_URL = "https://XXX/instagram_cookie.txt"
+    YOUTUBE_COOKIE_ORDER = "round_robin" # random, round_robin
+    # YouTube test URL for cookie validation
+    YOUTUBE_COOKIE_TEST_URL = "https://youtu.be/XqZsoesa55w"  # Short video
+    #YOUTUBE_COOKIE_TEST_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"  # Rick Roll - short video
+    #INSTAGRAM_COOKIE_URL = "https://XXX/instagram_cookie.txt"
     TIKTOK_COOKIE_URL = "https://XXX/tiktok_cookie.txt"
-    FACEBOOK_COOKIE_URL = "https://XXX/facebook_cookie.txt"
+    #FACEBOOK_COOKIE_URL = "https://XXX/facebook_cookie.txt"
     TWITTER_COOKIE_URL = "https://XXX/twitter_cookie.txt"
+    VK_COOKIE_URL = "https://XXX/vk_cookie.txt"
     # Do not chanege this
     COOKIE_FILE_PATH = "TXT/cookie.txt"
     # Do not chanege this
@@ -55,6 +60,29 @@ class Config(object):
     RELOAD_CACHE_EVERY = 4 # in hours
     DOWNLOAD_FIREBASE_SCRIPT_PATH = "DATABASE/download_firebase.py"
     AUTO_CACHE_RELOAD_ENABLED = True # Enable/disable automatic cache reloading
+    #######################################################
+    # Proxy configuration
+    PROXY_TYPE="http" # http, https, socks4, socks5, socks5h
+    PROXY_IP="X.X.X.X"
+    PROXY_PORT=3128
+    PROXY_USER="XXXXXXXX"
+    PROXY_PASSWORD="XXXXXXXXX"
+    # Additional Proxy configuration  
+    PROXY_2_TYPE="socks5" # http, https, socks4, socks5, socks5h
+    PROXY_2_IP="X.X.X.X"
+    PROXY_2_PORT=3128
+    PROXY_2_USER="XXXXXXXX"
+    PROXY_2_PASSWORD="XXXXXXXXX"
+    # Proxy selection method for /proxy on command
+    PROXY_SELECT = "round_robin" # random, round_robin
+    #######################################################
+    # PO Token Provider configuration for YouTube
+    # Enable PO token provider for YouTube domains
+    YOUTUBE_POT_ENABLED = True
+    # PO token provider server URL (Docker container)
+    YOUTUBE_POT_BASE_URL = "http://127.0.0.1:4416"
+    # Disable innertube if tokens stop working
+    YOUTUBE_POT_DISABLE_INNERTUBE = False
     #######################################################
     # Firebase initialization
     # your firebase DB path
@@ -83,6 +111,7 @@ class Config(object):
     ###########################################################
     # Commands configuration
     DOWNLOAD_COOKIE_COMMAND = CommandsConfig.DOWNLOAD_COOKIE_COMMAND
+    PROXY_COMMAND = CommandsConfig.PROXY_COMMAND    
     SUBS_COMMAND = CommandsConfig.SUBS_COMMAND
     CHECK_COOKIE_COMMAND = CommandsConfig.CHECK_COOKIE_COMMAND
     SAVE_AS_COOKIE_COMMAND = CommandsConfig.SAVE_AS_COOKIE_COMMAND
@@ -107,7 +136,7 @@ class Config(object):
     AUTO_CACHE_COMMAND = CommandsConfig.AUTO_CACHE_COMMAND
     SEARCH_COMMAND = CommandsConfig.SEARCH_COMMAND
     KEYBOARD_COMMAND = CommandsConfig.KEYBOARD_COMMAND
-
+    IMG_COMMAND = CommandsConfig.IMG_COMMAND
     # Messages configuration
     CREDITS_MSG = MessagesConfig.CREDITS_MSG
     TO_USE_MSG = MessagesConfig.TO_USE_MSG
@@ -119,12 +148,15 @@ class Config(object):
     HELP_MSG = MessagesConfig.HELP_MSG
     
     # Domains configuration
+    GREYLIST = DomainsConfig.GREYLIST
     BLACK_LIST = DomainsConfig.BLACK_LIST
     PORN_DOMAINS_FILE = DomainsConfig.PORN_DOMAINS_FILE
     PORN_KEYWORDS_FILE = DomainsConfig.PORN_KEYWORDS_FILE
     SUPPORTED_SITES_FILE = DomainsConfig.SUPPORTED_SITES_FILE
     WHITELIST = DomainsConfig.WHITELIST
     NO_COOKIE_DOMAINS = DomainsConfig.NO_COOKIE_DOMAINS
+    PROXY_DOMAINS = DomainsConfig.PROXY_DOMAINS
+    PROXY_2_DOMAINS = DomainsConfig.PROXY_2_DOMAINS
     TIKTOK_DOMAINS = DomainsConfig.TIKTOK_DOMAINS
     CLEAN_QUERY = DomainsConfig.CLEAN_QUERY
     PIPED_DOMAIN = DomainsConfig.PIPED_DOMAIN    

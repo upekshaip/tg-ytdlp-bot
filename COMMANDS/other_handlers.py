@@ -17,6 +17,8 @@ from CONFIG.config import Config
 from URL_PARSERS.tags import extract_url_range_tags, save_user_tags
 
 from DOWN_AND_UP.down_and_audio import down_and_audio
+from COMMANDS.link_cmd import link_command
+from COMMANDS.proxy_cmd import proxy_command
 
 # Get app instance for decorators
 app = get_app()
@@ -75,6 +77,23 @@ def audio_command_handler(app, message):
     down_and_audio(app, message, url, tags, quality_key="mp3", playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with, format_override="ba")
 
 
+# /Link Command
+@app.on_message(filters.command("link") & filters.private)
+def link_command_handler(app, message):
+    user_id = message.chat.id
+    if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+        return
+    link_command(app, message)
+
+# /Proxy Command
+@app.on_message(filters.command("proxy") & filters.private)
+def proxy_command_handler(app, message):
+    user_id = message.chat.id
+    if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+        return
+    proxy_command(app, message)
+
+
 # /Playlist Command
 @app.on_message(filters.command("playlist") & filters.private)
 # @reply_with_keyboard
@@ -84,7 +103,7 @@ def playlist_command(app, message):
         return
 
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔚 Close", callback_data="playlist_help|close")]
+        [InlineKeyboardButton("🔚Close", callback_data="playlist_help|close")]
     ])
     safe_send_message(user_id, Config.PLAYLIST_HELP_MSG, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
     send_to_logger(message, "User requested playlist help.")

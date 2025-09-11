@@ -12,4 +12,6 @@ class LimitsConfig(object):
     MAX_SUB_SIZE = 500 # in MB      
     MAX_PLAYLIST_COUNT = 50
     MAX_TIKTOK_COUNT = 500        
+    # Max number of media files to download/send for /img
+    MAX_IMG_FILES = 1000
     #######################################################
