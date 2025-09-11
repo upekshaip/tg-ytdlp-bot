@@ -57,8 +57,16 @@ def reload_firebase_cache_command(app, message):
 
 def send_promo_message(app, message):
     # We get a list of users from the base
-    user_lst = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").get().each()
-    user_lst = [int(user.key()) for user in user_lst]
+    user_nodes = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").get().each()
+    user_nodes = user_nodes or []
+    user_lst = []
+    for user in user_nodes:
+        try:
+            key = user.key()
+            if key is not None:
+                user_lst.append(int(key))
+        except Exception:
+            continue
     # Add administrators if they are not on the list
     for admin in Config.ADMIN:
         if admin not in user_lst:
@@ -191,12 +199,38 @@ def get_user_details(app, message):
         send_to_all(message, f"❌ No data found in cache for <code>{path}</code>")
         return
 
+    # Support both dict and list structures from cache
+    if isinstance(data_dict, dict):
+        iterable = data_dict.values()
+    elif isinstance(data_dict, list):
+        iterable = data_dict
+    else:
+        iterable = []
+
     modified_lst, txt_lst = [], []
-    for user in data_dict.values():
-        if user["ID"] != "0":
-            ts = datetime.fromtimestamp(int(user["timestamp"]))
-            txt_lst.append(f"TS: {ts} | ID: {user['ID']}")
-            modified_lst.append(f"TS: <b>{ts}</b> | ID: <code>{user['ID']}</code>")
+    for user in iterable:
+        try:
+            if isinstance(user, dict):
+                user_id = str(user.get("ID")) if user.get("ID") is not None else None
+                ts_raw = user.get("timestamp")
+            else:
+                # If element is not dict, treat it as a user id
+                user_id = str(user)
+                ts_raw = None
+
+            if not user_id or user_id == "0":
+                continue
+
+            try:
+                ts_val = int(ts_raw) if ts_raw is not None else 0
+            except Exception:
+                ts_val = 0
+            ts = datetime.fromtimestamp(ts_val)
+
+            txt_lst.append(f"TS: {ts} | ID: {user_id}")
+            modified_lst.append(f"TS: <b>{ts}</b> | ID: <code>{user_id}</code>")
+        except Exception:
+            continue
 
     modified_lst.sort(key=str.lower)
     txt_lst.sort(key=str.lower)
@@ -221,25 +255,29 @@ def get_user_details(app, message):
 def block_user(app, message):
     if int(message.chat.id) in Config.ADMIN:
         dt = math.floor(time.time())
-        b_user_id = str((message.text).split(
-            Config.BLOCK_USER_COMMAND + " ")[1])
+        parts = (message.text or "").strip().split(maxsplit=1)
+        if len(parts) < 2:
+            send_to_user(message, "❌ Usage: /block_user <user_id>")
+            return
+        b_user_id = parts[1].strip()
 
-        if int(b_user_id) in Config.ADMIN:
-            send_to_all(message, "🚫 Admin cannot delete an admin")
+        try:
+            if int(b_user_id) in Config.ADMIN:
+                send_to_all(message, "🚫 Admin cannot delete an admin")
+                return
+        except Exception:
+            pass
+
+        snapshot = db.child(f"{Config.BOT_DB_PATH}/blocked_users").get()
+        all_blocked_users = snapshot.each() if snapshot else []
+        b_users = [str(b_user.key()) for b_user in (all_blocked_users or []) if b_user is not None]
+
+        if b_user_id not in b_users:
+            data = {"ID": b_user_id, "timestamp": str(dt)}
+            db.child(f"{Config.BOT_DB_PATH}/blocked_users/{b_user_id}").set(data)
+            send_to_user(message, f"User blocked 🔒❌\n \nID: <code>{b_user_id}</code>\nBlocked Date: {datetime.fromtimestamp(dt)}")
         else:
-            all_blocked_users = db.child(
-                f"{Config.BOT_DB_PATH}/blocked_users").get().each()
-            b_users = [b_user.key() for b_user in all_blocked_users]
-
-            if b_user_id not in b_users:
-                data = {"ID": b_user_id, "timestamp": str(dt)}
-                db.child(
-                    f"{Config.BOT_DB_PATH}/blocked_users/{b_user_id}").set(data)
-                send_to_user(
-                    message, f"User blocked 🔒❌\n \nID: <code>{b_user_id}</code>\nBlocked Date: {datetime.fromtimestamp(dt)}")
-
-            else:
-                send_to_user(message, f"<code>{b_user_id}</code> is already blocked ❌😐")
+            send_to_user(message, f"<code>{b_user_id}</code> is already blocked ❌😐")
     else:
         send_to_all(message, "🚫 Sorry! You are not an admin")
 
@@ -248,20 +286,22 @@ def block_user(app, message):
 
 def unblock_user(app, message):
     if int(message.chat.id) in Config.ADMIN:
-        ub_user_id = str((message.text).split(
-            Config.UNBLOCK_USER_COMMAND + " ")[1])
-        all_blocked_users = db.child(
-            f"{Config.BOT_DB_PATH}/blocked_users").get().each()
-        b_users = [b_user.key() for b_user in all_blocked_users]
+        parts = (message.text or "").strip().split(maxsplit=1)
+        if len(parts) < 2:
+            send_to_user(message, "❌ Usage: /unblock_user <user_id>")
+            return
+        ub_user_id = parts[1].strip()
+
+        snapshot = db.child(f"{Config.BOT_DB_PATH}/blocked_users").get()
+        all_blocked_users = snapshot.each() if snapshot else []
+        b_users = [str(b_user.key()) for b_user in (all_blocked_users or []) if b_user is not None]
 
         if ub_user_id in b_users:
             dt = math.floor(time.time())
 
             data = {"ID": ub_user_id, "timestamp": str(dt)}
-            db.child(
-                f"{Config.BOT_DB_PATH}/unblocked_users/{ub_user_id}").set(data)
-            db.child(
-                f"{Config.BOT_DB_PATH}/blocked_users/{ub_user_id}").remove()
+            db.child(f"{Config.BOT_DB_PATH}/unblocked_users/{ub_user_id}").set(data)
+            db.child(f"{Config.BOT_DB_PATH}/blocked_users/{ub_user_id}").remove()
             send_to_user(
                 message, f"User unblocked 🔓✅\n \nID: <code>{ub_user_id}</code>\nUnblocked Date: {datetime.fromtimestamp(dt)}")
 
