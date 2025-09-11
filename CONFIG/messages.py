@@ -84,8 +84,8 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 🎬 <b>Video Download Bot - Help</b>
 
 📥 <b>Basic Usage:</b>
-• Send any link → bot auto-detects and downloads
-  <blockquote>Videos use yt-dlp; if no video formats found, the bot automatically tries images via gallery-dl.</blockquote>
+• Send any link → bot downloads it
+  <blockquote>the bot automatically tries to download videos via yt-dlp and images via gallery-dl.</blockquote>
 • <code>/audio URL</code> → extract audio
 • <code>/link [quality] URL</code> → get direct links
 • <code>/proxy</code> → enable/disable proxy for all downloads
@@ -93,7 +93,7 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 
 📋 <b>Playlists & Ranges:</b>
 • <code>URL*1*5</code> → download videos 1-5
-• <code>/vid 3-7 https://youtube.com/playlist?list=...</code> → becomes <code>https://youtube.com/playlist?list=...*3*7</code>
+• <code>/vid 3-7 URL</code> → becomes <code>URL*3*7</code>
 
 🍪 <b>Cookies & Private:</b>
 • Upload *.txt cookie for private videos
@@ -111,7 +111,7 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 ⚙️ <b>Settings:</b>
 • <code>/settings</code> → settings menu
 • <code>/format</code> → quality & format
-• <code>/split</code> → part size (250MB-2GB)
+• <code>/split</code> → split video into parts
 • <code>/mediainfo on/off</code> → media info
 • <code>/nsfw on/off</code> → NSFW blur
 • <code>/tags</code> → view saved tags
@@ -130,7 +130,7 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 ⚙️ <b>Quick Commands:</b>
 • <code>/format [144-4320]/720p/1080p/4k/8k</code> → set quality
 • <code>/keyboard off/1x3/2x3/full</code> → keyboard layout
-• <code>/split 100mb-2000mb</code> → part size (100MB to 2GB)
+• <code>/split 100mb-2000mb</code> → change part size
 • <code>/subs off/ru/en auto</code> → subtitle language
 • <code>/mediainfo on/off</code> → on/off media info
 • <code>/proxy on/off</code> → enable/disable proxy for all downloads
@@ -140,16 +140,16 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 • <code>/search</code> → inline search via @vid
 
 🖼 <b>Images:</b>
-• <code>/img URL</code> → download images from various platforms
-• <code>/img 11-20 URL</code> → download specific range (batchwise)
-• <code>/img 11- URL</code> → download from 11th to the end (up to limit)
-<blockquote>Tip: you can just send a post link. If no downloadable video formats are found, the bot will try images automatically.</blockquote>
+• <code>URL</code> → download images URL
+• <code>/img URL</code> → download images from URL
+• <code>/img 11-20 URL</code> → download specific range
+• <code>/img 11- URL</code> → download from 11th to the end
 
 <blockquote expandable>🇷🇺 <b>Бот для скачивания видео - Помощь</b>
 
 📥 <b>Основное:</b>
-• Отправьте любую ссылку → бот сам определит и скачает
-  <blockquote>Видео скачиваются через yt-dlp; если видео-форматы не найдены, бот автоматически попробует скачать изображения (gallery-dl).</blockquote>
+• Отправьте любую ссылку → бот скачает её
+  <blockquote>бот автоматически попробует скачать видео через yt-dlp и изображения через gallery-dl.</blockquote>
 • <code>/audio URL</code> → аудио
 • <code>/link [качество] URL</code> → прямые ссылки
 • <code>/proxy</code> → включить/выключить прокси для всех загрузок
@@ -157,7 +157,7 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 
 📋 <b>Плейлисты:</b>
 • <code>URL*1*5</code> → скачать видео 1-5
-• <code>/vid 3-7 https://youtube.com/playlist?list=...</code> → становится <code>https://youtube.com/playlist?list=...*3*7*</code>
+• <code>/vid 3-7 URL</code> → становится <code>URL*3*7</code>
 
 🍪 <b>Cookies:</b>
 • Загрузите *.txt для приватных видео
@@ -175,7 +175,7 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 ⚙️ <b>Настройки:</b>
 • <code>/settings</code> → меню настроек
 • <code>/format</code> → качество и формат
-• <code>/split</code> → размер части (250MB-2GB)
+• <code>/split</code> → резать видео на части
 • <code>/mediainfo on/off</code> → информация о файле
 • <code>/nsfw on/off</code> → размытие NSFW
 • <code>/tags</code> → ваши теги
@@ -194,7 +194,7 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 ⚙️ <b>Быстрые команды:</b>
 • <code>/format [144-4320]/720p/1080p/4k/8k</code> → качество
 • <code>/keyboard off/1x3/2x3/full</code> → клавиатура
-• <code>/split 100mb-2000mb</code> → размер части (100MB до 2GB)
+• <code>/split 100mb-2000mb</code> → резать видео на части
 • <code>/subs off/ru/en auto</code> → язык субтитров
 • <code>/mediainfo on/off</code> → вкл/выкл медиаинфо
 • <code>/proxy on/off</code> → включить/выключить прокси для всех загрузок
@@ -204,10 +204,11 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 • <code>/search</code> → поиск через @vid
 
 🖼 <b>Изображения:</b>
-• <code>/img URL</code> → скачать изображения с различных платформ
+• <code>URL</code> → скачать изображения с URL
+• <code>/img URL</code> → скачать изображения с URL
 • <code>/img 11-20 URL</code> → скачать конкретный диапазон
-• <code>/img 11- URL</code> → скачать с 11-го до конца (до лимита)
-<blockquote>Подсказка: можно просто прислать ссылку на пост. Если видео-форматы не найдены, бот автоматически попробует скачать изображения.</blockquote></blockquote>
+• <code>/img 11- URL</code> → скачать с 11-го до конца
+</blockquote>
 
 👨‍💻 <i>Developer:</i> @upekshaip
 <a href="https://github.com/upekshaip/tg-ytdlp-bot">[🛠 github]</a>
