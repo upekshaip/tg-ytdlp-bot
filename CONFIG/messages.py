@@ -14,7 +14,8 @@ class MessagesConfig(object):
     PLAYLIST_HELP_MSG = """
 <blockquote expandable>📋 <b>Playlists (yt-dlp)</b>
 
-To download playlists send its URL with <code>*start*end</code> ranges in the end.
+To download playlists send its URL with <code>*start*end</code> ranges in the end. For example: <code>URL*1*5</code>.
+Or you can use <code>/vid FROM-TO URL</code>. For example: <code>/vid 3-7 URL</code>. Also works for <code>/audio</code> command.
 
 <b>Examples:</b>
 
@@ -90,8 +91,9 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 • <code>/proxy</code> → enable/disable proxy for all downloads
 • Reply to video with text → change caption
 
-📋 <b>Playlists:</b>
+📋 <b>Playlists & Ranges:</b>
 • <code>URL*1*5</code> → download videos 1-5
+• <code>/vid 3-7 https://youtube.com/playlist?list=...</code> → becomes <code>https://youtube.com/playlist?list=...*3*7</code>
 
 🍪 <b>Cookies & Private:</b>
 • Upload *.txt cookie for private videos
@@ -155,6 +157,7 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 
 📋 <b>Плейлисты:</b>
 • <code>URL*1*5</code> → скачать видео 1-5
+• <code>/vid 3-7 https://youtube.com/playlist?list=...</code> → становится <code>https://youtube.com/playlist?list=...*3*7*</code>
 
 🍪 <b>Cookies:</b>
 • Загрузите *.txt для приватных видео
@@ -206,7 +209,7 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 • <code>/img 11- URL</code> → скачать с 11-го до конца (до лимита)
 <blockquote>Подсказка: можно просто прислать ссылку на пост. Если видео-форматы не найдены, бот автоматически попробует скачать изображения.</blockquote></blockquote>
 
-👨‍💻 <i>Developer:</i> @upekshaip 
+👨‍💻 <i>Developer:</i> @upekshaip
 <a href="https://github.com/upekshaip/tg-ytdlp-bot">[🛠 github]</a>
 🤝 <i>Contributor:</i> @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl 
 <a href="https://github.com/chelaxian/tg-ytdlp-bot">[🛠 github]</a>

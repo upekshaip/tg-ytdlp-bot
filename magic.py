@@ -210,8 +210,19 @@ def _vid_handler(app, message):
     # Transform "/vid [url]" into plain URL text for url_distractor
     try:
         txt = (message.text or "").strip()
-        parts = txt.split(maxsplit=1)
-        url = parts[1] if len(parts) > 1 else ""
+        parts = txt.split()
+        url = ""
+        # Support syntax: /vid 1-10 https://...  -> append *1*10 to URL
+        if len(parts) >= 3 and re.match(r"^\d+-\d*$", parts[1]):
+            rng = parts[1]
+            url = " ".join(parts[2:])
+            a, b = rng.split("-", 1)
+            b = b if b != "" else None
+            if url:
+                url = f"{url}*{a}*{b}" if b is not None else f"{url}*{a}*"
+        else:
+            # Fallback: /vid URL
+            url = parts[1] if len(parts) > 1 else ""
         # Remove @bot mention if present in command
         if url.startswith("@"):  # case of "/vid @bot url"
             url = " ".join(url.split()[1:])
@@ -229,7 +240,8 @@ def _vid_handler(app, message):
                 "Usage: <code>/vid URL</code>\n\n"
                 "<b>Examples:</b>\n"
                 "• <code>/vid https://youtube.com/watch?v=123abc</code>\n"
-                "• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n\n"
+                "• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n"
+                "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code>\n\n"
                 "Also see: /audio, /img, /help, /playlist, /settings"
             )
             safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
@@ -243,7 +255,8 @@ def _vid_handler(app, message):
             "Usage: <code>/vid URL</code>\n\n"
             "<b>Examples:</b>\n"
             "• <code>/vid https://youtube.com/watch?v=123abc</code>\n"
-            "• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n\n"
+            "• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n"
+            "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code>\n\n"
             "Also see: /audio, /img, /help, /playlist, /settings"
         )
         safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)

@@ -580,8 +580,22 @@ def url_distractor(app, message):
             send_to_all(message, "❌ This command is only available for administrators.")
         return
 
-    # /vid help (no args) — ensure hint is shown even when handled by text pipeline
+    # /vid help & range transformation when handled by the text pipeline
     if text.strip().lower().startswith('/vid'):
+        # Try to transform "/vid A-B URL" -> "URL*A*B" (B may be empty)
+        parts_full = text.strip().split(maxsplit=2)
+        if len(parts_full) >= 3 and re.match(r"^\d+-\d*$", parts_full[1]):
+            a, b = parts_full[1].split('-', 1)
+            url_only = parts_full[2]
+            if b == "":
+                new_text = f"{url_only}*{a}*"
+            else:
+                new_text = f"{url_only}*{a}*{b}"
+            try:
+                message.text = new_text
+            except Exception:
+                pass
+            # fallthrough to standard URL flow below
         parts = text.strip().split(maxsplit=1)
         if len(parts) == 1:
             try:
@@ -593,7 +607,8 @@ def url_distractor(app, message):
                     "Usage: <code>/vid URL</code>\n\n"
                     "<b>Examples:</b>\n"
                     "• <code>/vid https://youtube.com/watch?v=123abc</code>\n"
-                    "• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n\n"
+                    "• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n"
+                    "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code>\n\n"
                     "Also see: /audio, /img, /help, /playlist, /settings"
                 )
                 safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
@@ -601,9 +616,10 @@ def url_distractor(app, message):
                 pass
             return
         else:
-            # Strip command and reuse the URL handler path
+            # Strip command and reuse the URL handler path when no range was provided
             try:
-                message.text = parts[1]
+                if len(parts_full) < 3 or not re.match(r"^\d+-\d*$", parts_full[1]):
+                    message.text = parts[1]
             except Exception:
                 pass
 

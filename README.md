@@ -5,6 +5,10 @@ Thanks to Contributor - [@IIlIlIlIIIlllIIlIIlIllIIllIlIIIl](https://t.me/IIlIlIl
 
 Download private YouTube/videos using a cookie file with advanced format selection, codec support (H.264/AVC, AV1, VP9), intelligent subtitle handling, proxy support, and direct stream links.
 
+### /vid range shortcut
+- Use range before URL and it will be transformed to playlist indices:
+  - `/vid 3-7 https://youtube.com/playlist?list=...` → `/vid https://youtube.com/playlist?list=...*3*7`
+
 Quick start:
 - Just send a link to the bot — it auto-detects the content and downloads it
   - Videos are handled via yt-dlp

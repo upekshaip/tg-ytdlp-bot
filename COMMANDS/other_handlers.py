@@ -55,6 +55,25 @@ def audio_command_handler(app, message):
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
     text = message.text
+    # Нормализация синтаксиса диапазона: 
+    # поддержка «/audio 1-10 URL» → преобразуем во «/audio URL*1*10» для единого пайплайна
+    try:
+        parts = (text or '').split()
+        if len(parts) >= 3 and parts[0].lower().startswith('/audio'):
+            import re
+            if re.match(r"^\d+-\d*$", parts[1]):
+                rng = parts[1]
+                start_str, end_str = rng.split('-')
+                start_val = int(start_str)
+                end_val = int(end_str) if end_str != '' else None
+                if start_val >= 1:
+                    url_candidate = ' '.join(parts[2:]).strip()
+                    if end_val is not None:
+                        text = f"/audio {url_candidate}*{start_val}*{end_val}"
+                    else:
+                        text = f"/audio {url_candidate}*{start_val}*"
+    except Exception:
+        pass
     url, _, _, _, tags, tags_text, tag_error = extract_url_range_tags(text)
     if tag_error:
         wrong, example = tag_error
@@ -71,7 +90,8 @@ def audio_command_handler(app, message):
             "<b>Examples:</b>\n"
             "• <code>/audio https://youtu.be/abc123</code>\n"
             "• <code>/audio https://www.youtube.com/watch?v=abc123</code>\n"
-            "• <code>/audio https://www.youtube.com/playlist?list=PL123*1*10</code>\n\n"
+            "• <code>/audio https://www.youtube.com/playlist?list=PL123*1*10</code>\n"
+            "• <code>/audio 1-10 https://www.youtube.com/playlist?list=PL123</code>\n\n"
             "Also see: /vid, /img, /help, /playlist, /settings",
             parse_mode=enums.ParseMode.HTML,
             reply_parameters=ReplyParameters(message_id=message.id),
@@ -82,7 +102,7 @@ def audio_command_handler(app, message):
     save_user_tags(user_id, tags)
     
     # Extract playlist parameters from the message
-    full_string = message.text or message.caption or ""
+    full_string = text or message.caption or ""
     _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
     video_count = video_end_with - video_start_with + 1
     

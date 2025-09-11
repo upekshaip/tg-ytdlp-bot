@@ -400,6 +400,23 @@ def image_command(app, message):
     except Exception:
         user_tags = []
         user_tags_text = ''
+    # Normalize tags: remove duplicates while preserving order
+    def _dedupe_tags_text(tags_text: str) -> str:
+        try:
+            seen = set()
+            result = []
+            for tok in (tags_text or '').split():
+                if not tok:
+                    continue
+                if tok.startswith('#'):
+                    low = tok.lower()
+                    if low not in seen:
+                        seen.add(low)
+                        result.append(tok)
+            return ' '.join(result)
+        except Exception:
+            return tags_text or ''
+    tags_text_norm = _dedupe_tags_text(user_tags_text)
     # Persist user tags
     try:
         if user_tags:
@@ -692,7 +709,8 @@ def image_command(app, message):
                                 if t == 'photo':
                                     # No spoiler in groups, only in private chats for paid media
                                     is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                                    media_group.append(InputMediaPhoto(p, caption=(user_tags_text or None), has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
+                                    # Изначально не ставим caption, чтобы избежать дублирования тегов; добавим их только первому элементу ниже
+                                    media_group.append(InputMediaPhoto(p, caption=None, has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
                                 else:
                                     # probe metadata
                                     vinfo = _probe_video_info(p)
@@ -707,7 +725,7 @@ def image_command(app, message):
                                             width=vinfo.get('width'),
                                             height=vinfo.get('height'),
                                             duration=vinfo.get('duration'),
-                                            caption=(user_tags_text or None),
+                                            caption=None,
                                             has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
                                         ))
                                     else:
@@ -716,7 +734,7 @@ def image_command(app, message):
                                             width=vinfo.get('width'),
                                             height=vinfo.get('height'),
                                             duration=vinfo.get('duration'),
-                                            caption=(user_tags_text or None),
+                                            caption=None,
                                             has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
                                         ))
                             try:
@@ -770,7 +788,8 @@ def image_command(app, message):
                                                 
                                                 # Send open copy to NSFW channel for history
                                                 try:
-                                                    caption = m.caption or ""
+                                                    # В лог (NSFW history) отправляем с тегами на каждом фото
+                                                    caption = (tags_text_norm or "")
                                                     is_video = not isinstance(m, InputMediaPhoto)
                                                     _send_open_copy_to_nsfw_channel(
                                                         file_path=m.media,
@@ -812,6 +831,23 @@ def image_command(app, message):
                                     last_exc = None
                                     while attempts < 5:
                                         try:
+                                            # Ensure album-level caption: put user tags on the first item only
+                                            try:
+                                                if tags_text_norm and media_group:
+                                                    _first = media_group[0]
+                                                    _exist = getattr(_first, 'caption', None) or ''
+                                                    _sep = (' ' if _exist and not _exist.endswith('\n') else '')
+                                                    # Если у первого уже стоят ровно эти теги, не дублируем
+                                                    if _exist.strip() == (tags_text_norm or '').strip():
+                                                        _first.caption = _exist.strip()
+                                                    else:
+                                                        _first.caption = (_exist + _sep + tags_text_norm).strip()
+                                                    # Avoid duplicating tags on the rest of items
+                                                    for _itm in media_group[1:]:
+                                                        if getattr(_itm, 'caption', None) == tags_text_norm:
+                                                            _itm.caption = None
+                                            except Exception as _e:
+                                                logger.debug(f"[IMG] Album caption normalization skipped: { _e }")
                                             sent = app.send_media_group(
                                                 user_id,
                                                 media=media_group,
@@ -848,7 +884,17 @@ def image_command(app, message):
                                                 # Send to LOGS_PAID_ID (for paid content)
                                                 log_channel_paid = get_log_channel("image", nsfw=False, paid=True)
                                                 try:
-                                                    app.forward_messages(chat_id=log_channel_paid, from_chat_id=user_id, message_ids=[_mid])
+                                                    # Отправляем копию каждого медиа с тегами, а не форвард, чтобы теги были на каждом фото
+                                                    try:
+                                                        # Найдём исходный media объект по id
+                                                        _idx = orig_ids.index(_mid)
+                                                        _media_obj = media_group[_idx]
+                                                        if isinstance(_media_obj, InputMediaPhoto):
+                                                            _sent = app.send_photo(chat_id=log_channel_paid, photo=_media_obj.media, caption=(tags_text_norm or None))
+                                                        else:
+                                                            _sent = app.send_video(chat_id=log_channel_paid, video=_media_obj.media, caption=(tags_text_norm or None), duration=getattr(_media_obj, 'duration', None), width=getattr(_media_obj, 'width', None), height=getattr(_media_obj, 'height', None), thumb=getattr(_media_obj, 'thumb', None))
+                                                    except Exception as _se:
+                                                        logger.error(f"[IMG LOG] send to paid log failed for media index={_idx}: {_se}")
                                                     time.sleep(0.05)
                                                 except Exception as fe:
                                                     logger.error(f"[IMG LOG] forward_messages failed for paid media id={_mid}: {fe}")
@@ -864,7 +910,13 @@ def image_command(app, message):
                                                 # NSFW content in groups -> LOGS_NSFW_ID only
                                                 log_channel = get_log_channel("image", nsfw=True, paid=False)
                                                 try:
-                                                    app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
+                                                    # Отправляем копию каждого медиа с тегами
+                                                    _idx = orig_ids.index(_mid)
+                                                    _media_obj = media_group[_idx]
+                                                    if isinstance(_media_obj, InputMediaPhoto):
+                                                        _sent = app.send_photo(chat_id=log_channel, photo=_media_obj.media, caption=(tags_text_norm or None))
+                                                    else:
+                                                        _sent = app.send_video(chat_id=log_channel, video=_media_obj.media, caption=(tags_text_norm or None), duration=getattr(_media_obj, 'duration', None), width=getattr(_media_obj, 'width', None), height=getattr(_media_obj, 'height', None), thumb=getattr(_media_obj, 'thumb', None))
                                                     time.sleep(0.05)
                                                 except Exception as fe:
                                                     logger.error(f"[IMG LOG] forward_messages failed for NSFW media id={_mid}: {fe}")
@@ -876,12 +928,16 @@ def image_command(app, message):
                                                 # Regular content -> LOGS_IMG_ID and cache
                                                 log_channel = get_log_channel("image", nsfw=False, paid=False)
                                                 try:
-                                                    forwarded_msgs = app.forward_messages(chat_id=log_channel, from_chat_id=user_id, message_ids=[_mid])
-                                                    if forwarded_msgs:
-                                                        # forward_messages returns a list of forwarded messages
-                                                        forwarded_msg = forwarded_msgs[0] if isinstance(forwarded_msgs, list) else forwarded_msgs
-                                                        f_ids.append(forwarded_msg.id)
-                                                        time.sleep(0.05)
+                                                    # Отправляем копию с тегами, чтобы теги были на каждом фото в логе
+                                                    _idx = orig_ids.index(_mid)
+                                                    _media_obj = media_group[_idx]
+                                                    if isinstance(_media_obj, InputMediaPhoto):
+                                                        _sent = app.send_photo(chat_id=log_channel, photo=_media_obj.media, caption=(tags_text_norm or None))
+                                                    else:
+                                                        _sent = app.send_video(chat_id=log_channel, video=_media_obj.media, caption=(tags_text_norm or None), duration=getattr(_media_obj, 'duration', None), width=getattr(_media_obj, 'width', None), height=getattr(_media_obj, 'height', None), thumb=getattr(_media_obj, 'thumb', None))
+                                                    if _sent:
+                                                        f_ids.append(_sent.id if not isinstance(_sent, list) else _sent[0].id)
+                                                    time.sleep(0.05)
                                                 except Exception as fe:
                                                     logger.error(f"[IMG CACHE] forward_messages failed for regular media id={_mid}: {fe}")
                                                     # Fallback to original ID if forwarding fails
@@ -964,7 +1020,7 @@ def image_command(app, message):
                                                             sent_msg = app.send_photo(
                                                                 user_id,
                                                                 photo=f,
-                                                                caption=(user_tags_text or ''),
+                                                                caption=(tags_text_norm if tmp_ids == [] else ''),
                                                                 has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
                                                                 reply_parameters=ReplyParameters(message_id=message.id),
                                                                 message_thread_id=getattr(message, 'message_thread_id', None)
@@ -1021,7 +1077,7 @@ def image_command(app, message):
                                                                     user_id,
                                                                     video=f,
                                                                     thumb=thumb,
-                                                                    caption=(user_tags_text or ''),
+                                                                    caption=(tags_text_norm if tmp_ids == [] else ''),
                                                                     has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
                                                                     reply_parameters=ReplyParameters(message_id=message.id),
                                                                     message_thread_id=getattr(message, 'message_thread_id', None)
@@ -1052,7 +1108,7 @@ def image_command(app, message):
                                                                 sent_msg = app.send_video(
                                                                     user_id,
                                                                     video=f,
-                                                                    caption=(user_tags_text or ''),
+                                                                    caption=(tags_text_norm if tmp_ids == [] else ''),
                                                                     has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
                                                                     reply_parameters=ReplyParameters(message_id=message.id),
                                                                     message_thread_id=getattr(message, 'message_thread_id', None)
@@ -1216,7 +1272,8 @@ def image_command(app, message):
                         if t == 'photo':
                             # No spoiler in groups, only in private chats for paid media
                             is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                            media_group.append(InputMediaPhoto(p, caption=(user_tags_text or None), has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
+                            # Не ставим подпись тут, добавим теги только первому ниже
+                            media_group.append(InputMediaPhoto(p, caption=None, has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
                         else:
                             # probe metadata
                             vinfo = _probe_video_info(p)
@@ -1231,7 +1288,7 @@ def image_command(app, message):
                                     width=vinfo.get('width'),
                                     height=vinfo.get('height'),
                                     duration=vinfo.get('duration'),
-                                    caption=(user_tags_text or None),
+                                    caption=None,
                                     has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
                                 ))
                             else:
@@ -1240,7 +1297,7 @@ def image_command(app, message):
                                     width=vinfo.get('width'),
                                     height=vinfo.get('height'),
                                     duration=vinfo.get('duration'),
-                                    caption=(user_tags_text or None),
+                                    caption=None,
                                     has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
                                 ))
                     try:
@@ -1347,6 +1404,19 @@ def image_command(app, message):
                             last_exc = None
                             while attempts < 5:
                                 try:
+                                    # Ensure album-level caption: put user tags on the first item only
+                                    try:
+                                        if tags_text_norm and media_group:
+                                            _first = media_group[0]
+                                            _exist = getattr(_first, 'caption', None) or ''
+                                            _sep = (' ' if _exist and not _exist.endswith('\n') else '')
+                                            _first.caption = (_exist + _sep + tags_text_norm).strip()
+                                            # Avoid duplicating tags on the rest of items
+                                            for _itm in media_group[1:]:
+                                                if getattr(_itm, 'caption', None) == tags_text_norm:
+                                                    _itm.caption = None
+                                    except Exception as _e:
+                                        logger.debug(f"[IMG] Tail album caption normalization skipped: { _e }")
                                     sent = app.send_media_group(
                                         user_id,
                                         media=media_group,
