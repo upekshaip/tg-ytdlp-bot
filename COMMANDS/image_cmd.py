@@ -1228,8 +1228,7 @@ def image_command(app, message):
                                             media=[InputPaidMediaPhoto(media=m.media)],
                                             star_count=LimitsConfig.NSFW_STAR_COST,
                                             payload=str(Config.STAR_RECEIVER),
-                                            reply_parameters=ReplyParameters(message_id=message.id),
-                                            message_thread_id=getattr(message, 'message_thread_id', None)
+                                            reply_parameters=ReplyParameters(message_id=message.id)
                                         )
                                         if isinstance(paid_msg, list):
                                             sent.extend(paid_msg)
@@ -1438,8 +1437,7 @@ def image_command(app, message):
                                                         media=[InputPaidMediaPhoto(media=f)],
                                                         star_count=LimitsConfig.NSFW_STAR_COST,
                                                         payload=str(Config.STAR_RECEIVER),
-                                                        reply_parameters=ReplyParameters(message_id=message.id),
-                                                        message_thread_id=getattr(message, 'message_thread_id', None)
+                                                        reply_parameters=ReplyParameters(message_id=message.id)
                                                     )
                                                 else:
                                                     sent_msg = app.send_photo(

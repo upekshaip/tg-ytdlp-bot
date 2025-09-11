@@ -1320,7 +1320,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 logger.error(f"down_and_up: failed to send paid copy to PAID channel: {e}")
                             
                             # Send open copy to LOGS_NSWF_ID for history
-                            log_channel_nsfw = get_log_channel("video", nsfw=True)
+                            log_channel_nsfw = Config.LOGS_NSFW_ID
                             try:
                                 # Get video dimensions for proper aspect ratio
                                 try:
@@ -1349,7 +1349,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             
                         elif is_nsfw:
                             # NSFW content in groups -> LOGS_NSFW_ID only
-                            log_channel = get_log_channel("video", nsfw=True)
+                            log_channel = Config.LOGS_NSFW_ID
                             try:
                                 safe_forward_messages(log_channel, user_id, [video_msg.id])
                                 logger.info(f"down_and_up: NSFW content sent to NSFW channel")
@@ -1613,7 +1613,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     logger.error(f"down_and_up: failed to send paid copy to PAID channel: {e}")
                                 
                                 # Send open copy to LOGS_NSWF_ID for history
-                                log_channel_nsfw = get_log_channel("video", nsfw=True)
+                                log_channel_nsfw = Config.LOGS_NSFW_ID
                                 try:
                                     # Get video dimensions for proper aspect ratio
                                     try:
@@ -1641,8 +1641,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 forwarded_msgs = None
                                 
                             elif is_nsfw:
-                                # NSFW content in groups -> LOGS_NSWF_ID only
-                                log_channel = get_log_channel("video", nsfw=True)
+                                # NSFW content in groups -> LOGS_NSFW_ID only
+                                log_channel = Config.LOGS_NSFW_ID
                                 forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
                                 # Don't cache NSFW content
                                 logger.info(f"down_and_up: NSFW content sent to NSFW channel, not cached")
@@ -1709,7 +1709,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         
                                     elif is_nsfw:
                                         # NSFW content in groups -> LOGS_NSFW_ID only
-                                        log_channel = get_log_channel("video", nsfw=True)
+                                        log_channel = Config.LOGS_NSFW_ID
                                         try:
                                             safe_forward_messages(log_channel, user_id, [video_msg.id])
                                             logger.info(f"down_and_up: NSFW content sent to NSFW channel (manual)")
@@ -1778,7 +1778,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     # No need to send again in error recovery
                                     
                                     # Send open copy to LOGS_NSWF_ID for history
-                                    log_channel_nsfw = get_log_channel("video", nsfw=True)
+                                    log_channel_nsfw = Config.LOGS_NSFW_ID
                                     try:
                                         # Get video dimensions for proper aspect ratio
                                         try:
@@ -1807,7 +1807,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     
                                 elif is_nsfw:
                                     # NSFW content in groups -> LOGS_NSFW_ID only
-                                    log_channel = get_log_channel("video", nsfw=True)
+                                    log_channel = Config.LOGS_NSFW_ID
                                     try:
                                         safe_forward_messages(log_channel, user_id, [video_msg.id])
                                         logger.info(f"down_and_up: NSFW content sent to NSFW channel (error recovery)")
