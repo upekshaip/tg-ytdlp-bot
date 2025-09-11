@@ -30,6 +30,7 @@ from HELPERS.porn import is_porn
 from COMMANDS.nsfw_cmd import should_apply_spoiler
 from DATABASE.cache_db import save_to_image_cache, get_cached_image_posts, get_cached_image_post_indices
 import json
+from URL_PARSERS.tags import save_user_tags
 
 # Unified helpers to create thumbnails/covers for videos
 def _get_file_mb(file_path):
@@ -390,6 +391,32 @@ def image_command(app, message):
             url = rest
     else:
         url = rest
+
+    # Parse user-provided tags anywhere in the message (multi-line)
+    user_tags = []
+    try:
+        seen = set()
+        for m in re.finditer(r'#([^#\s]+)', text, re.UNICODE):
+            tag_raw = m.group(1)
+            if not re.fullmatch(r'[\w\d_]+', tag_raw, re.UNICODE):
+                # normalize invalid chars like in tags.py
+                tag_norm = re.sub(r'[^\w\d_]', '_', tag_raw, flags=re.UNICODE)
+            else:
+                tag_norm = tag_raw
+            tag_final = f'#{tag_norm}'
+            if tag_final.lower() not in seen:
+                user_tags.append(tag_final)
+                seen.add(tag_final.lower())
+    except Exception:
+        user_tags = []
+    user_tags_text = ' '.join(user_tags) if user_tags else ''
+    # Persist user tags
+    try:
+        if user_tags:
+            save_user_tags(user_id, user_tags)
+    except Exception:
+        pass
+    user_forced_nsfw = any(t.lower() in {'#nsfw', '#porn'} for t in user_tags)
     
     # Basic URL validation
     if not url.startswith(('http://', 'https://')):
@@ -423,6 +450,9 @@ def image_command(app, message):
         nsfw_flag = bool(is_porn(url, "", "", None))
     except Exception:
         nsfw_flag = False
+    # Force NSFW if user explicitly tagged it
+    if user_forced_nsfw:
+        nsfw_flag = True
     
     # Early cache serve before any analysis/downloading (only for non-NSFW content)
     cached_map = {}
@@ -486,9 +516,11 @@ def image_command(app, message):
         except Exception:
             info_title = info_desc = info_caption = None
         try:
-            nsfw_flag = bool(is_porn(url, "", "", None))
+            nsfw_detected = bool(is_porn(url, "", "", None))
         except Exception:
-            nsfw_flag = False
+            nsfw_detected = False
+        # Respect explicit user tags overriding detection
+        nsfw_flag = user_forced_nsfw or nsfw_detected
         
         if not image_info:
             safe_edit_message_text(
@@ -670,7 +702,7 @@ def image_command(app, message):
                                 if t == 'photo':
                                     # No spoiler in groups, only in private chats for paid media
                                     is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                                    media_group.append(InputMediaPhoto(p, has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
+                                    media_group.append(InputMediaPhoto(p, caption=(user_tags_text or None), has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
                                 else:
                                     # probe metadata
                                     vinfo = _probe_video_info(p)
@@ -685,6 +717,7 @@ def image_command(app, message):
                                             width=vinfo.get('width'),
                                             height=vinfo.get('height'),
                                             duration=vinfo.get('duration'),
+                                            caption=(user_tags_text or None),
                                             has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
                                         ))
                                     else:
@@ -693,6 +726,7 @@ def image_command(app, message):
                                             width=vinfo.get('width'),
                                             height=vinfo.get('height'),
                                             duration=vinfo.get('duration'),
+                                            caption=(user_tags_text or None),
                                             has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
                                         ))
                             try:
@@ -940,6 +974,7 @@ def image_command(app, message):
                                                             sent_msg = app.send_photo(
                                                                 user_id,
                                                                 photo=f,
+                                                                caption=(user_tags_text or ''),
                                                                 has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
                                                                 reply_parameters=ReplyParameters(message_id=message.id),
                                                                 message_thread_id=getattr(message, 'message_thread_id', None)
@@ -996,6 +1031,7 @@ def image_command(app, message):
                                                                     user_id,
                                                                     video=f,
                                                                     thumb=thumb,
+                                                                    caption=(user_tags_text or ''),
                                                                     has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
                                                                     reply_parameters=ReplyParameters(message_id=message.id),
                                                                     message_thread_id=getattr(message, 'message_thread_id', None)
@@ -1026,6 +1062,7 @@ def image_command(app, message):
                                                                 sent_msg = app.send_video(
                                                                     user_id,
                                                                     video=f,
+                                                                    caption=(user_tags_text or ''),
                                                                     has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
                                                                     reply_parameters=ReplyParameters(message_id=message.id),
                                                                     message_thread_id=getattr(message, 'message_thread_id', None)
@@ -1189,7 +1226,7 @@ def image_command(app, message):
                         if t == 'photo':
                             # No spoiler in groups, only in private chats for paid media
                             is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                            media_group.append(InputMediaPhoto(p, has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
+                            media_group.append(InputMediaPhoto(p, caption=(user_tags_text or None), has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
                         else:
                             # probe metadata
                             vinfo = _probe_video_info(p)
@@ -1204,6 +1241,7 @@ def image_command(app, message):
                                     width=vinfo.get('width'),
                                     height=vinfo.get('height'),
                                     duration=vinfo.get('duration'),
+                                    caption=(user_tags_text or None),
                                     has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
                                 ))
                             else:
@@ -1212,6 +1250,7 @@ def image_command(app, message):
                                     width=vinfo.get('width'),
                                     height=vinfo.get('height'),
                                     duration=vinfo.get('duration'),
+                                    caption=(user_tags_text or None),
                                     has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
                                 ))
                     try:
@@ -1443,6 +1482,7 @@ def image_command(app, message):
                                                     sent_msg = app.send_photo(
                                                         user_id,
                                                         photo=f,
+                                                        caption=(user_tags_text or ''),
                                                         has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
                                                         reply_parameters=ReplyParameters(message_id=message.id),
                                                         message_thread_id=getattr(message, 'message_thread_id', None)
@@ -1485,6 +1525,7 @@ def image_command(app, message):
                                                         user_id,
                                                         video=f,
                                                         thumb=thumb if thumb and os.path.exists(thumb) else None,
+                                                        caption=(user_tags_text or ''),
                                                         has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
                                                         reply_parameters=ReplyParameters(message_id=message.id),
                                                         message_thread_id=getattr(message, 'message_thread_id', None)
