@@ -3738,6 +3738,32 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         return
     except Exception as e:
         logger.error(f"Error retrieving video information for user {user_id}: {e}")
+        # If this looks like a non-video URL, try gallery-dl fallback first
+        try:
+            emsg = str(e)
+            if (
+                "No videos found in playlist" in emsg
+                or "Unsupported URL" in emsg
+            ):
+                try:
+                    from COMMANDS.image_cmd import image_command
+                    from HELPERS.safe_messeger import fake_message
+                except Exception as imp_e:
+                    logger.error(f"Failed to import gallery-dl fallback handlers (menu): {imp_e}")
+                else:
+                    try:
+                        safe_edit_message_text(user_id, proc_msg.id if proc_msg else None,
+                            "❔ No video formats found. Trying image downloader…")
+                    except Exception:
+                        pass
+                    try:
+                        image_command(app, fake_message(f"/img {url}", user_id))
+                        logger.info("Triggered gallery-dl fallback via /img from Always Ask menu")
+                        return
+                    except Exception as call_e:
+                        logger.error(f"Failed to trigger gallery-dl fallback from Always Ask menu: {call_e}")
+        except Exception:
+            pass
         
         # Сначала пробуем создать меню из кэшированных качеств
         try:
