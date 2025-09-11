@@ -5,6 +5,11 @@ Thanks to Contributor - [@IIlIlIlIIIlllIIlIIlIllIIllIlIIIl](https://t.me/IIlIlIl
 
 Download private YouTube/videos using a cookie file with advanced format selection, codec support (H.264/AVC, AV1, VP9), intelligent subtitle handling, proxy support, and direct stream links.
 
+Quick start:
+- Just send a link to the bot — it auto-detects the content and downloads it
+  - Videos are handled via yt-dlp
+  - If no downloadable video formats are found, the bot automatically tries images via gallery-dl
+
 Test free Telegram bots - https://t.me/tg_ytdlp \
 https://t.me/tgytdlp_uae_bot \
 https://t.me/tgytdlp_uk_bot \

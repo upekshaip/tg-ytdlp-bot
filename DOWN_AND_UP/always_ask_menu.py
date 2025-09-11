@@ -728,7 +728,18 @@ def build_filter_rows(user_id, url=None, is_private_chat=False):
                 is_nsfw = isinstance(tags_text, str) and ('#nsfw' in tags_text.lower())
             except Exception:
                 is_nsfw = False
-        mp3_label = ("1⭐️MP3" if (is_nsfw and is_private_chat) else "🎧MP3")
+        # Determine MP3 cache status for rocket icon
+        is_cached_mp3 = False
+        if url:
+            try:
+                cq = get_cached_qualities(url)
+                is_cached_mp3 = ('mp3' in cq)
+            except Exception:
+                is_cached_mp3 = False
+        mp3_label = (
+            "1⭐️MP3" if (is_nsfw and is_private_chat)
+            else ("🚀MP3" if is_cached_mp3 else "🎧MP3")
+        )
         row = [InlineKeyboardButton("📼CODEC", callback_data="askf|toggle|on"), InlineKeyboardButton(mp3_label, callback_data="askq|mp3")]
         # Show DUBS button only if audio dubs are detected for this video (set elsewhere)
         if has_dubs:
@@ -766,7 +777,18 @@ def build_filter_rows(user_id, url=None, is_private_chat=False):
             is_nsfw = isinstance(tags_text, str) and ('#nsfw' in tags_text.lower())
         except Exception:
             is_nsfw = False
-    mp3_label = ("1⭐️MP3" if (is_nsfw and is_private_chat) else "🎧MP3")
+    # Determine MP3 cache status for rocket icon (expanded filters)
+    is_cached_mp3 = False
+    if url:
+        try:
+            cq = get_cached_qualities(url)
+            is_cached_mp3 = ('mp3' in cq)
+        except Exception:
+            is_cached_mp3 = False
+    mp3_label = (
+        "1⭐️MP3" if (is_nsfw and is_private_chat)
+        else ("🚀MP3" if is_cached_mp3 else "🎧MP3")
+    )
     rows = [
         [InlineKeyboardButton(avc1_btn, callback_data="askf|codec|avc1"), InlineKeyboardButton(av01_btn, callback_data="askf|codec|av01"), InlineKeyboardButton(vp9_btn, callback_data="askf|codec|vp9")],
         [InlineKeyboardButton(mp4_btn, callback_data="askf|ext|mp4"), InlineKeyboardButton(mkv_btn, callback_data="askf|ext|mkv"), InlineKeyboardButton(mp3_label, callback_data="askq|mp3")]
@@ -3358,7 +3380,23 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         dubs_hint = "\n🗣 — Choose audio language" if get_filters(user_id).get("has_dubs") else ""
         # Replace quality hint with paid note for NSFW
         paid_hint = "\n⭐️ — 🔞NSFW is paid (⭐️$0.02)" if (is_nsfw and is_private_chat) else "\n📹 — Choose download quality"
-        hint = "<pre language=\"info\">📼 — Сhange video ext/codec" + paid_hint + repost_line + subs_hint + subs_warn + dubs_hint + "</pre>"
+        # Hints tied to optional buttons
+        image_hint = "\n🖼 — Download image (gallery-dl)" if not found_quality_keys else ""
+        watch_hint = "\n👁 — Watch video in poketube" if is_youtube_url(url) else ""
+        link_hint = "\n🔗 — Get direct link to video"  # Link button is always present
+        # Compose hint block with preferred order
+        hint = (
+            "<pre language=\"info\">📼 — Сhange video ext/codec"
+            + paid_hint
+            + repost_line
+            + watch_hint
+            + link_hint
+            + image_hint
+            + subs_hint
+            + subs_warn
+            + dubs_hint
+            + "</pre>"
+        )
         cap += f"\n{hint}\n"
         buttons = []
         # Sort buttons by quality from lowest to highest

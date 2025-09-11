@@ -83,7 +83,8 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 🎬 <b>Video Download Bot - Help</b>
 
 📥 <b>Basic Usage:</b>
-• Send video link → download
+• Send any link → bot auto-detects and downloads
+  <blockquote>Videos use yt-dlp; if no video formats found, the bot automatically tries images via gallery-dl.</blockquote>
 • <code>/audio URL</code> → extract audio
 • <code>/link [quality] URL</code> → get direct links
 • <code>/proxy</code> → enable/disable proxy for all downloads
@@ -140,11 +141,13 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 • <code>/img URL</code> → download images from various platforms
 • <code>/img 11-20 URL</code> → download specific range (batchwise)
 • <code>/img 11- URL</code> → download from 11th to the end (up to limit)
+<blockquote>Tip: you can just send a post link. If no downloadable video formats are found, the bot will try images automatically.</blockquote>
 
 <blockquote expandable>🇷🇺 <b>Бот для скачивания видео - Помощь</b>
 
 📥 <b>Основное:</b>
-• Отправьте ссылку → скачать
+• Отправьте любую ссылку → бот сам определит и скачает
+  <blockquote>Видео скачиваются через yt-dlp; если видео-форматы не найдены, бот автоматически попробует скачать изображения (gallery-dl).</blockquote>
 • <code>/audio URL</code> → аудио
 • <code>/link [качество] URL</code> → прямые ссылки
 • <code>/proxy</code> → включить/выключить прокси для всех загрузок
@@ -200,7 +203,8 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 🖼 <b>Изображения:</b>
 • <code>/img URL</code> → скачать изображения с различных платформ
 • <code>/img 11-20 URL</code> → скачать конкретный диапазон
-• <code>/img 11- URL</code> → скачать с 11-го до конца (до лимита)</blockquote>
+• <code>/img 11- URL</code> → скачать с 11-го до конца (до лимита)
+<blockquote>Подсказка: можно просто прислать ссылку на пост. Если видео-форматы не найдены, бот автоматически попробует скачать изображения.</blockquote></blockquote>
 
 👨‍💻 <i>Developer:</i> @upekshaip 
 <a href="https://github.com/upekshaip/tg-ytdlp-bot">[🛠 github]</a>
