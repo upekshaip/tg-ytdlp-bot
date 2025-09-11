@@ -32,6 +32,7 @@ class Config(object):
     LOGS_NSFW_ID = -100111111111111  # ID канала для логов видео с тэгами NSWF
     LOGS_IMG_ID = -100111111111111  # ID канала для логов медиа команды /img     
     LOGS_PAID_ID = -100111111111111  # ID канала для логов платных медиа
+    LOG_EXCEPTION = -100111111111111  # ID канала для логов исключений
     # ID канала для подписки
     SUBSCRIBE_CHANNEL = -100222222222222222222
     # Add subscription channel - Required (str)

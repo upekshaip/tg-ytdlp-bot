@@ -46,6 +46,8 @@ from URL_PARSERS.tiktok import is_tiktok_url
 from URL_PARSERS.normalizer import get_clean_playlist_url
 from URL_PARSERS.embedder import transform_to_embed_url, is_instagram_url, is_twitter_url, is_reddit_url
 from URL_PARSERS.thumbnail_downloader import download_thumbnail as download_universal_thumbnail
+from COMMANDS.image_cmd import image_command
+from HELPERS.safe_messeger import fake_message
 
 # Get app instance for decorators
 app = get_app()
@@ -912,6 +914,27 @@ def askq_callback(app, callback_query):
             send_to_logger(original_message, f"Failed to extract direct link via LINK button for user {user_id} from {url}: {error_msg}")
         
         return
+
+    # ---- IMAGE fallback: process via gallery-dl (/img) ----
+    if data == "image":
+        original_message = callback_query.message.reply_to_message
+        if not original_message:
+            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            return
+        url_text = original_message.text or (original_message.caption or "")
+        import re as _re
+        m = _re.search(r'https?://[^\s\*#]+', url_text)
+        url = m.group(0) if m else url_text
+        try:
+            callback_query.answer("🖼 Starting gallery-dl…")
+        except Exception:
+            pass
+        try:
+            # Запускаем /img с «фейковым» сообщением, чтобы работать через gallery-dl
+            image_command(app, fake_message(f"/img {url}", original_message.chat.id))
+        except Exception as e:
+            logger.error(f"[ASKQ] IMAGE fallback failed: {e}")
+        return
     
     if data == "quick_embed":
         # Get original URL from the reply message
@@ -1542,7 +1565,7 @@ def askq_callback(app, callback_query):
                                 'message_ids': [cached_videos[index]]
                             }
                             # Only apply thread_id in groups/channels, not in private chats
-                            if original_message.chat.type != enums.ChatType.PRIVATE and thread_id:
+                            if getattr(original_message.chat, "type", None) != enums.ChatType.PRIVATE and thread_id:
                                 forward_kwargs['message_thread_id'] = thread_id
                             app.forward_messages(**forward_kwargs)
                     except Exception as e:
@@ -1656,7 +1679,7 @@ def askq_callback(app, callback_query):
                     target_chat_id = user_id
                 thread_id = getattr(original_message, 'message_thread_id', None)
                 # Only apply thread_id in groups/channels, not in private chats
-                if thread_id and original_message.chat.type != enums.ChatType.PRIVATE:
+                if thread_id and getattr(original_message.chat, "type", None) != enums.ChatType.PRIVATE:
                     # Forward each to ensure thread id is applied
                     for mid in message_ids:
                         from HELPERS.logger import get_log_channel
@@ -1795,7 +1818,7 @@ def show_manual_quality_menu(app, callback_query):
         is_nsfw = False
     
     # Check if we're in a private chat (paid media only works in private chats)
-    is_private_chat = callback_query.message.chat.type == enums.ChatType.PRIVATE
+    is_private_chat = getattr(callback_query.message.chat, "type", None) == enums.ChatType.PRIVATE
     
     # Check if it's a playlist
     original_text = original_message.text or original_message.caption or ""
@@ -2015,7 +2038,7 @@ def show_other_qualities_menu(app, callback_query, page=0):
         is_nsfw = False
     
     # Check if we're in a private chat (paid media only works in private chats)
-    is_private_chat = callback_query.message.chat.type == enums.ChatType.PRIVATE
+    is_private_chat = getattr(callback_query.message.chat, "type", None) == enums.ChatType.PRIVATE
     
     # Check if it's a playlist
     original_text = original_message.text or original_message.caption or ""
@@ -2303,7 +2326,7 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
         orig_text = ""
     is_nsfw = isinstance(orig_text, str) and ('#nsfw' in orig_text.lower())
     # Check if we're in a private chat (paid media only works in private chats)
-    is_private_chat = callback_query.message.chat.type == enums.ChatType.PRIVATE
+    is_private_chat = getattr(callback_query.message.chat, "type", None) == enums.ChatType.PRIVATE
     if isinstance(url, str) and is_nsfw and is_private_chat:
         cap += "\n<b>⭐️ — 🔞NSFW is paid (⭐️$0.02)</b>\n"
     cap += f"\n<i>Page {page + 1}</i>\n"
@@ -2446,7 +2469,7 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
             is_nsfw = False
         
         # Check if we're in a private chat (paid media only works in private chats)
-        is_private_chat = message.chat.type == enums.ChatType.PRIVATE
+        is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
         
         # Создаем заголовок
         cap = f"<b>{title}</b>\n"
@@ -2493,7 +2516,7 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         
         # Всегда добавляем Other Qualities
         buttons.append(InlineKeyboardButton("🎛Other", callback_data=f"askq|other_qualities"))
-        
+
         # Создаем клавиатуру
         keyboard_rows = []
         
@@ -2519,7 +2542,8 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         # Собираем action buttons
         action_buttons = []
         action_buttons.extend(filter_action_buttons)
-        
+        # IMAGE fallback из кэш-меню
+        action_buttons.append(InlineKeyboardButton("🖼IMAGE", callback_data="askq|image"))        
         # Добавляем WATCH кнопку для YouTube
         # - в личке: WebApp (удобный просмотр)
         # - в группах: обычная URL-кнопка (WebApp может давать BUTTON_TYPE_INVALID в некоторых контекстах)
@@ -2590,6 +2614,8 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
     """Show quality selection menu for video"""
     user_id = message.chat.id
     proc_msg = None
+    # Defensive init to avoid UnboundLocalError in rare branches
+    action_buttons = []
     
     # Clean up old format cache files before starting
     try:
@@ -2695,7 +2721,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             is_nsfw = False
         
         # Check if we're in a private chat (paid media only works in private chats)
-        is_private_chat = message.chat.type == enums.ChatType.PRIVATE
+        is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
         thumb_path = None
         user_dir = os.path.join("users", str(user_id))
         create_directory(user_dir)
@@ -3458,6 +3484,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             # Add explanation when automatic quality detection fails
             autodiscovery_note = "<blockquote>⚠️ Qualities not auto-detected\nUse 'Other' button to see all available formats.</blockquote>"
             cap += f"\n{autodiscovery_note}\n"
+
         # --- Form rows of 3 buttons ---
         keyboard_rows = []
         # Add filter rows first
@@ -3473,7 +3500,9 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         # Add LINK button - always available
         logger.info(f"Adding LINK button for user {user_id}")
         action_buttons.append(InlineKeyboardButton("🔗Link", callback_data="askq|link"))
-        
+        # Add IMAGE button only if qualities were NOT auto-detected
+        if not found_quality_keys:
+            action_buttons.append(InlineKeyboardButton("🖼IMAGE", callback_data="askq|image"))        
         # Add Quick Embed button for supported services (but not for ranges)
         if (is_instagram_url(url) or is_twitter_url(url) or is_reddit_url(url)) and not is_playlist_with_range(original_text):
             action_buttons.append(InlineKeyboardButton("🚀Embed", callback_data="askq|quick_embed"))

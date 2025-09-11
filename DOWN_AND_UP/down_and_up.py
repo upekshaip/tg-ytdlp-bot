@@ -225,7 +225,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             'message_ids': [cached_videos[index]]
                         }
                         # Only apply thread_id in groups/channels, not in private chats
-                        if message.chat.type != enums.ChatType.PRIVATE:
+                        if getattr(message.chat, "type", None) != enums.ChatType.PRIVATE:
                             thread_id = getattr(message, 'message_thread_id', None)
                             if thread_id:
                                 forward_kwargs['message_thread_id'] = thread_id
@@ -268,7 +268,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         'message_ids': cached_ids
                     }
                     # Only apply thread_id in groups/channels, not in private chats
-                    if message.chat.type != enums.ChatType.PRIVATE:
+                    if getattr(message.chat, "type", None) != enums.ChatType.PRIVATE:
                         thread_id = getattr(message, 'message_thread_id', None)
                         if thread_id:
                             forward_kwargs['message_thread_id'] = thread_id
@@ -953,6 +953,28 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 nonlocal error_message
                 error_message = str(e)
                 logger.error(f"DownloadError: {error_message}")
+                # Auto-fallback to gallery-dl (/img) for non-video posts (albums/images)
+                if (
+                    "No videos found in playlist" in error_message
+                    or "Unsupported URL" in error_message
+                ):
+                    try:
+                        from COMMANDS.image_cmd import image_command
+                        from HELPERS.safe_messeger import fake_message
+                    except Exception as imp_e:
+                        logger.error(f"Failed to import gallery-dl fallback handlers: {imp_e}")
+                    else:
+                        try:
+                            safe_edit_message_text(user_id, proc_msg_id,
+                                f"{current_total_process}\n❔ No video formats found. Trying image downloader…")
+                        except Exception:
+                            pass
+                        try:
+                            image_command(app, fake_message(f"/img {url}", user_id))
+                            logger.info("Triggered gallery-dl fallback via /img")
+                            return "IMG"
+                        except Exception as call_e:
+                            logger.error(f"Failed to trigger gallery-dl fallback: {call_e}")
                 
                 # Проверяем, связана ли ошибка с куками или региональными ограничениями YouTube
                 if is_youtube_url(url):
@@ -996,6 +1018,29 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             except Exception as e:
                 error_message = str(e)
                 logger.error(f"Attempt with format {ytdl_opts.get('format', 'default')} failed: {e}")
+                # Auto-fallback to gallery-dl for obvious non-video cases
+                emsg = str(e)
+                if (
+                    "No videos found in playlist" in emsg
+                    or "Unsupported URL" in emsg
+                ):
+                    try:
+                        from COMMANDS.image_cmd import image_command
+                        from HELPERS.safe_messeger import fake_message
+                    except Exception as imp_e:
+                        logger.error(f"Failed to import gallery-dl fallback handlers (generic): {imp_e}")
+                    else:
+                        try:
+                            safe_edit_message_text(user_id, proc_msg_id,
+                                f"{current_total_process}\n❔ No video formats found. Trying image downloader…")
+                        except Exception:
+                            pass
+                        try:
+                            image_command(app, fake_message(f"/img {url}", user_id))
+                            logger.info("Triggered gallery-dl fallback via /img (generic)")
+                            return "IMG"
+                        except Exception as call_e:
+                            logger.error(f"Failed to trigger gallery-dl fallback (generic): {call_e}")
 				
                 # Check if this is a "No videos found in playlist" error
                 if "No videos found in playlist" in str(e):
@@ -1045,6 +1090,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 elif result == "SKIP":
                     skip_item = True
                     break
+                elif result == "IMG":
+                    # Gallery-dl fallback has been triggered; stop further video processing
+                    logger.info("Stopping video workflow after gallery-dl fallback trigger")
+                    return
                 elif result is not None:
                     info_dict = result
                     break

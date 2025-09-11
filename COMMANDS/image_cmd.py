@@ -838,7 +838,7 @@ def image_command(app, message):
                                     f_ids = []
                                     
                                     # Determine correct log channel based on media type and chat type
-                                    is_private_chat = message.chat.type == enums.ChatType.PRIVATE
+                                    is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                                     is_paid_media = nsfw_flag and is_private_chat
                                     
                                     for _mid in orig_ids:
@@ -1093,7 +1093,7 @@ def image_command(app, message):
                                         f_ids = []
                                         
                                         # Determine correct log channel based on media type and chat type
-                                        is_private_chat = message.chat.type == enums.ChatType.PRIVATE
+                                        is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                                         is_paid_media = nsfw_flag and is_private_chat
                                         
                                         for _mid in tmp_ids:
@@ -1374,7 +1374,7 @@ def image_command(app, message):
                             f_ids = []
                             
                             # Determine correct log channel based on media type and chat type
-                            is_private_chat = message.chat.type == enums.ChatType.PRIVATE
+                            is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                             is_paid_media = nsfw_flag and is_private_chat
                             
                             for _mid in orig_ids2:
@@ -1556,7 +1556,7 @@ def image_command(app, message):
                                 f_ids = []
                                 
                                 # Determine correct log channel based on media type and chat type
-                                is_private_chat = message.chat.type == enums.ChatType.PRIVATE
+                                is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                                 is_paid_media = nsfw_flag and is_private_chat
                                 
                                 for _mid in tmp_ids2:

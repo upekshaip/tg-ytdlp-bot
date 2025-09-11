@@ -297,7 +297,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                             'message_ids': [cached_videos[index]]
                         }
                         # Only apply thread_id in groups/channels, not in private chats
-                        if message.chat.type != enums.ChatType.PRIVATE:
+                        if getattr(message.chat, "type", None) != enums.ChatType.PRIVATE:
                             thread_id = getattr(message, 'message_thread_id', None)
                             if thread_id:
                                 forward_kwargs['message_thread_id'] = thread_id
@@ -352,7 +352,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     'message_ids': cached_ids
                 }
                 # Only apply thread_id in groups/channels, not in private chats
-                if message.chat.type != enums.ChatType.PRIVATE:
+                if getattr(message.chat, "type", None) != enums.ChatType.PRIVATE:
                     thread_id = getattr(message, 'message_thread_id', None)
                     if thread_id:
                         forward_kwargs['message_thread_id'] = thread_id

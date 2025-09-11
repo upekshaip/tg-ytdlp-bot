@@ -607,12 +607,20 @@ def url_distractor(app, message):
             except Exception:
                 pass
 
-    # If the Message Contains a URL, Launch The Video Download Function.
+    # If the message contains a URL, process without explicit commands:
+    # 1) Try yt-dlp flow (video_url_extractor)
+    # 2) On failure, fallback to gallery-dl (/img handler)
     if ("https://" in text) or ("http://" in text):
         if not is_user_blocked(message):
-            # Clean the cache of subtitles before processing the new URL
             clear_subs_check_cache()
-            video_url_extractor(app, message)
+            try:
+                video_url_extractor(app, message)
+            except Exception as e:
+                logger.error(f"video_url_extractor failed, fallback to gallery-dl: {e}")
+                try:
+                    image_command(app, message)
+                except Exception as e2:
+                    logger.error(f"gallery-dl fallback also failed: {e2}")
         return
 
     # ----- Admin Commands -----
