@@ -53,16 +53,24 @@ def get_log_channel(kind: str = "general", nsfw: bool = False, paid: bool = Fals
     try:
         kind_normalized = (kind or "general").strip().lower()
         if paid:
-            return getattr(Config, "LOGS_PAID_ID", getattr(Config, "LOGS_ID", 0))
+            # For paid media never fallback to general LOGS_ID
+            return getattr(Config, "LOGS_PAID_ID", 0) or getattr(Config, "LOG_EXCEPTION", 0)
         if nsfw and kind_normalized in ("video", "image"):
-            return getattr(Config, "LOGS_NSFW_ID", getattr(Config, "LOGS_ID", 0))
+            # For NSFW media never fallback to general LOGS_ID
+            return getattr(Config, "LOGS_NSFW_ID", 0) or getattr(Config, "LOG_EXCEPTION", 0)
         if kind_normalized == "video":
-            return getattr(Config, "LOGS_VIDEO_ID", getattr(Config, "LOGS_ID", 0))
+            # For video never fallback to general LOGS_ID
+            return getattr(Config, "LOGS_VIDEO_ID", 0) or getattr(Config, "LOG_EXCEPTION", 0)
         if kind_normalized == "image":
-            return getattr(Config, "LOGS_IMG_ID", getattr(Config, "LOGS_ID", 0))
+            # For image never fallback to general LOGS_ID
+            return getattr(Config, "LOGS_IMG_ID", 0) or getattr(Config, "LOG_EXCEPTION", 0)
+        # General messages and other kinds use LOGS_ID
         return getattr(Config, "LOGS_ID", 0)
     except Exception:
-        return getattr(Config, "LOGS_ID", 0)
+        # In case of unexpected errors avoid misrouting media to LOGS_ID
+        if kind in ("video", "image") or nsfw or paid:
+            return getattr(Config, "LOG_EXCEPTION", 0)
+        return getattr(Config, "LOG_EXCEPTION", getattr(Config, "LOGS_ID", 0))
 
 # Send Message to Logger
 
