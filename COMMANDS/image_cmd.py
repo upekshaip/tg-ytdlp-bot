@@ -30,7 +30,7 @@ from HELPERS.porn import is_porn
 from COMMANDS.nsfw_cmd import should_apply_spoiler
 from DATABASE.cache_db import save_to_image_cache, get_cached_image_posts, get_cached_image_post_indices
 import json
-from URL_PARSERS.tags import save_user_tags
+from URL_PARSERS.tags import save_user_tags, extract_url_range_tags
 
 # Unified helpers to create thumbnails/covers for videos
 def _get_file_mb(file_path):
@@ -391,32 +391,22 @@ def image_command(app, message):
             url = rest
     else:
         url = rest
-
-    # Parse user-provided tags anywhere in the message (multi-line)
-    user_tags = []
+    
+    # Use common tag/url extractor to get clean URL and tags from the whole message
     try:
-        seen = set()
-        for m in re.finditer(r'#([^#\s]+)', text, re.UNICODE):
-            tag_raw = m.group(1)
-            if not re.fullmatch(r'[\w\d_]+', tag_raw, re.UNICODE):
-                # normalize invalid chars like in tags.py
-                tag_norm = re.sub(r'[^\w\d_]', '_', tag_raw, flags=re.UNICODE)
-            else:
-                tag_norm = tag_raw
-            tag_final = f'#{tag_norm}'
-            if tag_final.lower() not in seen:
-                user_tags.append(tag_final)
-                seen.add(tag_final.lower())
+        parsed_url, _s, _e, _plist, user_tags, user_tags_text, _err = extract_url_range_tags(text)
+        if parsed_url:
+            url = parsed_url
     except Exception:
         user_tags = []
-    user_tags_text = ' '.join(user_tags) if user_tags else ''
+        user_tags_text = ''
     # Persist user tags
     try:
         if user_tags:
             save_user_tags(user_id, user_tags)
     except Exception:
         pass
-    user_forced_nsfw = any(t.lower() in {'#nsfw', '#porn'} for t in user_tags)
+    user_forced_nsfw = any(t.lower() in {'#nsfw', '#porn'} for t in (user_tags or []))
     
     # Basic URL validation
     if not url.startswith(('http://', 'https://')):

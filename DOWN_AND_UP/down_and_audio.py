@@ -33,6 +33,7 @@ from URL_PARSERS.normalizer import get_clean_playlist_url
 from DATABASE.cache_db import get_cached_playlist_videos, get_cached_message_ids, save_to_video_cache, save_to_playlist_cache
 from pyrogram.types import ReplyParameters
 from pyrogram import enums
+from URL_PARSERS.tags import extract_url_range_tags
 
 # Get app instance for decorators
 app = get_app()
@@ -170,6 +171,12 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         
     user_id = message.chat.id
     logger.info(f"down_and_audio called: url={url}, quality_key={quality_key}, video_count={video_count}, video_start_with={video_start_with}")
+    # Determine forced NSFW via user tags
+    try:
+        _u, _s, _e, _p, _tags, _tags_text, _err = extract_url_range_tags(message.text or message.caption or "")
+        user_forced_nsfw = any(t.lower() in ("#nsfw", "#porn") for t in (_tags or []))
+    except Exception:
+        user_forced_nsfw = False
     
     # Check if LINK mode is enabled - if yes, get direct link instead of downloading
     try:
@@ -246,7 +253,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     if quality_key and is_playlist:
         # Check if content is NSFW - if so, skip cache lookup
         from HELPERS.porn import is_porn
-        is_nsfw = is_porn(url, "", "", None)
+        is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
         if not is_nsfw:
             cached_videos = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, requested_indices)
             uncached_indices = [i for i in requested_indices if i not in cached_videos]
@@ -261,7 +268,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     try:
                         # Determine the correct log channel based on content type
                         from HELPERS.porn import is_porn
-                        is_nsfw = is_porn(url, "", "", None)
+                        is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
                         is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                         is_paid = is_nsfw and is_private_chat
                         
@@ -306,7 +313,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     elif quality_key and not is_playlist:
         # Check if content is NSFW - if so, skip cache lookup
         from HELPERS.porn import is_porn
-        is_nsfw = is_porn(url, "", "", None)
+        is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
         if not is_nsfw:
             cached_ids = get_cached_message_ids(url, quality_key)
         else:
@@ -954,7 +961,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 
                 # Determine if this is NSFW content in private chat (paid media)
                 from HELPERS.porn import is_porn
-                is_nsfw = is_porn(url, "", "", None)
+                is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
                 is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                 is_paid = is_nsfw and is_private_chat
                 

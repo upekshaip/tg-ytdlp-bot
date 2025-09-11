@@ -38,6 +38,7 @@ from HELPERS.logger import send_to_all  # Импорт в самом конце 
 from HELPERS.safe_messeger import safe_forward_messages  # Дублирующий импорт для устранения ошибки видимости
 from pyrogram import enums
 from pyrogram.types import ReplyParameters
+from URL_PARSERS.tags import extract_url_range_tags
 
 # Get app instance for decorators
 app = get_app()
@@ -97,6 +98,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     need_subs = False  # Will be determined once at the beginning
     user_id = message.chat.id
     logger.info(f"down_and_up called: url={url}, quality_key={quality_key}, format_override={format_override}, video_count={video_count}, video_start_with={video_start_with}")
+    
+    # Determine forced NSFW via user tags
+    try:
+        _u, _s, _e, _p, _tags, _tags_text, _err = extract_url_range_tags(message.text or message.caption or "")
+        user_forced_nsfw = any(t.lower() in ("#nsfw", "#porn") for t in (_tags or []))
+    except Exception:
+        user_forced_nsfw = False
     
     # Check if LINK mode is enabled - if yes, get direct link instead of downloading
     try:
@@ -192,7 +200,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     if quality_key and is_playlist:
         # Check if content is NSFW before looking in cache
         from HELPERS.porn import is_porn
-        is_nsfw = is_porn(url, "", "", None)
+        is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
         
         if not is_nsfw:
             cached_videos = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, requested_indices)
@@ -237,7 +245,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         if not need_subs:
             # Check if content is NSFW before looking in cache
             from HELPERS.porn import is_porn
-            is_nsfw = is_porn(url, "", "", None)
+            is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
             
             cached_ids = None
             if not is_nsfw:
@@ -1298,7 +1306,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     try:
                         # Determine the correct log channel based on content type
                         from HELPERS.porn import is_porn
-                        is_nsfw = is_porn(url, "", "", None)
+                        is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
                         is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                         is_paid = is_nsfw and is_private_chat
                         logger.info(f"[VIDEO CACHE] URL analysis: url={url}, is_nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}")
@@ -1594,7 +1602,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         try:
                             # Determine the correct log channel based on content type
                             from HELPERS.porn import is_porn
-                            is_nsfw = is_porn(url, "", "", None)
+                            is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
                             is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                             is_paid = is_nsfw and is_private_chat
                             
@@ -1689,7 +1697,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 try:
                                     # Determine the correct log channel based on content type
                                     from HELPERS.porn import is_porn
-                                    is_nsfw = is_porn(url, "", "", None)
+                                    is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
                                     is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                                     is_paid = is_nsfw and is_private_chat
                                     
@@ -1763,7 +1771,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             try:
                                 # Determine the correct log channel based on content type
                                 from HELPERS.porn import is_porn
-                                is_nsfw = is_porn(url, "", "", None)
+                                is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
                                 is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                                 is_paid = is_nsfw and is_private_chat
                                 
