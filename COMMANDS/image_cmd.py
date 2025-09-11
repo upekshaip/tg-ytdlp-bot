@@ -147,7 +147,8 @@ app = get_app()
 def _send_open_copy_to_nsfw_channel(file_path: str, caption: str, user_id: int, message_id: int, is_video: bool = False):
     """Send open copy of media to NSFW channel for history"""
     try:
-        log_channel_nsfw = get_log_channel("image", nsfw=True, paid=False)
+        # Use explicit NSFW channel to avoid any fallback to LOGS_ID
+        log_channel_nsfw = getattr(Config, "LOGS_NSFW_ID", 0)
         
         if is_video:
             # Send as video
