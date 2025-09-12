@@ -1663,7 +1663,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             from HELPERS.porn import is_porn
                             is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
                             is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                            is_paid = is_nsfw and is_private_chat
+                            # Detect if actually sent as paid media
+                            try:
+                                msg_is_paid = (
+                                    getattr(video_msg, "media", None) == enums.MessageMediaType.PAID_MEDIA
+                                ) or (getattr(video_msg, "paid_media", None) is not None)
+                            except Exception:
+                                msg_is_paid = False
+                            is_paid = msg_is_paid or (is_nsfw and is_private_chat)
                             
                             # Handle different content types according to new logic
                             if is_paid:
@@ -1720,9 +1727,15 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     pass
                                 forwarded_msgs = None
                             else:
-                                # Regular content -> LOGS_VIDEO_ID and cache
-                                log_channel = get_log_channel("video")
-                                forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                # Regular content -> LOGS_VIDEO_ID and cache (but never for paid media)
+                                if (
+                                    getattr(video_msg, "media", None) == enums.MessageMediaType.PAID_MEDIA
+                                ) or (getattr(video_msg, "paid_media", None) is not None):
+                                    logger.info("down_and_up: skipping forward to LOGS_VIDEO_ID for paid media")
+                                    forwarded_msgs = None
+                                else:
+                                    log_channel = get_log_channel("video")
+                                    forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
                             logger.info(f"down_and_up: forwarded_msgs result: {forwarded_msgs}")
                             if forwarded_msgs:
                                 logger.info(f"down_and_up: saving to cache with forwarded message IDs: {[m.id for m in forwarded_msgs]}")
@@ -1766,7 +1779,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         from HELPERS.porn import is_porn
                                         is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
                                         is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                                        is_paid = is_nsfw and is_private_chat
+                                        try:
+                                            msg_is_paid = (
+                                                getattr(video_msg, "media", None) == enums.MessageMediaType.PAID_MEDIA
+                                            ) or (getattr(video_msg, "paid_media", None) is not None)
+                                        except Exception:
+                                            msg_is_paid = False
+                                        is_paid = msg_is_paid or (is_nsfw and is_private_chat)
                                         
                                         # Handle different content types according to new logic
                                         if is_paid:
@@ -1796,9 +1815,15 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                             forwarded_msgs = None
                                             
                                         else:
-                                            # Regular content -> LOGS_VIDEO_ID and cache
-                                            log_channel = get_log_channel("video")
-                                            forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                            # Regular content -> LOGS_VIDEO_ID and cache (but never for paid media)
+                                            if (
+                                                getattr(video_msg, "media", None) == enums.MessageMediaType.PAID_MEDIA
+                                            ) or (getattr(video_msg, "paid_media", None) is not None):
+                                                logger.info("down_and_up: skipping forward to LOGS_VIDEO_ID for paid media (manual)")
+                                                forwarded_msgs = None
+                                            else:
+                                                log_channel = get_log_channel("video")
+                                                forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
                                         if forwarded_msgs:
                                             logger.info(f"down_and_up: manual forward successful, got IDs: {[m.id for m in forwarded_msgs]}")
                                             if is_playlist:
