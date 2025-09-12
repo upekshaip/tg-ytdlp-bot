@@ -5,10 +5,6 @@ Thanks to Contributor - [@IIlIlIlIIIlllIIlIIlIllIIllIlIIIl](https://t.me/IIlIlIl
 
 Download private YouTube/videos using a cookie file with advanced format selection, codec support (H.264/AVC, AV1, VP9), intelligent subtitle handling, proxy support, and direct stream links.
 
-### /vid range shortcut
-- Use range before URL and it will be transformed to playlist indices:
-  - `/vid 3-7 https://youtube.com/playlist?list=...` → `/vid https://youtube.com/playlist?list=...*3*7`
-
 Quick start:
 - Just send a link to the bot — it auto-detects the content and downloads it
   - Videos are handled via yt-dlp
@@ -92,6 +88,26 @@ FIREBASE_CONF = {
     "appId": "1:123456789:web:abcdef123456",
     "databaseURL": "https://your-project-default-rtdb.firebaseio.com"
 }
+```
+**Proxy Configuration Fields (Optional):**
+
+Fill in this configuration (up to 2 proxies) if you want to be able using /proxy command to use yt-dlp and gallery-dl via proxy servers
+
+```python
+    # Proxy configuration
+    PROXY_TYPE="http" # http, https, socks4, socks5, socks5h
+    PROXY_IP="X.X.X.X"
+    PROXY_PORT=3128
+    PROXY_USER="XXXXXXXX"
+    PROXY_PASSWORD="XXXXXXXXX"
+    # Additional Proxy configuration  
+    PROXY_2_TYPE="socks5" # http, https, socks4, socks5, socks5h
+    PROXY_2_IP="X.X.X.X"
+    PROXY_2_PORT=3128
+    PROXY_2_USER="XXXXXXXX"
+    PROXY_2_PASSWORD="XXXXXXXXX"
+    # Proxy selection method for /proxy on command
+    PROXY_SELECT = "round_robin" # random, round_robin
 ```
 
 **Important Notes:**
@@ -1090,6 +1106,12 @@ If you encounter issues:
 3. Test individual components (cookies, Firebase, channels)
 4. Check the [GitHub Issues](https://github.com/upekshaip/tg-ytdlp-bot/issues) for similar problems
 5. Create a new issue with detailed error information and logs
+
+---
+
+### /vid range shortcut
+- Use range before URL and it will be transformed to playlist indices:
+  - `/vid 3-7 https://youtube.com/playlist?list=...` → `/vid https://youtube.com/playlist?list=...*3*7`
 
 ---
 
