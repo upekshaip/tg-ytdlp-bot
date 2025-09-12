@@ -249,11 +249,20 @@ def send_videos(
                         safe_paid_dur = float(v_dur) if v_dur and float(v_dur) > 0 else float(duration) if duration and float(duration) > 0 else 1.0
                     except Exception:
                         safe_paid_dur = 1.0
+                    # ширина/высота обязаны быть заданы (>0)
+                    try:
+                        safe_w = int(v_w) if v_w and int(v_w) > 0 else 640
+                    except Exception:
+                        safe_w = 640
+                    try:
+                        safe_h = int(v_h) if v_h and int(v_h) > 0 else 360
+                    except Exception:
+                        safe_h = 360
                     paid_media = InputPaidMediaVideo(
                         media=video_abs_path,
                         cover=_gen_paid_cover(video_abs_path),
-                        width=int(v_w) if v_w else None,
-                        height=int(v_h) if v_h else None,
+                        width=safe_w,
+                        height=safe_h,
                         duration=safe_paid_dur,
                         supports_streaming=True
                     )
@@ -348,11 +357,20 @@ def send_videos(
                         safe_paid_dur = float(v_dur) if v_dur and float(v_dur) > 0 else float(duration) if duration and float(duration) > 0 else 1.0
                     except Exception:
                         safe_paid_dur = 1.0
+                    # ширина/высота обязаны быть заданы (>0)
+                    try:
+                        safe_w = int(v_w) if v_w and int(v_w) > 0 else 640
+                    except Exception:
+                        safe_w = 640
+                    try:
+                        safe_h = int(v_h) if v_h and int(v_h) > 0 else 360
+                    except Exception:
+                        safe_h = 360
                     paid_media = InputPaidMediaVideo(
                         media=video_abs_path,
                         cover=_gen_paid_cover(video_abs_path),
-                        width=int(v_w) if v_w else None,
-                        height=int(v_h) if v_h else None,
+                        width=safe_w,
+                        height=safe_h,
                         duration=safe_paid_dur,
                         supports_streaming=True
                     )
