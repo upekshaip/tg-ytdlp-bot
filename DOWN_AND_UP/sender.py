@@ -244,12 +244,17 @@ def send_videos(
                         v_w, v_h, v_dur = get_video_info_ffprobe(video_abs_path)
                     except Exception:
                         v_w, v_h, v_dur = width, height, duration
+                    # duration для paid должен быть float и >0
+                    try:
+                        safe_paid_dur = float(v_dur) if v_dur and float(v_dur) > 0 else float(duration) if duration and float(duration) > 0 else 1.0
+                    except Exception:
+                        safe_paid_dur = 1.0
                     paid_media = InputPaidMediaVideo(
                         media=video_abs_path,
                         cover=_gen_paid_cover(video_abs_path),
                         width=int(v_w) if v_w else None,
                         height=int(v_h) if v_h else None,
-                        duration=int(v_dur) if v_dur else None,
+                        duration=safe_paid_dur,
                         supports_streaming=True
                     )
                 except TypeError:
@@ -338,12 +343,17 @@ def send_videos(
                         v_w, v_h, v_dur = get_video_info_ffprobe(video_abs_path)
                     except Exception:
                         v_w, v_h, v_dur = width, height, duration
+                    # duration для paid должен быть float и >0
+                    try:
+                        safe_paid_dur = float(v_dur) if v_dur and float(v_dur) > 0 else float(duration) if duration and float(duration) > 0 else 1.0
+                    except Exception:
+                        safe_paid_dur = 1.0
                     paid_media = InputPaidMediaVideo(
                         media=video_abs_path,
                         cover=_gen_paid_cover(video_abs_path),
                         width=int(v_w) if v_w else None,
                         height=int(v_h) if v_h else None,
-                        duration=int(v_dur) if v_dur else None,
+                        duration=safe_paid_dur,
                         supports_streaming=True
                     )
                 except TypeError:
