@@ -309,7 +309,7 @@ Add my bots to your groups to get enhanced features and higher limits!
 • Max playlist items per 1 time: <b>100</b> ⬆️
 • Max TikTok videos per 1 time: 1000 ⬆️
 • Max images per 1 time: 2000 ⬆️
-• 1 Download ma time: <b>4 hours</b> ⬆️
+• 1 Download max time: <b>4 hours</b> ⬆️
 • 🔞 NSFW content: Free with full metadata 🆓
 • 📢 No need to subscribe to my channel for groups
 • 👥 All group members will have access to paid functions!</blockquote>
