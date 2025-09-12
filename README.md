@@ -27,8 +27,8 @@ https://t.me/tgytdlp_bot
 ## Deploy on a VM 
 
 - First, add your bot to the **logging channel** and **subscription channel** with admin rights. Both are required.
-- Star and fork this repository. Then rename the file **_config.py** to **config.py**.
-- Add your configuration to the **config.py** file.
+- Star and clone this repository to your server. Then rename the file **_config.py** to **config.py**.
+- Add your configuration to the **config.py** file. Guide is below.
 - Install required dependencies and start the bot.
 
 ---
