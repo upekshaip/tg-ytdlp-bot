@@ -94,7 +94,7 @@ FIREBASE_CONF = {
 ```
 **Proxy Configuration Fields (Optional):**
 
-Fill in this configuration (up to 2 proxies) if you want to be able using /proxy command to use yt-dlp and gallery-dl via proxy servers
+Fill in this configuration (up to 2 proxies) if you want to be able using `/proxy` command to use **yt-dlp** and **gallery-dl** via proxy servers
 
 ```python
     # Proxy configuration
