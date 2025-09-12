@@ -5,7 +5,15 @@ Thanks to Contributor - [@IIlIlIlIIIlllIIlIIlIllIIllIlIIIl](https://t.me/IIlIlIl
 
 Download private YouTube/videos using a cookie file with advanced format selection, codec support (H.264/AVC, AV1, VP9), intelligent subtitle handling, proxy support, and direct stream links.
 
-Test free Telegram bots - https://t.me/tg_ytdlp \
+## Quick start:
+- Just send a link to the bot — it auto-detects the content and downloads it
+  - Videos are handled via yt-dlp
+  - If no downloadable video formats are found, the bot automatically tries images via gallery-dl
+
+## Test free Telegram bots: 
+Channel: \
+https://t.me/tg_ytdlp \
+Bots: \
 https://t.me/tgytdlp_uae_bot \
 https://t.me/tgytdlp_uk_bot \
 https://t.me/tgytdlp_fr_bot \
@@ -18,9 +26,9 @@ https://t.me/tgytdlp_bot
 
 ## Deploy on a VM 
 
-- First, add your bot to the **logging channel** and **subscription channel**. Both are required.
-- Star and fork this repository. Then rename the file **_config.py** to **config.py**.
-- Add your configuration to the **config.py** file.
+- First, add your bot to the **logging channel** and **subscription channel** with admin rights. Both are required.
+- Star and clone this repository to your server. Then rename the file **_config.py** to **config.py**.
+- Add your configuration to the **config.py** file. Guide is below.
 - Install required dependencies and start the bot.
 
 ---
@@ -83,6 +91,26 @@ FIREBASE_CONF = {
     "appId": "1:123456789:web:abcdef123456",
     "databaseURL": "https://your-project-default-rtdb.firebaseio.com"
 }
+```
+**Proxy Configuration Fields (Optional):**
+
+Fill in this configuration (up to 2 proxies) if you want to be able using `/proxy` command to use **yt-dlp** and **gallery-dl** via proxy servers
+
+```python
+    # Proxy configuration
+    PROXY_TYPE="http" # http, https, socks4, socks5, socks5h
+    PROXY_IP="X.X.X.X"
+    PROXY_PORT=3128
+    PROXY_USER="XXXXXXXX"
+    PROXY_PASSWORD="XXXXXXXXX"
+    # Additional Proxy configuration  
+    PROXY_2_TYPE="socks5" # http, https, socks4, socks5, socks5h
+    PROXY_2_IP="X.X.X.X"
+    PROXY_2_PORT=3128
+    PROXY_2_USER="XXXXXXXX"
+    PROXY_2_PASSWORD="XXXXXXXXX"
+    # Proxy selection method for /proxy on command
+    PROXY_SELECT = "round_robin" # random, round_robin
 ```
 
 **Important Notes:**
@@ -629,6 +657,21 @@ You can select a specific YouTube cookie source by index and then verify it:
 
 ---
 
+## Paid posts (Telegram Stars) and Group Mode
+
+- **Paid posts (Stars)**: The bot can send paid posts via Telegram Stars for NSFW content in private chats.
+  - The cover is prepared automatically (320×320 with padding) to meet Telegram requirements.
+  - Price is configured in `CONFIG/limits.py` via `NSFW_STAR_COST`.
+  - For channels/groups, relay is supported (when the bot is added as an admin); paid media is cached properly.
+
+- **Adding the bot to a group**: Add the bot as an admin to your group/supergroup to use commands inside the chat.
+  - In group mode, extended limits apply: **limits are doubled** (sizes/queues), reducing fallbacks to document mode for large files.
+  - All other features (formats, proxy, cookies, direct links) work the same as in private chats.
+  - NSFW content has no Telegram Stars cost in groups
+
+Note: You can tune exact limit values and behavior in `CONFIG/limits.py` and `CONFIG/config.py` according to your hosting and needs.
+
+
 ## Cookie Management System
 
 The bot features a comprehensive cookie management system that supports multiple services and automatic validation.
@@ -1066,6 +1109,12 @@ If you encounter issues:
 3. Test individual components (cookies, Firebase, channels)
 4. Check the [GitHub Issues](https://github.com/upekshaip/tg-ytdlp-bot/issues) for similar problems
 5. Create a new issue with detailed error information and logs
+
+---
+
+### /vid range shortcut
+- Use range before URL and it will be transformed to playlist indices:
+  - `/vid 3-7 https://youtube.com/playlist?list=...` → `/vid https://youtube.com/playlist?list=...*3*7`
 
 ---
 
