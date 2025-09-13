@@ -3744,6 +3744,10 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             if (
                 "No videos found in playlist" in emsg
                 or "Unsupported URL" in emsg
+                or "No video could be found" in emsg
+                or "No video found" in emsg
+                or "No media found" in emsg
+                or "This tweet does not contain" in emsg
             ):
                 try:
                     from COMMANDS.image_cmd import image_command
@@ -3757,7 +3761,11 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                     except Exception:
                         pass
                     try:
-                        image_command(app, fake_message(f"/img {url}", user_id))
+                        # Include tags in fallback command
+                        fallback_text = f"/img {url}"
+                        if tags_text:
+                            fallback_text += f" {tags_text}"
+                        image_command(app, fake_message(fallback_text, user_id))
                         logger.info("Triggered gallery-dl fallback via /img from Always Ask menu")
                         return
                     except Exception as call_e:

@@ -397,6 +397,9 @@ def image_command(app, message):
         parsed_url, _s, _e, _plist, user_tags, user_tags_text, _err = extract_url_range_tags(text)
         if parsed_url:
             url = parsed_url
+            # Check if range was specified in URL*start*end format
+            if _s != 1 or _e != 1:
+                manual_range = (_s, _e)
     except Exception:
         user_tags = []
         user_tags_text = ''
@@ -423,6 +426,7 @@ def image_command(app, message):
             save_user_tags(user_id, user_tags)
     except Exception:
         pass
+    
     user_forced_nsfw = any(t.lower() in {'#nsfw', '#porn'} for t in (user_tags or []))
     
     # Basic URL validation
@@ -512,6 +516,30 @@ def image_command(app, message):
     except Exception as _e:
         logger.warning(f"Image cache forward (early) failed: {_e}")
     
+    # Check if user is admin
+    is_admin = int(user_id) in Config.ADMIN
+    
+    # Check range limits if manual range is specified (before URL analysis)
+    if manual_range:
+        range_count = manual_range[1] - manual_range[0] + 1
+        max_img_files = LimitsConfig.MAX_IMG_FILES
+        # Apply group multiplier for groups/channels
+        try:
+            if message and getattr(message.chat, 'type', None) != enums.ChatType.PRIVATE:
+                mult = getattr(LimitsConfig, 'GROUP_MULTIPLIER', 1)
+                max_img_files = int(max_img_files * mult)
+        except Exception:
+            pass
+        
+        if range_count > max_img_files:
+            safe_send_message(
+                user_id,
+                f"❗️ Range limit exceeded: {range_count} files requested (maximum {max_img_files}).\n"
+                f"Reduce the range and try again.",
+                reply_parameters=ReplyParameters(message_id=message.id)
+            )
+            return
+    
     try:
         # Get image information first
         image_info = get_image_info(url, user_id, use_proxy)
@@ -553,16 +581,49 @@ def image_command(app, message):
         user_dir = os.path.join("users", str(user_id))
         create_directory(user_dir)
         # Admin users have no limit, regular users have MAX_IMG_FILES limit
-        is_admin = int(user_id) in Config.ADMIN
         total_limit = float('inf') if is_admin else LimitsConfig.MAX_IMG_FILES
+        
+        # Apply group multiplier for groups/channels
+        try:
+            if message and getattr(message.chat, 'type', None) != enums.ChatType.PRIVATE:
+                mult = getattr(LimitsConfig, 'GROUP_MULTIPLIER', 1)
+                total_limit = int(total_limit * mult)
+        except Exception:
+            pass
+            
         logger.info(f"[IMG] User {user_id} is admin: {is_admin}, limit: {'unlimited' if is_admin else total_limit}")
         
         # Determine expected total via --get-urls analog
         detected_total = None
         if manual_range is None or manual_range[1] is None:
             detected_total = get_total_media_count(url, user_id, use_proxy)
+        
+        # Check limits after detecting total media count
         if detected_total and detected_total > 0:
-            total_expected = detected_total if is_admin else min(detected_total, LimitsConfig.MAX_IMG_FILES)
+            max_img_files = LimitsConfig.MAX_IMG_FILES
+            # Apply group multiplier for groups/channels
+            try:
+                if message and getattr(message.chat, 'type', None) != enums.ChatType.PRIVATE:
+                    mult = getattr(LimitsConfig, 'GROUP_MULTIPLIER', 1)
+                    max_img_files = int(max_img_files * mult)
+            except Exception:
+                pass
+            
+            # If total exceeds limit, show error and suggest manual range
+            if detected_total > max_img_files:
+                safe_send_message(
+                    user_id,
+                    f"❗️ Media limit exceeded: {detected_total} files found (maximum {max_img_files}).\n"
+                    f"Please specify a range manually:\n"
+                    f"<code>/img 1-{max_img_files} {url}</code>",
+                    parse_mode=enums.ParseMode.HTML,
+                    reply_parameters=ReplyParameters(message_id=message.id)
+                )
+                return
+            
+            total_expected = min(detected_total, max_img_files)
+        elif detected_total and detected_total > 0:
+            total_expected = detected_total
         # Streaming download: run range-based batches (1-10, 11-20, ...) scoped to a unique per-run directory
         run_dir = os.path.join("users", str(user_id), f"run_{int(time.time())}")
         create_directory(run_dir)

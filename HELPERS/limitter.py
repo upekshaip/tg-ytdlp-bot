@@ -243,6 +243,14 @@ def check_playlist_range_limits(url, video_start_with, video_end_with, app, mess
     else:
         max_count = Config.MAX_PLAYLIST_COUNT
         service = 'playlist'
+    
+    # Apply group multiplier for groups/channels
+    try:
+        if message and getattr(message.chat, 'type', None) != enums.ChatType.PRIVATE:
+            mult = getattr(LimitsConfig, 'GROUP_MULTIPLIER', 1)
+            max_count = int(max_count * mult)
+    except Exception:
+        pass
 
     count = video_end_with - video_start_with + 1
     if count > max_count:

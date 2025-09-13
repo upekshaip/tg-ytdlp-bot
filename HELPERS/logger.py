@@ -18,10 +18,20 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('bot.log')
+        logging.FileHandler('bot.log', mode='a', encoding='utf-8')
     ]
 )
 logger = logging.getLogger(__name__)
+
+def close_logger():
+    """Close all logging handlers to prevent file descriptor leaks"""
+    try:
+        for handler in logger.handlers[:]:
+            handler.close()
+            logger.removeHandler(handler)
+        logger.info("Logger handlers closed successfully")
+    except Exception as e:
+        logger.error(f"Error closing logger handlers: {e}")
 
 # WatchDog
 if SDNOTIFY_AVAILABLE:

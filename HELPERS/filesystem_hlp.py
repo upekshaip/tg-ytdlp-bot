@@ -59,6 +59,13 @@ def signal_handler(sig, frame):
     except Exception as e:
         logger.error(f"Error stopping Pyrogram client: {e}")
 
+    # Close logger handlers
+    try:
+        from HELPERS.logger import close_logger
+        close_logger()
+    except Exception as e:
+        logger.error(f"Error closing logger: {e}")
+
     logger.info("Shutdown complete.")
     sys.exit(0)
 

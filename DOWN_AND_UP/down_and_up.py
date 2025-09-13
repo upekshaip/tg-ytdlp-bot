@@ -960,6 +960,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 if (
                     "No videos found in playlist" in error_message
                     or "Unsupported URL" in error_message
+                    or "No video could be found" in error_message
+                    or "No video found" in error_message
+                    or "No media found" in error_message
+                    or "This tweet does not contain" in error_message
                 ):
                     try:
                         from COMMANDS.image_cmd import image_command
@@ -973,7 +977,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         except Exception:
                             pass
                         try:
-                            image_command(app, fake_message(f"/img {url}", user_id))
+                            # Include tags in fallback command
+                            fallback_text = f"/img {url}"
+                            if tags_text:
+                                fallback_text += f" {tags_text}"
+                            image_command(app, fake_message(fallback_text, user_id))
                             logger.info("Triggered gallery-dl fallback via /img")
                             return "IMG"
                         except Exception as call_e:
@@ -1043,7 +1051,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         except Exception:
                             pass
                         try:
-                            image_command(app, fake_message(f"/img {url}", user_id))
+                            # Include tags in fallback command
+                            fallback_text = f"/img {url}"
+                            if tags_text:
+                                fallback_text += f" {tags_text}"
+                            image_command(app, fake_message(fallback_text, user_id))
                             logger.info("Triggered gallery-dl fallback via /img (generic)")
                             return "IMG"
                         except Exception as call_e:

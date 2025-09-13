@@ -297,10 +297,18 @@ starting_point = []
 start_auto_cache_reloader()
 
 def cleanup_on_exit():
-    """Cleanup function to close Firebase connections on exit"""
+    """Cleanup function to close Firebase connections and logger on exit"""
     try:
         from DATABASE.cache_db import close_all_firebase_connections
         close_all_firebase_connections()
+        
+        # Close logger handlers
+        try:
+            from HELPERS.logger import close_logger
+            close_logger()
+        except Exception as e:
+            print(f"❌ Error closing logger: {e}")
+        
         print("✅ Cleanup completed on exit")
     except Exception as e:
         print(f"❌ Error during cleanup: {e}")

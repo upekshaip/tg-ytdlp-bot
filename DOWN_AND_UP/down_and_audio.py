@@ -692,6 +692,38 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 error_text = str(e)
                 logger.error(f"DownloadError: {error_text}")
                 
+                # Auto-fallback to gallery-dl (/img) for non-video posts (albums/images)
+                if (
+                    "No videos found in playlist" in error_text
+                    or "Unsupported URL" in error_text
+                    or "No video could be found" in error_text
+                    or "No video found" in error_text
+                    or "No media found" in error_text
+                    or "This tweet does not contain" in error_text
+                ):
+                    try:
+                        from COMMANDS.image_cmd import image_command
+                        from HELPERS.safe_messeger import fake_message
+                    except Exception as imp_e:
+                        logger.error(f"Failed to import gallery-dl fallback handlers: {imp_e}")
+                    else:
+                        try:
+                            safe_edit_message_text(user_id, proc_msg_id,
+                                f"{current_total_process}\n❔ No audio formats found. Trying image downloader…")
+                        except Exception:
+                            pass
+                        try:
+                            # Include tags in fallback command
+                            fallback_text = f"/img {url}"
+                            if tags:
+                                tags_text = ' '.join(tags)
+                                fallback_text += f" {tags_text}"
+                            image_command(app, fake_message(fallback_text, user_id))
+                            logger.info("Triggered gallery-dl fallback via /img from audio downloader")
+                            return "IMG"
+                        except Exception as call_e:
+                            logger.error(f"Failed to trigger gallery-dl fallback from audio downloader: {call_e}")
+                
                 # Проверяем, связана ли ошибка с куками или региональными ограничениями YouTube
                 if is_youtube_url(url):
                     if is_youtube_geo_error(error_text) and not did_proxy_retry:
