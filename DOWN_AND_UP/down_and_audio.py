@@ -171,9 +171,14 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         
     user_id = message.chat.id
     logger.info(f"down_and_audio called: url={url}, quality_key={quality_key}, video_count={video_count}, video_start_with={video_start_with}")
+    
+    # ЖЕСТКО: Сохраняем оригинальный текст с диапазоном для фоллбэка
+    original_message_text = message.text or message.caption or ""
+    logger.info(f"[ORIGINAL TEXT] Saved for fallback: {original_message_text}")
+    
     # Determine forced NSFW via user tags
     try:
-        _u, _s, _e, _p, _tags, _tags_text, _err = extract_url_range_tags(message.text or message.caption or "")
+        _u, _s, _e, _p, _tags, _tags_text, _err = extract_url_range_tags(original_message_text)
         user_forced_nsfw = any(t.lower() in ("#nsfw", "#porn") for t in (_tags or []))
     except Exception:
         user_forced_nsfw = False
@@ -254,6 +259,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         # Check if content is NSFW - if so, skip cache lookup
         from HELPERS.porn import is_porn
         is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
+        logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
         if not is_nsfw:
             cached_videos = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, requested_indices)
             uncached_indices = [i for i in requested_indices if i not in cached_videos]
@@ -269,6 +275,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         # Determine the correct log channel based on content type
                         from HELPERS.porn import is_porn
                         is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
+                        logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
                         is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                         is_paid = is_nsfw and is_private_chat
                         
@@ -314,6 +321,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         # Check if content is NSFW - if so, skip cache lookup
         from HELPERS.porn import is_porn
         is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
+        logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
         if not is_nsfw:
             cached_ids = get_cached_message_ids(url, quality_key)
         else:
@@ -713,13 +721,50 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         except Exception:
                             pass
                         try:
-                            # Include tags in fallback command
-                            fallback_text = f"/img {url}"
+                            # Check if content is NSFW for fallback
+                            from HELPERS.porn import is_porn
+                            is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
+                            logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
+                            
+                            # ЖЕСТКО: Используем сохраненный оригинальный текст с диапазоном
+                            logger.info(f"[FALLBACK DEBUG] Using saved original_message_text: {original_message_text}")
+                            
+                            # Ищем URL с диапазоном *start*end
+                            import re
+                            range_url_match = re.search(r'(https?://[^\s\*#]+)\*(\d+)\*(\d+)', original_message_text)
+                            if range_url_match:
+                                parsed_url = range_url_match.group(1)
+                                start_range = int(range_url_match.group(2))
+                                end_range = int(range_url_match.group(3))
+                                logger.info(f"[FALLBACK DEBUG] FOUND RANGE: {parsed_url} with range {start_range}-{end_range}")
+                            else:
+                                # Fallback к обычному URL
+                                m = re.search(r'https?://[^\s\*#]+', original_message_text)
+                                parsed_url = m.group(0) if m else original_message_text
+                                start_range = 1
+                                end_range = 1
+                                logger.info(f"[FALLBACK DEBUG] NO RANGE FOUND, using url: {parsed_url}")
+                            
+                            # Build fallback command converting *1*10 to 1-10 format
+                            if start_range and end_range and (start_range != 1 or end_range != 1):
+                                # Convert *1*10 format to 1-10 format
+                                fallback_text = f"/img {start_range}-{end_range} {parsed_url}"
+                                logger.info(f"[FALLBACK] Converting range: *{start_range}*{end_range} -> {start_range}-{end_range}, fallback_text: {fallback_text}")
+                            else:
+                                fallback_text = f"/img {parsed_url}"
+                                logger.info(f"[FALLBACK] No range detected, fallback_text: {fallback_text}")
+                            
                             if tags:
                                 tags_text = ' '.join(tags)
                                 fallback_text += f" {tags_text}"
-                            image_command(app, fake_message(fallback_text, user_id))
-                            logger.info("Triggered gallery-dl fallback via /img from audio downloader")
+                            
+                            # Add NSFW tag if content is detected as NSFW
+                            if is_nsfw and "#nsfw" not in fallback_text.lower():
+                                fallback_text += " #nsfw"
+                                logger.info(f"[FALLBACK] Added #nsfw tag for NSFW content: {url}")
+                            
+                            image_command(app, fake_message(fallback_text, user_id, original_chat_id=user_id))
+                            logger.info(f"Triggered gallery-dl fallback via /img from audio downloader, is_nsfw={is_nsfw}, range={start_range}-{end_range}")
                             return "IMG"
                         except Exception as call_e:
                             logger.error(f"Failed to trigger gallery-dl fallback from audio downloader: {call_e}")
@@ -1002,6 +1047,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 # Determine if this is NSFW content in private chat (paid media)
                 from HELPERS.porn import is_porn
                 is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
+                logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
                 is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                 is_paid = is_nsfw and is_private_chat
                 

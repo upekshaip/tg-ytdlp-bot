@@ -18,7 +18,7 @@ def get_app_safe():
         raise RuntimeError("App instance not available yet")
     return app
 
-def fake_message(text, user_id, command=None):
+def fake_message(text, user_id, command=None, original_chat_id=None):
     m = SimpleNamespace()
     m.chat = SimpleNamespace()
     m.chat.id = user_id
@@ -30,6 +30,10 @@ def fake_message(text, user_id, command=None):
     m.from_user = SimpleNamespace()
     m.from_user.id = user_id
     m.from_user.first_name = m.chat.first_name
+    # ЖЕСТКО: Помечаем как fake message для правильной обработки платных медиа
+    m._is_fake_message = True
+    # ЖЕСТКО: Сохраняем оригинальный chat_id для правильного определения is_private_chat
+    m._original_chat_id = original_chat_id if original_chat_id is not None else user_id
     if command is not None:
         m.command = command
     else:

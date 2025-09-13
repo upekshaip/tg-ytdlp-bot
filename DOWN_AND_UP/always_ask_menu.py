@@ -18,6 +18,7 @@ from HELPERS.qualifier import get_quality_by_min_side, get_real_height_for_quali
 from HELPERS.limitter import check_subs_limits, check_playlist_range_limits, TimeFormatter
 
 from CONFIG.config import Config
+from URL_PARSERS.tags import extract_url_range_tags
 
 from COMMANDS.subtitles_cmd import (
     clear_subs_check_cache, is_subs_enabled, check_subs_availability, 
@@ -943,17 +944,62 @@ def askq_callback(app, callback_query):
         if not original_message:
             callback_query.answer("❌ Error: Original message not found.", show_alert=True)
             return
+        # ЖЕСТКО: Получаем полный текст сообщения
         url_text = original_message.text or (original_message.caption or "")
+        logger.info(f"[ASKQ FALLBACK DEBUG] original_message.text: {original_message.text}")
+        logger.info(f"[ASKQ FALLBACK DEBUG] original_message.caption: {original_message.caption}")
+        logger.info(f"[ASKQ FALLBACK DEBUG] url_text: {url_text}")
+        
+        # ЖЕСТКО: Ищем URL с диапазоном в полном тексте
         import re as _re
-        m = _re.search(r'https?://[^\s\*#]+', url_text)
-        url = m.group(0) if m else url_text
+        # Сначала ищем URL с диапазоном *start*end
+        range_url_match = _re.search(r'(https?://[^\s\*#]+)\*(\d+)\*(\d+)', url_text)
+        if range_url_match:
+            url = range_url_match.group(1)
+            start_range = int(range_url_match.group(2))
+            end_range = int(range_url_match.group(3))
+            logger.info(f"[ASKQ FALLBACK DEBUG] FOUND RANGE URL: {url} with range {start_range}-{end_range}")
+        else:
+            # Fallback к обычному URL
+            m = _re.search(r'https?://[^\s\*#]+', url_text)
+            url = m.group(0) if m else url_text
+            start_range = 1
+            end_range = 1
+            logger.info(f"[ASKQ FALLBACK DEBUG] NO RANGE FOUND, using url: {url}")
         try:
             callback_query.answer("🖼 Starting gallery-dl…")
         except Exception:
             pass
         try:
+            # Check if content is NSFW for fallback - same as original function
+            from HELPERS.porn import is_porn
+            is_nsfw = bool(is_porn(url, "", "", None))
+            logger.info(f"[ASKQ FALLBACK] is_porn check for {url}: {is_nsfw}")
+            
+            # Check for explicit NSFW tags in original message
+            user_forced_nsfw = bool(re.search(r"(?i)(?:^|\s)#nsfw(?:\s|$)", url_text))
+            if user_forced_nsfw:
+                is_nsfw = True
+                logger.info(f"[ASKQ FALLBACK] User forced NSFW tag detected for {url}")
+            
+            # Range already extracted above - ЖЕСТКО!
+            parsed_url = url
+            
+            # Create fallback command converting *1*10 to 1-10 format
+            if start_range and end_range and start_range != 1 and end_range != 1:
+                # Convert *1*10 format to 1-10 format
+                fallback_text = f"/img {start_range}-{end_range} {parsed_url}"
+                logger.info(f"[ASKQ FALLBACK] Converting range: *{start_range}*{end_range} -> {start_range}-{end_range}, fallback_text: {fallback_text}")
+            else:
+                fallback_text = f"/img {url}"
+                logger.info(f"[ASKQ FALLBACK] No range detected, fallback_text: {fallback_text}")
+            
+            if is_nsfw and "#nsfw" not in fallback_text.lower():
+                fallback_text += " #nsfw"
+                logger.info(f"[ASKQ FALLBACK] Added #nsfw tag for NSFW content: {url}")
+            
             # Запускаем /img с «фейковым» сообщением, чтобы работать через gallery-dl
-            image_command(app, fake_message(f"/img {url}", original_message.chat.id))
+            image_command(app, fake_message(fallback_text, original_message.chat.id, original_chat_id=original_message.chat.id))
         except Exception as e:
             logger.error(f"[ASKQ] IMAGE fallback failed: {e}")
         return
@@ -3761,13 +3807,57 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                     except Exception:
                         pass
                     try:
-                        # Include tags in fallback command
-                        fallback_text = f"/img {url}"
+                        # Check if content is NSFW for fallback
+                        from HELPERS.porn import is_porn
+                        is_nsfw = is_porn(url, "", "", None)
+                        logger.info(f"[ASKQ FALLBACK] is_porn check for {url}: {is_nsfw}")
+                        
+                        # Check for explicit NSFW tags
+                        user_forced_nsfw = any(t.lower() in ("#nsfw", "#porn") for t in (tags or []))
+                        if user_forced_nsfw:
+                            is_nsfw = True
+                            logger.info(f"[ASKQ FALLBACK] User forced NSFW tag detected for {url}")
+                        
+                        # ЖЕСТКО: Используем оригинальный текст сообщения
+                        original_text = message.text or message.caption or ""
+                        logger.info(f"[ASKQ FALLBACK DEBUG] original_text: {original_text}")
+                        
+                        # Ищем URL с диапазоном *start*end
+                        import re
+                        range_url_match = re.search(r'(https?://[^\s\*#]+)\*(\d+)\*(\d+)', original_text)
+                        if range_url_match:
+                            parsed_url = range_url_match.group(1)
+                            start_range = int(range_url_match.group(2))
+                            end_range = int(range_url_match.group(3))
+                            logger.info(f"[ASKQ FALLBACK DEBUG] FOUND RANGE: {parsed_url} with range {start_range}-{end_range}")
+                        else:
+                            # Fallback к обычному URL
+                            m = re.search(r'https?://[^\s\*#]+', original_text)
+                            parsed_url = m.group(0) if m else original_text
+                            start_range = 1
+                            end_range = 1
+                            logger.info(f"[ASKQ FALLBACK DEBUG] NO RANGE FOUND, using url: {parsed_url}")
+                        
+                        # Build fallback command converting *1*10 to 1-10 format
+                        if start_range and end_range and (start_range != 1 or end_range != 1):
+                            # Convert *1*10 format to 1-10 format
+                            fallback_text = f"/img {start_range}-{end_range} {parsed_url}"
+                            logger.info(f"[ASKQ FALLBACK] Converting range: *{start_range}*{end_range} -> {start_range}-{end_range}, fallback_text: {fallback_text}")
+                        else:
+                            fallback_text = f"/img {parsed_url}"
+                            logger.info(f"[ASKQ FALLBACK] No range detected, fallback_text: {fallback_text}")
+                        
                         if tags:
                             tags_text = ' '.join(tags)
                             fallback_text += f" {tags_text}"
-                        image_command(app, fake_message(fallback_text, user_id))
-                        logger.info("Triggered gallery-dl fallback via /img from Always Ask menu")
+                        
+                        # Add NSFW tag if content is detected as NSFW
+                        if is_nsfw and "#nsfw" not in fallback_text.lower():
+                            fallback_text += " #nsfw"
+                            logger.info(f"[ASKQ FALLBACK] Added #nsfw tag for NSFW content: {url}")
+                        
+                        image_command(app, fake_message(fallback_text, user_id, original_chat_id=user_id))
+                        logger.info(f"Triggered gallery-dl fallback via /img from Always Ask menu, is_nsfw={is_nsfw}, range={start_range}-{end_range}")
                         return
                     except Exception as call_e:
                         logger.error(f"Failed to trigger gallery-dl fallback from Always Ask menu: {call_e}")
