@@ -293,7 +293,8 @@ Add my bots to your groups to get enhanced features and higher limits!
 • Max images per 1 time: <b>1000</b>
 • 1 Download max time: <b>2 hours</b>
 • 🔞 NSFW content is paid! 1⭐️ = $0.02
-• 🆓 ALL OTHER MEDIA ARE TOTALY FREE</blockquote>
+• 🆓 ALL OTHER MEDIA ARE TOTALY FREE
+• 📝 All content logs & caching to my log-channels for instant repost when re-downloading</blockquote>
 
 💬<b>This limits only for video with subtitles:</b>
 <blockquote>• Max video+subs duration: <b>1.5 hours</b>
@@ -312,7 +313,8 @@ Add my bots to your groups to get enhanced features and higher limits!
 • 1 Download max time: <b>4 hours</b> ⬆️
 • 🔞 NSFW content: Free with full metadata 🆓
 • 📢 No need to subscribe to my channel for groups
-• 👥 All group members will have access to paid functions!</blockquote>
+• 👥 All group members will have access to paid functions!
+• 🗒 No logs / no cache to my log-channels! You can reject copy/repost in group settings</blockquote>
 
 💬 <b>2️⃣x limits for video with subtitles:</b>
 <blockquote>• Max video+subs duration: <b>3 hours</b> ⬆️
