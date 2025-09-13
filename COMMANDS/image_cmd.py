@@ -1213,40 +1213,8 @@ def image_command(app, message):
                                         except Exception as fe:
                                             logger.error(f"[IMG LOG] Failed to forward paid media to PAID channel: {fe}")
                                         
-                                        # Send to LOGS_NSFW_ID (for history) - send open copy as album
-                                        log_channel_nsfw = get_log_channel("image", nsfw=True, paid=False)
-                                        try:
-                                            # Create media group for NSFW log channel (open copy)
-                                            nsfw_log_media_group = []
-                                            for _idx, _media_obj in enumerate(media_group):
-                                                caption = (tags_text_norm or "") if _idx == 0 else None  # Only first item gets caption
-                                                if isinstance(_media_obj, InputMediaPhoto):
-                                                    nsfw_log_media_group.append(InputMediaPhoto(
-                                                        media=_media_obj.media,
-                                                        caption=caption
-                                                    ))
-                                                else:
-                                                    nsfw_log_media_group.append(InputMediaVideo(
-                                                        media=_media_obj.media,
-                                                        caption=caption,
-                                                        duration=getattr(_media_obj, 'duration', None),
-                                                        width=getattr(_media_obj, 'width', None),
-                                                        height=getattr(_media_obj, 'height', None),
-                                                        thumb=getattr(_media_obj, 'thumb', None)
-                                                    ))
-                                            
-                                            # Send as album to NSFW log channel
-                                            nsfw_log_sent = app.send_media_group(
-                                                chat_id=log_channel_nsfw,
-                                                media=nsfw_log_media_group,
-                                                reply_parameters=ReplyParameters(message_id=message.id)
-                                            )
-                                            logger.info(f"[IMG LOG] Open copy album sent to NSFW channel: {len(nsfw_log_media_group)} items")
-                                        except Exception as fe:
-                                            logger.error(f"[IMG LOG] Failed to send open copy album to NSFW channel: {fe}")
-                                        
                                         # Don't cache NSFW content
-                                        logger.info(f"[IMG LOG] NSFW content sent to both channels (paid + history), not cached")
+                                        logger.info(f"[IMG LOG] NSFW content sent to PAID channel, not cached")
                                     
                                     elif nsfw_flag and not is_private_chat:
                                         # NSFW content in groups -> LOGS_NSFW_ID only - send as album
