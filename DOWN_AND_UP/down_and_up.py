@@ -203,16 +203,18 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     cached_videos = {}
     uncached_indices = []
     if quality_key and is_playlist:
-        # Check if content is NSFW before looking in cache
-        from HELPERS.porn import is_porn
-        is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
-        logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
-        
-        if not is_nsfw:
-            cached_videos = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, requested_indices)
-            logger.info(f"[VIDEO CACHE] Checking cache for regular playlist: url={url}, quality={quality_key}")
-        else:
-            logger.info(f"[VIDEO CACHE] Skipping cache check for NSFW playlist: url={url}, quality={quality_key}")
+        # Check if Always Ask mode is enabled - if yes, skip cache completely
+        if not is_subs_always_ask(user_id):
+            # Check if content is NSFW before looking in cache
+            from HELPERS.porn import is_porn
+            is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
+            logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
+            
+            if not is_nsfw:
+                cached_videos = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, requested_indices)
+                logger.info(f"[VIDEO CACHE] Checking cache for regular playlist: url={url}, quality={quality_key}")
+            else:
+                logger.info(f"[VIDEO CACHE] Skipping cache check for NSFW playlist: url={url}, quality={quality_key}")
         
         uncached_indices = [i for i in requested_indices if i not in cached_videos]
         # First, repost the cached ones
@@ -244,11 +246,15 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 return
             else:
                 app.send_message(user_id, Config.CACHE_PARTIAL_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+        else:
+            logger.info(f"[VIDEO CACHE] Skipping cache check for playlist because Always Ask mode is enabled: url={url}, quality={quality_key}")
+            # Set all indices as uncached when Always Ask mode is enabled
+            uncached_indices = requested_indices
     elif quality_key and not is_playlist:
         #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
         subs_enabled = is_subs_enabled(user_id)
         # Use the already determined subtitle availability
-        if not need_subs:
+        if not need_subs and not is_subs_always_ask(user_id):
             # Check if content is NSFW before looking in cache
             from HELPERS.porn import is_porn
             is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
@@ -292,6 +298,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         logger.info("Video with subs (subs.txt found) is not cached!")
                     # Don't show error message if we successfully got video from cache
                     # The video was already sent successfully in the try block
+        else:
+            if is_subs_always_ask(user_id):
+                logger.info(f"[VIDEO CACHE] Skipping cache check because Always Ask mode is enabled: url={url}, quality={quality_key}")
+            else:
+                logger.info(f"[VIDEO CACHE] Skipping cache check because need_subs=True: url={url}, quality={quality_key}")
     else:
         logger.info(f"down_and_up: quality_key is None, skipping cache check")
 

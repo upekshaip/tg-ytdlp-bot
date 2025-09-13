@@ -26,7 +26,7 @@ import subprocess
 from PIL import Image
 import io
 from CONFIG.config import Config
-from COMMANDS.subtitles_cmd import is_subs_enabled, check_subs_availability, get_user_subs_auto_mode, _subs_check_cache, download_subtitles_ytdlp
+from COMMANDS.subtitles_cmd import is_subs_enabled, check_subs_availability, get_user_subs_auto_mode, _subs_check_cache, download_subtitles_ytdlp, is_subs_always_ask
 from COMMANDS.mediainfo_cmd import send_mediainfo_if_enabled
 from URL_PARSERS.playlist_utils import is_playlist_with_range
 from URL_PARSERS.normalizer import get_clean_playlist_url
@@ -256,15 +256,21 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     cached_videos = {}
     uncached_indices = []
     if quality_key and is_playlist:
-        # Check if content is NSFW - if so, skip cache lookup
-        from HELPERS.porn import is_porn
-        is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
-        logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
-        if not is_nsfw:
-            cached_videos = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, requested_indices)
-            uncached_indices = [i for i in requested_indices if i not in cached_videos]
+        # Check if Always Ask mode is enabled - if yes, skip cache completely
+        if not is_subs_always_ask(user_id):
+            # Check if content is NSFW - if so, skip cache lookup
+            from HELPERS.porn import is_porn
+            is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
+            logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
+            if not is_nsfw:
+                cached_videos = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, requested_indices)
+                uncached_indices = [i for i in requested_indices if i not in cached_videos]
+            else:
+                logger.info(f"down_and_audio: skipping cache lookup for NSFW playlist content (url={url})")
+                cached_videos = {}
+                uncached_indices = requested_indices
         else:
-            logger.info(f"down_and_audio: skipping cache lookup for NSFW playlist content (url={url})")
+            logger.info(f"[AUDIO CACHE] Skipping cache check for playlist because Always Ask mode is enabled: url={url}, quality={quality_key}")
             cached_videos = {}
             uncached_indices = requested_indices
         # First, repost the cached ones
@@ -318,14 +324,19 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             else:
                 app.send_message(user_id, f"📥 {len(cached_videos)}/{len(requested_indices)} audio sent from cache, downloading missing ones...", reply_parameters=ReplyParameters(message_id=message.id))
     elif quality_key and not is_playlist:
-        # Check if content is NSFW - if so, skip cache lookup
-        from HELPERS.porn import is_porn
-        is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
-        logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
-        if not is_nsfw:
-            cached_ids = get_cached_message_ids(url, quality_key)
+        # Check if Always Ask mode is enabled - if yes, skip cache completely
+        if not is_subs_always_ask(user_id):
+            # Check if content is NSFW - if so, skip cache lookup
+            from HELPERS.porn import is_porn
+            is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
+            logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
+            if not is_nsfw:
+                cached_ids = get_cached_message_ids(url, quality_key)
+            else:
+                logger.info(f"down_and_audio: skipping cache lookup for NSFW single audio content (url={url})")
+                cached_ids = None
         else:
-            logger.info(f"down_and_audio: skipping cache lookup for NSFW single audio content (url={url})")
+            logger.info(f"[AUDIO CACHE] Skipping cache check because Always Ask mode is enabled: url={url}, quality={quality_key}")
             cached_ids = None
         
         if cached_ids:

@@ -1528,20 +1528,27 @@ def askq_callback(app, callback_query):
         video_count = video_end_with - video_start_with + 1
         requested_indices = list(range(video_start_with, video_start_with + video_count))
         
-        # Check cache for selected quality
-        cached_videos = get_cached_playlist_videos(get_clean_playlist_url(url), data, requested_indices)
-        uncached_indices = [i for i in requested_indices if i not in cached_videos]
-        used_quality_key = data
-        
-        # If there is no cache for the selected quality, try fallback to best
-        if not cached_videos and data != "best":
-            logger.info(f"askq_callback: no cache for quality_key={data}, trying fallback to best")
-            best_cached = get_cached_playlist_videos(get_clean_playlist_url(url), "best", requested_indices)
-            if best_cached:
-                cached_videos = best_cached
-                used_quality_key = "best"
-                uncached_indices = [i for i in requested_indices if i not in cached_videos]
-                logger.info(f"askq_callback: found cache with best quality, cached: {list(cached_videos.keys())}, uncached: {uncached_indices}")
+        # Check if Always Ask mode is enabled - if yes, skip cache completely
+        if not is_subs_always_ask(user_id):
+            # Check cache for selected quality
+            cached_videos = get_cached_playlist_videos(get_clean_playlist_url(url), data, requested_indices)
+            uncached_indices = [i for i in requested_indices if i not in cached_videos]
+            used_quality_key = data
+            
+            # If there is no cache for the selected quality, try fallback to best
+            if not cached_videos and data != "best":
+                logger.info(f"askq_callback: no cache for quality_key={data}, trying fallback to best")
+                best_cached = get_cached_playlist_videos(get_clean_playlist_url(url), "best", requested_indices)
+                if best_cached:
+                    cached_videos = best_cached
+                    used_quality_key = "best"
+                    uncached_indices = [i for i in requested_indices if i not in cached_videos]
+                    logger.info(f"askq_callback: found cache with best quality, cached: {list(cached_videos.keys())}, uncached: {uncached_indices}")
+        else:
+            logger.info(f"[VIDEO CACHE] Skipping cache check for playlist because Always Ask mode is enabled: url={url}, quality={data}")
+            cached_videos = {}
+            uncached_indices = requested_indices
+            used_quality_key = data
         
         if cached_videos:
             # Reposting cached videos
@@ -1734,7 +1741,7 @@ def askq_callback(app, callback_query):
     subs_enabled = is_subs_enabled(user_id)
     auto_mode = get_user_subs_auto_mode(user_id)
     need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-    if not need_subs:
+    if not need_subs and not is_subs_always_ask(user_id):
 
         message_ids = get_cached_message_ids(url, data)
         if message_ids:
@@ -1839,6 +1846,11 @@ def askq_callback(app, callback_query):
                 # The video was already sent successfully in the try block
                 askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs)
             return
+    else:
+        if is_subs_always_ask(user_id):
+            logger.info(f"[VIDEO CACHE] Skipping cache check because Always Ask mode is enabled: url={url}, quality={data}")
+        else:
+            logger.info(f"[VIDEO CACHE] Skipping cache check because need_subs=True: url={url}, quality={data}")
     askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs)
 
 ###########################

@@ -827,6 +827,7 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
                 check_subs_availability,
                 is_subs_enabled,
                 get_user_subs_auto_mode,
+                is_subs_always_ask,
             )
         except Exception:
             check_subs_availability = None
@@ -837,8 +838,12 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
         subs_enabled = is_subs_enabled(user_id) if callable(is_subs_enabled) else False
         auto_mode = get_user_subs_auto_mode(user_id) if callable(get_user_subs_auto_mode) else False
         need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-        if need_subs:
-            logger.info("Video with subtitles is not cached!")
+        always_ask_mode = is_subs_always_ask(user_id) if callable(is_subs_always_ask) else False
+        if need_subs or always_ask_mode:
+            if always_ask_mode:
+                logger.info("Video with Always Ask mode enabled is not cached!")
+            else:
+                logger.info("Video with subtitles is not cached!")
             return
 
     logger.info(f"save_to_video_cache called: url={url}, quality_key={quality_key}, message_ids={message_ids}, clear={clear}, original_text={original_text}")
