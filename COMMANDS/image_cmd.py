@@ -538,8 +538,10 @@ def image_command(app, message):
         if range_count > max_img_files:
             safe_send_message(
                 user_id,
-                f"❗️ Range limit exceeded: {range_count} files requested (maximum {max_img_files}).\n"
-                f"Reduce the range and try again.",
+                f"❗️ Range limit exceeded: {range_count} files requested (maximum {max_img_files}).\n\n"
+                f"Use this command to download maximum available files:\n"
+                f"<code>/img 1-{max_img_files} {url}</code>",
+                parse_mode=enums.ParseMode.HTML,
                 reply_parameters=ReplyParameters(message_id=message.id)
             )
             return
@@ -621,8 +623,8 @@ def image_command(app, message):
             if detected_total > max_img_files:
                 safe_send_message(
                     user_id,
-                    f"❗️ Media limit exceeded: {detected_total} files found (maximum {max_img_files}).\n"
-                    f"Please specify a range manually:\n"
+                    f"❗️ Media limit exceeded: {detected_total} files found (maximum {max_img_files}).\n\n"
+                    f"Use this command to download maximum available files:\n"
                     f"<code>/img 1-{max_img_files} {url}</code>",
                     parse_mode=enums.ParseMode.HTML,
                     reply_parameters=ReplyParameters(message_id=message.id)

@@ -254,9 +254,25 @@ def check_playlist_range_limits(url, video_start_with, video_end_with, app, mess
 
     count = video_end_with - video_start_with + 1
     if count > max_count:
+        # Determine command type based on URL
+        if 'tiktok.com' in url_l:
+            command_type = "TikTok"
+        elif 'instagram.com' in url_l:
+            command_type = "Instagram" 
+        else:
+            command_type = "playlist"
+        
+        # Create suggested commands with maximum available range
+        suggested_command_url_format = f"{url}*{video_start_with}*{video_start_with + max_count - 1}"
+        suggested_command_vid_format = f"/vid {video_start_with}-{video_start_with + max_count - 1} {url}"
+        
         safe_send_message(
             message.chat.id,
-            f"❗️ Range limit exceeded for {service}: {count} (maximum {max_count}).\nReduce the range and try again.",
+            f"❗️ Range limit exceeded for {service}: {count} (maximum {max_count}).\n\n"
+            f"Use one of these commands to download maximum available files:\n\n"
+            f"<code>{suggested_command_url_format}</code>\n\n"
+            f"<code>{suggested_command_vid_format}</code>",
+            parse_mode=enums.ParseMode.HTML,
             reply_to_message_id=message.id
         )
         # We send a notification to the log channel
