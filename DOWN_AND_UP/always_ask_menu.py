@@ -1956,7 +1956,7 @@ def show_manual_quality_menu(app, callback_query):
         need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
         
         if need_subs:
-            keyboard_rows.append([InlineKeyboardButton("💬Subs", callback_data="askq|subs_only")])
+            keyboard_rows.append([InlineKeyboardButton("📝sub only", callback_data="askq|subs_only")])
     
     # Add Back and close buttons
     keyboard_rows.append([
@@ -3646,7 +3646,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
             
             if need_subs:
-                action_buttons.append(InlineKeyboardButton("💬Subs", callback_data="askq|subs_only"))
+                action_buttons.append(InlineKeyboardButton("📝sub only", callback_data="askq|subs_only"))
         
         # Smart grouping of action buttons - prefer 3 buttons per row, then 2, avoid single buttons
         logger.info(f"Smart grouping {len(action_buttons)} action buttons for user {user_id}")

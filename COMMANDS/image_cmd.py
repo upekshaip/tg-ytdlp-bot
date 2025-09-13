@@ -1186,6 +1186,12 @@ def image_command(app, message):
                                     
                                     # Determine correct log channel based on media type and chat type
                                     is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                                    # ЖЕСТКО: При фоллбэке через fake_message определяем is_private_chat по оригинальному chat_id
+                                    if hasattr(message, '_is_fake_message') and message._is_fake_message:
+                                        original_chat_id = getattr(message, '_original_chat_id', user_id)
+                                        # Если chat_id начинается с -100, это группа/канал (не приватный чат)
+                                        is_private_chat = not (str(original_chat_id).startswith('-100') or str(original_chat_id).startswith('-'))
+                                        logger.info(f"[IMG LOG] FAKE MESSAGE DETECTED - original_chat_id={original_chat_id}, is_private_chat={is_private_chat}")
                                     is_paid_media = nsfw_flag and is_private_chat
                                     
                                     # ЖЕСТКО: Отправка в лог-каналы должна быть ВНЕ цикла, только один раз для всего альбома
@@ -1253,7 +1259,8 @@ def image_command(app, message):
                                                 if isinstance(_media_obj, InputMediaPhoto):
                                                     nsfw_log_media_group.append(InputMediaPhoto(
                                                         media=_media_obj.media,
-                                                        caption=caption
+                                                        caption=caption,
+                                                        has_spoiler=True
                                                     ))
                                                 else:
                                                     nsfw_log_media_group.append(InputMediaVideo(
@@ -1262,7 +1269,8 @@ def image_command(app, message):
                                                         duration=getattr(_media_obj, 'duration', None),
                                                         width=getattr(_media_obj, 'width', None),
                                                         height=getattr(_media_obj, 'height', None),
-                                                        thumb=getattr(_media_obj, 'thumb', None)
+                                                        thumb=getattr(_media_obj, 'thumb', None),
+                                                        has_spoiler=True
                                                     ))
                                             
                                             # Send as album to NSFW log channel
