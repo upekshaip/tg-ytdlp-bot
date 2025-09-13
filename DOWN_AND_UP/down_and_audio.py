@@ -159,7 +159,7 @@ def embed_cover_mp3(mp3_path, cover_path, title=None, artist=None, album=None):
         return False
 
 # @reply_with_keyboard
-def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None, video_count=1, video_start_with=1, format_override=None, cookies_already_checked=False, use_proxy=False):
+def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None, video_count=1, video_start_with=1, format_override=None, cookies_already_checked=False, use_proxy=False, http_headers=None):
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
     """
@@ -620,6 +620,11 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                'writesubtitles': False,  # Disable subtitles for audio
                'writeautomaticsub': False,  # Disable auto subtitles for audio
             }
+            
+            # Add HTTP headers if provided
+            if http_headers:
+                from URL_PARSERS.http_headers import add_http_headers_to_ytdl_opts
+                ytdl_opts = add_http_headers_to_ytdl_opts(ytdl_opts, http_headers)
             
             # Check if we need to use --no-cookies for this domain
             if is_no_cookie_domain(url):

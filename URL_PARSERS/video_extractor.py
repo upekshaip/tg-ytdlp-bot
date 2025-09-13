@@ -6,6 +6,7 @@ from HELPERS.logger import send_to_logger, send_to_all, logger
 from HELPERS.filesystem_hlp import create_directory
 from URL_PARSERS.tags import extract_url_range_tags, save_user_tags, get_auto_tags
 from URL_PARSERS.tiktok import is_tiktok_url
+from URL_PARSERS.http_headers import extract_url_and_headers
 from DOWN_AND_UP.always_ask_menu import ask_quality_menu
 from DOWN_AND_UP.down_and_up import down_and_up
 from HELPERS.download_status import playlist_errors, playlist_errors_lock
@@ -39,13 +40,15 @@ def video_url_extractor(app, message):
             saved_format = fmt
 
     if should_ask:
-        url, video_start_with, _, _, tags, _, tag_error = extract_url_range_tags(message.text)
+        # Extract URL and headers first
+        clean_text, http_headers = extract_url_and_headers(message.text)
+        url, video_start_with, _, _, tags, _, tag_error = extract_url_range_tags(clean_text)
         # Add tag error check
         if tag_error:
             wrong, example = tag_error
             app.send_message(user_id, f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}", reply_parameters=ReplyParameters(message_id=message.id))
             return
-        ask_quality_menu(app, message, url, tags, video_start_with)
+        ask_quality_menu(app, message, url, tags, video_start_with, http_headers)
         return
 
     # This code is executed only if the user has selected a specific format
@@ -59,8 +62,10 @@ def video_url_extractor(app, message):
         return
         
     full_string = message.text
+    # Extract URL and headers first
+    clean_text, http_headers = extract_url_and_headers(full_string)
     # Also add tag error check here
-    url, video_start_with, video_end_with, playlist_name, tags, tags_text, tag_error = extract_url_range_tags(full_string)
+    url, video_start_with, video_end_with, playlist_name, tags, tags_text, tag_error = extract_url_range_tags(clean_text)
     if tag_error:
         wrong, example = tag_error
         app.send_message(user_id, f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}", reply_parameters=ReplyParameters(message_id=message.id))
@@ -143,8 +148,8 @@ def video_url_extractor(app, message):
         
         # --- Pass title='' for TikTok, otherwise as usual ---
         if is_tiktok:
-            down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full, force_no_title=True, format_override=saved_format, quality_key=quality_key)
+            down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full, force_no_title=True, format_override=saved_format, quality_key=quality_key, http_headers=http_headers)
         else:
-            down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full, format_override=saved_format, quality_key=quality_key)
+            down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full, format_override=saved_format, quality_key=quality_key, http_headers=http_headers)
     else:
         send_to_all(message, f"<b>User entered like this:</b> {full_string}\n{Config.ERROR1}")

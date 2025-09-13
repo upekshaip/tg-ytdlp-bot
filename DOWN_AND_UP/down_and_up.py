@@ -85,7 +85,7 @@ def determine_need_subs(subs_enabled, found_type, user_id):
         return (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
 
 #@reply_with_keyboard
-def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None, cookies_already_checked=False, use_proxy=False):
+def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None, cookies_already_checked=False, use_proxy=False, http_headers=None):
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
     """
@@ -376,7 +376,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         required_bytes = 2 * 1024 * 1024 * 1024
         try:
             from DOWN_AND_UP.yt_dlp_hook import get_video_formats
-            info_probe = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked)
+            info_probe = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked, http_headers=http_headers)
             size = 0
             if isinstance(info_probe, dict):
                 size = info_probe.get('filesize') or info_probe.get('filesize_approx') or 0
@@ -659,6 +659,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 #'connect_timeout': 30  # Connect timeout
             }
             
+            # Add HTTP headers if provided
+            if http_headers:
+                from URL_PARSERS.http_headers import add_http_headers_to_ytdl_opts
+                common_opts = add_http_headers_to_ytdl_opts(common_opts, http_headers)
+            
             # Check subtitle availability for YouTube videos (but don't download them here)
             if is_youtube_url(url):
                 subs_lang = get_user_subs_language(user_id)
@@ -819,7 +824,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 from DOWN_AND_UP.yt_dlp_hook import get_video_formats
                 
                 logger.info("Checking available formats...")
-                check_info = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked, use_proxy=use_proxy)
+                check_info = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked, use_proxy=use_proxy, http_headers=http_headers)
                 logger.info("Format check completed")
                 
                 # Check if requested format exists

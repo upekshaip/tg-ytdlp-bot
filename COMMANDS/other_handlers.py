@@ -74,7 +74,10 @@ def audio_command_handler(app, message):
                         text = f"/audio {url_candidate}*{start_val}*"
     except Exception:
         pass
-    url, _, _, _, tags, tags_text, tag_error = extract_url_range_tags(text)
+    # Extract HTTP headers from URL if present
+    from URL_PARSERS.http_headers import extract_url_and_headers
+    clean_text, http_headers = extract_url_and_headers(text)
+    url, _, _, _, tags, tags_text, tag_error = extract_url_range_tags(clean_text)
     if tag_error:
         wrong, example = tag_error
         safe_send_message(user_id, f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}", reply_parameters=ReplyParameters(message_id=message.id))
@@ -110,7 +113,7 @@ def audio_command_handler(app, message):
     if not check_playlist_range_limits(url, video_start_with, video_end_with, app, message):
         return
     
-    down_and_audio(app, message, url, tags, quality_key="mp3", playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with, format_override="ba")
+    down_and_audio(app, message, url, tags, quality_key="mp3", playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with, format_override="ba", http_headers=http_headers)
 
 
 # /Link Command

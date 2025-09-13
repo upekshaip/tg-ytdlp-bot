@@ -56,7 +56,7 @@ def parse_quality_argument(quality_arg):
     except ValueError:
         return "best"
 
-def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=False, use_proxy=False):
+def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=False, use_proxy=False, http_headers=None):
     """
     Gets direct link to video using yt-dlp
     
@@ -95,6 +95,11 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
             'check_certificate': False,
             'live_from_start': True
         }
+        
+        # Add HTTP headers if provided
+        if http_headers:
+            from URL_PARSERS.http_headers import add_http_headers_to_ytdl_opts
+            ytdl_opts = add_http_headers_to_ytdl_opts(ytdl_opts, http_headers)
         
         # Cookie setup
         user_dir = os.path.join("users", str(user_id))
@@ -328,6 +333,11 @@ def link_command(app, message):
             quality_arg = parts[1]
             url = ' '.join(parts[2:])
         
+        # Extract HTTP headers from URL if present
+        from URL_PARSERS.http_headers import extract_url_and_headers
+        clean_url, http_headers = extract_url_and_headers(url)
+        url = clean_url
+        
         # Check if this is a URL
         if not url.startswith(('http://', 'https://')):
             send_to_user(message, "❌ Please provide a valid URL")
@@ -337,7 +347,7 @@ def link_command(app, message):
         status_msg = app.send_message(user_id, "🔗 Getting direct link...", reply_to_message_id=message.id)
         
         # Get direct link - use proxy only if user has proxy enabled and domain requires it
-        result = get_direct_link(url, user_id, quality_arg, use_proxy=False)
+        result = get_direct_link(url, user_id, quality_arg, use_proxy=False, http_headers=http_headers)
         
         if result.get('success'):
             title = result.get('title', 'Unknown')

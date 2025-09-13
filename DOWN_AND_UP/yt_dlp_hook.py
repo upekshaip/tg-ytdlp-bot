@@ -8,7 +8,7 @@ from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url
 from HELPERS.pot_helper import add_pot_to_ytdl_opts
 
-def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already_checked=False, use_proxy=False):
+def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already_checked=False, use_proxy=False, http_headers=None):
     ytdl_opts = {
         'quiet': True,
         'skip_download': True,
@@ -30,6 +30,12 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
         'check_certificate': False,
         'live_from_start': True
     }
+    
+    # Add HTTP headers if provided
+    if http_headers:
+        from URL_PARSERS.http_headers import add_http_headers_to_ytdl_opts
+        ytdl_opts = add_http_headers_to_ytdl_opts(ytdl_opts, http_headers)
+    
     if user_id is not None:
         user_dir = os.path.join("users", str(user_id))
         # Check the availability of cookie.txt in the user folder
