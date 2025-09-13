@@ -522,7 +522,11 @@ def image_command(app, message):
     # Check range limits if manual range is specified (before URL analysis)
     if manual_range:
         range_count = manual_range[1] - manual_range[0] + 1
-        max_img_files = LimitsConfig.MAX_IMG_FILES
+        # Use TikTok limit if URL is TikTok, otherwise use general image limit
+        if 'tiktok.com' in url.lower():
+            max_img_files = LimitsConfig.MAX_TIKTOK_COUNT
+        else:
+            max_img_files = LimitsConfig.MAX_IMG_FILES
         # Apply group multiplier for groups/channels
         try:
             if message and getattr(message.chat, 'type', None) != enums.ChatType.PRIVATE:
@@ -580,8 +584,8 @@ def image_command(app, message):
         # Create user directory
         user_dir = os.path.join("users", str(user_id))
         create_directory(user_dir)
-        # Admin users have no limit, regular users have MAX_IMG_FILES limit
-        total_limit = float('inf') if is_admin else LimitsConfig.MAX_IMG_FILES
+        # All users have MAX_IMG_FILES limit (including admins for testing)
+        total_limit = LimitsConfig.MAX_IMG_FILES
         
         # Apply group multiplier for groups/channels
         try:
@@ -600,7 +604,11 @@ def image_command(app, message):
         
         # Check limits after detecting total media count
         if detected_total and detected_total > 0:
-            max_img_files = LimitsConfig.MAX_IMG_FILES
+            # Use TikTok limit if URL is TikTok, otherwise use general image limit
+            if 'tiktok.com' in url.lower():
+                max_img_files = LimitsConfig.MAX_TIKTOK_COUNT
+            else:
+                max_img_files = LimitsConfig.MAX_IMG_FILES
             # Apply group multiplier for groups/channels
             try:
                 if message and getattr(message.chat, 'type', None) != enums.ChatType.PRIVATE:
