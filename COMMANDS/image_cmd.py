@@ -113,11 +113,83 @@ def generate_video_thumbnail(video_path):
     except Exception:
         return None
 
-def ensure_paid_cover(video_path, existing_thumb=None):
+def ensure_paid_cover_embedded(video_path, existing_thumb=None):
     """Ensure a small JPEG cover (~<=320x320) with сохранением пропорций (паддинг), для платных медиа."""
     try:
         if not _should_generate_cover(video_path):
             return None
+        # Prefer an existing thumb if available
+        if existing_thumb and os.path.exists(existing_thumb) and os.path.getsize(existing_thumb) > 0:
+            return existing_thumb
+        base_dir = os.path.dirname(video_path)
+        base_name = os.path.splitext(os.path.basename(video_path))[0]
+        cover_path = os.path.join(base_dir, base_name + '.__tgcover_paid.jpg')
+        if os.path.exists(cover_path) and os.path.getsize(cover_path) > 0:
+            return cover_path
+        # 320x320 максимум: уменьшаем c сохранением пропорций, затем pad до 320x320; стараемся держать файл маленьким
+        subprocess.run([
+            'ffmpeg', '-y', '-i', video_path,
+            '-vf', 'scale=320:320:force_original_aspect_ratio=decrease,pad=320:320:(ow-iw)/2:(oh-ih)/2:black',
+            '-vframes', '1', '-q:v', '4', cover_path
+        ], capture_output=True, text=True, timeout=30)
+        if os.path.exists(cover_path) and os.path.getsize(cover_path) > 0:
+            return cover_path
+        # Fallback to regular thumb if padding failed
+        reg_thumb = generate_video_thumbnail(video_path)
+        return reg_thumb if reg_thumb and os.path.getsize(reg_thumb) > 0 else None
+    except Exception:
+        return None
+
+def ensure_paid_cover_embedded(video_path, existing_thumb=None):
+    """Ensure a small JPEG cover (~<=320x320) with сохранением пропорций (паддинг), для платных медиа.
+    For videos >60s or >10MB, also embed the cover into the video file itself."""
+    try:
+        if not _should_generate_cover(video_path):
+            return None
+        
+        # First, generate the cover image
+        cover_path = _generate_paid_cover_image(video_path, existing_thumb)
+        if not cover_path:
+            return None
+            
+        # For videos that need cover embedding (long duration or large size), embed the cover
+        try:
+            duration = _get_video_duration_seconds(video_path)
+            size_mb = _get_file_mb(video_path)
+            
+            if (duration >= 60.0) or (size_mb >= 10.0):
+                # Create embedded version
+                base_dir = os.path.dirname(video_path)
+                base_name = os.path.splitext(os.path.basename(video_path))[0]
+                embedded_path = os.path.join(base_dir, base_name + '.__embedded_cover.mp4')
+                
+                # Embed cover into video using ffmpeg
+                subprocess.run([
+                    'ffmpeg', '-y', '-i', video_path, '-i', cover_path,
+                    '-map', '0:v', '-map', '0:a', '-map', '1:v',
+                    '-c:v', 'libx264', '-c:a', 'copy',
+                    '-disposition:v:0', 'default',
+                    '-disposition:v:1', 'attached_pic',
+                    '-metadata:s:v:1', 'title=Cover',
+                    '-metadata:s:v:1', 'comment=Cover (front)',
+                    embedded_path
+                ], capture_output=True, text=True, timeout=120)
+                
+                if os.path.exists(embedded_path) and os.path.getsize(embedded_path) > 0:
+                    # Replace original with embedded version
+                    os.replace(embedded_path, video_path)
+                    logger.info(f"[IMG PAID] Embedded cover into video: {video_path}")
+        except Exception as e:
+            logger.warning(f"[IMG PAID] Failed to embed cover into video {video_path}: {e}")
+            # Continue with just the cover file
+        
+        return cover_path
+    except Exception:
+        return None
+
+def _generate_paid_cover_image(video_path, existing_thumb=None):
+    """Generate the cover image file (internal helper for ensure_paid_cover_embedded)."""
+    try:
         # Prefer an existing thumb if available
         if existing_thumb and os.path.exists(existing_thumb) and os.path.getsize(existing_thumb) > 0:
             return existing_thumb
@@ -826,93 +898,234 @@ def image_command(app, message):
                                             has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
                                         ))
                             try:
+                                # Initialize sent variable
+                                sent = []
                                 # For paid media, only send in private chats (not groups/channels)
                                 is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                                logger.info(f"[IMG MAIN] nsfw_flag={nsfw_flag}, is_private_chat={is_private_chat}, media_group_len={len(media_group)}")
                                 if nsfw_flag and is_private_chat:
-                                    # Send each file individually as paid media (Telegram doesn't support paid media groups)
-                                    sent = []
-                                    for m in media_group:
-                                        try:
+                                    logger.info(f"[IMG MAIN] Entering paid media logic for {len(media_group)} items")
+                                    # Send as paid media album (up to 10 media files)
+                                    try:
+                                        # Convert media group to paid media format
+                                        paid_media_list = []
+                                        for m in media_group:
                                             if isinstance(m, InputMediaPhoto):
-                                                paid_msg = app.send_paid_media(
-                                    user_id,
-                                                    media=[InputPaidMediaPhoto(media=m.media)],
-                                                    star_count=LimitsConfig.NSFW_STAR_COST,
-                                                    payload=str(Config.STAR_RECEIVER),
-                                                    reply_parameters=ReplyParameters(message_id=message.id)
-                                                )
+                                                paid_media_list.append(InputPaidMediaPhoto(media=m.media))
                                             else:
                                                 # Ensure cover for paid media and pass explicit metadata
                                                 media_path = m.media
                                                 vinfo_paid = _probe_video_info(media_path)
-                                                _cover = ensure_paid_cover(media_path, getattr(m, 'thumb', None))
+                                                _cover = ensure_paid_cover_embedded(media_path, getattr(m, 'thumb', None))
                                                 try:
-                                                    paid_msg = app.send_paid_media(
-                                                        user_id,
-                                                        media=[InputPaidMediaVideo(
+                                                    paid_media_list.append(InputPaidMediaVideo(
                                                             media=media_path,
                                                             cover=_cover,
                                                             width=vinfo_paid.get('width'),
                                                             height=vinfo_paid.get('height'),
                                                             duration=vinfo_paid.get('duration'),
                                                             supports_streaming=True
-                                                        )],
-                                                        star_count=LimitsConfig.NSFW_STAR_COST,
-                                                        payload=str(Config.STAR_RECEIVER),
-                                                        reply_parameters=ReplyParameters(message_id=message.id)
-                                                    )
+                                                    ))
                                                 except TypeError:
-                                                    paid_msg = app.send_paid_media(
-                                                        user_id,
-                                                        media=[InputPaidMediaVideo(media=media_path)],
-                                                        star_count=LimitsConfig.NSFW_STAR_COST,
-                                                        payload=str(Config.STAR_RECEIVER),
-                                                        reply_parameters=ReplyParameters(message_id=message.id)
-                                                    )
+                                                    paid_media_list.append(InputPaidMediaVideo(media=media_path))
+                                        
+                                        # Send as single paid media album
+                                        logger.info(f"[IMG PAID] Sending paid media album with {len(paid_media_list)} items")
+                                        logger.info(f"[IMG PAID] Media types: {[type(item).__name__ for item in paid_media_list]}")
+                                        # Try to send as album first, if that fails, send individually
+                                        try:
+                                            logger.info(f"[IMG PAID] Attempting to send album with {len(paid_media_list)} items to user {user_id}")
+                                            logger.info(f"[IMG PAID] Album details: star_count={LimitsConfig.NSFW_STAR_COST}, payload={Config.STAR_RECEIVER}")
+                                            
+                                            paid_msg = app.send_paid_media(
+                                                user_id,
+                                                media=paid_media_list,
+                                                star_count=LimitsConfig.NSFW_STAR_COST,
+                                                payload=str(Config.STAR_RECEIVER),
+                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                            )
+                                            
+                                            logger.info(f"[IMG PAID] SUCCESS: send_paid_media returned: {type(paid_msg)}")
+                                            logger.info(f"[IMG PAID] SUCCESS: Response details: {paid_msg}")
+                                            
                                             if isinstance(paid_msg, list):
+                                                logger.info(f"[IMG PAID] SUCCESS: Received list of {len(paid_msg)} messages")
                                                 sent.extend(paid_msg)
                                             elif paid_msg is not None:
+                                                logger.info(f"[IMG PAID] SUCCESS: Received single message with ID: {getattr(paid_msg, 'id', 'unknown')}")
                                                 sent.append(paid_msg)
+                                            else:
+                                                logger.warning(f"[IMG PAID] SUCCESS: Received None response from send_paid_media")
                                                 
-                                                # Send open copy to NSFW channel for history
-                                                try:
-                                                    # В лог (NSFW history) отправляем с тегами на каждом фото
-                                                    caption = (tags_text_norm or "")
-                                                    is_video = not isinstance(m, InputMediaPhoto)
-                                                    _send_open_copy_to_nsfw_channel(
-                                                        file_path=m.media,
-                                                        caption=caption,
-                                                        user_id=user_id,
-                                                        message_id=message.id,
-                                                        is_video=is_video
-                                                    )
-                                                except Exception as e:
-                                                    logger.error(f"[IMG LOG] Failed to send open copy for album item: {e}")
                                         except Exception as e:
-                                            logger.error(f"Failed to send individual paid media: {e}")
-                                            # Fallback to regular media
+                                            logger.error(f"[IMG PAID] FAILED: send_paid_media album failed with error: {e}")
+                                            logger.error(f"[IMG PAID] FAILED: Error type: {type(e)}")
+                                            logger.error(f"[IMG PAID] FAILED: Error details: {str(e)}")
+                                            # Fallback: send individually as paid media with same reply_parameters
+                                            for i, paid_media in enumerate(paid_media_list):
+                                                try:
+                                                    # Use same reply_parameters for all to group them
+                                                    individual_msg = app.send_paid_media(
+                                                        user_id,
+                                                        media=[paid_media],
+                                                        star_count=LimitsConfig.NSFW_STAR_COST,
+                                                        payload=str(Config.STAR_RECEIVER),
+                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                    )
+                                                    if isinstance(individual_msg, list):
+                                                        sent.extend(individual_msg)
+                                                    elif individual_msg is not None:
+                                                        sent.append(individual_msg)
+                                                    # Small delay between messages to help grouping
+                                                    if i < len(paid_media_list) - 1:
+                                                        time.sleep(0.1)
+                                                except Exception as e2:
+                                                    logger.error(f"[IMG PAID] Individual paid media failed: {e2}")
+                                        
+                                        # Send open copies to NSFW channel for history (as album)
+                                        try:
+                                            # Create media group for open copy
+                                            open_media_group = []
+                                            for m in media_group:
+                                                caption = (tags_text_norm or "")
+                                                if isinstance(m, InputMediaPhoto):
+                                                    open_media_group.append(InputMediaPhoto(
+                                                        media=m.media,
+                                                        caption=caption if len(open_media_group) == 0 else None,  # Only first item gets caption
+                                                        has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
+                                                    ))
+                                                else:
+                                                    open_media_group.append(InputMediaVideo(
+                                                        media=m.media,
+                                                        thumb=getattr(m, 'thumb', None),
+                                                        width=getattr(m, 'width', None),
+                                                        height=getattr(m, 'height', None),
+                                                        duration=getattr(m, 'duration', None),
+                                                        caption=caption if len(open_media_group) == 0 else None,  # Only first item gets caption
+                                                        has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
+                                                    ))
+                                            
+                                            # Send open copy as album to NSFW channel
+                                            log_channel_nsfw = getattr(Config, "LOGS_NSFW_ID", 0)
+                                            open_sent = app.send_media_group(
+                                                chat_id=log_channel_nsfw,
+                                                media=open_media_group,
+                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                            )
+                                            logger.info(f"[IMG LOG] Open copy album sent to NSFW channel for history: {len(open_media_group)} items")
+                                        except Exception as e:
+                                            logger.error(f"[IMG LOG] Failed to send open copy album to NSFW channel: {e}")
+                                            
+                                    except Exception as e:
+                                        logger.error(f"Failed to send paid media album: {e}")
+                                        # Send as paid media album with fallback to individual with grouping
+                                        sent = []
+                                        logger.info(f"[IMG MAIN FALLBACK] Attempting to send {len(media_group)} media as paid album")
+                                        
+                                        # Convert media group to paid media format
+                                        paid_media_list = []
+                                        for m in media_group:
                                             if isinstance(m, InputMediaPhoto):
-                                                fallback_msg = app.send_photo(
+                                                paid_media_list.append(InputPaidMediaPhoto(media=m.media))
+                                            else:
+                                                # Ensure cover for paid media and pass explicit metadata
+                                                media_path = m.media
+                                                vinfo_paid = _probe_video_info(media_path)
+                                                _cover = ensure_paid_cover_embedded(media_path, getattr(m, 'thumb', None))
+                                                try:
+                                                    paid_media_list.append(InputPaidMediaVideo(
+                                                        media=media_path,
+                                                        cover=_cover,
+                                                        width=vinfo_paid.get('width'),
+                                                        height=vinfo_paid.get('height'),
+                                                        duration=vinfo_paid.get('duration'),
+                                                        supports_streaming=True
+                                                    ))
+                                                except TypeError:
+                                                    paid_media_list.append(InputPaidMediaVideo(media=media_path))
+                                        
+                                        # Try to send as album first, if that fails, send individually with grouping
+                                        try:
+                                            logger.info(f"[IMG MAIN FALLBACK] Attempting to send album with {len(paid_media_list)} items to user {user_id}")
+                                            logger.info(f"[IMG MAIN FALLBACK] Album details: star_count={LimitsConfig.NSFW_STAR_COST}, payload={Config.STAR_RECEIVER}")
+                                            
+                                            paid_msg = app.send_paid_media(
                                                     user_id,
-                                                    photo=m.media,
-                                                    caption=m.caption,
-                                                    has_spoiler=False,
+                                                media=paid_media_list,
+                                                star_count=LimitsConfig.NSFW_STAR_COST,
+                                                payload=str(Config.STAR_RECEIVER),
                                                     reply_parameters=ReplyParameters(message_id=message.id)
                                                 )
+                                            
+                                            logger.info(f"[IMG MAIN FALLBACK] SUCCESS: send_paid_media returned: {type(paid_msg)}")
+                                            logger.info(f"[IMG MAIN FALLBACK] SUCCESS: Response details: {paid_msg}")
+                                            
+                                            if isinstance(paid_msg, list):
+                                                logger.info(f"[IMG MAIN FALLBACK] SUCCESS: Received list of {len(paid_msg)} messages")
+                                                sent.extend(paid_msg)
+                                            elif paid_msg is not None:
+                                                logger.info(f"[IMG MAIN FALLBACK] SUCCESS: Received single message with ID: {getattr(paid_msg, 'id', 'unknown')}")
+                                                sent.append(paid_msg)
                                             else:
-                                                fallback_msg = app.send_video(
+                                                logger.warning(f"[IMG MAIN FALLBACK] SUCCESS: Received None response from send_paid_media")
+                                                
+                                        except Exception as e:
+                                            logger.error(f"[IMG MAIN FALLBACK] FAILED: send_paid_media album failed with error: {e}")
+                                            logger.error(f"[IMG MAIN FALLBACK] FAILED: Error type: {type(e)}")
+                                            logger.error(f"[IMG MAIN FALLBACK] FAILED: Error details: {str(e)}")
+                                            # Fallback: send individually as paid media with same reply_parameters for grouping
+                                            for i, paid_media in enumerate(paid_media_list):
+                                                try:
+                                                    # Use same reply_parameters for all to group them
+                                                    individual_msg = app.send_paid_media(
                                                     user_id,
-                                                    video=m.media,
-                                                    caption=m.caption,
-                                                    duration=m.duration,
-                                                    width=m.width,
-                                                    height=m.height,
-                                                    thumb=m.thumb,
-                                                    has_spoiler=False,
-                                    reply_parameters=ReplyParameters(message_id=message.id),
-                                    message_thread_id=getattr(message, 'message_thread_id', None)
-                                                )
-                                            sent.extend(fallback_msg)
+                                                        media=[paid_media],
+                                                        star_count=LimitsConfig.NSFW_STAR_COST,
+                                                        payload=str(Config.STAR_RECEIVER),
+                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                    )
+                                                    if isinstance(individual_msg, list):
+                                                        sent.extend(individual_msg)
+                                                    elif individual_msg is not None:
+                                                        sent.append(individual_msg)
+                                                    # Small delay between messages to help grouping
+                                                    if i < len(paid_media_list) - 1:
+                                                        time.sleep(0.1)
+                                                except Exception as e2:
+                                                    logger.error(f"[IMG MAIN FALLBACK] Individual paid media failed: {e2}")
+                                        
+                                        # Send open copy to NSFW channel for history as album
+                                        try:
+                                            open_media_group = []
+                                            for m in media_group:
+                                                caption = (tags_text_norm or "") if len(open_media_group) == 0 else None
+                                                if isinstance(m, InputMediaPhoto):
+                                                    open_media_group.append(InputMediaPhoto(
+                                                        media=m.media,
+                                                        caption=caption,
+                                                        has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
+                                                    ))
+                                                else:
+                                                    open_media_group.append(InputMediaVideo(
+                                                        media=m.media,
+                                                        thumb=getattr(m, 'thumb', None),
+                                                        width=getattr(m, 'width', None),
+                                                        height=getattr(m, 'height', None),
+                                                        duration=getattr(m, 'duration', None),
+                                                        caption=caption,
+                                                        has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
+                                                    ))
+                                            
+                                            # Send open copy as album to NSFW channel
+                                            log_channel_nsfw = getattr(Config, "LOGS_NSFW_ID", 0)
+                                            open_sent = app.send_media_group(
+                                                chat_id=log_channel_nsfw,
+                                                media=open_media_group,
+                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                            )
+                                            logger.info(f"[IMG LOG] Open copy album sent to NSFW channel for history: {len(open_media_group)} items")
+                                        except Exception as e:
+                                            logger.error(f"[IMG LOG] Failed to send open copy album to NSFW channel: {e}")
                                 else:
                                     # In groups/channels or non-NSFW content, send as regular media group
                                     attempts = 0
@@ -969,68 +1182,135 @@ def image_command(app, message):
                                         try:
                                             if is_paid_media:
                                                 # For NSFW content in private chat, send to both channels but don't cache
-                                                # Send to LOGS_PAID_ID (for paid content)
+                                                # Add delay to allow Telegram to process paid media before sending to log channels
+                                                time.sleep(2.0)
+                                                
+                                                # Send to LOGS_PAID_ID (for paid content) - forward the paid message
                                                 log_channel_paid = get_log_channel("image", nsfw=False, paid=True)
                                                 try:
-                                                    # Отправляем копию каждого медиа с тегами, а не форвард, чтобы теги были на каждом фото
-                                                    try:
-                                                        # Найдём исходный media объект по id
-                                                        _idx = orig_ids.index(_mid)
-                                                        _media_obj = media_group[_idx]
-                                                        if isinstance(_media_obj, InputMediaPhoto):
-                                                            _sent = app.send_photo(chat_id=log_channel_paid, photo=_media_obj.media, caption=(tags_text_norm or None))
-                                                        else:
-                                                            _sent = app.send_video(chat_id=log_channel_paid, video=_media_obj.media, caption=(tags_text_norm or None), duration=getattr(_media_obj, 'duration', None), width=getattr(_media_obj, 'width', None), height=getattr(_media_obj, 'height', None), thumb=getattr(_media_obj, 'thumb', None))
-                                                    except Exception as _se:
-                                                        logger.error(f"[IMG LOG] send to paid log failed for media index={_idx}: {_se}")
-                                                    time.sleep(0.05)
+                                                    # Forward the paid message to paid log channel
+                                                    app.forward_messages(
+                                                        chat_id=log_channel_paid,
+                                                        from_chat_id=user_id,
+                                                        message_ids=[msg.id for msg in sent if msg is not None]
+                                                    )
+                                                    logger.info(f"[IMG LOG] Paid media message forwarded to PAID channel")
                                                 except Exception as fe:
-                                                    logger.error(f"[IMG LOG] forward_messages failed for paid media id={_mid}: {fe}")
+                                                    logger.error(f"[IMG LOG] Failed to forward paid media to PAID channel: {fe}")
                                                 
-                                                # Send to LOGS_NSFW_ID (for history) - open copy is sent directly after paid media creation
-                                                # No need to forward paid media here as open copy is already sent
-                                                logger.info(f"[IMG LOG] Open copy for album message {_mid} already sent during paid media creation")
+                                                # Send to LOGS_NSFW_ID (for history) - send open copy as album
+                                                log_channel_nsfw = get_log_channel("image", nsfw=True, paid=False)
+                                                try:
+                                                    # Create media group for NSFW log channel (open copy)
+                                                    nsfw_log_media_group = []
+                                                    for _idx, _media_obj in enumerate(media_group):
+                                                        caption = (tags_text_norm or "") if _idx == 0 else None  # Only first item gets caption
+                                                        if isinstance(_media_obj, InputMediaPhoto):
+                                                            nsfw_log_media_group.append(InputMediaPhoto(
+                                                                media=_media_obj.media,
+                                                                caption=caption
+                                                            ))
+                                                        else:
+                                                            nsfw_log_media_group.append(InputMediaVideo(
+                                                                media=_media_obj.media,
+                                                                caption=caption,
+                                                                duration=getattr(_media_obj, 'duration', None),
+                                                                width=getattr(_media_obj, 'width', None),
+                                                                height=getattr(_media_obj, 'height', None),
+                                                                thumb=getattr(_media_obj, 'thumb', None)
+                                                            ))
+                                                    
+                                                    # Send as album to NSFW log channel
+                                                    nsfw_log_sent = app.send_media_group(
+                                                        chat_id=log_channel_nsfw,
+                                                        media=nsfw_log_media_group,
+                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                    )
+                                                    logger.info(f"[IMG LOG] Open copy album sent to NSFW channel: {len(nsfw_log_media_group)} items")
+                                                except Exception as fe:
+                                                    logger.error(f"[IMG LOG] Failed to send open copy album to NSFW channel: {fe}")
                                                 
                                                 # Don't cache NSFW content
                                                 logger.info(f"[IMG LOG] NSFW content sent to both channels (paid + history), not cached")
                                                 
                                             elif nsfw_flag and not is_private_chat:
-                                                # NSFW content in groups -> LOGS_NSFW_ID only
+                                                # NSFW content in groups -> LOGS_NSFW_ID only - send as album
                                                 log_channel = get_log_channel("image", nsfw=True, paid=False)
                                                 try:
-                                                    # Отправляем копию каждого медиа с тегами
-                                                    _idx = orig_ids.index(_mid)
-                                                    _media_obj = media_group[_idx]
+                                                    # Create media group for NSFW log channel
+                                                    nsfw_log_media_group = []
+                                                    for _idx, _media_obj in enumerate(media_group):
+                                                        caption = (tags_text_norm or "") if _idx == 0 else None  # Only first item gets caption
                                                     if isinstance(_media_obj, InputMediaPhoto):
-                                                        _sent = app.send_photo(chat_id=log_channel, photo=_media_obj.media, caption=(tags_text_norm or None))
+                                                            nsfw_log_media_group.append(InputMediaPhoto(
+                                                                media=_media_obj.media,
+                                                                caption=caption
+                                                            ))
                                                     else:
-                                                        _sent = app.send_video(chat_id=log_channel, video=_media_obj.media, caption=(tags_text_norm or None), duration=getattr(_media_obj, 'duration', None), width=getattr(_media_obj, 'width', None), height=getattr(_media_obj, 'height', None), thumb=getattr(_media_obj, 'thumb', None))
-                                                    time.sleep(0.05)
+                                                            nsfw_log_media_group.append(InputMediaVideo(
+                                                                media=_media_obj.media,
+                                                                caption=caption,
+                                                                duration=getattr(_media_obj, 'duration', None),
+                                                                width=getattr(_media_obj, 'width', None),
+                                                                height=getattr(_media_obj, 'height', None),
+                                                                thumb=getattr(_media_obj, 'thumb', None)
+                                                            ))
+                                                    
+                                                    # Send as album to NSFW log channel
+                                                    nsfw_log_sent = app.send_media_group(
+                                                        chat_id=log_channel,
+                                                        media=nsfw_log_media_group,
+                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                    )
+                                                    logger.info(f"[IMG LOG] NSFW media album sent to NSFW channel: {len(nsfw_log_media_group)} items")
                                                 except Exception as fe:
-                                                    logger.error(f"[IMG LOG] forward_messages failed for NSFW media id={_mid}: {fe}")
+                                                    logger.error(f"[IMG LOG] Failed to send NSFW media album to NSFW channel: {fe}")
                                                 
                                                 # Don't cache NSFW content
                                                 logger.info(f"[IMG LOG] NSFW content sent to NSFW channel, not cached")
                                                 
                                             else:
-                                                # Regular content -> LOGS_IMG_ID and cache
+                                                # Regular content -> LOGS_IMG_ID and cache - send as album
                                                 log_channel = get_log_channel("image", nsfw=False, paid=False)
                                                 try:
-                                                    # Отправляем копию с тегами, чтобы теги были на каждом фото в логе
-                                                    _idx = orig_ids.index(_mid)
-                                                    _media_obj = media_group[_idx]
+                                                    # Create media group for regular log channel
+                                                    regular_log_media_group = []
+                                                    for _idx, _media_obj in enumerate(media_group):
+                                                        caption = (tags_text_norm or "") if _idx == 0 else None  # Only first item gets caption
                                                     if isinstance(_media_obj, InputMediaPhoto):
-                                                        _sent = app.send_photo(chat_id=log_channel, photo=_media_obj.media, caption=(tags_text_norm or None))
+                                                            regular_log_media_group.append(InputMediaPhoto(
+                                                                media=_media_obj.media,
+                                                                caption=caption
+                                                            ))
                                                     else:
-                                                        _sent = app.send_video(chat_id=log_channel, video=_media_obj.media, caption=(tags_text_norm or None), duration=getattr(_media_obj, 'duration', None), width=getattr(_media_obj, 'width', None), height=getattr(_media_obj, 'height', None), thumb=getattr(_media_obj, 'thumb', None))
-                                                    if _sent:
-                                                        f_ids.append(_sent.id if not isinstance(_sent, list) else _sent[0].id)
-                                                    time.sleep(0.05)
+                                                            regular_log_media_group.append(InputMediaVideo(
+                                                                media=_media_obj.media,
+                                                                caption=caption,
+                                                                duration=getattr(_media_obj, 'duration', None),
+                                                                width=getattr(_media_obj, 'width', None),
+                                                                height=getattr(_media_obj, 'height', None),
+                                                                thumb=getattr(_media_obj, 'thumb', None)
+                                                            ))
+                                                    
+                                                    # Send as album to regular log channel
+                                                    regular_log_sent = app.send_media_group(
+                                                        chat_id=log_channel,
+                                                        media=regular_log_media_group,
+                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                    )
+                                                    
+                                                    # Collect IDs for caching
+                                                    if regular_log_sent:
+                                                        if isinstance(regular_log_sent, list):
+                                                            f_ids.extend([msg.id for msg in regular_log_sent])
+                                                        else:
+                                                            f_ids.append(regular_log_sent.id)
+                                                    
+                                                    logger.info(f"[IMG LOG] Regular media album sent to regular channel: {len(regular_log_media_group)} items")
                                                 except Exception as fe:
-                                                    logger.error(f"[IMG CACHE] forward_messages failed for regular media id={_mid}: {fe}")
-                                                    # Fallback to original ID if forwarding fails
-                                                    f_ids.append(_mid)
-                                                    time.sleep(0.05)
+                                                    logger.error(f"[IMG CACHE] Failed to send regular media album to regular channel: {fe}")
+                                                    # Fallback to original IDs if sending fails
+                                                    f_ids.extend(orig_ids)
                                         except Exception as ce:
                                             logger.error(f"[IMG LOG] forward_messages failed for id={_mid}: {ce}")
                                     album_index += 1
@@ -1071,15 +1351,256 @@ def image_command(app, message):
                                     pass
                             except Exception as e:
                                 logger.error(f"Failed to send media group: {e}")
+                                logger.info(f"[IMG FALLBACK] Entering fallback logic, nsfw_flag={nsfw_flag}, media_group_len={len(media_group)}")
                                 # fallback: send individually
                                 fallback = photos_videos_buffer[:batch_size]
                                 photos_videos_buffer = photos_videos_buffer[batch_size:]
-                                tmp_ids = []
+                                sent = []
+                                
+                                # Check if we should send as paid media album
+                                is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                                logger.info(f"[IMG FALLBACK] nsfw_flag={nsfw_flag}, is_private_chat={is_private_chat}, len(fallback)={len(fallback)}")
+                                if nsfw_flag and is_private_chat and len(fallback) > 1:
+                                    # Try to send as paid media album first
+                                    try:
+                                        paid_media_list = []
+                                        for p, t, orig in fallback:
+                                            if t == 'photo':
+                                                paid_media_list.append(InputPaidMediaPhoto(media=p))
+                                            else:
+                                                # For videos, ensure cover
+                                                thumb = generate_video_thumbnail(p)
+                                                _cover = ensure_paid_cover_embedded(p, thumb)
+                                                try:
+                                                    vinfo = _probe_video_info(p)
+                                                    paid_media_list.append(InputPaidMediaVideo(
+                                                        media=p,
+                                                        cover=_cover,
+                                                        width=vinfo.get('width'),
+                                                        height=vinfo.get('height'),
+                                                        duration=vinfo.get('duration'),
+                                                        supports_streaming=True
+                                                    ))
+                                                except TypeError:
+                                                    paid_media_list.append(InputPaidMediaVideo(media=p))
+                                        
+                                        # Send as paid media album
+                                        logger.info(f"[IMG FALLBACK PAID] Sending paid media album with {len(paid_media_list)} items")
+                                        # Try to send as album first, if that fails, send individually
+                                        try:
+                                            logger.info(f"[IMG FALLBACK PAID] Attempting to send album with {len(paid_media_list)} items to user {user_id}")
+                                            logger.info(f"[IMG FALLBACK PAID] Album details: star_count={LimitsConfig.NSFW_STAR_COST}, payload={Config.STAR_RECEIVER}")
+                                            
+                                            paid_msg = app.send_paid_media(
+                                                user_id,
+                                                media=paid_media_list,
+                                                star_count=LimitsConfig.NSFW_STAR_COST,
+                                                payload=str(Config.STAR_RECEIVER),
+                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                            )
+                                            
+                                            logger.info(f"[IMG FALLBACK PAID] SUCCESS: send_paid_media returned: {type(paid_msg)}")
+                                            logger.info(f"[IMG FALLBACK PAID] SUCCESS: Response details: {paid_msg}")
+                                            
+                                            if isinstance(paid_msg, list):
+                                                logger.info(f"[IMG FALLBACK PAID] SUCCESS: Received list of {len(paid_msg)} messages")
+                                                sent.extend(paid_msg)
+                                            elif paid_msg is not None:
+                                                logger.info(f"[IMG FALLBACK PAID] SUCCESS: Received single message with ID: {getattr(paid_msg, 'id', 'unknown')}")
+                                                sent.append(paid_msg)
+                                            else:
+                                                logger.warning(f"[IMG FALLBACK PAID] SUCCESS: Received None response from send_paid_media")
+                                                
+                                        except Exception as e:
+                                            logger.error(f"[IMG FALLBACK PAID] FAILED: send_paid_media album failed with error: {e}")
+                                            logger.error(f"[IMG FALLBACK PAID] FAILED: Error type: {type(e)}")
+                                            logger.error(f"[IMG FALLBACK PAID] FAILED: Error details: {str(e)}")
+                                            # Fallback: send individually as paid media with same reply_parameters
+                                            for i, paid_media in enumerate(paid_media_list):
+                                                try:
+                                                    # Use same reply_parameters for all to group them
+                                                    individual_msg = app.send_paid_media(
+                                                        user_id,
+                                                        media=[paid_media],
+                                                        star_count=LimitsConfig.NSFW_STAR_COST,
+                                                        payload=str(Config.STAR_RECEIVER),
+                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                    )
+                                                    if isinstance(individual_msg, list):
+                                                        sent.extend(individual_msg)
+                                                    elif individual_msg is not None:
+                                                        sent.append(individual_msg)
+                                                    # Small delay between messages to help grouping
+                                                    if i < len(paid_media_list) - 1:
+                                                        time.sleep(0.1)
+                                                except Exception as e2:
+                                                    logger.error(f"[IMG FALLBACK PAID] Individual paid media failed: {e2}")
+                                        
+                                        # Send open copy to NSFW channel for history
+                                        try:
+                                            open_media_group = []
+                                            for p, t, orig in fallback:
+                                                caption = (tags_text_norm or "") if len(open_media_group) == 0 else None
+                                                if t == 'photo':
+                                                    open_media_group.append(InputMediaPhoto(
+                                                        media=p,
+                                                        caption=caption,
+                                                        has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
+                                                    ))
+                                                else:
+                                                    thumb = generate_video_thumbnail(p)
+                                                    vinfo = _probe_video_info(p)
+                                                    open_media_group.append(InputMediaVideo(
+                                                        media=p,
+                                                        thumb=thumb,
+                                                        width=vinfo.get('width'),
+                                                        height=vinfo.get('height'),
+                                                        duration=vinfo.get('duration'),
+                                                        caption=caption,
+                                                        has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
+                                                    ))
+                                            
+                                            # Send open copy as album to NSFW channel
+                                            log_channel_nsfw = getattr(Config, "LOGS_NSFW_ID", 0)
+                                            open_sent = app.send_media_group(
+                                                chat_id=log_channel_nsfw,
+                                                media=open_media_group,
+                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                            )
+                                            logger.info(f"[IMG LOG] Open copy album sent to NSFW channel for history: {len(open_media_group)} items")
+                                        except Exception as e:
+                                            logger.error(f"[IMG LOG] Failed to send open copy album to NSFW channel: {e}")
+                                        
+                                        # Skip individual sending since we sent as album
+                                        continue
+                                        
+                                    except Exception as e:
+                                        logger.error(f"Failed to send paid media album in fallback: {e}")
+                                        # Continue with individual sending
+                                
+                                # Individual sending (fallback or single items) - group with reply_parameters
+                                if nsfw_flag and is_private_chat and len(fallback) > 1:
+                                    # Send as paid media album with same reply_parameters for grouping
+                                    try:
+                                        paid_media_list = []
+                                        for p, t, orig in fallback:
+                                            if t == 'photo':
+                                                paid_media_list.append(InputPaidMediaPhoto(media=p))
+                                            else:
+                                                # For videos, ensure cover
+                                                thumb = generate_video_thumbnail(p)
+                                                _cover = ensure_paid_cover_embedded(p, thumb)
+                                                try:
+                                                    vinfo = _probe_video_info(p)
+                                                    paid_media_list.append(InputPaidMediaVideo(
+                                                        media=p,
+                                                        cover=_cover,
+                                                        width=vinfo.get('width'),
+                                                        height=vinfo.get('height'),
+                                                        duration=vinfo.get('duration'),
+                                                        supports_streaming=True
+                                                    ))
+                                                except TypeError:
+                                                    paid_media_list.append(InputPaidMediaVideo(media=p))
+                                        
+                                        # Try to send as album first, if that fails, send individually
+                                        try:
+                                            logger.info(f"[IMG FALLBACK PAID] Attempting to send album with {len(paid_media_list)} items to user {user_id}")
+                                            logger.info(f"[IMG FALLBACK PAID] Album details: star_count={LimitsConfig.NSFW_STAR_COST}, payload={Config.STAR_RECEIVER}")
+                                            
+                                            paid_msg = app.send_paid_media(
+                                                user_id,
+                                                media=paid_media_list,
+                                                star_count=LimitsConfig.NSFW_STAR_COST,
+                                                payload=str(Config.STAR_RECEIVER),
+                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                            )
+                                            
+                                            logger.info(f"[IMG FALLBACK PAID] SUCCESS: send_paid_media returned: {type(paid_msg)}")
+                                            logger.info(f"[IMG FALLBACK PAID] SUCCESS: Response details: {paid_msg}")
+                                            
+                                            if isinstance(paid_msg, list):
+                                                logger.info(f"[IMG FALLBACK PAID] SUCCESS: Received list of {len(paid_msg)} messages")
+                                                sent.extend(paid_msg)
+                                            elif paid_msg is not None:
+                                                logger.info(f"[IMG FALLBACK PAID] SUCCESS: Received single message with ID: {getattr(paid_msg, 'id', 'unknown')}")
+                                                sent.append(paid_msg)
+                                            else:
+                                                logger.warning(f"[IMG FALLBACK PAID] SUCCESS: Received None response from send_paid_media")
+                                                
+                                        except Exception as e:
+                                            logger.error(f"[IMG FALLBACK PAID] FAILED: send_paid_media album failed with error: {e}")
+                                            logger.error(f"[IMG FALLBACK PAID] FAILED: Error type: {type(e)}")
+                                            logger.error(f"[IMG FALLBACK PAID] FAILED: Error details: {str(e)}")
+                                            # Fallback: send individually as paid media with same reply_parameters
+                                            for i, paid_media in enumerate(paid_media_list):
+                                                try:
+                                                    # Use same reply_parameters for all to group them
+                                                    individual_msg = app.send_paid_media(
+                                                        user_id,
+                                                        media=[paid_media],
+                                                        star_count=LimitsConfig.NSFW_STAR_COST,
+                                                        payload=str(Config.STAR_RECEIVER),
+                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                    )
+                                                    if isinstance(individual_msg, list):
+                                                        sent.extend(individual_msg)
+                                                    elif individual_msg is not None:
+                                                        sent.append(individual_msg)
+                                                    # Small delay between messages to help grouping
+                                                    if i < len(paid_media_list) - 1:
+                                                        time.sleep(0.1)
+                                                except Exception as e2:
+                                                    logger.error(f"[IMG FALLBACK PAID] Individual paid media failed: {e2}")
+                                        
+                                        # Send open copy to NSFW channel for history
+                                        try:
+                                            open_media_group = []
+                                            for p, t, orig in fallback:
+                                                caption = (tags_text_norm or "") if len(open_media_group) == 0 else None
+                                                if t == 'photo':
+                                                    open_media_group.append(InputMediaPhoto(
+                                                        media=p,
+                                                        caption=caption,
+                                                        has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
+                                                    ))
+                                                else:
+                                                    thumb = generate_video_thumbnail(p)
+                                                    vinfo = _probe_video_info(p)
+                                                    open_media_group.append(InputMediaVideo(
+                                                        media=p,
+                                                        thumb=thumb,
+                                                        width=vinfo.get('width'),
+                                                        height=vinfo.get('height'),
+                                                        duration=vinfo.get('duration'),
+                                                        caption=caption,
+                                                        has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
+                                                    ))
+                                            
+                                            # Send open copy as album to NSFW channel
+                                            log_channel_nsfw = getattr(Config, "LOGS_NSFW_ID", 0)
+                                            open_sent = app.send_media_group(
+                                                chat_id=log_channel_nsfw,
+                                                media=open_media_group,
+                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                            )
+                                            logger.info(f"[IMG LOG] Open copy album sent to NSFW channel for history: {len(open_media_group)} items")
+                                        except Exception as e:
+                                            logger.error(f"[IMG LOG] Failed to send open copy album to NSFW channel: {e}")
+                                        
+                                        # Skip individual sending since we sent as album
+                                        continue
+                                        
+                                    except Exception as e:
+                                        logger.error(f"Failed to send paid media album in fallback: {e}")
+                                        # Continue with individual sending
+                                
+                                # Individual sending (fallback or single items)
+                                logger.info(f"[IMG INDIVIDUAL] Starting individual sending for {len(fallback)} items, nsfw_flag={nsfw_flag}, is_private_chat={is_private_chat}")
                                 for p, t, orig in fallback:
                                     try:
                                         with open(p, 'rb') as f:
                                             if t == 'photo':
-                                                is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                                                 attempts = 0
                                                 last_exc = None
                                                 while attempts < 5:
@@ -1108,7 +1629,7 @@ def image_command(app, message):
                                                             sent_msg = app.send_photo(
                                                                 user_id,
                                                                 photo=f,
-                                                                caption=(tags_text_norm if tmp_ids == [] else ''),
+                                                                caption=(tags_text_norm if len(sent) == 0 else ''),
                                                                 has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
                                                                 reply_parameters=ReplyParameters(message_id=message.id),
                                                                 message_thread_id=getattr(message, 'message_thread_id', None)
@@ -1135,7 +1656,7 @@ def image_command(app, message):
                                                     try:
                                                         if thumb and os.path.exists(thumb):
                                                             if nsfw_flag and is_private_chat:
-                                                                _cover = ensure_paid_cover(p, thumb)
+                                                                _cover = ensure_paid_cover_embedded(p, thumb)
                                                                 try:
                                                                     media_item = InputPaidMediaVideo(media=f, cover=_cover)
                                                                 except TypeError:
@@ -1165,7 +1686,7 @@ def image_command(app, message):
                                                                     user_id,
                                                                     video=f,
                                                                     thumb=thumb,
-                                                                    caption=(tags_text_norm if tmp_ids == [] else ''),
+                                                                    caption=(tags_text_norm if len(sent) == 0 else ''),
                                                                     has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
                                                                     reply_parameters=ReplyParameters(message_id=message.id),
                                                                     message_thread_id=getattr(message, 'message_thread_id', None)
@@ -1196,7 +1717,7 @@ def image_command(app, message):
                                                                 sent_msg = app.send_video(
                                                                     user_id,
                                                                     video=f,
-                                                                    caption=(tags_text_norm if tmp_ids == [] else ''),
+                                                                    caption=(tags_text_norm if len(sent) == 0 else ''),
                                                                     has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
                                                                     reply_parameters=ReplyParameters(message_id=message.id),
                                                                     message_thread_id=getattr(message, 'message_thread_id', None)
@@ -1214,7 +1735,7 @@ def image_command(app, message):
                                                 if attempts >= 5 and last_exc is not None:
                                                     raise last_exc
                                             sent_message_ids.append(sent_msg.id)
-                                            tmp_ids.append(sent_msg.id)
+                                            sent.append(sent_msg)
                                             total_sent += 1
                                         # zero out both converted and original
                                         try:
@@ -1232,19 +1753,23 @@ def image_command(app, message):
                                         logger.error(f"Failed to send file in fallback: {ee}")
                                 # Forward fallback album and save forwarded IDs
                                 try:
-                                    if tmp_ids:
-                                        logger.info(f"[IMG CACHE] Copying fallback album to logs, orig_ids={tmp_ids}")
+                                    if sent:
+                                        orig_ids = [m.id for m in sent]
+                                        logger.info(f"[IMG CACHE] Copying fallback album to logs, orig_ids={orig_ids}")
                                         f_ids = []
                                         
                                         # Determine correct log channel based on media type and chat type
                                         is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                                         is_paid_media = nsfw_flag and is_private_chat
                                         
-                                        for _mid in tmp_ids:
+                                        for _mid in orig_ids:
                                             try:
                                                 if is_paid_media:
                                                     # For NSFW content in private chat, send to both channels but don't cache
-                                                    # Send to LOGS_PAID_ID (for paid content)
+                                                    # Add delay to allow Telegram to process paid media before sending to log channels
+                                                    time.sleep(2.0)
+                                                    
+                                                    # Send to LOGS_PAID_ID (for paid content) - forward the paid message
                                                     log_channel_paid = get_log_channel("image", nsfw=False, paid=True)
                                                     try:
                                                         app.forward_messages(chat_id=log_channel_paid, from_chat_id=user_id, message_ids=[_mid])
@@ -1252,9 +1777,37 @@ def image_command(app, message):
                                                     except Exception as fe:
                                                         logger.error(f"[IMG LOG] forward_messages (fallback) failed for paid media id={_mid}: {fe}")
                                                     
-                                                    # Send to LOGS_NSFW_ID (for history) - open copy is sent directly after paid media creation
-                                                    # No need to forward paid media here as open copy is already sent
-                                                    logger.info(f"[IMG LOG] Open copy for fallback message {_mid} already sent during paid media creation")
+                                                    # Send to LOGS_NSFW_ID (for history) - send open copy as album
+                                                    log_channel_nsfw = get_log_channel("image", nsfw=True, paid=False)
+                                                    try:
+                                                        # Create media group for NSFW log channel (open copy)
+                                                        nsfw_log_media_group = []
+                                                        for _idx, _media_obj in enumerate(media_group):
+                                                            caption = (tags_text_norm or "") if _idx == 0 else None  # Only first item gets caption
+                                                            if isinstance(_media_obj, InputMediaPhoto):
+                                                                nsfw_log_media_group.append(InputMediaPhoto(
+                                                                    media=_media_obj.media,
+                                                                    caption=caption
+                                                                ))
+                                                            else:
+                                                                nsfw_log_media_group.append(InputMediaVideo(
+                                                                    media=_media_obj.media,
+                                                                    caption=caption,
+                                                                    duration=getattr(_media_obj, 'duration', None),
+                                                                    width=getattr(_media_obj, 'width', None),
+                                                                    height=getattr(_media_obj, 'height', None),
+                                                                    thumb=getattr(_media_obj, 'thumb', None)
+                                                                ))
+                                                        
+                                                        # Send as album to NSFW log channel
+                                                        nsfw_log_sent = app.send_media_group(
+                                                            chat_id=log_channel_nsfw,
+                                                            media=nsfw_log_media_group,
+                                                            reply_parameters=ReplyParameters(message_id=message.id)
+                                                        )
+                                                        logger.info(f"[IMG LOG] Open copy album sent to NSFW channel: {len(nsfw_log_media_group)} items")
+                                                    except Exception as fe:
+                                                        logger.error(f"[IMG LOG] Failed to send open copy album to NSFW channel: {fe}")
                                                     
                                                     # Don't cache NSFW content
                                                     logger.info(f"[IMG LOG] NSFW content sent to both channels (paid + history), not cached")
@@ -1425,7 +1978,7 @@ def image_command(app, message):
                                     else:
                                         # Ensure cover for video
                                         video_path = m.media if not hasattr(m.media, 'name') else m.media.name
-                                        _cover = ensure_paid_cover(video_path, getattr(m, 'thumb', None))
+                                        _cover = ensure_paid_cover_embedded(video_path, getattr(m, 'thumb', None))
                                         try:
                                             paid_msg = app.send_paid_media(
                                                 user_id,
@@ -1539,7 +2092,10 @@ def image_command(app, message):
                                 try:
                                     if is_paid_media:
                                         # For NSFW content in private chat, send to both channels but don't cache
-                                        # Send to LOGS_PAID_ID (for paid content)
+                                        # Add delay to allow Telegram to process paid media before sending to log channels
+                                        time.sleep(2.0)
+                                        
+                                        # Send to LOGS_PAID_ID (for paid content) - forward the paid message
                                         log_channel_paid = get_log_channel("image", nsfw=False, paid=True)
                                         try:
                                             app.forward_messages(chat_id=log_channel_paid, from_chat_id=user_id, message_ids=[_mid])
@@ -1547,9 +2103,37 @@ def image_command(app, message):
                                         except Exception as fe:
                                             logger.error(f"[IMG LOG] forward_messages (tail) failed for paid media id={_mid}: {fe}")
                                         
-                                        # Send to LOGS_NSFW_ID (for history) - open copy is sent directly after paid media creation
-                                        # No need to forward paid media here as open copy is already sent
-                                        logger.info(f"[IMG LOG] Open copy for tail message {_mid} already sent during paid media creation")
+                                        # Send to LOGS_NSFW_ID (for history) - send open copy as album
+                                        log_channel_nsfw = get_log_channel("image", nsfw=True, paid=False)
+                                        try:
+                                            # Create media group for NSFW log channel (open copy)
+                                            nsfw_log_media_group = []
+                                            for _idx, _media_obj in enumerate(media_group):
+                                                caption = (tags_text_norm or "") if _idx == 0 else None  # Only first item gets caption
+                                                if isinstance(_media_obj, InputMediaPhoto):
+                                                    nsfw_log_media_group.append(InputMediaPhoto(
+                                                        media=_media_obj.media,
+                                                        caption=caption
+                                                    ))
+                                                else:
+                                                    nsfw_log_media_group.append(InputMediaVideo(
+                                                        media=_media_obj.media,
+                                                        caption=caption,
+                                                        duration=getattr(_media_obj, 'duration', None),
+                                                        width=getattr(_media_obj, 'width', None),
+                                                        height=getattr(_media_obj, 'height', None),
+                                                        thumb=getattr(_media_obj, 'thumb', None)
+                                                    ))
+                                            
+                                            # Send as album to NSFW log channel
+                                            nsfw_log_sent = app.send_media_group(
+                                                chat_id=log_channel_nsfw,
+                                                media=nsfw_log_media_group,
+                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                            )
+                                            logger.info(f"[IMG LOG] Open copy album sent to NSFW channel: {len(nsfw_log_media_group)} items")
+                                        except Exception as fe:
+                                            logger.error(f"[IMG LOG] Failed to send open copy album to NSFW channel: {fe}")
                                         
                                         # Don't cache NSFW content
                                         logger.info(f"[IMG LOG] NSFW content sent to both channels (paid + history), not cached")
@@ -1656,7 +2240,7 @@ def image_command(app, message):
                                         while attempts < 5:
                                             try:
                                                 if nsfw_flag and is_private_chat:
-                                                    _cover = ensure_paid_cover(p, thumb)
+                                                    _cover = ensure_paid_cover_embedded(p, thumb)
                                                     try:
                                                         media_item = InputPaidMediaVideo(media=f, cover=_cover)
                                                     except TypeError:
@@ -1721,7 +2305,10 @@ def image_command(app, message):
                                     try:
                                         if is_paid_media:
                                             # For NSFW content in private chat, send to both channels but don't cache
-                                            # Send to LOGS_PAID_ID (for paid content)
+                                            # Add delay to allow Telegram to process paid media before sending to log channels
+                                            time.sleep(2.0)
+                                            
+                                            # Send to LOGS_PAID_ID (for paid content) - forward the paid message
                                             log_channel_paid = get_log_channel("image", nsfw=False, paid=True)
                                             try:
                                                 app.forward_messages(chat_id=log_channel_paid, from_chat_id=user_id, message_ids=[_mid])
@@ -1729,9 +2316,37 @@ def image_command(app, message):
                                             except Exception as fe:
                                                 logger.error(f"[IMG LOG] forward_messages (tail-fallback) failed for paid media id={_mid}: {fe}")
                                             
-                                            # Send to LOGS_NSFW_ID (for history) - open copy is sent directly after paid media creation
-                                            # No need to forward paid media here as open copy is already sent
-                                            logger.info(f"[IMG LOG] Open copy for tail-fallback message {_mid} already sent during paid media creation")
+                                            # Send to LOGS_NSFW_ID (for history) - send open copy as album
+                                            log_channel_nsfw = get_log_channel("image", nsfw=True, paid=False)
+                                            try:
+                                                # Create media group for NSFW log channel (open copy)
+                                                nsfw_log_media_group = []
+                                                for _idx, _media_obj in enumerate(media_group):
+                                                    caption = (tags_text_norm or "") if _idx == 0 else None  # Only first item gets caption
+                                                    if isinstance(_media_obj, InputMediaPhoto):
+                                                        nsfw_log_media_group.append(InputMediaPhoto(
+                                                            media=_media_obj.media,
+                                                            caption=caption
+                                                        ))
+                                                    else:
+                                                        nsfw_log_media_group.append(InputMediaVideo(
+                                                            media=_media_obj.media,
+                                                            caption=caption,
+                                                            duration=getattr(_media_obj, 'duration', None),
+                                                            width=getattr(_media_obj, 'width', None),
+                                                            height=getattr(_media_obj, 'height', None),
+                                                            thumb=getattr(_media_obj, 'thumb', None)
+                                                        ))
+                                                
+                                                # Send as album to NSFW log channel
+                                                nsfw_log_sent = app.send_media_group(
+                                                    chat_id=log_channel_nsfw,
+                                                    media=nsfw_log_media_group,
+                                                    reply_parameters=ReplyParameters(message_id=message.id)
+                                                )
+                                                logger.info(f"[IMG LOG] Open copy album sent to NSFW channel: {len(nsfw_log_media_group)} items")
+                                            except Exception as fe:
+                                                logger.error(f"[IMG LOG] Failed to send open copy album to NSFW channel: {fe}")
                                             
                                             # Don't cache NSFW content
                                             logger.info(f"[IMG LOG] NSFW content sent to both channels (paid + history), not cached")
