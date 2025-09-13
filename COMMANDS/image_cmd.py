@@ -1798,6 +1798,111 @@ def image_command(app, message):
 
             time.sleep(0.5)
 
+        # Send remaining files in buffer as final album
+        if photos_videos_buffer:
+            media_group = []
+            for p, t, _orig in photos_videos_buffer:
+                if t == 'photo':
+                    is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                    media_group.append(InputMediaPhoto(p, caption=None, has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
+                else:
+                    vinfo = _probe_video_info(p)
+                    thumb = generate_video_thumbnail(p)
+                    is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                    if thumb and os.path.exists(thumb):
+                        media_group.append(InputMediaVideo(
+                            p,
+                            thumb=thumb,
+                            width=vinfo.get('width'),
+                            height=vinfo.get('height'),
+                            duration=vinfo.get('duration'),
+                            caption=None,
+                            has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
+                        ))
+                    else:
+                        media_group.append(InputMediaVideo(
+                            p,
+                            width=vinfo.get('width'),
+                            height=vinfo.get('height'),
+                            duration=vinfo.get('duration'),
+                            caption=None,
+                            has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
+                        ))
+            
+            if media_group:
+                try:
+                    # Add caption to first item
+                    if tags_text_norm and media_group:
+                        _first = media_group[0]
+                        if hasattr(_first, 'caption'):
+                            _first.caption = tags_text_norm
+                        # Clear captions from other items
+                        for _itm in media_group[1:]:
+                            if hasattr(_itm, 'caption'):
+                                _itm.caption = None
+                    
+                    sent = app.send_media_group(
+                        user_id,
+                        media=media_group,
+                        reply_parameters=ReplyParameters(message_id=message.id)
+                    )
+                    sent_message_ids.extend([m.id for m in sent])
+                    total_sent += len(media_group)
+                    
+                    # Forward to logs and cache
+                    try:
+                        orig_ids = [m.id for m in sent]
+                        f_ids = []
+                        is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                        is_paid_media = nsfw_flag and is_private_chat
+                        
+                        for _mid in orig_ids:
+                            try:
+                                if is_paid_media:
+                                    log_channel_paid = get_log_channel("image", nsfw=False, paid=True)
+                                    try:
+                                        _sent = app.forward_messages(log_channel_paid, user_id, [_mid])
+                                        f_ids.append(_sent.id if not isinstance(_sent, list) else _sent[0].id)
+                                        time.sleep(0.05)
+                                    except Exception as fe:
+                                        logger.error(f"[IMG CACHE] forward_messages failed for paid media id={_mid}: {fe}")
+                                        f_ids.append(_mid)
+                                        time.sleep(0.05)
+                                else:
+                                    log_channel = get_log_channel("image", nsfw=nsfw_flag, paid=False)
+                                    try:
+                                        _sent = app.forward_messages(log_channel, user_id, [_mid])
+                                        f_ids.append(_sent.id if not isinstance(_sent, list) else _sent[0].id)
+                                        time.sleep(0.05)
+                                    except Exception as fe:
+                                        logger.error(f"[IMG CACHE] forward_messages failed for regular media id={_mid}: {fe}")
+                                        f_ids.append(_mid)
+                                        time.sleep(0.05)
+                            except Exception as ce:
+                                logger.error(f"[IMG LOG] forward_messages failed for id={_mid}: {ce}")
+                        
+                        album_index += 1
+                        if f_ids and not nsfw_flag:
+                            _save_album_now(url, album_index, f_ids)
+                    except Exception as e_copy:
+                        logger.error(f"[IMG CACHE] Unexpected error while copying final album to logs: {e_copy}")
+                    
+                    # Clean up files
+                    for p, _t, orig in photos_videos_buffer:
+                        try:
+                            if os.path.exists(p):
+                                with open(p, 'wb') as zf:
+                                    pass
+                            if os.path.exists(orig):
+                                with open(orig, 'wb') as zf:
+                                    pass
+                        except Exception:
+                            pass
+                    
+                    photos_videos_buffer = []
+                except Exception as e:
+                    logger.error(f"Failed to send final media group: {e}")
+
         # Messages are already forwarded to log channels during caching process above
 
         # Cleanup files: удаляем только нулевые плейсхолдеры (уже отправленные),

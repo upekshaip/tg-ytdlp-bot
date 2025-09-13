@@ -3763,7 +3763,8 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                     try:
                         # Include tags in fallback command
                         fallback_text = f"/img {url}"
-                        if tags_text:
+                        if tags:
+                            tags_text = ' '.join(tags)
                             fallback_text += f" {tags_text}"
                         image_command(app, fake_message(fallback_text, user_id))
                         logger.info("Triggered gallery-dl fallback via /img from Always Ask menu")
