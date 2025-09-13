@@ -546,7 +546,7 @@ def image_command(app, message):
                 f"❗️ Range limit exceeded: {range_count} files requested (maximum {max_img_files}).\n\n"
                 f"Use one of these commands to download maximum available files:\n\n"
                 f"<code>/img {start_range}-{end_range} {url}</code>\n\n"
-                f"<code>{suggested_command_url_format}</code>",
+                f"<code>/img {suggested_command_url_format}</code>",
                 parse_mode=enums.ParseMode.HTML,
                 reply_parameters=ReplyParameters(message_id=message.id)
             )
