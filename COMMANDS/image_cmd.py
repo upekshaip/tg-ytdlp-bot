@@ -536,11 +536,17 @@ def image_command(app, message):
             pass
         
         if range_count > max_img_files:
+            # Create alternative commands preserving the original start range
+            start_range = manual_range[0]
+            end_range = start_range + max_img_files - 1
+            suggested_command_url_format = f"{url}*{start_range}*{end_range}"
+            
             safe_send_message(
                 user_id,
                 f"❗️ Range limit exceeded: {range_count} files requested (maximum {max_img_files}).\n\n"
-                f"Use this command to download maximum available files:\n"
-                f"<code>/img 1-{max_img_files} {url}</code>",
+                f"Use one of these commands to download maximum available files:\n\n"
+                f"<code>/img {start_range}-{end_range} {url}</code>\n\n"
+                f"<code>{suggested_command_url_format}</code>",
                 parse_mode=enums.ParseMode.HTML,
                 reply_parameters=ReplyParameters(message_id=message.id)
             )
@@ -621,11 +627,22 @@ def image_command(app, message):
             
             # If total exceeds limit, show error and suggest manual range
             if detected_total > max_img_files:
+                # Create alternative commands preserving the original start range if manual_range exists
+                if manual_range and manual_range[0] is not None:
+                    start_range = manual_range[0]
+                    end_range = start_range + max_img_files - 1
+                else:
+                    start_range = 1
+                    end_range = max_img_files
+                
+                suggested_command_url_format = f"{url}*{start_range}*{end_range}"
+                
                 safe_send_message(
                     user_id,
                     f"❗️ Media limit exceeded: {detected_total} files found (maximum {max_img_files}).\n\n"
-                    f"Use this command to download maximum available files:\n"
-                    f"<code>/img 1-{max_img_files} {url}</code>",
+                    f"Use one of these commands to download maximum available files:\n\n"
+                    f"<code>/img {start_range}-{end_range} {url}</code>\n\n"
+                    f"<code>{suggested_command_url_format}</code>",
                     parse_mode=enums.ParseMode.HTML,
                     reply_parameters=ReplyParameters(message_id=message.id)
                 )
