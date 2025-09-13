@@ -66,7 +66,7 @@ class Config(object):
     RELOAD_CACHE_EVERY = 4 # in hours
     DOWNLOAD_FIREBASE_SCRIPT_PATH = "DATABASE/download_firebase.py"
     AUTO_CACHE_RELOAD_ENABLED = True # Enable/disable automatic cache reloading
-    #######################################################
+    ########################################################
     # Proxy configuration
     PROXY_TYPE="http" # http, https, socks4, socks5, socks5h
     PROXY_IP="X.X.X.X"
@@ -81,7 +81,7 @@ class Config(object):
     PROXY_2_PASSWORD="XXXXXXXXX"
     # Proxy selection method for /proxy on command
     PROXY_SELECT = "round_robin" # random, round_robin
-    #######################################################
+    ########################################################
     # PO Token Provider configuration for YouTube
     # Enable PO token provider for YouTube domains
     YOUTUBE_POT_ENABLED = True
