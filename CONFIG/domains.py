@@ -72,4 +72,3 @@ class DomainsConfig(object):
     
     # Piped frontend domain for opening YouTube links as a WebApp
     PIPED_DOMAIN = "poketube.fun"
-    #######################################################
