@@ -48,9 +48,11 @@ def proxy_command(app, message):
     user_id = message.chat.id
     logger.info(f"[PROXY] User {user_id} requested proxy command")
     logger.info(f"[PROXY] User {user_id} is admin: {int(user_id) in Config.ADMIN}")
-    logger.info(f"[PROXY] User {user_id} is in channel: {is_user_in_channel(app, message)}")
     
-    if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+    is_in_channel = is_user_in_channel(app, message)
+    logger.info(f"[PROXY] User {user_id} is in channel: {is_in_channel}")
+    
+    if int(user_id) not in Config.ADMIN and not is_in_channel:
         logger.info(f"[PROXY] User {user_id} access denied - not admin and not in channel")
         return
     
