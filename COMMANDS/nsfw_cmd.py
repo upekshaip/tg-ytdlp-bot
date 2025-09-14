@@ -29,10 +29,6 @@ def nsfw_command(app, message):
     if chat_type == enums.ChatType.PRIVATE:
         if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
             logger.info(f"[NSFW] User {user_id} access denied - not admin and not in channel")
-            try:
-                safe_send_message(chat_id, Config.TO_USE_MSG, parse_mode=enums.ParseMode.HTML, message=message)
-            except Exception:
-                pass
             return
     
     logger.info(f"[NSFW] User {user_id} access granted")
