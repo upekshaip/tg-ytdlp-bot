@@ -51,7 +51,7 @@ class Config(object):
     #YOUTUBE_COOKIE_URL_10 = "https://XXX/cookie10.txt"
     YOUTUBE_COOKIE_ORDER = "round_robin" # random, round_robin
     # YouTube test URL for cookie validation
-    YOUTUBE_COOKIE_TEST_URL = "https://youtu.be/XqZsoesa55w"  # Short video
+    YOUTUBE_COOKIE_TEST_URL = "https://youtu.be/XqZsoesa55w"  # Baby Shark Dance
     #YOUTUBE_COOKIE_TEST_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"  # Rick Roll - short video
     #INSTAGRAM_COOKIE_URL = "https://XXX/instagram_cookie.txt"
     TIKTOK_COOKIE_URL = "https://XXX/tiktok_cookie.txt"
