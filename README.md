@@ -400,6 +400,7 @@ Also you may fill in `porn_domains.txt` `porn_keywords.txt` files in `TXT` folde
 | Command | Description | Example |
 |---------|-------------|---------|
 | **Video URL** | Download video (auto-detect) | `https://youtube.com/watch?v=...` |
+| `/vid` | Download video | `/vid https://youtube.com/watch?v=...` |
 | `/audio` | Download audio only | `/audio https://youtube.com/watch?v=...` |
 | `/link` | Get direct video links | `/link 720 https://youtube.com/watch?v=...` |
 | `/img` | Download images | `/img https://instagram.com/p/...` |
