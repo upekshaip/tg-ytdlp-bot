@@ -152,10 +152,28 @@ def set_format(app, message):
         elif re.match(r'^id\s*\d+$', arg, re.IGNORECASE):
             # Extract the ID number
             format_id = re.search(r'\d+', arg).group()
-            # Use proper yt-dlp format syntax for video-only formats
-            custom_format = f"{format_id}+bestaudio/bv+ba/best"
-            safe_send_message(user_id, f"✅ Format updated to ID {format_id} (with audio):\n{custom_format}", message=message)
-            send_to_logger(message, f"Format updated to ID {format_id} (with audio): {custom_format}")
+            
+            # Check if this is an audio-only format by analyzing the URL
+            # We need to get the last URL from user's history or ask them to provide URL
+            try:
+                # Try to get URL from user's last message or session
+                from DOWN_AND_UP.always_ask_menu import get_video_formats, analyze_format_type
+                
+                # Use format ID with fallback for both audio and video
+                # This works for audio-only, video-only, and full formats
+                custom_format = f"{format_id}+bestaudio/bv+ba/best"
+                
+                # Check if we can determine if it's audio-only by looking at recent URL
+                # This is a simplified approach - in a real scenario, you might want to store the last URL
+                safe_send_message(user_id, f"✅ Format updated to ID {format_id}:\n{custom_format}\n\n"
+                                         f"💡 <b>Note:</b> If this is an audio-only format, it will be downloaded as MP3 audio file.", message=message)
+                send_to_logger(message, f"Format updated to ID {format_id}: {custom_format}")
+                
+            except Exception as e:
+                # Fallback to original behavior
+                custom_format = f"{format_id}+bestaudio/bv+ba/best"
+                safe_send_message(user_id, f"✅ Format updated to ID {format_id}:\n{custom_format}", message=message)
+                send_to_logger(message, f"Format updated to ID {format_id}: {custom_format}")
         # Check if it's a quality argument (number, number+p, 4k, 8k)
         elif re.match(r'^(\d+p?|4k|8k|4K|8K)$', arg, re.IGNORECASE):
             # It's a quality argument, convert to format

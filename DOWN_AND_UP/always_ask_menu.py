@@ -4359,22 +4359,37 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
         user_id = message.chat.id
         info = get_video_formats(url, user_id, cookies_already_checked=True)
         
-        if quality_key and 'formats' in info:
-            # Find the selected format
+        if 'formats' in info:
+            # Find the selected format by extracting format ID from fmt string
             selected_format = None
+            format_id = None
+            
+            # Extract format ID from fmt string (e.g., "140+bestaudio/bv+ba/best" -> "140")
+            if fmt and '+' in fmt:
+                format_id = fmt.split('+')[0]
+            elif fmt and '/' in fmt:
+                format_id = fmt.split('/')[0]
+            elif fmt:
+                format_id = fmt
+            
+            # Try to find format by quality_key first, then by extracted format_id
             for f in info['formats']:
-                if f.get('format_id') == quality_key:
+                if quality_key and f.get('format_id') == quality_key:
+                    selected_format = f
+                    break
+                elif format_id and f.get('format_id') == format_id:
                     selected_format = f
                     break
             
             if selected_format:
                 format_type = analyze_format_type(selected_format)
                 
-                # If it's audio-only, convert to mp3
+                # If it's audio-only, convert to user's preferred audio format
                 if format_type == 'audio_only':
                     # Use audio download function with the selected format
                     # Pass cookies_already_checked=True since we already checked cookies in get_video_formats
-                    down_and_audio(app, message, url, tags_text, quality_key=quality_key, format_override=fmt, cookies_already_checked=True)
+                    # Use format_id as quality_key for audio downloads
+                    down_and_audio(app, message, url, tags_text, quality_key=format_id, format_override=fmt, cookies_already_checked=True)
                     return
                 
                 # If it's video-only, find complementary audio
