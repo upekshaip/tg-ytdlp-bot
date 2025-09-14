@@ -37,6 +37,7 @@ def unwrap_redirect_url(url: str) -> str:
     except Exception:
         return url
 from CONFIG.config import Config
+from CONFIG.domains import DomainsConfig
 from HELPERS.logger import logger
 
 # --- global lists of domains and keywords ---
@@ -123,6 +124,7 @@ def is_porn(url, title, description, caption=None):
     """
     Checks content for pornography by domain and keywords (word-boundary regex search)
     in title, description and caption. Domain whitelist has highest priority.
+    White keywords list can override porn detection for false positive correction.
     """
     # 1. Checking the domain (with redirect unwrapping)
     clean_url = unwrap_redirect_url(url).lower()
@@ -148,7 +150,17 @@ def is_porn(url, title, description, caption=None):
     logger.debug(f"is_porn combined text: '{combined}'")
     logger.debug(f"is_porn keywords: {PORN_KEYWORDS}")
 
-    # 4. Preparing a regex pattern with a list of keywords
+    # 4. Check for white keywords first (override porn detection)
+    white_keywords = getattr(DomainsConfig, 'WHITE_KEYWORDS', [])
+    if white_keywords:
+        white_kws = [re.escape(kw.lower()) for kw in white_keywords if kw.strip()]
+        if white_kws:
+            white_pattern = re.compile(r"\b(" + "|".join(white_kws) + r")\b", flags=re.IGNORECASE)
+            if white_pattern.search(combined):
+                logger.info(f"is_porn: white keyword match found, content considered clean: {white_pattern.pattern}")
+                return False
+
+    # 5. Preparing a regex pattern with a list of keywords
     kws = [re.escape(kw.lower()) for kw in PORN_KEYWORDS if kw.strip()]
     if not kws:
         # There is not a single valid key
@@ -157,11 +169,74 @@ def is_porn(url, title, description, caption=None):
     # The boundaries of words (\ b) + flag ignorecase
     pattern = re.compile(r"\b(" + "|".join(kws) + r")\b", flags=re.IGNORECASE)
 
-    # 5. We are looking for a coincidence
+    # 6. We are looking for a coincidence
     if pattern.search(combined):
         logger.info(f"is_porn: keyword match (regex): {pattern.pattern}")
         return True
 
     logger.info("is_porn: no keyword matches found")
     return False
+
+
+def check_porn_detailed(url, title, description, caption=None):
+    """
+    Detailed porn check that returns both result and explanation.
+    Returns: (is_porn: bool, explanation: str)
+    """
+    explanation_parts = []
+    
+    # 1. Checking the domain (with redirect unwrapping)
+    clean_url = unwrap_redirect_url(url).lower()
+    domain_parts, _ = extract_domain_parts(clean_url)
+    
+    # Check whitelist first
+    for dom in Config.WHITELIST:
+        if dom in domain_parts:
+            explanation_parts.append(f"✅ Домен в белом списке: {dom}")
+            return False, " | ".join(explanation_parts)
+    
+    # Check if domain is in porn domains
+    if is_porn_domain(domain_parts):
+        explanation_parts.append(f"❌ Домен в черном списке порно: {domain_parts}")
+        return True, " | ".join(explanation_parts)
+
+    # 2. Preparation of the text
+    title_lower       = title.lower()       if title       else ""
+    description_lower = description.lower() if description else ""
+    caption_lower     = caption.lower()     if caption     else ""
+    
+    if not (title_lower or description_lower or caption_lower):
+        explanation_parts.append("ℹ️ Все текстовые поля пусты")
+        return False, " | ".join(explanation_parts)
+
+    # 3. We collect a single text for search
+    combined = " ".join([title_lower, description_lower, caption_lower])
+    
+    # 4. Check for white keywords first (override porn detection)
+    white_keywords = getattr(DomainsConfig, 'WHITE_KEYWORDS', [])
+    if white_keywords:
+        white_kws = [re.escape(kw.lower()) for kw in white_keywords if kw.strip()]
+        if white_kws:
+            white_pattern = re.compile(r"\b(" + "|".join(white_kws) + r")\b", flags=re.IGNORECASE)
+            white_matches = white_pattern.findall(combined)
+            if white_matches:
+                explanation_parts.append(f"✅ Найдены ключевые слова из белого списка: {', '.join(set(white_matches))}")
+                return False, " | ".join(explanation_parts)
+
+    # 5. Check for porn keywords
+    kws = [re.escape(kw.lower()) for kw in PORN_KEYWORDS if kw.strip()]
+    if not kws:
+        explanation_parts.append("ℹ️ Нет загруженных порно-ключевых слов")
+        return False, " | ".join(explanation_parts)
+
+    # The boundaries of words (\ b) + flag ignorecase
+    pattern = re.compile(r"\b(" + "|".join(kws) + r")\b", flags=re.IGNORECASE)
+    porn_matches = pattern.findall(combined)
+    
+    if porn_matches:
+        explanation_parts.append(f"❌ Найдены порно-ключевые слова: {', '.join(set(porn_matches))}")
+        return True, " | ".join(explanation_parts)
+
+    explanation_parts.append("✅ Порно-ключевые слова не найдены")
+    return False, " | ".join(explanation_parts)
 
