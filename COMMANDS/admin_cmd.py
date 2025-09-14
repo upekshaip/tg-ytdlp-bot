@@ -33,29 +33,27 @@ def reload_firebase_cache_command(app, message):
         safe_send_message_with_auto_delete(message.chat.id, "❌ Access denied. Admin only.", delete_after_seconds=60)
         return
     
-    # Send initial status message
-    script_path = getattr(Config, "DOWNLOAD_FIREBASE_SCRIPT_PATH", "DATABASE/download_firebase.py")
-    if not os.path.isabs(script_path):
-        script_path = os.path.join(os.getcwd(), script_path)
-    
-    status_msg = safe_send_message(message.chat.id, f"⏳ Downloading fresh Firebase dump using {script_path} ...")
-    if not status_msg:
-        send_to_logger(message, "Failed to send initial status message")
-        return
-    
     try:
+        # 1) Download fresh dump via external script path
+        script_path = getattr(Config, "DOWNLOAD_FIREBASE_SCRIPT_PATH", "DATABASE/download_firebase.py")
+        # Ensure we have the full path to the script
+        if not os.path.isabs(script_path):
+            script_path = os.path.join(os.getcwd(), script_path)
+        
         # Verify script exists
         if not os.path.exists(script_path):
             error_msg = f"❌ Script not found: {script_path}"
-            safe_edit_message_text(message.chat.id, status_msg.id, error_msg)
+            safe_send_message_with_auto_delete(message.chat.id, error_msg, delete_after_seconds=60)
             send_to_logger(message, f"Script not found: {script_path}")
-            # Schedule deletion after 60 seconds
-            threading.Timer(60.0, lambda: safe_delete_messages(message.chat.id, [status_msg.id])).start()
             return
             
-        # Run the script
-        result = subprocess.run([sys.executable, script_path], capture_output=True, text=True, encoding='utf-8', errors='replace', cwd=os.path.dirname(os.path.dirname(script_path)))
+        # Send initial status message
+        status_msg = safe_send_message(message.chat.id, f"⏳ Downloading fresh Firebase dump using {script_path} ...")
+        if not status_msg:
+            send_to_logger(message, "Failed to send initial status message")
+            return
         
+        result = subprocess.run([sys.executable, script_path], capture_output=True, text=True, encoding='utf-8', errors='replace', cwd=os.path.dirname(os.path.dirname(script_path)))
         if result.returncode != 0:
             error_msg = f"❌ Error running {script_path}:\n{result.stdout}\n{result.stderr}"
             safe_edit_message_text(message.chat.id, status_msg.id, error_msg)
@@ -63,16 +61,18 @@ def reload_firebase_cache_command(app, message):
             log_error_to_channel(message, error_msg)
             send_to_logger(message, f"Error running {script_path}: {result.stdout}\n{result.stderr}")
             # Schedule deletion after 60 seconds
-            threading.Timer(60.0, lambda: safe_delete_messages(message.chat.id, [status_msg.id])).start()
+            def delete_msg():
+                time.sleep(60)
+                safe_delete_messages(message.chat.id, [status_msg.id])
+            threading.Thread(target=delete_msg, daemon=True).start()
             return
         
         # Update status to reloading
         safe_edit_message_text(message.chat.id, status_msg.id, "🔄 Reloading Firebase cache into memory...")
         
-        # Reload local cache into memory
+        # 2) Reload local cache into memory
         from DATABASE.cache_db import reload_firebase_cache as _reload_local
         success = _reload_local()
-        
         if success:
             final_msg = "✅ Firebase cache reloaded successfully!"
             safe_edit_message_text(message.chat.id, status_msg.id, final_msg)
@@ -85,16 +85,25 @@ def reload_firebase_cache_command(app, message):
             log_error_to_channel(message, final_msg)
         
         # Schedule deletion after 60 seconds
-        threading.Timer(60.0, lambda: safe_delete_messages(message.chat.id, [status_msg.id])).start()
-        
+        def delete_msg():
+            time.sleep(60)
+            safe_delete_messages(message.chat.id, [status_msg.id])
+        threading.Thread(target=delete_msg, daemon=True).start()
     except Exception as e:
         error_msg = f"❌ Error reloading cache: {str(e)}"
-        safe_edit_message_text(message.chat.id, status_msg.id, error_msg)
+        # Try to update the status message if it exists, otherwise send new message
+        if 'status_msg' in locals() and status_msg:
+            safe_edit_message_text(message.chat.id, status_msg.id, error_msg)
+            # Schedule deletion after 60 seconds
+            def delete_msg():
+                time.sleep(60)
+                safe_delete_messages(message.chat.id, [status_msg.id])
+            threading.Thread(target=delete_msg, daemon=True).start()
+        else:
+            safe_send_message_with_auto_delete(message.chat.id, error_msg, delete_after_seconds=60)
         from HELPERS.logger import log_error_to_channel
         log_error_to_channel(message, error_msg)
         send_to_logger(message, f"Error reloading Firebase cache: {str(e)}")
-        # Schedule deletion after 60 seconds
-        threading.Timer(60.0, lambda: safe_delete_messages(message.chat.id, [status_msg.id])).start()
 
 # SEND BRODCAST Message to All Users
 
