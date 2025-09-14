@@ -335,20 +335,15 @@ def format_current_args(user_args: Dict[str, Any]) -> str:
 def args_command(app, message):
     """Handle /args command"""
     user_id = message.chat.id
-    check_user(message)
     
     # Subscription check for non-admins
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
-        try:
-            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Join Channel", url=Config.SUBSCRIBE_CHANNEL_URL)]])
-            safe_send_message(
-                user_id,
-                f"{Config.TO_USE_MSG}\n \n{Config.CREDITS_MSG}",
-                reply_markup=keyboard
-            )
-        except Exception:
-            pass
-        return
+        return  # is_user_in_channel already sends subscription message
+    
+    # Create user directory after subscription check
+    user_dir = os.path.join("users", str(user_id))
+    if not os.path.exists(user_dir):
+        os.makedirs(user_dir, exist_ok=True)
     
     keyboard = get_args_menu_keyboard(user_id)
     

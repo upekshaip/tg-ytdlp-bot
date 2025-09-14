@@ -410,7 +410,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             send_to_user(message, Config.ERROR_NO_DISK_SPACE_MSG)
             return
 
-        check_user(message)
+        # Create user directory (subscription already checked in video_extractor)
+        user_dir = os.path.join("users", str(user_id))
+        if not os.path.exists(user_dir):
+            os.makedirs(user_dir, exist_ok=True)
 
         # Reset of the flag of errors for the new launch of the playlist
         if playlist_name:
@@ -638,7 +641,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         successful_uploads = 0
 
         def try_download(url, attempt_opts):
-            nonlocal current_total_process, error_message
+            nonlocal current_total_process, error_message, did_cookie_retry, did_proxy_retry
             
             common_opts = {
                 'playlist_items': str(current_index),
