@@ -144,6 +144,8 @@ def list_command(app, message):
                 temp_file.write("After getting the list, use specific format ID:\n")
                 temp_file.write("• /format id 401 - download format 401\n")
                 temp_file.write("• /format id401 - same as above\n")
+                temp_file.write("• /format id 140 audio - download format 140 as MP3 audio\n")
+                temp_file.write("• /format id140 audio - same as above\n")
                 
                 # Add special note for audio-only formats
                 if audio_only_formats:

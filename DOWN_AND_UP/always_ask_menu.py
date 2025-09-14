@@ -4350,6 +4350,12 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
         logger.error(f"Error checking LINK mode for user {user_id}: {e}")
         # Continue with normal download if LINK mode check fails
 
+    # Check if format contains /bestaudio (audio-only format)
+    if fmt and '/bestaudio' in fmt:
+        logger.info(f"Audio-only format detected: {fmt}, redirecting to down_and_audio")
+        down_and_audio(app, message, url, tags_text, quality_key=quality_key, format_override=fmt, cookies_already_checked=True)
+        return
+
     # Analyze the format to determine if it's audio-only, video-only, or full
     format_type = None
     complementary_format = None
@@ -4359,25 +4365,11 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
         user_id = message.chat.id
         info = get_video_formats(url, user_id, cookies_already_checked=True)
         
-        if 'formats' in info:
-            # Find the selected format by extracting format ID from fmt string
+        if quality_key and 'formats' in info:
+            # Find the selected format
             selected_format = None
-            format_id = None
-            
-            # Extract format ID from fmt string (e.g., "140+bestaudio/bv+ba/best" -> "140")
-            if fmt and '+' in fmt:
-                format_id = fmt.split('+')[0]
-            elif fmt and '/' in fmt:
-                format_id = fmt.split('/')[0]
-            elif fmt:
-                format_id = fmt
-            
-            # Try to find format by quality_key first, then by extracted format_id
             for f in info['formats']:
-                if quality_key and f.get('format_id') == quality_key:
-                    selected_format = f
-                    break
-                elif format_id and f.get('format_id') == format_id:
+                if f.get('format_id') == quality_key:
                     selected_format = f
                     break
             
@@ -4388,8 +4380,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
                 if format_type == 'audio_only':
                     # Use audio download function with the selected format
                     # Pass cookies_already_checked=True since we already checked cookies in get_video_formats
-                    # Use format_id as quality_key for audio downloads
-                    down_and_audio(app, message, url, tags_text, quality_key=format_id, format_override=fmt, cookies_already_checked=True)
+                    down_and_audio(app, message, url, tags_text, quality_key=quality_key, format_override=fmt, cookies_already_checked=True)
                     return
                 
                 # If it's video-only, find complementary audio
