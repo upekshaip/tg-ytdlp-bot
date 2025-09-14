@@ -3889,12 +3889,12 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             logger.error(f"Error creating cached qualities menu: {cache_error}")
         
         # Если кэшированных качеств нет, показываем ошибку
-        error_text = f"❌ Error retrieving video information:\n{e}\n> Try the /clean command and try again. If the error persists, YouTube requires authorization. Update cookies.txt via /cookie or /cookies_from_browser and try again."
+        error_text = f"❌ <b>Error retrieving video information:</b>\n<code>{e}</code>\n\n> Try the <code>/clean</code> command and try again. If the error persists, YouTube requires authorization. Update cookies.txt via <code>/cookie</code> or <code>/cookies_from_browser</code> and try again."
         
         # Try to edit the processing message to show error first
         try:
             if proc_msg:
-                result = app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=error_text)
+                result = app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=error_text, parse_mode=enums.ParseMode.HTML)
                 if result is not None:
                     # Successfully edited the processing message, now log to channel
                     from HELPERS.logger import log_error_to_channel
