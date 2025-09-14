@@ -12,7 +12,7 @@ import traceback
 import yt_dlp
 import re
 from HELPERS.app_instance import get_app
-from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, get_log_channel
+from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, send_error_to_user, get_log_channel
 from CONFIG.logger_msg import LoggerMsg
 from HELPERS.limitter import TimeFormatter, humanbytes, check_user, check_file_size_limit, check_subs_limits
 from HELPERS.download_status import set_active_download, clear_download_start_time, check_download_timeout, start_hourglass_animation, start_cycle_progress, playlist_errors_lock, playlist_errors
@@ -85,7 +85,7 @@ def determine_need_subs(subs_enabled, found_type, user_id):
         return (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
 
 #@reply_with_keyboard
-def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None, cookies_already_checked=False, use_proxy=False, http_headers=None):
+def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None, cookies_already_checked=False, use_proxy=False):
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
     """
@@ -103,6 +103,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     # ЖЕСТКО: Сохраняем оригинальный текст с диапазоном для фоллбэка
     original_message_text = message.text or message.caption or ""
     logger.info(f"[ORIGINAL TEXT] Saved for fallback: {original_message_text}")
+    
+    # Initialize retry guards early to avoid UnboundLocalError
+    did_proxy_retry = False
+    did_cookie_retry = False
     
     # Determine forced NSFW via user tags
     try:
@@ -376,7 +380,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         required_bytes = 2 * 1024 * 1024 * 1024
         try:
             from DOWN_AND_UP.yt_dlp_hook import get_video_formats
-            info_probe = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked, http_headers=http_headers)
+            info_probe = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked)
             size = 0
             if isinstance(info_probe, dict):
                 size = info_probe.get('filesize') or info_probe.get('filesize_approx') or 0
@@ -559,8 +563,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         first_progress_update = True  # Flag for tracking the first update
         progress_start_time = time.time()
         # One-time retry guards to avoid infinite retry loops across attempts
-        did_proxy_retry = False
-        did_cookie_retry = False
+        # (already initialized at the beginning of the function)
 
         def progress_func(d):
             nonlocal last_update, first_progress_update
@@ -582,7 +585,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         logger.error(f"Error updating progress: {e}")
                 elif d.get("status") == "error":
                     logger.error("Error occurred during download.")
-                    send_to_all(message, LoggerMsg.DOWNLOAD_ERROR_GENERIC)
+                    send_error_to_user(message, LoggerMsg.DOWNLOAD_ERROR_GENERIC)
                 return
             
             # Adaptive throttle: base 1.5s, doubles each minute (1m→1.5s, 2m→3s, 3m→6s,...)
@@ -615,7 +618,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             logger.error(f"Error in message cleanup: {e}")
                         first_progress_update = False
 
-                    safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{bar}   {percent:.1f}%")
+                    progress_text = f"{current_total_process}\n{bar}   {percent:.1f}%"
+                    logger.info(f"Updating progress for user {user_id}, message {proc_msg_id}: {progress_text}")
+                    result = safe_edit_message_text(user_id, proc_msg_id, progress_text)
+                    if result is None:
+                        logger.warning(f"Failed to update progress message {proc_msg_id} for user {user_id} - message may have been deleted")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
             elif d.get("status") == "finished":
@@ -625,7 +632,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     logger.error(f"Error updating progress: {e}")
             elif d.get("status") == "error":
                 logger.error("Error occurred during download.")
-                send_to_all(message, LoggerMsg.DOWNLOAD_ERROR_GENERIC)
+                send_error_to_user(message, LoggerMsg.DOWNLOAD_ERROR_GENERIC)
             last_update = current_time
 
         successful_uploads = 0
@@ -659,10 +666,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 #'connect_timeout': 30  # Connect timeout
             }
             
-            # Add HTTP headers if provided
-            if http_headers:
-                from URL_PARSERS.http_headers import add_http_headers_to_ytdl_opts
-                common_opts = add_http_headers_to_ytdl_opts(common_opts, http_headers)
+            # Add user's custom yt-dlp arguments
+            from COMMANDS.args_cmd import get_user_ytdlp_args, log_ytdlp_options
+            user_args = get_user_ytdlp_args(user_id, url)
+            if user_args:
+                common_opts.update(user_args)
+            
+            # Log final yt-dlp options for debugging
+            log_ytdlp_options(user_id, common_opts, "video_download")
             
             # Check subtitle availability for YouTube videos (but don't download them here)
             if is_youtube_url(url):
@@ -824,7 +835,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 from DOWN_AND_UP.yt_dlp_hook import get_video_formats
                 
                 logger.info("Checking available formats...")
-                check_info = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked, use_proxy=use_proxy, http_headers=http_headers)
+                check_info = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked, use_proxy=use_proxy)
                 logger.info("Format check completed")
                 
                 # Check if requested format exists
@@ -1082,7 +1093,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             did_cookie_retry = True
                 
                 # Send full error message with instructions immediately
-                send_to_all(
+                send_error_to_user(
                     message,                   
                     "<blockquote>Check <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>here</a> if your site supported</blockquote>\n"
                     "<blockquote>You may need <code>cookie</code> for downloading this video. First, clean your workspace via <b>/clean</b> command</blockquote>\n"
@@ -1161,7 +1172,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Check if this is a "No videos found in playlist" error
                 if "No videos found in playlist" in str(e):
                     error_message = f"❌ No videos found in playlist at index {current_index + 1}."
-                    send_to_all(message, error_message)
+                    send_error_to_user(message, error_message)
                     logger.info(f"Stopping download: playlist item at index {current_index} (no video found)")
                     return "STOP"  # New special value for full stop
                 
@@ -1279,7 +1290,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             logger.info(f"Found video files in {dir_path}: {files}")
             
             if not files:
-                send_to_all(message, f"Skipping unsupported file type in playlist at index {idx + video_start_with}")
+                send_error_to_user(message, f"Skipping unsupported file type in playlist at index {idx + video_start_with}")
                 continue
 
             downloaded_file = files[0]
@@ -1340,7 +1351,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 from DOWN_AND_UP.ffmpeg import get_ffmpeg_path
                 ffmpeg_path = get_ffmpeg_path()
                 if not ffmpeg_path:
-                    send_to_all(message, "❌ FFmpeg not found. Please install FFmpeg.")
+                    send_error_to_user(message, "❌ FFmpeg not found. Please install FFmpeg.")
                     break
                 
                 ffmpeg_cmd = [
@@ -1360,7 +1371,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     user_vid_path = mp4_file
                     final_name = mp4_basename
                 except Exception as e:
-                    send_to_all(message, f"❌ Conversion to MP4 failed: {e}")
+                    send_error_to_user(message, f"❌ Conversion to MP4 failed: {e}")
                     break
 
             after_rename_abs_path = os.path.abspath(user_vid_path)
@@ -2081,7 +2092,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     except Exception as e:
                         logger.error(f"Error sending video: {e}")
                         logger.error(traceback.format_exc())
-                        send_to_all(message, f"❌ Error sending video: {str(e)}")
+                        send_error_to_user(message, f"❌ Error sending video: {str(e)}")
                         continue
         if successful_uploads == len(indices_to_download):
             success_msg = f"<b>✅ Upload complete</b> - {video_count} files uploaded.\n{Config.CREDITS_MSG}"

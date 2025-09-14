@@ -149,6 +149,7 @@ from COMMANDS.other_handlers import audio_command_handler, playlist_command
 from COMMANDS.tag_cmd import tags_command
 from URL_PARSERS.url_extractor import url_distractor
 from COMMANDS.subtitles_cmd import subs_command
+from COMMANDS import args_cmd
 from COMMANDS.cookies_cmd import cookies_from_browser
 
 def _wrap_group(fn):
@@ -188,6 +189,7 @@ if _allowed_groups:
     app.on_message(filters.group & filters.command("audio"))(_wrap_group(lambda a, m: audio_command_handler(a, m) if _is_allowed_group(m) else None))
     app.on_message(filters.group & filters.command("playlist"))(_wrap_group(lambda a, m: playlist_command(a, m) if _is_allowed_group(m) else None))
     app.on_message(filters.group & filters.command("subs"))(_wrap_group(lambda a, m: subs_command(a, m) if _is_allowed_group(m) else None))
+    app.on_message(filters.group & filters.command("args"))(_wrap_group(lambda a, m: args_cmd.args_command(a, m) if _is_allowed_group(m) else None))
     app.on_message(filters.group & filters.command("cookies_from_browser"))(_wrap_group(lambda a, m: cookies_from_browser(a, m) if _is_allowed_group(m) else None))
 
     # Text/url handler in allowed groups (topic-aware)

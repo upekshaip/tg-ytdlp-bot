@@ -111,6 +111,14 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
                 InlineKeyboardButton("🎹 Keyboard", callback_data="clean_option|keyboard"),
             ],
             [
+                InlineKeyboardButton("⚙️ Args", callback_data="clean_option|args"),
+                InlineKeyboardButton("🔞 NSFW", callback_data="clean_option|nsfw"),
+            ],
+            [
+                InlineKeyboardButton("🌎 Proxy", callback_data="clean_option|proxy"),
+                InlineKeyboardButton("🔄 Flood wait", callback_data="clean_option|flood_wait"),
+            ],
+            [
                 InlineKeyboardButton("🗑  All files", callback_data="clean_option|all"),
             ],
             [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
@@ -197,6 +205,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("🌍 /proxy - Enable/disable proxy", callback_data="settings__cmd__proxy")],
             [InlineKeyboardButton("🎹 /keyboard - Keyboard layout", callback_data="settings__cmd__keyboard")],
             [InlineKeyboardButton("🔍 /search - Inline search helper", callback_data="settings__cmd__search_menu")],
+            [InlineKeyboardButton("⚙️ /args - yt-dlp arguments", callback_data="settings__cmd__args")],
             [InlineKeyboardButton("🔞 /nsfw - NSFW blur settings", callback_data="settings__cmd__nsfw")],
             [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
@@ -631,6 +640,25 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
     if data == "add_bot_to_group":
         try:
             url_distractor(app, fake_message("/add_bot_to_group", user_id))
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+            try:
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
+            return
+        try:
+            callback_query.answer("Command executed.")
+        except Exception:
+            pass
+        return
+    if data == "args":
+        try:
+            from COMMANDS.args_cmd import args_command
+            args_command(app, fake_message("/args", user_id))
         except FloodWait as e:
             user_dir = os.path.join("users", str(user_id))
             os.makedirs(user_dir, exist_ok=True)

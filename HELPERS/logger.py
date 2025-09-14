@@ -104,3 +104,21 @@ def send_to_all(message, msg):
     msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
     safe_send_message(get_log_channel("general"), msg_with_id, parse_mode=enums.ParseMode.HTML)
     safe_send_message(user_id, msg, parse_mode=enums.ParseMode.HTML, message=message)
+
+# Send Error Message to User and LOG_EXCEPTION channel
+def send_error_to_user(message, msg):
+    """Send error message to user and log it to LOG_EXCEPTION channel"""
+    user_id = message.chat.id
+    msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
+    # Send to LOG_EXCEPTION channel for error tracking
+    safe_send_message(Config.LOG_EXCEPTION, msg_with_id, parse_mode=enums.ParseMode.HTML)
+    # Send to user
+    safe_send_message(user_id, msg, parse_mode=enums.ParseMode.HTML, message=message)
+
+# Log error message to LOG_EXCEPTION channel (without sending to user)
+def log_error_to_channel(message, msg):
+    """Log error message to LOG_EXCEPTION channel only"""
+    user_id = message.chat.id
+    msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
+    # Send to LOG_EXCEPTION channel for error tracking
+    safe_send_message(Config.LOG_EXCEPTION, msg_with_id, parse_mode=enums.ParseMode.HTML)

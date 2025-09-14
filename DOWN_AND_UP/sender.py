@@ -470,7 +470,9 @@ def send_videos(
                         else:
                             raise
             else:
-                # If the error is not related to the length of the caption, pass it further
+                # If the error is not related to the length of the caption, log it and pass it further
+                from HELPERS.logger import send_error_to_user
+                send_error_to_user(message, f"❌ Error sending video: {str(e)}")
                 raise e
         # Note: Forwarding to log channels is now handled in down_and_up.py
         # to avoid double forwarding and ensure proper channel routing
@@ -490,6 +492,8 @@ def send_videos(
                 # Note: Description file forwarding is handled in down_and_up.py
             except Exception as e:
                 logger.error(f"Error sending full description file: {e}")
+                from HELPERS.logger import send_error_to_user
+                send_error_to_user(message, f"❌ Error sending description file: {str(e)}")
         return video_msg
     finally:
         if os.path.exists(temp_desc_path):
@@ -497,5 +501,6 @@ def send_videos(
                 os.remove(temp_desc_path)
             except Exception as e:
                 logger.error(f"Error removing temporary description file: {e}")
+                # This is not critical enough to log to LOG_EXCEPTION channel
 
 #####################################################################################

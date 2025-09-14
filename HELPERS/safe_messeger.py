@@ -2,6 +2,7 @@
 import re
 import time
 import logging
+import threading
 from types import SimpleNamespace
 from HELPERS.app_instance import get_app
 from pyrogram.errors import FloodWait
@@ -293,3 +294,35 @@ def safe_delete_messages(chat_id, message_ids, **kwargs):
             # Избегаем внутренних атрибутов исключения (например, pts_count)
             logger.error(f"Failed to delete messages after {max_retries} attempts: {type(e).__name__}")
             return None
+
+# Helper function for sending messages with auto-delete functionality
+def safe_send_message_with_auto_delete(chat_id, text, delete_after_seconds=60, **kwargs):
+    """
+    Send a message and automatically delete it after specified seconds
+    
+    Args:
+        chat_id: The chat ID to send to
+        text: The message text
+        delete_after_seconds: Seconds after which to delete the message (default: 60)
+        **kwargs: Additional arguments for send_message
+    
+    Returns:
+        The message object or None if sending failed
+    """
+    # Send the message first
+    message = safe_send_message(chat_id, text, **kwargs)
+    
+    if message and hasattr(message, 'id'):
+        # Schedule deletion in a separate thread
+        def delete_message_after_delay():
+            try:
+                time.sleep(delete_after_seconds)
+                safe_delete_messages(chat_id, [message.id])
+            except Exception as e:
+                logger.error(f"Error in auto-delete thread: {e}")
+        
+        # Start the deletion thread
+        delete_thread = threading.Thread(target=delete_message_after_delay, daemon=True)
+        delete_thread.start()
+    
+    return message

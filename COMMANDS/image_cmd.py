@@ -2683,6 +2683,8 @@ def image_command(app, message):
             Config.ERROR_OCCURRED_MSG.format(url=url, error=str(e)),
             parse_mode=enums.ParseMode.HTML
         )
+        from HELPERS.logger import send_error_to_user
+        send_error_to_user(message, Config.ERROR_OCCURRED_MSG.format(url=url, error=str(e)))
         send_to_logger(message, LoggerMsg.IMAGE_COMMAND_ERROR.format(url=url, error=e))
 
 @app.on_callback_query(filters.regex(r"^img_help\|"))

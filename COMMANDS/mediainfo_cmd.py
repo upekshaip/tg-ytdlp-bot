@@ -7,7 +7,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyPara
 
 from HELPERS.app_instance import get_app
 from HELPERS.filesystem_hlp import create_directory
-from HELPERS.logger import send_to_logger, logger, send_to_all
+from HELPERS.logger import send_to_logger, logger, send_to_all, send_error_to_user
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
 from HELPERS.limitter import is_user_in_channel
 
@@ -151,4 +151,4 @@ def send_mediainfo_if_enabled(user_id, file_path, message):
 
         except Exception as e:
             logger.error(f"Error MediaInfo: {e}")
-            send_to_all(message, f"❌ Error sending MediaInfo: {e}")
+            send_error_to_user(message, f"❌ Error sending MediaInfo: {e}")

@@ -1345,13 +1345,19 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
         subs_lang = get_user_subs_language(user_id)
         if not subs_lang or subs_lang == "OFF":
             from HELPERS.safe_messeger import safe_send_message
-            safe_send_message(user_id, "❌ Subtitles are disabled. Use /subs to configure.")
+            error_msg = "❌ Subtitles are disabled. Use /subs to configure."
+            safe_send_message(user_id, error_msg)
+            from HELPERS.logger import log_error_to_channel
+            log_error_to_channel(message, error_msg)
             return
         
         # Check if this is YouTube
         if not is_youtube_url(url):
             from HELPERS.safe_messeger import safe_send_message
-            safe_send_message(user_id, "❌ Subtitle downloading is only supported for YouTube.")
+            error_msg = "❌ Subtitle downloading is only supported for YouTube."
+            safe_send_message(user_id, error_msg)
+            from HELPERS.logger import log_error_to_channel
+            log_error_to_channel(message, error_msg)
             return
         
         # Check subtitle availability
@@ -1431,7 +1437,10 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
             app.edit_message_text(user_id, status_msg.id, f"❌ Error: {str(e)}")
         except:
             from HELPERS.safe_messeger import safe_send_message
-            safe_send_message(user_id, f"❌ Error downloading subtitles: {str(e)}")
+            error_msg = f"❌ Error downloading subtitles: {str(e)}"
+            safe_send_message(user_id, error_msg)
+            from HELPERS.logger import log_error_to_channel
+            log_error_to_channel(message, error_msg)
 
 
 def get_language_keyboard(page=0, user_id=None, langs_override=None, per_page_rows=8):

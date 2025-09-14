@@ -1,8 +1,8 @@
 from HELPERS.app_instance import get_app
-from HELPERS.logger import send_to_user, send_to_logger, send_to_all
+from HELPERS.logger import send_to_user, send_to_logger, send_to_all, send_error_to_user
 from pyrogram import filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from HELPERS.safe_messeger import safe_send_message
+from HELPERS.safe_messeger import safe_send_message, safe_send_message_with_auto_delete
 from CONFIG.config import Config
 from datetime import datetime
 import subprocess
@@ -34,23 +34,32 @@ def reload_firebase_cache_command(app, message):
     try:
         # 1) Download fresh dump via external script path
         script_path = getattr(Config, "DOWNLOAD_FIREBASE_SCRIPT_PATH", "download_firebase.py")
-        send_to_user(message, f"⏳ Downloading fresh Firebase dump using {script_path} ...")
+        safe_send_message_with_auto_delete(message.chat.id, f"⏳ Downloading fresh Firebase dump using {script_path} ...", delete_after_seconds=60)
         result = subprocess.run([sys.executable, script_path], capture_output=True, text=True, encoding='utf-8', errors='replace')
         if result.returncode != 0:
-            send_to_user(message, f"❌ Error running {script_path}:\n{result.stdout}\n{result.stderr}")
+            error_msg = f"❌ Error running {script_path}:\n{result.stdout}\n{result.stderr}"
+            safe_send_message_with_auto_delete(message.chat.id, error_msg, delete_after_seconds=60)
+            from HELPERS.logger import log_error_to_channel
+            log_error_to_channel(message, error_msg)
             send_to_logger(message, f"Error running {script_path}: {result.stdout}\n{result.stderr}")
             return
         # 2) Reload local cache into memory
         from DATABASE.cache_db import reload_firebase_cache as _reload_local
         success = _reload_local()
         if success:
-            send_to_user(message, "✅ Firebase cache reloaded successfully!")
+            safe_send_message_with_auto_delete(message.chat.id, "✅ Firebase cache reloaded successfully!", delete_after_seconds=60)
             send_to_logger(message, "Firebase cache reloaded by admin.")
         else:
             cache_file = getattr(Config, 'FIREBASE_CACHE_FILE', 'firebase_cache.json')
-            send_to_user(message, f"❌ Failed to reload Firebase cache. Check if {cache_file} exists.")
+            error_msg = f"❌ Failed to reload Firebase cache. Check if {cache_file} exists."
+            safe_send_message_with_auto_delete(message.chat.id, error_msg, delete_after_seconds=60)
+            from HELPERS.logger import log_error_to_channel
+            log_error_to_channel(message, error_msg)
     except Exception as e:
-        send_to_user(message, f"❌ Error reloading cache: {str(e)}")
+        error_msg = f"❌ Error reloading cache: {str(e)}"
+        safe_send_message_with_auto_delete(message.chat.id, error_msg, delete_after_seconds=60)
+        from HELPERS.logger import log_error_to_channel
+        log_error_to_channel(message, error_msg)
         send_to_logger(message, f"Error reloading Firebase cache: {str(e)}")
 
 # SEND BRODCAST Message to All Users
@@ -130,7 +139,7 @@ def send_promo_message(app, message):
         send_to_all(message, "<b>✅ Promo message sent to all other users</b>")
         send_to_logger(message, "Broadcast message sent to all users.")
     except Exception as e:
-        send_to_all(message, "<b>❌ Cannot send the promo message. Try replying to a message\nOr some error occurred</b>")
+        send_error_to_user(message, "<b>❌ Cannot send the promo message. Try replying to a message\nOr some error occurred</b>")
         send_to_logger(message, f"Failed to broadcast message: {e}")
 
 

@@ -8,7 +8,7 @@ from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url
 from HELPERS.pot_helper import add_pot_to_ytdl_opts
 
-def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already_checked=False, use_proxy=False, http_headers=None):
+def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already_checked=False, use_proxy=False):
     ytdl_opts = {
         'quiet': True,
         'skip_download': True,
@@ -31,10 +31,15 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
         'live_from_start': True
     }
     
-    # Add HTTP headers if provided
-    if http_headers:
-        from URL_PARSERS.http_headers import add_http_headers_to_ytdl_opts
-        ytdl_opts = add_http_headers_to_ytdl_opts(ytdl_opts, http_headers)
+    # Add user's custom yt-dlp arguments
+    if user_id is not None:
+        from COMMANDS.args_cmd import get_user_ytdlp_args, log_ytdlp_options
+        user_args = get_user_ytdlp_args(user_id, url)
+        if user_args:
+            ytdl_opts.update(user_args)
+        
+        # Log final yt-dlp options for debugging
+        log_ytdlp_options(user_id, ytdl_opts, "get_video_formats")
     
     if user_id is not None:
         user_dir = os.path.join("users", str(user_id))

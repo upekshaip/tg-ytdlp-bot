@@ -11,7 +11,7 @@ import time
 import yt_dlp
 from pyrogram.errors import FloodWait
 from HELPERS.app_instance import get_app
-from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all
+from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, send_error_to_user
 from HELPERS.limitter import TimeFormatter, humanbytes, check_user
 from HELPERS.download_status import set_active_download, clear_download_start_time, check_download_timeout, start_hourglass_animation, playlist_errors, playlist_errors_lock
 from HELPERS.safe_messeger import safe_delete_messages, safe_edit_message_text, safe_forward_messages
@@ -159,7 +159,7 @@ def embed_cover_mp3(mp3_path, cover_path, title=None, artist=None, album=None):
         return False
 
 # @reply_with_keyboard
-def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None, video_count=1, video_start_with=1, format_override=None, cookies_already_checked=False, use_proxy=False, http_headers=None):
+def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None, video_count=1, video_start_with=1, format_override=None, cookies_already_checked=False, use_proxy=False):
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
     """
@@ -175,6 +175,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     # ЖЕСТКО: Сохраняем оригинальный текст с диапазоном для фоллбэка
     original_message_text = message.text or message.caption or ""
     logger.info(f"[ORIGINAL TEXT] Saved for fallback: {original_message_text}")
+    
+    # Initialize retry guards early to avoid UnboundLocalError
+    did_proxy_retry = False
+    did_cookie_retry = False
     
     # Determine forced NSFW via user tags
     try:
@@ -584,8 +588,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 last_update = current_time
 
         # One-time retry guards to avoid infinite retry loops across attempts
-        did_proxy_retry = False
-        did_cookie_retry = False
+        # (already initialized at the beginning of the function)
 
         def try_download_audio(url, current_index):
             nonlocal current_total_process
@@ -621,10 +624,14 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                'writeautomaticsub': False,  # Disable auto subtitles for audio
             }
             
-            # Add HTTP headers if provided
-            if http_headers:
-                from URL_PARSERS.http_headers import add_http_headers_to_ytdl_opts
-                ytdl_opts = add_http_headers_to_ytdl_opts(ytdl_opts, http_headers)
+            # Add user's custom yt-dlp arguments
+            from COMMANDS.args_cmd import get_user_ytdlp_args, log_ytdlp_options
+            user_args = get_user_ytdlp_args(user_id, url)
+            if user_args:
+                ytdl_opts.update(user_args)
+            
+            # Log final yt-dlp options for debugging
+            log_ytdlp_options(user_id, ytdl_opts, "audio_download")
             
             # Check if we need to use --no-cookies for this domain
             if is_no_cookie_domain(url):
@@ -820,7 +827,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                             did_cookie_retry = True
                 
                 # Send full error message with instructions immediately
-                send_to_all(
+                send_error_to_user(
                     message,
                     "<blockquote>Check <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>here</a> if your site supported</blockquote>\n"
                     "<blockquote>You may need <code>cookie</code> for downloading this audio. First, clean your workspace via <b>/clean</b> command</blockquote>\n"
@@ -835,7 +842,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 # Check if this is a "No videos found in playlist" error
                 if "No videos found in playlist" in error_text or "Story might have expired" in error_text:
                     error_message = f"❌ No content found at index {current_index + video_start_with}"
-                    send_to_all(message, error_message)
+                    send_error_to_user(message, error_message)
                     logger.info(f"Skipping item at index {current_index} (no content found)")
                     return "SKIP"
                 
@@ -940,7 +947,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             files = [fname for fname in allfiles if fname.endswith('.mp3')]
             files.sort()
             if not files:
-                send_to_all(message, f"Skipping unsupported file type in playlist at index {idx + video_start_with}")
+                send_error_to_user(message, f"Skipping unsupported file type in playlist at index {idx + video_start_with}")
                 continue
 
             downloaded_file = files[0]

@@ -45,6 +45,12 @@ def url_distractor(app, message):
     user_id = message.chat.id
     is_admin = int(user_id) in Config.ADMIN
     text = message.text.strip()
+    
+    # Check if user is in args input state
+    from COMMANDS.args_cmd import user_input_states, handle_args_text_input
+    if user_id in user_input_states:
+        handle_args_text_input(app, message)
+        return
     # Normalize commands like /cmd@bot to /cmd for group mentions
     try:
         bot_mention = f"@{getattr(Config, 'BOT_NAME', '').strip()}"
@@ -89,10 +95,6 @@ def url_distractor(app, message):
             return
         # Emulate a user command for the mapped emoji
         return url_distractor(app, fake_message(mapped, user_id))
-
-    # For non-admin users, if they haven't Joined the Channel, Exit ImmediaTely.
-    if not is_admin and not is_user_in_channel(app, message):
-        return
 
     # ----- Admin-only denial for non-admins -----
     if not is_admin:
@@ -184,6 +186,11 @@ def url_distractor(app, message):
         send_to_logger(message, LoggerMsg.ADD_BOT_TO_GROUP_SENT)
         return
 
+    # For non-admin users, if they haven't Joined the Channel, Exit ImmediaTely.
+    # This check applies to all user commands below, but not to basic commands above.
+    if not is_admin and not is_user_in_channel(app, message):
+        return
+
     # ----- User Commands -----
     # /Search Command
     if text.startswith(Config.SEARCH_COMMAND):
@@ -249,6 +256,13 @@ def url_distractor(app, message):
     if text.startswith(Config.IMG_COMMAND):
         image_command(app, message)
         return
+
+    # /Args Command
+    if text.startswith(Config.ARGS_COMMAND):
+        from COMMANDS.args_cmd import args_command
+        args_command(app, message)
+        return
+
 
     # /cookie Command (exact or with arguments only). Avoid matching '/cookies_from_browser'.
     if text == Config.DOWNLOAD_COOKIE_COMMAND or text.startswith(Config.DOWNLOAD_COOKIE_COMMAND + " "):
@@ -494,6 +508,22 @@ def url_distractor(app, message):
         elif clean_args == "keyboard":
             remove_media(message, only=["keyboard.txt"])
             send_to_all(message, "🗑 Keyboard settings removed.")
+            return
+        elif clean_args == "args":
+            remove_media(message, only=["args.txt"])
+            send_to_all(message, "🗑 Args settings removed.")
+            return
+        elif clean_args == "nsfw":
+            remove_media(message, only=["nsfw_blur.txt"])
+            send_to_all(message, "🗑 NSFW settings removed.")
+            return
+        elif clean_args == "proxy":
+            remove_media(message, only=["proxy.txt"])
+            send_to_all(message, "🗑 Proxy settings removed.")
+            return
+        elif clean_args == "flood_wait":
+            remove_media(message, only=["flood_wait.txt"])
+            send_to_all(message, "🗑 Flood wait settings removed.")
             return
         elif clean_args == "all":
             # Delete all files and display the list of deleted ones

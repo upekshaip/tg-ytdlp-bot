@@ -144,6 +144,7 @@ class Config(object):
     IMG_COMMAND = CommandsConfig.IMG_COMMAND
     ADD_BOT_TO_GROUP_COMMAND = CommandsConfig.ADD_BOT_TO_GROUP_COMMAND
     NSFW_COMMAND = CommandsConfig.NSFW_COMMAND
+    ARGS_COMMAND = CommandsConfig.ARGS_COMMAND
     
     # Messages configuration
     CREDITS_MSG = MessagesConfig.CREDITS_MSG

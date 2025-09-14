@@ -108,11 +108,17 @@ def cookies_from_browser(app, message):
             if ok:
                 # basic validation
                 if not fallback_url.lower().endswith('.txt'):
-                    safe_send_message(user_id, "❌ Fallback COOKIE_URL must point to a .txt file.", message=message)
+                    error_msg = "❌ Fallback COOKIE_URL must point to a .txt file."
+                    safe_send_message(user_id, error_msg, message=message)
+                    from HELPERS.logger import log_error_to_channel
+                    log_error_to_channel(message, error_msg)
                     send_to_logger(message, "COOKIE_URL does not end with .txt (hidden)")
                     return
                 if len(content or b"") > 100 * 1024:
-                    safe_send_message(user_id, "❌ Fallback cookie file is too large (>100KB).", message=message)
+                    error_msg = "❌ Fallback cookie file is too large (>100KB)."
+                    safe_send_message(user_id, error_msg, message=message)
+                    from HELPERS.logger import log_error_to_channel
+                    log_error_to_channel(message, error_msg)
                     send_to_logger(message, "Fallback cookie too large (source hidden)")
                     return
                 with open(cookie_file_path, "wb") as f:
@@ -121,14 +127,23 @@ def cookies_from_browser(app, message):
                 send_to_logger(message, "Fallback COOKIE_URL used successfully (source hidden)")
             else:
                 if status is not None:
-                    safe_send_message(user_id, f"❌ Fallback cookie source unavailable (status {status}). Try /cookie or upload cookie.txt.", message=message)
+                    error_msg = f"❌ Fallback cookie source unavailable (status {status}). Try /cookie or upload cookie.txt."
+                    safe_send_message(user_id, error_msg, message=message)
+                    from HELPERS.logger import log_error_to_channel
+                    log_error_to_channel(message, error_msg)
                     send_to_logger(message, f"Fallback COOKIE_URL failed: status={status} (hidden)")
                 else:
-                    safe_send_message(user_id, "❌ Error downloading fallback cookie. Try /cookie or upload cookie.txt.", message=message)
+                    error_msg = "❌ Error downloading fallback cookie. Try /cookie or upload cookie.txt."
+                    safe_send_message(user_id, error_msg, message=message)
+                    from HELPERS.logger import log_error_to_channel
+                    log_error_to_channel(message, error_msg)
                     safe_err = _sanitize_error_detail(err or "", fallback_url)
                     send_to_logger(message, f"Fallback COOKIE_URL error: {safe_err}")
         except Exception as e:
-            safe_send_message(user_id, "❌ Unexpected error during fallback cookie download.", message=message)
+            error_msg = "❌ Unexpected error during fallback cookie download."
+            safe_send_message(user_id, error_msg, message=message)
+            from HELPERS.logger import log_error_to_channel
+            log_error_to_channel(message, error_msg)
             send_to_logger(message, f"Fallback COOKIE_URL unexpected error: {type(e).__name__}: {e}")
         return
 

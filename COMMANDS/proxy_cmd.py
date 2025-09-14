@@ -70,7 +70,10 @@ def proxy_command(app, message):
                     send_to_logger(message, f"Proxy set via command: {arg}")
                     return
                 else:
-                    safe_send_message(user_id, "❌ Error saving proxy settings.", message=message)
+                    error_msg = "❌ Error saving proxy settings."
+                    safe_send_message(user_id, error_msg, message=message)
+                    from HELPERS.logger import log_error_to_channel
+                    log_error_to_channel(message, error_msg)
                     return
     except Exception:
         pass
