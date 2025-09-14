@@ -317,22 +317,22 @@ def safe_send_message_with_auto_delete(chat_id, text, delete_after_seconds=60, *
         # Schedule deletion in a separate thread with better error handling
         def delete_message_after_delay():
             try:
-                logger.info(f"Scheduling message {message.id} for deletion in {delete_after_seconds} seconds")
+                logger.info(f"[AUTO-DELETE] Scheduling message {message.id} for deletion in {delete_after_seconds} seconds")
                 time.sleep(delete_after_seconds)
-                logger.info(f"Attempting to delete message {message.id}")
+                logger.info(f"[AUTO-DELETE] Attempting to delete message {message.id}")
                 result = safe_delete_messages(chat_id, [message.id])
                 if result:
-                    logger.info(f"Successfully deleted message {message.id}")
+                    logger.info(f"[AUTO-DELETE] Successfully deleted message {message.id}")
                 else:
-                    logger.warning(f"Failed to delete message {message.id}")
+                    logger.warning(f"[AUTO-DELETE] Failed to delete message {message.id}")
             except Exception as e:
-                logger.error(f"Error in auto-delete thread for message {message.id}: {e}")
+                logger.error(f"[AUTO-DELETE] Error in auto-delete thread for message {message.id}: {e}")
         
         # Start the deletion thread
         delete_thread = threading.Thread(target=delete_message_after_delay, daemon=True)
         delete_thread.start()
-        logger.info(f"Started auto-delete thread for message {message.id}")
+        logger.info(f"[AUTO-DELETE] Started auto-delete thread for message {message.id} (thread: {delete_thread.name})")
     else:
-        logger.warning(f"Failed to send message or message has no ID: {message}")
+        logger.warning(f"[AUTO-DELETE] Failed to send message or message has no ID: {message}")
     
     return message
