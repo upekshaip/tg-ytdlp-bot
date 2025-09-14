@@ -33,9 +33,20 @@ def reload_firebase_cache_command(app, message):
         return
     try:
         # 1) Download fresh dump via external script path
-        script_path = getattr(Config, "DOWNLOAD_FIREBASE_SCRIPT_PATH", "download_firebase.py")
+        script_path = getattr(Config, "DOWNLOAD_FIREBASE_SCRIPT_PATH", "DATABASE/download_firebase.py")
+        # Ensure we have the full path to the script
+        if not os.path.isabs(script_path):
+            script_path = os.path.join(os.getcwd(), script_path)
+        
+        # Verify script exists
+        if not os.path.exists(script_path):
+            error_msg = f"❌ Script not found: {script_path}"
+            safe_send_message_with_auto_delete(message.chat.id, error_msg, delete_after_seconds=60)
+            send_to_logger(message, f"Script not found: {script_path}")
+            return
+            
         safe_send_message_with_auto_delete(message.chat.id, f"⏳ Downloading fresh Firebase dump using {script_path} ...", delete_after_seconds=60)
-        result = subprocess.run([sys.executable, script_path], capture_output=True, text=True, encoding='utf-8', errors='replace')
+        result = subprocess.run([sys.executable, script_path], capture_output=True, text=True, encoding='utf-8', errors='replace', cwd=os.path.dirname(os.path.dirname(script_path)))
         if result.returncode != 0:
             error_msg = f"❌ Error running {script_path}:\n{result.stdout}\n{result.stderr}"
             safe_send_message_with_auto_delete(message.chat.id, error_msg, delete_after_seconds=60)

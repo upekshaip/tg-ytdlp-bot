@@ -381,102 +381,6 @@ Also you may fill in `porn_domains.txt` `porn_keywords.txt` files in `TXT` folde
 
 ---
 
-## PO Token Provider Setup (YouTube Bypass)
-
-The bot now supports **PO Token Provider** for bypassing YouTube's "Sign in to confirm you're not a bot" restrictions and other blocking mechanisms.
-
-### What is PO Token Provider?
-
-PO (Proof-of-Origin) Token Provider is a service that generates tokens to make your yt-dlp requests appear more legitimate to YouTube, helping bypass various blocking mechanisms including:
-- "Sign in to confirm you're not a bot" messages
-- IP-based restrictions
-- Rate limiting
-- Other anti-bot measures
-
-### Docker Installation (Recommended)
-
-#### 1. Install Docker (if not already installed)
-
-**Ubuntu/Debian:**
-```bash
-sudo apt update
-sudo apt install -y docker.io
-sudo systemctl enable --now docker
-```
-
-#### 2. Run PO Token Provider Container
-
-```bash
-docker run -d \
-  --name bgutil-provider \
-  -p 4416:4416 \
-  --init \
-  --restart unless-stopped \
-  brainicism/bgutil-ytdlp-pot-provider
-```
-
-**Parameters:**
-- `-d`: Run in background (detached mode)
-- `--name bgutil-provider`: Container name
-- `-p 4416:4416`: Map port 4416 (container) to 4416 (host)
-- `--init`: Proper process handling
-- `--restart unless-stopped`: Auto-restart on reboot or crash
-
-#### 3. Verify Installation
-
-Check if container is running:
-```bash
-docker ps
-```
-
-Test the provider:
-```bash
-curl http://127.0.0.1:4416
-```
-
-#### 4. Install yt-dlp Plugin
-
-Install the PO token provider plugin for yt-dlp:
-```bash
-python3 -m pip install -U bgutil-ytdlp-pot-provider
-```
-
-#### 5. Configure Bot
-
-The bot is already configured to use PO token provider. Settings in `CONFIG/config.py`:
-
-```python
-# PO Token Provider configuration for YouTube
-YOUTUBE_POT_ENABLED = True
-YOUTUBE_POT_BASE_URL = "http://127.0.0.1:4416"
-YOUTUBE_POT_DISABLE_INNERTUBE = False
-```
-
-### How It Works
-
-1. **Automatic Detection**: Bot automatically detects YouTube URLs
-2. **Token Generation**: PO token provider generates legitimate tokens
-3. **Request Enhancement**: yt-dlp uses these tokens to bypass restrictions
-4. **Transparent Operation**: Works seamlessly with existing proxy and cookie systems
-
-### Benefits
-
-- ✅ Bypasses "Sign in to confirm you're not a bot" messages
-- ✅ Reduces IP-based blocking
-- ✅ Improves download success rates
-- ✅ Works with existing proxy and cookie configurations
-- ✅ Automatic integration - no user action required
-
----
-
-## Running Telegram bot
-Now you can start the bot via commands:
-```sh
-source venv/bin/activate
-python3 magic.py
-```
-
----
 
 ## 👤 User Commands
 
@@ -594,6 +498,40 @@ Interactive quality selection with advanced filtering:
 - **Fallback System**: Automatic switching between sources
 - **Browser Integration**: Extract cookies from installed browsers
 - **Real-time Progress**: Live updates during download and validation
+
+**Configuration Example:**
+```python
+# In CONFIG/config.py
+YOUTUBE_COOKIE_URL = "https://your-domain.com/cookies/youtube/cookie1.txt"
+YOUTUBE_COOKIE_URL_1 = "https://your-domain.com/cookies/youtube/cookie2.txt"
+YOUTUBE_COOKIE_URL_2 = "https://your-domain.com/cookies/youtube/cookie3.txt"
+# ... up to YOUTUBE_COOKIE_URL_9
+```
+
+**User Commands:**
+- `/cookie` → YouTube: Downloads and validates cookies from multiple sources
+- `/check_cookie`: Validates existing cookies and checks YouTube functionality
+- `/cookies_from_browser`: Extracts cookies from installed browsers
+- `/save_as_cookie`: Upload custom cookie file
+
+**Cookie Validation Process:**
+1. **Download**: Fetches cookie file from configured source
+2. **Format Check**: Validates Netscape cookie format
+3. **Size Validation**: Ensures file size is under 100KB
+4. **YouTube Test**: Tests cookies with a short YouTube video
+5. **Error Analysis**: Distinguishes between authentication and network errors
+6. **Fallback**: Tries next source if current one fails
+
+**Cookie File Requirements:**
+- **Format**: Must be in Netscape cookie format
+- **Size Limit**: Maximum 100KB per cookie file
+- **Access**: Cookie files must be accessible via HTTP/HTTPS URLs
+
+**Security Features:**
+- **URL Hiding**: Source URLs are hidden from users in error messages
+- **Error Sanitization**: Sensitive information is removed from logs
+- **Temporary Files**: Cookie files are cleaned up after validation
+- **Access Control**: Cookie management commands are properly restricted
 
 ### 🌐 Proxy Support
 
@@ -882,66 +820,6 @@ You can select a specific YouTube cookie source by index and then verify it:
 Note: You can tune exact limit values and behavior in `CONFIG/limits.py` and `CONFIG/config.py` according to your hosting and needs.
 
 
-## Cookie Management System
-
-The bot features a comprehensive cookie management system that supports multiple services and automatic validation.
-
-### YouTube Cookie Management
-
-**Automatic Download and Validation:**
-- **Multiple Sources**: Configure up to 10 different cookie sources in `config.py`
-- **Sequential Testing**: Bot tests each source in order until working cookies are found
-- **Real-time Validation**: Each downloaded cookie is tested with a YouTube video
-- **Automatic Fallback**: If one source fails, automatically tries the next
-
-**Configuration Example:**
-```python
-# In CONFIG/config.py
-YOUTUBE_COOKIE_URL = "https://your-domain.com/cookies/youtube/cookie1.txt"
-YOUTUBE_COOKIE_URL_1 = "https://your-domain.com/cookies/youtube/cookie2.txt"
-YOUTUBE_COOKIE_URL_2 = "https://your-domain.com/cookies/youtube/cookie3.txt"
-# ... up to YOUTUBE_COOKIE_URL_9
-```
-
-**User Commands:**
-- `/cookie` → YouTube: Downloads and validates cookies from multiple sources
-- `/check_cookie`: Validates existing cookies and checks YouTube functionality
-- `/cookies_from_browser`: Extracts cookies from installed browsers
-- `/save_as_cookie`: Upload custom cookie file
-
-**Cookie Validation Process:**
-1. **Download**: Fetches cookie file from configured source
-2. **Format Check**: Validates Netscape cookie format
-3. **Size Validation**: Ensures file size is under 100KB
-4. **YouTube Test**: Tests cookies with a short YouTube video
-5. **Error Analysis**: Distinguishes between authentication and network errors
-6. **Fallback**: Tries next source if current one fails
-
-### Other Service Cookies
-
-The bot also supports cookies for other platforms:
-- **TikTok**: `TIKTOK_COOKIE_URL`
-- **Twitter**: `TWITTER_COOKIE_URL`
-
-### Cookie File Requirements
-
-**Format**: Must be in Netscape cookie format:
-```
-# Netscape HTTP Cookie File
-.youtube.com	TRUE	/	TRUE	1735689600	VISITOR_INFO1_LIVE	abc123
-.youtube.com	TRUE	/	TRUE	1735689600	LOGIN_INFO	abc123
-```
-
-**Size Limit**: Maximum 100KB per cookie file
-
-**Access**: Cookie files must be accessible via HTTP/HTTPS URLs
-
-### Security Features
-
-- **URL Hiding**: Source URLs are hidden from users in error messages
-- **Error Sanitization**: Sensitive information is removed from logs
-- **Temporary Files**: Cookie files are cleaned up after validation
-- **Access Control**: Cookie management commands are properly restricted
 
 ---
 
@@ -1282,95 +1160,11 @@ journalctl -u tg-ytdlp-bot -f
 
 ---
 
-## Troubleshooting
-
-### Common Issues and Solutions
-
-**Bot doesn't start:**
-- Check that all required fields in `config.py` are filled
-- Verify API credentials are correct
-- Ensure both channels are set up and bot has admin permissions
-- Check Firebase configuration and credentials
-
-**Cookie download fails:**
-- Verify cookie URLs are accessible via HTTPS
-- Check file size is under 100KB
-- Ensure files are in Netscape cookie format
-- Test URLs in browser to confirm they work
-
-**YouTube videos fail to download:**
-- Run `/check_cookie` to verify YouTube cookies are working
-- Use `/cookie` to get fresh cookies
-- Check if video is age-restricted or private
-- Verify yt-dlp is properly installed and up to date
-
-**Firebase connection errors:**
-- Verify Firebase project is set up correctly
-- Check authentication credentials
-- Ensure Realtime Database rules allow read/write access
-- Verify database URL is correct
-
-**Channel subscription issues:**
-- Ensure bot is admin in subscription channel
-- Check channel invite link is valid
-- Verify channel ID format (should start with -100)
-- Test channel access manually
-
-### Getting Help
-
-If you encounter issues:
-1. Check the bot logs for error messages
-2. Verify all configuration fields are correct
-3. Test individual components (cookies, Firebase, channels)
-4. Check the [GitHub Issues](https://github.com/upekshaip/tg-ytdlp-bot/issues) for similar problems
-5. Create a new issue with detailed error information and logs
-
----
-
 ### /vid range shortcut
 - Use range before URL and it will be transformed to playlist indices:
   - `/vid 3-7 https://youtube.com/playlist?list=...` → `/vid https://youtube.com/playlist?list=...*3*7`
 
 ---
-
-### Image Download Support (`/img`)
-
-The bot now supports downloading images from various platforms using gallery-dl:
-
-**Features:**
-- **Multiple Platforms**: Supports direct image URLs and popular image hosting services
-- **Smart Detection**: Automatically detects image URLs and formats
-- **Proxy Support**: Works with configured proxy settings for restricted domains
-- **Cookie Integration**: Uses user's cookie settings for private content access
-- **Format Support**: JPG, PNG, GIF, WebP, BMP, TIFF, SVG and more
-
-**Supported Platforms:**
-- **Direct URLs**: Any direct image link with common extensions
-- **Image Hosting**: Imgur, Flickr, DeviantArt, Pinterest, Instagram, Twitter/X, Reddit
-- **Cloud Storage**: Google Drive, Dropbox, Mega.nz
-- **And many more** via gallery-dl's extensive extractor support
-
-**Usage Examples:**
-```bash
-/img https://example.com/image.jpg          # Direct image URL
-/img https://imgur.com/abc123              # Imgur link
-/img https://flickr.com/photos/user/123456 # Flickr photo
-/img https://instagram.com/p/abc123        # Instagram post
-# Ranges (albums/feeds supported):
-/img 11-20 https://example.com/album       # Download items 11..20
-/img 11- https://example.com/album         # Download from item 11 up to limit
-```
-
-Notes:
-- You can specify a numeric range as N-M (inclusive) or N- (from N to the end or until bot limit).
-- If no range is provided, the bot autodetects total count and downloads up to the configured limit.
-
-**How it works:**
-1. User runs `/img URL` to download an image
-2. Bot analyzes the URL using gallery-dl
-3. Downloads the image to user's directory
-4. Sends the image back to the user
-5. Cleans up temporary files automatically
 
 ## Inline search helper (/search)
 

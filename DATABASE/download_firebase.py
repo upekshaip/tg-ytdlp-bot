@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Скрипт для скачивания дампа Firebase Realtime Database
-Запускайте этот скрипт раз в день для обновления локального кэша
+Script for downloading Firebase Realtime Database dump
+Run this script once a day to update the local cache
 """
 
 import json
@@ -9,21 +9,26 @@ import os
 import sys
 from datetime import datetime
 
-# Добавляем родительскую директорию в путь для импорта ПЕРЕД импортом модулей
+# Add parent directory to path for imports BEFORE importing modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     from HELPERS.logger import logger
 except ImportError:
-    # Fallback logger если HELPERS недоступен
+    # Fallback logger if HELPERS is not available
     import logging
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
 
 try:
     from CONFIG.config import Config
-except ImportError:
-    print("❌ Не найден CONFIG/config.py или класс Config! Все параметры должны быть в CONFIG/config.py.")
+except ImportError as e:
+    print(f"❌ Import error CONFIG/config.py: {e}")
+    print("❌ CONFIG/config.py or Config class not found! All parameters must be in CONFIG/config.py.")
+    sys.exit(1)
+except Exception as e:
+    print(f"❌ Unexpected error importing CONFIG/config.py: {e}")
+    print("❌ Check syntax and dependencies in CONFIG/config.py")
     sys.exit(1)
 
 try:
@@ -39,18 +44,18 @@ except ImportError:
     firebase_admin = None
     credentials = None
 
-# Все параметры берём из config.py
+# All parameters are taken from config.py
 FIREBASE_CONFIG = getattr(Config, 'FIREBASE_CONF', None)
 FIREBASE_USER = getattr(Config, 'FIREBASE_USER', None)
 FIREBASE_PASSWORD = getattr(Config, 'FIREBASE_PASSWORD', None)
 OUTPUT_FILE = getattr(Config, 'FIREBASE_CACHE_FILE', 'firebase_cache.json')
 
 if not FIREBASE_CONFIG or not FIREBASE_USER or not FIREBASE_PASSWORD:
-    print("❌ Не все параметры заданы в config.py (FIREBASE_CONF, FIREBASE_USER, FIREBASE_PASSWORD)")
+    print("❌ Not all parameters are set in config.py (FIREBASE_CONF, FIREBASE_USER, FIREBASE_PASSWORD)")
     sys.exit(1)
 
 def download_firebase_dump():
-    """Скачивает весь дамп Firebase Realtime Database"""
+    """Downloads the entire Firebase Realtime Database dump"""
     if requests is None or Session is None:
         print("⚠️ Dependency not available: requests or Session")
         return False
@@ -77,14 +82,14 @@ def download_firebase_dump():
 
         database_url = FIREBASE_CONFIG.get("databaseURL")
         if not database_url:
-            print("❌ FIREBASE_CONF.databaseURL не задан")
+            print("❌ FIREBASE_CONF.databaseURL is not set")
             return False
 
-        # Для скачивания дампа используем REST API и custom token/ID token. 
-        # Предпочтительно ID токен через REST signInWithPassword.
+        # For downloading dump we use REST API and custom token/ID token.
+        # Preferably ID token via REST signInWithPassword.
         key = FIREBASE_CONFIG.get("apiKey")
         if not key:
-            print("❌ FIREBASE_CONF.apiKey не задан для получения idToken")
+            print("❌ FIREBASE_CONF.apiKey is not set for getting idToken")
             return False
 
         auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={key}"
@@ -97,13 +102,13 @@ def download_firebase_dump():
         id_token = resp.json()["idToken"]
         print("✅ Authentication successful")
 
-        # Скачивание данных
+        # Downloading data
         print("📥 Downloading database dump...")
         url = f"{database_url}/.json?auth={id_token}"
         response = session.get(url, timeout=300)
         response.raise_for_status()
 
-        # Сохранение в файл
+        # Saving to file
         with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
             json.dump(response.json(), f, ensure_ascii=False, indent=2)
 
@@ -138,12 +143,12 @@ def main():
     print("🚀 Firebase Database Dumper (config-driven)")
     print("=" * 40)
     
-    # Проверяем конфиг
+    # Check config
     if not FIREBASE_CONFIG or not FIREBASE_USER or not FIREBASE_PASSWORD:
-        print("❌ Не все параметры заданы в config.py (FIREBASE_CONF, FIREBASE_USER, FIREBASE_PASSWORD)")
+        print("❌ Not all parameters are set in config.py (FIREBASE_CONF, FIREBASE_USER, FIREBASE_PASSWORD)")
         return False
     
-    # Скачиваем дамп
+    # Download dump
     success = download_firebase_dump()
     
     if success:
