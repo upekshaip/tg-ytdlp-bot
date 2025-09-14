@@ -827,12 +827,18 @@ def test_youtube_cookies(cookie_file_path: str) -> bool:
             
     except yt_dlp.utils.DownloadError as e:
         error_text = str(e).lower()
-        logger.warning(f"YouTube cookies test failed with DownloadError: {e}")
-        # Check for specific YouTube errors
+        
+        # Check for specific YouTube errors that are not cookie-related
         if any(keyword in error_text for keyword in [
-            'sign in', 'login required', 'private video', 'age restricted',
-            'video unavailable', 'cookies', 'authentication', 'format not found',
-            'no formats found', 'unable to extract'
+            'video unavailable', 'this content isn\'t available', 'content not available',
+            'video is private', 'private video', 'members only', 'premium content'
+        ]):
+            # These are content availability issues, not cookie issues
+            logger.info(f"YouTube test video is unavailable (not a cookie issue): {e}")
+            return False
+        elif any(keyword in error_text for keyword in [
+            'sign in', 'login required', 'age restricted', 'cookies', 
+            'authentication', 'format not found', 'no formats found', 'unable to extract'
         ]):
             logger.warning(f"YouTube cookies test failed - authentication/format error: {e}")
             return False
@@ -1221,14 +1227,22 @@ def is_youtube_cookie_error(error_message: str) -> bool:
     """
     error_lower = error_message.lower()
     
+    # Сначала проверяем на ошибки недоступности контента (НЕ связанные с куками)
+    content_unavailable_keywords = [
+        'video unavailable', 'this content isn\'t available', 'content not available',
+        'video is private', 'private video', 'members only', 'premium content',
+        'this video is not available', 'copyright', 'dmca'
+    ]
+    
+    if any(keyword in error_lower for keyword in content_unavailable_keywords):
+        return False  # Это не ошибка куков
+    
     # Ключевые слова, указывающие на проблемы с куками/авторизацией
     cookie_related_keywords = [
-        'sign in', 'login required', 'private video', 'age restricted',
-        'video unavailable', 'cookies', 'authentication', 'format not found',
-        'no formats found', 'unable to extract', 'http error 403',
-        'http error 401', 'forbidden', 'unauthorized', 'access denied',
-        'this video is not available', 'video is private', 'members only',
-        'premium content', 'subscription required', 'copyright', 'dmca'
+        'sign in', 'login required', 'age restricted', 'cookies', 
+        'authentication', 'format not found', 'no formats found', 'unable to extract', 
+        'http error 403', 'http error 401', 'forbidden', 'unauthorized', 'access denied',
+        'subscription required'
     ]
     
     return any(keyword in error_lower for keyword in cookie_related_keywords)

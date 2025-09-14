@@ -938,6 +938,78 @@ def askq_callback(app, callback_query):
         
         return
 
+    # Handle LIST button - get available formats
+    if data == "list":
+        # Get original URL from the reply message
+        original_message = callback_query.message.reply_to_message
+        if not original_message:
+            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            return
+            
+        url_text = original_message.text or (original_message.caption or "")
+        import re as _re
+        m = _re.search(r'https?://[^\s\*#]+', url_text)
+        url = m.group(0) if m else url_text
+        
+        try:
+            callback_query.answer("📃 Getting available formats...")
+        except Exception:
+            pass
+        
+        # Import list function
+        from COMMANDS.list_cmd import run_ytdlp_list
+        
+        # Run yt-dlp list command
+        success, output = run_ytdlp_list(url, user_id)
+        
+        if success:
+            # Create temporary file with output
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as temp_file:
+                temp_file.write(f"Available formats for: {url}\n")
+                temp_file.write("=" * 50 + "\n\n")
+                temp_file.write(output)
+                temp_file_path = temp_file.name
+            
+            try:
+                # Send the file
+                app.send_document(
+                    user_id,
+                    document=temp_file_path,
+                    file_name=f"formats_{user_id}.txt",
+                    caption=f"📃 Available formats for:\n<code>{url}</code>\n\n"
+                           f"💡 <b>How to set format:</b>\n"
+                           f"• <code>/format id 134</code> - Download specific format ID\n"
+                           f"• <code>/format 720p</code> - Download by quality\n"
+                           f"• <code>/format best</code> - Download best quality\n"
+                           f"• <code>/format ask</code> - Always ask for quality\n\n"
+                           f"📋 Use format ID from the list above",
+                    reply_parameters=ReplyParameters(message_id=original_message.id)
+                )
+                
+                send_to_logger(original_message, f"LIST command executed for user {user_id}, url: {url}")
+                    
+            except Exception as e:
+                logger.error(f"Error sending formats file: {e}")
+                app.send_message(
+                    user_id,
+                    f"❌ Error sending formats file: {str(e)}",
+                    reply_parameters=ReplyParameters(message_id=original_message.id)
+                )
+            finally:
+                # Clean up temporary file
+                try:
+                    os.unlink(temp_file_path)
+                except Exception:
+                    pass
+        else:
+            app.send_message(
+                user_id,
+                f"❌ Failed to get formats:\n<code>{output}</code>",
+                reply_parameters=ReplyParameters(message_id=original_message.id)
+            )
+        return
+
     # ---- IMAGE fallback: process via gallery-dl (/img) ----
     if data == "image":
         original_message = callback_query.message.reply_to_message
@@ -3430,6 +3502,9 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             if need_subs:
                 subs_hint = "\n💬 — Subtitles are available"
                 show_repost_hint = False  # 🚀 we don't show if subs really exist and are needed
+            elif is_always_ask_mode and not need_subs:
+                # In Always Ask mode, show subs hint even if not found (user can still try)
+                subs_hint = "\n💬 — Choose subtitle language"
             else:
                 subs_warn = "\n⚠️ Subs not found & won't embed"
 
@@ -3442,6 +3517,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         image_hint = "\n🖼 — Download image (gallery-dl)" if not found_quality_keys else ""
         watch_hint = "\n👁 — Watch video in poketube" if is_youtube_url(url) else ""
         link_hint = "\n🔗 — Get direct link to video"  # Link button is always present
+        list_hint = "\n📃 — Show available formats list"  # LIST button is always present
         # Compose hint block with preferred order
         hint = (
             "<pre language=\"info\">📼 — Сhange video ext/codec"
@@ -3449,6 +3525,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             + repost_line
             + watch_hint
             + link_hint
+            + list_hint
             + image_hint
             + subs_hint
             + subs_warn
@@ -3596,6 +3673,8 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         # Add LINK button - always available
         logger.info(f"Adding LINK button for user {user_id}")
         action_buttons.append(InlineKeyboardButton("🔗Link", callback_data="askq|link"))
+        # Add LIST button - always available
+        action_buttons.append(InlineKeyboardButton("📃LIST", callback_data="askq|list"))
         # Add IMAGE button only if qualities were NOT auto-detected
         if not found_quality_keys:
             action_buttons.append(InlineKeyboardButton("🖼IMAGE", callback_data="askq|image"))        

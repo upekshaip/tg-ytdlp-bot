@@ -270,6 +270,12 @@ def url_distractor(app, message):
         args_command(app, message)
         return
 
+    # /List Command
+    if text.startswith(Config.LIST_COMMAND):
+        from COMMANDS.list_cmd import list_command
+        list_command(app, message)
+        return
+
 
     # /cookie Command (exact or with arguments only). Avoid matching '/cookies_from_browser'.
     if text == Config.DOWNLOAD_COOKIE_COMMAND or text.startswith(Config.DOWNLOAD_COOKIE_COMMAND + " "):

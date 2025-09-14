@@ -148,6 +148,14 @@ def set_format(app, message):
             custom_format = "bv+ba/best"
             safe_send_message(user_id, f"✅ Format updated to best quality:\n{custom_format}", message=message)
             send_to_logger(message, f"Format updated to best: {custom_format}")
+        # Check if it's a format ID (e.g., "id 401", "id401")
+        elif re.match(r'^id\s*\d+$', arg, re.IGNORECASE):
+            # Extract the ID number
+            format_id = re.search(r'\d+', arg).group()
+            # Use proper yt-dlp format syntax for video-only formats
+            custom_format = f"{format_id}+bestaudio/bv+ba/best"
+            safe_send_message(user_id, f"✅ Format updated to ID {format_id} (with audio):\n{custom_format}", message=message)
+            send_to_logger(message, f"Format updated to ID {format_id} (with audio): {custom_format}")
         # Check if it's a quality argument (number, number+p, 4k, 8k)
         elif re.match(r'^(\d+p?|4k|8k|4K|8K)$', arg, re.IGNORECASE):
             # It's a quality argument, convert to format
@@ -181,6 +189,7 @@ def set_format(app, message):
             "• <code>/format 720</code> - 720p quality\n"
             "• <code>/format 4k</code> - 4K quality\n"
             "• <code>/format 8k</code> - 8K quality\n"
+            "• <code>/format id 401</code> - specific format ID\n"
             "• <code>/format ask</code> - always show menu\n"
             "• <code>/format best</code> - bv+ba/best quality",
             reply_markup=main_keyboard,
