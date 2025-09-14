@@ -192,12 +192,12 @@ def check_porn_detailed(url, title, description, caption=None):
     # Check whitelist first
     for dom in Config.WHITELIST:
         if dom in domain_parts:
-            explanation_parts.append(f"✅ Домен в белом списке: {dom}")
+            explanation_parts.append(f"✅ Domain in whitelist: {dom}")
             return False, " | ".join(explanation_parts)
     
     # Check if domain is in porn domains
     if is_porn_domain(domain_parts):
-        explanation_parts.append(f"❌ Домен в черном списке порно: {domain_parts}")
+        explanation_parts.append(f"❌ Domain in porn blacklist: {domain_parts}")
         return True, " | ".join(explanation_parts)
 
     # 2. Preparation of the text
@@ -206,7 +206,7 @@ def check_porn_detailed(url, title, description, caption=None):
     caption_lower     = caption.lower()     if caption     else ""
     
     if not (title_lower or description_lower or caption_lower):
-        explanation_parts.append("ℹ️ Все текстовые поля пусты")
+        explanation_parts.append("ℹ️ All text fields are empty")
         return False, " | ".join(explanation_parts)
 
     # 3. We collect a single text for search
@@ -220,13 +220,13 @@ def check_porn_detailed(url, title, description, caption=None):
             white_pattern = re.compile(r"\b(" + "|".join(white_kws) + r")\b", flags=re.IGNORECASE)
             white_matches = white_pattern.findall(combined)
             if white_matches:
-                explanation_parts.append(f"✅ Найдены ключевые слова из белого списка: {', '.join(set(white_matches))}")
+                explanation_parts.append(f"✅ Found whitelist keywords: {', '.join(set(white_matches))}")
                 return False, " | ".join(explanation_parts)
 
     # 5. Check for porn keywords
     kws = [re.escape(kw.lower()) for kw in PORN_KEYWORDS if kw.strip()]
     if not kws:
-        explanation_parts.append("ℹ️ Нет загруженных порно-ключевых слов")
+        explanation_parts.append("ℹ️ No porn keywords loaded")
         return False, " | ".join(explanation_parts)
 
     # The boundaries of words (\ b) + flag ignorecase
@@ -234,9 +234,9 @@ def check_porn_detailed(url, title, description, caption=None):
     porn_matches = pattern.findall(combined)
     
     if porn_matches:
-        explanation_parts.append(f"❌ Найдены порно-ключевые слова: {', '.join(set(porn_matches))}")
+        explanation_parts.append(f"❌ Found porn keywords: {', '.join(set(porn_matches))}")
         return True, " | ".join(explanation_parts)
 
-    explanation_parts.append("✅ Порно-ключевые слова не найдены")
+    explanation_parts.append("✅ No porn keywords found")
     return False, " | ".join(explanation_parts)
 

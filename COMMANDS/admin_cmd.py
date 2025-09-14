@@ -529,10 +529,6 @@ def check_porn_command(app, message):
     
     # First check if user is subscribed to channel
     if not is_user_in_channel(app, message):
-        try:
-            safe_send_message(user_id, Config.TO_USE_MSG, parse_mode=enums.ParseMode.HTML, message=message)
-        except Exception:
-            pass
         return
     
     # Then check if user is admin
@@ -552,7 +548,7 @@ def check_porn_command(app, message):
     
     try:
         # Send initial status message
-        status_msg = send_to_user(message, f"🔍 Checking URL for NSFW content...\n<code>{url}</code>")
+        status_msg = safe_send_message(user_id, f"🔍 Checking URL for NSFW content...\n<code>{url}</code>", parse_mode=enums.ParseMode.HTML)
         
         # Import the detailed check function
         from HELPERS.porn import check_porn_detailed
@@ -571,7 +567,10 @@ def check_porn_command(app, message):
         result_message += f"<b>Explanation:</b>\n{explanation}"
         
         # Update the status message with results
-        safe_edit_message_text(message.chat.id, status_msg.id, result_message, parse_mode=enums.ParseMode.HTML)
+        if status_msg:
+            safe_edit_message_text(message.chat.id, status_msg.id, result_message, parse_mode=enums.ParseMode.HTML)
+        else:
+            safe_send_message(user_id, result_message, parse_mode=enums.ParseMode.HTML)
         
         # Log the check
         send_to_logger(message, f"Admin {message.chat.id} checked URL for NSFW: {url} - Result: {status_text}")
@@ -581,6 +580,6 @@ def check_porn_command(app, message):
         if 'status_msg' in locals() and status_msg:
             safe_edit_message_text(message.chat.id, status_msg.id, error_msg)
         else:
-            send_to_user(message, error_msg)
+            safe_send_message(user_id, error_msg, parse_mode=enums.ParseMode.HTML)
         send_to_logger(message, f"Error in check_porn command by admin {message.chat.id}: {str(e)}")
 

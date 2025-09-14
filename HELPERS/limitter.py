@@ -67,6 +67,19 @@ def is_user_in_channel(app, message):
             reply_markup=keyboard
         )
         return False
+    
+    # If user is not a member, send subscription message
+    text = f"{Config.TO_USE_MSG}\n \n{Config.CREDITS_MSG}"
+    button = InlineKeyboardButton(
+        "Join Channel", url=Config.SUBSCRIBE_CHANNEL_URL)
+    keyboard = InlineKeyboardMarkup([[button]])
+    # Use safe send to avoid FloodWait on texts
+    safe_send_message(
+        chat_id=message.chat.id,
+        text=text,
+        reply_markup=keyboard
+    )
+    return False
 
 
 def check_user(message):
