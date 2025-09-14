@@ -115,6 +115,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     except Exception:
         user_forced_nsfw = False
     
+    # Check if format contains /bestaudio (audio-only format)
+    if format_override and '/bestaudio' in format_override:
+        logger.info(f"Audio-only format detected in down_and_up: {format_override}, redirecting to down_and_audio")
+        from DOWN_AND_UP.down_and_audio import down_and_audio
+        down_and_audio(app, message, url, tags_text, quality_key=quality_key, format_override=format_override, cookies_already_checked=cookies_already_checked)
+        return
+    
     # Check if LINK mode is enabled - if yes, get direct link instead of downloading
     try:
         from DOWN_AND_UP.always_ask_menu import get_link_mode

@@ -957,11 +957,15 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
             # Find the downloaded audio file
             allfiles = os.listdir(user_folder)
+            logger.info(f"All files in user folder: {allfiles}")
+            
             # Look for files with the user's preferred audio format extension
             audio_extensions = ['.mp3', '.aac', '.flac', '.m4a', '.opus', '.ogg', '.wav', '.alac', '.ac3']
             files = [fname for fname in allfiles if any(fname.endswith(ext) for ext in audio_extensions)]
+            logger.info(f"Found audio files: {files}")
             files.sort()
             if not files:
+                logger.error(f"No audio files found in {user_folder}. Available files: {allfiles}")
                 send_error_to_user(message, f"Skipping unsupported file type in playlist at index {idx + video_start_with}")
                 continue
 

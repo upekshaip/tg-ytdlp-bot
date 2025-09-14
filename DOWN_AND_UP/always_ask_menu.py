@@ -4351,6 +4351,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
         # Continue with normal download if LINK mode check fails
 
     # Check if format contains /bestaudio (audio-only format)
+    logger.info(f"Checking format: {fmt} for /bestaudio")
     if fmt and '/bestaudio' in fmt:
         logger.info(f"Audio-only format detected: {fmt}, redirecting to down_and_audio")
         down_and_audio(app, message, url, tags_text, quality_key=quality_key, format_override=fmt, cookies_already_checked=True)
