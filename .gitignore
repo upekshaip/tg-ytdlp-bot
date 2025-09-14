@@ -42,6 +42,9 @@ _arabic_fonts_amiri/
 *.backup_*
 dump.json
 firebase_cache.json
+blocked_users.txt
+unblocked_users.txt
+unknown_errors.txt
 
 # yt-dlp binaries / temp downloads
 yt-dlp
