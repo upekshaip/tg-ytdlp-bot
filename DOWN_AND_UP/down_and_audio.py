@@ -597,11 +597,21 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             nonlocal current_total_process, did_cookie_retry, did_proxy_retry
             # Use format_override if provided, otherwise use default 'ba'
             download_format = format_override if format_override else 'ba'
+            
+            # Get user's audio format preference from args_cmd
+            from COMMANDS.args_cmd import get_user_ytdlp_args
+            user_args = get_user_ytdlp_args(user_id, url)
+            audio_format = user_args.get('audio_format', 'mp3')  # Default to mp3
+            
+            # If audio_format is 'best', use mp3 as fallback
+            if audio_format == 'best':
+                audio_format = 'mp3'
+            
             ytdl_opts = {
                'format': download_format,
                'postprocessors': [{
                   'key': 'FFmpegExtractAudio',
-                  'preferredcodec': 'mp3',
+                  'preferredcodec': audio_format,
                   'preferredquality': '192',
                },
                {
@@ -947,7 +957,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
             # Find the downloaded audio file
             allfiles = os.listdir(user_folder)
-            files = [fname for fname in allfiles if fname.endswith('.mp3')]
+            # Look for files with the user's preferred audio format extension
+            audio_extensions = ['.mp3', '.aac', '.flac', '.m4a', '.opus', '.ogg', '.wav', '.alac', '.ac3']
+            files = [fname for fname in allfiles if any(fname.endswith(ext) for ext in audio_extensions)]
             files.sort()
             if not files:
                 send_error_to_user(message, f"Skipping unsupported file type in playlist at index {idx + video_start_with}")
@@ -1077,7 +1089,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
                 is_paid = is_nsfw and is_private_chat
                 
-                # Send audio with appropriate method based on content type
+                # Determine file extension to decide how to send it
+                file_ext = os.path.splitext(audio_file)[1].lower()
+                
+                # Send audio with appropriate method based on content type and file format
                 if is_paid:
                     # Send paid audio for NSFW content in private chats
                     try:
@@ -1099,7 +1114,36 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         logger.info("Paid NSFW audio sent to user")
                     except Exception as e:
                         logger.error(f"Failed to send paid audio, falling back to regular: {e}")
-                        # Fallback to regular audio
+                        # Fallback to regular audio or document
+                        if file_ext == '.mp3' or file_ext == '.m4a':
+                            # Send as audio for supported formats
+                            if telegram_thumb and os.path.exists(telegram_thumb):
+                                audio_msg = app.send_audio(
+                                    chat_id=user_id, 
+                                    audio=audio_file, 
+                                    caption=caption_with_link, 
+                                    reply_parameters=ReplyParameters(message_id=message.id),
+                                    thumb=telegram_thumb
+                                )
+                            else:
+                                audio_msg = app.send_audio(
+                                    chat_id=user_id, 
+                                    audio=audio_file, 
+                                    caption=caption_with_link, 
+                                    reply_parameters=ReplyParameters(message_id=message.id)
+                                )
+                        else:
+                            # Send as document for unsupported audio formats
+                            audio_msg = app.send_document(
+                                chat_id=user_id, 
+                                document=audio_file, 
+                                caption=caption_with_link, 
+                                reply_parameters=ReplyParameters(message_id=message.id)
+                            )
+                else:
+                    # Send regular audio for non-NSFW content or group chats
+                    if file_ext == '.mp3' or file_ext == '.m4a':
+                        # Send as audio for supported formats
                         if telegram_thumb and os.path.exists(telegram_thumb):
                             audio_msg = app.send_audio(
                                 chat_id=user_id, 
@@ -1108,6 +1152,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                                 reply_parameters=ReplyParameters(message_id=message.id),
                                 thumb=telegram_thumb
                             )
+                            logger.info(f"Audio sent with Telegram thumbnail: {telegram_thumb}")
                         else:
                             audio_msg = app.send_audio(
                                 chat_id=user_id, 
@@ -1115,25 +1160,16 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                                 caption=caption_with_link, 
                                 reply_parameters=ReplyParameters(message_id=message.id)
                             )
-                else:
-                    # Send regular audio for non-NSFW content or group chats
-                    if telegram_thumb and os.path.exists(telegram_thumb):
-                        audio_msg = app.send_audio(
-                            chat_id=user_id, 
-                            audio=audio_file, 
-                            caption=caption_with_link, 
-                            reply_parameters=ReplyParameters(message_id=message.id),
-                            thumb=telegram_thumb
-                        )
-                        logger.info(f"Audio sent with Telegram thumbnail: {telegram_thumb}")
+                            logger.info("Audio sent without thumbnail")
                     else:
-                        audio_msg = app.send_audio(
+                        # Send as document for unsupported audio formats
+                        audio_msg = app.send_document(
                             chat_id=user_id, 
-                            audio=audio_file, 
+                            document=audio_file, 
                             caption=caption_with_link, 
                             reply_parameters=ReplyParameters(message_id=message.id)
                         )
-                        logger.info("Audio sent without thumbnail")
+                        logger.info(f"Audio sent as document (format: {file_ext})")
                 
                 # Use already determined content type
                 

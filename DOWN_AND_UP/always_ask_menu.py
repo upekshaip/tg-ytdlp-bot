@@ -4370,7 +4370,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
             if selected_format:
                 format_type = analyze_format_type(selected_format)
                 
-                # If it's audio-only, convert to mp3
+                # If it's audio-only, convert to user's preferred audio format
                 if format_type == 'audio_only':
                     # Use audio download function with the selected format
                     # Pass cookies_already_checked=True since we already checked cookies in get_video_formats

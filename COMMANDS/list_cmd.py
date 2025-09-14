@@ -123,6 +123,17 @@ def list_command(app, message):
         success, output = run_ytdlp_list(url, user_id)
         
         if success:
+            # Check if any format contains "audio only" and extract format IDs
+            audio_only_formats = []
+            lines = output.split('\n')
+            for line in lines:
+                if 'audio only' in line.lower() or 'audio_only' in line.lower():
+                    # Extract format ID from the line (usually at the beginning)
+                    parts = line.strip().split()
+                    if parts and parts[0].isdigit():
+                        format_id = parts[0]
+                        audio_only_formats.append(format_id)
+            
             # Create temporary file with output
             with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as temp_file:
                 temp_file.write(f"Available formats for: {url}\n")
@@ -133,21 +144,35 @@ def list_command(app, message):
                 temp_file.write("After getting the list, use specific format ID:\n")
                 temp_file.write("• /format id 401 - download format 401\n")
                 temp_file.write("• /format id401 - same as above\n")
+                
+                # Add special note for audio-only formats
+                if audio_only_formats:
+                    temp_file.write(f"\n🎵 Audio-only formats detected: {', '.join(audio_only_formats)}\n")
+                    temp_file.write("These formats will be downloaded as MP3 audio files.\n")
+                
                 temp_file_path = temp_file.name
             
             try:
                 # Send the file
+                caption = f"📃 Available formats for:\n<code>{url}</code>\n\n"
+                caption += f"💡 <b>How to set format:</b>\n"
+                caption += f"• <code>/format id 134</code> - Download specific format ID\n"
+                caption += f"• <code>/format 720p</code> - Download by quality\n"
+                caption += f"• <code>/format best</code> - Download best quality\n"
+                caption += f"• <code>/format ask</code> - Always ask for quality\n\n"
+                
+                # Add special note for audio-only formats
+                if audio_only_formats:
+                    caption += f"🎵 <b>Audio-only formats:</b> {', '.join(audio_only_formats)}\n"
+                    caption += f"These will be downloaded as MP3 audio files.\n\n"
+                
+                caption += f"📋 Use format ID from the list above"
+                
                 app.send_document(
                     user_id,
                     document=temp_file_path,
                     file_name=f"formats_{user_id}.txt",
-                    caption=f"📃 Available formats for:\n<code>{url}</code>\n\n"
-                           f"💡 <b>How to set format:</b>\n"
-                           f"• <code>/format id 134</code> - Download specific format ID\n"
-                           f"• <code>/format 720p</code> - Download by quality\n"
-                           f"• <code>/format best</code> - Download best quality\n"
-                           f"• <code>/format ask</code> - Always ask for quality\n\n"
-                           f"📋 Use format ID from the list above",
+                    caption=caption,
                     reply_to_message_id=message.id
                 )
                 
