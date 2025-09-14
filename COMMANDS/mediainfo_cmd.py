@@ -7,7 +7,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyPara
 
 from HELPERS.app_instance import get_app
 from HELPERS.filesystem_hlp import create_directory
-from HELPERS.logger import send_to_logger, logger, send_to_all
+from HELPERS.logger import send_to_logger, logger, send_to_all, send_error_to_user
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
 from HELPERS.limitter import is_user_in_channel
 
@@ -38,7 +38,7 @@ def mediainfo_command(app, message):
             if arg in ("on", "off"):
                 with open(mediainfo_file, "w", encoding="utf-8") as f:
                     f.write("ON" if arg == "on" else "OFF")
-                safe_send_message(user_id, f"✅ MediaInfo {'enabled' if arg=='on' else 'disabled'}.")
+                safe_send_message(user_id, f"✅ MediaInfo {'enabled' if arg=='on' else 'disabled' }.", message=message)
                 send_to_logger(message, f"MediaInfo set via command: {arg}")
                 return
     except Exception:
@@ -51,7 +51,8 @@ def mediainfo_command(app, message):
     safe_send_message(
         user_id,
         "Enable or disable sending MediaInfo for downloaded files?",
-        reply_markup=keyboard
+        reply_markup=keyboard,
+        message=message
     )
     send_to_logger(message, "User opened /mediainfo menu.")
 
@@ -141,7 +142,8 @@ def send_mediainfo_if_enabled(user_id, file_path, message):
 
             app.send_document(user_id, mediainfo_path, caption="<blockquote>📊 MediaInfo</blockquote>",
                               reply_parameters=ReplyParameters(message_id=msg_id))
-            app.send_document(Config.LOGS_ID, mediainfo_path,
+            from HELPERS.logger import get_log_channel
+            app.send_document(get_log_channel("video"), mediainfo_path,
                               caption=f"<blockquote>📊 MediaInfo</blockquote> for user {user_id}")
 
             if os.path.exists(mediainfo_path):
@@ -149,4 +151,4 @@ def send_mediainfo_if_enabled(user_id, file_path, message):
 
         except Exception as e:
             logger.error(f"Error MediaInfo: {e}")
-            send_to_all(message, f"❌ Error sending MediaInfo: {e}")
+            send_error_to_user(message, f"❌ Error sending MediaInfo: {e}")

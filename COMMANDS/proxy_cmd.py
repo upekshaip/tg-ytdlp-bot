@@ -1,5 +1,6 @@
 # /Proxy Command
 import os
+import tempfile
 from pyrogram import filters
 from CONFIG.config import Config
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
@@ -12,6 +13,35 @@ from HELPERS.limitter import is_user_in_channel
 
 # Get app instance for decorators
 app = get_app()
+
+def safe_write_file(file_path, content):
+    """Safely write content to file with atomic operation"""
+    try:
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        
+        # Write to temporary file first, then rename (atomic operation)
+        temp_dir = os.path.dirname(file_path)
+        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=temp_dir, delete=False) as temp_file:
+            temp_file.write(content)
+            temp_file.flush()
+            temp_path = temp_file.name
+        
+        # Atomic rename
+        os.rename(temp_path, file_path)
+        return True
+    except OSError as e:
+        logger.error(f"Error writing file {file_path}: {e}")
+        # Clean up temp file if it exists
+        try:
+            if 'temp_path' in locals() and os.path.exists(temp_path):
+                os.unlink(temp_path)
+        except Exception:
+            pass
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error writing file {file_path}: {e}")
+        return False
 
 @app.on_message(filters.command("proxy") & filters.private)
 def proxy_command(app, message):
@@ -35,11 +65,16 @@ def proxy_command(app, message):
             arg = parts[1].lower()
             proxy_file = os.path.join(user_dir, "proxy.txt")
             if arg in ("on", "off"):
-                with open(proxy_file, "w", encoding="utf-8") as f:
-                    f.write("ON" if arg == "on" else "OFF")
-                safe_send_message(user_id, f"✅ Proxy {'enabled' if arg=='on' else 'disabled'}.")
-                send_to_logger(message, f"Proxy set via command: {arg}")
-                return
+                if safe_write_file(proxy_file, "ON" if arg == "on" else "OFF"):
+                    safe_send_message(user_id, f"✅ Proxy {'enabled' if arg=='on' else 'disabled' }.", message=message)
+                    send_to_logger(message, f"Proxy set via command: {arg}")
+                    return
+                else:
+                    error_msg = "❌ Error saving proxy settings."
+                    safe_send_message(user_id, error_msg, message=message)
+                    from HELPERS.logger import log_error_to_channel
+                    log_error_to_channel(message, error_msg)
+                    return
     except Exception:
         pass
     
@@ -60,7 +95,8 @@ def proxy_command(app, message):
     safe_send_message(
         user_id,
         proxy_text,
-        reply_markup=keyboard
+        reply_markup=keyboard,
+        message=message
     )
     send_to_logger(message, "User opened /proxy menu.")
 
@@ -87,8 +123,12 @@ def proxy_option_callback(app, callback_query):
         return
     
     if data == "on":
-        with open(proxy_file, "w", encoding="utf-8") as f:
-            f.write("ON")
+        if not safe_write_file(proxy_file, "ON"):
+            try:
+                callback_query.answer("❌ Error saving proxy settings.")
+            except Exception:
+                pass
+            return
         
         # Get available proxy count and selection method
         configs = get_all_proxy_configs()
@@ -108,8 +148,13 @@ def proxy_option_callback(app, callback_query):
         return
     
     if data == "off":
-        with open(proxy_file, "w", encoding="utf-8") as f:
-            f.write("OFF")
+        if not safe_write_file(proxy_file, "OFF"):
+            try:
+                callback_query.answer("❌ Error saving proxy settings.")
+            except Exception:
+                pass
+            return
+        
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "❌ Proxy disabled.")
         send_to_logger(callback_query.message, "Proxy disabled.")
         try:
@@ -127,8 +172,13 @@ def is_proxy_enabled(user_id):
         return False
     try:
         with open(proxy_file, "r", encoding="utf-8") as f:
-            return f.read().strip().upper() == "ON"
-    except Exception:
+            content = f.read().strip().upper()
+            return content == "ON"
+    except OSError as e:
+        logger.error(f"Error reading proxy file {proxy_file}: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error reading proxy file {proxy_file}: {e}")
         return False
 
 

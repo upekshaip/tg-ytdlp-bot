@@ -1,8 +1,8 @@
 from HELPERS.app_instance import get_app
-from HELPERS.logger import send_to_user, send_to_logger, send_to_all
+from HELPERS.logger import send_to_user, send_to_logger, send_to_all, send_error_to_user
 from pyrogram import filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from HELPERS.safe_messeger import safe_send_message
+from HELPERS.safe_messeger import safe_send_message, safe_send_message_with_auto_delete
 from CONFIG.config import Config
 from datetime import datetime
 import subprocess
@@ -33,32 +33,60 @@ def reload_firebase_cache_command(app, message):
         return
     try:
         # 1) Download fresh dump via external script path
-        script_path = getattr(Config, "DOWNLOAD_FIREBASE_SCRIPT_PATH", "download_firebase.py")
-        send_to_user(message, f"⏳ Downloading fresh Firebase dump using {script_path} ...")
-        result = subprocess.run([sys.executable, script_path], capture_output=True, text=True, encoding='utf-8', errors='replace')
+        script_path = getattr(Config, "DOWNLOAD_FIREBASE_SCRIPT_PATH", "DATABASE/download_firebase.py")
+        # Ensure we have the full path to the script
+        if not os.path.isabs(script_path):
+            script_path = os.path.join(os.getcwd(), script_path)
+        
+        # Verify script exists
+        if not os.path.exists(script_path):
+            error_msg = f"❌ Script not found: {script_path}"
+            safe_send_message_with_auto_delete(message.chat.id, error_msg, delete_after_seconds=60)
+            send_to_logger(message, f"Script not found: {script_path}")
+            return
+            
+        safe_send_message_with_auto_delete(message.chat.id, f"⏳ Downloading fresh Firebase dump using {script_path} ...", delete_after_seconds=60)
+        result = subprocess.run([sys.executable, script_path], capture_output=True, text=True, encoding='utf-8', errors='replace', cwd=os.path.dirname(os.path.dirname(script_path)))
         if result.returncode != 0:
-            send_to_user(message, f"❌ Error running {script_path}:\n{result.stdout}\n{result.stderr}")
+            error_msg = f"❌ Error running {script_path}:\n{result.stdout}\n{result.stderr}"
+            safe_send_message_with_auto_delete(message.chat.id, error_msg, delete_after_seconds=60)
+            from HELPERS.logger import log_error_to_channel
+            log_error_to_channel(message, error_msg)
             send_to_logger(message, f"Error running {script_path}: {result.stdout}\n{result.stderr}")
             return
         # 2) Reload local cache into memory
         from DATABASE.cache_db import reload_firebase_cache as _reload_local
         success = _reload_local()
         if success:
-            send_to_user(message, "✅ Firebase cache reloaded successfully!")
+            safe_send_message_with_auto_delete(message.chat.id, "✅ Firebase cache reloaded successfully!", delete_after_seconds=60)
             send_to_logger(message, "Firebase cache reloaded by admin.")
         else:
             cache_file = getattr(Config, 'FIREBASE_CACHE_FILE', 'firebase_cache.json')
-            send_to_user(message, f"❌ Failed to reload Firebase cache. Check if {cache_file} exists.")
+            error_msg = f"❌ Failed to reload Firebase cache. Check if {cache_file} exists."
+            safe_send_message_with_auto_delete(message.chat.id, error_msg, delete_after_seconds=60)
+            from HELPERS.logger import log_error_to_channel
+            log_error_to_channel(message, error_msg)
     except Exception as e:
-        send_to_user(message, f"❌ Error reloading cache: {str(e)}")
+        error_msg = f"❌ Error reloading cache: {str(e)}"
+        safe_send_message_with_auto_delete(message.chat.id, error_msg, delete_after_seconds=60)
+        from HELPERS.logger import log_error_to_channel
+        log_error_to_channel(message, error_msg)
         send_to_logger(message, f"Error reloading Firebase cache: {str(e)}")
 
 # SEND BRODCAST Message to All Users
 
 def send_promo_message(app, message):
     # We get a list of users from the base
-    user_lst = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").get().each()
-    user_lst = [int(user.key()) for user in user_lst]
+    user_nodes = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").get().each()
+    user_nodes = user_nodes or []
+    user_lst = []
+    for user in user_nodes:
+        try:
+            key = user.key()
+            if key is not None:
+                user_lst.append(int(key))
+        except Exception:
+            continue
     # Add administrators if they are not on the list
     for admin in Config.ADMIN:
         if admin not in user_lst:
@@ -89,7 +117,20 @@ def send_promo_message(app, message):
                             elif reply.video:
                                 app.send_video(user, reply.video.file_id, caption=reply.caption)
                             elif reply.photo:
-                                app.send_photo(user, reply.photo.file_id, caption=reply.caption)
+                                try:
+                                    # Use supported API: take the largest available size's file_id
+                                    largest = reply.photo.sizes[-1] if getattr(reply.photo, 'sizes', None) else None
+                                    file_id = largest.file_id if largest else None
+                                except Exception:
+                                    file_id = None
+                                if file_id:
+                                    app.send_photo(user, file_id, caption=reply.caption)
+                                else:
+                                    # Fallback: try to forward original message with photo
+                                    try:
+                                        app.copy_message(chat_id=user, from_chat_id=message.chat.id, message_id=reply.id)
+                                    except Exception:
+                                        pass
                             elif reply.sticker:
                                 app.send_sticker(user, reply.sticker.file_id)
                             elif reply.document:
@@ -109,7 +150,7 @@ def send_promo_message(app, message):
         send_to_all(message, "<b>✅ Promo message sent to all other users</b>")
         send_to_logger(message, "Broadcast message sent to all users.")
     except Exception as e:
-        send_to_all(message, "<b>❌ Cannot send the promo message. Try replying to a message\nOr some error occurred</b>")
+        send_error_to_user(message, "<b>❌ Cannot send the promo message. Try replying to a message\nOr some error occurred</b>")
         send_to_logger(message, f"Failed to broadcast message: {e}")
 
 
@@ -153,7 +194,8 @@ def get_user_log(app, message):
     from HELPERS.safe_messeger import safe_send_message
     safe_send_message(message.chat.id, f"Total: <b>{total}</b>\n<b>{user_id}</b> - logs (Last 10):\n\n{format_str}", parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
     app.send_document(message.chat.id, log_path, caption=f"{user_id} - all logs")
-    app.send_document(Config.LOGS_ID, log_path, caption=f"{user_id} - all logs")
+    from HELPERS.logger import get_log_channel
+    app.send_document(get_log_channel("general"), log_path, caption=f"{user_id} - all logs")
 
 
 # Get All Kinds of Users (Users/ Blocked/ Unblocked)
@@ -177,12 +219,38 @@ def get_user_details(app, message):
         send_to_all(message, f"❌ No data found in cache for <code>{path}</code>")
         return
 
+    # Support both dict and list structures from cache
+    if isinstance(data_dict, dict):
+        iterable = data_dict.values()
+    elif isinstance(data_dict, list):
+        iterable = data_dict
+    else:
+        iterable = []
+
     modified_lst, txt_lst = [], []
-    for user in data_dict.values():
-        if user["ID"] != "0":
-            ts = datetime.fromtimestamp(int(user["timestamp"]))
-            txt_lst.append(f"TS: {ts} | ID: {user['ID']}")
-            modified_lst.append(f"TS: <b>{ts}</b> | ID: <code>{user['ID']}</code>")
+    for user in iterable:
+        try:
+            if isinstance(user, dict):
+                user_id = str(user.get("ID")) if user.get("ID") is not None else None
+                ts_raw = user.get("timestamp")
+            else:
+                # If element is not dict, treat it as a user id
+                user_id = str(user)
+                ts_raw = None
+
+            if not user_id or user_id == "0":
+                continue
+
+            try:
+                ts_val = int(ts_raw) if ts_raw is not None else 0
+            except Exception:
+                ts_val = 0
+            ts = datetime.fromtimestamp(ts_val)
+
+            txt_lst.append(f"TS: {ts} | ID: {user_id}")
+            modified_lst.append(f"TS: <b>{ts}</b> | ID: <code>{user_id}</code>")
+        except Exception:
+            continue
 
     modified_lst.sort(key=str.lower)
     txt_lst.sort(key=str.lower)
@@ -198,7 +266,8 @@ def get_user_details(app, message):
 
     send_to_all(message, mod)
     app.send_document(message.chat.id, f"./{file}", caption=f"{Config.BOT_NAME_FOR_USERS} - all {path}")
-    app.send_document(Config.LOGS_ID, f"./{file}", caption=f"{Config.BOT_NAME_FOR_USERS} - all {path}")
+    from HELPERS.logger import get_log_channel
+    app.send_document(get_log_channel("general"), f"./{file}", caption=f"{Config.BOT_NAME_FOR_USERS} - all {path}")
     logger.info(mod)
 
 # Block User
@@ -206,25 +275,29 @@ def get_user_details(app, message):
 def block_user(app, message):
     if int(message.chat.id) in Config.ADMIN:
         dt = math.floor(time.time())
-        b_user_id = str((message.text).split(
-            Config.BLOCK_USER_COMMAND + " ")[1])
+        parts = (message.text or "").strip().split(maxsplit=1)
+        if len(parts) < 2:
+            send_to_user(message, "❌ Usage: /block_user <user_id>")
+            return
+        b_user_id = parts[1].strip()
 
-        if int(b_user_id) in Config.ADMIN:
-            send_to_all(message, "🚫 Admin cannot delete an admin")
+        try:
+            if int(b_user_id) in Config.ADMIN:
+                send_to_all(message, "🚫 Admin cannot delete an admin")
+                return
+        except Exception:
+            pass
+
+        snapshot = db.child(f"{Config.BOT_DB_PATH}/blocked_users").get()
+        all_blocked_users = snapshot.each() if snapshot else []
+        b_users = [str(b_user.key()) for b_user in (all_blocked_users or []) if b_user is not None]
+
+        if b_user_id not in b_users:
+            data = {"ID": b_user_id, "timestamp": str(dt)}
+            db.child(f"{Config.BOT_DB_PATH}/blocked_users/{b_user_id}").set(data)
+            send_to_user(message, f"User blocked 🔒❌\n \nID: <code>{b_user_id}</code>\nBlocked Date: {datetime.fromtimestamp(dt)}")
         else:
-            all_blocked_users = db.child(
-                f"{Config.BOT_DB_PATH}/blocked_users").get().each()
-            b_users = [b_user.key() for b_user in all_blocked_users]
-
-            if b_user_id not in b_users:
-                data = {"ID": b_user_id, "timestamp": str(dt)}
-                db.child(
-                    f"{Config.BOT_DB_PATH}/blocked_users/{b_user_id}").set(data)
-                send_to_user(
-                    message, f"User blocked 🔒❌\n \nID: <code>{b_user_id}</code>\nBlocked Date: {datetime.fromtimestamp(dt)}")
-
-            else:
-                send_to_user(message, f"<code>{b_user_id}</code> is already blocked ❌😐")
+            send_to_user(message, f"<code>{b_user_id}</code> is already blocked ❌😐")
     else:
         send_to_all(message, "🚫 Sorry! You are not an admin")
 
@@ -233,20 +306,22 @@ def block_user(app, message):
 
 def unblock_user(app, message):
     if int(message.chat.id) in Config.ADMIN:
-        ub_user_id = str((message.text).split(
-            Config.UNBLOCK_USER_COMMAND + " ")[1])
-        all_blocked_users = db.child(
-            f"{Config.BOT_DB_PATH}/blocked_users").get().each()
-        b_users = [b_user.key() for b_user in all_blocked_users]
+        parts = (message.text or "").strip().split(maxsplit=1)
+        if len(parts) < 2:
+            send_to_user(message, "❌ Usage: /unblock_user <user_id>")
+            return
+        ub_user_id = parts[1].strip()
+
+        snapshot = db.child(f"{Config.BOT_DB_PATH}/blocked_users").get()
+        all_blocked_users = snapshot.each() if snapshot else []
+        b_users = [str(b_user.key()) for b_user in (all_blocked_users or []) if b_user is not None]
 
         if ub_user_id in b_users:
             dt = math.floor(time.time())
 
             data = {"ID": ub_user_id, "timestamp": str(dt)}
-            db.child(
-                f"{Config.BOT_DB_PATH}/unblocked_users/{ub_user_id}").set(data)
-            db.child(
-                f"{Config.BOT_DB_PATH}/blocked_users/{ub_user_id}").remove()
+            db.child(f"{Config.BOT_DB_PATH}/unblocked_users/{ub_user_id}").set(data)
+            db.child(f"{Config.BOT_DB_PATH}/blocked_users/{ub_user_id}").remove()
             send_to_user(
                 message, f"User unblocked 🔓✅\n \nID: <code>{ub_user_id}</code>\nUnblocked Date: {datetime.fromtimestamp(dt)}")
 
@@ -294,6 +369,13 @@ def uncache_command(app, message):
         video_cache_path = f"{Config.VIDEO_CACHE_DB_PATH}/{url_hash}"
         db_child_by_path(db, video_cache_path).remove()
         removed_any = True
+        # Clear cache by image posts (for /img)
+        try:
+            img_cache_path = f"{Config.IMAGE_CACHE_DB_PATH}/{url_hash}"
+            db_child_by_path(db, img_cache_path).remove()
+            removed_any = True
+        except Exception:
+            pass
         # Clear cache by playlist (if any)
         playlist_url = get_clean_playlist_url(url)
         if playlist_url:

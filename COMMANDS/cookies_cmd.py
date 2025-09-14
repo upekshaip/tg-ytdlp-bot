@@ -92,7 +92,8 @@ def cookies_from_browser(app, message):
         if not fallback_url:
             safe_send_message(
                 user_id,
-                "❌ No supported browsers found and no COOKIE_URL configured. Use /cookie or upload cookie.txt."
+                "❌ No supported browsers found and no COOKIE_URL configured. Use /cookie or upload cookie.txt.",
+                message=message
             )
             send_to_logger(message, "No installed browsers found. COOKIE_URL is not configured.")
             return
@@ -107,27 +108,42 @@ def cookies_from_browser(app, message):
             if ok:
                 # basic validation
                 if not fallback_url.lower().endswith('.txt'):
-                    safe_send_message(user_id, "❌ Fallback COOKIE_URL must point to a .txt file.")
+                    error_msg = "❌ Fallback COOKIE_URL must point to a .txt file."
+                    safe_send_message(user_id, error_msg, message=message)
+                    from HELPERS.logger import log_error_to_channel
+                    log_error_to_channel(message, error_msg)
                     send_to_logger(message, "COOKIE_URL does not end with .txt (hidden)")
                     return
                 if len(content or b"") > 100 * 1024:
-                    safe_send_message(user_id, "❌ Fallback cookie file is too large (>100KB).")
+                    error_msg = "❌ Fallback cookie file is too large (>100KB)."
+                    safe_send_message(user_id, error_msg, message=message)
+                    from HELPERS.logger import log_error_to_channel
+                    log_error_to_channel(message, error_msg)
                     send_to_logger(message, "Fallback cookie too large (source hidden)")
                     return
                 with open(cookie_file_path, "wb") as f:
                     f.write(content)
-                safe_send_message(user_id, "✅ YouTube cookie file downloaded via fallback and saved as cookie.txt")
+                safe_send_message(user_id, "✅ YouTube cookie file downloaded via fallback and saved as cookie.txt", message=message)
                 send_to_logger(message, "Fallback COOKIE_URL used successfully (source hidden)")
             else:
                 if status is not None:
-                    safe_send_message(user_id, f"❌ Fallback cookie source unavailable (status {status}). Try /cookie or upload cookie.txt.")
+                    error_msg = f"❌ Fallback cookie source unavailable (status {status}). Try /cookie or upload cookie.txt."
+                    safe_send_message(user_id, error_msg, message=message)
+                    from HELPERS.logger import log_error_to_channel
+                    log_error_to_channel(message, error_msg)
                     send_to_logger(message, f"Fallback COOKIE_URL failed: status={status} (hidden)")
                 else:
-                    safe_send_message(user_id, "❌ Error downloading fallback cookie. Try /cookie or upload cookie.txt.")
+                    error_msg = "❌ Error downloading fallback cookie. Try /cookie or upload cookie.txt."
+                    safe_send_message(user_id, error_msg, message=message)
+                    from HELPERS.logger import log_error_to_channel
+                    log_error_to_channel(message, error_msg)
                     safe_err = _sanitize_error_detail(err or "", fallback_url)
                     send_to_logger(message, f"Fallback COOKIE_URL error: {safe_err}")
         except Exception as e:
-            safe_send_message(user_id, "❌ Unexpected error during fallback cookie download.")
+            error_msg = "❌ Unexpected error during fallback cookie download."
+            safe_send_message(user_id, error_msg, message=message)
+            from HELPERS.logger import log_error_to_channel
+            log_error_to_channel(message, error_msg)
             send_to_logger(message, f"Fallback COOKIE_URL unexpected error: {type(e).__name__}: {e}")
         return
 
@@ -145,7 +161,8 @@ def cookies_from_browser(app, message):
     safe_send_message(
         user_id,
         "Select a browser to download cookies from:",
-        reply_markup=keyboard
+        reply_markup=keyboard,
+        message=message
     )
     send_to_logger(message, "Browser selection keyboard sent with installed browsers only.")
 

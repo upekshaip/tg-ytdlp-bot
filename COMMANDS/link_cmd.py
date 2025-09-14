@@ -96,6 +96,15 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
             'live_from_start': True
         }
         
+        # Add user's custom yt-dlp arguments
+        from COMMANDS.args_cmd import get_user_ytdlp_args, log_ytdlp_options
+        user_args = get_user_ytdlp_args(user_id, url)
+        if user_args:
+            ytdl_opts.update(user_args)
+        
+        # Log final yt-dlp options for debugging
+        log_ytdlp_options(user_id, ytdl_opts, "get_direct_link")
+        
         # Cookie setup
         user_dir = os.path.join("users", str(user_id))
         user_cookie_path = os.path.join(user_dir, "cookie.txt")
@@ -385,5 +394,6 @@ def link_command(app, message):
             
     except Exception as e:
         logger.error(f"Error in link command: {e}")
-        send_to_user(message, f"❌ An error occurred: {str(e)}")
+        from HELPERS.logger import send_error_to_user
+        send_error_to_user(message, f"❌ An error occurred: {str(e)}")
         send_to_logger(message, f"Error in link command for user {message.chat.id}: {e}")

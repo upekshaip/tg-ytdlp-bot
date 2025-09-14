@@ -12,7 +12,8 @@ import traceback
 import yt_dlp
 import re
 from HELPERS.app_instance import get_app
-from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all
+from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, send_error_to_user, get_log_channel
+from CONFIG.logger_msg import LoggerMsg
 from HELPERS.limitter import TimeFormatter, humanbytes, check_user, check_file_size_limit, check_subs_limits
 from HELPERS.download_status import set_active_download, clear_download_start_time, check_download_timeout, start_hourglass_animation, start_cycle_progress, playlist_errors_lock, playlist_errors
 from HELPERS.safe_messeger import safe_delete_messages, safe_edit_message_text, safe_forward_messages
@@ -37,9 +38,32 @@ from HELPERS.logger import send_to_all  # Импорт в самом конце 
 from HELPERS.safe_messeger import safe_forward_messages  # Дублирующий импорт для устранения ошибки видимости
 from pyrogram import enums
 from pyrogram.types import ReplyParameters
+from URL_PARSERS.tags import extract_url_range_tags
 
 # Get app instance for decorators
 app = get_app()
+
+
+def _save_video_cache_with_logging(url: str, quality_key: str, message_ids: list, original_text: str = None):
+    """Save video to cache with channel type logging."""
+    try:
+        # Determine channel type for logging
+        from HELPERS.porn import is_porn
+        is_nsfw = is_porn(url, "", "", None)
+        logger.info(f"[FALLBACK] is_porn check for {url}: {is_nsfw}")
+        channel_type = "NSFW" if is_nsfw else "regular"
+        
+        # Don't cache NSFW content
+        if is_nsfw:
+            logger.info(f"[VIDEO CACHE] Skipping cache save for NSFW content: url={url}, quality={quality_key}, channel_type={channel_type}")
+            return
+        
+        logger.info(f"[VIDEO CACHE] About to save video: url={url}, quality={quality_key}, message_ids={message_ids}, channel_type={channel_type}")
+        save_to_video_cache(url, quality_key, message_ids, original_text=original_text)
+        logger.info(f"[VIDEO CACHE] Save requested for quality={quality_key}, channel_type={channel_type}")
+    except Exception as e:
+        logger.error(f"[VIDEO CACHE] Save failed for quality={quality_key}: {e}")
+
 
 def determine_need_subs(subs_enabled, found_type, user_id):
     """
@@ -75,6 +99,21 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     need_subs = False  # Will be determined once at the beginning
     user_id = message.chat.id
     logger.info(f"down_and_up called: url={url}, quality_key={quality_key}, format_override={format_override}, video_count={video_count}, video_start_with={video_start_with}")
+    
+    # ЖЕСТКО: Сохраняем оригинальный текст с диапазоном для фоллбэка
+    original_message_text = message.text or message.caption or ""
+    logger.info(f"[ORIGINAL TEXT] Saved for fallback: {original_message_text}")
+    
+    # Initialize retry guards early to avoid UnboundLocalError
+    did_proxy_retry = False
+    did_cookie_retry = False
+    
+    # Determine forced NSFW via user tags
+    try:
+        _u, _s, _e, _p, _tags, _tags_text, _err = extract_url_range_tags(original_message_text)
+        user_forced_nsfw = any(t.lower() in ("#nsfw", "#porn") for t in (_tags or []))
+    except Exception:
+        user_forced_nsfw = False
     
     # Check if LINK mode is enabled - if yes, get direct link instead of downloading
     try:
@@ -114,7 +153,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     response += f"🎵 <b>Audio stream:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
                 
                 if not video_url and not audio_url:
-                    response += "❌ Failed to get stream links"
+                    response += Config.FAILED_STREAM_LINKS_MSG
                 
                 # Send response
                 app.send_message(
@@ -124,18 +163,18 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                send_to_logger(message, f"Direct link extracted via down_and_up for user {user_id} from {url}")
+                send_to_logger(message, LoggerMsg.DIRECT_LINK_EXTRACTED.format(source="down_and_up", user_id=user_id, url=url))
                 
             else:
                 error_msg = result.get('error', 'Unknown error')
                 app.send_message(
                     user_id,
-                    f"❌ <b>Error getting link:</b>\n{error_msg}",
+                    Config.ERROR_GETTING_LINK_MSG.format(error=error_msg),
                     reply_parameters=ReplyParameters(message_id=message.id),
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                send_to_logger(message, f"Failed to extract direct link via down_and_up for user {user_id} from {url}: {error_msg}")
+                send_to_logger(message, LoggerMsg.DIRECT_LINK_FAILED.format(source="down_and_up", user_id=user_id, url=url, error=error_msg))
             
             return
     except Exception as e:
@@ -158,7 +197,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             subs_path = download_subtitles_ytdlp(url, user_id, video_dir, available_langs)
                                         
             if not subs_path:
-                app.send_message(user_id, "⚠️ Failed to download subtitles", reply_parameters=ReplyParameters(message_id=message.id))
+                app.send_message(user_id, Config.SUBTITLES_FAILED_MSG, reply_parameters=ReplyParameters(message_id=message.id))
                 need_subs = False  # Reset if download failed
 
     # We define a playlist not only by the number of videos, but also by the presence of a range in the URL
@@ -168,51 +207,106 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     cached_videos = {}
     uncached_indices = []
     if quality_key and is_playlist:
-        cached_videos = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, requested_indices)
+        # Check if Always Ask mode is enabled - if yes, skip cache completely
+        if not is_subs_always_ask(user_id):
+            # Check if content is NSFW before looking in cache
+            from HELPERS.porn import is_porn
+            is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
+            logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
+            
+            if not is_nsfw:
+                cached_videos = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, requested_indices)
+                logger.info(f"[VIDEO CACHE] Checking cache for regular playlist: url={url}, quality={quality_key}")
+            else:
+                logger.info(f"[VIDEO CACHE] Skipping cache check for NSFW playlist: url={url}, quality={quality_key}")
+        
         uncached_indices = [i for i in requested_indices if i not in cached_videos]
         # First, repost the cached ones
         if cached_videos:
             for index in requested_indices:
                 if index in cached_videos:
                     try:
-                        app.forward_messages(
-                            chat_id=user_id,
-                            from_chat_id=Config.LOGS_ID,
-                            message_ids=[cached_videos[index]]
-                        )
+                        # For cached content, always use regular channel (no NSFW/PAID in cache)
+                        from_chat_id = get_log_channel("video")
+                        channel_type = "regular"
+                        
+                        logger.info(f"[VIDEO CACHE] Reposting video {index} from channel {from_chat_id} to user {user_id}, message_id={cached_videos[index]}")
+                        forward_kwargs = {
+                            'chat_id': user_id,
+                            'from_chat_id': from_chat_id,
+                            'message_ids': [cached_videos[index]]
+                        }
+                        # Only apply thread_id in groups/channels, not in private chats
+                        if getattr(message.chat, "type", None) != enums.ChatType.PRIVATE:
+                            thread_id = getattr(message, 'message_thread_id', None)
+                            if thread_id:
+                                forward_kwargs['message_thread_id'] = thread_id
+                        app.forward_messages(**forward_kwargs)
                     except Exception as e:
                         logger.error(f"down_and_up: error reposting cached video index={index}: {e}")
             if len(uncached_indices) == 0:
-                app.send_message(user_id, f"✅ Playlist videos sent from cache ({len(cached_videos)}/{len(requested_indices)} files).", reply_parameters=ReplyParameters(message_id=message.id))
-                send_to_logger(message, f"Playlist videos sent from cache (quality={quality_key}) to user {user_id}")
+                app.send_message(user_id, Config.PLAYLIST_SENT_FROM_CACHE_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+                send_to_logger(message, LoggerMsg.PLAYLIST_VIDEOS_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
                 return
             else:
-                app.send_message(user_id, f"📥 {len(cached_videos)}/{len(requested_indices)} videos sent from cache, downloading missing ones...", reply_parameters=ReplyParameters(message_id=message.id))
+                app.send_message(user_id, Config.CACHE_PARTIAL_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+        else:
+            logger.info(f"[VIDEO CACHE] Skipping cache check for playlist because Always Ask mode is enabled: url={url}, quality={quality_key}")
+            # Set all indices as uncached when Always Ask mode is enabled
+            uncached_indices = requested_indices
     elif quality_key and not is_playlist:
         #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
         subs_enabled = is_subs_enabled(user_id)
         # Use the already determined subtitle availability
-        if not need_subs:
-            cached_ids = get_cached_message_ids(url, quality_key)
+        if not need_subs and not is_subs_always_ask(user_id):
+            # Check if content is NSFW before looking in cache
+            from HELPERS.porn import is_porn
+            is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
+            logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
+            
+            cached_ids = None
+            if not is_nsfw:
+                cached_ids = get_cached_message_ids(url, quality_key)
+                logger.info(f"[VIDEO CACHE] Checking cache for regular content: url={url}, quality={quality_key}")
+            else:
+                logger.info(f"[VIDEO CACHE] Skipping cache check for NSFW content: url={url}, quality={quality_key}")
+            
             if cached_ids:
                 #found_type = None
                 try:
-                    app.forward_messages(
-                        chat_id=user_id,
-                        from_chat_id=Config.LOGS_ID,
-                        message_ids=cached_ids
-                    )
-                    app.send_message(user_id, "✅ Video sent from cache.", reply_parameters=ReplyParameters(message_id=message.id))
-                    send_to_logger(message, f"Video sent from cache (quality={quality_key}) to user {user_id}")
+                    # For cached content, always use regular channel (no NSFW/PAID in cache)
+                    from_chat_id = get_log_channel("video")
+                    channel_type = "regular"
+                    
+                    logger.info(f"[VIDEO CACHE] Reposting video from channel {from_chat_id} to user {user_id}, message_ids={cached_ids}")
+                    forward_kwargs = {
+                        'chat_id': user_id,
+                        'from_chat_id': from_chat_id,
+                        'message_ids': cached_ids
+                    }
+                    # Only apply thread_id in groups/channels, not in private chats
+                    if getattr(message.chat, "type", None) != enums.ChatType.PRIVATE:
+                        thread_id = getattr(message, 'message_thread_id', None)
+                        if thread_id:
+                            forward_kwargs['message_thread_id'] = thread_id
+                    app.forward_messages(**forward_kwargs)
+                    app.send_message(user_id, Config.VIDEO_SENT_FROM_CACHE_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+                    send_to_logger(message, LoggerMsg.VIDEO_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
                     return
                 except Exception as e:
                     logger.error(f"Error reposting video from cache: {e}")
                     # Use the already determined subtitle availability
                     if not need_subs:
-                        save_to_video_cache(url, quality_key, [], clear=True)
+                        _save_video_cache_with_logging(url, quality_key, [], original_text="")
                     else:
                         logger.info("Video with subs (subs.txt found) is not cached!")
-                    app.send_message(user_id, "⚠️ Unable to get video from cache, starting new download...", reply_parameters=ReplyParameters(message_id=message.id))
+                    # Don't show error message if we successfully got video from cache
+                    # The video was already sent successfully in the try block
+        else:
+            if is_subs_always_ask(user_id):
+                logger.info(f"[VIDEO CACHE] Skipping cache check because Always Ask mode is enabled: url={url}, quality={quality_key}")
+            else:
+                logger.info(f"[VIDEO CACHE] Skipping cache check because need_subs=True: url={url}, quality={quality_key}")
     else:
         logger.info(f"down_and_up: quality_key is None, skipping cache check")
 
@@ -237,9 +331,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 minutes = (wait_time % 3600) // 60
                 seconds = wait_time % 60
                 time_str = f"{hours}h {minutes}m {seconds}s"
-                proc_msg = app.send_message(user_id, f"⚠️ Telegram has limited message sending.\n⏳ Please wait: {time_str}\nTo update timer send URL again 2 times.")
+                proc_msg = app.send_message(user_id, Config.RATE_LIMIT_WITH_TIME_MSG.format(time=time_str))
         else:
-            proc_msg = app.send_message(user_id, "⚠️ Telegram has limited message sending.\n⏳ Please wait: \nTo update timer send URL again 2 times.")
+            proc_msg = app.send_message(user_id, Config.RATE_LIMIT_NO_TIME_MSG)
 
         # We are trying to replace with "Download started"
         try:
@@ -263,7 +357,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             return
 
         # If there is no flood error, send a normal message
-        proc_msg = app.send_message(user_id, "🔄 Processing...", reply_parameters=ReplyParameters(message_id=message.id))
+        proc_msg = app.send_message(user_id, Config.PROCESSING_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+        # Pin proc/status message for visibility
+        try:
+            app.pin_chat_message(user_id, proc_msg.id, disable_notification=True)
+        except Exception:
+            pass
         proc_msg_id = proc_msg.id
         error_message = ""
         status_msg = None
@@ -308,7 +407,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             pass
 
         if not check_disk_space(user_dir_name, required_bytes):
-            send_to_user(message, f"❌ Not enough disk space to download videos.")
+            send_to_user(message, Config.ERROR_NO_DISK_SPACE_MSG)
             return
 
         check_user(message)
@@ -357,8 +456,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         {'format': 'best', 'prefer_ffmpeg': False, 'extract_flat': False}
                     ]
 
-        status_msg = app.send_message(user_id, "📽 Video is processing...")
-        hourglass_msg = app.send_message(user_id, "⌛️")
+        status_msg = app.send_message(user_id, Config.VIDEO_PROCESSING_MSG)
+        hourglass_msg = app.send_message(user_id, Config.WAITING_HOURGLASS_MSG)
         # We save ID status messages
         status_msg_id = status_msg.id
         hourglass_msg_id = hourglass_msg.id
@@ -437,7 +536,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     else:
                         filesize = 0
 
-            allowed = check_file_size_limit(selected_format, max_size_bytes=max_size_bytes)
+            allowed = check_file_size_limit(selected_format, max_size_bytes=max_size_bytes, message=message)
         
         # Secure file size logging
         if filesize > 0:
@@ -449,10 +548,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         if not allowed:
             app.send_message(
                 user_id,
-                f"❌ The file size exceeds the {max_size_gb} GB limit. Please select a smaller file within the allowed size.",
+                Config.ERROR_FILE_SIZE_LIMIT_MSG.format(limit=max_size_gb),
                 reply_parameters=ReplyParameters(message_id=message.id)
             )
-            send_to_logger(message, f"❌ The file size exceeds the {max_size_gb} GB limit. Please select a smaller file within the allowed size.")
+            send_to_logger(message, LoggerMsg.SIZE_LIMIT_EXCEEDED.format(max_size_gb=max_size_gb))
             logger.warning(f"[SIZE CHECK] Download for quality_key={quality_key} was blocked due to size limit.")
             return
         else:
@@ -463,6 +562,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         full_bar = "🟩" * 10
         first_progress_update = True  # Flag for tracking the first update
         progress_start_time = time.time()
+        # One-time retry guards to avoid infinite retry loops across attempts
+        # (already initialized at the beginning of the function)
 
         def progress_func(d):
             nonlocal last_update, first_progress_update
@@ -484,7 +585,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         logger.error(f"Error updating progress: {e}")
                 elif d.get("status") == "error":
                     logger.error("Error occurred during download.")
-                    send_to_all(message, "❌ Sorry... Some error occurred during download.")
+                    send_error_to_user(message, LoggerMsg.DOWNLOAD_ERROR_GENERIC)
                 return
             
             # Adaptive throttle: base 1.5s, doubles each minute (1m→1.5s, 2m→3s, 3m→6s,...)
@@ -517,7 +618,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             logger.error(f"Error in message cleanup: {e}")
                         first_progress_update = False
 
-                    safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{bar}   {percent:.1f}%")
+                    progress_text = f"{current_total_process}\n{bar}   {percent:.1f}%"
+                    logger.info(f"Updating progress for user {user_id}, message {proc_msg_id}: {progress_text}")
+                    result = safe_edit_message_text(user_id, proc_msg_id, progress_text)
+                    if result is None:
+                        logger.warning(f"Failed to update progress message {proc_msg_id} for user {user_id} - message may have been deleted")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
             elif d.get("status") == "finished":
@@ -527,7 +632,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     logger.error(f"Error updating progress: {e}")
             elif d.get("status") == "error":
                 logger.error("Error occurred during download.")
-                send_to_all(message, "❌ Sorry... Some error occurred during download.")
+                send_error_to_user(message, LoggerMsg.DOWNLOAD_ERROR_GENERIC)
             last_update = current_time
 
         successful_uploads = 0
@@ -560,6 +665,15 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 #'read_timeout': 60,  # Read timeout
                 #'connect_timeout': 30  # Connect timeout
             }
+            
+            # Add user's custom yt-dlp arguments
+            from COMMANDS.args_cmd import get_user_ytdlp_args, log_ytdlp_options
+            user_args = get_user_ytdlp_args(user_id, url)
+            if user_args:
+                common_opts.update(user_args)
+            
+            # Log final yt-dlp options for debugging
+            log_ytdlp_options(user_id, common_opts, "video_download")
             
             # Check subtitle availability for YouTube videos (but don't download them here)
             if is_youtube_url(url):
@@ -876,10 +990,77 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 nonlocal error_message
                 error_message = str(e)
                 logger.error(f"DownloadError: {error_message}")
+                # Auto-fallback to gallery-dl (/img) for non-video posts (albums/images)
+                if (
+                    "No videos found in playlist" in error_message
+                    or "Unsupported URL" in error_message
+                    or "No video could be found" in error_message
+                    or "No video found" in error_message
+                    or "No media found" in error_message
+                    or "This tweet does not contain" in error_message
+                ):
+                    try:
+                        from COMMANDS.image_cmd import image_command
+                        from HELPERS.safe_messeger import fake_message
+                    except Exception as imp_e:
+                        logger.error(f"Failed to import gallery-dl fallback handlers: {imp_e}")
+                    else:
+                        try:
+                            safe_edit_message_text(user_id, proc_msg_id,
+                                f"{current_total_process}\n❔ No video formats found. Trying image downloader…")
+                        except Exception:
+                            pass
+                        try:
+                            # Check if content is NSFW for fallback
+                            from HELPERS.porn import is_porn
+                            is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
+                            logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
+                            
+                            # ЖЕСТКО: Используем сохраненный оригинальный текст с диапазоном
+                            logger.info(f"[FALLBACK DEBUG] Using saved original_message_text: {original_message_text}")
+                            
+                            # Ищем URL с диапазоном *start*end
+                            import re
+                            range_url_match = re.search(r'(https?://[^\s\*#]+)\*(\d+)\*(\d+)', original_message_text)
+                            if range_url_match:
+                                parsed_url = range_url_match.group(1)
+                                start_range = int(range_url_match.group(2))
+                                end_range = int(range_url_match.group(3))
+                                logger.info(f"[FALLBACK DEBUG] FOUND RANGE: {parsed_url} with range {start_range}-{end_range}")
+                            else:
+                                # Fallback к обычному URL
+                                m = re.search(r'https?://[^\s\*#]+', original_message_text)
+                                parsed_url = m.group(0) if m else original_message_text
+                                start_range = 1
+                                end_range = 1
+                                logger.info(f"[FALLBACK DEBUG] NO RANGE FOUND, using url: {parsed_url}")
+                            
+                            # Build fallback command converting *1*10 to 1-10 format
+                            if start_range and end_range and (start_range != 1 or end_range != 1):
+                                # Convert *1*10 format to 1-10 format
+                                fallback_text = f"/img {start_range}-{end_range} {parsed_url}"
+                                logger.info(f"[FALLBACK] Converting range: *{start_range}*{end_range} -> {start_range}-{end_range}, fallback_text: {fallback_text}")
+                            else:
+                                fallback_text = f"/img {parsed_url}"
+                                logger.info(f"[FALLBACK] No range detected, fallback_text: {fallback_text}")
+                            
+                            if tags_text:
+                                fallback_text += f" {tags_text}"
+                            
+                            # Add NSFW tag if content is detected as NSFW
+                            if is_nsfw and "#nsfw" not in fallback_text.lower():
+                                fallback_text += " #nsfw"
+                                logger.info(f"[FALLBACK] Added #nsfw tag for NSFW content: {url}")
+                            
+                            image_command(app, fake_message(fallback_text, user_id, original_chat_id=user_id))
+                            logger.info(f"Triggered gallery-dl fallback via /img, is_nsfw={is_nsfw}, range={start_range}-{end_range}")
+                            return "IMG"
+                        except Exception as call_e:
+                            logger.error(f"Failed to trigger gallery-dl fallback: {call_e}")
                 
                 # Проверяем, связана ли ошибка с куками или региональными ограничениями YouTube
                 if is_youtube_url(url):
-                    if is_youtube_geo_error(error_message):
+                    if is_youtube_geo_error(error_message) and not did_proxy_retry:
                         logger.info(f"YouTube geo-blocked error detected for user {user_id}, attempting retry with proxy")
                         
                         # Пробуем скачать через прокси
@@ -889,11 +1070,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         
                         if retry_result is not None:
                             logger.info(f"Download retry with proxy successful for user {user_id}")
+                            did_proxy_retry = True
                             return retry_result
                         else:
                             logger.warning(f"Download retry with proxy failed for user {user_id}")
+                            did_proxy_retry = True
                     
-                    elif is_youtube_cookie_error(error_message):
+                    elif is_youtube_cookie_error(error_message) and not did_cookie_retry:
                         logger.info(f"YouTube cookie-related error detected for user {user_id}, attempting retry with different cookies")
                         
                         # Пробуем скачать с другими куками
@@ -903,12 +1086,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         
                         if retry_result is not None:
                             logger.info(f"Download retry successful for user {user_id}")
+                            did_cookie_retry = True
                             return retry_result
                         else:
                             logger.warning(f"All cookie retry attempts failed for user {user_id}")
+                            did_cookie_retry = True
                 
                 # Send full error message with instructions immediately
-                send_to_all(
+                send_error_to_user(
                     message,                   
                     "<blockquote>Check <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>here</a> if your site supported</blockquote>\n"
                     "<blockquote>You may need <code>cookie</code> for downloading this video. First, clean your workspace via <b>/clean</b> command</blockquote>\n"
@@ -919,11 +1104,75 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             except Exception as e:
                 error_message = str(e)
                 logger.error(f"Attempt with format {ytdl_opts.get('format', 'default')} failed: {e}")
+                # Auto-fallback to gallery-dl for obvious non-video cases
+                emsg = str(e)
+                if (
+                    "No videos found in playlist" in emsg
+                    or "Unsupported URL" in emsg
+                ):
+                    try:
+                        from COMMANDS.image_cmd import image_command
+                        from HELPERS.safe_messeger import fake_message
+                    except Exception as imp_e:
+                        logger.error(f"Failed to import gallery-dl fallback handlers (generic): {imp_e}")
+                    else:
+                        try:
+                            safe_edit_message_text(user_id, proc_msg_id,
+                                f"{current_total_process}\n❔ No video formats found. Trying image downloader…")
+                        except Exception:
+                            pass
+                        try:
+                            # Check if content is NSFW for fallback
+                            from HELPERS.porn import is_porn
+                            is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
+                            logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
+                            
+                            # ЖЕСТКО: Используем сохраненный оригинальный текст с диапазоном
+                            logger.info(f"[FALLBACK DEBUG] Using saved original_message_text: {original_message_text}")
+                            
+                            # Ищем URL с диапазоном *start*end
+                            import re
+                            range_url_match = re.search(r'(https?://[^\s\*#]+)\*(\d+)\*(\d+)', original_message_text)
+                            if range_url_match:
+                                parsed_url = range_url_match.group(1)
+                                start_range = int(range_url_match.group(2))
+                                end_range = int(range_url_match.group(3))
+                                logger.info(f"[FALLBACK DEBUG] FOUND RANGE: {parsed_url} with range {start_range}-{end_range}")
+                            else:
+                                # Fallback к обычному URL
+                                m = re.search(r'https?://[^\s\*#]+', original_message_text)
+                                parsed_url = m.group(0) if m else original_message_text
+                                start_range = 1
+                                end_range = 1
+                                logger.info(f"[FALLBACK DEBUG] NO RANGE FOUND, using url: {parsed_url}")
+                            
+                            # Build fallback command converting *1*10 to 1-10 format
+                            if start_range and end_range and (start_range != 1 or end_range != 1):
+                                # Convert *1*10 format to 1-10 format
+                                fallback_text = f"/img {start_range}-{end_range} {parsed_url}"
+                                logger.info(f"[FALLBACK] Converting range: *{start_range}*{end_range} -> {start_range}-{end_range}, fallback_text: {fallback_text}")
+                            else:
+                                fallback_text = f"/img {parsed_url}"
+                                logger.info(f"[FALLBACK] No range detected, fallback_text: {fallback_text}")
+                            
+                            if tags_text:
+                                fallback_text += f" {tags_text}"
+                            
+                            # Add NSFW tag if content is detected as NSFW
+                            if is_nsfw and "#nsfw" not in fallback_text.lower():
+                                fallback_text += " #nsfw"
+                                logger.info(f"[FALLBACK] Added #nsfw tag for NSFW content: {url}")
+                            
+                            image_command(app, fake_message(fallback_text, user_id, original_chat_id=user_id))
+                            logger.info(f"Triggered gallery-dl fallback via /img (generic), is_nsfw={is_nsfw}, range={start_range}-{end_range}")
+                            return "IMG"
+                        except Exception as call_e:
+                            logger.error(f"Failed to trigger gallery-dl fallback (generic): {call_e}")
 				
                 # Check if this is a "No videos found in playlist" error
                 if "No videos found in playlist" in str(e):
                     error_message = f"❌ No videos found in playlist at index {current_index + 1}."
-                    send_to_all(message, error_message)
+                    send_error_to_user(message, error_message)
                     logger.info(f"Stopping download: playlist item at index {current_index} (no video found)")
                     return "STOP"  # New special value for full stop
                 
@@ -968,6 +1217,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 elif result == "SKIP":
                     skip_item = True
                     break
+                elif result == "IMG":
+                    # Gallery-dl fallback has been triggered; stop further video processing
+                    logger.info("Stopping video workflow after gallery-dl fallback trigger")
+                    return
                 elif result is not None:
                     info_dict = result
                     break
@@ -1037,7 +1290,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             logger.info(f"Found video files in {dir_path}: {files}")
             
             if not files:
-                send_to_all(message, f"Skipping unsupported file type in playlist at index {idx + video_start_with}")
+                send_error_to_user(message, f"Skipping unsupported file type in playlist at index {idx + video_start_with}")
                 continue
 
             downloaded_file = files[0]
@@ -1098,7 +1351,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 from DOWN_AND_UP.ffmpeg import get_ffmpeg_path
                 ffmpeg_path = get_ffmpeg_path()
                 if not ffmpeg_path:
-                    send_to_all(message, "❌ FFmpeg not found. Please install FFmpeg.")
+                    send_error_to_user(message, "❌ FFmpeg not found. Please install FFmpeg.")
                     break
                 
                 ffmpeg_cmd = [
@@ -1118,7 +1371,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     user_vid_path = mp4_file
                     final_name = mp4_basename
                 except Exception as e:
-                    send_to_all(message, f"❌ Conversion to MP4 failed: {e}")
+                    send_error_to_user(message, f"❌ Conversion to MP4 failed: {e}")
                     break
 
             after_rename_abs_path = os.path.abspath(user_vid_path)
@@ -1224,8 +1477,81 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         logger.error("send_videos returned None for split part; skipping cache save for this part")
                         continue
                     #found_type = None
+                    # Note: Forwarding to log channels is now handled in send_videos function
+                    # We need to get the forwarded message IDs from the log channel for caching
                     try:
-                        forwarded_msgs = safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
+                        # Determine the correct log channel based on content type
+                        from HELPERS.porn import is_porn
+                        is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
+                        logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
+                        is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                        is_paid = is_nsfw and is_private_chat
+                        logger.info(f"[VIDEO CACHE] URL analysis: url={url}, is_nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}")
+                        already_forwarded_to_log = False
+                        
+                        # Handle different content types according to new logic
+                        if is_paid:
+                            # For NSFW content in private chat, send to both channels but don't cache
+                            # For NSFW content in private chat, send_videos already sent paid media to user
+                            # We need to send paid copy to LOGS_PAID_ID and open copy to LOGS_NSWF_ID for history
+                            
+                            # Send to LOGS_NSFW_ID (for history) - send open copy, not paid media
+                            # Send paid copy to LOGS_PAID_ID
+                            log_channel_paid = get_log_channel("video", paid=True)
+                            try:
+                                # Forward the paid video to LOGS_PAID_ID
+                                safe_forward_messages(log_channel_paid, user_id, [video_msg.id])
+                                logger.info(f"down_and_up: NSFW content paid copy sent to PAID channel")
+                            except Exception as e:
+                                logger.error(f"down_and_up: failed to send paid copy to PAID channel: {e}")
+                            
+                            # Send open copy to LOGS_NSWF_ID for history
+                            log_channel_nsfw = Config.LOGS_NSFW_ID
+                            try:
+                                # Get video dimensions for proper aspect ratio
+                                try:
+                                    v_w, v_h, v_dur = get_video_info_ffprobe(path_lst[p])
+                                except Exception:
+                                    v_w, v_h, v_dur = width, height, part_duration
+                                
+                                # Create open copy for history (without stars) - send directly to NSFW channel
+                                open_video_msg = app.send_video(
+                                    chat_id=log_channel_nsfw,
+                                    video=path_lst[p],
+                                    caption=caption_lst[p],
+                                    duration=int(v_dur) if v_dur else part_duration,
+                                    width=int(v_w) if v_w else width,
+                                    height=int(v_h) if v_h else height,
+                                    thumb=splited_thumb_dir,
+                                    reply_parameters=ReplyParameters(message_id=message.id)
+                                )
+                                logger.info(f"down_and_up: NSFW content open copy sent to NSFW channel for history")
+                                already_forwarded_to_log = True
+                            except Exception as e:
+                                logger.error(f"down_and_up: failed to send open copy to NSFW channel: {e}")
+                            
+                            # Don't cache NSFW content
+                            logger.info(f"down_and_up: NSFW content sent to user (paid) and NSFW channel (open copy), not cached")
+                            forwarded_msgs = None
+                            
+                        elif is_nsfw:
+                            # NSFW content in groups -> LOGS_NSFW_ID only
+                            log_channel = Config.LOGS_NSFW_ID
+                            try:
+                                safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                logger.info(f"down_and_up: NSFW content sent to NSFW channel")
+                                already_forwarded_to_log = True
+                            except Exception as e:
+                                logger.error(f"down_and_up: failed to forward to NSFW channel: {e}")
+                            
+                            # Don't cache NSFW content
+                            logger.info(f"down_and_up: NSFW content sent to NSFW channel, not cached")
+                            forwarded_msgs = None
+                            
+                        else:
+                            # Regular content -> LOGS_VIDEO_ID and cache
+                            log_channel = get_log_channel("video")
+                            forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
                         logger.info(f"down_and_up: forwarded_msgs result: {forwarded_msgs}")
                         if forwarded_msgs:
                             logger.info(f"down_and_up: collecting forwarded message IDs for split video: {[m.id for m in forwarded_msgs]}")
@@ -1240,7 +1566,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     pass
                                 # Use the already determined subtitle availability
                                 if not need_subs:
-                                    save_to_playlist_cache(get_clean_playlist_url(url), rounded_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                    # Only cache regular content (not NSFW)
+                                    if not is_nsfw:
+                                        save_to_playlist_cache(get_clean_playlist_url(url), rounded_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                    else:
+                                        logger.info(f"NSFW content not cached (found_type={found_type}, auto_mode={auto_mode})")
                                 else:
                                     logger.info(f"Video with subtitles is not cached (found_type={found_type}, auto_mode={auto_mode})")
                                 cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), rounded_quality_key, [current_video_index])
@@ -1289,10 +1619,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             playlist_indices.append(current_video_index)
                             playlist_msg_ids.append(video_msg.id)
                         else:
-                                                          # Accumulate IDs of parts for split video
-                              split_msg_ids.append(video_msg.id)
-                              safe_edit_message_text(user_id, proc_msg_id,
-                                  f"{info_text}\n{full_bar}   100.0%\n<i>📤 Splitted part {p + 1} file uploaded</i>")
+                            # Accumulate IDs of parts for split video
+                            split_msg_ids.append(video_msg.id)
+                            safe_edit_message_text(user_id, proc_msg_id,
+                                f"{info_text}\n{full_bar}   100.0%\n<i>📤 Splitted part {p + 1} file uploaded</i>")
                     if p < len(caption_lst) - 1:
                         pass
                     if os.path.exists(splited_thumb_dir):
@@ -1311,7 +1641,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     auto_mode = get_user_subs_auto_mode(user_id)
                     need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                     if not need_subs:
-                        save_to_video_cache(url, quality_key, split_msg_ids, original_text=message.text or message.caption or "")
+                        _save_video_cache_with_logging(url, quality_key, split_msg_ids, original_text=message.text or message.caption or "")
                     else:
                         logger.info(f"Split video with subtitles is not cached (found_type={found_type}, auto_mode={auto_mode})")
                 if os.path.exists(thumb_dir):
@@ -1370,7 +1700,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     subs_path = download_subtitles_ytdlp(url, user_id, video_dir, available_langs)
                                     
                                     if not subs_path:
-                                        app.send_message(user_id, "⚠️ Failed to download subtitles", reply_parameters=ReplyParameters(message_id=message.id))
+                                        app.send_message(user_id, Config.SUBTITLES_FAILED_MSG, reply_parameters=ReplyParameters(message_id=message.id))
                                         #continue
                                     
                                     # Get the real size of the file after downloading
@@ -1450,7 +1780,84 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         
                         #found_type = None
                         try:
-                            forwarded_msgs = safe_forward_messages(Config.LOGS_ID, user_id, [video_msg.id])
+                            # Determine the correct log channel based on content type
+                            from HELPERS.porn import is_porn
+                            is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
+                            logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
+                            is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                            # Detect if actually sent as paid media
+                            try:
+                                msg_is_paid = (
+                                    getattr(video_msg, "media", None) == enums.MessageMediaType.PAID_MEDIA
+                                ) or (getattr(video_msg, "paid_media", None) is not None)
+                            except Exception:
+                                msg_is_paid = False
+                            is_paid = msg_is_paid or (is_nsfw and is_private_chat)
+                            
+                            # Handle different content types according to new logic
+                            if is_paid:
+                                # For NSFW content in private chat, send_videos already sent paid media to user
+                                # We need to send paid copy to LOGS_PAID_ID and open copy to LOGS_NSWF_ID for history
+                                
+                                # Send paid copy to LOGS_PAID_ID
+                                log_channel_paid = get_log_channel("video", paid=True)
+                                try:
+                                    # Forward the paid video to LOGS_PAID_ID
+                                    safe_forward_messages(log_channel_paid, user_id, [video_msg.id])
+                                    logger.info(f"down_and_up: NSFW content paid copy sent to PAID channel")
+                                except Exception as e:
+                                    logger.error(f"down_and_up: failed to send paid copy to PAID channel: {e}")
+                                
+                                # Send open copy to LOGS_NSWF_ID for history
+                                log_channel_nsfw = Config.LOGS_NSFW_ID
+                                try:
+                                    # Get video dimensions for proper aspect ratio
+                                    try:
+                                        v_w, v_h, v_dur = get_video_info_ffprobe(after_rename_abs_path)
+                                    except Exception:
+                                        v_w, v_h, v_dur = width, height, duration
+                                    
+                                    # Create open copy for history (without stars) - send directly to NSFW channel
+                                    open_video_msg = app.send_video(
+                                        chat_id=log_channel_nsfw,
+                                        video=after_rename_abs_path,
+                                        caption='' if force_no_title else original_video_title,
+                                        duration=int(v_dur) if v_dur else duration,
+                                        width=int(v_w) if v_w else width,
+                                        height=int(v_h) if v_h else height,
+                                        thumb=thumb_dir,
+                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                    )
+                                    logger.info(f"down_and_up: NSFW content open copy sent to NSFW channel for history")
+                                except Exception as e:
+                                    logger.error(f"down_and_up: failed to send open copy to NSFW channel: {e}")
+                                
+                                # Don't cache NSFW content
+                                logger.info(f"down_and_up: NSFW content sent to user (paid), PAID channel (paid copy), and NSFW channel (open copy), not cached")
+                                forwarded_msgs = None
+                                
+                            elif is_nsfw:
+                                # NSFW content in groups -> LOGS_NSFW_ID only
+                                log_channel = Config.LOGS_NSFW_ID
+                                forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                # Don't cache NSFW content
+                                logger.info(f"down_and_up: NSFW content sent to NSFW channel, not cached")
+                                # Mark that we've already forwarded to log to avoid duplicates if return value is None
+                                try:
+                                    already_forwarded_to_log = True
+                                except Exception:
+                                    pass
+                                forwarded_msgs = None
+                            else:
+                                # Regular content -> LOGS_VIDEO_ID and cache (but never for paid media)
+                                if (
+                                    getattr(video_msg, "media", None) == enums.MessageMediaType.PAID_MEDIA
+                                ) or (getattr(video_msg, "paid_media", None) is not None):
+                                    logger.info("down_and_up: skipping forward to LOGS_VIDEO_ID for paid media")
+                                    forwarded_msgs = None
+                                else:
+                                    log_channel = get_log_channel("video")
+                                    forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
                             logger.info(f"down_and_up: forwarded_msgs result: {forwarded_msgs}")
                             if forwarded_msgs:
                                 logger.info(f"down_and_up: saving to cache with forwarded message IDs: {[m.id for m in forwarded_msgs]}")
@@ -1476,64 +1883,202 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     auto_mode = get_user_subs_auto_mode(user_id)
                                     need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                                     if not need_subs:
-                                        save_to_video_cache(url, quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                        # Only cache regular content (not NSFW)
+                                        if not is_nsfw:
+                                            _save_video_cache_with_logging(url, quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                        else:
+                                            logger.info("NSFW content not cached")
                                     else:
                                         logger.info("Video with subtitles (subs.txt found) is not cached!")
                             else:
-                                logger.info(f"down_and_up: saving to cache with video_msg.id: {video_msg.id}")
-                                if is_playlist:
-                                    # For playlists, save to playlist cache with video index
-                                    current_video_index = x + video_start_with
-                                    #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                                    subs_enabled = is_subs_enabled(user_id)
-                                    auto_mode = get_user_subs_auto_mode(user_id)
-                                    need_subs = determine_need_subs(subs_enabled, found_type, user_id)
-                                    if not need_subs:
-                                        save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
-                                    else:
-                                        logger.info("Video with subtitles (subs.txt found) is not cached!")
-                                    cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, [current_video_index])
-                                    logger.info(f"Checking the cache immediately after writing: {cached_check}")
-                                    playlist_indices.append(current_video_index)
-                                    playlist_msg_ids.append(video_msg.id)
+                                # If forwarding failed, try to forward manually and get log channel IDs
+                                if 'already_forwarded_to_log' in locals() and already_forwarded_to_log:
+                                    logger.info("down_and_up: already forwarded to log; skipping manual forward duplicate")
                                 else:
-                                    #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                                    subs_enabled = is_subs_enabled(user_id)
-                                    auto_mode = get_user_subs_auto_mode(user_id)
-                                    need_subs = determine_need_subs(subs_enabled, found_type, user_id)
-                                    if not need_subs:
-                                        # For single videos, save to regular cache
-                                        save_to_video_cache(url, quality_key, [video_msg.id], original_text=message.text or message.caption or "")
-                                    else:
-                                        logger.info("Video with subtitles (subs.txt found) is not cached!")
+                                    logger.info(f"down_and_up: forwarding failed, trying manual forward for video: {video_msg.id}")
+                                    try:
+                                        # Determine the correct log channel based on content type
+                                        from HELPERS.porn import is_porn
+                                        is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
+                                        logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
+                                        is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                                        try:
+                                            msg_is_paid = (
+                                                getattr(video_msg, "media", None) == enums.MessageMediaType.PAID_MEDIA
+                                            ) or (getattr(video_msg, "paid_media", None) is not None)
+                                        except Exception:
+                                            msg_is_paid = False
+                                        is_paid = msg_is_paid or (is_nsfw and is_private_chat)
+                                        
+                                        # Handle different content types according to new logic
+                                        if is_paid:
+                                            # For NSFW content in private chat, send to both channels but don't cache
+                                            # For NSFW content in private chat, send_videos already sent paid media to user
+                                            # No need to forward to LOGS_PAID_ID as it's already sent
+                                            
+                                            # Send to LOGS_NSFW_ID (for history) - send open copy, not paid media
+                                            # LOGS_PAID_ID and LOGS_NSWF_ID were already handled in the main logic above
+                                            # No need to send again in manual forward
+                                            
+                                            # Don't cache NSFW content
+                                            logger.info(f"down_and_up: NSFW content already sent to user (paid), PAID channel (paid copy), and NSFW channel (open copy), not cached (manual)")
+                                            forwarded_msgs = None
+                                            
+                                        elif is_nsfw:
+                                            # NSFW content in groups -> LOGS_NSFW_ID only
+                                            log_channel = Config.LOGS_NSFW_ID
+                                            try:
+                                                safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                                logger.info(f"down_and_up: NSFW content sent to NSFW channel (manual)")
+                                            except Exception as e:
+                                                logger.error(f"down_and_up: failed to forward to NSFW channel (manual): {e}")
+                                            
+                                            # Don't cache NSFW content
+                                            logger.info(f"down_and_up: NSFW content sent to NSFW channel, not cached (manual)")
+                                            forwarded_msgs = None
+                                            
+                                        else:
+                                            # Regular content -> LOGS_VIDEO_ID and cache (but never for paid media)
+                                            if (
+                                                getattr(video_msg, "media", None) == enums.MessageMediaType.PAID_MEDIA
+                                            ) or (getattr(video_msg, "paid_media", None) is not None):
+                                                logger.info("down_and_up: skipping forward to LOGS_VIDEO_ID for paid media (manual)")
+                                                forwarded_msgs = None
+                                            else:
+                                                log_channel = get_log_channel("video")
+                                                forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                        if forwarded_msgs:
+                                            logger.info(f"down_and_up: manual forward successful, got IDs: {[m.id for m in forwarded_msgs]}")
+                                            if is_playlist:
+                                                # For playlists, save to playlist cache with video index
+                                                current_video_index = x + video_start_with
+                                                subs_enabled = is_subs_enabled(user_id)
+                                                auto_mode = get_user_subs_auto_mode(user_id)
+                                                need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+                                                if not need_subs:
+                                                    save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                                else:
+                                                    logger.info("Video with subtitles (subs.txt found) is not cached!")
+                                                cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, [current_video_index])
+                                                logger.info(f"Checking the cache immediately after writing: {cached_check}")
+                                                playlist_indices.append(current_video_index)
+                                                playlist_msg_ids.extend([m.id for m in forwarded_msgs])
+                                            else:
+                                                # For single videos, save to regular cache
+                                                subs_enabled = is_subs_enabled(user_id)
+                                                auto_mode = get_user_subs_auto_mode(user_id)
+                                                need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+                                                if not need_subs:
+                                                    # Only cache regular content (not NSFW)
+                                                    if not is_nsfw:
+                                                        _save_video_cache_with_logging(url, quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                                    else:
+                                                        logger.info("NSFW content not cached (manual)")
+                                                else:
+                                                    logger.info("Video with subtitles (subs.txt found) is not cached!")
+                                        else:
+                                            logger.error("Manual forward also failed, cannot cache video")
+                                    except Exception as e:
+                                        logger.error(f"Error in manual forward: {e}")
                         except Exception as e:
                             logger.error(f"Error forwarding video to logger: {e}")
-                            logger.info(f"down_and_up: saving to cache with video_msg.id after error: {video_msg.id}")
-                            if is_playlist:
-                                # For playlists, save to playlist cache with video index
-                                current_video_index = x + video_start_with
-                                #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                                subs_enabled = is_subs_enabled(user_id)
-                                auto_mode = get_user_subs_auto_mode(user_id)
-                                need_subs = determine_need_subs(subs_enabled, found_type, user_id)
-                                if not need_subs:
-                                    save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
+                            # Try to forward manually even after error
+                            try:
+                                # Determine the correct log channel based on content type
+                                from HELPERS.porn import is_porn
+                                is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
+                                logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
+                                is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                                is_paid = is_nsfw and is_private_chat
+                                
+                                # Handle different content types according to new logic
+                                if is_paid:
+                                    # For NSFW content in private chat, send to both channels but don't cache
+                                    # For NSFW content in private chat, send_videos already sent paid media to user
+                                    # No need to forward to LOGS_PAID_ID as it's already sent
+                                    
+                                    # Send to LOGS_NSFW_ID (for history) - send open copy, not paid media
+                                    # LOGS_PAID_ID was already handled in the main logic above
+                                    # No need to send again in error recovery
+                                    
+                                    # Send open copy to LOGS_NSWF_ID for history
+                                    log_channel_nsfw = Config.LOGS_NSFW_ID
+                                    try:
+                                        # Get video dimensions for proper aspect ratio
+                                        try:
+                                            v_w, v_h, v_dur = get_video_info_ffprobe(after_rename_abs_path)
+                                        except Exception:
+                                            v_w, v_h, v_dur = width, height, duration
+                                        
+                                        # Create open copy for history (without stars) - send directly to NSFW channel
+                                        open_video_msg = app.send_video(
+                                            chat_id=log_channel_nsfw,
+                                            video=after_rename_abs_path,
+                                            caption='' if force_no_title else original_video_title,
+                                            duration=int(v_dur) if v_dur else duration,
+                                            width=int(v_w) if v_w else width,
+                                            height=int(v_h) if v_h else height,
+                                            thumb=thumb_dir,
+                                            reply_parameters=ReplyParameters(message_id=message.id)
+                                        )
+                                        logger.info(f"down_and_up: NSFW content open copy sent to NSFW channel for history (error recovery)")
+                                    except Exception as e:
+                                        logger.error(f"down_and_up: failed to send open copy to NSFW channel (error recovery): {e}")
+                                    
+                                    # Don't cache NSFW content
+                                    logger.info(f"down_and_up: NSFW content already sent to user (paid), PAID channel (paid copy), and NSFW channel (open copy), not cached (error recovery)")
+                                    forwarded_msgs = None
+                                    
+                                elif is_nsfw:
+                                    # NSFW content in groups -> LOGS_NSFW_ID only
+                                    log_channel = Config.LOGS_NSFW_ID
+                                    try:
+                                        safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                        logger.info(f"down_and_up: NSFW content sent to NSFW channel (error recovery)")
+                                    except Exception as e:
+                                        logger.error(f"down_and_up: failed to forward to NSFW channel (error recovery): {e}")
+                                    
+                                    # Don't cache NSFW content
+                                    logger.info(f"down_and_up: NSFW content sent to NSFW channel, not cached (error recovery)")
+                                    forwarded_msgs = None
+                                    
                                 else:
-                                    logger.info("Video with subtitles (subs.txt found) is not cached!")
-                                cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, [current_video_index])
-                                logger.info(f"Checking the cache immediately after writing: {cached_check}")
-                                playlist_indices.append(current_video_index)
-                                playlist_msg_ids.append(video_msg.id)
-                            else:
-                                # For single videos, save to regular cache
-                                #found_type = check_subs_availability(url, user_id, quality_key, return_type=True)
-                                subs_enabled = is_subs_enabled(user_id)
-                                auto_mode = get_user_subs_auto_mode(user_id)
-                                need_subs = determine_need_subs(subs_enabled, found_type, user_id)
-                                if not need_subs:
-                                    save_to_video_cache(url, quality_key, [video_msg.id], original_text=message.text or message.caption or "")
+                                    # Regular content -> LOGS_VIDEO_ID and cache
+                                    log_channel = get_log_channel("video")
+                                    forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                if forwarded_msgs:
+                                    logger.info(f"down_and_up: manual forward after error successful, got IDs: {[m.id for m in forwarded_msgs]}")
+                                    if is_playlist:
+                                        # For playlists, save to playlist cache with video index
+                                        current_video_index = x + video_start_with
+                                        subs_enabled = is_subs_enabled(user_id)
+                                        auto_mode = get_user_subs_auto_mode(user_id)
+                                        need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+                                        if not need_subs:
+                                            save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                        else:
+                                            logger.info("Video with subtitles (subs.txt found) is not cached!")
+                                        cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, [current_video_index])
+                                        logger.info(f"Checking the cache immediately after writing: {cached_check}")
+                                        playlist_indices.append(current_video_index)
+                                        playlist_msg_ids.extend([m.id for m in forwarded_msgs])
+                                    else:
+                                        # For single videos, save to regular cache
+                                        subs_enabled = is_subs_enabled(user_id)
+                                        auto_mode = get_user_subs_auto_mode(user_id)
+                                        need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+                                        if not need_subs:
+                                            # Only cache regular content (not NSFW)
+                                            if not is_nsfw:
+                                                _save_video_cache_with_logging(url, quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                            else:
+                                                logger.info("NSFW content not cached (error recovery)")
+                                        else:
+                                            logger.info("Video with subtitles (subs.txt found) is not cached!")
                                 else:
-                                    logger.info("Video with subtitles (subs.txt found) is not cached!")
+                                    logger.error("Manual forward after error also failed, cannot cache video")
+                            except Exception as e2:
+                                logger.error(f"Error in manual forward after error: {e2}")
                         safe_edit_message_text(user_id, proc_msg_id,
                             f"{info_text}\n{full_bar}   100.0%\n<b>🎞 Video duration:</b> <i>{TimeFormatter(duration * 1000)}</i>\n1 file uploaded.")
                         send_mediainfo_if_enabled(user_id, after_rename_abs_path, message)
@@ -1547,7 +2092,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     except Exception as e:
                         logger.error(f"Error sending video: {e}")
                         logger.error(traceback.format_exc())
-                        send_to_all(message, f"❌ Error sending video: {str(e)}")
+                        send_error_to_user(message, f"❌ Error sending video: {str(e)}")
                         continue
         if successful_uploads == len(indices_to_download):
             success_msg = f"<b>✅ Upload complete</b> - {video_count} files uploaded.\n{Config.CREDITS_MSG}"
@@ -1562,7 +2107,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     except Exception as e:
         if "Download timeout exceeded" in str(e):
             send_to_user(message, "⏰ Download cancelled due to timeout (2 hours)")
-            send_to_logger(message, "Download cancelled due to timeout")
+            send_to_logger(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG)
         else:
             logger.error(f"Error in video download: {e}")
             send_to_user(message, f"❌ Failed to download video: {e}")

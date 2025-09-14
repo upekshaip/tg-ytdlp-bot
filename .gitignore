@@ -22,6 +22,10 @@ benv/
 # Bot runtime / sessions / logs
 magic.session
 magic.session-journal
+magic.session-shm
+magic.session-wal
+unknown_errors.txt
+magic.session-lock
 .bot_pid
 bot.log
 runtime.log
@@ -47,11 +51,15 @@ yt-dlp
 *.tmp
 
 # Sample / experimental scripts
+gallery-dl/
 test.py
 torrent.py
 bot_sample.py
 users.txt
 TOOLS/script.sh
+scripts/delete_video_cache.py
+scripts/create_video_cache_folders.py
+scripts/
 _cursor/TOOLS/script.sh
 script.sh
 log.txt

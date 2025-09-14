@@ -2,6 +2,7 @@
 import re
 import time
 import logging
+import threading
 from types import SimpleNamespace
 from HELPERS.app_instance import get_app
 from pyrogram.errors import FloodWait
@@ -18,7 +19,7 @@ def get_app_safe():
         raise RuntimeError("App instance not available yet")
     return app
 
-def fake_message(text, user_id, command=None):
+def fake_message(text, user_id, command=None, original_chat_id=None):
     m = SimpleNamespace()
     m.chat = SimpleNamespace()
     m.chat.id = user_id
@@ -30,6 +31,10 @@ def fake_message(text, user_id, command=None):
     m.from_user = SimpleNamespace()
     m.from_user.id = user_id
     m.from_user.first_name = m.chat.first_name
+    # ЖЕСТКО: Помечаем как fake message для правильной обработки платных медиа
+    m._is_fake_message = True
+    # ЖЕСТКО: Сохраняем оригинальный chat_id для правильного определения is_private_chat
+    m._original_chat_id = original_chat_id if original_chat_id is not None else user_id
     if command is not None:
         m.command = command
     else:
@@ -47,14 +52,23 @@ def fake_message(text, user_id, command=None):
 
 # Helper function for safe message sending with flood wait handling
 def safe_send_message(chat_id, text, **kwargs):
-    # Normalize reply parameters
+    # Normalize reply parameters and preserve topic/thread info
+    original_message = kwargs.get('message')
     if 'reply_parameters' not in kwargs:
         if 'reply_to_message_id' in kwargs and kwargs['reply_to_message_id'] is not None:
             kwargs['reply_parameters'] = ReplyParameters(message_id=kwargs['reply_to_message_id'])
             del kwargs['reply_to_message_id']
-        elif 'message' in kwargs and getattr(kwargs['message'], 'id', None) is not None:
-            kwargs['reply_parameters'] = ReplyParameters(message_id=kwargs['message'].id)
-            del kwargs['message']
+        elif original_message is not None and getattr(original_message, 'id', None) is not None:
+            kwargs['reply_parameters'] = ReplyParameters(message_id=original_message.id)
+    # Ensure topic/thread routing for supergroups with topics
+    try:
+        if original_message is not None and getattr(original_message, 'message_thread_id', None):
+            kwargs.setdefault('message_thread_id', original_message.message_thread_id)
+    except Exception:
+        pass
+    # Remove helper-only key
+    if 'message' in kwargs:
+        del kwargs['message']
     max_retries = 3
     retry_delay = 5
     # Extract internal helper kwargs (not supported by pyrogram)
@@ -161,6 +175,30 @@ def safe_edit_message_text(chat_id, message_id, text, **kwargs):
     max_retries = 3
     retry_delay = 5
 
+    # Throttle edits in groups to no more than once per 5 seconds per chat
+    try:
+        is_group = isinstance(chat_id, int) and chat_id < 0
+    except Exception:
+        is_group = False
+
+    # Module-level storage for last edit timestamps
+    global _last_edit_ts_per_chat
+    try:
+        _last_edit_ts_per_chat
+    except NameError:
+        _last_edit_ts_per_chat = {}
+
+    if is_group:
+        last_ts = _last_edit_ts_per_chat.get(chat_id, 0.0)
+        now = time.time()
+        elapsed = now - last_ts
+        if elapsed < 5.0:
+            try:
+                time.sleep(5.0 - elapsed)
+            except Exception:
+                pass
+        _last_edit_ts_per_chat[chat_id] = time.time()
+
     for attempt in range(max_retries):
         try:
             app = get_app_safe()
@@ -256,3 +294,35 @@ def safe_delete_messages(chat_id, message_ids, **kwargs):
             # Избегаем внутренних атрибутов исключения (например, pts_count)
             logger.error(f"Failed to delete messages after {max_retries} attempts: {type(e).__name__}")
             return None
+
+# Helper function for sending messages with auto-delete functionality
+def safe_send_message_with_auto_delete(chat_id, text, delete_after_seconds=60, **kwargs):
+    """
+    Send a message and automatically delete it after specified seconds
+    
+    Args:
+        chat_id: The chat ID to send to
+        text: The message text
+        delete_after_seconds: Seconds after which to delete the message (default: 60)
+        **kwargs: Additional arguments for send_message
+    
+    Returns:
+        The message object or None if sending failed
+    """
+    # Send the message first
+    message = safe_send_message(chat_id, text, **kwargs)
+    
+    if message and hasattr(message, 'id'):
+        # Schedule deletion in a separate thread
+        def delete_message_after_delay():
+            try:
+                time.sleep(delete_after_seconds)
+                safe_delete_messages(chat_id, [message.id])
+            except Exception as e:
+                logger.error(f"Error in auto-delete thread: {e}")
+        
+        # Start the deletion thread
+        delete_thread = threading.Thread(target=delete_message_after_delay, daemon=True)
+        delete_thread.start()
+    
+    return message

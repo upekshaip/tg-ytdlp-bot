@@ -6,6 +6,7 @@ from HELPERS.app_instance import get_app
 from HELPERS.decorators import reply_with_keyboard
 from HELPERS.limitter import is_user_in_channel, check_user
 from HELPERS.logger import send_to_all, send_to_logger, send_to_user
+from CONFIG.logger_msg import LoggerMsg
 from HELPERS.caption import caption_editor
 from HELPERS.filesystem_hlp import remove_media
 from COMMANDS.cookies_cmd import save_as_cookie_file, download_cookie, checking_cookie_file, cookies_from_browser
@@ -28,6 +29,7 @@ import os
 from URL_PARSERS.video_extractor import video_url_extractor
 from URL_PARSERS.playlist_utils import is_playlist_with_range
 from pyrogram import filters
+import re
 from CONFIG.config import Config
 from HELPERS.logger import logger
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -43,6 +45,19 @@ def url_distractor(app, message):
     user_id = message.chat.id
     is_admin = int(user_id) in Config.ADMIN
     text = message.text.strip()
+    
+    # Check if user is in args input state
+    from COMMANDS.args_cmd import user_input_states, handle_args_text_input
+    if user_id in user_input_states:
+        handle_args_text_input(app, message)
+        return
+    # Normalize commands like /cmd@bot to /cmd for group mentions
+    try:
+        bot_mention = f"@{getattr(Config, 'BOT_NAME', '').strip()}"
+        if bot_mention and bot_mention in text:
+            text = text.replace(bot_mention, "").strip()
+    except Exception:
+        pass
 
     # Emoji keyboard mapping to commands (from FULL layout)
     emoji_to_command = {
@@ -71,66 +86,65 @@ def url_distractor(app, message):
         mapped = emoji_to_command[text]
         # Special case: headphones emoji should show audio usage hint
         if mapped == "/audio":
-            from pyrogram.types import ReplyParameters
-            app.send_message(
+            from HELPERS.safe_messeger import safe_send_message
+            safe_send_message(
                 message.chat.id,
                 "Download only audio from video source.\n\nUsage: /audio + URL \n\n(ex. /audio https://youtu.be/abc123)\n(ex. /audio https://youtu.be/playlist?list=abc123*1*10)",
-                reply_parameters=ReplyParameters(message_id=message.id)
+                message=message
             )
             return
         # Emulate a user command for the mapped emoji
         return url_distractor(app, fake_message(mapped, user_id))
 
-    # For non-admin users, if they haven't Joined the Channel, Exit ImmediaTely.
-    if not is_admin and not is_user_in_channel(app, message):
-        return
-
     # ----- Admin-only denial for non-admins -----
     if not is_admin:
         # /uncache
         if text.startswith(Config.UNCACHE_COMMAND):
-            send_to_user(message, "❌ Access denied. Admin only.")
+            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
             return
         # /auto_cache
         if text.startswith(Config.AUTO_CACHE_COMMAND):
-            send_to_user(message, "❌ Access denied. Admin only.")
+            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
             return
         # /all_* (user details)
         if Config.GET_USER_DETAILS_COMMAND in text:
-            send_to_user(message, "❌ Access denied. Admin only.")
+            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
             return
         # /unblock_user
         if Config.UNBLOCK_USER_COMMAND in text:
-            send_to_user(message, "❌ Access denied. Admin only.")
+            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
             return
         # /block_user
         if Config.BLOCK_USER_COMMAND in text:
-            send_to_user(message, "❌ Access denied. Admin only.")
+            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
             return
         # /broadcast
         if text.startswith(Config.BROADCAST_MESSAGE):
-            send_to_user(message, "❌ Access denied. Admin only.")
+            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
             return
         # /log (user logs)
         if Config.GET_USER_LOGS_COMMAND in text:
-            send_to_user(message, "❌ Access denied. Admin only.")
+            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
             return
         # /reload_cache
         if text.startswith(Config.RELOAD_CACHE_COMMAND):
-            send_to_user(message, "❌ Access denied. Admin only.")
+            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
             return
 
     # ----- Basic Commands -----
     # /Start Command
     if text == "/start":
         if is_admin:
-            send_to_user(message, "Welcome Master 🥷")
+            send_to_user(message, LoggerMsg.WELCOME_MASTER)
         else:
             check_user(message)
-            app.send_message(
+            from HELPERS.safe_messeger import safe_send_message
+            safe_send_message(
                 message.chat.id,
-                f"Hello {message.chat.first_name},\n \n<i>This bot🤖 can download any videos into telegram directly.😊 For more information press <b>/help</b></i> 👈\n \n {Config.CREDITS_MSG}")
-            send_to_logger(message, f"{message.chat.id} - user started the bot")
+                f"Hello {message.chat.first_name},\n \n<i>This bot🤖 can download any videos into telegram directly.😊 For more information press <b>/help</b></i> 👈\n \n {Config.CREDITS_MSG}",
+                parse_mode=enums.ParseMode.HTML,
+                message=message)
+            send_to_logger(message, LoggerMsg.USER_STARTED_BOT.format(chat_id=message.chat.id))
         return
 
     # /Help Command
@@ -138,10 +152,43 @@ def url_distractor(app, message):
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔚Close", callback_data="help_msg|close")]
         ])
-        app.send_message(message.chat.id, (Config.HELP_MSG),
-                         parse_mode=enums.ParseMode.HTML,
-                         reply_markup=keyboard)
-        send_to_logger(message, f"Send help txt to user")
+        from HELPERS.safe_messeger import safe_send_message
+        try:
+            safe_send_message(message.chat.id, (Config.HELP_MSG),
+                             parse_mode=enums.ParseMode.HTML,
+                             reply_markup=keyboard,
+                             message=message)
+        except Exception:
+            # Fallback without parse_mode if enums shadowed unexpectedly
+            safe_send_message(message.chat.id, (Config.HELP_MSG), reply_markup=keyboard, message=message)
+        send_to_logger(message, LoggerMsg.HELP_SENT_TO_USER)
+        return
+
+    # /add_bot_to_group Command
+    if text == Config.ADD_BOT_TO_GROUP_COMMAND:
+        # Subscription gate similar to /help: if not subscribed, prompt to subscribe
+        if not check_user(message):
+            return
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔚Close", callback_data="add_group_msg|close")]
+        ])
+        from HELPERS.safe_messeger import safe_send_message
+        try:
+            safe_send_message(
+                message.chat.id,
+                (Config.ADD_BOT_TO_GROUP_MSG),
+                parse_mode=enums.ParseMode.HTML,
+                reply_markup=keyboard,
+                message=message,
+            )
+        except Exception:
+            safe_send_message(message.chat.id, (Config.ADD_BOT_TO_GROUP_MSG), reply_markup=keyboard, message=message)
+        send_to_logger(message, LoggerMsg.ADD_BOT_TO_GROUP_SENT)
+        return
+
+    # For non-admin users, if they haven't Joined the Channel, Exit ImmediaTely.
+    # This check applies to all user commands below, but not to basic commands above.
+    if not is_admin and not is_user_in_channel(app, message):
         return
 
     # ----- User Commands -----
@@ -209,6 +256,13 @@ def url_distractor(app, message):
     if text.startswith(Config.IMG_COMMAND):
         image_command(app, message)
         return
+
+    # /Args Command
+    if text.startswith(Config.ARGS_COMMAND):
+        from COMMANDS.args_cmd import args_command
+        args_command(app, message)
+        return
+
 
     # /cookie Command (exact or with arguments only). Avoid matching '/cookies_from_browser'.
     if text == Config.DOWNLOAD_COOKIE_COMMAND or text.startswith(Config.DOWNLOAD_COOKIE_COMMAND + " "):
@@ -455,6 +509,22 @@ def url_distractor(app, message):
             remove_media(message, only=["keyboard.txt"])
             send_to_all(message, "🗑 Keyboard settings removed.")
             return
+        elif clean_args == "args":
+            remove_media(message, only=["args.txt"])
+            send_to_all(message, "🗑 Args settings removed.")
+            return
+        elif clean_args == "nsfw":
+            remove_media(message, only=["nsfw_blur.txt"])
+            send_to_all(message, "🗑 NSFW settings removed.")
+            return
+        elif clean_args == "proxy":
+            remove_media(message, only=["proxy.txt"])
+            send_to_all(message, "🗑 Proxy settings removed.")
+            return
+        elif clean_args == "flood_wait":
+            remove_media(message, only=["flood_wait.txt"])
+            send_to_all(message, "🗑 Flood wait settings removed.")
+            return
         elif clean_args == "all":
             # Delete all files and display the list of deleted ones
             user_dir = f'./users/{str(message.chat.id)}'
@@ -540,12 +610,63 @@ def url_distractor(app, message):
             send_to_all(message, "❌ This command is only available for administrators.")
         return
 
-    # If the Message Contains a URL, Launch The Video Download Function.
+    # /vid help & range transformation when handled by the text pipeline
+    if text.strip().lower().startswith('/vid'):
+        # Try to transform "/vid A-B URL" -> "URL*A*B" (B may be empty)
+        parts_full = text.strip().split(maxsplit=2)
+        if len(parts_full) >= 3 and re.match(r"^\d+-\d*$", parts_full[1]):
+            a, b = parts_full[1].split('-', 1)
+            url_only = parts_full[2]
+            if b == "":
+                new_text = f"{url_only}*{a}*"
+            else:
+                new_text = f"{url_only}*{a}*{b}"
+            try:
+                message.text = new_text
+            except Exception:
+                pass
+            # fallthrough to standard URL flow below
+        parts = text.strip().split(maxsplit=1)
+        if len(parts) == 1:
+            try:
+                from HELPERS.safe_messeger import safe_send_message
+                # Use top-level imports to avoid shadowing names in function scope
+                kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔚Close", callback_data="vid_help|close")]])
+                help_text = (
+                    "<b>🎬 Video Download Command</b>\n\n"
+                    "Usage: <code>/vid URL</code>\n\n"
+                    "<b>Examples:</b>\n"
+                    "• <code>/vid https://youtube.com/watch?v=123abc</code>\n"
+                    "• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n"
+                    "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code>\n\n"
+                    "Also see: /audio, /img, /help, /playlist, /settings"
+                )
+                safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
+            except Exception:
+                pass
+            return
+        else:
+            # Strip command and reuse the URL handler path when no range was provided
+            try:
+                if len(parts_full) < 3 or not re.match(r"^\d+-\d*$", parts_full[1]):
+                    message.text = parts[1]
+            except Exception:
+                pass
+
+    # If the message contains a URL, process without explicit commands:
+    # 1) Try yt-dlp flow (video_url_extractor)
+    # 2) On failure, fallback to gallery-dl (/img handler)
     if ("https://" in text) or ("http://" in text):
         if not is_user_blocked(message):
-            # Clean the cache of subtitles before processing the new URL
             clear_subs_check_cache()
-            video_url_extractor(app, message)
+            try:
+                video_url_extractor(app, message)
+            except Exception as e:
+                logger.error(f"video_url_extractor failed, fallback to gallery-dl: {e}")
+                try:
+                    image_command(app, message)
+                except Exception as e2:
+                    logger.error(f"gallery-dl fallback also failed: {e2}")
         return
 
     # ----- Admin Commands -----
@@ -623,4 +744,39 @@ def keyboard_callback_handler_wrapper(app, callback_query):
     keyboard_callback_handler(app, callback_query)
 
 # The function is_playlist_with_range is now imported from URL_PARSERS.playlist_utils
+
+# Callback handler for add_bot_to_group close button
+@app.on_callback_query(filters.regex(r"^add_group_msg\|"))
+def add_group_msg_callback(app, callback_query):
+    """Handle add_bot_to_group command callback queries"""
+    try:
+        data = callback_query.data.split("|")[1]
+        user_id = callback_query.from_user.id
+        
+        if data == "close":
+            # Delete the message with add_bot_to_group instructions
+            try:
+                app.delete_messages(
+                    callback_query.message.chat.id,
+                    callback_query.message.id
+                )
+            except Exception:
+                # If can't delete, just edit to show closed message
+                app.edit_message_text(
+                    callback_query.message.chat.id,
+                    callback_query.message.id,
+                    "🤖 Add bot to group helper closed"
+                )
+            
+            # Answer callback query
+            callback_query.answer("Closed")
+            
+            # Log the action
+            send_to_logger(callback_query.message, f"User {user_id} closed add_bot_to_group command")
+            
+    except Exception as e:
+        # Log error and answer callback
+        send_to_logger(callback_query.message, f"Error in add_group_msg callback handler: {e}")
+        callback_query.answer("Error occurred", show_alert=True)
+
 ######################################################  

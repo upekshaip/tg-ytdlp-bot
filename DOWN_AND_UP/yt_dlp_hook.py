@@ -30,6 +30,17 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
         'check_certificate': False,
         'live_from_start': True
     }
+    
+    # Add user's custom yt-dlp arguments
+    if user_id is not None:
+        from COMMANDS.args_cmd import get_user_ytdlp_args, log_ytdlp_options
+        user_args = get_user_ytdlp_args(user_id, url)
+        if user_args:
+            ytdl_opts.update(user_args)
+        
+        # Log final yt-dlp options for debugging
+        log_ytdlp_options(user_id, ytdl_opts, "get_video_formats")
+    
     if user_id is not None:
         user_dir = os.path.join("users", str(user_id))
         # Check the availability of cookie.txt in the user folder
