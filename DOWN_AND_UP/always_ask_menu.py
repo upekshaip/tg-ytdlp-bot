@@ -3889,7 +3889,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             logger.error(f"Error creating cached qualities menu: {cache_error}")
         
         # Если кэшированных качеств нет, показываем ошибку
-        error_text = f"❌ <b>Error retrieving video information:</b>\n<code>{e}</code>\n\n> Try the <code>/clean</code> command and try again. If the error persists, YouTube requires authorization. Update cookies.txt via <code>/cookie</code> or <code>/cookies_from_browser</code> and try again."
+        error_text = f"❌ <b>Error retrieving video information:</b>\n<blockquote>{e}</blockquote>\n\nTry the <code>/clean</code> command and try again. If the error persists, YouTube requires authorization. Update cookies.txt via <code>/cookie</code> or <code>/cookies_from_browser</code> and try again."
         
         # Try to edit the processing message to show error first
         try:
