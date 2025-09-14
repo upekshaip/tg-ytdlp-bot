@@ -3,6 +3,7 @@ import re
 import time
 import logging
 import threading
+import asyncio
 from types import SimpleNamespace
 from HELPERS.app_instance import get_app
 from pyrogram.errors import FloodWait
@@ -313,16 +314,25 @@ def safe_send_message_with_auto_delete(chat_id, text, delete_after_seconds=60, *
     message = safe_send_message(chat_id, text, **kwargs)
     
     if message and hasattr(message, 'id'):
-        # Schedule deletion in a separate thread
+        # Schedule deletion in a separate thread with better error handling
         def delete_message_after_delay():
             try:
+                logger.info(f"Scheduling message {message.id} for deletion in {delete_after_seconds} seconds")
                 time.sleep(delete_after_seconds)
-                safe_delete_messages(chat_id, [message.id])
+                logger.info(f"Attempting to delete message {message.id}")
+                result = safe_delete_messages(chat_id, [message.id])
+                if result:
+                    logger.info(f"Successfully deleted message {message.id}")
+                else:
+                    logger.warning(f"Failed to delete message {message.id}")
             except Exception as e:
-                logger.error(f"Error in auto-delete thread: {e}")
+                logger.error(f"Error in auto-delete thread for message {message.id}: {e}")
         
         # Start the deletion thread
         delete_thread = threading.Thread(target=delete_message_after_delay, daemon=True)
         delete_thread.start()
+        logger.info(f"Started auto-delete thread for message {message.id}")
+    else:
+        logger.warning(f"Failed to send message or message has no ID: {message}")
     
     return message

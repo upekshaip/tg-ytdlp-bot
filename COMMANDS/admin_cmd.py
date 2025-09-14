@@ -29,7 +29,7 @@ app = get_app()
 def reload_firebase_cache_command(app, message):
     """The processor of command for rebooting the local cache Firebase"""
     if int(message.chat.id) not in Config.ADMIN:
-        send_to_user(message, "❌ Access denied. Admin only.")
+        safe_send_message_with_auto_delete(message.chat.id, "❌ Access denied. Admin only.", delete_after_seconds=60)
         return
     try:
         # 1) Download fresh dump via external script path
