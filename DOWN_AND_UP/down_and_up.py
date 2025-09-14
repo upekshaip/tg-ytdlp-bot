@@ -410,7 +410,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             send_to_user(message, Config.ERROR_NO_DISK_SPACE_MSG)
             return
 
-        check_user(message)
+        # Create user directory (subscription already checked in video_extractor)
+        user_dir = os.path.join("users", str(user_id))
+        if not os.path.exists(user_dir):
+            os.makedirs(user_dir, exist_ok=True)
 
         # Reset of the flag of errors for the new launch of the playlist
         if playlist_name:
@@ -638,7 +641,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         successful_uploads = 0
 
         def try_download(url, attempt_opts):
-            nonlocal current_total_process, error_message
+            nonlocal current_total_process, error_message, did_cookie_retry, did_proxy_retry
             
             common_opts = {
                 'playlist_items': str(current_index),
@@ -845,7 +848,32 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     format_found = False
                     
                     # Check if requested format is available
-                    if 'av01' in requested_format:
+                    if requested_format.startswith('id:'):
+                        # Check for specific format ID
+                        requested_id = requested_format.split(':', 1)[1]
+                        for fmt in available_formats:
+                            if fmt.get('format_id') == requested_id:
+                                format_found = True
+                                logger.info(f"Format ID {requested_id} found: {fmt.get('ext', 'unknown')} {fmt.get('resolution', 'unknown')}")
+                                break
+                        
+                        if not format_found:
+                            logger.warning(f"Format ID {requested_id} not found for this video")
+                            # Notify user and stop download
+                            try:
+                                available_ids = [fmt.get('format_id', 'unknown') for fmt in available_formats[:10]]
+                                logger.info(f"Available format IDs: {available_ids}")
+                                send_error_to_user(
+                                    message,
+                                    f"❌ Format ID {requested_id} not found for this video.\n\n"
+                                    f"Available format IDs: {', '.join(available_ids[:10])}\n"
+                                    f"Use /list command to see all available formats."
+                                )
+                                return None
+                            except Exception as e:
+                                logger.error(f"Error sending format not found message: {e}")
+                            return None
+                    elif 'av01' in requested_format:
                         # Check for AV1 format specifically
                         for fmt in available_formats:
                             vcodec = fmt.get('vcodec')

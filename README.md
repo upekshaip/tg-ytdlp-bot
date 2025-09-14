@@ -478,7 +478,8 @@ Also you may fill in `porn_domains.txt` `porn_keywords.txt` files in `TXT` folde
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `/args` | Configure yt-dlp arguments | `/args` |
+| `/args` | Configure yt-dlp arguments (grouped menu) | `/args` |
+| `/list` | Show available formats for URL | `/list https://youtube.com/watch?v=...` |
 | `/proxy` | Enable/disable proxy | `/proxy on` |
 | `/keyboard` | Manage reply keyboard | `/keyboard full` |
 | `/search` | Inline search helper | `/search` |
@@ -523,6 +524,13 @@ Many commands support direct arguments for quick configuration:
 /clean nsfw      # Clear NSFW settings
 /clean proxy     # Clear proxy settings
 /clean flood_wait # Clear flood wait settings
+
+# Format with ID selection
+/format id 134   # Download specific format ID (with audio)
+/format id 401   # Download specific format ID (with audio)
+
+# List available formats
+/list https://youtube.com/watch?v=...  # Show all available formats
 ```
 
 ---
@@ -617,13 +625,19 @@ Download images from various platforms:
 
 ### ⚙️ Custom yt-dlp Arguments (`/args`)
 
-Configure advanced yt-dlp parameters:
+Configure advanced yt-dlp parameters with grouped interface:
 
 - **Boolean Options**: Enable/disable features (extract_flat, write_automatic_sub, etc.)
 - **Text Parameters**: Custom referer, user agent, output template
 - **Numeric Settings**: Retries, timeout, fragment retries
 - **JSON Headers**: Custom HTTP headers for specific sites
 - **Selection Options**: Audio quality, video quality, format selection
+
+**Grouped Menu Interface:**
+- ✅/❌ **Boolean** - True/False switches
+- 📋 **Select** - Choose from options
+- 🔢 **Numeric** - Number input
+- 📝🔧 **Text** - Text/JSON input
 
 **Example Configuration:**
 ```
@@ -633,6 +647,26 @@ Custom HTTP Headers: {"X-API-Key": "your-key"}
 Retries: 5
 Timeout: 30
 ```
+
+### 📋 Format List Command (`/list`)
+
+View all available formats for any video URL:
+
+- **Complete Format List**: Shows all available video/audio formats
+- **Format Details**: Resolution, codec, file size, quality information
+- **Download Hints**: Instructions on how to use `/format` command
+- **File Export**: Sends complete format list as downloadable text file
+
+**Usage:**
+```bash
+/list https://youtube.com/watch?v=dQw4w9WgXcQ
+```
+
+**Features:**
+- Shows format ID, resolution, codec, file size
+- Includes download instructions for `/format` command
+- Exports complete list as text file
+- Works with all supported platforms
 
 ### 🚀 PO Token Provider (YouTube Bypass)
 
@@ -732,6 +766,8 @@ YOUTUBE_POT_DISABLE_INNERTUBE = False
 - **Smart Quality Selection**: Prioritizes exact height matches before falling back to "less than or equal to"
 - **Persistent Preferences**: Your codec and container choices are saved per-user
 - **Quick Quality Setting**: Use arguments to set quality directly (e.g., `/format 720`, `/format 4k`)
+- **Format ID Support**: Download specific format IDs with automatic audio addition
+- **Smart Audio Handling**: Video-only formats automatically get best audio added
 
 ### Advanced Command Arguments
 The bot now supports command arguments for quick configuration without opening menus:
@@ -742,6 +778,9 @@ The bot now supports command arguments for quick configuration without opening m
 /format 4k     # Set quality to 4K or lower  
 /format 8k     # Set quality to 8K or lower
 /format best   # Set to best quality
+/format ask    # Always ask for quality selection
+/format id 134 # Download specific format ID (with audio)
+/format id 401 # Download specific format ID (with audio)
 ```
 
 #### `/keyboard` with Layout Arguments
@@ -794,6 +833,20 @@ You can select a specific YouTube cookie source by index and then verify it:
 /cookie youtube 3     # use source #3
 /check_cookie         # validate current YouTube cookies (tests on RickRoll)
 ```
+
+#### Format List Command
+
+View all available formats for any video URL:
+
+```bash
+/list https://youtube.com/watch?v=dQw4w9WgXcQ  # Show all formats
+```
+
+**Features:**
+- Complete format list with ID, resolution, codec, file size
+- Download instructions for `/format` command
+- Exports as downloadable text file
+- Works with all supported platforms
 
 ### Always Ask Menu
 - **📼CODEC Button**: Access advanced codec and container filters

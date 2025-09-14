@@ -62,6 +62,168 @@ YTDLP_PARAMS = {
         "description": "Download live streams from start",
         "default": True
     },
+    "hls_use_mpegts": {
+        "type": "boolean",
+        "description": "Use MPEG-TS container for HLS videos",
+        "default": True
+    },
+    "no_playlist": {
+        "type": "boolean",
+        "description": "Download only single video, not playlist",
+        "default": False
+    },
+    "no_part": {
+        "type": "boolean",
+        "description": "Do not use .part files",
+        "default": False
+    },
+    "no_continue": {
+        "type": "boolean",
+        "description": "Do not resume partial downloads",
+        "default": False
+    },
+    "audio_format": {
+        "type": "select",
+        "description": "Audio format for extraction",
+        "options": ["best", "aac", "flac", "mp3", "m4a", "opus", "vorbis", "wav", "alac", "ac3"],
+        "default": "best"
+    },
+    "embed_metadata": {
+        "type": "boolean",
+        "description": "Embed metadata in video file",
+        "default": False
+    },
+    "embed_thumbnail": {
+        "type": "boolean",
+        "description": "Embed thumbnail in video file",
+        "default": False
+    },
+    "write_thumbnail": {
+        "type": "boolean",
+        "description": "Write thumbnail to file",
+        "default": False
+    },
+    "concurrent_fragments": {
+        "type": "number",
+        "description": "Number of concurrent fragments to download",
+        "placeholder": "1",
+        "default": 1,
+        "min": 1,
+        "max": 16
+    },
+    "force_ipv4": {
+        "type": "boolean",
+        "description": "Force IPv4 connections",
+        "default": False
+    },
+    "force_ipv6": {
+        "type": "boolean",
+        "description": "Force IPv6 connections",
+        "default": False
+    },
+    "xff": {
+        "type": "text",
+        "description": "X-Forwarded-For header strategy",
+        "placeholder": "default, never, US, GB, DE, 192.168.1.0/24",
+        "default": "default",
+        "validation": "xff"
+    },
+    "http_chunk_size": {
+        "type": "number",
+        "description": "HTTP chunk size (bytes)",
+        "placeholder": "10485760",
+        "default": 0,
+        "min": 0,
+        "max": 104857600
+    },
+    "sleep_subtitles": {
+        "type": "number",
+        "description": "Sleep before subtitle download (seconds)",
+        "placeholder": "0",
+        "default": 0,
+        "min": 0,
+        "max": 60
+    },
+    "legacy_server_connect": {
+        "type": "boolean",
+        "description": "Allow legacy server connections",
+        "default": False
+    },
+    "no_check_certificates": {
+        "type": "boolean",
+        "description": "Suppress HTTPS certificate validation",
+        "default": False
+    },
+    "username": {
+        "type": "text",
+        "description": "Account username",
+        "placeholder": "your_username",
+        "default": "",
+        "validation": "text"
+    },
+    "password": {
+        "type": "text",
+        "description": "Account password",
+        "placeholder": "your_password",
+        "default": "",
+        "validation": "text"
+    },
+    "twofactor": {
+        "type": "text",
+        "description": "Two-factor authentication code",
+        "placeholder": "123456",
+        "default": "",
+        "validation": "text"
+    },
+    "ignore_errors": {
+        "type": "boolean",
+        "description": "Ignore download errors and continue",
+        "default": False
+    },
+    "min_filesize": {
+        "type": "number",
+        "description": "Minimum file size (MB)",
+        "placeholder": "0",
+        "default": 0,
+        "min": 0,
+        "max": 10000
+    },
+    "max_filesize": {
+        "type": "number",
+        "description": "Maximum file size (MB)",
+        "placeholder": "0",
+        "default": 0,
+        "min": 0,
+        "max": 10000
+    },
+    "playlist_items": {
+        "type": "text",
+        "description": "Playlist items to download (e.g., 1,3,5 or 1-5)",
+        "placeholder": "1,3,5",
+        "default": "",
+        "validation": "text"
+    },
+    "date": {
+        "type": "text",
+        "description": "Download videos uploaded on this date (YYYYMMDD)",
+        "placeholder": "20230930",
+        "default": "",
+        "validation": "date"
+    },
+    "datebefore": {
+        "type": "text",
+        "description": "Download videos uploaded before this date (YYYYMMDD)",
+        "placeholder": "20230930",
+        "default": "",
+        "validation": "date"
+    },
+    "dateafter": {
+        "type": "text",
+        "description": "Download videos uploaded after this date (YYYYMMDD)",
+        "placeholder": "20230930",
+        "default": "",
+        "validation": "date"
+    },
     "http_headers": {
         "type": "json",
         "description": "Custom HTTP headers (JSON)",
@@ -162,6 +324,40 @@ def validate_input(value: str, param_name: str) -> tuple[bool, str]:
         except ValueError:
             return False, "❌ Invalid number format"
     
+    elif validation_type == "date":
+        if value:
+            # Validate YYYYMMDD format
+            if not re.match(r'^\d{8}$', value):
+                return False, "❌ Date must be in YYYYMMDD format (e.g., 20230930)"
+            try:
+                year = int(value[:4])
+                month = int(value[4:6])
+                day = int(value[6:8])
+                if year < 1900 or year > 2100:
+                    return False, "❌ Year must be between 1900 and 2100"
+                if month < 1 or month > 12:
+                    return False, "❌ Month must be between 01 and 12"
+                if day < 1 or day > 31:
+                    return False, "❌ Day must be between 01 and 31"
+            except ValueError:
+                return False, "❌ Invalid date format"
+    
+    elif validation_type == "xff":
+        if value:
+            # Validate X-Forwarded-For value
+            if value.lower() in ["default", "never"]:
+                return True, ""
+            
+            # Check if it's a country code (2 letters)
+            if re.match(r'^[A-Z]{2}$', value.upper()):
+                return True, ""
+            
+            # Check if it's an IP block in CIDR notation
+            if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(/\d{1,2})?$', value):
+                return True, ""
+            
+            return False, "❌ XFF must be 'default', 'never', country code (e.g., US), or IP block (e.g., 192.168.1.0/24)"
+    
     return True, ""
 
 def get_user_args(user_id: int) -> Dict[str, Any]:
@@ -194,34 +390,163 @@ def save_user_args(user_id: int, args: Dict[str, Any]) -> bool:
         return False
 
 def get_args_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
-    """Generate main args menu keyboard"""
+    """Generate main args menu keyboard with grouped parameters"""
     user_args = get_user_args(user_id)
     
-    buttons = []
-    for param_name, param_config in YTDLP_PARAMS.items():
-        current_value = user_args.get(param_name, param_config.get("default", ""))
-        
-        if param_config["type"] == "boolean":
-            status = "✅" if current_value else "❌"
-        elif param_config["type"] == "select":
-            status = f"📋 {current_value}"
-        elif param_config["type"] == "text":
-            status = "📝" if current_value else "📝"
-        elif param_config["type"] == "json":
-            status = "🔧" if current_value and current_value != "{}" else "🔧"
-        elif param_config["type"] == "number":
-            status = f"🔢 {current_value}"
-        else:
-            status = "⚙️"
-        
-        buttons.append([InlineKeyboardButton(
-            f"{status} {param_config['description']}",
-            callback_data=f"args_set_{param_name}"
-        )])
+    # Short descriptions for better UI
+    short_descriptions = {
+        "impersonate": "Impersonate",
+        "referer": "Referer",
+        "geo_bypass": "Geo Bypass",
+        "check_certificate": "Check Cert",
+        "live_from_start": "Live Start",
+        "user_agent": "User Agent",
+        "hls_use_mpegts": "HLS MPEG-TS",
+        "no_playlist": "No Playlist",
+        "no_part": "No Part",
+        "no_continue": "No Continue",
+        "audio_format": "Audio Format",
+        "embed_metadata": "Embed Meta",
+        "embed_thumbnail": "Embed Thumb",
+        "write_thumbnail": "Write Thumb",
+        "concurrent_fragments": "Concurrent",
+        "force_ipv4": "Force IPv4",
+        "force_ipv6": "Force IPv6",
+        "xff": "XFF Header",
+        "http_chunk_size": "Chunk Size",
+        "sleep_subtitles": "Sleep Subs",
+        "legacy_server_connect": "Legacy Connect",
+        "no_check_certificates": "No Check Cert",
+        "username": "Username",
+        "password": "Password",
+        "twofactor": "2FA",
+        "ignore_errors": "Ignore Errors",
+        "min_filesize": "Min Size",
+        "max_filesize": "Max Size",
+        "playlist_items": "Playlist Items",
+        "date": "Date",
+        "datebefore": "Date Before",
+        "dateafter": "Date After",
+        "http_headers": "HTTP Headers",
+        "sleep_interval": "Sleep Interval",
+        "max_sleep_interval": "Max Sleep"
+    }
     
-    # Add control buttons
-    buttons.append([InlineKeyboardButton("🔄 Reset All", callback_data="args_reset_all")])
-    buttons.append([InlineKeyboardButton("📋 View Current", callback_data="args_view_current")])
+    buttons = []
+    
+    # Group 1: Boolean parameters (True/False)
+    boolean_params = []
+    for param_name, param_config in YTDLP_PARAMS.items():
+        if param_config["type"] == "boolean":
+            current_value = user_args.get(param_name, param_config.get("default", False))
+            status = "✅" if current_value else "❌"
+            short_desc = short_descriptions.get(param_name, param_config['description'][:15])
+            button_text = f"{status} {short_desc}"
+            if len(button_text) > 30:
+                button_text = f"{status} {short_desc[:25]}..."
+            
+            boolean_params.append(InlineKeyboardButton(
+                button_text,
+                callback_data=f"args_set_{param_name}"
+            ))
+    
+    # Add boolean parameters in rows of 2
+    for i in range(0, len(boolean_params), 2):
+        row = boolean_params[i:i+2]
+        if len(row) == 1:
+            row.append(InlineKeyboardButton("", callback_data="args_empty"))  # Empty button for alignment
+        buttons.append(row)
+    
+    # Add separator
+    buttons.append([InlineKeyboardButton("━━━━━━━━━━━━━━━━━━━━", callback_data="args_empty")])
+    
+    # Group 2: Select parameters (dropdown choices)
+    select_params = []
+    for param_name, param_config in YTDLP_PARAMS.items():
+        if param_config["type"] == "select":
+            current_value = user_args.get(param_name, param_config.get("default", ""))
+            status = f"📋 {current_value}"
+            short_desc = short_descriptions.get(param_name, param_config['description'][:15])
+            button_text = f"{status} {short_desc}"
+            if len(button_text) > 30:
+                button_text = f"{status} {short_desc[:25]}..."
+            
+            select_params.append(InlineKeyboardButton(
+                button_text,
+                callback_data=f"args_set_{param_name}"
+            ))
+    
+    # Add select parameters in rows of 2
+    for i in range(0, len(select_params), 2):
+        row = select_params[i:i+2]
+        if len(row) == 1:
+            row.append(InlineKeyboardButton("", callback_data="args_empty"))  # Empty button for alignment
+        buttons.append(row)
+    
+    # Add separator
+    buttons.append([InlineKeyboardButton("━━━━━━━━━━━━━━━━━━━━", callback_data="args_empty")])
+    
+    # Group 3: Numeric input parameters (require number input)
+    numeric_params = []
+    for param_name, param_config in YTDLP_PARAMS.items():
+        if param_config["type"] == "number":
+            current_value = user_args.get(param_name, param_config.get("default", ""))
+            status = f"🔢 {current_value}"
+            short_desc = short_descriptions.get(param_name, param_config['description'][:15])
+            button_text = f"{status} {short_desc}"
+            if len(button_text) > 30:
+                button_text = f"{status} {short_desc[:25]}..."
+            
+            numeric_params.append(InlineKeyboardButton(
+                button_text,
+                callback_data=f"args_set_{param_name}"
+            ))
+    
+    # Add numeric parameters in rows of 2
+    for i in range(0, len(numeric_params), 2):
+        row = numeric_params[i:i+2]
+        if len(row) == 1:
+            row.append(InlineKeyboardButton("", callback_data="args_empty"))  # Empty button for alignment
+        buttons.append(row)
+    
+    # Add separator
+    buttons.append([InlineKeyboardButton("━━━━━━━━━━━━━━━━━━━━", callback_data="args_empty")])
+    
+    # Group 4: Text input parameters (require text/JSON input)
+    text_params = []
+    for param_name, param_config in YTDLP_PARAMS.items():
+        if param_config["type"] in ["text", "json"]:
+            current_value = user_args.get(param_name, param_config.get("default", ""))
+            if param_config["type"] == "text":
+                status = "📝" if current_value else "📝"
+            elif param_config["type"] == "json":
+                status = "🔧" if current_value and current_value != "{}" else "🔧"
+            
+            short_desc = short_descriptions.get(param_name, param_config['description'][:15])
+            button_text = f"{status} {short_desc}"
+            if len(button_text) > 30:
+                button_text = f"{status} {short_desc[:25]}..."
+            
+            text_params.append(InlineKeyboardButton(
+                button_text,
+                callback_data=f"args_set_{param_name}"
+            ))
+    
+    # Add text parameters in rows of 2
+    for i in range(0, len(text_params), 2):
+        row = text_params[i:i+2]
+        if len(row) == 1:
+            row.append(InlineKeyboardButton("", callback_data="args_empty"))  # Empty button for alignment
+        buttons.append(row)
+    
+    # Add separator
+    buttons.append([InlineKeyboardButton("━━━━━━━━━━━━━━━━━━━━", callback_data="args_empty")])
+    
+    # Control buttons
+    buttons.append([
+        InlineKeyboardButton("🔄 Reset All", callback_data="args_reset_all"),
+        InlineKeyboardButton("📋 View Current", callback_data="args_view_current")
+    ])
     buttons.append([InlineKeyboardButton("🔚 Close", callback_data="args_close")])
     
     return InlineKeyboardMarkup(buttons)
@@ -265,8 +590,23 @@ def get_text_input_message(param_name: str, current_value: str) -> str:
     message = f"<b>📝 {param_config['description']}</b>\n\n"
     if current_value:
         message += f"<b>Current value:</b> <code>{current_value}</code>\n\n"
-    if placeholder:
+    
+    if param_name == "xff":
+        message += f"<b>Examples:</b>\n"
+        message += f"• <code>default</code> - Use default XFF strategy\n"
+        message += f"• <code>never</code> - Never use XFF header\n"
+        message += f"• <code>US</code> - United States country code\n"
+        message += f"• <code>GB</code> - United Kingdom country code\n"
+        message += f"• <code>DE</code> - Germany country code\n"
+        message += f"• <code>FR</code> - France country code\n"
+        message += f"• <code>JP</code> - Japan country code\n"
+        message += f"• <code>192.168.1.0/24</code> - IP block (CIDR)\n"
+        message += f"• <code>10.0.0.0/8</code> - Private IP range\n"
+        message += f"• <code>203.0.113.0/24</code> - Public IP block\n\n"
+        message += "<b>Note:</b> This replaces --geo-bypass options. Use any 2-letter country code or IP block in CIDR notation.\n\n"
+    elif placeholder:
         message += f"<b>Example:</b> <code>{placeholder}</code>\n\n"
+    
     message += "Please send your new value."
     
     return message
@@ -335,27 +675,26 @@ def format_current_args(user_args: Dict[str, Any]) -> str:
 def args_command(app, message):
     """Handle /args command"""
     user_id = message.chat.id
-    check_user(message)
     
     # Subscription check for non-admins
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
-        try:
-            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Join Channel", url=Config.SUBSCRIBE_CHANNEL_URL)]])
-            safe_send_message(
-                user_id,
-                f"{Config.TO_USE_MSG}\n \n{Config.CREDITS_MSG}",
-                reply_markup=keyboard
-            )
-        except Exception:
-            pass
-        return
+        return  # is_user_in_channel already sends subscription message
+    
+    # Create user directory after subscription check
+    user_dir = os.path.join("users", str(user_id))
+    if not os.path.exists(user_dir):
+        os.makedirs(user_dir, exist_ok=True)
     
     keyboard = get_args_menu_keyboard(user_id)
     
     safe_send_message(
         user_id,
         "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n"
-        "Configure custom parameters for yt-dlp downloads.\n"
+        "<blockquote>📋 <b>Groups:</b>\n"
+        "• ✅/❌ <b>Boolean</b> - True/False switches\n"
+        "• 📋 <b>Select</b> - Choose from options\n"
+        "• 🔢 <b>Numeric</b> - Number input\n"
+        "• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\n"
         "These settings will be applied to all your downloads.",
         reply_markup=keyboard
     )
@@ -372,6 +711,11 @@ def args_callback_handler(app, callback_query):
             callback_query.answer("Closed")
             return
         
+        elif data == "args_empty":
+            # Ignore separator buttons
+            callback_query.answer()
+            return
+        
         elif data == "args_back":
             # Clear user input state if exists
             if user_id in user_input_states:
@@ -380,7 +724,11 @@ def args_callback_handler(app, callback_query):
             keyboard = get_args_menu_keyboard(user_id)
             callback_query.edit_message_text(
                 "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n"
-                "Configure custom parameters for yt-dlp downloads.\n"
+                "<blockquote>📋 <b>Groups:</b>\n"
+                "• ✅/❌ <b>Boolean</b> - True/False switches\n"
+                "• 📋 <b>Select</b> - Choose from options\n"
+                "• 🔢 <b>Numeric</b> - Number input\n"
+                "• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\n"
                 "These settings will be applied to all your downloads.",
                 reply_markup=keyboard
             )
@@ -403,7 +751,11 @@ def args_callback_handler(app, callback_query):
                 callback_query.edit_message_text(
                     "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n"
                     "✅ All arguments reset to defaults.\n\n"
-                    "Configure custom parameters for yt-dlp downloads.\n"
+                    "<blockquote>📋 <b>Groups:</b>\n"
+                    "• ✅/❌ <b>Boolean</b> - True/False switches\n"
+                    "• 📋 <b>Select</b> - Choose from options\n"
+                    "• 🔢 <b>Numeric</b> - Number input\n"
+                    "• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\n"
                     "These settings will be applied to all your downloads.",
                     reply_markup=keyboard
                 )
@@ -742,11 +1094,45 @@ def get_user_ytdlp_args(user_id: int, url: str = None) -> Dict[str, Any]:
                 except json.JSONDecodeError:
                     pass
         
-        elif param_name in ["geo_bypass", "check_certificate", "live_from_start"]:
+        elif param_name in ["geo_bypass", "check_certificate", "live_from_start", "hls_use_mpegts", 
+                           "no_playlist", "no_part", "no_continue", "embed_metadata", "embed_thumbnail", 
+                           "write_thumbnail", "force_ipv4", "force_ipv6", "legacy_server_connect", 
+                           "no_check_certificates", "ignore_errors"]:
             ytdlp_args[param_name] = value
         
-        elif param_name in ["sleep_interval", "max_sleep_interval", "retries"]:
+        elif param_name == "audio_format":
+            if value and value != "best":
+                ytdlp_args["audio_format"] = value
+        
+        elif param_name == "format":
+            # Handle format parameter (including id: format)
+            if value:
+                ytdlp_args["format"] = value
+        
+        elif param_name in ["sleep_interval", "max_sleep_interval", "retries", "concurrent_fragments", 
+                           "http_chunk_size", "sleep_subtitles"]:
             ytdlp_args[param_name] = int(value)
+        
+        elif param_name == "xff":
+            if value and value != "default":
+                ytdlp_args["xff"] = value
+        
+        elif param_name in ["username", "password", "twofactor"]:
+            if value:
+                ytdlp_args[param_name] = value
+        
+        elif param_name in ["min_filesize", "max_filesize"]:
+            if value and value > 0:
+                # Convert MB to bytes
+                ytdlp_args[param_name] = int(value * 1024 * 1024)
+        
+        elif param_name == "playlist_items":
+            if value:
+                ytdlp_args["playlist_items"] = value
+        
+        elif param_name in ["date", "datebefore", "dateafter"]:
+            if value:
+                ytdlp_args[param_name] = value
     
     return ytdlp_args
 

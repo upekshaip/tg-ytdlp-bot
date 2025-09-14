@@ -458,7 +458,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             send_to_user(message, "❌ Not enough disk space to download the audio files.")
             return
 
-        check_user(message)
+        # Create user directory (subscription already checked in video_extractor)
+        user_dir = os.path.join("users", str(user_id))
+        if not os.path.exists(user_dir):
+            os.makedirs(user_dir, exist_ok=True)
 
         # Reset of the flag of errors for the new launch of the playlist
         if playlist_name:
@@ -591,7 +594,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         # (already initialized at the beginning of the function)
 
         def try_download_audio(url, current_index):
-            nonlocal current_total_process
+            nonlocal current_total_process, did_cookie_retry, did_proxy_retry
             # Use format_override if provided, otherwise use default 'ba'
             download_format = format_override if format_override else 'ba'
             ytdl_opts = {

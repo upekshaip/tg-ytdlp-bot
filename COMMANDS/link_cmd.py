@@ -302,8 +302,14 @@ def link_command(app, message):
     try:
         user_id = message.chat.id
         
-        # Check user
-        check_user(message)
+        # Subscription check for non-admins
+        if int(user_id) not in is_user_in_channel(app, message):
+            return  # is_user_in_channel already sends subscription message
+        
+        # Create user directory after subscription check
+        user_dir = os.path.join("users", str(user_id))
+        if not os.path.exists(user_dir):
+            os.makedirs(user_dir, exist_ok=True)
         
         # Get message text
         text = message.text or message.caption or ""

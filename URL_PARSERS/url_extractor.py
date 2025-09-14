@@ -137,7 +137,10 @@ def url_distractor(app, message):
         if is_admin:
             send_to_user(message, LoggerMsg.WELCOME_MASTER)
         else:
-            check_user(message)
+            # For non-admins, check subscription first
+            if not is_user_in_channel(app, message):
+                return  # is_user_in_channel already sends subscription message
+            # User is subscribed, send welcome message
             from HELPERS.safe_messeger import safe_send_message
             safe_send_message(
                 message.chat.id,
@@ -149,6 +152,10 @@ def url_distractor(app, message):
 
     # /Help Command
     if text == "/help":
+        # For non-admins, check subscription first
+        if not is_user_in_channel(app, message):
+            return  # is_user_in_channel already sends subscription message
+        # User is subscribed or admin, send help message
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔚Close", callback_data="help_msg|close")]
         ])
@@ -166,9 +173,9 @@ def url_distractor(app, message):
 
     # /add_bot_to_group Command
     if text == Config.ADD_BOT_TO_GROUP_COMMAND:
-        # Subscription gate similar to /help: if not subscribed, prompt to subscribe
-        if not check_user(message):
-            return
+        # For non-admins, check subscription first
+        if not is_user_in_channel(app, message):
+            return  # is_user_in_channel already sends subscription message
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔚Close", callback_data="add_group_msg|close")]
         ])
@@ -261,6 +268,12 @@ def url_distractor(app, message):
     if text.startswith(Config.ARGS_COMMAND):
         from COMMANDS.args_cmd import args_command
         args_command(app, message)
+        return
+
+    # /List Command
+    if text.startswith(Config.LIST_COMMAND):
+        from COMMANDS.list_cmd import list_command
+        list_command(app, message)
         return
 
 

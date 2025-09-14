@@ -22,9 +22,12 @@ app = get_app()
 # Called from url_distractor - no decorator needed
 def video_url_extractor(app, message):
     global active_downloads
-    check_user(message)
     user_id = message.chat.id
     user_dir = os.path.join("users", str(user_id))
+    
+    # Create user directory (subscription already checked in url_distractor)
+    if not os.path.exists(user_dir):
+        os.makedirs(user_dir, exist_ok=True)
     format_file = os.path.join(user_dir, "format.txt")
 
     # By default, ask for quality if a specific format is not selected

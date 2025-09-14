@@ -142,11 +142,15 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
     
     # Try with proxy fallback if user proxy is enabled
     def extract_info_operation(opts):
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-        if 'entries' in info and info.get('entries'):
-            return info['entries'][0]
-        return info
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+            if 'entries' in info and info.get('entries'):
+                return info['entries'][0]
+            return info
+        except Exception as e:
+            logger.error(f"Error extracting info for {url}: {e}")
+            raise e
     
     from HELPERS.proxy_helper import try_with_proxy_fallback
     result = try_with_proxy_fallback(ytdl_opts, url, user_id, extract_info_operation)
