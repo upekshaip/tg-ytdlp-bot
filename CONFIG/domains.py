@@ -15,12 +15,19 @@ class DomainsConfig(object):
     # Script for updating porn lists
     UPDATE_PORN_SCRIPT_PATH = "./script.sh"
     
+    # --- Whitelist of keywords that are not considered porn ---
+    WHITE_KEYWORDS = [
+        'assasinate', 'assasinated', 'assassinate', 'assassinated', 'assassination'
+    ]
+    
     # --- Whitelist of domains that are not considered porn ---
     WHITELIST = [
         'bilibili.com', 'dailymotion.com', 'sky.com', 'xbox.com', 'youtube.com', 'youtu.be', '1tv.ru', 'x.ai',
-        'twitch.tv', 'vimeo.com', 'facebook.com', 'tiktok.com', 'instagram.com', 'fb.com', 'ig.me'
+        'twitch.tv', 'vimeo.com', 'facebook.com', 'tiktok.com', 'instagram.com', 'fb.com', 'ig.me',
+        'ahm7tech.vercel.app', 'vz-db5b8c20-711.b-cdn.net', 'b-cdn.net'
         # Other secure domains can be added
     ]
+
     
     # --- Greylist of domains excluded only from domain list check but still checked for keywords ---
     GREYLIST = [

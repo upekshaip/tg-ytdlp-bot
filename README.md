@@ -970,6 +970,7 @@ Note: You can tune exact limit values and behavior in `CONFIG/limits.py` and `CO
 |---------|-------------|---------|
 | `/update_porn` | Update porn detection lists | `/update_porn` |
 | `/reload_porn` | Reload porn detection cache | `/reload_porn` |
+| `/check_porn` | Check URL for NSFW content with detailed explanation | `/check_porn https://example.com/video` |
 | `/uncache` | Clear subtitle cache | `/uncache` |
 ---
 

@@ -44,12 +44,6 @@ def settings_command(app, message):
     user_id = message.chat.id
     # Subscription check for non-admins
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
-        try:
-            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Join Channel", url=Config.SUBSCRIBE_CHANNEL_URL)]])
-            safe_send_message(user_id, f"{Config.TO_USE_MSG}\n \n{Config.CREDITS_MSG}", reply_markup=keyboard,
-                              reply_parameters=ReplyParameters(message_id=message.id))
-        except Exception:
-            pass
         return
     # Main settings menu
     keyboard = InlineKeyboardMarkup([

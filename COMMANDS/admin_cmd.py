@@ -16,7 +16,7 @@ import threading
 from DATABASE.firebase_init import db
 from URL_PARSERS.youtube import is_youtube_url, youtube_to_short_url, youtube_to_long_url
 from URL_PARSERS.normalizer import normalize_url_for_cache, get_clean_playlist_url
-from HELPERS.limitter import TimeFormatter
+from HELPERS.limitter import TimeFormatter, is_user_in_channel
 # from DATABASE.cache_db import get_url_hash, db_child_by_path  # moved to lazy imports
 from HELPERS.logger import logger
 
@@ -520,4 +520,66 @@ def reload_porn_command(app, message):
     except Exception as e:
         send_to_user(message, f"❌ Error reloading porn cache: {str(e)}")
         send_to_logger(message, f"Error reloading porn cache by admin {message.chat.id}: {str(e)}")
+
+
+@app.on_message(filters.command("check_porn") & filters.private)
+def check_porn_command(app, message):
+    """Admin command to check if a URL is NSFW and get detailed explanation"""
+    user_id = message.chat.id
+    
+    # First check if user is subscribed to channel
+    if not is_user_in_channel(app, message):
+        return
+    
+    # Then check if user is admin
+    if int(user_id) not in Config.ADMIN:
+        send_to_user(message, "❌ Access denied. Admin only.")
+        return
+    
+    text = message.text.strip()
+    if len(text.split()) < 2:
+        send_to_user(message, "❌ Please provide a URL to check.\nUsage: <code>/check_porn &lt;URL&gt;</code>")
+        return
+    
+    url = text.split(maxsplit=1)[1].strip()
+    if not url.startswith("http://") and not url.startswith("https://"):
+        send_to_user(message, "❌ Please provide a valid URL.\nUsage: <code>/check_porn &lt;URL&gt;</code>")
+        return
+    
+    try:
+        # Send initial status message
+        status_msg = safe_send_message(user_id, f"🔍 Checking URL for NSFW content...\n<code>{url}</code>", parse_mode=enums.ParseMode.HTML)
+        
+        # Import the detailed check function
+        from HELPERS.porn import check_porn_detailed
+        
+        # For now, we'll check without title/description since we don't have video info
+        # In a real scenario, you might want to fetch video info first
+        is_nsfw, explanation = check_porn_detailed(url, "", "", None)
+        
+        # Format the result
+        status_icon = "🔞" if is_nsfw else "✅"
+        status_text = "NSFW" if is_nsfw else "Clean"
+        
+        result_message = f"{status_icon} <b>Porn Check Result</b>\n\n"
+        result_message += f"<b>URL:</b> <code>{url}</code>\n"
+        result_message += f"<b>Status:</b> <b>{status_text}</b>\n\n"
+        result_message += f"<b>Explanation:</b>\n{explanation}"
+        
+        # Update the status message with results
+        if status_msg:
+            safe_edit_message_text(message.chat.id, status_msg.id, result_message, parse_mode=enums.ParseMode.HTML)
+        else:
+            safe_send_message(user_id, result_message, parse_mode=enums.ParseMode.HTML)
+        
+        # Log the check
+        send_to_logger(message, f"Admin {message.chat.id} checked URL for NSFW: {url} - Result: {status_text}")
+        
+    except Exception as e:
+        error_msg = f"❌ Error checking URL: {str(e)}"
+        if 'status_msg' in locals() and status_msg:
+            safe_edit_message_text(message.chat.id, status_msg.id, error_msg)
+        else:
+            safe_send_message(user_id, error_msg, parse_mode=enums.ParseMode.HTML)
+        send_to_logger(message, f"Error in check_porn command by admin {message.chat.id}: {str(e)}")
 
