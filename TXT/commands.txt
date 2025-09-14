@@ -1,20 +1,21 @@
 start - Start the bot
 help - Show help instructions
-keyboard - Show keyboard
+keyboard - Show keyboard (off/1x3/2x3/full)
 settings - All commands of both
 add_bot_to_group - Terms of Use
-clean - Delete cookies & broken downloads
+clean - Delete cookies & broken downloads (args/nsfw/proxy/flood_wait)
 vid - + URL - Download video from link
 img - + URL - Download image from link
 audio - + URL - Extract only audio from link
 search - Find videos directly in bot
-cookie - Download cookie from web
+cookie - Download cookie from web (youtube/tiktok/x/custom)
 cookies_from_browser - Cookies from browser
 playlist - How to download playlists
-format - Change quality & format options
+format - Change quality & format options (720/4k/best/ask/id 134)
+list - Show available formats for URL
 mediainfo - Turn ON/OFF sending mediainfo
-split - Change splitted video part size
-subs - Enable/disable subtitle embedding
+split - Change splitted video part size (100mb-2gb)
+subs - Enable/disable subtitle embedding (off/ru/en auto)
 link - + [quality] URL - Get direct stream links
 proxy - on/off - Enable/disable proxy
 check_cookie - Check and validate cookie
@@ -22,4 +23,4 @@ save_as_cookie - Save text as cookie (or upload *.TXT)
 tags - Get all your #tags
 usage - Get all your logs
 nsfw - on/off - turn on/off blur nsfw content
-args - change yt-dlp hook arguments
+args - change yt-dlp hook arguments (grouped menu)

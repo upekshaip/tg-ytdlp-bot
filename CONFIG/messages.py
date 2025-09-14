@@ -128,10 +128,11 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 • <code>/link [144-4320]/720p/1080p/4k/8k URL</code> → specific quality
 
 ⚙️ <b>Quick Commands:</b>
-• <code>/format [144-4320]/720p/1080p/4k/8k</code> → set quality
+• <code>/format [144-4320]/720p/1080p/4k/8k/best/ask/id 134</code> → set quality
 • <code>/keyboard off/1x3/2x3/full</code> → keyboard layout
 • <code>/split 100mb-2000mb</code> → change part size
 • <code>/subs off/ru/en auto</code> → subtitle language
+• <code>/list URL</code> → список доступных форматов
 • <code>/mediainfo on/off</code> → on/off media info
 • <code>/proxy on/off</code> → enable/disable proxy for all downloads
 
@@ -192,10 +193,11 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 • <code>/link [144-4320]/720p/1080p/4k/8k URL</code> → конкретное качество
 
 ⚙️ <b>Быстрые команды:</b>
-• <code>/format [144-4320]/720p/1080p/4k/8k</code> → качество
+• <code>/format [144-4320]/720p/1080p/4k/8k/best/ask/id 134</code> → качество
 • <code>/keyboard off/1x3/2x3/full</code> → клавиатура
 • <code>/split 100mb-2000mb</code> → резать видео на части
 • <code>/subs off/ru/en auto</code> → язык субтитров
+• <code>/list URL</code> → список доступных форматов
 • <code>/mediainfo on/off</code> → вкл/выкл медиаинфо
 • <code>/proxy on/off</code> → включить/выключить прокси для всех загрузок
 
