@@ -169,6 +169,8 @@ def auto_reload_firebase_cache():
                 msg.from_user = SimpleNamespace()
                 msg.from_user.id = admin_id
                 msg.from_user.first_name = msg.chat.first_name
+                # Mark as fake message for proper handling
+                msg._is_fake_message = True
                 
                 # Import and run the command handler
                 from COMMANDS.admin_cmd import reload_firebase_cache_command

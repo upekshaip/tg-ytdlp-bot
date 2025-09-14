@@ -174,6 +174,18 @@ def set_format(app, message):
                 custom_format = f"{format_id}+bestaudio/bv+ba/best"
                 safe_send_message(user_id, f"✅ Format updated to ID {format_id}:\n{custom_format}", message=message)
                 send_to_logger(message, f"Format updated to ID {format_id}: {custom_format}")
+        
+        # Check if it's a format ID with audio flag (e.g., "id 140 audio", "id140 audio")
+        elif re.match(r'^id\s*\d+\s+audio$', arg, re.IGNORECASE):
+            # Extract the ID number
+            format_id = re.search(r'\d+', arg).group()
+            
+            # Use format ID with bestaudio fallback for audio-only formats
+            custom_format = f"{format_id}/bestaudio"
+            
+            safe_send_message(user_id, f"✅ Format updated to ID {format_id} (audio-only):\n{custom_format}\n\n💡 This will be downloaded as MP3 audio file.", message=message)
+            send_to_logger(message, f"Format updated to ID {format_id} (audio-only): {custom_format}")
+        
         # Check if it's a quality argument (number, number+p, 4k, 8k)
         elif re.match(r'^(\d+p?|4k|8k|4K|8K)$', arg, re.IGNORECASE):
             # It's a quality argument, convert to format
