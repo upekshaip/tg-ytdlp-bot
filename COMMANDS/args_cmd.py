@@ -732,7 +732,7 @@ def args_callback_handler(app, callback_query):
             return
         
         elif data == "args_back":
-            # Clear user input state if exists (DM or topic)
+            # Очищаем состояние и превращаем подменю обратно в главное меню (редактируем текущее сообщение)
             try:
                 chat_id = callback_query.message.chat.id
                 thread_id = getattr(callback_query.message, 'message_thread_id', None) or 0
@@ -744,18 +744,21 @@ def args_callback_handler(app, callback_query):
                     user_input_states_dm.pop(uid, None)
             except Exception:
                 pass
-            
             keyboard = get_args_menu_keyboard(user_id)
-            callback_query.edit_message_text(
-                "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n"
-                "<blockquote>📋 <b>Groups:</b>\n"
-                "• ✅/❌ <b>Boolean</b> - True/False switches\n"
-                "• 📋 <b>Select</b> - Choose from options\n"
-                "• 🔢 <b>Numeric</b> - Number input\n"
-                "• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\n"
-                "These settings will be applied to all your downloads.",
-                reply_markup=keyboard
-            )
+            try:
+                callback_query.edit_message_text(
+                    "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n"
+                    "<blockquote>📋 <b>Groups:</b>\n"
+                    "• ✅/❌ <b>Boolean</b> - True/False switches\n"
+                    "• 📋 <b>Select</b> - Choose from options\n"
+                    "• 🔢 <b>Numeric</b> - Number input\n"
+                    "• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\n"
+                    "These settings will be applied to all your downloads.",
+                    reply_markup=keyboard
+                )
+            except Exception:
+                # Если не удалось отредактировать (удалено/невалидно) — просто игнор
+                pass
             try:
                 callback_query.answer()
             except Exception:
@@ -837,13 +840,16 @@ def args_callback_handler(app, callback_query):
                 keyboard = InlineKeyboardMarkup([[
                     InlineKeyboardButton("🔙 Back", callback_data="args_back")
                 ]])
-                # Сначала подтверждаем callback, затем отправляем приглашение в ту же тему
+                # Для текстовых/числовых/JSON параметров заменяем текущее сообщение на приглашение ввода,
+                # чтобы не плодить дубликаты главного меню.
                 try:
-                    callback_query.answer()
+                    callback_query.edit_message_text(
+                        message,
+                        reply_markup=keyboard
+                    )
                 except Exception:
-                    pass
-                # Для приватного чата thread_id отсутствует; ключ состояния = (chat_id, 0)
-                safe_send_message(chat_id, message, reply_markup=keyboard, message=callback_query.message)
+                    # Фоллбек: если редактирование не удалось — отправим как ответ в ту же тему
+                    safe_send_message(chat_id, message, reply_markup=keyboard, message=callback_query.message)
             
             return
         
@@ -1194,10 +1200,15 @@ def log_ytdlp_options(user_id: int, ytdlp_opts: dict, operation: str = "download
         if 'cookiefile' in opts_copy:
             opts_copy['cookiefile'] = '[REDACTED]'
         
+        # Удаляем непечатаемые объекты (например, функции-хуки) из progress_hooks перед сериализацией
+        if 'progress_hooks' in opts_copy:
+            opts_copy['progress_hooks'] = [
+                str(h) if callable(h) else h for h in opts_copy.get('progress_hooks', [])
+            ]
+        
         # Format the options nicely
         import json
         opts_str = json.dumps(opts_copy, indent=2, ensure_ascii=False)
-        
         logger.info(f"User {user_id} - Final yt-dlp options for {operation}:\n{opts_str}")
         
     except Exception as e:

@@ -92,15 +92,23 @@ def add_pot_to_ytdl_opts(ytdl_opts: dict, url: str) -> dict:
     if 'extractor_args' not in ytdl_opts:
         ytdl_opts['extractor_args'] = {}
     
-    # Добавляем аргументы для YouTube PO token провайдера в правильном формате
-    # Для Python API: словарь -> словарь -> список строк
-    ytdl_opts['extractor_args']['youtubepot-bgutilhttp'] = {
-        'base_url': [base_url]
-    }
-    
-    # Добавляем disable_innertube только если включен (строка "1" в списке)
+    # Добавляем аргументы для YouTube PO token провайдера в правильном формате (nightly ≥ 2025-09-13)
+    # Структура:
+    # extractor_args: {
+    #   'youtubepot': {
+    #       'providers': ['bgutilhttp'],
+    #       'bgutilhttp': { 'base_url': ['http://...'] },
+    #       'disable_innertube': ['1']  # опционально
+    #   }
+    # }
+    pot_args = ytdl_opts['extractor_args'].get('youtubepot', {})
+    pot_args['providers'] = list(dict.fromkeys((pot_args.get('providers') or []) + ['bgutilhttp']))
+    bg_cfg = pot_args.get('bgutilhttp', {})
+    bg_cfg['base_url'] = [base_url]
+    pot_args['bgutilhttp'] = bg_cfg
     if disable_innertube:
-        ytdl_opts['extractor_args']['youtubepot-bgutilhttp']['disable_innertube'] = ["1"]
+        pot_args['disable_innertube'] = ["1"]
+    ytdl_opts['extractor_args']['youtubepot'] = pot_args
     
     # Добавляем verbose режим для детального логирования PO токенов
     ytdl_opts['verbose'] = True
@@ -108,10 +116,13 @@ def add_pot_to_ytdl_opts(ytdl_opts: dict, url: str) -> dict:
     # Добавляем хук для отладки PO токенов
     ytdl_opts = add_pot_debug_hook(ytdl_opts)
     
+    # Явные логи, чтобы видно было активные провайдеры
+    active_providers = ytdl_opts['extractor_args'].get('youtubepot', {}).get('providers', [])
     logger.info(f"🔑 PO TOKEN PROVIDER ENABLED for YouTube URL: {url}")
     logger.info(f"🔗 PO Token Base URL: {base_url}")
+    logger.info(f"🧩 PO Token Providers: {active_providers}")
     logger.info(f"⚙️  PO Token Config: disable_innertube={disable_innertube}")
-    logger.info(f"📋 Full extractor_args: {ytdl_opts['extractor_args']}")
+    logger.info(f"📋 extractor_args.youtubepot: {ytdl_opts['extractor_args'].get('youtubepot')}")
     
     return ytdl_opts
 
