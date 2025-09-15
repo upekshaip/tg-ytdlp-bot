@@ -349,7 +349,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             app.edit_message_text(
                 chat_id=user_id,
                 message_id=proc_msg.id,
-                text="Download started"
+                text="<b>▶️ Download started</b>",
+                parse_mode=enums.ParseMode.HTML
             )
             # If you managed to replace, then there is no flood error
             if os.path.exists(flood_time_file):

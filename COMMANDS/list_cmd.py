@@ -4,6 +4,7 @@
 
 import os
 import subprocess
+import sys
 import tempfile
 from typing import Optional
 from pyrogram import filters
@@ -14,6 +15,7 @@ from HELPERS.logger import logger, send_to_user, send_error_to_user
 from HELPERS.limitter import is_user_in_channel
 from HELPERS.safe_messeger import safe_send_message
 from CONFIG.config import Config
+from HELPERS.pot_helper import build_cli_extractor_args
 
 # Get app instance
 app = get_app()
@@ -36,10 +38,17 @@ def run_ytdlp_list(url: str, user_id: int) -> tuple[bool, str]:
         # Get user's cookie file if available
         cookie_file = get_user_cookie_path(user_id)
         
-        # Build command
-        cmd = ["yt-dlp", "-F", url]
+        # Build command: options BEFORE URL to ensure they apply
+        # Use the same yt-dlp as Python API: python -m yt_dlp
+        cmd = [sys.executable, "-m", "yt_dlp"]
+        # Add PO token extractor-args for CLI if applicable
+        cmd.extend(build_cli_extractor_args(url))
+        # Verbose for clearer diagnostics
+        cmd.extend(["-v", "-F"])
         if cookie_file:
             cmd.extend(["--cookies", cookie_file])
+        # Append URL last
+        cmd.append(url)
         
         logger.info(f"Running yt-dlp list command: {' '.join(cmd)}")
         
