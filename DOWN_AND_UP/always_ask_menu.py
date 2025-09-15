@@ -36,6 +36,7 @@ from DATABASE.cache_db import (
 )
 
 from DOWN_AND_UP.yt_dlp_hook import get_video_formats
+from HELPERS.pot_helper import build_cli_extractor_args
 from COMMANDS.format_cmd import set_session_mkv_override
 from DOWN_AND_UP.down_and_audio import down_and_audio
 from DOWN_AND_UP.down_and_up import down_and_up
@@ -2138,6 +2139,21 @@ def show_other_qualities_menu(app, callback_query, page=0):
     """Show all available qualities from yt-dlp -F output with pagination"""
     user_id = callback_query.from_user.id
     
+    # Local safe wrapper to avoid noisy QueryIdInvalid when answering twice/late
+    def _safe_answer(text, show_alert=False):
+        try:
+            callback_query.answer(text, show_alert=show_alert)
+        except Exception as e:
+            if 'QUERY_ID_INVALID' in str(e).upper():
+                return
+            try:
+                # Some environments provide .MESSAGE_ID_INVALID
+                if 'MESSAGE_ID_INVALID' in str(e).upper():
+                    return
+            except Exception:
+                pass
+            raise
+    
     # Check if we have cached formats for this URL
     url = None
     original_message = callback_query.message.reply_to_message
@@ -2251,6 +2267,7 @@ def show_other_qualities_menu(app, callback_query, page=0):
     # Get all formats using yt-dlp -F
     try:
         import subprocess
+        import sys
         
         # Create cache file path
         user_dir = os.path.join("users", str(user_id))
@@ -2274,8 +2291,12 @@ def show_other_qualities_menu(app, callback_query, page=0):
             # Run yt-dlp -F to get all formats
             logger.info(f"Running yt-dlp -F for URL: {url}")
             
-            # Build command with cookies if available
-            cmd = ["yt-dlp", "-F"]
+            # Build command with cookies if available (use same yt-dlp as Python API)
+            cmd = [sys.executable, "-m", "yt_dlp"]
+            # Add PO token extractor-args for CLI if applicable (YouTube only)
+            cmd.extend(build_cli_extractor_args(url))
+            # -F list formats
+            cmd.append("-F")
             
             # Add cookies file if it exists
             user_cookie_file = os.path.join("users", str(user_id), "cookie.txt")
@@ -2462,7 +2483,7 @@ def show_other_qualities_menu(app, callback_query, page=0):
                 callback_query.edit_message_caption(caption=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
             else:
                 callback_query.edit_message_text(text=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
-            callback_query.answer(f"Formats page {page + 1}/{total_pages}")
+            _safe_answer(f"Formats page {page + 1}/{total_pages}")
         except Exception as e:
             # Fallback: send new message
             try:
@@ -2470,17 +2491,17 @@ def show_other_qualities_menu(app, callback_query, page=0):
                 ref_id = original_message.id if original_message else None
                 app.send_message(chat_id, cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard,
                                reply_parameters=ReplyParameters(message_id=ref_id))
-                callback_query.answer(f"Formats page {page + 1}/{total_pages}")
+                _safe_answer(f"Formats page {page + 1}/{total_pages}")
             except Exception as e2:
                 logger.error(f"Error showing other qualities menu: {e2}")
-                callback_query.answer("❌ Error showing formats menu", show_alert=True)
+                _safe_answer("❌ Error showing formats menu", show_alert=True)
         
             # Clean up temp file
         # No temp file used here; keep block for future extensions
             
     except Exception as e:
         logger.error(f"Error getting formats: {e}")
-        callback_query.answer("❌ Error getting formats", show_alert=True)
+        _safe_answer("❌ Error getting formats", show_alert=True)
         # Show error message
         error_cap = f"<b>{video_title}</b>\n\n❌ Error getting available formats.\nPlease try again later."
         try:
