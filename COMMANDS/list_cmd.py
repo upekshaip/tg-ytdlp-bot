@@ -37,12 +37,16 @@ def run_ytdlp_list(url: str, user_id: int) -> tuple[bool, str]:
         # Get user's cookie file if available
         cookie_file = get_user_cookie_path(user_id)
         
-        # Build command
-        cmd = ["yt-dlp", "-F", url]
+        # Build command: options BEFORE URL to ensure they apply
+        cmd = ["yt-dlp"]
         # Add PO token extractor-args for CLI if applicable
         cmd.extend(build_cli_extractor_args(url))
+        # Verbose for clearer diagnostics
+        cmd.extend(["-v", "-F"])
         if cookie_file:
             cmd.extend(["--cookies", cookie_file])
+        # Append URL last
+        cmd.append(url)
         
         logger.info(f"Running yt-dlp list command: {' '.join(cmd)}")
         
