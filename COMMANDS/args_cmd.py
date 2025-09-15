@@ -19,8 +19,13 @@ from CONFIG.config import Config
 # Get app instance
 app = get_app()
 
-# Global dictionary to track user input states
-user_input_states = {}  # {user_id: {"param": param_name, "type": param_type}}
+# Global dictionaries to track user input states
+# - For private chats: keyed by user_id (backward compatibility)
+# - For groups with topics: keyed by (chat_id, thread_id)
+user_input_states_dm = {}  # {user_id: {"param": param_name, "type": param_type}}
+user_input_states_topic = {}  # {(chat_id, thread_id): {"param": param_name, "type": param_type}}
+# Backward-compatibility alias for modules importing user_input_states (used in private chat flow)
+user_input_states = user_input_states_dm
 
 # File to store user args settings
 ARGS_FILE = "args.txt"
@@ -436,19 +441,26 @@ def get_args_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     
     # Group 1: Boolean parameters (True/False)
     boolean_params = []
-    for param_name, param_config in YTDLP_PARAMS.items():
-        if param_config["type"] == "boolean":
-            current_value = user_args.get(param_name, param_config.get("default", False))
-            status = "✅" if current_value else "❌"
-            short_desc = short_descriptions.get(param_name, param_config['description'][:15])
-            button_text = f"{status} {short_desc}"
-            if len(button_text) > 30:
-                button_text = f"{status} {short_desc[:25]}..."
-            
-            boolean_params.append(InlineKeyboardButton(
-                button_text,
-                callback_data=f"args_set_{param_name}"
-            ))
+    def _append_boolean_button(pname: str):
+        pconfig = YTDLP_PARAMS.get(pname)
+        if not pconfig or pconfig.get("type") != "boolean":
+            return
+        current_value = user_args.get(pname, pconfig.get("default", False))
+        status = "✅" if current_value else "❌"
+        short_desc = short_descriptions.get(pname, pconfig['description'][:15])
+        btn_text = f"{status} {short_desc}"
+        if len(btn_text) > 30:
+            btn_text = f"{status} {short_desc[:25]}..."
+        boolean_params.append(InlineKeyboardButton(btn_text, callback_data=f"args_set_{pname}"))
+
+    # Ensure paired items stay together
+    preferred_order = ["check_certificate", "no_check_certificates", "force_ipv4", "force_ipv6"]
+    for pname in preferred_order:
+        _append_boolean_button(pname)
+    # Append the rest
+    for pname, pconfig in YTDLP_PARAMS.items():
+        if pconfig["type"] == "boolean" and pname not in preferred_order:
+            _append_boolean_button(pname)
     
     # Add boolean parameters in rows of 2
     for i in range(0, len(boolean_params), 2):
@@ -488,8 +500,9 @@ def get_args_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     
     # Group 3: Numeric input parameters (require number input)
     numeric_params = []
+    date_like_params = {"date", "datebefore", "dateafter"}
     for param_name, param_config in YTDLP_PARAMS.items():
-        if param_config["type"] == "number":
+        if param_config["type"] == "number" or param_name in date_like_params:
             current_value = user_args.get(param_name, param_config.get("default", ""))
             status = f"🔢 {current_value}"
             short_desc = short_descriptions.get(param_name, param_config['description'][:15])
@@ -515,7 +528,7 @@ def get_args_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     # Group 4: Text input parameters (require text/JSON input)
     text_params = []
     for param_name, param_config in YTDLP_PARAMS.items():
-        if param_config["type"] in ["text", "json"]:
+        if param_config["type"] in ["text", "json"] and param_name not in date_like_params:
             current_value = user_args.get(param_name, param_config.get("default", ""))
             if param_config["type"] == "text":
                 status = "📝" if current_value else "📝"
@@ -671,24 +684,25 @@ def format_current_args(user_args: Dict[str, Any]) -> str:
     
     return message
 
-@app.on_message(filters.command("args") & filters.private)
+@app.on_message(filters.command("args"))
 def args_command(app, message):
     """Handle /args command"""
-    user_id = message.chat.id
+    chat_id = message.chat.id
+    invoker_id = getattr(message, 'from_user', None).id if getattr(message, 'from_user', None) else chat_id
     
     # Subscription check for non-admins
-    if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+    if int(invoker_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return  # is_user_in_channel already sends subscription message
     
     # Create user directory after subscription check
-    user_dir = os.path.join("users", str(user_id))
+    user_dir = os.path.join("users", str(invoker_id))
     if not os.path.exists(user_dir):
         os.makedirs(user_dir, exist_ok=True)
     
-    keyboard = get_args_menu_keyboard(user_id)
+    keyboard = get_args_menu_keyboard(invoker_id)
     
     safe_send_message(
-        user_id,
+        chat_id,
         "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n"
         "<blockquote>📋 <b>Groups:</b>\n"
         "• ✅/❌ <b>Boolean</b> - True/False switches\n"
@@ -696,7 +710,8 @@ def args_command(app, message):
         "• 🔢 <b>Numeric</b> - Number input\n"
         "• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\n"
         "These settings will be applied to all your downloads.",
-        reply_markup=keyboard
+        reply_markup=keyboard,
+        message=message
     )
 
 @app.on_callback_query(filters.regex("^args_"))
@@ -717,9 +732,18 @@ def args_callback_handler(app, callback_query):
             return
         
         elif data == "args_back":
-            # Clear user input state if exists
-            if user_id in user_input_states:
-                del user_input_states[user_id]
+            # Clear user input state if exists (DM or topic)
+            try:
+                chat_id = callback_query.message.chat.id
+                thread_id = getattr(callback_query.message, 'message_thread_id', None) or 0
+                if thread_id:
+                    state_key = (chat_id, thread_id)
+                    user_input_states_topic.pop(state_key, None)
+                else:
+                    uid = callback_query.from_user.id
+                    user_input_states_dm.pop(uid, None)
+            except Exception:
+                pass
             
             keyboard = get_args_menu_keyboard(user_id)
             callback_query.edit_message_text(
@@ -732,7 +756,10 @@ def args_callback_handler(app, callback_query):
                 "These settings will be applied to all your downloads.",
                 reply_markup=keyboard
             )
-            callback_query.answer()
+            try:
+                callback_query.answer()
+            except Exception:
+                pass
             return
         
         elif data == "args_view_current":
@@ -791,11 +818,14 @@ def args_callback_handler(app, callback_query):
                 )
             
             elif param_config["type"] in ["text", "json", "number"]:
-                # Set user input state
-                user_input_states[user_id] = {
-                    "param": param_name,
-                    "type": param_config["type"]
-                }
+                # Set user input state keyed by chat/topic (or DM by user_id)
+                chat_id = callback_query.message.chat.id
+                thread_id = getattr(callback_query.message, 'message_thread_id', None) or 0
+                state = {"param": param_name, "type": param_config["type"]}
+                if thread_id:
+                    user_input_states_topic[(chat_id, thread_id)] = state
+                else:
+                    user_input_states_dm[callback_query.from_user.id] = state
                 
                 if param_config["type"] == "text":
                     message = get_text_input_message(param_name, current_value)
@@ -807,9 +837,14 @@ def args_callback_handler(app, callback_query):
                 keyboard = InlineKeyboardMarkup([[
                     InlineKeyboardButton("🔙 Back", callback_data="args_back")
                 ]])
-                callback_query.edit_message_text(message, reply_markup=keyboard)
+                # Сначала подтверждаем callback, затем отправляем приглашение в ту же тему
+                try:
+                    callback_query.answer()
+                except Exception:
+                    pass
+                # Для приватного чата thread_id отсутствует; ключ состояния = (chat_id, 0)
+                safe_send_message(chat_id, message, reply_markup=keyboard, message=callback_query.message)
             
-            callback_query.answer()
             return
         
         elif data.startswith("args_bool_"):
@@ -828,22 +863,48 @@ def args_callback_handler(app, callback_query):
             user_args = get_user_args(user_id)
             current_value = user_args.get(param_name, YTDLP_PARAMS[param_name].get("default", False))
             
-            # Always save the value (even if it's the same)
+            # Save value and enforce mutual exclusivity for paired booleans
             user_args[param_name] = value
+            # Enforce pairs: check_certificate vs no_check_certificates
+            try:
+                if param_name in ("check_certificate", "no_check_certificates"):
+                    opposite = "no_check_certificates" if param_name == "check_certificate" else "check_certificate"
+                    user_args[opposite] = (not value)
+            except Exception:
+                pass
+            # Enforce pairs: force_ipv4 vs force_ipv6
+            try:
+                if param_name in ("force_ipv4", "force_ipv6"):
+                    opposite = "force_ipv6" if param_name == "force_ipv4" else "force_ipv4"
+                    user_args[opposite] = (not value)
+            except Exception:
+                pass
             save_user_args(user_id, user_args)
             
             # Only update message if value actually changed
             if current_value != value:
-                keyboard = get_boolean_menu_keyboard(param_name, value)
+                # Rebuild main menu to reflect paired toggles instantly
+                keyboard = get_args_menu_keyboard(user_id)
                 callback_query.edit_message_text(
-                    f"<b>⚙️ {YTDLP_PARAMS[param_name]['description']}</b>\n\n"
-                    f"Current value: {'✅ True' if value else '❌ False'}",
+                    "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n"
+                    "<blockquote>📋 <b>Groups:</b>\n"
+                    "• ✅/❌ <b>Boolean</b> - True/False switches\n"
+                    "• 📋 <b>Select</b> - Choose from options\n"
+                    "• 🔢 <b>Numeric</b> - Number input\n"
+                    "• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\n"
+                    "These settings will be applied to all your downloads.",
                     reply_markup=keyboard
                 )
-                callback_query.answer(f"Set to {'True' if value else 'False'}")
+                try:
+                    callback_query.answer(f"Set to {'True' if value else 'False'}")
+                except Exception:
+                    pass
             else:
                 # Value is the same, just acknowledge
-                callback_query.answer(f"Already set to {'True' if value else 'False'}")
+                try:
+                    callback_query.answer(f"Already set to {'True' if value else 'False'}")
+                except Exception:
+                    pass
             return
         
         elif data.startswith("args_select_"):
@@ -867,30 +928,45 @@ def args_callback_handler(app, callback_query):
             # Only update message if value actually changed
             if current_value != value:
                 keyboard = get_select_menu_keyboard(param_name, value)
+                # If we changed impersonate, it may affect headers; but keep same screen
                 callback_query.edit_message_text(
                     f"<b>⚙️ {YTDLP_PARAMS[param_name]['description']}</b>\n\n"
                     f"Current value: <code>{value}</code>",
                     reply_markup=keyboard
                 )
-                callback_query.answer(f"Set to {value}")
+                try:
+                    callback_query.answer(f"Set to {value}")
+                except Exception:
+                    pass
             else:
                 # Value is the same, just acknowledge
-                callback_query.answer(f"Already set to {value}")
+                try:
+                    callback_query.answer(f"Already set to {value}")
+                except Exception:
+                    pass
             return
         
     except Exception as e:
         logger.error(f"Error in args callback handler: {e}")
-        callback_query.answer("❌ Error occurred", show_alert=True)
+        try:
+            callback_query.answer("❌ Error occurred", show_alert=False)
+        except Exception:
+            pass
 
 def handle_args_text_input(app, message):
     """Handle text input for args parameters"""
-    user_id = message.chat.id
+    user_id = message.chat.id  # where to reply
+    owner_id = getattr(message, 'from_user', None).id if getattr(message, 'from_user', None) else user_id  # whose settings to change
     text = message.text.strip()
-    
-    if user_id not in user_input_states:
+    thread_id = getattr(message, 'message_thread_id', None) or 0
+    # Try topic state first, then DM state
+    state = None
+    if thread_id and (user_id, thread_id) in user_input_states_topic:
+        state = user_input_states_topic[(user_id, thread_id)]
+    elif not thread_id and owner_id in user_input_states_dm:
+        state = user_input_states_dm[owner_id]
+    else:
         return
-    
-    state = user_input_states[user_id]
     param_name = state["param"]
     param_type = state["type"]
     
@@ -900,22 +976,26 @@ def handle_args_text_input(app, message):
             # Basic validation for text input
             if len(text) > 500:
                 error_msg = "❌ Text too long. Maximum 500 characters."
-                safe_send_message(user_id, error_msg)
+                safe_send_message(user_id, error_msg, message=message)
                 from HELPERS.logger import log_error_to_channel
                 log_error_to_channel(message, error_msg)
                 return
             
             # Save the value
-            user_args = get_user_args(user_id)
+            user_args = get_user_args(owner_id)
             user_args[param_name] = text
-            save_user_args(user_id, user_args)
+            save_user_args(owner_id, user_args)
             
             # Clear state and show success
-            del user_input_states[user_id]
+            if thread_id:
+                user_input_states_topic.pop((user_id, thread_id), None)
+            else:
+                user_input_states_dm.pop(owner_id, None)
             safe_send_message(
                 user_id,
                 f"✅ {YTDLP_PARAMS[param_name]['description']} set to: <code>{text}</code>",
-                parse_mode=enums.ParseMode.HTML
+                parse_mode=enums.ParseMode.HTML,
+                message=message
             )
             
         elif param_type == "json":
@@ -925,27 +1005,31 @@ def handle_args_text_input(app, message):
                 parsed_json = json.loads(text)
                 if not isinstance(parsed_json, dict):
                     error_msg = "❌ JSON must be an object (dictionary)."
-                    safe_send_message(user_id, error_msg)
+                    safe_send_message(user_id, error_msg, message=message)
                     from HELPERS.logger import log_error_to_channel
                     log_error_to_channel(message, error_msg)
                     return
                 
                 # Save the value
-                user_args = get_user_args(user_id)
+                user_args = get_user_args(owner_id)
                 user_args[param_name] = text
-                save_user_args(user_id, user_args)
+                save_user_args(owner_id, user_args)
                 
                 # Clear state and show success
-                del user_input_states[user_id]
+                if thread_id:
+                    user_input_states_topic.pop((user_id, thread_id), None)
+                else:
+                    user_input_states_dm.pop(owner_id, None)
                 safe_send_message(
                     user_id,
                     f"✅ {YTDLP_PARAMS[param_name]['description']} set to: <code>{text}</code>",
-                    parse_mode=enums.ParseMode.HTML
+                    parse_mode=enums.ParseMode.HTML,
+                    message=message
                 )
                 
             except json.JSONDecodeError:
                 error_msg = "❌ Invalid JSON format. Please provide valid JSON."
-                safe_send_message(user_id, error_msg)
+                safe_send_message(user_id, error_msg, message=message)
                 from HELPERS.logger import log_error_to_channel
                 log_error_to_channel(message, error_msg)
                 return
@@ -961,26 +1045,31 @@ def handle_args_text_input(app, message):
                 if value < min_val or value > max_val:
                     safe_send_message(
                         user_id,
-                        f"❌ Value must be between {min_val} and {max_val}."
+                        f"❌ Value must be between {min_val} and {max_val}.",
+                        message=message
                     )
                     return
                 
                 # Save the value
-                user_args = get_user_args(user_id)
+                user_args = get_user_args(owner_id)
                 user_args[param_name] = value
-                save_user_args(user_id, user_args)
+                save_user_args(owner_id, user_args)
                 
                 # Clear state and show success
-                del user_input_states[user_id]
+                if thread_id:
+                    user_input_states_topic.pop((user_id, thread_id), None)
+                else:
+                    user_input_states_dm.pop(owner_id, None)
                 safe_send_message(
                     user_id,
                     f"✅ {YTDLP_PARAMS[param_name]['description']} set to: <code>{value}</code>",
-                    parse_mode=enums.ParseMode.HTML
+                    parse_mode=enums.ParseMode.HTML,
+                    message=message
                 )
                 
             except ValueError:
                 error_msg = "❌ Please provide a valid number."
-                safe_send_message(user_id, error_msg)
+                safe_send_message(user_id, error_msg, message=message)
                 from HELPERS.logger import log_error_to_channel
                 log_error_to_channel(message, error_msg)
                 return
@@ -988,75 +1077,34 @@ def handle_args_text_input(app, message):
     except Exception as e:
         logger.error(f"Error handling args text input: {e}")
         error_msg = "❌ Error processing input. Please try again."
-        safe_send_message(user_id, error_msg)
+        safe_send_message(user_id, error_msg, message=message)
         from HELPERS.logger import log_error_to_channel
         log_error_to_channel(message, error_msg)
         # Clear state on error
-        if user_id in user_input_states:
-            del user_input_states[user_id]
+        if thread_id:
+            user_input_states_topic.pop((user_id, thread_id), None)
+        else:
+            user_input_states_dm.pop(owner_id, None)
 
-@app.on_message(filters.text & filters.private)
+def _has_args_state(flt, client, message) -> bool:
+    try:
+        chat_id = message.chat.id
+        thread_id = getattr(message, 'message_thread_id', None) or 0
+        if thread_id:
+            return (chat_id, thread_id) in user_input_states_topic
+        else:
+            uid = getattr(message, 'from_user', None).id if getattr(message, 'from_user', None) else chat_id
+            return uid in user_input_states_dm
+    except Exception:
+        return False
+
+@app.on_message(filters.text & ~filters.regex(r'^/') & filters.create(_has_args_state))
 def args_text_handler(app, message):
-    """Handle text input for args configuration"""
-    user_id = message.chat.id
-    text = message.text.strip()
-    
-    # Check if user is in args input mode (we'll track this in a simple way)
-    # For now, we'll check if the message is a reply to an args message
-    if not message.reply_to_message:
-        return
-    
-    reply_text = message.reply_to_message.text or ""
-    if not reply_text.startswith("<b>📝") and not reply_text.startswith("<b>🔢") and not reply_text.startswith("<b>🔧"):
-        return
-    
-    # Extract parameter name from the reply message
-    # This is a simplified approach - in production you might want to store state
-    param_name = None
-    for pname, pconfig in YTDLP_PARAMS.items():
-        if pconfig["description"] in reply_text:
-            param_name = pname
-            break
-    
-    if not param_name:
-        send_error_to_user(message, "❌ Could not determine parameter. Please use the menu.")
-        return
-    
-    
-    # Validate input
-    is_valid, error_msg = validate_input(text, param_name)
-    if not is_valid:
-        send_error_to_user(message, error_msg)
-        return
-    
-    # Save the value
-    user_args = get_user_args(user_id)
-    param_config = YTDLP_PARAMS[param_name]
-    
-    if param_config["type"] == "number":
-        try:
-            user_args[param_name] = float(text)
-        except ValueError:
-            send_error_to_user(message, "❌ Invalid number format")
-            return
-    else:
-        user_args[param_name] = text
-    
-    if save_user_args(user_id, user_args):
-        # Show success and return to menu
-        keyboard = get_args_menu_keyboard(user_id)
-        app.edit_message_text(
-            message.chat.id,
-            message.reply_to_message.id,
-            "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n"
-            f"✅ {param_config['description']} set to: <code>{text}</code>\n\n"
-            "Configure custom parameters for yt-dlp downloads.\n"
-            "These settings will be applied to all your downloads.",
-            reply_markup=keyboard
-        )
-        message.delete()
-    else:
-        send_error_to_user(message, "❌ Error saving setting")
+    """Handle text input for args configuration in same chat/topic using stored state"""
+    try:
+        handle_args_text_input(app, message)
+    except Exception as e:
+        logger.error(f"args_text_handler critical error: {e}")
 
 def get_user_ytdlp_args(user_id: int, url: str = None) -> Dict[str, Any]:
     """Get user's yt-dlp arguments for use in download functions"""

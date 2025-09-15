@@ -7,6 +7,7 @@ from HELPERS.filesystem_hlp import create_directory
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url
 from HELPERS.pot_helper import add_pot_to_ytdl_opts
+from CONFIG.limits import LimitsConfig
 
 def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already_checked=False, use_proxy=False):
     ytdl_opts = {
@@ -28,7 +29,9 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
         'referer': url,
         'geo_bypass': True,
         'check_certificate': False,
-        'live_from_start': True
+        'live_from_start': True,
+        # Default filter: skip live streams and videos longer than 12 hours
+        'match_filter': yt_dlp.utils.match_filter_func(f'!is_live & duration <= {LimitsConfig.MAX_VIDEO_DURATION}')
     }
     
     # Add user's custom yt-dlp arguments

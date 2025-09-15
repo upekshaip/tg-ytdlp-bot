@@ -22,6 +22,7 @@ from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url, download_thumbnail
 from URL_PARSERS.thumbnail_downloader import download_thumbnail as download_universal_thumbnail
 from HELPERS.pot_helper import add_pot_to_ytdl_opts
+from CONFIG.limits import LimitsConfig
 import subprocess
 from PIL import Image
 import io
@@ -32,6 +33,7 @@ from URL_PARSERS.playlist_utils import is_playlist_with_range
 from URL_PARSERS.normalizer import get_clean_playlist_url
 from DATABASE.cache_db import get_cached_playlist_videos, get_cached_message_ids, save_to_video_cache, save_to_playlist_cache
 from pyrogram.types import ReplyParameters
+from HELPERS.safe_messeger import safe_send_message
 from pyrogram import enums
 from URL_PARSERS.tags import extract_url_range_tags
 
@@ -413,9 +415,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 minutes = (wait_time % 3600) // 60
                 seconds = wait_time % 60
                 time_str = f"{hours}h {minutes}m {seconds}s"
-                proc_msg = app.send_message(user_id, f"⚠️ Telegram has limited message sending.\n⏳ Please wait: {time_str}\nTo update timer send URL again 2 times.")
+                proc_msg = safe_send_message(user_id, f"⚠️ Telegram has limited message sending.\n⏳ Please wait: {time_str}\nTo update timer send URL again 2 times.", message=message)
         else:
-            proc_msg = app.send_message(user_id, "⚠️ Telegram has limited message sending.\n⏳ Please wait: \nTo update timer send URL again 2 times.")
+            proc_msg = safe_send_message(user_id, "⚠️ Telegram has limited message sending.\n⏳ Please wait: \nTo update timer send URL again 2 times.", message=message)
 
         # We are trying to replace with "Download started"
         try:
@@ -444,8 +446,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         except Exception:
             pass
         proc_msg_id = proc_msg.id
-        status_msg = app.send_message(user_id, "🎙️ Audio is processing...")
-        hourglass_msg = app.send_message(user_id, "⏳ Please wait...")
+        status_msg = safe_send_message(user_id, "🎙️ Audio is processing...", message=message)
+        hourglass_msg = safe_send_message(user_id, "⏳ Please wait...", message=message)
         status_msg_id = status_msg.id
         hourglass_msg_id = hourglass_msg.id
         anim_thread = start_hourglass_animation(user_id, hourglass_msg_id, stop_anim)
@@ -632,6 +634,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                'geo_bypass': True,
                'check_certificate': False,
                'live_from_start': True,
+               # Default filter: skip live streams and long videos by limits
+               'match_filter': yt_dlp.utils.match_filter_func(f'!is_live & duration <= {LimitsConfig.MAX_VIDEO_DURATION}'),
                'writethumbnail': True,  # Enable thumbnail writing for manual embedding
                'writesubtitles': False,  # Disable subtitles for audio
                'writeautomaticsub': False,  # Disable auto subtitles for audio
