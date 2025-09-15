@@ -290,6 +290,10 @@ class Config(object):
     MAX_SUB_SIZE = LimitsConfig.MAX_SUB_SIZE
     MAX_PLAYLIST_COUNT = LimitsConfig.MAX_PLAYLIST_COUNT
     MAX_TIKTOK_COUNT = LimitsConfig.MAX_TIKTOK_COUNT
+    MAX_VIDEO_DURATION = LimitsConfig.MAX_VIDEO_DURATION
+    MAX_IMG_FILES = LimitsConfig.MAX_IMG_FILES
+    GROUP_MULTIPLIER = LimitsConfig.GROUP_MULTIPLIER
+    NSFW_STAR_COST = LimitsConfig.NSFW_STAR_COST
     
     # PO Token Provider configuration - these are defined above in the main config
     # No need to duplicate them here as they are already accessible

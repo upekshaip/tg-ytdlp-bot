@@ -636,7 +636,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                'check_certificate': False,
                'live_from_start': True,
                # Default filter: skip live streams and long videos by limits
-               'match_filter': yt_dlp.utils.match_filter_func(f'!is_live & duration <= {LimitsConfig.MAX_VIDEO_DURATION}'),
+               'match_filter': yt_dlp.utils.match_filter_func(f'!is_live & duration <= {Config.MAX_VIDEO_DURATION}'),
                'writethumbnail': True,  # Enable thumbnail writing for manual embedding
                'writesubtitles': False,  # Disable subtitles for audio
                'writeautomaticsub': False,  # Disable auto subtitles for audio

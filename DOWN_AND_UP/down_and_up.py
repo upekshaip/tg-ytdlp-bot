@@ -669,7 +669,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 'check_certificate': False,
                 'live_from_start': True,
                 # Default filter: skip live streams and long videos by limits
-                'match_filter': yt_dlp.utils.match_filter_func(f'!is_live & duration <= {LimitsConfig.MAX_VIDEO_DURATION}') #,
+                'match_filter': yt_dlp.utils.match_filter_func(f'!is_live & duration <= {Config.MAX_VIDEO_DURATION}') #,
                 #'socket_timeout': 60,  # Increase socket timeout
                 #'retries': 15,  # Increase retries
                 #'fragment_retries': 15,  # Increase fragment retries
