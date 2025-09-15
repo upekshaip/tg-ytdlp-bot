@@ -1200,15 +1200,34 @@ def log_ytdlp_options(user_id: int, ytdlp_opts: dict, operation: str = "download
         if 'cookiefile' in opts_copy:
             opts_copy['cookiefile'] = '[REDACTED]'
         
-        # Удаляем непечатаемые объекты (например, функции-хуки) из progress_hooks перед сериализацией
-        if 'progress_hooks' in opts_copy:
-            opts_copy['progress_hooks'] = [
-                str(h) if callable(h) else h for h in opts_copy.get('progress_hooks', [])
-            ]
-        
+        # Рекурсивная санитизация для JSON: функции/объекты -> строка
+        def _sanitize(value):
+            try:
+                if isinstance(value, dict):
+                    return {k: _sanitize(v) for k, v in value.items()}
+                if isinstance(value, (list, tuple, set)):
+                    return [ _sanitize(v) for v in value ]
+                if callable(value):
+                    return str(value)
+                # Приводим match_filter и подобные объекты к строке
+                value_str = str(value)
+                # Простые типы оставляем как есть
+                if isinstance(value, (str, int, float, bool)) or value is None:
+                    return value
+                # Неподдерживаемые типы заменяем строкой-представлением
+                return value_str
+            except Exception:
+                try:
+                    return str(value)
+                except Exception:
+                    return "<unserializable>"
+
+        # Санитизируем копию перед JSON
+        opts_sanitized = _sanitize(opts_copy)
+
         # Format the options nicely
         import json
-        opts_str = json.dumps(opts_copy, indent=2, ensure_ascii=False)
+        opts_str = json.dumps(opts_sanitized, indent=2, ensure_ascii=False)
         logger.info(f"User {user_id} - Final yt-dlp options for {operation}:\n{opts_str}")
         
     except Exception as e:
