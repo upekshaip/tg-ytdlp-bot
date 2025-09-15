@@ -2845,7 +2845,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             else:
                 proc_msg = app.send_message(user_id, "⚠️ Telegram has limited message sending.\n⏳ Please wait: \nTo update timer send URL again 2 times.")
             try:
-                app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text="Download started")
+                app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text="<b>▶️ Download started</b>", parse_mode=enums.ParseMode.HTML)
                 if os.path.exists(flood_time_file):
                     os.remove(flood_time_file)
             except FloodWait as e:
