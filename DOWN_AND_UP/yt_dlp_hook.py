@@ -31,7 +31,7 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
         'check_certificate': False,
         'live_from_start': True,
         # Default filter: skip live streams and videos longer than 12 hours
-        'match_filter': yt_dlp.utils.match_filter_func(f'!is_live & duration <= {LimitsConfig.MAX_VIDEO_DURATION}')
+        'match_filter': yt_dlp.utils.match_filter_func(f'!is_live & duration <= {Config.MAX_VIDEO_DURATION}')
     }
     
     # Add user's custom yt-dlp arguments
