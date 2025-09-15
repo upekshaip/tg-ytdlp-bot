@@ -4,6 +4,7 @@
 
 import os
 import subprocess
+import sys
 import tempfile
 from typing import Optional
 from pyrogram import filters
@@ -38,7 +39,8 @@ def run_ytdlp_list(url: str, user_id: int) -> tuple[bool, str]:
         cookie_file = get_user_cookie_path(user_id)
         
         # Build command: options BEFORE URL to ensure they apply
-        cmd = ["yt-dlp"]
+        # Use the same yt-dlp as Python API: python -m yt_dlp
+        cmd = [sys.executable, "-m", "yt_dlp"]
         # Add PO token extractor-args for CLI if applicable
         cmd.extend(build_cli_extractor_args(url))
         # Verbose for clearer diagnostics
