@@ -9,7 +9,7 @@ from pyrogram.types import ReplyParameters
 from pyrogram import enums
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all
-from HELPERS.limitter import check_user
+from HELPERS.limitter import check_user, is_user_in_channel
 from HELPERS.filesystem_hlp import create_directory
 from CONFIG.config import Config
 from URL_PARSERS.nocookie import is_no_cookie_domain
@@ -349,7 +349,8 @@ def link_command(app, message):
             return
         
         # Send processing start message
-        status_msg = app.send_message(user_id, "🔗 Getting direct link...", reply_to_message_id=message.id)
+        from HELPERS.safe_messeger import safe_send_message
+        status_msg = safe_send_message(user_id, "🔗 Getting direct link...", reply_to_message_id=message.id, message=message)
         
         # Get direct link - use proxy only if user has proxy enabled and domain requires it
         result = get_direct_link(url, user_id, quality_arg, use_proxy=False)

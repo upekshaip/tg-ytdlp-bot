@@ -27,6 +27,7 @@ from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.thumbnail_downloader import download_thumbnail as download_universal_thumbnail
 from HELPERS.pot_helper import add_pot_to_ytdl_opts
 from CONFIG.config import Config
+from CONFIG.limits import LimitsConfig
 from COMMANDS.subtitles_cmd import is_subs_enabled, check_subs_availability, get_user_subs_auto_mode, _subs_check_cache, download_subtitles_ytdlp, get_user_subs_language, clear_subs_check_cache, is_subs_always_ask
 from COMMANDS.split_sizer import get_user_split_size
 from COMMANDS.mediainfo_cmd import send_mediainfo_if_enabled
@@ -38,6 +39,7 @@ from HELPERS.logger import send_to_all  # Импорт в самом конце 
 from HELPERS.safe_messeger import safe_forward_messages  # Дублирующий импорт для устранения ошибки видимости
 from pyrogram import enums
 from pyrogram.types import ReplyParameters
+from HELPERS.safe_messeger import safe_send_message
 from URL_PARSERS.tags import extract_url_range_tags
 
 # Get app instance for decorators
@@ -338,9 +340,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 minutes = (wait_time % 3600) // 60
                 seconds = wait_time % 60
                 time_str = f"{hours}h {minutes}m {seconds}s"
-                proc_msg = app.send_message(user_id, Config.RATE_LIMIT_WITH_TIME_MSG.format(time=time_str))
+                proc_msg = safe_send_message(user_id, Config.RATE_LIMIT_WITH_TIME_MSG.format(time=time_str), message=message)
         else:
-            proc_msg = app.send_message(user_id, Config.RATE_LIMIT_NO_TIME_MSG)
+            proc_msg = safe_send_message(user_id, Config.RATE_LIMIT_NO_TIME_MSG, message=message)
 
         # We are trying to replace with "Download started"
         try:
@@ -466,8 +468,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         {'format': 'best', 'prefer_ffmpeg': False, 'extract_flat': False}
                     ]
 
-        status_msg = app.send_message(user_id, Config.VIDEO_PROCESSING_MSG)
-        hourglass_msg = app.send_message(user_id, Config.WAITING_HOURGLASS_MSG)
+        status_msg = safe_send_message(user_id, Config.VIDEO_PROCESSING_MSG, message=message)
+        hourglass_msg = safe_send_message(user_id, Config.WAITING_HOURGLASS_MSG, message=message)
         # We save ID status messages
         status_msg_id = status_msg.id
         hourglass_msg_id = hourglass_msg.id
@@ -664,7 +666,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 'referer': url,
                 'geo_bypass': True,
                 'check_certificate': False,
-                'live_from_start': True #,
+                'live_from_start': True,
+                # Default filter: skip live streams and long videos by limits
+                'match_filter': yt_dlp.utils.match_filter_func(f'!is_live & duration <= {LimitsConfig.MAX_VIDEO_DURATION}') #,
                 #'socket_timeout': 60,  # Increase socket timeout
                 #'retries': 15,  # Increase retries
                 #'fragment_retries': 15,  # Increase fragment retries
