@@ -30,7 +30,8 @@ app = get_app()
 def reload_firebase_cache_command(app, message):
     """The processor of command for rebooting the local cache Firebase"""
     if int(message.chat.id) not in Config.ADMIN:
-        safe_send_message_with_auto_delete(message.chat.id, "❌ Access denied. Admin only.", delete_after_seconds=60)
+        from CONFIG.messages import MessagesConfig as Messages
+        safe_send_message_with_auto_delete(message.chat.id, Messages.ACCESS_DENIED_ADMIN_MSG, delete_after_seconds=60)
         return
     
     # Check if this is a fake message (called programmatically)
@@ -45,7 +46,8 @@ def reload_firebase_cache_command(app, message):
         
         # Verify script exists
         if not os.path.exists(script_path):
-            error_msg = f"❌ Script not found: {script_path}"
+            from CONFIG.messages import MessagesConfig as Messages
+            error_msg = Messages.SCRIPT_NOT_FOUND_MSG.format(path=script_path)
             safe_send_message_with_auto_delete(message.chat.id, error_msg, delete_after_seconds=60)
             send_to_logger(message, f"Script not found: {script_path}")
             return
@@ -53,7 +55,8 @@ def reload_firebase_cache_command(app, message):
         # Send initial status message (skip for fake_message)
         status_msg = None
         if not is_fake_message:
-            status_msg = safe_send_message(message.chat.id, f"⏳ Downloading fresh Firebase dump using {script_path} ...")
+            from CONFIG.messages import MessagesConfig as Messages
+            status_msg = safe_send_message(message.chat.id, Messages.ADMIN_FIREBASE_DUMP_MSG.format(path=script_path))
             if not status_msg:
                 send_to_logger(message, "Failed to send initial status message")
                 return
@@ -83,13 +86,15 @@ def reload_firebase_cache_command(app, message):
             # Do not send anything to chat on fake_message
             pass
         else:
-            safe_edit_message_text(message.chat.id, status_msg.id, "🔄 Reloading Firebase cache into memory...")
+            from CONFIG.messages import MessagesConfig as Messages
+            safe_edit_message_text(message.chat.id, status_msg.id, Messages.RELOADING_FIREBASE_MSG)
         
         # 2) Reload local cache into memory
         from DATABASE.cache_db import reload_firebase_cache as _reload_local
         success = _reload_local()
         if success:
-            final_msg = "✅ Firebase cache reloaded successfully!"
+            from CONFIG.messages import MessagesConfig as Messages
+            final_msg = getattr(Messages, 'ADMIN_FIREBASE_RELOADED_SUCCESS_MSG', "✅ Firebase cache reloaded successfully!")
             if is_fake_message:
                 # Only log to channel/logger
                 send_to_logger(message, "Firebase cache reloaded by auto task.")
@@ -103,7 +108,8 @@ def reload_firebase_cache_command(app, message):
                 send_to_logger(message, "Firebase cache reloaded by admin.")
         else:
             cache_file = getattr(Config, 'FIREBASE_CACHE_FILE', 'firebase_cache.json')
-            final_msg = f"❌ Failed to reload Firebase cache. Check if {cache_file} exists."
+            from CONFIG.messages import MessagesConfig as Messages
+            final_msg = getattr(Messages, 'ADMIN_FIREBASE_RELOAD_FAILED_MSG', "❌ Failed to reload Firebase cache. Check if {cache_file} exists.").replace('{cache_file}', cache_file)
             if is_fake_message:
                 # Only log to channel/logger
                 from HELPERS.logger import log_error_to_channel
@@ -119,7 +125,8 @@ def reload_firebase_cache_command(app, message):
                 from HELPERS.logger import log_error_to_channel
                 log_error_to_channel(message, final_msg)
     except Exception as e:
-        error_msg = f"❌ Error reloading cache: {str(e)}"
+        from CONFIG.messages import MessagesConfig as Messages
+        error_msg = getattr(Messages, 'GENERIC_ERROR_WITH_DETAIL_MSG', '❌ Error: {detail}').format(detail=f"reloading cache: {str(e)}")
         # Try to update the status message if it exists, otherwise send new message
         if 'status_msg' in locals() and status_msg and not is_fake_message:
             safe_edit_message_text(message.chat.id, status_msg.id, error_msg)
@@ -210,10 +217,12 @@ def send_promo_message(app, message):
                         safe_send_message(user, broadcast_text)
             except Exception as e:
                 logger.error(f"Error sending broadcast to user {user}: {e}")
-        send_to_all(message, "<b>✅ Promo message sent to all other users</b>")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_all(message, getattr(Messages, 'ADMIN_PROMO_SENT_MSG', "<b>✅ Promo message sent to all other users</b>"))
         send_to_logger(message, "Broadcast message sent to all users.")
     except Exception as e:
-        send_error_to_user(message, "<b>❌ Cannot send the promo message. Try replying to a message\nOr some error occurred</b>")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_error_to_user(message, getattr(Messages, 'ADMIN_PROMO_FAILED_MSG', "<b>❌ Cannot send the promo message. Try replying to a message\nOr some error occurred</b>"))
         send_to_logger(message, f"Failed to broadcast message: {e}")
 
 
@@ -222,13 +231,14 @@ def send_promo_message(app, message):
 def get_user_log(app, message):
     # Lazy import to avoid cycles
     from DATABASE.cache_db import get_from_local_cache
+    from CONFIG.messages import MessagesConfig as Messages
     user_id = str(message.chat.id)
     if int(message.chat.id) in Config.ADMIN and Config.GET_USER_LOGS_COMMAND in message.text:
         user_id = message.text.split(Config.GET_USER_LOGS_COMMAND + " ")[1]
 
     logs_dict = get_from_local_cache(["bot", Config.BOT_NAME_FOR_USERS, "logs", user_id])
     if not logs_dict:
-        send_to_all(message, "<b>❌ User did not download any content yet...</b> Not exist in logs")
+        send_to_all(message, getattr(Messages, 'ADMIN_USER_NO_LOGS_MSG', "<b>❌ User did not download any content yet...</b> Not exist in logs"))
         return
 
     logs = list(logs_dict.values())
@@ -236,8 +246,9 @@ def get_user_log(app, message):
 
     for l in logs:
         ts = datetime.fromtimestamp(int(l["timestamp"]))
-        row = f"{ts} | {l['ID']} | {l['name']} | {l['title']} | {l['urls']}"
-        row_2 = f"<b>{ts}</b> | <code>{l['ID']}</code> | <b>{l['name']}</b> | {l['title']} | {l['urls']}"
+        name = l.get('name', 'Unknown')
+        row = f"{ts} | {l['ID']} | {name} | {l['title']} | {l['urls']}"
+        row_2 = f"<b>{ts}</b> | <code>{l['ID']}</code> | <b>{name}</b> | {l['title']} | {l['urls']}"
         data.append(row)
         data_tg.append(row_2)
 
@@ -253,12 +264,12 @@ def get_user_log(app, message):
     with open(log_path, 'w', encoding="utf-8") as f:
         f.write(txt_format)
 
-    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔚Close", callback_data="userlogs_close|close")]])
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(getattr(Messages, 'BTN_CLOSE', "🔚Close"), callback_data="userlogs_close|close")]])
     from HELPERS.safe_messeger import safe_send_message
-    safe_send_message(message.chat.id, f"Total: <b>{total}</b>\n<b>{user_id}</b> - logs (Last 10):\n\n{format_str}", parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
-    app.send_document(message.chat.id, log_path, caption=f"{user_id} - all logs")
+    safe_send_message(message.chat.id, Messages.ADMIN_LOGS_TOTAL_MSG.format(total=total, user=user_id, lines=format_str), parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+    app.send_document(message.chat.id, log_path, caption=Messages.ADMIN_ALL_LOGS_CAPTION_MSG.format(user=user_id))
     from HELPERS.logger import get_log_channel
-    app.send_document(get_log_channel("general"), log_path, caption=f"{user_id} - all logs")
+    app.send_document(get_log_channel("general"), log_path, caption=Messages.ADMIN_ALL_LOGS_CAPTION_MSG.format(user=user_id))
 
 
 # Get All Kinds of Users (Users/ Blocked/ Unblocked)
@@ -274,12 +285,14 @@ def get_user_details(app, message):
     }
     path = path_map.get(command)
     if not path:
-        send_to_all(message, "❌ Invalid command")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_all(message, getattr(Messages, 'ADMIN_INVALID_COMMAND_MSG', "❌ Invalid command"))
         return
 
     data_dict = get_from_local_cache(["bot", Config.BOT_NAME_FOR_USERS, path])
     if not data_dict:
-        send_to_all(message, f"❌ No data found in cache for <code>{path}</code>")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_all(message, getattr(Messages, 'ADMIN_NO_DATA_IN_CACHE_MSG', "❌ No data found in cache for <code>{path}</code>").format(path=path))
         return
 
     # Support both dict and list structures from cache
@@ -328,7 +341,8 @@ def get_user_details(app, message):
         f.write(txt_format)
 
     send_to_all(message, mod)
-    app.send_document(message.chat.id, f"./{file}", caption=f"{Config.BOT_NAME_FOR_USERS} - all {path}")
+    from CONFIG.messages import MessagesConfig as Messages
+    app.send_document(message.chat.id, f"./{file}", caption=Messages.ADMIN_DUMP_CAPTION_MSG.format(bot=Config.BOT_NAME_FOR_USERS, path=path))
     from HELPERS.logger import get_log_channel
     app.send_document(get_log_channel("general"), f"./{file}", caption=f"{Config.BOT_NAME_FOR_USERS} - all {path}")
     logger.info(mod)
@@ -347,7 +361,8 @@ def block_user(app, message):
 
         try:
             if int(b_user_id) in Config.ADMIN:
-                send_to_all(message, "🚫 Admin cannot delete an admin")
+                from CONFIG.messages import MessagesConfig as Messages
+                send_to_all(message, getattr(Messages, 'ADMIN_CANNOT_DELETE_ADMIN_MSG', "🚫 Admin cannot delete an admin"))
                 return
         except Exception:
             pass
@@ -365,7 +380,8 @@ def block_user(app, message):
             from CONFIG.messages import MessagesConfig as Messages
             send_to_user(message, Messages.USER_ALREADY_BLOCKED_MSG.format(user_id=b_user_id))
     else:
-        send_to_all(message, "🚫 Sorry! You are not an admin")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_all(message, getattr(Messages, 'ADMIN_NOT_ADMIN_MSG', "🚫 Sorry! You are not an admin"))
 
 
 # Unblock User
@@ -389,14 +405,16 @@ def unblock_user(app, message):
             data = {"ID": ub_user_id, "timestamp": str(dt)}
             db.child(f"{Config.BOT_DB_PATH}/unblocked_users/{ub_user_id}").set(data)
             db.child(f"{Config.BOT_DB_PATH}/blocked_users/{ub_user_id}").remove()
+            from CONFIG.messages import MessagesConfig as Messages
             send_to_user(
-                message, f"User unblocked 🔓✅\n \nID: <code>{ub_user_id}</code>\nUnblocked Date: {datetime.fromtimestamp(dt)}")
+                message, getattr(Messages, 'ADMIN_USER_UNBLOCKED_MSG', "User unblocked 🔓✅\n \nID: <code>{user}</code>\nUnblocked Date: {date}").format(user=ub_user_id, date=datetime.fromtimestamp(dt)))
 
         else:
             from CONFIG.messages import MessagesConfig as Messages
             send_to_user(message, Messages.USER_ALREADY_UNBLOCKED_MSG.format(user_id=ub_user_id))
     else:
-        send_to_all(message, "🚫 Sorry! You are not an admin")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_all(message, getattr(Messages, 'ADMIN_NOT_ADMIN_MSG', "🚫 Sorry! You are not an admin"))
 
 
 # Check Runtime
@@ -580,7 +598,8 @@ def reload_porn_command(app, message):
         
     except Exception as e:
         from CONFIG.messages import MessagesConfig as Messages
-        send_to_user(message, f"❌ Error reloading porn cache: {str(e)}")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_user(message, Messages.ADMIN_ERROR_RELOADING_PORN_CACHE_MSG.format(error=str(e)))
         send_to_logger(message, f"Error reloading porn cache by admin {message.chat.id}: {str(e)}")
 
 
@@ -613,7 +632,8 @@ def check_porn_command(app, message):
     
     try:
         # Send initial status message
-        status_msg = safe_send_message(user_id, f"🔍 Checking URL for NSFW content...\n<code>{url}</code>", parse_mode=enums.ParseMode.HTML)
+        from CONFIG.messages import MessagesConfig as Messages
+        status_msg = safe_send_message(user_id, Messages.ADMIN_CHECKING_URL_NSFW_MSG.format(url=url), parse_mode=enums.ParseMode.HTML)
         
         # Import the detailed check function
         from HELPERS.porn import check_porn_detailed

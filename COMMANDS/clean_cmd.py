@@ -84,6 +84,15 @@ def clean_option_callback(app, callback_query):
         url_distractor(app, fake_message("/clean all", user_id))
         callback_query.answer(Messages.CLEAN_ALL_FILES_CLEANED_MSG)
         return
+    elif data == "close":
+        # Close the clean menu
+        try:
+            callback_query.message.delete()
+        except Exception:
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        from CONFIG.messages import MessagesConfig as Messages
+        callback_query.answer(Messages.CLEAN_MENU_CLOSED_MSG)
+        return
     elif data == "back":
         # Back to the cookies menu
         from CONFIG.messages import MessagesConfig as Messages

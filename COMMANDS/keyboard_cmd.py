@@ -119,7 +119,8 @@ def keyboard_callback_handler(app, callback_query):
         )
 
         # Answer callback query
-        callback_query.answer(f"Keyboard set to {setting}")
+        from CONFIG.messages import MessagesConfig as Messages
+        callback_query.answer(Messages.KEYBOARD_SET_MSG.format(setting=setting))
 
         # Apply visual keyboard immediately
         if setting == "OFF":
@@ -173,7 +174,8 @@ def keyboard_callback_handler(app, callback_query):
         send_to_logger(callback_query.message, f"User {user_id} set keyboard to {setting}")
 
     except Exception as e:
-        callback_query.answer("Error processing setting", show_alert=True)
+        from CONFIG.messages import MessagesConfig as Messages
+        callback_query.answer(Messages.KEYBOARD_SETTING_ERROR_MSG, show_alert=True)
         from HELPERS.logger import logger
         logger.error(f"Error processing keyboard setting: {e}")
 

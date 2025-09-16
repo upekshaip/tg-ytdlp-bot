@@ -394,14 +394,16 @@ def ask_filter_callback(app, callback_query):
                 normal, auto = load_subs_langs_cache(user_id, url)
                 langs = sorted(set(normal) | set(auto))
             if not langs:
-                callback_query.answer("No subtitles detected", show_alert=True)
+                from CONFIG.messages import MessagesConfig as Messages
+                callback_query.answer(Messages.AA_NO_SUBTITLES_DETECTED_MSG, show_alert=True)
                 return
             kb = get_language_keyboard_always_ask(page=0, user_id=user_id, langs_override=langs, per_page_rows=8, normal_langs=normal, auto_langs=auto)
             try:
                 callback_query.edit_message_reply_markup(reply_markup=kb)
             except Exception:
                 pass
-            callback_query.answer("Choose subtitle language")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_CHOOSE_SUBTITLE_LANGUAGE_MSG)
             return
         if kind == "subs_page":
             page = int(value)
@@ -443,7 +445,8 @@ def ask_filter_callback(app, callback_query):
                 app.delete_messages(user_id, callback_query.message.id)
             except Exception:
                 app.edit_message_reply_markup(chat_id=user_id, message_id=callback_query.message.id, reply_markup=None)
-            callback_query.answer("Subtitle menu closed.")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_SUBTITLE_MENU_CLOSED_MSG)
             return
         if kind == "subs_lang":
             # Persist selected subtitle language as global setting used by embed logic
@@ -462,7 +465,8 @@ def ask_filter_callback(app, callback_query):
                 # Close subs keyboard and rebuild Always Ask menu with selected lang in summary
                 ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
             try:
-                callback_query.answer(f"Subtitle language set: {value}")
+                from CONFIG.messages import MessagesConfig as Messages
+                callback_query.answer(Messages.AA_SUB_LANG_SET_MSG.format(value=value))
             except Exception:
                 pass
             return
@@ -479,7 +483,8 @@ def ask_filter_callback(app, callback_query):
             fstate = get_filters(user_id)
             langs = fstate.get("available_dubs", [])
             if not langs or len(langs) <= 1:
-                callback_query.answer("No alternative audio languages", show_alert=True)
+                from CONFIG.messages import MessagesConfig as Messages
+                callback_query.answer(Messages.AA_NO_ALT_AUDIO_LANGS_MSG, show_alert=True)
                 return
             rows, row = [], []
             for i, lang in enumerate(sorted(langs)):
@@ -498,7 +503,8 @@ def ask_filter_callback(app, callback_query):
             except Exception:
                 pass
             try:
-                callback_query.answer("Choose audio language")
+                from CONFIG.messages import MessagesConfig as Messages
+                callback_query.answer(Messages.AA_CHOOSE_AUDIO_LANGUAGE_MSG)
             except Exception:
                 pass
             return
@@ -512,7 +518,8 @@ def ask_filter_callback(app, callback_query):
                 url = m.group(0) if m else url_text
                 ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
             try:
-                callback_query.answer(f"Audio set: {value}")
+                from CONFIG.messages import MessagesConfig as Messages
+                callback_query.answer(Messages.AA_AUDIO_SET_MSG.format(value=value))
             except Exception:
                 pass
             return
@@ -525,7 +532,8 @@ def ask_filter_callback(app, callback_query):
                 url = m.group(0) if m else url_text
                 ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
             try:
-                callback_query.answer("Filters updated")
+                from CONFIG.messages import MessagesConfig as Messages
+                callback_query.answer(Messages.AA_FILTERS_UPDATED_MSG)
             except Exception:
                 pass
             return
@@ -552,12 +560,14 @@ def ask_filter_callback(app, callback_query):
             ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
             # After starting download from menu, we will remove temp subs cache in down_and_up_with_format
             try:
-                callback_query.answer("Filters updated")
+                from CONFIG.messages import MessagesConfig as Messages
+                callback_query.answer(Messages.AA_FILTERS_UPDATED_MSG)
             except Exception:
                 pass
             return
         try:
-            callback_query.answer("Filters updated")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_FILTERS_UPDATED_MSG)
         except Exception:
             pass
 
@@ -839,7 +849,8 @@ def askq_callback(app, callback_query):
             app.delete_messages(user_id, callback_query.message.id)
         except Exception:
             app.edit_message_reply_markup(chat_id=user_id, message_id=callback_query.message.id, reply_markup=None)
-        callback_query.answer("Menu closed.")
+        from CONFIG.messages import MessagesConfig as Messages
+        callback_query.answer(Messages.AA_MENU_CLOSED_MSG)
         return
         
     # Handle LINK button - get direct link with BV+BA/BEST format
@@ -847,7 +858,8 @@ def askq_callback(app, callback_query):
         # Get original URL from the reply message
         original_message = callback_query.message.reply_to_message
         if not original_message:
-            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             return
             
         url_text = original_message.text or (original_message.caption or "")
@@ -856,7 +868,8 @@ def askq_callback(app, callback_query):
         url = m.group(0) if m else url_text
         
         try:
-            callback_query.answer("🔗 Getting direct link...")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_GETTING_DIRECT_LINK_MSG)
         except Exception:
             pass
         
@@ -944,7 +957,8 @@ def askq_callback(app, callback_query):
         # Get original URL from the reply message
         original_message = callback_query.message.reply_to_message
         if not original_message:
-            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             return
             
         url_text = original_message.text or (original_message.caption or "")
@@ -953,7 +967,8 @@ def askq_callback(app, callback_query):
         url = m.group(0) if m else url_text
         
         try:
-            callback_query.answer("📃 Getting available formats...")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_GETTING_FORMATS_MSG)
         except Exception:
             pass
         
@@ -1047,7 +1062,8 @@ def askq_callback(app, callback_query):
     if data == "image":
         original_message = callback_query.message.reply_to_message
         if not original_message:
-            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             return
         # ЖЕСТКО: Получаем полный текст сообщения
         url_text = original_message.text or (original_message.caption or "")
@@ -1072,7 +1088,8 @@ def askq_callback(app, callback_query):
             end_range = 1
             logger.info(f"[ASKQ FALLBACK DEBUG] NO RANGE FOUND, using url: {url}")
         try:
-            callback_query.answer("🖼 Starting gallery-dl…")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_STARTING_GALLERY_MSG)
         except Exception:
             pass
         try:
@@ -1113,18 +1130,21 @@ def askq_callback(app, callback_query):
         # Get original URL from the reply message
         original_message = callback_query.message.reply_to_message
         if not original_message:
-            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             return
             
         url = original_message.text
         if not url:
-            callback_query.answer("❌ Error: URL not found.", show_alert=True)
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.ERROR_URL_NOT_FOUND_MSG, show_alert=True)
             return
             
         # Transform URL
         embed_url = transform_to_embed_url(url)
         if embed_url == url:
-            callback_query.answer("❌ This URL cannot be embedded.", show_alert=True)
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.ERROR_URL_NOT_EMBEDDABLE_MSG, show_alert=True)
             return
             
         # Send transformed URL
@@ -1181,7 +1201,8 @@ def askq_callback(app, callback_query):
             
             # Set filter and reopen menu
             set_filter(callback_query.from_user.id, kind, value)
-            callback_query.answer("Filters updated")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_FILTERS_UPDATED_MSG)
             ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
             return
         if kind == "dubs" and value == "open":
@@ -1217,7 +1238,8 @@ def askq_callback(app, callback_query):
                 callback_query.edit_message_reply_markup(reply_markup=kb)
             except Exception:
                 pass
-            callback_query.answer("Choose audio language")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_CHOOSE_AUDIO_LANGUAGE_MSG)
             return
         # LINK MENU HANDLER REMOVED - now using direct link approach
         if kind == "subs" and value == "open":
@@ -1250,7 +1272,8 @@ def askq_callback(app, callback_query):
             
             if not langs:
                 logger.warning(f"[ASKQ] No subtitles found for {url}")
-                callback_query.answer("No subtitles detected", show_alert=True)
+                from CONFIG.messages import MessagesConfig as Messages
+                callback_query.answer(Messages.AA_NO_SUBTITLES_DETECTED_MSG, show_alert=True)
                 return
                 
             logger.info(f"[ASKQ] Building keyboard with {len(langs)} languages")
@@ -1261,7 +1284,8 @@ def askq_callback(app, callback_query):
             except Exception as e:
                 logger.error(f"[ASKQ] Error updating message: {e}")
                 pass
-            callback_query.answer("Choose subtitle language")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_CHOOSE_SUBTITLE_LANGUAGE_MSG)
             return
         if kind == "subs_page":
             # Handle page navigation in Always Ask subtitle menu
@@ -1285,7 +1309,8 @@ def askq_callback(app, callback_query):
                 callback_query.edit_message_reply_markup(reply_markup=kb)
             except Exception:
                 pass
-            callback_query.answer(f"Page {page + 1}")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.ALL_FORMATS_PAGE_MSG.format(page=page + 1))
             return
         if kind == "subs" and value == "back":
             # Go back to main Always Ask menu
@@ -1303,7 +1328,8 @@ def askq_callback(app, callback_query):
                 app.delete_messages(user_id, callback_query.message.id)
             except Exception:
                 app.edit_message_reply_markup(chat_id=user_id, message_id=callback_query.message.id, reply_markup=None)
-            callback_query.answer("Subtitle menu closed.")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_SUBTITLE_MENU_CLOSED_MSG)
             return
         # OLD LINK TOGGLE HANDLER REMOVED - now using submenu approach
         if kind == "subs_lang":
@@ -1313,7 +1339,8 @@ def askq_callback(app, callback_query):
             fstate = get_filters(user_id)
             fstate['selected_subs_lang'] = selected_lang
             save_filters(user_id, fstate)
-            callback_query.answer(f"Subtitle language set: {selected_lang}")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_SUB_LANG_SET_MSG.format(value=selected_lang))
             # Return to main Always Ask menu
             original_message = callback_query.message.reply_to_message
             if original_message:
@@ -1335,7 +1362,8 @@ def askq_callback(app, callback_query):
             return
         if kind == "audio_lang":
             set_filter(callback_query.from_user.id, kind, value)
-            callback_query.answer(f"Audio set: {value}")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_AUDIO_SET_MSG.format(value=value))
             # Return to main menu with updated summary
             original_message = callback_query.message.reply_to_message
             if original_message:
@@ -1449,7 +1477,8 @@ def askq_callback(app, callback_query):
         # Extract URL and tags to regenerate the original menu
         original_message = callback_query.message.reply_to_message
         if not original_message:
-            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             app.delete_messages(user_id, callback_query.message.id)
             return
         
@@ -1474,7 +1503,8 @@ def askq_callback(app, callback_query):
             app.delete_messages(user_id, callback_query.message.id)
             ask_quality_menu(app, original_message, url, tags)
         else:
-            callback_query.answer("❌ Error: URL not found.", show_alert=True)
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.ERROR_URL_NOT_FOUND_MSG, show_alert=True)
             app.delete_messages(user_id, callback_query.message.id)
         return
     
@@ -1601,7 +1631,8 @@ def askq_callback(app, callback_query):
 
     original_message = callback_query.message.reply_to_message
     if not original_message:
-        callback_query.answer("❌ Error: Original message not found. It might have been deleted. Please send the link again.", show_alert=True)
+        from CONFIG.messages import MessagesConfig as Messages
+        callback_query.answer(Messages.ERROR_ORIGINAL_NOT_FOUND_DELETED_MSG, show_alert=True)
         app.delete_messages(user_id, callback_query.message.id)
         return
 
@@ -1616,7 +1647,8 @@ def askq_callback(app, callback_query):
         if url_match:
             url = url_match.group(0)
     if not url:
-        callback_query.answer("❌ Error: Original URL not found. Please send the link again.", show_alert=True)
+        from CONFIG.messages import MessagesConfig as Messages
+        callback_query.answer(Messages.ERROR_ORIGINAL_URL_NOT_FOUND_MSG, show_alert=True)
         app.delete_messages(user_id, callback_query.message.id)
         return
 
@@ -1657,7 +1689,8 @@ def askq_callback(app, callback_query):
         
         if cached_videos:
             # Reposting cached videos
-            callback_query.answer("🚀 Found in cache! Reposting...", show_alert=False)
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_FOUND_IN_CACHE_REPOSTING_MSG, show_alert=False)
             try:
                 target_chat_id = getattr(original_message.chat, 'id', user_id)
             except Exception:
@@ -1851,7 +1884,8 @@ def askq_callback(app, callback_query):
 
         message_ids = get_cached_message_ids(url, data)
         if message_ids:
-            callback_query.answer("🚀 Found in cache! Forwarding instantly...", show_alert=False)
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_FOUND_IN_CACHE_FORWARDING_MSG, show_alert=False)
             # found_type = None
             try:
                 try:
@@ -1988,7 +2022,8 @@ def show_manual_quality_menu(app, callback_query):
             url = url_match.group(0)
     
     if not url:
-        callback_query.answer("❌ Error: URL not found.", show_alert=True)
+        from CONFIG.messages import MessagesConfig as Messages
+        callback_query.answer(Messages.ERROR_URL_NOT_FOUND_MSG, show_alert=True)
         callback_query.message.delete()
         return
     
@@ -2609,7 +2644,8 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
             callback_query.answer(f"Formats page {page + 1}/{total_pages} (from cache)")
         except Exception as e2:
             logger.error(f"Error showing cached formats: {e2}")
-            callback_query.answer("❌ Error showing formats menu", show_alert=True)
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_ERROR_SHOWING_FORMATS_MSG, show_alert=True)
 
 # --- Always ask processing ---
 def sort_quality_key(quality_key):
@@ -4061,7 +4097,8 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
     if get_link_mode(user_id):
         # Get direct link instead of downloading
         try:
-            callback_query.answer("🔗 Getting direct link...")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_GETTING_DIRECT_LINK_MSG)
         except Exception:
             pass
         
@@ -4135,7 +4172,8 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
         pass
     if data == "mp3":
         try:
-            callback_query.answer("🎧 Downloading audio...")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.DOWNLOADING_QUALITY_ANSWER_MSG.format(quality="audio"))
         except Exception:
             pass
         # Extract playlist parameters from the original message
@@ -4147,7 +4185,8 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
     
     if data == "subs_only":
         try:
-            callback_query.answer("💬 Downloading subtitles only...")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.SUBTITLES_DOWNLOAD_IN_PROGRESS_MSG)
         except Exception:
             pass
         # Extract playlist parameters from the original message
@@ -4160,7 +4199,8 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
     # Logic for forming the format with the real height
     if data == "best":
         try:
-            callback_query.answer("📥 Downloading best quality...")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.DOWNLOADING_QUALITY_ANSWER_MSG.format(quality="best quality"))
         except Exception:
             pass
         # Use fixed format bv+ba for Best quality
@@ -4263,11 +4303,13 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
             
             quality_key = data
             try:
-                callback_query.answer(f"📥 Downloading {data}...")
+                from CONFIG.messages import MessagesConfig as Messages
+                callback_query.answer(Messages.DOWNLOADING_QUALITY_ANSWER_MSG.format(quality=data))
             except Exception:
                 pass
         except ValueError:
-            callback_query.answer("Unknown quality.")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_UNKNOWN_QUALITY_MSG)
             return
     
     down_and_up_with_format(app, original_message, url, fmt, tags_text, quality_key=quality_key)

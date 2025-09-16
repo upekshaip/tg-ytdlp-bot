@@ -208,6 +208,7 @@ def set_format(app, message):
             f.write(custom_format)
     else:
         # Main Menu with A Few Popular Options, Plus The Others Button
+        from CONFIG.messages import MessagesConfig as Messages
         main_keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("❓ Always Ask (menu + buttons)", callback_data="format_option|alwaysask")],
             [InlineKeyboardButton("🎛 Others (144p - 4320p)", callback_data="format_option|others")],
@@ -216,9 +217,8 @@ def set_format(app, message):
             [InlineKeyboardButton("📈Bestvideo+Bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
             # [InlineKeyboardButton("📉best (no ffmpeg) (bad)", callback_data="format_option|best")],
             [InlineKeyboardButton("🎚 Custom (enter your own)", callback_data="format_option|custom")],
-            [InlineKeyboardButton("🔚Close", callback_data="format_option|close")]
+            [InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="format_option|close")]
         ])
-        from CONFIG.messages import MessagesConfig as Messages
         safe_send_message(
             user_id,
             Messages.FORMAT_SELECT_OPTIONS_MSG +
@@ -244,19 +244,21 @@ def format_option_callback(app, callback_query):
 
     # If you press the close button
     if data == "close":
+        from CONFIG.messages import MessagesConfig as Messages
         try:
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        callback_query.answer("✅ Format choice updated.")
+        callback_query.answer(Messages.FORMAT_CHOICE_UPDATED_MSG)
         send_to_logger(callback_query.message, "Format selection closed.")
         return
 
     # If the Custom button is pressed
     if data == "custom":
         # Sending a message with the Close button
+        from CONFIG.messages import MessagesConfig as Messages
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚Close", callback_data="format_custom|close")]
+            [InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="format_custom|close")]
         ])
         safe_send_message(
             user_id,
@@ -264,7 +266,7 @@ def format_option_callback(app, callback_query):
             reply_parameters=ReplyParameters(message_id=callback_query.message.id),
             reply_markup=keyboard
         )
-        callback_query.answer("Hint sent.")
+        callback_query.answer(Messages.FORMAT_HINT_SENT_MSG)
         send_to_logger(callback_query.message, "Custom format hint sent.")
         return
 
@@ -280,6 +282,7 @@ def format_option_callback(app, callback_query):
         vp9_button = "✅ vp09 (VP9)" if current_codec == "vp9" else "☑️ vp09 (VP9)"
         mkv_button = "✅ MKV: ON" if mkv_on else "☑️ MKV: OFF"
         
+        from CONFIG.messages import MessagesConfig as Messages
         full_res_keyboard = InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("144p (256×144)", callback_data="format_option|bv144"),
@@ -301,9 +304,8 @@ def format_option_callback(app, callback_query):
                 InlineKeyboardButton(av01_button, callback_data="format_codec|av01"),
                 InlineKeyboardButton(vp9_button, callback_data="format_codec|vp9"),
             ],
-            [InlineKeyboardButton("🔙Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton("🔚Close", callback_data="format_option|close")]
+            [InlineKeyboardButton("🔙Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="format_option|close")]
         ])
-        from CONFIG.messages import MessagesConfig as Messages
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.FORMAT_SELECT_RESOLUTION_MSG, reply_markup=full_res_keyboard)
         try:
             callback_query.answer()
@@ -314,6 +316,7 @@ def format_option_callback(app, callback_query):
 
     # If the Back button is pressed - we return to the main menu
     if data == "back":
+        from CONFIG.messages import MessagesConfig as Messages
         main_keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("❓ Always Ask (menu + buttons)", callback_data="format_option|alwaysask")],
             [InlineKeyboardButton("🎛Others (144p - 4320p)", callback_data="format_option|others")],
@@ -322,9 +325,8 @@ def format_option_callback(app, callback_query):
             [InlineKeyboardButton("📈Bestvideo+Bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
             # [InlineKeyboardButton("📉best (no ffmpeg) (bad)", callback_data="format_option|best")],
             [InlineKeyboardButton("🎚 Custom (enter your own)", callback_data="format_option|custom")],
-            [InlineKeyboardButton("🔚Close", callback_data="format_option|close")]
+            [InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="format_option|close")]
         ])
-        from CONFIG.messages import MessagesConfig as Messages
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.FORMAT_SELECT_OPTIONS_MSG +
                                "• <code>/format 720</code> - 720p quality\n"
                                "• <code>/format 4k</code> - 4K quality\n"
@@ -428,7 +430,7 @@ def format_option_callback(app, callback_query):
     from CONFIG.messages import MessagesConfig as Messages
     safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.FORMAT_UPDATED_INLINE_MSG.format(format=chosen_format))
     try:
-        callback_query.answer("✅ Format saved.")
+        callback_query.answer(Messages.FORMAT_SAVED_MSG)
     except Exception:
         pass
     send_to_logger(callback_query.message, f"Format updated to: {chosen_format}")
@@ -451,7 +453,8 @@ def format_codec_callback(app, callback_query):
     
     if data in ["avc1", "av01", "vp9"]:
         set_user_codec_preference(user_id, data)
-        callback_query.answer(f"✅ Codec set to {data.upper()}")
+        from CONFIG.messages import MessagesConfig as Messages
+        callback_query.answer(Messages.FORMAT_CODEC_SET_MSG.format(codec=data.upper()))
         
         # Refresh the menu to show updated codec selection
         current_codec = get_user_codec_preference(user_id)
@@ -482,7 +485,7 @@ def format_codec_callback(app, callback_query):
                 InlineKeyboardButton(av01_button, callback_data="format_codec|av01"),
                 InlineKeyboardButton(vp9_button, callback_data="format_codec|vp9")
             ],
-            [InlineKeyboardButton("🔙Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton("🔚Close", callback_data="format_option|close")]
+            [InlineKeyboardButton("🔙Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="format_option|close")]
         ])
         try:
             callback_query.edit_message_reply_markup(reply_markup=full_res_keyboard)
@@ -513,8 +516,9 @@ def format_container_callback(app, callback_query):
             callback_query.edit_message_reply_markup(reply_markup=full_res_keyboard)
         except Exception:
             pass
+        from CONFIG.messages import MessagesConfig as Messages
         try:
-            callback_query.answer(f"MKV is now {'ON' if mkv_on else 'OFF'}")
+            callback_query.answer(Messages.FORMAT_MKV_TOGGLED_MSG.format(state='ON' if mkv_on else 'OFF'))
         except Exception:
             pass
 
@@ -527,8 +531,9 @@ def format_custom_callback(app, callback_query):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
+        from CONFIG.messages import MessagesConfig as Messages
         try:
-            callback_query.answer("Custom format menu closed.")
+            callback_query.answer(Messages.FORMAT_CUSTOM_MENU_CLOSED_MSG)
         except Exception:
             pass
         send_to_logger(callback_query.message, "Custom format menu closed")

@@ -324,11 +324,13 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     except Exception as e:
                         logger.error(f"down_and_audio: error reposting cached audio index={index}: {e}")
             if len(uncached_indices) == 0:
-                app.send_message(user_id, f"✅ Playlist audio sent from cache ({len(cached_videos)}/{len(requested_indices)} files).", reply_parameters=ReplyParameters(message_id=message.id))
+                from CONFIG.messages import MessagesConfig as Messages
+                app.send_message(user_id, Messages.PLAYLIST_AUDIO_SENT_FROM_CACHE_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
                 send_to_logger(message, LoggerMsg.PLAYLIST_AUDIO_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
                 return
             else:
-                app.send_message(user_id, f"📥 {len(cached_videos)}/{len(requested_indices)} audio sent from cache, downloading missing ones...", reply_parameters=ReplyParameters(message_id=message.id))
+                from CONFIG.messages import MessagesConfig as Messages
+                app.send_message(user_id, Messages.AUDIO_CACHE_PARTIAL_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
     elif quality_key and not is_playlist:
         # Check if Always Ask mode is enabled - if yes, skip cache completely
         if not is_subs_always_ask(user_id):
@@ -382,7 +384,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     if thread_id:
                         forward_kwargs['message_thread_id'] = thread_id
                 app.forward_messages(**forward_kwargs)
-                app.send_message(user_id, "✅ Audio sent from cache.", reply_parameters=ReplyParameters(message_id=message.id))
+                from CONFIG.messages import MessagesConfig as Messages
+                app.send_message(user_id, Messages.AUDIO_SENT_FROM_CACHE_MSG, reply_parameters=ReplyParameters(message_id=message.id))
                 send_to_logger(message, LoggerMsg.AUDIO_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
                 return
             except Exception as e:
@@ -416,7 +419,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 minutes = (wait_time % 3600) // 60
                 seconds = wait_time % 60
                 time_str = f"{hours}h {minutes}m {seconds}s"
-                proc_msg = safe_send_message(user_id, f"⚠️ Telegram has limited message sending.\n⏳ Please wait: {time_str}\nTo update timer send URL again 2 times.", message=message)
+                from CONFIG.messages import MessagesConfig as Messages
+                proc_msg = safe_send_message(user_id, Messages.FLOOD_LIMIT_WITH_TIME_MSG.format(time=time_str), message=message)
         else:
             from CONFIG.messages import MessagesConfig as Messages
             proc_msg = safe_send_message(user_id, Messages.RATE_LIMIT_NO_TIME_MSG, message=message)
@@ -442,7 +446,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             return
 
         # If there is no flood error, send a normal message (only once)
-        proc_msg = app.send_message(user_id, "🔄 Processing...", reply_parameters=ReplyParameters(message_id=message.id))
+        from CONFIG.messages import MessagesConfig as Messages
+        proc_msg = app.send_message(user_id, Messages.PROCESSING_GENERIC_MSG, reply_parameters=ReplyParameters(message_id=message.id))
         # Pin proc/status message for visibility
         try:
             app.pin_chat_message(user_id, proc_msg.id, disable_notification=True)
@@ -861,7 +866,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 
                 # Check if this is a TikTok infinite loop error
                 if "TikTok API keeps sending the same page" in error_text and "infinite loop" in error_text:
-                    error_message = f"⚠️ TikTok API error at index {current_index + video_start_with}, skipping to next audio..."
+                    from CONFIG.messages import MessagesConfig as Messages
+                    error_message = Messages.TIKTOK_API_ERROR_MSG.format(index=current_index + video_start_with)
                     send_to_user(message, error_message)
                     logger.info(f"Skipping TikTok audio at index {current_index} due to API error")
                     return "SKIP"  # Skip this audio and continue with next
@@ -1279,7 +1285,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
         if is_playlist and quality_key:
             total_sent = len(cached_videos) + successful_uploads
-            app.send_message(user_id, f"✅Playlist audio sent: {total_sent}/{len(requested_indices)} files.", reply_parameters=ReplyParameters(message_id=message.id))
+            from CONFIG.messages import MessagesConfig as Messages
+            app.send_message(user_id, Messages.PLAYLIST_AUDIO_SENT_MSG.format(sent=total_sent, total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
             send_to_logger(message, f"Playlist audio sent: {total_sent}/{len(requested_indices)} files (quality={quality_key}) to user{user_id}")
 
     except Exception as e:

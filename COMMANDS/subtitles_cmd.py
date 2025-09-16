@@ -1341,7 +1341,8 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
         subs_lang = get_user_subs_language(user_id)
         if not subs_lang or subs_lang == "OFF":
             from HELPERS.safe_messeger import safe_send_message
-            error_msg = "❌ Subtitles are disabled. Use /subs to configure."
+            from CONFIG.messages import MessagesConfig as Messages
+            error_msg = Messages.SUBTITLES_DISABLED_ALWAYS_ASK_OFF_MSG
             safe_send_message(user_id, error_msg)
             from HELPERS.logger import log_error_to_channel
             log_error_to_channel(message, error_msg)
@@ -1350,7 +1351,8 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
         # Check if this is YouTube
         if not is_youtube_url(url):
             from HELPERS.safe_messeger import safe_send_message
-            error_msg = "❌ Subtitle downloading is only supported for YouTube."
+            from CONFIG.messages import MessagesConfig as Messages
+            error_msg = Messages.SUBTITLES_YOUTUBE_ONLY_MSG
             safe_send_message(user_id, error_msg)
             from HELPERS.logger import log_error_to_channel
             log_error_to_channel(message, error_msg)
@@ -1433,10 +1435,12 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
     except Exception as e:
         logger.error(f"Error downloading subtitles: {e}")
         try:
-            app.edit_message_text(user_id, status_msg.id, f"❌ Error: {str(e)}")
+            from CONFIG.messages import MessagesConfig as Messages
+            app.edit_message_text(user_id, status_msg.id, Messages.GENERIC_ERROR_WITH_DETAIL_MSG.format(error=str(e)))
         except:
             from HELPERS.safe_messeger import safe_send_message
-            error_msg = f"❌ Error downloading subtitles: {str(e)}"
+            from CONFIG.messages import MessagesConfig as Messages
+            error_msg = Messages.GENERIC_ERROR_WITH_DETAIL_MSG.format(error=str(e))
             safe_send_message(user_id, error_msg)
             from HELPERS.logger import log_error_to_channel
             log_error_to_channel(message, error_msg)

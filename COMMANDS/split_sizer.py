@@ -119,7 +119,8 @@ def split_command(app, message):
                 text, size = sizes[i + j]
                 row.append(InlineKeyboardButton(text, callback_data=f"split_size|{size}"))
         buttons.append(row)
-    buttons.append([InlineKeyboardButton("🔚Close", callback_data="split_size|close")])
+    from CONFIG.messages import MessagesConfig as Messages
+    buttons.append([InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="split_size|close")])
     keyboard = InlineKeyboardMarkup(buttons)
     safe_send_message(user_id, 
         "🎬 **Choose max part size for video splitting:**\n\n"
@@ -145,7 +146,8 @@ def split_size_callback(app, callback_query):
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
         try:
-            callback_query.answer("Menu closed.")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.SPLIT_MENU_CLOSED_MSG)
         except Exception:
             pass
         send_to_logger(callback_query.message, "Split selection closed.")
@@ -153,7 +155,8 @@ def split_size_callback(app, callback_query):
     try:
         size = int(data)
     except Exception:
-        callback_query.answer("Invalid size.")
+        from CONFIG.messages import MessagesConfig as Messages
+        callback_query.answer(Messages.SPLIT_INVALID_SIZE_SHORT_MSG)
         return
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)

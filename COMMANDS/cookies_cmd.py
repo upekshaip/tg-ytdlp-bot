@@ -162,7 +162,8 @@ def cookies_from_browser(app, message):
         buttons.append([button])
 
     # Add a close button
-    buttons.append([InlineKeyboardButton("🔚Close", callback_data="browser_choice|close")])
+    from CONFIG.messages import MessagesConfig as Messages
+    buttons.append([InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="browser_choice|close")])
     keyboard = InlineKeyboardMarkup(buttons)
 
     from CONFIG.messages import MessagesConfig as Messages
@@ -204,7 +205,8 @@ def browser_choice_callback(app, callback_query):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        callback_query.answer("✅ Browser choice updated.")
+        from CONFIG.messages import MessagesConfig as Messages
+        callback_query.answer(Messages.BROWSER_CHOICE_UPDATED_MSG)
         send_to_logger(callback_query.message, "Browser selection closed.")
         return
 
@@ -230,7 +232,8 @@ def browser_choice_callback(app, callback_query):
         from CONFIG.messages import MessagesConfig as Messages
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'BROWSER_NOT_INSTALLED_EDIT_MSG', "⚠️ {browser} browser not installed.").format(browser=browser_option.capitalize()))
         try:
-            callback_query.answer("⚠️ Browser not installed.")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.BROWSER_NOT_INSTALLED_ANSWER_MSG)
         except Exception:
             pass
         send_to_logger(callback_query.message, f"Browser {browser_option} not installed.")
@@ -256,7 +259,8 @@ def browser_choice_callback(app, callback_query):
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'COOKIES_SAVED_USING_BROWSER_MSG', "✅ Cookies saved using browser: {browser}").format(browser=browser_option))
         send_to_logger(callback_query.message, f"Cookies saved using browser: {browser_option}")
 
-    callback_query.answer("✅ Browser choice updated.")
+    from CONFIG.messages import MessagesConfig as Messages
+    callback_query.answer(Messages.BROWSER_CHOICE_UPDATED_MSG)
 
 #############################################################################################################################
 
@@ -366,8 +370,9 @@ def download_cookie_callback(app, callback_query):
             app.answer_callback_query(callback_query.id)
         except Exception:
             pass
+        from CONFIG.messages import MessagesConfig as Messages
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚Close", callback_data="save_as_cookie_hint|close")]
+            [InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="save_as_cookie_hint|close")]
         ])
         from HELPERS.safe_messeger import safe_send_message
         safe_send_message(
@@ -376,7 +381,7 @@ def download_cookie_callback(app, callback_query):
             reply_parameters=ReplyParameters(message_id=callback_query.message.id if hasattr(callback_query.message, 'id') else None),
             reply_markup=keyboard,
             _callback_query=callback_query,
-            _fallback_notice="⏳ Flood limit. Try later."
+            _fallback_notice=Messages.FLOOD_LIMIT_TRY_LATER_MSG
         )
     elif data == "from_browser":
         try:
@@ -387,7 +392,8 @@ def download_cookie_callback(app, callback_query):
             with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
                 f.write(str(e.value))
             try:
-                app.answer_callback_query(callback_query.id, "⏳ Flood limit. Try later.", show_alert=False)
+                from CONFIG.messages import MessagesConfig as Messages
+                app.answer_callback_query(callback_query.id, Messages.FLOOD_LIMIT_TRY_LATER_MSG, show_alert=False)
             except Exception:
                 pass
         except Exception as e:
@@ -401,7 +407,8 @@ def download_cookie_callback(app, callback_query):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        callback_query.answer("Menu closed.")
+        from CONFIG.messages import MessagesConfig as Messages
+        callback_query.answer(Messages.MENU_CLOSED_MSG)
         return
 
 @app.on_callback_query(filters.regex(r"^save_as_cookie_hint\|"))
@@ -419,7 +426,8 @@ def save_as_cookie_hint_callback(app, callback_query):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        callback_query.answer("Cookie hint closed.")
+        from CONFIG.messages import MessagesConfig as Messages
+        callback_query.answer(Messages.COOKIE_HINT_CLOSED_MSG)
         send_to_logger(callback_query.message, "Save as cookie hint closed.")
         return
 
@@ -464,20 +472,25 @@ def checking_cookie_file(app, message):
             if _has_youtube_domain(cookie_content):
                 if test_youtube_cookies(file_path):
                     if initial_msg is not None and hasattr(initial_msg, 'id'):
-                        safe_edit_message_text(message.chat.id, initial_msg.id, "✅ YouTube cookies are working properly")
+                        from CONFIG.messages import MessagesConfig as Messages
+                        safe_edit_message_text(message.chat.id, initial_msg.id, Messages.COOKIES_WORKING_OK_MSG)
                     send_to_logger(message, "Cookie file exists, has correct format, and YouTube cookies are working.")
                 else:
                     if initial_msg is not None and hasattr(initial_msg, 'id'):
-                        safe_edit_message_text(message.chat.id, initial_msg.id, "❌ YouTube cookies are expired or invalid\n\nUse /cookie to get new cookies")
+                        from CONFIG.messages import MessagesConfig as Messages
+                        safe_edit_message_text(message.chat.id, initial_msg.id, Messages.COOKIES_EXPIRED_MSG)
                     send_to_logger(message, "Cookie file exists and has correct format, but YouTube cookies are expired.")
             else:
-                send_to_user(message, "✅ Skipped validation for non-YouTube cookies")
+                from CONFIG.messages import MessagesConfig as Messages
+                send_to_user(message, Messages.COOKIE_SKIPPED_VALIDATION_MSG)
                 send_to_logger(message, "Cookie file exists and has correct format.")
         else:
-            send_to_user(message, "⚠️ Cookie file exists but has incorrect format")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_user(message, Messages.COOKIE_INCORRECT_FORMAT_MSG)
             send_to_logger(message, "Cookie file exists but has incorrect format.")
     else:
-        send_to_user(message, "❌ Cookie file is not found.")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_user(message, Messages.COOKIE_NOT_FOUND_MSG)
         send_to_logger(message, "Cookie file not found.")
 
 
@@ -495,6 +508,7 @@ def download_cookie(app, message):
         app: Экземпляр приложения
         message: Сообщение команды
     """
+    from CONFIG.messages import MessagesConfig as Messages
     user_id = str(message.chat.id)
     
     # Check for fast command with arguments: /cookie youtube, /cookie youtube <n>, /cookie instagram, etc.
@@ -511,15 +525,18 @@ def download_cookie(app, message):
                 cookie_file_path = os.path.join(user_dir, cookie_filename)
                 
                 # Send initial message
-                send_to_user(message, "🔄 Starting YouTube cookies test...\n\nPlease wait while I check and validate your cookies.")
+                from CONFIG.messages import MessagesConfig as Messages
+                send_to_user(message, Messages.COOKIE_TEST_START_MSG)
                 
                 # Check existing cookies first
                 if os.path.exists(cookie_file_path):
                     if test_youtube_cookies(cookie_file_path):
-                        send_to_user(message, "✅ Your existing YouTube cookies are working properly!\n\nNo need to download new ones.")
+                        from CONFIG.messages import MessagesConfig as Messages
+                        send_to_user(message, Messages.COOKIE_YT_EXISTING_OK_MSG)
                         return
                     else:
-                        send_to_user(message, "❌ Your existing YouTube cookies are expired or invalid.\n\n🔄 Downloading new cookies...")
+                        from CONFIG.messages import MessagesConfig as Messages
+                        send_to_user(message, Messages.COOKIE_YT_EXISTING_INVALID_MSG)
                 # Optional specific index: /cookie youtube <n>
                 selected_index = None
                 if len(parts) >= 3 and parts[2].isdigit():
@@ -565,7 +582,7 @@ def download_cookie(app, message):
         #],
         [
             InlineKeyboardButton("📝 Your Own", callback_data="download_cookie|own"),            
-            InlineKeyboardButton("🔚Close", callback_data="download_cookie|close")
+            InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="download_cookie|close")
         ],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
@@ -752,10 +769,12 @@ def save_as_cookie_file(app, message):
         file_path = os.path.join(user_dir, cookie_filename)
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(final_cookie)
-        send_to_user(message, f"<b>✅ Cookie successfully updated:</b>\n<code>{final_cookie}</code>")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_user(message, Messages.COOKIE_UPDATED_MSG.format(cookie=final_cookie))
         send_to_logger(message, f"Cookie file updated for user {user_id}.")
     else:
-        send_to_user(message, "<b>❌ Not a valid cookie.</b>")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_user(message, Messages.COOKIE_NOT_VALID_TEXT_MSG)
         send_to_logger(message, f"Invalid cookie content provided by user {user_id}.")
 
 def test_youtube_cookies(cookie_file_path: str) -> bool:
@@ -957,7 +976,8 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
     cookie_urls = get_youtube_cookie_urls()
     
     if not cookie_urls:
-        safe_send_to_user("❌ YouTube cookie sources are not configured!")
+        from CONFIG.messages import MessagesConfig as Messages
+        safe_send_to_user(Messages.COOKIES_NO_BROWSERS_NO_URL_MSG)
         # Safe logging
         try:
             if hasattr(message, 'chat') and hasattr(message.chat, 'id'):

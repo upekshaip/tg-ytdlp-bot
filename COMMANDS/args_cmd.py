@@ -5,6 +5,8 @@
 import os
 import json
 import re
+import threading
+import time
 from typing import Dict, Any, Optional
 from pyrogram import filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
@@ -27,8 +29,59 @@ user_input_states_topic = {}  # {(chat_id, thread_id): {"param": param_name, "ty
 # Backward-compatibility alias for modules importing user_input_states (used in private chat flow)
 user_input_states = user_input_states_dm
 
+# Timers for auto-closing input states after 5 minutes
+input_state_timers_dm = {}  # {user_id: timer_thread}
+input_state_timers_topic = {}  # {(chat_id, thread_id): timer_thread}
+
 # File to store user args settings
 ARGS_FILE = "args.txt"
+
+def clear_input_state_timer(user_id: int, thread_id: int = None):
+    """Clear input state and its timer"""
+    if thread_id:
+        # Clear topic state
+        user_input_states_topic.pop((user_id, thread_id), None)
+        timer = input_state_timers_topic.pop((user_id, thread_id), None)
+        if timer:
+            timer.cancel()
+    else:
+        # Clear DM state
+        user_input_states_dm.pop(user_id, None)
+        timer = input_state_timers_dm.pop(user_id, None)
+        if timer:
+            timer.cancel()
+
+def start_input_state_timer(user_id: int, thread_id: int = None):
+    """Start a 5-minute timer to auto-close input state"""
+    def auto_close():
+        time.sleep(300)  # 5 minutes = 300 seconds
+        clear_input_state_timer(user_id, thread_id)
+        # Send notification to user
+        try:
+            from CONFIG.messages import MessagesConfig as Messages
+            safe_send_message(
+                user_id,
+                getattr(Messages, 'ARGS_INPUT_TIMEOUT_MSG', "⏰ Input mode automatically closed due to inactivity (5 minutes)."),
+                parse_mode=enums.ParseMode.HTML
+            )
+        except Exception as e:
+            logger.error(f"Error sending timeout message: {e}")
+    
+    # Cancel existing timer if any
+    if thread_id:
+        existing_timer = input_state_timers_topic.get((user_id, thread_id))
+        if existing_timer:
+            existing_timer.cancel()
+        timer = threading.Thread(target=auto_close, daemon=True)
+        input_state_timers_topic[(user_id, thread_id)] = timer
+    else:
+        existing_timer = input_state_timers_dm.get(user_id)
+        if existing_timer:
+            existing_timer.cancel()
+        timer = threading.Thread(target=auto_close, daemon=True)
+        input_state_timers_dm[user_id] = timer
+    
+    timer.start()
 
 # Available yt-dlp parameters with their types and options
 YTDLP_PARAMS = {
@@ -723,7 +776,8 @@ def args_callback_handler(app, callback_query):
     try:
         if data == "args_close":
             callback_query.message.delete()
-            callback_query.answer("Closed")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.ARGS_CLOSED_MSG)
             return
         
         elif data == "args_empty":
@@ -737,11 +791,9 @@ def args_callback_handler(app, callback_query):
                 chat_id = callback_query.message.chat.id
                 thread_id = getattr(callback_query.message, 'message_thread_id', None) or 0
                 if thread_id:
-                    state_key = (chat_id, thread_id)
-                    user_input_states_topic.pop(state_key, None)
+                    clear_input_state_timer(chat_id, thread_id)
                 else:
-                    uid = callback_query.from_user.id
-                    user_input_states_dm.pop(uid, None)
+                    clear_input_state_timer(callback_query.from_user.id)
             except Exception:
                 pass
             keyboard = get_args_menu_keyboard(user_id)
@@ -789,15 +841,18 @@ def args_callback_handler(app, callback_query):
                     "These settings will be applied to all your downloads.",
                     reply_markup=keyboard
                 )
-                callback_query.answer("✅ All arguments reset")
+                from CONFIG.messages import MessagesConfig as Messages
+                callback_query.answer(Messages.ARGS_ALL_RESET_MSG)
             else:
-                callback_query.answer("❌ Error resetting arguments", show_alert=True)
+                from CONFIG.messages import MessagesConfig as Messages
+                callback_query.answer(Messages.ARGS_RESET_ERROR_MSG, show_alert=True)
             return
         
         elif data.startswith("args_set_"):
             param_name = data.replace("args_set_", "")
             if param_name not in YTDLP_PARAMS:
-                callback_query.answer("❌ Invalid parameter", show_alert=True)
+                from CONFIG.messages import MessagesConfig as Messages
+                callback_query.answer(Messages.ARGS_INVALID_PARAM_MSG, show_alert=True)
                 return
             
             param_config = YTDLP_PARAMS[param_name]
@@ -827,8 +882,10 @@ def args_callback_handler(app, callback_query):
                 state = {"param": param_name, "type": param_config["type"]}
                 if thread_id:
                     user_input_states_topic[(chat_id, thread_id)] = state
+                    start_input_state_timer(chat_id, thread_id)
                 else:
                     user_input_states_dm[callback_query.from_user.id] = state
+                    start_input_state_timer(callback_query.from_user.id)
                 
                 if param_config["type"] == "text":
                     message = get_text_input_message(param_name, current_value)
@@ -898,13 +955,15 @@ def args_callback_handler(app, callback_query):
                     reply_markup=keyboard
                 )
                 try:
-                    callback_query.answer(f"Set to {'True' if value else 'False'}")
+                    from CONFIG.messages import MessagesConfig as Messages
+                    callback_query.answer(Messages.ARGS_BOOL_SET_MSG.format(value='True' if value else 'False'))
                 except Exception:
                     pass
             else:
                 # Value is the same, just acknowledge
                 try:
-                    callback_query.answer(f"Already set to {'True' if value else 'False'}")
+                    from CONFIG.messages import MessagesConfig as Messages
+                    callback_query.answer(Messages.ARGS_BOOL_ALREADY_SET_MSG.format(value='True' if value else 'False'))
                 except Exception:
                     pass
             return
@@ -915,7 +974,8 @@ def args_callback_handler(app, callback_query):
             # Find the last underscore to separate param_name and value
             last_underscore = remaining.rfind("_")
             if last_underscore == -1:
-                callback_query.answer("❌ Invalid select value", show_alert=True)
+                from CONFIG.messages import MessagesConfig as Messages
+                callback_query.answer(Messages.ARGS_INVALID_SELECT_MSG, show_alert=True)
                 return
             param_name = remaining[:last_underscore]
             value = remaining[last_underscore + 1:]
@@ -937,13 +997,15 @@ def args_callback_handler(app, callback_query):
                     reply_markup=keyboard
                 )
                 try:
-                    callback_query.answer(f"Set to {value}")
+                    from CONFIG.messages import MessagesConfig as Messages
+                    callback_query.answer(Messages.ARGS_VALUE_SET_MSG.format(value=value))
                 except Exception:
                     pass
             else:
                 # Value is the same, just acknowledge
                 try:
-                    callback_query.answer(f"Already set to {value}")
+                    from CONFIG.messages import MessagesConfig as Messages
+                    callback_query.answer(Messages.ARGS_VALUE_ALREADY_SET_MSG.format(value=value))
                 except Exception:
                     pass
             return
@@ -951,7 +1013,8 @@ def args_callback_handler(app, callback_query):
     except Exception as e:
         logger.error(f"Error in args callback handler: {e}")
         try:
-            callback_query.answer("❌ Error occurred", show_alert=False)
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.ERROR_OCCURRED_SHORT_MSG, show_alert=False)
         except Exception:
             pass
 
@@ -989,10 +1052,7 @@ def handle_args_text_input(app, message):
             save_user_args(owner_id, user_args)
             
             # Clear state and show success
-            if thread_id:
-                user_input_states_topic.pop((user_id, thread_id), None)
-            else:
-                user_input_states_dm.pop(owner_id, None)
+            clear_input_state_timer(user_id, thread_id)
             safe_send_message(
                 user_id,
                 f"✅ {YTDLP_PARAMS[param_name]['description']} set to: <code>{text}</code>",
@@ -1018,10 +1078,7 @@ def handle_args_text_input(app, message):
                 save_user_args(owner_id, user_args)
                 
                 # Clear state and show success
-                if thread_id:
-                    user_input_states_topic.pop((user_id, thread_id), None)
-                else:
-                    user_input_states_dm.pop(owner_id, None)
+                clear_input_state_timer(user_id, thread_id)
                 safe_send_message(
                     user_id,
                     f"✅ {YTDLP_PARAMS[param_name]['description']} set to: <code>{text}</code>",
@@ -1058,10 +1115,7 @@ def handle_args_text_input(app, message):
                 save_user_args(owner_id, user_args)
                 
                 # Clear state and show success
-                if thread_id:
-                    user_input_states_topic.pop((user_id, thread_id), None)
-                else:
-                    user_input_states_dm.pop(owner_id, None)
+                clear_input_state_timer(user_id, thread_id)
                 safe_send_message(
                     user_id,
                     f"✅ {YTDLP_PARAMS[param_name]['description']} set to: <code>{value}</code>",
@@ -1083,10 +1137,7 @@ def handle_args_text_input(app, message):
         from HELPERS.logger import log_error_to_channel
         log_error_to_channel(message, error_msg)
         # Clear state on error
-        if thread_id:
-            user_input_states_topic.pop((user_id, thread_id), None)
-        else:
-            user_input_states_dm.pop(owner_id, None)
+        clear_input_state_timer(user_id, thread_id)
 
 def _has_args_state(flt, client, message) -> bool:
     try:

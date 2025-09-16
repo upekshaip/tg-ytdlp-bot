@@ -47,10 +47,18 @@ def url_distractor(app, message):
     text = message.text.strip()
     
     # Check if user is in args input state
-    from COMMANDS.args_cmd import user_input_states, handle_args_text_input
+    from COMMANDS.args_cmd import user_input_states, handle_args_text_input, clear_input_state_timer
     if user_id in user_input_states:
-        handle_args_text_input(app, message)
-        return
+        # If user sends a command (starts with /), clear the input state and continue with normal processing
+        if text.startswith('/'):
+            # Clear the input state and timer
+            thread_id = getattr(message, 'message_thread_id', None) or 0
+            clear_input_state_timer(user_id, thread_id)
+            # Continue with normal command processing (don't return here)
+        else:
+            # Handle normal text input for args
+            handle_args_text_input(app, message)
+            return
     # Normalize commands like /cmd@bot to /cmd for group mentions
     try:
         bot_mention = f"@{getattr(Config, 'BOT_NAME', '').strip()}"
@@ -411,7 +419,7 @@ def url_distractor(app, message):
                 reply_parameters=ReplyParameters(message_id=fake_callback.message.id if hasattr(fake_callback.message, 'id') else None),
                 reply_markup=keyboard,
                 _callback_query=fake_callback,
-                _fallback_notice="⏳ Flood limit. Try later."
+                _fallback_notice=Messages.FLOOD_LIMIT_TRY_LATER_MSG
             )
             return
             
@@ -782,7 +790,8 @@ def add_group_msg_callback(app, callback_query):
                 )
             
             # Answer callback query
-            callback_query.answer("Closed")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.CLOSED_MSG_GENERIC)
             
             # Log the action
             send_to_logger(callback_query.message, f"User {user_id} closed add_bot_to_group command")
@@ -790,6 +799,7 @@ def add_group_msg_callback(app, callback_query):
     except Exception as e:
         # Log error and answer callback
         send_to_logger(callback_query.message, f"Error in add_group_msg callback handler: {e}")
-        callback_query.answer("Error occurred", show_alert=True)
+        from CONFIG.messages import MessagesConfig as Messages
+        callback_query.answer(Messages.ERROR_OCCURRED_SHORT_MSG, show_alert=True)
 
 ######################################################  

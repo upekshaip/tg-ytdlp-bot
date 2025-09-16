@@ -412,6 +412,7 @@ def convert_file_to_telegram_format(file_path):
 @app.on_message(filters.command("img") & filters.private)
 def image_command(app, message):
     """Handle /img command for downloading images"""
+    from CONFIG.messages import MessagesConfig as Messages
     user_id = message.chat.id
     text = message.text.strip()
     # Subscription check for non-admins
@@ -422,7 +423,7 @@ def image_command(app, message):
     if len(text.split()) < 2:
         # Show help if no URL provided
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚Close", callback_data="img_help|close")]
+            [InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="img_help|close")]
         ])
         safe_send_message(
             user_id,
@@ -2701,7 +2702,8 @@ def img_help_callback(app, callback_query: CallbackQuery):
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
         try:
-            callback_query.answer("Help closed.")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.IMAGES_HELP_CLOSED_MSG)
         except Exception:
             pass
         return

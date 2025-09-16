@@ -220,8 +220,10 @@ def list_help_callback(app, callback_query):
     try:
         data = callback_query.data.split("|")[1]
         if data == "close":
+            from CONFIG.messages import MessagesConfig as Messages
             callback_query.message.delete()
-            callback_query.answer("Help closed")
+            callback_query.answer(Messages.AA_HELP_CLOSED_MSG)
     except Exception as e:
+        from CONFIG.messages import MessagesConfig as Messages
         logger.error(f"Error in list help callback: {e}")
-        callback_query.answer("Error occurred", show_alert=True)
+        callback_query.answer(Messages.AA_ERROR_OCCURRED_MSG, show_alert=True)

@@ -74,6 +74,8 @@ porn_req.txt
 git_update.bat
 git_update.ps1
 git_update.sh
+test_count_var.py
+reverse_test_count_var.py
 
 # Configs with secrets (do not commit)
 CONFIG/config.py
