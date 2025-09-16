@@ -336,3 +336,32 @@ def safe_send_message_with_auto_delete(chat_id, text, delete_after_seconds=60, *
         logger.warning(f"[AUTO-DELETE] Failed to send message or message has no ID: {message}")
     
     return message
+
+def schedule_delete_message(chat_id, message_id, delete_after_seconds=60):
+    """
+    Schedule deletion of an already-sent message after a delay.
+
+    Args:
+        chat_id: The chat ID
+        message_id: The message ID to delete
+        delete_after_seconds: Seconds to wait before deleting
+    Returns:
+        True if scheduled, False otherwise
+    """
+    try:
+        if not chat_id or not message_id:
+            return False
+
+        def _del():
+            try:
+                logger.info(f"[AUTO-DELETE] Scheduling message {message_id} for deletion in {delete_after_seconds} seconds")
+                time.sleep(delete_after_seconds)
+                safe_delete_messages(chat_id, [message_id])
+            except Exception as e:
+                logger.error(f"[AUTO-DELETE] Error while deleting message {message_id}: {e}")
+
+        t = threading.Thread(target=_del, daemon=True)
+        t.start()
+        return True
+    except Exception:
+        return False

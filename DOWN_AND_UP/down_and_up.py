@@ -352,6 +352,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 text="<b>▶️ Download started</b>",
                 parse_mode=enums.ParseMode.HTML
             )
+            try:
+                from HELPERS.safe_messeger import schedule_delete_message
+                schedule_delete_message(user_id, proc_msg.id, delete_after_seconds=5)
+            except Exception:
+                pass
             # If you managed to replace, then there is no flood error
             if os.path.exists(flood_time_file):
                 os.remove(flood_time_file)
@@ -471,6 +476,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
         status_msg = safe_send_message(user_id, Config.VIDEO_PROCESSING_MSG, message=message)
         hourglass_msg = safe_send_message(user_id, Config.WAITING_HOURGLASS_MSG, message=message)
+        try:
+            from HELPERS.safe_messeger import schedule_delete_message
+            if status_msg and hasattr(status_msg, 'id'):
+                schedule_delete_message(user_id, status_msg.id, delete_after_seconds=5)
+        except Exception:
+            pass
         # We save ID status messages
         status_msg_id = status_msg.id
         hourglass_msg_id = hourglass_msg.id
@@ -589,27 +600,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             elapsed = max(0, current_time - progress_start_time)
             minutes_passed = int(elapsed // 60)
             
-            # After 1 hour (60 minutes), only show 0% and 100%
+            # Adaptive throttle: linear slow-down; after 1h fixed 90s
             if minutes_passed >= 60:
-                if d.get("status") == "finished":
-                    try:
-                        safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{full_bar}   100.0%")
-                    except Exception as e:
-                        logger.error(f"Error updating progress: {e}")
-                elif d.get("status") == "error":
-                    logger.error("Error occurred during download.")
-                    send_error_to_user(message, LoggerMsg.DOWNLOAD_ERROR_GENERIC)
-                return
-            
-            # Adaptive throttle: base 1.5s, doubles each minute (1m→1.5s, 2m→3s, 3m→6s,...)
-            base_interval = 1.5
-            if minutes_passed < 5:
-                # First 5 minutes: 1.5 seconds
-                interval = base_interval
+                interval = 90.0
             else:
-                # After 5 minutes: exponential backoff
-                interval = base_interval * (2 ** (minutes_passed - 4))  # Start exponential after 5 minutes
-                interval = min(interval, 30.0)  # hard cap to avoid too rare updates
+                # 0-4 min: 3s, 5-9: 4s, ..., 55-59: 14s
+                interval = 3.0 + max(0, minutes_passed // 5)
             
             if current_time - last_update < interval:
                 return

@@ -9,6 +9,7 @@ except ImportError:
     SDNOTIFY_AVAILABLE = False
     SystemdNotifier = None
 from pyrogram import enums
+import re
 from CONFIG.config import Config
 from HELPERS.safe_messeger import safe_send_message
 
@@ -105,20 +106,49 @@ def send_to_all(message, msg):
     safe_send_message(get_log_channel("general"), msg_with_id, parse_mode=enums.ParseMode.HTML)
     safe_send_message(user_id, msg, parse_mode=enums.ParseMode.HTML, message=message)
 
+# --- Helpers for error logging -------------------------------------------------
+
+def _extract_url_from_message(message) -> str:
+    """Best-effort extraction of the first URL from user message text/caption."""
+    try:
+        text = getattr(message, "text", None) or getattr(message, "caption", None) or ""
+        if not text:
+            return ""
+        match = re.search(r"https?://\S+", text)
+        return match.group(0) if match else ""
+    except Exception:
+        return ""
+
 # Send Error Message to User and LOG_EXCEPTION channel
-def send_error_to_user(message, msg):
-    """Send error message to user and log it to LOG_EXCEPTION channel"""
+def send_error_to_user(message, msg, url: str = None):
+    """Send error message to user and log it to LOG_EXCEPTION channel.
+
+    url: optional explicit URL that caused the error; if not provided, will be
+         extracted from the user's message text/caption when possible.
+    """
     user_id = message.chat.id
-    msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
+    url_str = (url or _extract_url_from_message(message) or "").strip()
+    if url_str:
+        msg_with_id = f"{message.chat.first_name} - {user_id}\n \nURL: {url_str}\n\n{msg}"
+    else:
+        msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
     # Send to LOG_EXCEPTION channel for error tracking
     safe_send_message(Config.LOG_EXCEPTION, msg_with_id, parse_mode=enums.ParseMode.HTML)
     # Send to user
     safe_send_message(user_id, msg, parse_mode=enums.ParseMode.HTML, message=message)
 
 # Log error message to LOG_EXCEPTION channel (without sending to user)
-def log_error_to_channel(message, msg):
-    """Log error message to LOG_EXCEPTION channel only"""
+def log_error_to_channel(message, msg, url: str = None):
+    """Log error message to LOG_EXCEPTION channel only.
+
+    url: optional explicit URL that caused the error; if not provided, will be
+         extracted from the user's message text/caption when possible.
+    """
     user_id = message.chat.id
-    msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
+    url_str = (url or _extract_url_from_message(message) or "").strip()
+    if url_str:
+        msg_with_id = f"{message.chat.first_name} - {user_id}\n \nURL: {url_str}\n\n{msg}"
+    else:
+        msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
     # Send to LOG_EXCEPTION channel for error tracking
     safe_send_message(Config.LOG_EXCEPTION, msg_with_id, parse_mode=enums.ParseMode.HTML)

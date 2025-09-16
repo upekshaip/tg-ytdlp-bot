@@ -523,30 +523,42 @@ def reload_porn_command(app, message):
         return
     
     try:
-        send_to_user(message, "⏳ Reloading porn domains and keywords cache...")
+        send_to_user(message, "⏳ Reloading porn and domain-related caches...")
         send_to_logger(message, f"Admin {message.chat.id} started porn cache reload")
         
-        # Import and reload the porn cache
-        from HELPERS.porn import load_domain_lists
-        
-        # Reload the cache
-        load_domain_lists()
-        
-        # Get current counts for confirmation
-        from HELPERS.porn import PORN_DOMAINS, PORN_KEYWORDS, SUPPORTED_SITES
-        
-        domains_count = len(PORN_DOMAINS)
-        keywords_count = len(PORN_KEYWORDS)
-        sites_count = len(SUPPORTED_SITES)
-        
-        send_to_user(message, f"✅ Porn cache reloaded successfully!\n\n"
-                             f"📊 Current cache status:\n"
-                             f"• Domains: {domains_count}\n"
-                             f"• Keywords: {keywords_count}\n"
-                             f"• Supported sites: {sites_count}")
-        
-        send_to_logger(message, f"Porn cache reloaded successfully by admin {message.chat.id}. "
-                               f"Domains: {domains_count}, Keywords: {keywords_count}, Sites: {sites_count}")
+        # Import and reload all caches (files + CONFIG/domains.py arrays)
+        from HELPERS.porn import reload_all_porn_caches
+        counts = reload_all_porn_caches()
+
+        send_to_user(
+            message,
+            (
+                "✅ Porn caches reloaded successfully!\n\n"
+                "📊 Current cache status:\n"
+                f"• Porn domains: {counts.get('porn_domains', 0)}\n"
+                f"• Porn keywords: {counts.get('porn_keywords', 0)}\n"
+                f"• Supported sites: {counts.get('supported_sites', 0)}\n"
+                f"• WHITELIST: {counts.get('whitelist', 0)}\n"
+                f"• GREYLIST: {counts.get('greylist', 0)}\n"
+                f"• BLACK_LIST: {counts.get('black_list', 0)}\n"
+                f"• WHITE_KEYWORDS: {counts.get('white_keywords', 0)}\n"
+                f"• PROXY_DOMAINS: {counts.get('proxy_domains', 0)}\n"
+                f"• PROXY_2_DOMAINS: {counts.get('proxy_2_domains', 0)}\n"
+                f"• CLEAN_QUERY: {counts.get('clean_query', 0)}\n"
+                f"• NO_COOKIE_DOMAINS: {counts.get('no_cookie_domains', 0)}"
+            )
+        )
+
+        send_to_logger(
+            message,
+            (
+                f"Porn caches reloaded by admin {message.chat.id}. "
+                f"Domains: {counts.get('porn_domains', 0)}, Keywords: {counts.get('porn_keywords', 0)}, Sites: {counts.get('supported_sites', 0)}, "
+                f"WHITELIST: {counts.get('whitelist', 0)}, GREYLIST: {counts.get('greylist', 0)}, BLACK_LIST: {counts.get('black_list', 0)}, "
+                f"WHITE_KEYWORDS: {counts.get('white_keywords', 0)}, PROXY_DOMAINS: {counts.get('proxy_domains', 0)}, PROXY_2_DOMAINS: {counts.get('proxy_2_domains', 0)}, "
+                f"CLEAN_QUERY: {counts.get('clean_query', 0)}, NO_COOKIE_DOMAINS: {counts.get('no_cookie_domains', 0)}"
+            )
+        )
         
     except Exception as e:
         send_to_user(message, f"❌ Error reloading porn cache: {str(e)}")
