@@ -863,7 +863,8 @@ def args_callback_handler(app, callback_query):
                 param_name = remaining[:-6]  # Remove "_false"
                 value = False
             else:
-                callback_query.answer("❌ Invalid boolean value", show_alert=True)
+                from CONFIG.messages import MessagesConfig as Messages
+                callback_query.answer(Messages.ARGS_INVALID_BOOL_MSG, show_alert=True)
                 return
             
             user_args = get_user_args(user_id)
@@ -891,14 +892,9 @@ def args_callback_handler(app, callback_query):
             if current_value != value:
                 # Rebuild main menu to reflect paired toggles instantly
                 keyboard = get_args_menu_keyboard(user_id)
+                from CONFIG.messages import MessagesConfig as Messages
                 callback_query.edit_message_text(
-                    "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n"
-                    "<blockquote>📋 <b>Groups:</b>\n"
-                    "• ✅/❌ <b>Boolean</b> - True/False switches\n"
-                    "• 📋 <b>Select</b> - Choose from options\n"
-                    "• 🔢 <b>Numeric</b> - Number input\n"
-                    "• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\n"
-                    "These settings will be applied to all your downloads.",
+                    Messages.ARGS_MENU_TEXT,
                     reply_markup=keyboard
                 )
                 try:

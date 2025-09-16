@@ -325,6 +325,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     hourglass_msg_id = None
     anim_thread = None
     stop_anim = threading.Event()
+    download_started_msg_id = None
     proc_msg = None
     proc_msg_id = None
     try:
@@ -354,7 +355,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             )
             try:
                 from HELPERS.safe_messeger import schedule_delete_message
-                schedule_delete_message(user_id, proc_msg.id, delete_after_seconds=5)
+                download_started_msg_id = proc_msg.id
+                schedule_delete_message(user_id, download_started_msg_id, delete_after_seconds=5)
             except Exception:
                 pass
             # If you managed to replace, then there is no flood error
@@ -1219,7 +1221,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     logger.info(f"Skipping TikTok video at index {current_index} due to API error")
                     return "SKIP"  # Skip this video and continue with next
 
-                send_to_user(message, f"❌ Unknown error: {e}")
+                from CONFIG.messages import MessagesConfig as Messages
+                send_to_user(message, Messages.UNKNOWN_ERROR_MSG.format(error=e))
                 return None
 
         if is_playlist and quality_key:
@@ -1750,7 +1753,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     }
                                     
                                     if check_subs_limits(real_info, quality_key):
-                                        status_msg = app.send_message(user_id, "⚠️ Embedding subtitles may take a long time (up to 1 min per 1 min of video)!\n🔥 Starting to burn subtitles...")
+                                        from CONFIG.messages import MessagesConfig as Messages
+                                        status_msg = app.send_message(user_id, Messages.SUBTITLES_EMBEDDING_MSG)
                                         def tg_update_callback(progress, eta):
                                             blocks = int(progress * 10)
                                             bar = '🟩' * blocks + '⬜️' * (10 - blocks)
@@ -1797,9 +1801,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         except Exception as e:
                                             logger.error(f"Failed to update subtitle progress (final): {e}")
                                     else:
-                                        app.send_message(user_id, "ℹ️ Subtitles cannot be embedded due to limits (quality/duration/size)", reply_parameters=ReplyParameters(message_id=message.id))
+                                        from CONFIG.messages import MessagesConfig as Messages
+                                        app.send_message(user_id, Messages.SUBTITLES_SIZE_LIMIT_MSG, reply_parameters=ReplyParameters(message_id=message.id))
                                 else:
-                                    app.send_message(user_id, "ℹ️ Subtitles are not available for the selected language", reply_parameters=ReplyParameters(message_id=message.id))
+                                    from CONFIG.messages import MessagesConfig as Messages
+                                    app.send_message(user_id, Messages.SUBTITLES_NOT_AVAILABLE_SELECTED_MSG, reply_parameters=ReplyParameters(message_id=message.id))
                             
                             # Clean up subtitle files after embedding attempt
                             try:
@@ -2137,16 +2143,30 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
         if is_playlist and quality_key:
             total_sent = len(cached_videos) + successful_uploads
-            app.send_message(user_id, f"✅ Playlist videos sent: {total_sent}/{len(requested_indices)} files.", reply_parameters=ReplyParameters(message_id=message.id))
+            from CONFIG.messages import MessagesConfig as Messages
+            app.send_message(user_id, Messages.PLAYLIST_VIDEOS_SENT_MSG.format(sent=total_sent, total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
             send_to_logger(message, f"Playlist videos sent: {total_sent}/{len(requested_indices)} files (quality={quality_key}) to user {user_id}")
 
     except Exception as e:
         if "Download timeout exceeded" in str(e):
-            send_to_user(message, "⏰ Download cancelled due to timeout (2 hours)")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_user(message, Messages.AUDIO_DOWNLOAD_TIMEOUT_MSG)
             send_to_logger(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG)
         else:
+            from CONFIG.messages import MessagesConfig as Messages
             logger.error(f"Error in video download: {e}")
-            send_to_user(message, f"❌ Failed to download video: {e}")
+            send_to_user(message, Messages.ERROR_DOWNLOAD_MSG)
+        # Immediate cleanup of temporary status messages on error
+        try:
+            if status_msg_id:
+                safe_delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
+            if hourglass_msg_id:
+                safe_delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
+            if download_started_msg_id:
+                safe_delete_messages(chat_id=user_id, message_ids=[download_started_msg_id], revoke=True)
+            stop_anim.set()
+        except Exception:
+            pass
         
         # Clean up temporary files on error
         try:
@@ -2175,6 +2195,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 safe_delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
         except Exception as e:
             logger.error(f"Error deleting status messages: {e}")
+        # Also try to delete the 'Download started' message if it still exists
+        try:
+            if download_started_msg_id:
+                safe_delete_messages(chat_id=user_id, message_ids=[download_started_msg_id], revoke=True)
+        except Exception:
+            pass
 
         # --- ADDED: summary of cache after cycle ---
         if is_playlist and playlist_indices and playlist_msg_ids:

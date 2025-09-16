@@ -68,7 +68,8 @@ def proxy_command(app, message):
             proxy_file = os.path.join(user_dir, "proxy.txt")
             if arg in ("on", "off"):
                 if safe_write_file(proxy_file, "ON" if arg == "on" else "OFF"):
-                    safe_send_message(user_id, f"✅ Proxy {'enabled' if arg=='on' else 'disabled' }.", message=message)
+                    from CONFIG.messages import MessagesConfig as Messages
+                    safe_send_message(user_id, Messages.PROXY_SET_MSG.format(state='enabled' if arg=='on' else 'disabled'), message=message)
                     send_to_logger(message, f"Proxy set via command: {arg}")
                     return
                 else:
@@ -157,7 +158,8 @@ def proxy_option_callback(app, callback_query):
                 pass
             return
         
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "❌ Proxy disabled.")
+        from CONFIG.messages import MessagesConfig as Messages
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'PROXY_DISABLED_MSG', "❌ Proxy disabled."))
         send_to_logger(callback_query.message, "Proxy disabled.")
         try:
             callback_query.answer("Proxy disabled.")

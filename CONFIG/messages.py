@@ -392,6 +392,7 @@ Use:
     ERROR_SENDING_VIDEO_MSG = "❌ Error sending video: {error}"
     ERROR_UNKNOWN_MSG = "❌ Unknown error: {error}"
     ERROR_NO_DISK_SPACE_MSG = "❌ Not enough disk space to download videos."
+    ERROR_NO_DISK_SPACE_AUDIO_MSG = "❌ Not enough disk space to download the audio files."
     ERROR_FILE_SIZE_LIMIT_MSG = "❌ The file size exceeds the {limit} GB limit. Please select a smaller file within the allowed size."
     ERROR_NO_VIDEOS_PLAYLIST_MSG = "❌ No videos found in playlist at index {index}."
     ERROR_TIKTOK_API_MSG = "⚠️ TikTok API error at index {index}, skipping to next video..."
@@ -400,18 +401,42 @@ Use:
     ERROR_GETTING_LINK_MSG = "❌ <b>Error getting link:</b>\n{error}"
     ERROR_AV1_NOT_AVAILABLE_MSG = "❌ AV1 format is not available for this video.\n\nAvailable formats:\n{formats}"
     ERROR_AV1_NOT_AVAILABLE_SHORT_MSG = "❌ **AV1 format is not available for this video.**\n\n"
+
+    # Generic/Unknown Errors
+    UNKNOWN_ERROR_MSG = "❌ Unknown error: {error}"
+    ERROR_RUNNING_SCRIPT_MSG = "❌ Error running script: {error}"
+    SCRIPT_NOT_FOUND_MSG = "❌ Script not found: {path}"
+    SCRIPT_FAILED_WITH_CODE_MSG = "❌ Script failed with return code {code}:\n<code>{error}</code>"
+    SCRIPT_COMPLETED_WITH_OUTPUT_MSG = "✅ Script completed successfully!\n\nOutput:\n<code>{output}</code>"
+    SCRIPT_COMPLETED_SUCCESS_MSG = "✅ Script completed successfully!"
     
     # Telegram Rate Limit Messages
     RATE_LIMIT_WITH_TIME_MSG = "⚠️ Telegram has limited message sending.\n⏳ Please wait: {time}\nTo update timer send URL again 2 times."
     RATE_LIMIT_NO_TIME_MSG = "⚠️ Telegram has limited message sending.\n⏳ Please wait: \nTo update timer send URL again 2 times."
+    PLEASE_WAIT_MSG = "⏳ Please wait..."
+    HOURGLASS_PLEASE_WAIT_MSG = "⌛️ Please wait..."
+    WAIT_PREV_DOWNLOAD_MSG = "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED"
     
     # Subtitles Messages
     SUBTITLES_FAILED_MSG = "⚠️ Failed to download subtitles"
+    SUBTITLES_DOWNLOAD_IN_PROGRESS_MSG = "💬 Downloading subtitles..."
     SUBTITLES_NOT_FOUND_MSG = "⚠️ Subtitles for {flag} {name} not found for this video. Download without subtitles."
     SUBTITLES_EMBEDDING_MSG = "⚠️ Embedding subtitles may take a long time (up to 1 min per 1 min of video)!\n🔥 Starting to burn subtitles..."
     SUBTITLES_SUCCESS_MSG = "Subtitles successfully embedded! ✅"
     SUBTITLES_NOT_FOUND_VIDEO_MSG = "⚠️ Subtitles not found for this video"
     SUBTITLES_SIZE_LIMIT_MSG = "⚠️ Subtitles not embedded: exceeded size/duration limits"
+    SUBTITLES_PROCESSING_FILE_ERROR_MSG = "❌ Error processing subtitle file."
+
+    # Audio Download Messages
+    AUDIO_PROCESSING_MSG = "🎙️ Audio is processing..."
+    AUDIO_DOWNLOADING_MSG = "📥 Downloading audio:"
+    AUDIO_UPLOAD_PROGRESS_MSG = "📤 Uploading audio file..."
+    AUDIO_INFO_EXTRACT_FAILED_MSG = "❌ Failed to extract audio information"
+    AUDIO_FILE_NOT_FOUND_MSG = "Audio file not found after download."
+    AUDIO_SEND_FAILED_MSG = "❌ Failed to send audio: {error}"
+    AUDIO_DOWNLOAD_TIMEOUT_MSG = "⏰ Download cancelled due to timeout (2 hours)"
+    AUDIO_DOWNLOAD_FAILED_MSG = "❌ Failed to download audio: {error}"
+    PLAYLIST_AUDIO_SENT_MSG = "✅Playlist audio sent: {sent}/{total} files."
     
     # Video Processing Messages
     HLS_STREAM_MSG = "Detected HLS stream.\n📥 Downloading..."
@@ -419,6 +444,8 @@ Use:
     DOWNLOADED_PROCESSING_MSG = "☑️ Downloaded video.\n📤 Processing for upload..."
     FILE_TOO_LARGE_MSG = "⚠️ Your video size ({size}) is too large.\nSplitting file... ✂️"
     SPLIT_PART_UPLOADED_MSG = "📤 Splitted part {part} file uploaded"
+    DOWNLOAD_STARTED_MSG = "<b>▶️ Download started</b>"
+    PROCESSING_GENERIC_MSG = "🔄 Processing..."
     
     # Stream/Link Messages
     STREAM_LINKS_TITLE_MSG = "🔗 <b>Direct Stream Links</b>\n\n"
@@ -461,7 +488,140 @@ Use:
     # Playlist Messages
     PLAYLIST_SENT_MSG = "✅ Playlist videos sent: {sent}/{total} files."
     PLAYLIST_CACHE_SENT_MSG = "✅ Sent from cache: {cached}/{total} files."
+    PLAYLIST_VIDEOS_SENT_MSG = "✅ Playlist videos sent: {sent}/{total} files."
+    PLAYLIST_AUDIO_SENT_MSG = "✅ Playlist audio sent: {sent}/{total} files."
+    PLAYLIST_AUDIO_SENT_FROM_CACHE_MSG = "✅ Playlist audio sent from cache ({cached}/{total} files)."
+    AUDIO_SENT_FROM_CACHE_MSG = "✅ Audio sent from cache."
+    AUDIO_CACHE_PARTIAL_MSG = "📥 {cached}/{total} audio sent from cache, downloading missing ones..."
     
     # Failed Stream Messages
     FAILED_STREAM_LINKS_MSG = "❌ Failed to get stream links"
+
+    # Admin and Access Messages
+    ACCESS_DENIED_ADMIN_MSG = "❌ Access denied. Admin only."
+    BOT_RUNNING_TIME_MSG = "⏳ <i>Bot running time -</i> <b>{uptime}</b>"
+    USAGE_BLOCK_USER_MSG = "❌ Usage: /block_user <user_id>"
+    USER_BLOCKED_MSG = "User blocked 🔒❌\n \nID: <code>{user_id}</code>\nBlocked Date: {blocked_date}"
+    USER_ALREADY_BLOCKED_MSG = "<code>{user_id}</code> is already blocked ❌😐"
+    USAGE_UNBLOCK_USER_MSG = "❌ Usage: /unblock_user <user_id>"
+    USER_ALREADY_UNBLOCKED_MSG = "<code>{user_id}</code> is already unblocked ✅😐"
+    UNCACHE_USAGE_MSG = "❌ Please provide a URL to clear cache for.\nUsage: <code>/uncache &lt;URL&gt;</code>"
+    UNCACHE_URL_INVALID_MSG = "❌ Please provide a valid URL.\nUsage: <code>/uncache &lt;URL&gt;</code>"
+    UNCACHE_CLEARED_MSG = "✅ Cache cleared successfully for URL:\n<code>{url}</code>"
+    UNCACHE_NOT_FOUND_MSG = "ℹ️ No cache found for this link."
+    RELOADING_FIREBASE_MSG = "🔄 Reloading Firebase cache into memory..."
+    RELOADING_PORN_CACHE_MSG = "⏳ Reloading porn and domain-related caches..."
+    RUNNING_PORN_UPDATE_SCRIPT_MSG = "⏳ Running porn list update script: {path}"
+    CHECKING_URL_NSFW_MSG = "🔍 Checking URL for NSFW content...\n<code>{url}</code>"
+    CHECK_PORN_USAGE_MSG = "❌ Please provide a URL to check.\nUsage: <code>/check_porn &lt;URL&gt;</code>"
+    CHECK_PORN_URL_INVALID_MSG = "❌ Please provide a valid URL.\nUsage: <code>/check_porn &lt;URL&gt;</code>"
+
+    # Command Responses
+    DIRECT_LINK_GETTING_MSG = "🔗 Getting direct link..."
+    KEYBOARD_ACTIVATED_MSG = "🎹 keyboard activated!"
+    SPLIT_SIZE_SET_MSG = "✅ Split part size set to: {size}"
+    MEDIINFO_SET_MSG = "✅ MediaInfo {state}."
+    PROXY_SET_MSG = "✅ Proxy {state}."
+    COOKIES_WORKING_OK_MSG = "✅ YouTube cookies are working properly"
+    COOKIES_EXPIRED_MSG = "❌ YouTube cookies are expired or invalid\n\nUse /cookie to get new cookies"
+    COOKIES_SAVED_BROWSER_MSG = "✅ Cookies saved using browser: {browser}"
+    BROWSER_NOT_INSTALLED_MSG = "⚠️ {browser} browser not installed."
+    VALID_URL_REQUIRED_MSG = "❌ Please provide a valid URL"
+
+    # Cookies and Browser Messages
+    COOKIES_NO_BROWSERS_NO_URL_MSG = "❌ No supported browsers found and no COOKIE_URL configured. Use /cookie or upload cookie.txt."
+    COOKIE_FALLBACK_URL_NOT_TXT_MSG = "❌ Fallback COOKIE_URL must point to a .txt file."
+    COOKIE_FALLBACK_TOO_LARGE_MSG = "❌ Fallback cookie file is too large (>100KB)."
+    COOKIE_FALLBACK_UNAVAILABLE_MSG = "❌ Fallback cookie source unavailable (status {status}). Try /cookie or upload cookie.txt."
+    COOKIE_FALLBACK_ERROR_MSG = "❌ Error downloading fallback cookie. Try /cookie or upload cookie.txt."
+    COOKIE_FALLBACK_UNEXPECTED_MSG = "❌ Unexpected error during fallback cookie download."
+    SELECT_BROWSER_MSG = "Select a browser to download cookies from:"
+    BROWSER_NOT_INSTALLED_EDIT_MSG = "⚠️ {browser} browser not installed."
+    COOKIES_SAVED_USING_BROWSER_MSG = "✅ Cookies saved using browser: {browser}"
+    COOKIES_SAVE_FAILED_MSG = "❌ Failed to save cookies: {error}"
+    COOKIE_SOURCE_NOT_CONFIGURED_MSG = "❌ {service} cookie source is not configured!"
+    COOKIE_SOURCE_MUST_BE_TXT_MSG = "❌ {service} cookie source must be a .txt file!"
+    COOKIE_TOO_LARGE_MSG = "❌ {service} cookie file is too large! Max 100KB, got {size}KB."
+    COOKIE_DOWNLOADED_SAVED_MSG = "<b>✅ {service} cookie file downloaded and saved as cookie.txt in your folder.</b>"
+    COOKIE_SOURCE_UNAVAILABLE_MSG = "❌ {service} cookie source is unavailable (status {status}). Please try again later."
+    COOKIE_DOWNLOAD_ERROR_MSG = "❌ Error downloading {service} cookie file. Please try again later."
+    COOKIE_UPDATED_MSG = "<b>✅ Cookie successfully updated:</b>\n<code>{cookie}</code>"
+    COOKIE_NOT_VALID_TEXT_MSG = "<b>❌ Not a valid cookie.</b>"
+    COOKIE_EXISTS_OK_MSG = "✅ Cookie file exists and has correct format"
+    COOKIE_YT_FALLBACK_SAVED_MSG = "✅ YouTube cookie file downloaded via fallback and saved as cookie.txt"
+    COOKIE_YT_SOURCES_NOT_CONFIGURED_MSG = "❌ YouTube cookie sources are not configured!"
+    COOKIE_YT_INVALID_INDEX_MSG = "❌ Invalid YouTube cookie index: {index}. Available range is 1-{total}"
+    COOKIE_TEST_START_MSG = "🔄 Starting YouTube cookies test...\n\nPlease wait while I check and validate your cookies."
+    COOKIE_YT_DOWNLOADING_CHECKING_MSG = "🔄 Downloading and checking YouTube cookies...\n\nAttempt {attempt} of {total}"
+    COOKIE_YT_DOWNLOADING_CHECKING_TESTING_MSG = "🔄 Downloading and checking YouTube cookies...\n\nAttempt {attempt} of {total}\n🔍 Testing cookies..."
+    COOKIE_YT_VALIDATED_MSG = "✅ YouTube cookies successfully downloaded and validated!\n\nUsed source {source} of {total}"
+    COOKIE_YT_ALL_FAILED_MSG = "❌ All YouTube cookies are expired or unavailable!\n\nContact the bot administrator to replace them."
+
+    # Subtitles extra
+    SUBTITLES_NOT_AVAILABLE_SELECTED_MSG = "ℹ️ Subtitles are not available for the selected language"
+    
+    # Image command messages
+    IMAGES_MEDIA_LIMIT_EXCEEDED_MSG = (
+        "❗️ Media limit exceeded: {detected} files found (maximum {max}).\n\n"
+        "Use one of these commands to download maximum available files:\n\n"
+        "<code>/img {start}-{end} {url}</code>\n\n"
+        "<code>{suggest}</code>"
+    )
+    IMAGES_PROGRESS_MSG = (
+        "{downloading}"
+        "Downloaded: <b>{downloaded}</b> / <b>{total}</b>\n"
+        "Sent: <b>{sent}</b>\n"
+        "Pending to send: <b>{pending}</b>"
+    )
+    
+    # Cache/Auto-cache messages
+    AUTO_CACHE_UPDATED_MSG = (
+        "⏱️ Auto Firebase cache interval updated!\n\n"
+        "📊 Status: {status}\n"
+        "⏰ Schedule: every {interval} hours from 00:00\n"
+        "🕒 Next reload: {next_time} (in {delta_min} minutes)"
+    )
+    
+    # Args command messages
+    ARGS_INVALID_BOOL_MSG = "❌ Invalid boolean value"
+    ARGS_MENU_TEXT = (
+        "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n"
+        "<blockquote>📋 <b>Groups:</b>\n"
+        "• ✅/❌ <b>Boolean</b> - True/False switches\n"
+        "• 📋 <b>Select</b> - Choose from options\n"
+        "• 🔢 <b>Numeric</b> - Number input\n"
+        "• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\n"
+        "These settings will be applied to all your downloads."
+    )
+    
+    # Clean command messages and buttons
+    CLEAN_COOKIES_CLEANED_MSG = "Cookies cleaned."
+    CLEAN_LOGS_CLEANED_MSG = "logs cleaned."
+    CLEAN_TAGS_CLEANED_MSG = "tags cleaned."
+    CLEAN_FORMAT_CLEANED_MSG = "format cleaned."
+    CLEAN_SPLIT_CLEANED_MSG = "split cleaned."
+    CLEAN_MEDIAINFO_CLEANED_MSG = "mediainfo cleaned."
+    CLEAN_SUBS_CLEANED_MSG = "Subtitle settings cleaned."
+    CLEAN_KEYBOARD_CLEANED_MSG = "Keyboard settings cleaned."
+    CLEAN_ARGS_CLEANED_MSG = "Args settings cleaned."
+    CLEAN_NSFW_CLEANED_MSG = "NSFW settings cleaned."
+    CLEAN_PROXY_CLEANED_MSG = "Proxy settings cleaned."
+    CLEAN_FLOOD_WAIT_CLEANED_MSG = "Flood wait settings cleaned."
+    CLEAN_ALL_FILES_CLEANED_MSG = "All files cleaned."
+    CLEAN_BTN_COOKIE = "📥 /cookie - Download my 5 cookies"
+    CLEAN_BTN_COOKIES_FROM_BROWSER = "🌐 /cookies_from_browser - Get browser's YT-cookie"
+    CLEAN_BTN_CHECK_COOKIE = "🔎 /check_cookie - Validate your cookie file"
+    CLEAN_BTN_SAVE_AS_COOKIE = "🔖 /save_as_cookie - Upload custom cookie"
+    CLEAN_BTN_BACK = "🔙Back"
+
+    # Format/Quality Messages
+    FORMAT_ALWAYS_ASK_SET_MSG = "✅ Format set to: Always Ask. You will be prompted for quality each time you send a URL."
+    FORMAT_UPDATED_BEST_MSG = "✅ Format updated to best quality:\n{format}"
+    FORMAT_UPDATED_ID_NOTE_AUDIO_MSG = "✅ Format updated to ID {format_id}:\n{format}\n\n💡 <b>Note:</b> If this is an audio-only format, it will be downloaded as MP3 audio file."
+    FORMAT_UPDATED_ID_AUDIO_ONLY_MSG = "✅ Format updated to ID {format_id} (audio-only):\n{format}\n\n💡 This will be downloaded as MP3 audio file."
+    FORMAT_UPDATED_QUALITY_MSG = "✅ Format updated to quality {quality}:\n{format}"
+    FORMAT_UPDATED_GENERIC_MSG = "✅ Format updated to:\n{format}"
+    FORMAT_SELECT_RESOLUTION_MSG = "Select your desired resolution and codec:"
+    FORMAT_SELECT_OPTIONS_MSG = "Select a format option or send a custom one using:\n• <code>/format &lt;format_string&gt;</code> - custom format\n"
+    FORMAT_UPDATED_INLINE_MSG = "✅ Format updated to:\n{format}"
     #######################################################

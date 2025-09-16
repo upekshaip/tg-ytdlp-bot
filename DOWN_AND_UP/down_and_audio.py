@@ -401,6 +401,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     status_msg_id = None
     hourglass_msg = None
     hourglass_msg_id = None
+    download_started_msg_id = None
     audio_files = []
     try:
         # Check if there is a saved waiting time
@@ -417,7 +418,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 time_str = f"{hours}h {minutes}m {seconds}s"
                 proc_msg = safe_send_message(user_id, f"⚠️ Telegram has limited message sending.\n⏳ Please wait: {time_str}\nTo update timer send URL again 2 times.", message=message)
         else:
-            proc_msg = safe_send_message(user_id, "⚠️ Telegram has limited message sending.\n⏳ Please wait: \nTo update timer send URL again 2 times.", message=message)
+            from CONFIG.messages import MessagesConfig as Messages
+            proc_msg = safe_send_message(user_id, Messages.RATE_LIMIT_NO_TIME_MSG, message=message)
 
         # We are trying to replace with "Download started"
         try:
@@ -447,12 +449,15 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         except Exception:
             pass
         proc_msg_id = proc_msg.id
-        status_msg = safe_send_message(user_id, "🎙️ Audio is processing...", message=message)
-        hourglass_msg = safe_send_message(user_id, "⏳ Please wait...", message=message)
+        from CONFIG.messages import MessagesConfig as Messages
+        status_msg = safe_send_message(user_id, Messages.AUDIO_PROCESSING_MSG, message=message)
+        hourglass_msg = safe_send_message(user_id, Messages.PLEASE_WAIT_MSG, message=message)
         try:
             from HELPERS.safe_messeger import schedule_delete_message
             if status_msg and hasattr(status_msg, 'id'):
                 schedule_delete_message(user_id, status_msg.id, delete_after_seconds=5)
+            # track to force-delete on error
+            download_started_msg_id = proc_msg.id
         except Exception:
             pass
         status_msg_id = status_msg.id
@@ -464,7 +469,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         create_directory(user_folder)
 
         if not check_disk_space(user_folder, 500 * 1024 * 1024 * video_count):
-            send_to_user(message, "❌ Not enough disk space to download the audio files.")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_user(message, Messages.ERROR_NO_DISK_SPACE_AUDIO_MSG)
             return
 
         # Create user directory (subscription already checked in video_extractor)
@@ -560,21 +566,24 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 blocks = int(percent // 10)
                 bar = "🟩" * blocks + "⬜️" * (10 - blocks)
                 try:
-                    safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n📥 Downloading audio:\n{bar}   {percent:.1f}%")
+                    from CONFIG.messages import MessagesConfig as Messages
+                    safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{Messages.AUDIO_DOWNLOADING_MSG}\n{bar}   {percent:.1f}%")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "finished":
                 try:
                     full_bar = "🟩" * 10
+                    from CONFIG.messages import MessagesConfig as Messages
                     safe_edit_message_text(user_id, proc_msg_id,
-                        f"{current_total_process}\n📥 Downloading audio:\n{full_bar}   100.0%\nDownload finished, processing audio...")
+                        f"{current_total_process}\n{Messages.AUDIO_DOWNLOADING_MSG}\n{full_bar}   100.0%\nDownload finished, processing audio...")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "error":
                 try:
-                    safe_edit_message_text(user_id, proc_msg_id, "Error occurred during audio download.")
+                    from CONFIG.messages import MessagesConfig as Messages
+                    safe_edit_message_text(user_id, proc_msg_id, getattr(Messages, 'ERROR_DOWNLOAD_MSG', '❌ Sorry... Some error occurred during download.'))
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
@@ -858,7 +867,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     return "SKIP"  # Skip this audio and continue with next
                 
                 else:
-                    send_to_user(message, f"❌ Unknown error: {e}")
+                    from CONFIG.messages import MessagesConfig as Messages
+                    send_to_user(message, Messages.UNKNOWN_ERROR_MSG.format(error=e))
                 return None
 
         # Download thumbnail for embedding (only once for the URL)
@@ -936,7 +946,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             # Check if info_dict is None before accessing it
             if info_dict is None:
                 logger.error("info_dict is None, cannot proceed with audio processing")
-                send_to_user(message, "❌ Failed to extract audio information")
+                from CONFIG.messages import MessagesConfig as Messages
+                send_to_user(message, Messages.AUDIO_INFO_EXTRACT_FAILED_MSG)
                 break
 
             audio_title = info_dict.get("title", "audio")
@@ -1000,7 +1011,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
             audio_file = os.path.join(user_folder, final_name)
             if not os.path.exists(audio_file):
-                send_to_user(message, "Audio file not found after download.")
+                from CONFIG.messages import MessagesConfig as Messages
+                send_to_user(message, Messages.AUDIO_FILE_NOT_FOUND_MSG)
                 continue
 
             # Embed cover into MP3 file if thumbnail is available
@@ -1053,7 +1065,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
             try:
                 full_bar = "🟩" * 10
-                safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n📤 Uploading audio file...\n{full_bar}   100.0%")
+                from CONFIG.messages import MessagesConfig as Messages
+                safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{Messages.AUDIO_UPLOAD_PROGRESS_MSG}\n{full_bar}   100.0%")
             except Exception as e:
                 logger.error(f"Error updating upload status: {e}")
 
@@ -1236,8 +1249,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 elif is_nsfw:
                     logger.info(f"down_and_audio: skipping cache for NSFW content (url={url})")
             except Exception as send_error:
+                from CONFIG.messages import MessagesConfig as Messages
                 logger.error(f"Error sending audio: {send_error}")
-                send_to_user(message, f"❌ Failed to send audio: {send_error}")
+                send_to_user(message, Messages.AUDIO_SEND_FAILED_MSG.format(error=send_error))
                 continue
 
             # Clean up the audio file after sending
@@ -1270,11 +1284,24 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
     except Exception as e:
         if "Download timeout exceeded" in str(e):
-            send_to_user(message, "⏰ Download cancelled due to timeout (2 hours)")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_user(message, Messages.AUDIO_DOWNLOAD_TIMEOUT_MSG)
             send_to_logger(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG)
         else:
+            from CONFIG.messages import MessagesConfig as Messages
             logger.error(f"Error in audio download: {e}")
-            send_to_user(message, f"❌ Failed to download audio: {e}")
+            send_to_user(message, Messages.AUDIO_DOWNLOAD_FAILED_MSG.format(error=e))
+        # Immediate cleanup on error
+        try:
+            if status_msg_id:
+                safe_delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
+            if hourglass_msg_id:
+                safe_delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
+            if download_started_msg_id:
+                safe_delete_messages(chat_id=user_id, message_ids=[download_started_msg_id], revoke=True)
+            stop_anim.set()
+        except Exception:
+            pass
     finally:
         # Always clean up resources
         stop_anim.set()

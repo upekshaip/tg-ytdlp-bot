@@ -276,7 +276,8 @@ def subs_command(app, message):
             save_subs_always_ask(user_id, False)
             save_user_subs_language(user_id, "OFF")
             from HELPERS.safe_messeger import safe_send_message
-            safe_send_message(user_id, "✅ Subtitles disabled and Always Ask mode turned off.", message=message)
+            from CONFIG.messages import MessagesConfig as Messages
+            safe_send_message(user_id, Messages.SUBTITLES_DISABLED_MSG if hasattr(Messages, 'SUBTITLES_DISABLED_MSG') else "✅ Subtitles disabled and Always Ask mode turned off.", message=message)
             send_to_logger(message, f"SUBS disabled via command: {arg}")
             return
         
@@ -284,7 +285,8 @@ def subs_command(app, message):
         elif arg == "on":
             save_subs_always_ask(user_id, True)
             from HELPERS.safe_messeger import safe_send_message
-            safe_send_message(user_id, "✅ SUBS Always Ask enabled.", message=message)
+            from CONFIG.messages import MessagesConfig as Messages
+            safe_send_message(user_id, getattr(Messages, 'SUBTITLES_ALWAYS_ASK_ENABLED_MSG', "✅ SUBS Always Ask enabled."), message=message)
             send_to_logger(message, f"SUBS Always Ask enabled via command: {arg}")
             return
         
@@ -293,7 +295,8 @@ def subs_command(app, message):
             save_user_subs_language(user_id, arg)
             lang_info = LANGUAGES[arg]
             from HELPERS.safe_messeger import safe_send_message
-            safe_send_message(user_id, f"✅ Subtitle language set to: {lang_info['flag']} {lang_info['name']}", message=message)
+            from CONFIG.messages import MessagesConfig as Messages
+            safe_send_message(user_id, Messages.SUBTITLES_LANG_SET_MSG.format(flag=lang_info['flag'], name=lang_info['name']) if hasattr(Messages, 'SUBTITLES_LANG_SET_MSG') else f"✅ Subtitle language set to: {lang_info['flag']} {lang_info['name']}", message=message)
             send_to_logger(message, f"SUBS language set via command: {arg}")
             return
         
@@ -303,23 +306,16 @@ def subs_command(app, message):
             save_user_subs_auto_mode(user_id, True)
             lang_info = LANGUAGES[arg]
             from HELPERS.safe_messeger import safe_send_message
-            safe_send_message(user_id, f"✅ Subtitle language set to: {lang_info['flag']} {lang_info['name']} with AUTO/TRANS enabled.", message=message)
+            from CONFIG.messages import MessagesConfig as Messages
+            safe_send_message(user_id, Messages.SUBTITLES_LANG_SET_AUTO_MSG.format(flag=lang_info['flag'], name=lang_info['name']) if hasattr(Messages, 'SUBTITLES_LANG_SET_AUTO_MSG') else f"✅ Subtitle language set to: {lang_info['flag']} {lang_info['name']} with AUTO/TRANS enabled.", message=message)
             send_to_logger(message, f"SUBS language + auto mode set via command: {arg} auto")
             return
         
         # Invalid argument
         else:
             from HELPERS.safe_messeger import safe_send_message
-            safe_send_message(user_id, 
-                "❌ **Invalid argument!**\n\n"
-                "Valid options:\n"
-                "• `/subs off` - disable subtitles\n"
-                "• `/subs on` - enable Always Ask mode\n"
-                "• `/subs ru` - set language (any language code)\n"
-                "• `/subs ru auto` - set language with AUTO/TRANS enabled\n\n"
-                "Example: `/subs en auto`",
-                message=message
-            )
+            from CONFIG.messages import MessagesConfig as Messages
+            safe_send_message(user_id, getattr(Messages, 'SUBTITLES_INVALID_ARG_MSG', "❌ **Invalid argument!**\n\nValid options:\n• `/subs off` - disable subtitles\n• `/subs on` - enable Always Ask mode\n• `/subs ru` - set language (any language code)\n• `/subs ru auto` - set language with AUTO/TRANS enabled\n\nExample: `/subs en auto`"), message=message)
             return
 
 
@@ -1375,7 +1371,8 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
         
         # Send message about download start
         from HELPERS.safe_messeger import safe_send_message
-        status_msg = safe_send_message(user_id, "💬 Downloading subtitles...", reply_parameters=ReplyParameters(message_id=message.id))
+        from CONFIG.messages import MessagesConfig as Messages
+        status_msg = safe_send_message(user_id, Messages.SUBTITLES_DOWNLOAD_IN_PROGRESS_MSG, reply_parameters=ReplyParameters(message_id=message.id))
         
         # Download subtitles
         subs_path = download_subtitles_ytdlp(url, user_id, user_dir, available_langs)
@@ -1427,9 +1424,11 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
                 except:
                     pass
             else:
-                app.edit_message_text(user_id, status_msg.id, "❌ Error processing subtitle file.")
+                from CONFIG.messages import MessagesConfig as Messages
+                app.edit_message_text(user_id, status_msg.id, Messages.SUBTITLES_PROCESSING_FILE_ERROR_MSG)
         else:
-            app.edit_message_text(user_id, status_msg.id, "❌ Failed to download subtitles.")
+            from CONFIG.messages import MessagesConfig as Messages
+            app.edit_message_text(user_id, status_msg.id, Messages.SUBTITLES_FAILED_MSG)
             
     except Exception as e:
         logger.error(f"Error downloading subtitles: {e}")

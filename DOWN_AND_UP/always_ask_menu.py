@@ -985,7 +985,6 @@ def askq_callback(app, callback_query):
                 temp_file.write("💡 How to use format IDs:\n")
                 temp_file.write("After getting the list, use specific format ID:\n")
                 temp_file.write("• /format id 401 - download format 401\n")
-                temp_file.write("• /format id401 - same as above\n")
                 temp_file.write("• /format id 140 audio - download format 140 as MP3 audio\n")
                 
                 # Add special note for audio-only formats
@@ -1795,7 +1794,8 @@ def askq_callback(app, callback_query):
                     down_and_up(app, original_message, url, playlist_name, new_count, new_start, tags_text, force_no_title=False, format_override=format_override, quality_key=used_quality_key, cookies_already_checked=True)
             else:
                 # All videos were in the cache
-                app.send_message(target_chat_id, f"✅ Sent from cache: {len(cached_videos)}/{len(requested_indices)} files.", reply_parameters=ReplyParameters(message_id=original_message.id))
+                from CONFIG.messages import MessagesConfig as Messages
+                app.send_message(target_chat_id, Messages.PLAYLIST_CACHE_SENT_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=original_message.id))
                 media_type = "Audio" if data == "mp3" else "Video"
                 log_msg = f"{media_type} playlist sent from cache to user.\nURL: {url}\nUser: {callback_query.from_user.first_name} ({user_id})"
                 send_to_logger(original_message, log_msg)
@@ -1933,7 +1933,8 @@ def askq_callback(app, callback_query):
                         from_chat_id=from_chat_id,
                         message_ids=message_ids
                     )
-                app.send_message(target_chat_id, "✅ Video successfully sent from cache.", reply_parameters=ReplyParameters(message_id=original_message.id))
+                from CONFIG.messages import MessagesConfig as Messages
+                app.send_message(target_chat_id, Messages.VIDEO_SENT_FROM_CACHE_MSG, reply_parameters=ReplyParameters(message_id=original_message.id))
                 media_type = "Audio" if data == "mp3" else "Video"
                 log_msg = f"{media_type} sent from cache to user.\nURL: {url}\nUser: {callback_query.from_user.first_name} ({user_id})"
                 send_to_logger(original_message, log_msg)
@@ -1970,7 +1971,8 @@ def show_manual_quality_menu(app, callback_query):
     # Extract URL and tags from the callback
     original_message = callback_query.message.reply_to_message
     if not original_message:
-        callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+        from CONFIG.messages import MessagesConfig as Messages
+        callback_query.answer(Messages.ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
         callback_query.message.delete()
         return
     
@@ -2860,11 +2862,14 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 minutes = (wait_time % 3600) // 60
                 seconds = wait_time % 60
                 time_str = f"{hours}h {minutes}m {seconds}s"
-                proc_msg = app.send_message(user_id, f"⚠️ Telegram has limited message sending.\n⏳ Please wait: {time_str}\nTo update timer send URL again 2 times.")
+                from CONFIG.messages import MessagesConfig as Messages
+                proc_msg = app.send_message(user_id, Messages.RATE_LIMIT_WITH_TIME_MSG.format(time=time_str))
             else:
-                proc_msg = app.send_message(user_id, "⚠️ Telegram has limited message sending.\n⏳ Please wait: \nTo update timer send URL again 2 times.")
+                from CONFIG.messages import MessagesConfig as Messages
+                proc_msg = app.send_message(user_id, Messages.RATE_LIMIT_NO_TIME_MSG)
             try:
-                app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text="<b>▶️ Download started</b>", parse_mode=enums.ParseMode.HTML)
+                from CONFIG.messages import MessagesConfig as Messages
+                app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=Messages.DOWNLOAD_STARTED_MSG, parse_mode=enums.ParseMode.HTML)
                 try:
                     from HELPERS.safe_messeger import schedule_delete_message
                     schedule_delete_message(user_id, proc_msg.id, delete_after_seconds=5)

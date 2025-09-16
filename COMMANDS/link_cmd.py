@@ -345,12 +345,14 @@ def link_command(app, message):
         
         # Check if this is a URL
         if not url.startswith(('http://', 'https://')):
-            send_to_user(message, "❌ Please provide a valid URL")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_user(message, Messages.VALID_URL_REQUIRED_MSG)
             return
         
         # Send processing start message
         from HELPERS.safe_messeger import safe_send_message
-        status_msg = safe_send_message(user_id, "🔗 Getting direct link...", reply_to_message_id=message.id, message=message)
+        from CONFIG.messages import MessagesConfig as Messages
+        status_msg = safe_send_message(user_id, Messages.DIRECT_LINK_GETTING_MSG, reply_to_message_id=message.id, message=message)
         
         # Get direct link - use proxy only if user has proxy enabled and domain requires it
         result = get_direct_link(url, user_id, quality_arg, use_proxy=False)

@@ -340,7 +340,8 @@ def block_user(app, message):
         dt = math.floor(time.time())
         parts = (message.text or "").strip().split(maxsplit=1)
         if len(parts) < 2:
-            send_to_user(message, "❌ Usage: /block_user <user_id>")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_user(message, Messages.USAGE_BLOCK_USER_MSG)
             return
         b_user_id = parts[1].strip()
 
@@ -358,9 +359,11 @@ def block_user(app, message):
         if b_user_id not in b_users:
             data = {"ID": b_user_id, "timestamp": str(dt)}
             db.child(f"{Config.BOT_DB_PATH}/blocked_users/{b_user_id}").set(data)
-            send_to_user(message, f"User blocked 🔒❌\n \nID: <code>{b_user_id}</code>\nBlocked Date: {datetime.fromtimestamp(dt)}")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_user(message, Messages.USER_BLOCKED_MSG.format(user_id=b_user_id, blocked_date=datetime.fromtimestamp(dt)))
         else:
-            send_to_user(message, f"<code>{b_user_id}</code> is already blocked ❌😐")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_user(message, Messages.USER_ALREADY_BLOCKED_MSG.format(user_id=b_user_id))
     else:
         send_to_all(message, "🚫 Sorry! You are not an admin")
 
@@ -371,7 +374,8 @@ def unblock_user(app, message):
     if int(message.chat.id) in Config.ADMIN:
         parts = (message.text or "").strip().split(maxsplit=1)
         if len(parts) < 2:
-            send_to_user(message, "❌ Usage: /unblock_user <user_id>")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_user(message, Messages.USAGE_UNBLOCK_USER_MSG)
             return
         ub_user_id = parts[1].strip()
 
@@ -389,7 +393,8 @@ def unblock_user(app, message):
                 message, f"User unblocked 🔓✅\n \nID: <code>{ub_user_id}</code>\nUnblocked Date: {datetime.fromtimestamp(dt)}")
 
         else:
-            send_to_user(message, f"<code>{ub_user_id}</code> is already unblocked ✅😐")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_user(message, Messages.USER_ALREADY_UNBLOCKED_MSG.format(user_id=ub_user_id))
     else:
         send_to_all(message, "🚫 Sorry! You are not an admin")
 
@@ -400,8 +405,9 @@ def check_runtime(message):
     if int(message.chat.id) in Config.ADMIN:
         now = time.time()
         now = math.floor((now - starting_point[0]) * 1000)
+        from CONFIG.messages import MessagesConfig as Messages
         now = TimeFormatter(now)
-        send_to_user(message, f"⏳ <i>Bot running time -</i> <b>{now}</b>")
+        send_to_user(message, Messages.BOT_RUNNING_TIME_MSG.format(uptime=now))
     pass
 
 
@@ -418,11 +424,13 @@ def uncache_command(app, message):
     user_id = message.chat.id
     text = message.text.strip()
     if len(text.split()) < 2:
-        send_to_user(message, "❌ Please provide a URL to clear cache for.\nUsage: <code>/uncache &lt;URL&gt;</code>")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_user(message, Messages.UNCACHE_USAGE_MSG)
         return
     url = text.split(maxsplit=1)[1].strip()
     if not url.startswith("http://") and not url.startswith("https://"):
-        send_to_user(message, "❌ Please provide a valid URL.\nUsage: <code>/uncache &lt;URL&gt;</code>")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_user(message, Messages.UNCACHE_URL_INVALID_MSG)
         return
     removed_any = False
     try:
@@ -464,10 +472,12 @@ def uncache_command(app, message):
                 db_child_by_path(db, f"{Config.VIDEO_CACHE_DB_PATH}/{h}").remove()
                 db_child_by_path(db, f"{Config.PLAYLIST_CACHE_DB_PATH}/{h}").remove()
         if removed_any:
-            send_to_user(message, f"✅ Cache cleared successfully for URL:\n<code>{url}</code>")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_user(message, Messages.UNCACHE_CLEARED_MSG.format(url=url))
             send_to_logger(message, f"Admin {user_id} cleared cache for URL: {url}")
         else:
-            send_to_user(message, "ℹ️ No cache found for this link.")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_user(message, Messages.UNCACHE_NOT_FOUND_MSG)
     except Exception as e:
         send_to_all(message, f"❌ Error clearing cache: {e}")
 
@@ -476,13 +486,15 @@ def uncache_command(app, message):
 def update_porn_command(app, message):
     """Admin command to run the porn list update script"""
     if int(message.chat.id) not in Config.ADMIN:
-        send_to_user(message, "❌ Access denied. Admin only.")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_user(message, Messages.ACCESS_DENIED_ADMIN_MSG)
         return
     
     script_path = getattr(Config, "UPDATE_PORN_SCRIPT_PATH", "./script.sh")
     
     try:
-        send_to_user(message, f"⏳ Running porn list update script: {script_path}")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_user(message, Messages.RUNNING_PORN_UPDATE_SCRIPT_MSG.format(path=script_path))
         send_to_logger(message, f"Admin {message.chat.id} started porn list update script: {script_path}")
         
         # Run the script
@@ -497,21 +509,25 @@ def update_porn_command(app, message):
         
         if result.returncode == 0:
             output = result.stdout.strip()
+            from CONFIG.messages import MessagesConfig as Messages
             if output:
-                send_to_user(message, f"✅ Script completed successfully!\n\nOutput:\n<code>{output}</code>")
+                send_to_user(message, Messages.SCRIPT_COMPLETED_WITH_OUTPUT_MSG.format(output=output))
             else:
-                send_to_user(message, "✅ Script completed successfully!")
+                send_to_user(message, Messages.SCRIPT_COMPLETED_SUCCESS_MSG)
             send_to_logger(message, f"Porn list update script completed successfully by admin {message.chat.id}")
         else:
+            from CONFIG.messages import MessagesConfig as Messages
             error_msg = result.stderr.strip() if result.stderr else "Unknown error"
-            send_to_user(message, f"❌ Script failed with return code {result.returncode}:\n<code>{error_msg}</code>")
+            send_to_user(message, Messages.SCRIPT_FAILED_WITH_CODE_MSG.format(code=result.returncode, error=error_msg))
             send_to_logger(message, f"Porn list update script failed by admin {message.chat.id}: {error_msg}")
             
     except FileNotFoundError:
-        send_to_user(message, f"❌ Script not found: {script_path}")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_user(message, Messages.SCRIPT_NOT_FOUND_MSG.format(path=script_path))
         send_to_logger(message, f"Admin {message.chat.id} tried to run non-existent script: {script_path}")
     except Exception as e:
-        send_to_user(message, f"❌ Error running script: {str(e)}")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_user(message, Messages.ERROR_RUNNING_SCRIPT_MSG.format(error=str(e)))
         send_to_logger(message, f"Error running porn update script by admin {message.chat.id}: {str(e)}")
 
 
@@ -519,11 +535,13 @@ def update_porn_command(app, message):
 def reload_porn_command(app, message):
     """Admin command to reload porn domains and keywords cache without restarting the bot"""
     if int(message.chat.id) not in Config.ADMIN:
-        send_to_user(message, "❌ Access denied. Admin only.")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_user(message, Messages.ACCESS_DENIED_ADMIN_MSG)
         return
     
     try:
-        send_to_user(message, "⏳ Reloading porn and domain-related caches...")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_user(message, Messages.RELOADING_PORN_CACHE_MSG)
         send_to_logger(message, f"Admin {message.chat.id} started porn cache reload")
         
         # Import and reload all caches (files + CONFIG/domains.py arrays)
@@ -561,6 +579,7 @@ def reload_porn_command(app, message):
         )
         
     except Exception as e:
+        from CONFIG.messages import MessagesConfig as Messages
         send_to_user(message, f"❌ Error reloading porn cache: {str(e)}")
         send_to_logger(message, f"Error reloading porn cache by admin {message.chat.id}: {str(e)}")
 
@@ -576,17 +595,20 @@ def check_porn_command(app, message):
     
     # Then check if user is admin
     if int(user_id) not in Config.ADMIN:
-        send_to_user(message, "❌ Access denied. Admin only.")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_user(message, Messages.ACCESS_DENIED_ADMIN_MSG)
         return
     
     text = message.text.strip()
     if len(text.split()) < 2:
-        send_to_user(message, "❌ Please provide a URL to check.\nUsage: <code>/check_porn &lt;URL&gt;</code>")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_user(message, getattr(Messages, 'CHECK_PORN_USAGE_MSG', "❌ Please provide a URL to check.\nUsage: <code>/check_porn &lt;URL&gt;</code>"))
         return
     
     url = text.split(maxsplit=1)[1].strip()
     if not url.startswith("http://") and not url.startswith("https://"):
-        send_to_user(message, "❌ Please provide a valid URL.\nUsage: <code>/check_porn &lt;URL&gt;</code>")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_user(message, getattr(Messages, 'CHECK_PORN_URL_INVALID_MSG', "❌ Please provide a valid URL.\nUsage: <code>/check_porn &lt;URL&gt;</code>"))
         return
     
     try:

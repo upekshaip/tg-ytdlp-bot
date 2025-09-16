@@ -48,7 +48,8 @@ def help_msg_callback(app, callback_query):
 def audio_command_handler(app, message):
     user_id = message.chat.id
     if get_active_download(user_id):
-        safe_send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_parameters=ReplyParameters(message_id=message.id))
+        from CONFIG.messages import MessagesConfig as Messages
+        safe_send_message(user_id, Messages.WAIT_PREV_DOWNLOAD_MSG, reply_parameters=ReplyParameters(message_id=message.id))
         return
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
@@ -77,7 +78,8 @@ def audio_command_handler(app, message):
     url, _, _, _, tags, tags_text, tag_error = extract_url_range_tags(text)
     if tag_error:
         wrong, example = tag_error
-        error_msg = f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}"
+        from CONFIG.messages import MessagesConfig as Messages
+        error_msg = Messages.TAG_FORBIDDEN_CHARS_MSG.format(tag=wrong, example=example)
         safe_send_message(user_id, error_msg, reply_parameters=ReplyParameters(message_id=message.id))
         from HELPERS.logger import log_error_to_channel
         log_error_to_channel(message, error_msg)
@@ -86,16 +88,10 @@ def audio_command_handler(app, message):
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔚Close", callback_data="audio_hint|close")]
         ])
+        from CONFIG.messages import MessagesConfig as Messages
         safe_send_message(
             user_id,
-            "<b>🎧 Audio Download Command</b>\n\n"
-            "Usage: <code>/audio URL</code>\n\n"
-            "<b>Examples:</b>\n"
-            "• <code>/audio https://youtu.be/abc123</code>\n"
-            "• <code>/audio https://www.youtube.com/watch?v=abc123</code>\n"
-            "• <code>/audio https://www.youtube.com/playlist?list=PL123*1*10</code>\n"
-            "• <code>/audio 1-10 https://www.youtube.com/playlist?list=PL123</code>\n\n"
-            "Also see: /vid, /img, /help, /playlist, /settings",
+            Messages.AUDIO_HINT_MSG,
             parse_mode=enums.ParseMode.HTML,
             reply_parameters=ReplyParameters(message_id=message.id),
             reply_markup=keyboard

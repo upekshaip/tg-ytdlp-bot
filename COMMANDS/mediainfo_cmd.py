@@ -40,7 +40,8 @@ def mediainfo_command(app, message):
             if arg in ("on", "off"):
                 with open(mediainfo_file, "w", encoding="utf-8") as f:
                     f.write("ON" if arg == "on" else "OFF")
-                safe_send_message(user_id, f"✅ MediaInfo {'enabled' if arg=='on' else 'disabled' }.", message=message)
+                from CONFIG.messages import MessagesConfig as Messages
+                safe_send_message(user_id, Messages.MEDIINFO_SET_MSG.format(state='enabled' if arg=='on' else 'disabled'), message=message)
                 send_to_logger(message, f"MediaInfo set via command: {arg}")
                 return
     except Exception:
@@ -50,9 +51,10 @@ def mediainfo_command(app, message):
         [InlineKeyboardButton("🔚Close", callback_data="mediainfo_option|close")],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
+    from CONFIG.messages import MessagesConfig as Messages
     safe_send_message(
         user_id,
-        "Enable or disable sending MediaInfo for downloaded files?",
+        getattr(Messages, 'MEDIAINFO_MENU_TEXT', "Enable or disable sending MediaInfo for downloaded files?"),
         reply_markup=keyboard,
         message=message
     )
@@ -82,7 +84,8 @@ def mediainfo_option_callback(app, callback_query):
     if data == "on":
         with open(mediainfo_file, "w", encoding="utf-8") as f:
             f.write("ON")
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "✅ MediaInfo enabled. After downloading, file info will be sent.")
+        from CONFIG.messages import MessagesConfig as Messages
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'MEDIAINFO_ENABLED_MSG', "✅ MediaInfo enabled. After downloading, file info will be sent."))
         send_to_logger(callback_query.message, "MediaInfo enabled.")
         try:
             callback_query.answer("MediaInfo enabled.")
@@ -92,7 +95,8 @@ def mediainfo_option_callback(app, callback_query):
     if data == "off":
         with open(mediainfo_file, "w", encoding="utf-8") as f:
             f.write("OFF")
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "❌ MediaInfo disabled.")
+        from CONFIG.messages import MessagesConfig as Messages
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'MEDIAINFO_DISABLED_MSG', "❌ MediaInfo disabled."))
         send_to_logger(callback_query.message, "MediaInfo disabled.")
         try:
             callback_query.answer("MediaInfo disabled.")

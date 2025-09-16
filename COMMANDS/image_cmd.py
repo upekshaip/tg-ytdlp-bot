@@ -707,12 +707,17 @@ def image_command(app, message):
                 
                 suggested_command_url_format = f"{url}*{start_range}*{end_range}"
                 
+                from CONFIG.messages import MessagesConfig as Messages
                 safe_send_message(
                     user_id,
-                    f"❗️ Media limit exceeded: {detected_total} files found (maximum {max_img_files}).\n\n"
-                    f"Use one of these commands to download maximum available files:\n\n"
-                    f"<code>/img {start_range}-{end_range} {url}</code>\n\n"
-                    f"<code>{suggested_command_url_format}</code>",
+                    Messages.IMAGES_MEDIA_LIMIT_EXCEEDED_MSG.format(
+                        detected=detected_total,
+                        max=max_img_files,
+                        start=start_range,
+                        end=end_range,
+                        url=url,
+                        suggest=suggested_command_url_format
+                    ),
                     parse_mode=enums.ParseMode.HTML,
                     reply_parameters=ReplyParameters(message_id=message.id)
                 )
@@ -749,13 +754,17 @@ def image_command(app, message):
 
         def update_status():
             try:
+                from CONFIG.messages import MessagesConfig as Messages
                 safe_edit_message_text(
                     user_id,
                     status_msg.id,
-                    Config.DOWNLOADING_MSG +
-                    f"Downloaded: <b>{total_downloaded}</b> / <b>{total_expected or total_limit}</b>\n"
-                    f"Sent: <b>{total_sent}</b>\n"
-                    f"Pending to send: <b>{len(photos_videos_buffer) + len(others_buffer)}</b>",
+                    Messages.IMAGES_PROGRESS_MSG.format(
+                        downloading=Config.DOWNLOADING_MSG,
+                        downloaded=total_downloaded,
+                        total=(total_expected or total_limit),
+                        sent=total_sent,
+                        pending=(len(photos_videos_buffer) + len(others_buffer))
+                    ),
                     parse_mode=enums.ParseMode.HTML,
                 )
             except Exception:

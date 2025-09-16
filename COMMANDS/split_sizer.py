@@ -76,7 +76,8 @@ def split_command(app, message):
             with open(split_file, "w", encoding="utf-8") as f:
                 f.write(str(size))
             
-            safe_send_message(user_id, f"✅ Split part size set to: {humanbytes(size)}", message=message)
+            from CONFIG.messages import MessagesConfig as Messages
+            safe_send_message(user_id, Messages.SPLIT_SIZE_SET_MSG.format(size=humanbytes(size)), message=message)
             send_to_logger(message, f"Split size set to {size} bytes via argument.")
             return
         else:
@@ -159,7 +160,8 @@ def split_size_callback(app, callback_query):
     split_file = os.path.join(user_dir, "split.txt")
     with open(split_file, "w", encoding="utf-8") as f:
         f.write(str(size))
-    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, f"✅ Split part size set to: {humanbytes(size)}")
+    from CONFIG.messages import MessagesConfig as Messages
+    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.SPLIT_SIZE_SET_MSG.format(size=humanbytes(size)))
     send_to_logger(callback_query.message, f"Split size set to {size} bytes.")
 
 # --- Function for reading split.txt ---

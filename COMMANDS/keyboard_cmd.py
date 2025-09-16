@@ -25,9 +25,10 @@ def keyboard_command(app, message):
                 f.write(arg.upper())
             
             # Show confirmation
+            from CONFIG.messages import MessagesConfig as Messages
             safe_send_message(
                 message.chat.id,
-                f"🎹 **Keyboard setting updated!**\n\nNew setting: **{arg.upper()}**",
+                getattr(Messages, 'KEYBOARD_SETTING_UPDATED_MSG', "🎹 **Keyboard setting updated!**\n\nNew setting: **{setting}**").format(setting=arg.upper()),
                 message=message
             )
             
@@ -38,9 +39,10 @@ def keyboard_command(app, message):
             send_to_logger(message, f"User {user_id} set keyboard to {arg.upper()}")
             return
         else:
+            from CONFIG.messages import MessagesConfig as Messages
             safe_send_message(
                 message.chat.id,
-                "❌ **Invalid argument!**\n\nValid options: `off`, `1x3`, `2x3`, `full`\n\nExample: `/keyboard off`",
+                getattr(Messages, 'KEYBOARD_INVALID_ARG_MSG', "❌ **Invalid argument!**\n\nValid options: `off`, `1x3`, `2x3`, `full`\n\nExample: `/keyboard off`"),
                 message=message
             )
             return
@@ -64,7 +66,8 @@ def keyboard_command(app, message):
         [InlineKeyboardButton("📱 1x3", callback_data=f"keyboard|1x3"), InlineKeyboardButton("📱 2x3", callback_data=f"keyboard|2x3")]
     ])
     
-    status_text = f"🎹 **Keyboard Settings**\n\nCurrent: **{current_setting}**\n\nChoose an option:\n\nOr use: `/keyboard off`, `/keyboard 1x3`, `/keyboard 2x3`, `/keyboard full`"
+    from CONFIG.messages import MessagesConfig as Messages
+    status_text = getattr(Messages, 'KEYBOARD_SETTINGS_STATUS_MSG', "🎹 **Keyboard Settings**\n\nCurrent: **{current}**\n\nChoose an option:\n\nOr use: `/keyboard off`, `/keyboard 1x3`, `/keyboard 2x3`, `/keyboard full`").format(current=current_setting)
     
     # Send the settings message
     safe_send_message(
@@ -82,7 +85,8 @@ def keyboard_command(app, message):
     ]
     
     reply_markup = ReplyKeyboardMarkup(full_keyboard, resize_keyboard=True)
-    safe_send_message(message.chat.id, "🎹 keyboard activated!", reply_markup=reply_markup, message=message)
+    from CONFIG.messages import MessagesConfig as Messages
+    safe_send_message(message.chat.id, Messages.KEYBOARD_ACTIVATED_MSG if hasattr(Messages, 'KEYBOARD_ACTIVATED_MSG') else "🎹 keyboard activated!", reply_markup=reply_markup, message=message)
 
 def keyboard_callback_handler(app, callback_query):
     """Handle keyboard setting callbacks"""
@@ -104,7 +108,8 @@ def keyboard_callback_handler(app, callback_query):
                 f.write(setting)
 
         # Prepare status text
-        status_text = f"🎹 **Keyboard setting updated!**\n\nNew setting: **{setting}**"
+        from CONFIG.messages import MessagesConfig as Messages
+        status_text = getattr(Messages, 'KEYBOARD_SETTING_UPDATED_MSG', "🎹 **Keyboard setting updated!**\n\nNew setting: **{setting}**").format(setting=setting)
 
         app.edit_message_text(
             chat_id=callback_query.message.chat.id,
@@ -119,9 +124,10 @@ def keyboard_callback_handler(app, callback_query):
         # Apply visual keyboard immediately
         if setting == "OFF":
             try:
+                from CONFIG.messages import MessagesConfig as Messages
                 safe_send_message(
                     callback_query.message.chat.id,
-                    "⌨️ Keyboard hidden",
+                    getattr(Messages, 'KEYBOARD_HIDDEN_MSG', "⌨️ Keyboard hidden"),
                     reply_markup=ReplyKeyboardRemove(selective=False),
                     reply_parameters=ReplyParameters(message_id=callback_query.message.id)
                 )
@@ -130,9 +136,10 @@ def keyboard_callback_handler(app, callback_query):
                 logger.warning(f"Failed to hide keyboard: {e}")
         elif setting == "1x3":
             one_by_three = [["/clean", "/cookie", "/settings"]]
+            from CONFIG.messages import MessagesConfig as Messages
             safe_send_message(
                 callback_query.message.chat.id,
-                "📱 1x3 keyboard activated!",
+                getattr(Messages, 'KEYBOARD_1X3_ACTIVATED_MSG', "📱 1x3 keyboard activated!"),
                 reply_markup=ReplyKeyboardMarkup(one_by_three, resize_keyboard=True),
                 reply_parameters=ReplyParameters(message_id=callback_query.message.id)
             )
@@ -141,9 +148,10 @@ def keyboard_callback_handler(app, callback_query):
                 ["/clean", "/cookie", "/settings"],
                 ["/playlist", "/search", "/help"]
             ]
+            from CONFIG.messages import MessagesConfig as Messages
             safe_send_message(
                 callback_query.message.chat.id,
-                "📱 2x3 keyboard activated!",
+                getattr(Messages, 'KEYBOARD_2X3_ACTIVATED_MSG', "📱 2x3 keyboard activated!"),
                 reply_markup=ReplyKeyboardMarkup(two_by_three, resize_keyboard=True),
                 reply_parameters=ReplyParameters(message_id=callback_query.message.id)
             )
@@ -153,9 +161,10 @@ def keyboard_callback_handler(app, callback_query):
                 ["📼", "📊", "✂️", "🎧", "💬", "🌎"],
                 ["#️⃣", "🆘", "📃", "⏯️", "🎹", "🔗"]
             ]
+            from CONFIG.messages import MessagesConfig as Messages
             safe_send_message(
                 callback_query.message.chat.id,
-                "🔣 Emoji keyboard activated!",
+                getattr(Messages, 'KEYBOARD_EMOJI_ACTIVATED_MSG', "🔣 Emoji keyboard activated!"),
                 reply_markup=ReplyKeyboardMarkup(emoji_keyboard, resize_keyboard=True),
                 reply_parameters=ReplyParameters(message_id=callback_query.message.id)
             )
@@ -172,16 +181,18 @@ def apply_keyboard_setting(app, chat_id, setting):
     """Apply keyboard setting immediately"""
     try:
         if setting == "OFF":
+            from CONFIG.messages import MessagesConfig as Messages
             safe_send_message(
                 chat_id,
-                "⌨️ Keyboard hidden",
+                getattr(Messages, 'KEYBOARD_HIDDEN_MSG', "⌨️ Keyboard hidden"),
                 reply_markup=ReplyKeyboardRemove(selective=False)
             )
         elif setting == "1x3":
             one_by_three = [["/clean", "/cookie", "/settings"]]
+            from CONFIG.messages import MessagesConfig as Messages
             safe_send_message(
                 chat_id,
-                "📱 1x3 keyboard activated!",
+                getattr(Messages, 'KEYBOARD_1X3_ACTIVATED_MSG', "📱 1x3 keyboard activated!"),
                 reply_markup=ReplyKeyboardMarkup(one_by_three, resize_keyboard=True)
             )
         elif setting == "2x3":
@@ -189,9 +200,10 @@ def apply_keyboard_setting(app, chat_id, setting):
                 ["/clean", "/cookie", "/settings"],
                 ["/playlist", "/search", "/help"]
             ]
+            from CONFIG.messages import MessagesConfig as Messages
             safe_send_message(
                 chat_id,
-                "📱 2x3 keyboard activated!",
+                getattr(Messages, 'KEYBOARD_2X3_ACTIVATED_MSG', "📱 2x3 keyboard activated!"),
                 reply_markup=ReplyKeyboardMarkup(two_by_three, resize_keyboard=True)
             )
         elif setting == "FULL":
@@ -200,9 +212,10 @@ def apply_keyboard_setting(app, chat_id, setting):
                 ["📼", "📊", "✂️", "🎧", "💬", "🌎"],
                 ["#️⃣", "🆘", "📃", "⏯️", "🎹", "🔗"]
             ]
+            from CONFIG.messages import MessagesConfig as Messages
             safe_send_message(
                 chat_id,
-                "🔣 Emoji keyboard activated!",
+                getattr(Messages, 'KEYBOARD_EMOJI_ACTIVATED_MSG', "🔣 Emoji keyboard activated!"),
                 reply_markup=ReplyKeyboardMarkup(emoji_keyboard, resize_keyboard=True)
             )
     except Exception as e:
