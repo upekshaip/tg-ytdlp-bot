@@ -987,7 +987,6 @@ def askq_callback(app, callback_query):
                 temp_file.write("• /format id 401 - download format 401\n")
                 temp_file.write("• /format id401 - same as above\n")
                 temp_file.write("• /format id 140 audio - download format 140 as MP3 audio\n")
-                temp_file.write("• /format id140 audio - same as above\n")
                 
                 # Add special note for audio-only formats
                 if audio_only_formats:
@@ -1010,7 +1009,6 @@ def askq_callback(app, callback_query):
                 if audio_only_formats:
                     caption += f"🎵 <b>Audio-only formats:</b> {', '.join(audio_only_formats)}\n"
                     caption += f"• <code>/format id 140 audio</code> - Download format 140 as MP3 audio\n"
-                    caption += f"• <code>/format id140 audio</code> - same as above\n"
                     caption += f"These will be downloaded as MP3 audio files.\n\n"
                 
                 caption += f"📋 Use format ID from the list above"
@@ -2867,6 +2865,11 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 proc_msg = app.send_message(user_id, "⚠️ Telegram has limited message sending.\n⏳ Please wait: \nTo update timer send URL again 2 times.")
             try:
                 app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text="<b>▶️ Download started</b>", parse_mode=enums.ParseMode.HTML)
+                try:
+                    from HELPERS.safe_messeger import schedule_delete_message
+                    schedule_delete_message(user_id, proc_msg.id, delete_after_seconds=5)
+                except Exception:
+                    pass
                 if os.path.exists(flood_time_file):
                     os.remove(flood_time_file)
             except FloodWait as e:

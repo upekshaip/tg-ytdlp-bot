@@ -449,6 +449,12 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         proc_msg_id = proc_msg.id
         status_msg = safe_send_message(user_id, "🎙️ Audio is processing...", message=message)
         hourglass_msg = safe_send_message(user_id, "⏳ Please wait...", message=message)
+        try:
+            from HELPERS.safe_messeger import schedule_delete_message
+            if status_msg and hasattr(status_msg, 'id'):
+                schedule_delete_message(user_id, status_msg.id, delete_after_seconds=5)
+        except Exception:
+            pass
         status_msg_id = status_msg.id
         hourglass_msg_id = hourglass_msg.id
         anim_thread = start_hourglass_animation(user_id, hourglass_msg_id, stop_anim)
@@ -538,31 +544,11 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             elapsed = max(0, current_time - progress_start_time)
             minutes_passed = int(elapsed // 60)
             
-            # After 1 hour (60 minutes), only show 0% and 100%
+            # Adaptive throttle: linear; after 1h fixed 90s
             if minutes_passed >= 60:
-                if d.get("status") == "finished":
-                    try:
-                        full_bar = "🟩" * 10
-                        safe_edit_message_text(user_id, proc_msg_id,
-                            f"{current_total_process}\n📥 Downloading audio:\n{full_bar}   100.0%\nDownload finished, processing audio...")
-                    except Exception as e:
-                        logger.error(f"Error updating progress: {e}")
-                elif d.get("status") == "error":
-                    try:
-                        safe_edit_message_text(user_id, proc_msg_id, "Error occurred during audio download.")
-                    except Exception as e:
-                        logger.error(f"Error updating progress: {e}")
-                return
-            
-            # Adaptive throttle: base 1.5s, doubles each minute (cap 30s)
-            base_interval = 1.5
-            if minutes_passed < 5:
-                # First 5 minutes: 1.5 seconds
-                interval = base_interval
+                interval = 90.0
             else:
-                # After 5 minutes: exponential backoff
-                interval = base_interval * (2 ** (minutes_passed - 4))  # Start exponential after 5 minutes
-                interval = min(interval, 30.0)
+                interval = 3.0 + max(0, minutes_passed // 5)
             
             if current_time - last_update < interval:
                 return

@@ -38,6 +38,8 @@ def unwrap_redirect_url(url: str) -> str:
         return url
 from CONFIG.config import Config
 from CONFIG.domains import DomainsConfig
+import importlib
+import types
 from HELPERS.logger import logger
 
 # --- global lists of domains and keywords ---
@@ -240,3 +242,58 @@ def check_porn_detailed(url, title, description, caption=None):
     explanation_parts.append("✅ No porn keywords found")
     return False, " | ".join(explanation_parts)
 
+
+# --- runtime reload of config-driven lists and file caches ---
+def reload_all_porn_caches():
+    """
+    Reloads:
+    - Text-based caches: PORN_DOMAINS, PORN_KEYWORDS, SUPPORTED_SITES
+    - Config-based arrays from CONFIG/domains.py: WHITE_KEYWORDS, WHITELIST,
+      GREYLIST, PROXY_DOMAINS, PROXY_2_DOMAINS, CLEAN_QUERY, NO_COOKIE_DOMAINS,
+      BLACK_LIST, TIKTOK_DOMAINS, PIPED_DOMAIN.
+
+    Returns a dict with basic counts for confirmation output.
+    """
+    # 1) Reload CONFIG.domains module to pick up changes without bot restart
+    try:
+        import CONFIG.domains as domains_module  # type: ignore
+        domains_module = importlib.reload(domains_module)  # type: ignore
+    except Exception as e:
+        logger.error(f"Failed to reload CONFIG.domains: {e}")
+        # Proceed anyway to reload file-based lists
+        domains_module = None  # type: ignore
+
+    # 2) Apply new DomainsConfig values onto runtime Config so other helpers see updates
+    try:
+        DomainsCfg = domains_module.DomainsConfig if isinstance(domains_module, types.ModuleType) else DomainsConfig  # type: ignore
+        attrs_to_copy = [
+            'WHITE_KEYWORDS', 'WHITELIST', 'GREYLIST', 'PROXY_DOMAINS', 'PROXY_2_DOMAINS',
+            'CLEAN_QUERY', 'NO_COOKIE_DOMAINS', 'BLACK_LIST', 'TIKTOK_DOMAINS', 'PIPED_DOMAIN'
+        ]
+        for name in attrs_to_copy:
+            if hasattr(DomainsCfg, name):
+                try:
+                    setattr(Config, name, getattr(DomainsCfg, name))
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.error(f"Failed to apply DomainsConfig to Config: {e}")
+
+    # 3) Reload file-based caches
+    load_domain_lists()
+
+    # 4) Build counts snapshot
+    counts = {
+        'porn_domains': len(PORN_DOMAINS),
+        'porn_keywords': len(PORN_KEYWORDS),
+        'supported_sites': len(SUPPORTED_SITES),
+        'whitelist': len(getattr(Config, 'WHITELIST', []) or []),
+        'greylist': len(getattr(Config, 'GREYLIST', []) or []),
+        'black_list': len(getattr(Config, 'BLACK_LIST', []) or []),
+        'white_keywords': len(getattr(Config, 'WHITE_KEYWORDS', []) or []),
+        'proxy_domains': len(getattr(Config, 'PROXY_DOMAINS', []) or []),
+        'proxy_2_domains': len(getattr(Config, 'PROXY_2_DOMAINS', []) or []),
+        'clean_query': len(getattr(Config, 'CLEAN_QUERY', []) or []),
+        'no_cookie_domains': len(getattr(Config, 'NO_COOKIE_DOMAINS', []) or []),
+    }
+    return counts
