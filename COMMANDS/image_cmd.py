@@ -565,35 +565,47 @@ def send_paid_images_to_logs(app, sent_messages, media_group, user_id, message, 
         except Exception as fe:
             logger.error(f"[IMG LOG] Failed to forward paid media to PAID channel: {fe}")
         
-        # Send to LOGS_NSFW_ID (for history) - send open copy as album
+        # Send to LOGS_NSFW_ID (for history) - send open copy as album with retry
         log_channel_nsfw = get_log_channel("image", nsfw=True, paid=False)
-        try:
-            # Create media group for open copy
-            open_media_group = []
-            for _idx, _media_obj in enumerate(media_group):
-                caption = (tags_text_norm or "") if _idx == 0 else None
-                if isinstance(_media_obj, InputMediaPhoto):
-                    open_media_group.append(InputMediaPhoto(
-                        media=_media_obj.media,
-                        caption=caption,
-                        has_spoiler=True
-                    ))
-                else:
-                    open_media_group.append(InputMediaVideo(
-                        media=_media_obj.media,
-                        caption=caption,
-                        duration=getattr(_media_obj, 'duration', None),
-                        width=getattr(_media_obj, 'width', None),
-                        height=getattr(_media_obj, 'height', None),
-                        thumb=getattr(_media_obj, 'thumb', None),
-                        has_spoiler=True
-                    ))
-            
-            if open_media_group:
-                app.send_media_group(chat_id=log_channel_nsfw, media=open_media_group)
-                logger.info(f"[IMG LOG] Open copy album sent to NSFW channel: {len(open_media_group)} items")
-        except Exception as fe:
-            logger.error(f"[IMG LOG] Failed to send open copy album to NSFW channel: {fe}")
+        max_retries = 3
+        retry_delay = 10
+        
+        for attempt in range(max_retries):
+            try:
+                # Create media group for open copy
+                open_media_group = []
+                for _idx, _media_obj in enumerate(media_group):
+                    caption = (tags_text_norm or "") if _idx == 0 else None
+                    if isinstance(_media_obj, InputMediaPhoto):
+                        open_media_group.append(InputMediaPhoto(
+                            media=_media_obj.media,
+                            caption=caption,
+                            has_spoiler=True
+                        ))
+                    else:
+                        open_media_group.append(InputMediaVideo(
+                            media=_media_obj.media,
+                            caption=caption,
+                            duration=getattr(_media_obj, 'duration', None),
+                            width=getattr(_media_obj, 'width', None),
+                            height=getattr(_media_obj, 'height', None),
+                            thumb=getattr(_media_obj, 'thumb', None),
+                            has_spoiler=True
+                        ))
+                
+                if open_media_group:
+                    app.send_media_group(chat_id=log_channel_nsfw, media=open_media_group)
+                    logger.info(f"[IMG LOG] Open copy album sent to NSFW channel: {len(open_media_group)} items")
+                    break
+            except Exception as fe:
+                logger.error(f"[IMG LOG] Failed to send open copy album to NSFW channel (attempt {attempt + 1}/{max_retries}): {fe}")
+                if "msg_seqno" in str(fe).lower() or "33" in str(fe):
+                    logger.warning(f"[IMG LOG] msg_seqno error detected, waiting {retry_delay} seconds before retry...")
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+                        retry_delay += 5
+                elif attempt < max_retries - 1:
+                    time.sleep(2)
         
         # Don't cache NSFW content
         logger.info(f"[IMG LOG] NSFW content sent to both channels (paid + history), not cached")
