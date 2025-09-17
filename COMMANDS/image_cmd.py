@@ -547,35 +547,39 @@ def send_regular_images_to_logs(app, media_group, user_id, message, nsfw_flag, i
         logger.error(f"[IMG LOG] Failed to send to log channels: {e}")
         return None
 
-def send_paid_images_to_logs(app, sent_messages, media_group, user_id, message, nsfw_flag, is_private_chat, tags_text_norm):
+def send_paid_images_to_logs(app, sent_messages, media_group, user_id, message, nsfw_flag, is_private_chat, tags_text_norm, paid_log_sent=False):
     """Send paid images to appropriate log channels"""
     try:
         # Add delay to allow Telegram to process paid media before sending to log channels
         time.sleep(2.0)
         
         # Send to LOGS_PAID_ID (for paid content) - forward the paid message with retry
-        log_channel_paid = get_log_channel("image", nsfw=False, paid=True)
-        max_retries = 3
-        retry_delay = 5
-        
-        for attempt in range(max_retries):
-            try:
-                app.forward_messages(
-                    chat_id=log_channel_paid,
-                    from_chat_id=user_id,
-                    message_ids=[msg.id for msg in sent_messages if msg is not None]
-                )
-                logger.info(f"[IMG LOG] Paid media message forwarded to PAID channel")
-                break
-            except Exception as fe:
-                logger.error(f"[IMG LOG] Failed to forward paid media to PAID channel (attempt {attempt + 1}/{max_retries}): {fe}")
-                if "msg_seqno" in str(fe).lower() or "33" in str(fe):
-                    logger.warning(f"[IMG LOG] msg_seqno error detected, waiting {retry_delay} seconds before retry...")
-                    if attempt < max_retries - 1:
-                        time.sleep(retry_delay)
-                        retry_delay *= 2
-                elif attempt < max_retries - 1:
-                    time.sleep(1)
+        if not paid_log_sent:
+            log_channel_paid = get_log_channel("image", nsfw=False, paid=True)
+            max_retries = 3
+            retry_delay = 5
+            
+            for attempt in range(max_retries):
+                try:
+                    app.forward_messages(
+                        chat_id=log_channel_paid,
+                        from_chat_id=user_id,
+                        message_ids=[msg.id for msg in sent_messages if msg is not None]
+                    )
+                    logger.info(f"[IMG LOG] Paid media message forwarded to PAID channel")
+                    paid_log_sent = True
+                    break
+                except Exception as fe:
+                    logger.error(f"[IMG LOG] Failed to forward paid media to PAID channel (attempt {attempt + 1}/{max_retries}): {fe}")
+                    if "msg_seqno" in str(fe).lower() or "33" in str(fe):
+                        logger.warning(f"[IMG LOG] msg_seqno error detected, waiting {retry_delay} seconds before retry...")
+                        if attempt < max_retries - 1:
+                            time.sleep(retry_delay)
+                            retry_delay *= 2
+                    elif attempt < max_retries - 1:
+                        time.sleep(1)
+        else:
+            logger.info(f"[IMG LOG] Skipping PAID channel send - already sent")
         
         # Send to LOGS_NSFW_ID (for history) - send open copy as album with retry
         log_channel_nsfw = get_log_channel("image", nsfw=True, paid=False)
@@ -636,6 +640,7 @@ def image_command(app, message):
     
     # Flag to track if we've already sent to log channel to prevent duplicates
     log_channel_sent = False
+    paid_log_sent = False
     
     # Subscription check for non-admins
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
@@ -1251,7 +1256,9 @@ def image_command(app, message):
                                         
                                         # Send to both log channels for paid media using our new function
                                         try:
-                                            send_paid_images_to_logs(app, sent, media_group, user_id, message, nsfw_flag, is_private_chat, tags_text_norm)
+                                            result = send_paid_images_to_logs(app, sent, media_group, user_id, message, nsfw_flag, is_private_chat, tags_text_norm, paid_log_sent)
+                                            if result:
+                                                paid_log_sent = True
                                         except Exception as e:
                                             logger.error(f"[IMG LOG] Failed to send paid images to log channels: {e}")
                                             
@@ -1409,7 +1416,9 @@ def image_command(app, message):
                                     if is_paid_media:
                                         # For NSFW content in private chat, send to both channels but don't cache
                                         try:
-                                            send_paid_images_to_logs(app, sent, media_group, user_id, message, nsfw_flag, is_private_chat, tags_text_norm)
+                                            result = send_paid_images_to_logs(app, sent, media_group, user_id, message, nsfw_flag, is_private_chat, tags_text_norm, paid_log_sent)
+                                            if result:
+                                                paid_log_sent = True
                                         except Exception as e:
                                             logger.error(f"[IMG LOG] Failed to send paid images to log channels: {e}")
                                     
