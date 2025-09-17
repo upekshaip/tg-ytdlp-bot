@@ -283,11 +283,13 @@ def save_my_cookie(app, message):
     user_id = str(message.chat.id)
     # Check file size
     if message.document.file_size > 100 * 1024:
-        send_to_all(message, "❌ The file is too large. Maximum size is 100 KB.")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_all(message, Messages.COOKIE_FILE_TOO_LARGE_MSG)
         return
     # Check extension
     if not message.document.file_name.lower().endswith('.txt'):
-        send_to_all(message, "❌ Only files of the following format are allowed .txt.")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_all(message, Messages.COOKIE_FILE_WRONG_FORMAT_MSG)
         return
     # Download the file to a temporary folder to check the contents
     import tempfile
@@ -298,10 +300,12 @@ def save_my_cookie(app, message):
             with open(tmp_path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read(4096)  # read only the first 4 KB
                 if '# Netscape HTTP Cookie File' not in content:
-                    send_to_all(message, "❌ The file does not look like cookie.txt (there is no line '# Netscape HTTP Cookie File').")
+                    from CONFIG.messages import MessagesConfig as Messages
+                    send_to_all(message, Messages.COOKIE_FILE_INVALID_FORMAT_MSG)
                     return
         except Exception as e:
-            send_to_all(message, f"❌ Error reading file: {e}")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_all(message, Messages.COOKIE_FILE_READ_ERROR_MSG.format(error=e))
             return
         # If all checks are passed - save the file to the user's folder
         user_folder = f"./users/{user_id}"
@@ -360,7 +364,8 @@ def download_cookie_callback(app, callback_query):
         except Exception as e:
             logger.error(f"Failed to trigger check_cookie from cookie menu: {e}")
             try:
-                app.answer_callback_query(callback_query.id, "❌ Failed to run /check_cookie", show_alert=False)
+                from CONFIG.messages import MessagesConfig as Messages
+                app.answer_callback_query(callback_query.id, Messages.CALLBACK_FAILED_CHECK_COOKIE_MSG, show_alert=False)
             except Exception:
                 pass
     #elif data == "facebook":
@@ -399,7 +404,8 @@ def download_cookie_callback(app, callback_query):
         except Exception as e:
             logger.error(f"Failed to start cookies_from_browser: {e}")
             try:
-                app.answer_callback_query(callback_query.id, "❌ Failed to open browser cookie menu", show_alert=True)
+                from CONFIG.messages import MessagesConfig as Messages
+                app.answer_callback_query(callback_query.id, Messages.CALLBACK_FAILED_BROWSER_MENU_MSG, show_alert=True)
             except Exception:
                 pass
     elif data == "close":
@@ -762,7 +768,8 @@ def save_as_cookie_file(app, message):
     final_cookie = "\n".join(processed_lines)
 
     if final_cookie:
-        send_to_all(message, "<b>✅ User provided a new cookie file.</b>")
+        from CONFIG.messages import MessagesConfig as Messages
+        send_to_all(message, Messages.COOKIE_USER_PROVIDED_MSG)
         user_dir = os.path.join("users", user_id)
         create_directory(user_dir)
         cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
@@ -776,6 +783,62 @@ def save_as_cookie_file(app, message):
         from CONFIG.messages import MessagesConfig as Messages
         send_to_user(message, Messages.COOKIE_NOT_VALID_TEXT_MSG)
         send_to_logger(message, f"Invalid cookie content provided by user {user_id}.")
+
+def test_youtube_cookies_on_url(cookie_file_path: str, url: str) -> bool:
+    """
+    Проверяет работоспособность YouTube куки на конкретном URL пользователя.
+    
+    Args:
+        cookie_file_path (str): Путь к файлу куки
+        url (str): URL для проверки
+        
+    Returns:
+        bool: True если куки работают на этом URL, False если нет
+    """
+    try:
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'skip_download': True,
+            'noplaylist': True,
+            'format': 'best',
+            'ignore_no_formats_error': False,
+            'cookiefile': cookie_file_path,
+            'extractor_args': {
+                'youtube': {'player_client': ['tv']}
+            },
+            'retries': 2,
+            'extractor_retries': 1,
+        }
+        
+        # Add PO token provider for YouTube domains
+        ydl_opts = add_pot_to_ytdl_opts(ydl_opts, url)
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            
+        # Проверяем, что получили информацию о видео
+        if not info:
+            logger.warning(f"YouTube cookies test failed on user URL - no info returned for {cookie_file_path}")
+            return False
+            
+        # Проверяем наличие основных полей
+        if not info.get('title') or not info.get('duration'):
+            logger.warning(f"YouTube cookies test failed on user URL - missing basic info for {cookie_file_path}")
+            return False
+            
+        # Проверяем наличие форматов
+        formats = info.get('formats', [])
+        if len(formats) < 2:
+            logger.warning(f"YouTube cookies test failed on user URL - insufficient formats ({len(formats)}) for {cookie_file_path}")
+            return False
+            
+        logger.info(f"YouTube cookies work on user URL for {cookie_file_path}")
+        return True
+        
+    except Exception as e:
+        logger.warning(f"YouTube cookies test failed on user URL for {cookie_file_path}: {e}")
+        return False
 
 def test_youtube_cookies(cookie_file_path: str) -> bool:
     """

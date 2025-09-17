@@ -428,7 +428,8 @@ def ask_filter_callback(app, callback_query):
                 callback_query.edit_message_reply_markup(reply_markup=kb)
             except Exception:
                 pass
-            callback_query.answer(f"Page {page + 1}")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_PAGE_MSG.format(page=page + 1))
             return
         if kind == "subs" and value in ("back", "close"):
             if value == "back":
@@ -891,8 +892,9 @@ def askq_callback(app, callback_query):
             main_response += Config.STREAM_TITLE_MSG.format(title=title)
             if duration > 0:
                 main_response += f"⏱ <b>Duration:</b> {duration} sec\n"
-            main_response += f"🎛 <b>Format:</b> <code>bv+ba/best</code>\n\n"
-            main_response += f"🌐 <b>Browser:</b> Open in web browser\n\n"
+            from CONFIG.messages import MessagesConfig as Messages
+            main_response += Messages.AA_STREAM_FORMAT_MSG
+            main_response += Messages.AA_STREAM_BROWSER_MSG
             
             # Create browser keyboard
             browser_keyboard = InlineKeyboardMarkup([
@@ -915,9 +917,10 @@ def askq_callback(app, callback_query):
                     [InlineKeyboardButton("🎬 VLC (iOS)", url=player_urls['vlc_ios'])],
                     [InlineKeyboardButton("🔚 Close", callback_data="askq|close")]
                 ])
+                from CONFIG.messages import MessagesConfig as Messages
                 app.send_message(
                     user_id,
-                    "🎬 <b><a href=\"https://itunes.apple.com/app/apple-store/id650377962\">VLC Player (iOS)</a></b>\n\n<i>Click button to copy stream URL, then paste it in VLC app</i>",
+                    Messages.AA_VLC_IOS_MSG,
                     reply_parameters=ReplyParameters(message_id=original_message.id),
                     reply_markup=vlc_ios_keyboard,
                     parse_mode=enums.ParseMode.HTML
@@ -929,9 +932,10 @@ def askq_callback(app, callback_query):
                     [InlineKeyboardButton("🎬 VLC (Android)", url=player_urls['vlc_android'])],
                     [InlineKeyboardButton("🔚 Close", callback_data="askq|close")]
                 ])
+                from CONFIG.messages import MessagesConfig as Messages
                 app.send_message(
                     user_id,
-                    "🎬 <b><a href=\"https://play.google.com/store/apps/details?id=org.videolan.vlc\">VLC Player (Android)</a></b>\n\n<i>Click button to copy stream URL, then paste it in VLC app</i>",
+                    Messages.AA_VLC_ANDROID_MSG,
                     reply_parameters=ReplyParameters(message_id=original_message.id),
                     reply_markup=vlc_android_keyboard,
                     parse_mode=enums.ParseMode.HTML
@@ -1012,20 +1016,15 @@ def askq_callback(app, callback_query):
             try:
                 # Send the file
                 # Build caption with audio-only format info
-                caption = f"📃 Available formats for:\n<code>{url}</code>\n\n"
-                caption += f"💡 <b>How to set format:</b>\n"
-                caption += f"• <code>/format id 134</code> - Download specific format ID\n"
-                caption += f"• <code>/format 720p</code> - Download by quality\n"
-                caption += f"• <code>/format best</code> - Download best quality\n"
-                caption += f"• <code>/format ask</code> - Always ask for quality\n\n"
+                from CONFIG.messages import MessagesConfig as Messages
+                caption = Messages.LIST_FORMATS_CAPTION_MSG.format(url=url)
+                caption += Messages.LIST_FORMAT_INSTRUCTIONS_MSG
                 
                 # Add special note for audio-only formats
                 if audio_only_formats:
-                    caption += f"🎵 <b>Audio-only formats:</b> {', '.join(audio_only_formats)}\n"
-                    caption += f"• <code>/format id 140 audio</code> - Download format 140 as MP3 audio\n"
-                    caption += f"These will be downloaded as MP3 audio files.\n\n"
+                    caption += Messages.LIST_AUDIO_FORMATS_MSG.format(audio_formats=', '.join(audio_only_formats))
                 
-                caption += f"📋 Use format ID from the list above"
+                caption += Messages.LIST_USE_FORMAT_ID_MSG
                 
                 app.send_document(
                     user_id,
@@ -1191,12 +1190,14 @@ def askq_callback(app, callback_query):
             if kind == "codec":
                 if value not in available_formats["codecs"] and available_formats["codecs"]:
                     # Codec is not available, show warning
-                    callback_query.answer(f"❌ {value.upper()} codec not available for this video", show_alert=True)
+                    from CONFIG.messages import MessagesConfig as Messages
+                    callback_query.answer(Messages.AA_CODEC_NOT_AVAILABLE_MSG.format(codec=value.upper()), show_alert=True)
                     return
             elif kind == "ext":
                 if value not in available_formats["formats"] and available_formats["formats"]:
                     # Format is not available, show warning
-                    callback_query.answer(f"❌ {value.upper()} format not available for this video", show_alert=True)
+                    from CONFIG.messages import MessagesConfig as Messages
+                    callback_query.answer(Messages.AA_FORMAT_NOT_AVAILABLE_MSG.format(format=value.upper()), show_alert=True)
                     return
             
             # Set filter and reopen menu
@@ -1511,11 +1512,13 @@ def askq_callback(app, callback_query):
     # Handle other quality selection by ID
     if data.startswith("other_id_"):
         format_id = data.replace("other_id_", "")
-        callback_query.answer(f"📥 Downloading format {format_id}...")
+        from CONFIG.messages import MessagesConfig as Messages
+        callback_query.answer(Messages.AA_DOWNLOADING_FORMAT_MSG.format(format_id=format_id))
         
         original_message = callback_query.message.reply_to_message
         if not original_message:
-            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             app.delete_messages(user_id, callback_query.message.id)
             return
         
@@ -1531,7 +1534,8 @@ def askq_callback(app, callback_query):
                 url = url_match.group(0)
         
         if not url:
-            callback_query.answer("❌ Error: URL not found.", show_alert=True)
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_ERROR_URL_NOT_FOUND_MSG, show_alert=True)
             app.delete_messages(user_id, callback_query.message.id)
             return
         
@@ -1556,11 +1560,13 @@ def askq_callback(app, callback_query):
     # Handle manual quality selection
     if data.startswith("manual_"):
         quality = data.replace("manual_", "")
-        callback_query.answer(f"📥 Downloading {quality}...")
+        from CONFIG.messages import MessagesConfig as Messages
+        callback_query.answer(Messages.AA_DOWNLOADING_QUALITY_MSG.format(quality=quality))
         
         original_message = callback_query.message.reply_to_message
         if not original_message:
-            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             app.delete_messages(user_id, callback_query.message.id)
             return
         
@@ -1576,7 +1582,8 @@ def askq_callback(app, callback_query):
                 url = url_match.group(0)
         
         if not url:
-            callback_query.answer("❌ Error: URL not found.", show_alert=True)
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.AA_ERROR_URL_NOT_FOUND_MSG, show_alert=True)
             app.delete_messages(user_id, callback_query.message.id)
             return
         
@@ -4121,17 +4128,18 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
             format_spec = result.get('format', 'best')
             
             # Form response
-            response = f"🔗 <b>Direct link obtained</b>\n\n"
+            from CONFIG.messages import MessagesConfig as Messages
+            response = Messages.LINK_DIRECT_OBTAINED_MSG
             response += f"📹 <b>Title:</b> {title}\n"
             if duration > 0:
                 response += f"⏱ <b>Duration:</b> {duration} sec\n"
-            response += f"🎛 <b>Format:</b> <code>{format_spec}</code>\n\n"
+            response += Messages.LINK_FORMAT_MSG.format(format_spec=format_spec)
             
             if video_url:
-                response += f"🎬 <b>Video stream:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
+                response += Messages.LINK_VIDEO_STREAM_MSG.format(video_url=video_url)
             
             if audio_url:
-                response += f"🎵 <b>Audio stream:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
+                response += Messages.LINK_AUDIO_STREAM_MSG.format(audio_url=audio_url)
             
             if not video_url and not audio_url:
                 response += "❌ Failed to get stream links"
@@ -4415,17 +4423,18 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
                 format_spec = result.get('format', 'best')
                 
                 # Form response
-                response = f"🔗 <b>Direct link obtained</b>\n\n"
+                from CONFIG.messages import MessagesConfig as Messages
+                response = Messages.LINK_DIRECT_OBTAINED_MSG
                 response += f"📹 <b>Title:</b> {title}\n"
                 if duration > 0:
                     response += f"⏱ <b>Duration:</b> {duration} sec\n"
-                response += f"🎛 <b>Format:</b> <code>{format_spec}</code>\n\n"
+                response += Messages.LINK_FORMAT_MSG.format(format_spec=format_spec)
                 
                 if video_url:
-                    response += f"🎬 <b>Video stream:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
+                    response += Messages.LINK_VIDEO_STREAM_MSG.format(video_url=video_url)
                 
                 if audio_url:
-                    response += f"🎵 <b>Audio stream:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
+                    response += Messages.LINK_AUDIO_STREAM_MSG.format(audio_url=audio_url)
                 
                 if not video_url and not audio_url:
                     response += "❌ Failed to get stream links"

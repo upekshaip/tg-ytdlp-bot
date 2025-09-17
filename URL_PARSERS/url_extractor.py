@@ -95,9 +95,10 @@ def url_distractor(app, message):
         # Special case: headphones emoji should show audio usage hint
         if mapped == "/audio":
             from HELPERS.safe_messeger import safe_send_message
+            from CONFIG.messages import MessagesConfig as Messages
             safe_send_message(
                 message.chat.id,
-                "Download only audio from video source.\n\nUsage: /audio + URL \n\n(ex. /audio https://youtu.be/abc123)\n(ex. /audio https://youtu.be/playlist?list=abc123*1*10)",
+                Messages.URL_EXTRACTOR_AUDIO_HINT_MSG,
                 message=message
             )
             return
@@ -150,9 +151,10 @@ def url_distractor(app, message):
                 return  # is_user_in_channel already sends subscription message
             # User is subscribed, send welcome message
             from HELPERS.safe_messeger import safe_send_message
+            from CONFIG.messages import MessagesConfig as Messages
             safe_send_message(
                 message.chat.id,
-                f"Hello {message.chat.first_name},\n \n<i>This bot🤖 can download any videos into telegram directly.😊 For more information press <b>/help</b></i> 👈\n \n {Config.CREDITS_MSG}",
+                Messages.URL_EXTRACTOR_WELCOME_MSG.format(first_name=message.chat.first_name, credits=Config.CREDITS_MSG),
                 parse_mode=enums.ParseMode.HTML,
                 message=message)
             send_to_logger(message, LoggerMsg.USER_STARTED_BOT.format(chat_id=message.chat.id))
@@ -499,58 +501,71 @@ def url_distractor(app, message):
                 clear_youtube_cookie_cache(message.chat.id)
             except Exception as e:
                 logger.error(f"Failed to clear YouTube cookie cache: {e}")
-            send_to_all(message, "🗑 Cookie file removed and cache cleared.")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_all(message, Messages.CLEAN_COOKIE_REMOVED_MSG)
             return
         elif clean_args in ["log", "logs"]:
             remove_media(message, only=["logs.txt"])
-            send_to_all(message, "🗑 Logs file removed.")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_all(message, Messages.CLEAN_LOGS_REMOVED_MSG)
             return
         elif clean_args in ["tag", "tags"]:
             remove_media(message, only=["tags.txt"])
-            send_to_all(message, "🗑 Tags file removed.")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_all(message, Messages.CLEAN_TAGS_REMOVED_MSG)
             return
         elif clean_args == "format":
             remove_media(message, only=["format.txt"])
-            send_to_all(message, "🗑 Format file removed.")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_all(message, Messages.CLEAN_FORMAT_REMOVED_MSG)
             return
         elif clean_args == "split":
             remove_media(message, only=["split.txt"])
-            send_to_all(message, "🗑 Split file removed.")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_all(message, Messages.CLEAN_SPLIT_REMOVED_MSG)
             return
         elif clean_args == "mediainfo":
             remove_media(message, only=["mediainfo.txt"])
-            send_to_all(message, "🗑 Mediainfo file removed.")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_all(message, Messages.CLEAN_MEDIAINFO_REMOVED_MSG)
             return
         elif clean_args == "subs":
             remove_media(message, only=["subs.txt"])
-            send_to_all(message, "🗑 Subtitle settings removed.")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_all(message, Messages.CLEAN_SUBTITLES_REMOVED_MSG)
             clear_subs_check_cache()
             return
         elif clean_args == "keyboard":
             remove_media(message, only=["keyboard.txt"])
-            send_to_all(message, "🗑 Keyboard settings removed.")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_all(message, Messages.CLEAN_KEYBOARD_REMOVED_MSG)
             return
         elif clean_args == "args":
             remove_media(message, only=["args.txt"])
-            send_to_all(message, "🗑 Args settings removed.")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_all(message, Messages.CLEAN_ARGS_REMOVED_MSG)
             return
         elif clean_args == "nsfw":
             remove_media(message, only=["nsfw_blur.txt"])
-            send_to_all(message, "🗑 NSFW settings removed.")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_all(message, Messages.CLEAN_NSFW_REMOVED_MSG)
             return
         elif clean_args == "proxy":
             remove_media(message, only=["proxy.txt"])
-            send_to_all(message, "🗑 Proxy settings removed.")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_all(message, Messages.CLEAN_PROXY_REMOVED_MSG)
             return
         elif clean_args == "flood_wait":
             remove_media(message, only=["flood_wait.txt"])
-            send_to_all(message, "🗑 Flood wait settings removed.")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_all(message, Messages.CLEAN_FLOOD_WAIT_REMOVED_MSG)
             return
         elif clean_args == "all":
             # Delete all files and display the list of deleted ones
             user_dir = f'./users/{str(message.chat.id)}'
             if not os.path.exists(user_dir):
-                send_to_all(message, "🗑 No files to remove.")
+                from CONFIG.messages import MessagesConfig as Messages
+                send_to_all(message, Messages.CLEAN_NO_FILES_MSG)
                 clear_subs_check_cache()
                 return
 
@@ -577,14 +592,17 @@ def url_distractor(app, message):
             
             if removed_files:
                 files_list = "\n".join([f"• {file}" for file in removed_files])
-                send_to_all(message, f"🗑 All files removed successfully!\n\nRemoved files:\n{files_list}")
+                from CONFIG.messages import MessagesConfig as Messages
+                send_to_all(message, Messages.URL_EXTRACTOR_FILES_REMOVED_MSG.format(files_list=files_list))
             else:
-                send_to_all(message, "🗑 No files to remove.")
+                from CONFIG.messages import MessagesConfig as Messages
+                send_to_all(message, Messages.CLEAN_NO_FILES_MSG)
             return
         else:
             # Regular command /clean - delete only media files with filtering
             remove_media(message)
-            send_to_all(message, "🗑 All media files are removed.")
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_all(message, Messages.CLEAN_MEDIA_FILES_REMOVED_MSG)
             try:
                 from COMMANDS.cookies_cmd import clear_youtube_cookie_cache
                 clear_youtube_cookie_cache(message.chat.id)
@@ -653,15 +671,8 @@ def url_distractor(app, message):
                 from HELPERS.safe_messeger import safe_send_message
                 # Use top-level imports to avoid shadowing names in function scope
                 kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔚Close", callback_data="vid_help|close")]])
-                help_text = (
-                    "<b>🎬 Video Download Command</b>\n\n"
-                    "Usage: <code>/vid URL</code>\n\n"
-                    "<b>Examples:</b>\n"
-                    "• <code>/vid https://youtube.com/watch?v=123abc</code>\n"
-                    "• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n"
-                    "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code>\n\n"
-                    "Also see: /audio, /img, /help, /playlist, /settings"
-                )
+                from CONFIG.messages import MessagesConfig as Messages
+                help_text = Messages.VIDEO_HELP_MSG
                 safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
             except Exception:
                 pass

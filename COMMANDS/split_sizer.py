@@ -81,20 +81,8 @@ def split_command(app, message):
             send_to_logger(message, f"Split size set to {size} bytes via argument.")
             return
         else:
-            safe_send_message(user_id, 
-                "❌ **Invalid size!**\n\n"
-                "**Valid range:** 100MB to 2GB\n\n"
-                "**Valid formats:**\n"
-                "• `100mb` to `2000mb` (megabytes)\n"
-                "• `0.1gb` to `2gb` (gigabytes)\n\n"
-                "**Examples:**\n"
-                "• `/split 100mb` - 100 megabytes\n"
-                "• `/split 500mb` - 500 megabytes\n"
-                "• `/split 1.5gb` - 1.5 gigabytes\n"
-                "• `/split 2gb` - 2 gigabytes\n"
-                "• `/split 2000mb` - 2000 megabytes (2GB)\n\n"
-                "**Presets:**\n"
-                "• `/split 250mb`, `/split 500mb`, `/split 1gb`, `/split 1.5gb`, `/split 2gb`"
+            from CONFIG.messages import MessagesConfig as Messages
+            safe_send_message(user_id, Messages.SPLIT_INVALID_SIZE_MSG
             , message=message)
             return
     
@@ -122,13 +110,8 @@ def split_command(app, message):
     from CONFIG.messages import MessagesConfig as Messages
     buttons.append([InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="split_size|close")])
     keyboard = InlineKeyboardMarkup(buttons)
-    safe_send_message(user_id, 
-        "🎬 **Choose max part size for video splitting:**\n\n"
-        "**Range:** 100MB to 2GB\n\n"
-        "**Quick commands:**\n"
-        "• `/split 100mb` - `/split 2000mb`\n"
-        "• `/split 0.1gb` - `/split 2gb`\n\n"
-        "**Examples:** `/split 300mb`, `/split 1.2gb`, `/split 1500mb`", 
+    from CONFIG.messages import MessagesConfig as Messages
+    safe_send_message(user_id, Messages.SPLIT_CHOOSE_SIZE_MSG,
         reply_markup=keyboard,
         message=message
     )

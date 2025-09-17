@@ -9,7 +9,7 @@ import threading
 import time
 from typing import Dict, Any, Optional
 from pyrogram import filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram import enums
 
 from HELPERS.app_instance import get_app
@@ -32,6 +32,9 @@ user_input_states = user_input_states_dm
 # Timers for auto-closing input states after 5 minutes
 input_state_timers_dm = {}  # {user_id: timer_thread}
 input_state_timers_topic = {}  # {(chat_id, thread_id): timer_thread}
+# Flags to prevent duplicate timeout messages
+timeout_sent_dm = set()  # {user_id}
+timeout_sent_topic = set()  # {(chat_id, thread_id)}
 
 # File to store user args settings
 ARGS_FILE = "args.txt"
@@ -43,26 +46,51 @@ def clear_input_state_timer(user_id: int, thread_id: int = None):
         user_input_states_topic.pop((user_id, thread_id), None)
         timer = input_state_timers_topic.pop((user_id, thread_id), None)
         if timer:
-            timer.cancel()
+            try:
+                timer.cancel()
+            except Exception:
+                pass
+        # Clear timeout flag
+        timeout_sent_topic.discard((user_id, thread_id))
     else:
         # Clear DM state
         user_input_states_dm.pop(user_id, None)
         timer = input_state_timers_dm.pop(user_id, None)
         if timer:
-            timer.cancel()
+            try:
+                timer.cancel()
+            except Exception:
+                pass
+        # Clear timeout flag
+        timeout_sent_dm.discard(user_id)
 
 def start_input_state_timer(user_id: int, thread_id: int = None):
     """Start a 5-minute timer to auto-close input state"""
     def auto_close():
         time.sleep(300)  # 5 minutes = 300 seconds
+        # Check if timer still exists (not cancelled)
+        if thread_id:
+            if (user_id, thread_id) not in input_state_timers_topic:
+                return
+            # Check if timeout message already sent
+            if (user_id, thread_id) in timeout_sent_topic:
+                return
+            timeout_sent_topic.add((user_id, thread_id))
+        else:
+            if user_id not in input_state_timers_dm:
+                return
+            # Check if timeout message already sent
+            if user_id in timeout_sent_dm:
+                return
+            timeout_sent_dm.add(user_id)
+        
         clear_input_state_timer(user_id, thread_id)
-        # Send notification to user
+        # Send notification to user only once
         try:
             from CONFIG.messages import MessagesConfig as Messages
             safe_send_message(
                 user_id,
-                getattr(Messages, 'ARGS_INPUT_TIMEOUT_MSG', "⏰ Input mode automatically closed due to inactivity (5 minutes)."),
-                parse_mode=enums.ParseMode.HTML
+                getattr(Messages, 'ARGS_INPUT_TIMEOUT_MSG', "⏰ Input mode automatically closed due to inactivity (5 minutes).")
             )
         except Exception as e:
             logger.error(f"Error sending timeout message: {e}")
@@ -653,27 +681,18 @@ def get_text_input_message(param_name: str, current_value: str) -> str:
     param_config = YTDLP_PARAMS[param_name]
     placeholder = param_config.get("placeholder", "")
     
-    message = f"<b>📝 {param_config['description']}</b>\n\n"
+    from CONFIG.messages import MessagesConfig as Messages
+    message = Messages.ARGS_PARAM_DESCRIPTION_MSG.format(description=param_config['description'])
     if current_value:
-        message += f"<b>Current value:</b> <code>{current_value}</code>\n\n"
+        message += Messages.ARGS_CURRENT_VALUE_MSG.format(current_value=current_value)
     
     if param_name == "xff":
-        message += f"<b>Examples:</b>\n"
-        message += f"• <code>default</code> - Use default XFF strategy\n"
-        message += f"• <code>never</code> - Never use XFF header\n"
-        message += f"• <code>US</code> - United States country code\n"
-        message += f"• <code>GB</code> - United Kingdom country code\n"
-        message += f"• <code>DE</code> - Germany country code\n"
-        message += f"• <code>FR</code> - France country code\n"
-        message += f"• <code>JP</code> - Japan country code\n"
-        message += f"• <code>192.168.1.0/24</code> - IP block (CIDR)\n"
-        message += f"• <code>10.0.0.0/8</code> - Private IP range\n"
-        message += f"• <code>203.0.113.0/24</code> - Public IP block\n\n"
-        message += "<b>Note:</b> This replaces --geo-bypass options. Use any 2-letter country code or IP block in CIDR notation.\n\n"
+        message += Messages.ARGS_XFF_EXAMPLES_MSG
+        message += Messages.ARGS_XFF_NOTE_MSG
     elif placeholder:
-        message += f"<b>Example:</b> <code>{placeholder}</code>\n\n"
+        message += Messages.ARGS_EXAMPLE_MSG.format(placeholder=placeholder)
     
-    message += "Please send your new value."
+    message += Messages.ARGS_SEND_VALUE_MSG
     
     return message
 
@@ -683,11 +702,12 @@ def get_number_input_message(param_name: str, current_value: Any) -> str:
     min_val = param_config.get("min", 0)
     max_val = param_config.get("max", 999999)
     
-    message = f"<b>🔢 {param_config['description']}</b>\n\n"
+    from CONFIG.messages import MessagesConfig as Messages
+    message = Messages.ARGS_NUMBER_PARAM_MSG.format(description=param_config['description'])
     if current_value is not None:
-        message += f"<b>Current value:</b> <code>{current_value}</code>\n\n"
-    message += f"<b>Range:</b> {min_val} - {max_val}\n\n"
-    message += "Please send a number."
+        message += Messages.ARGS_CURRENT_VALUE_MSG.format(current_value=current_value)
+    message += Messages.ARGS_RANGE_MSG.format(min_val=min_val, max_val=max_val)
+    message += Messages.ARGS_SEND_NUMBER_MSG
     
     return message
 
@@ -696,20 +716,16 @@ def get_json_input_message(param_name: str, current_value: str) -> str:
     param_config = YTDLP_PARAMS[param_name]
     placeholder = param_config.get("placeholder", "{}")
     
-    message = f"<b>🔧 {param_config['description']}</b>\n\n"
+    from CONFIG.messages import MessagesConfig as Messages
+    message = Messages.ARGS_JSON_PARAM_MSG.format(description=param_config['description'])
     if current_value and current_value != "{}":
-        message += f"<b>Current value:</b>\n<code>{current_value}</code>\n\n"
+        message += Messages.ARGS_CURRENT_VALUE_MSG.format(current_value=current_value)
     
     if param_name == "http_headers":
-        message += f"<b>Examples:</b>\n"
-        message += f"<code>{placeholder}</code>\n"
-        message += f"<code>{{\"X-API-Key\": \"your-key\"}}</code>\n"
-        message += f"<code>{{\"Authorization\": \"Bearer token\"}}</code>\n"
-        message += f"<code>{{\"Accept\": \"application/json\"}}</code>\n"
-        message += f"<code>{{\"X-Custom-Header\": \"value\"}}</code>\n\n"
-        message += "<b>Note:</b> These headers will be added to existing Referer and User-Agent headers.\n\n"
+        message += Messages.ARGS_HTTP_HEADERS_EXAMPLES_MSG.format(placeholder=placeholder)
+        message += Messages.ARGS_HTTP_HEADERS_NOTE_MSG
     else:
-        message += f"<b>Example:</b>\n<code>{placeholder}</code>\n\n"
+        message += Messages.ARGS_EXAMPLE_MSG.format(placeholder=placeholder)
     
     message += "Please send valid JSON."
     
@@ -720,7 +736,8 @@ def format_current_args(user_args: Dict[str, Any]) -> str:
     if not user_args:
         return "No custom arguments set. All parameters use default values."
     
-    message = "<b>📋 Current yt-dlp Arguments:</b>\n\n"
+    from CONFIG.messages import MessagesConfig as Messages
+    message = Messages.ARGS_CURRENT_ARGS_MSG
     
     for param_name, value in user_args.items():
         param_config = YTDLP_PARAMS.get(param_name, {})
@@ -754,15 +771,10 @@ def args_command(app, message):
     
     keyboard = get_args_menu_keyboard(invoker_id)
     
+    from CONFIG.messages import MessagesConfig as Messages
     safe_send_message(
         chat_id,
-        "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n"
-        "<blockquote>📋 <b>Groups:</b>\n"
-        "• ✅/❌ <b>Boolean</b> - True/False switches\n"
-        "• 📋 <b>Select</b> - Choose from options\n"
-        "• 🔢 <b>Numeric</b> - Number input\n"
-        "• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\n"
-        "These settings will be applied to all your downloads.",
+        Messages.ARGS_CONFIG_TITLE_MSG.format(groups_msg=Messages.ARGS_MENU_DESCRIPTION_MSG),
         reply_markup=keyboard,
         message=message
     )
@@ -798,14 +810,9 @@ def args_callback_handler(app, callback_query):
                 pass
             keyboard = get_args_menu_keyboard(user_id)
             try:
+                from CONFIG.messages import MessagesConfig as Messages
                 callback_query.edit_message_text(
-                    "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n"
-                    "<blockquote>📋 <b>Groups:</b>\n"
-                    "• ✅/❌ <b>Boolean</b> - True/False switches\n"
-                    "• 📋 <b>Select</b> - Choose from options\n"
-                    "• 🔢 <b>Numeric</b> - Number input\n"
-                    "• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\n"
-                    "These settings will be applied to all your downloads.",
+                    Messages.ARGS_CONFIG_TITLE_MSG.format(groups_msg=Messages.ARGS_MENU_DESCRIPTION_MSG),
                     reply_markup=keyboard
                 )
             except Exception:
@@ -830,15 +837,9 @@ def args_callback_handler(app, callback_query):
         elif data == "args_reset_all":
             if save_user_args(user_id, {}):
                 keyboard = get_args_menu_keyboard(user_id)
+                from CONFIG.messages import MessagesConfig as Messages
                 callback_query.edit_message_text(
-                    "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n"
-                    "✅ All arguments reset to defaults.\n\n"
-                    "<blockquote>📋 <b>Groups:</b>\n"
-                    "• ✅/❌ <b>Boolean</b> - True/False switches\n"
-                    "• 📋 <b>Select</b> - Choose from options\n"
-                    "• 🔢 <b>Numeric</b> - Number input\n"
-                    "• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\n"
-                    "These settings will be applied to all your downloads.",
+                    Messages.ARGS_CONFIG_TITLE_MSG.format(groups_msg=Messages.ARGS_MENU_DESCRIPTION_MSG) + "\n\n✅ All arguments reset to defaults.",
                     reply_markup=keyboard
                 )
                 from CONFIG.messages import MessagesConfig as Messages

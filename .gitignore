@@ -76,6 +76,8 @@ git_update.ps1
 git_update.sh
 test_count_var.py
 reverse_test_count_var.py
+replace_log.txt
+test_search_var.py
 
 # Configs with secrets (do not commit)
 CONFIG/config.py

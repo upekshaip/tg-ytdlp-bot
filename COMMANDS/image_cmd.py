@@ -612,12 +612,17 @@ def image_command(app, message):
             end_range = start_range + max_img_files - 1
             suggested_command_url_format = f"{url}*{start_range}*{end_range}"
             
+            from CONFIG.messages import MessagesConfig as Messages
             safe_send_message(
                 user_id,
-                f"❗️ Range limit exceeded: {range_count} files requested (maximum {max_img_files}).\n\n"
-                f"Use one of these commands to download maximum available files:\n\n"
-                f"<code>/img {start_range}-{end_range} {url}</code>\n\n"
-                f"<code>/img {suggested_command_url_format}</code>",
+                Messages.IMAGES_RANGE_LIMIT_EXCEEDED_MSG.format(
+                    range_count=range_count,
+                    max_img_files=max_img_files,
+                    start_range=start_range,
+                    end_range=end_range,
+                    url=url,
+                    suggested_command_url_format=suggested_command_url_format
+                ),
                 parse_mode=enums.ParseMode.HTML,
                 reply_parameters=ReplyParameters(message_id=message.id)
             )

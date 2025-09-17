@@ -1,7 +1,7 @@
 # ===================== /settings =====================
 from pyrogram import filters
 from CONFIG.config import Config
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ReplyParameters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from pyrogram import enums
 from HELPERS.logger import send_to_logger
 from HELPERS.limitter import is_user_in_channel
@@ -22,6 +22,7 @@ from COMMANDS.other_handlers import playlist_command
 # Create command2 function for compatibility
 def command2(app, message):
     """Help command - alias for compatibility"""
+    from CONFIG.messages import MessagesConfig as Messages
     from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     from pyrogram import enums
     keyboard = InlineKeyboardMarkup([
@@ -29,7 +30,6 @@ def command2(app, message):
     ])
 
     result = safe_send_message(message.chat.id, (Config.HELP_MSG),
-
                       parse_mode=enums.ParseMode.HTML,
                       reply_markup=keyboard)
     send_to_logger(message, f"Send help txt to user")
@@ -61,12 +61,13 @@ def settings_command(app, message):
             InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="settings__menu__close"),
         ]
     ])
+    from CONFIG.messages import MessagesConfig as Messages
     safe_send_message(
         user_id,
-        "<b>Bot Settings</b>\n\nChoose a category:",
+        Messages.SETTINGS_MAIN_TITLE_MSG,
         reply_markup=keyboard,
         parse_mode=enums.ParseMode.HTML,
-        reply_parameters=ReplyParameters(message_id=message.id)
+        message=message
     )
     send_to_logger(message, "Opened /settings menu")
 
@@ -74,6 +75,7 @@ def settings_command(app, message):
 @app.on_callback_query(filters.regex(r"^settings__menu__"))
 # @reply_with_keyboard
 def settings_menu_callback(app, callback_query: CallbackQuery):
+    from CONFIG.messages import MessagesConfig as Messages
     user_id = callback_query.from_user.id
     data = callback_query.data.split("__")[-1]
     if data == "close":
@@ -84,6 +86,32 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
         try:
             from CONFIG.messages import MessagesConfig as Messages
             callback_query.answer(Messages.MENU_CLOSED_MSG)
+        except Exception:
+            pass
+        return
+    if data == "back":
+        # Return to main settings menu
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🧹 CLEAN", callback_data="settings__menu__clean"),
+                InlineKeyboardButton("🍪 COOKIES", callback_data="settings__menu__cookies"),
+            ],
+            [
+                InlineKeyboardButton("🎞 MEDIA", callback_data="settings__menu__media"),
+                InlineKeyboardButton("📖 INFO", callback_data="settings__menu__logs"),
+            ],
+            [
+                InlineKeyboardButton("⚙️ MORE", callback_data="settings__menu__more"),
+                InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="settings__menu__close"),
+            ]
+        ])
+        try:
+            callback_query.edit_message_text(
+                Messages.SETTINGS_MAIN_TITLE_MSG,
+                reply_markup=keyboard,
+                parse_mode=enums.ParseMode.HTML
+            )
+            callback_query.answer()
         except Exception:
             pass
         return
@@ -119,11 +147,12 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             ],
             [
                 InlineKeyboardButton("🔙Back", callback_data="settings__menu__back"),
-                InlineKeyboardButton("🔚Close", callback_data="clean_option|close")
+                InlineKeyboardButton("🔚Close", callback_data="settings__menu__close")
             ]
         ])
+        from CONFIG.messages import MessagesConfig as Messages
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
-                               "<b>🧹 Clean Options</b>\n\nChoose what to clean:",
+                               Messages.SETTINGS_CLEAN_TITLE_MSG,
                                reply_markup=keyboard,
                                parse_mode=enums.ParseMode.HTML)
 
@@ -143,10 +172,12 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
                                   callback_data="settings__cmd__check_cookie")],
             [InlineKeyboardButton("🔖 /save_as_cookie - Upload custom cookie",
                                   callback_data="settings__cmd__save_as_cookie")],
-            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")],
+            [InlineKeyboardButton("🔚Close", callback_data="settings__menu__close")]
         ])
+        from CONFIG.messages import MessagesConfig as Messages
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
-                               "<b>🍪 COOKIES</b>\n\nChoose an action:",
+                               Messages.SETTINGS_COOKIES_TITLE_MSG,
                                reply_markup=keyboard,
                                parse_mode=enums.ParseMode.HTML)
 
@@ -165,7 +196,8 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("💬 /subs - Subtitles language settings", callback_data="settings__cmd__subs")],
             [InlineKeyboardButton("⏯️ /playlist - How to download playlists", callback_data="settings__cmd__playlist")],
             [InlineKeyboardButton("🖼 /img - Download images via gallery-dl", callback_data="settings__cmd__img")],
-            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")],
+            [InlineKeyboardButton("🔚Close", callback_data="settings__menu__close")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
                                "<b>🎞 MEDIA</b>\n\nChoose an action:",
@@ -185,7 +217,8 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("📃 /usage -Send your logs", callback_data="settings__cmd__usage")],
             [InlineKeyboardButton("⏯️ /playlist - Playlist's help", callback_data="settings__cmd__playlist")],
             [InlineKeyboardButton("🤖 /add_bot_to_group - howto", callback_data="settings__cmd__add_bot_to_group")],
-            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")],
+            [InlineKeyboardButton("🔚Close", callback_data="settings__menu__close")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
                                "<b>📖 INFO</b>\n\nChoose an action:",
@@ -206,7 +239,8 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("🔍 /search - Inline search helper", callback_data="settings__cmd__search_menu")],
             [InlineKeyboardButton("⚙️ /args - yt-dlp arguments", callback_data="settings__cmd__args")],
             [InlineKeyboardButton("🔞 /nsfw - NSFW blur settings", callback_data="settings__cmd__nsfw")],
-            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")],
+            [InlineKeyboardButton("🔚Close", callback_data="settings__menu__close")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
                                "<b>⚙️ MORE COMMANDS</b>\n\nChoose an action:",
@@ -233,6 +267,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [
                 InlineKeyboardButton("⚙️ MORE", callback_data="settings__menu__more"),
                 InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="settings__menu__close"),
+                InlineKeyboardButton("🔚Close", callback_data="settings__menu__close")
             ]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
@@ -281,7 +316,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             ],
             [
                 InlineKeyboardButton("🔙Back", callback_data="settings__menu__back"),
-                InlineKeyboardButton("🔚Close", callback_data="clean_option|close")
+                InlineKeyboardButton("🔚Close", callback_data="settings__menu__close")
             ]
         ])
         try:
@@ -361,7 +396,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="save_as_cookie_hint|close")]
         ])
-        safe_send_message(user_id, Config.SAVE_AS_COOKIE_HINT, reply_parameters=ReplyParameters(message_id=callback_query.message.id),
+        safe_send_message(user_id, Config.SAVE_AS_COOKIE_HINT, message=callback_query.message,
                           parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
 
         try:
@@ -452,7 +487,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         ])
         safe_send_message(user_id,
                           Config.AUDIO_HINT_MSG,
-                          reply_parameters=ReplyParameters(message_id=callback_query.message.id),
+                          message=callback_query.message,
 
                           reply_markup=keyboard,
                           _callback_query=callback_query,
@@ -564,7 +599,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         safe_send_message(
             user_id,
             Config.IMG_HELP_MSG,
-            reply_parameters=ReplyParameters(message_id=callback_query.message.id),
+            message=callback_query.message,
             reply_markup=keyboard,
             _callback_query=callback_query,
             _fallback_notice=Messages.FLOOD_LIMIT_TRY_LATER_MSG,
@@ -582,7 +617,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         ])
         safe_send_message(user_id,
                           Config.LINK_HINT_MSG,
-                          reply_parameters=ReplyParameters(message_id=callback_query.message.id),
+                          message=callback_query.message,
                           reply_markup=keyboard,
                           _callback_query=callback_query,
                           _fallback_notice=Messages.FLOOD_LIMIT_TRY_LATER_MSG)
@@ -660,7 +695,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             text,
             parse_mode=enums.ParseMode.HTML,
             reply_markup=keyboard,
-            reply_parameters=ReplyParameters(message_id=callback_query.message.id),
+            message=callback_query.message,
             _callback_query=callback_query,
             _fallback_notice=Messages.FLOOD_LIMIT_TRY_LATER_MSG
         )

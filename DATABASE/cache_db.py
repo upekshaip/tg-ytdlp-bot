@@ -341,20 +341,22 @@ def auto_cache_command(app, message):
                 interval = max(1, int(reload_interval_hours))
                 next_exec = get_next_reload_time(interval)
                 delta_min = int((next_exec - datetime.now()).total_seconds() // 60)
+                from CONFIG.messages import MessagesConfig as Messages
                 send_to_user(
                     message,
-                    "🔄 Auto Firebase cache reloading updated!\n\n"
-                    f"📊 Status: {status}\n"
-                    f"⏰ Schedule: every {interval} hours from 00:00\n"
-                    f"🕒 Next reload: {next_exec.strftime('%H:%M')} (in {delta_min} minutes)"
+                    Messages.CACHE_AUTO_RELOAD_UPDATED_MSG.format(
+                        status=status,
+                        interval=interval,
+                        next_time=next_exec.strftime('%H:%M'),
+                        delta_min=delta_min
+                    )
                 )
                 send_to_logger(message, f"Auto reload ENABLED; next at {next_exec}")
             else:
+                from CONFIG.messages import MessagesConfig as Messages
                 send_to_user(
                     message,
-                    "🛑 Auto Firebase cache reloading stopped!\n\n"
-                    "📊 Status: ❌ DISABLED\n"
-                    "💡 Use /auto_cache on to re-enable"
+                    Messages.CACHE_AUTO_RELOAD_STOPPED_MSG
                 )
                 send_to_logger(message, "Auto reload DISABLED by admin.")
             return

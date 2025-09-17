@@ -277,7 +277,7 @@ def subs_command(app, message):
             save_user_subs_language(user_id, "OFF")
             from HELPERS.safe_messeger import safe_send_message
             from CONFIG.messages import MessagesConfig as Messages
-            safe_send_message(user_id, Messages.SUBTITLES_DISABLED_MSG if hasattr(Messages, 'SUBTITLES_DISABLED_MSG') else "✅ Subtitles disabled and Always Ask mode turned off.", message=message)
+            safe_send_message(user_id, Messages.SUBTITLES_DISABLED_MSG, message=message)
             send_to_logger(message, f"SUBS disabled via command: {arg}")
             return
         
@@ -286,7 +286,7 @@ def subs_command(app, message):
             save_subs_always_ask(user_id, True)
             from HELPERS.safe_messeger import safe_send_message
             from CONFIG.messages import MessagesConfig as Messages
-            safe_send_message(user_id, getattr(Messages, 'SUBTITLES_ALWAYS_ASK_ENABLED_MSG', "✅ SUBS Always Ask enabled."), message=message)
+            safe_send_message(user_id, Messages.SUBTITLES_ALWAYS_ASK_ENABLED_MSG, message=message)
             send_to_logger(message, f"SUBS Always Ask enabled via command: {arg}")
             return
         
@@ -296,7 +296,7 @@ def subs_command(app, message):
             lang_info = LANGUAGES[arg]
             from HELPERS.safe_messeger import safe_send_message
             from CONFIG.messages import MessagesConfig as Messages
-            safe_send_message(user_id, Messages.SUBTITLES_LANG_SET_MSG.format(flag=lang_info['flag'], name=lang_info['name']) if hasattr(Messages, 'SUBTITLES_LANG_SET_MSG') else f"✅ Subtitle language set to: {lang_info['flag']} {lang_info['name']}", message=message)
+            safe_send_message(user_id, Messages.SUBTITLES_LANG_SET_MSG.format(flag=lang_info['flag'], name=lang_info['name']), message=message)
             send_to_logger(message, f"SUBS language set via command: {arg}")
             return
         
@@ -307,7 +307,7 @@ def subs_command(app, message):
             lang_info = LANGUAGES[arg]
             from HELPERS.safe_messeger import safe_send_message
             from CONFIG.messages import MessagesConfig as Messages
-            safe_send_message(user_id, Messages.SUBTITLES_LANG_SET_AUTO_MSG.format(flag=lang_info['flag'], name=lang_info['name']) if hasattr(Messages, 'SUBTITLES_LANG_SET_AUTO_MSG') else f"✅ Subtitle language set to: {lang_info['flag']} {lang_info['name']} with AUTO/TRANS enabled.", message=message)
+            safe_send_message(user_id, Messages.SUBTITLES_LANG_SET_AUTO_MSG.format(flag=lang_info['flag'], name=lang_info['name']), message=message)
             send_to_logger(message, f"SUBS language + auto mode set via command: {arg} auto")
             return
         
@@ -315,7 +315,7 @@ def subs_command(app, message):
         else:
             from HELPERS.safe_messeger import safe_send_message
             from CONFIG.messages import MessagesConfig as Messages
-            safe_send_message(user_id, getattr(Messages, 'SUBTITLES_INVALID_ARG_MSG', "❌ **Invalid argument!**\n\nValid options:\n• `/subs off` - disable subtitles\n• `/subs on` - enable Always Ask mode\n• `/subs ru` - set language (any language code)\n• `/subs ru auto` - set language with AUTO/TRANS enabled\n\nExample: `/subs en auto`"), message=message)
+            safe_send_message(user_id, Messages.SUBTITLES_INVALID_ARG_MSG, message=message)
             return
 
 
@@ -335,18 +335,12 @@ def subs_command(app, message):
         status_text = f"{lang_info['flag']} Selected language: {lang_info['name']}{auto_text}"
 
     from HELPERS.safe_messeger import safe_send_message
+    from CONFIG.messages import MessagesConfig as Messages
     safe_send_message(
         message.chat.id,
-        f"<b>💬 Subtitle settings</b>\n\n{status_text}\n\nSelect subtitle language:\n\n"
-        "<blockquote>❗️WARNING: due to high CPU impact this function is very slow (near real-time) and limited to:\n"
-        "- 720p max quality\n"
-        "- 1.5 hour max duration\n"
-        "- 500mb max video size</blockquote>\n\n"
-        "<b>Quick commands:</b>\n"
-        "• <code>/subs off</code> - disable subtitles\n"
-        "• <code>/subs on</code> - enable Always Ask mode\n"
-        "• <code>/subs ru</code> - set language\n"
-        "• <code>/subs ru auto</code> - set language with AUTO/TRANS",
+        Messages.SUBTITLES_MENU_TITLE_MSG.format(status_text=status_text) +
+        Messages.SUBTITLES_WARNING_MSG +
+        Messages.SUBTITLES_QUICK_COMMANDS_MSG,
         reply_markup=get_language_keyboard(page=0, user_id=user_id, per_page_rows=8),
         parse_mode=enums.ParseMode.HTML,
         message=message
@@ -370,13 +364,10 @@ def subs_page_callback(app, callback_query):
         auto_text = " (auto-subs)" if auto_mode else ""
         status_text = f"{lang_info['flag']} Selected language: {lang_info['name']}{auto_text}"
     
+    from CONFIG.messages import MessagesConfig as Messages
     callback_query.edit_message_text(
-        f"<b>💬 Subtitle settings</b>\n\n{status_text}\n\nSelect subtitle language:\n\n"
-        "<b>Quick commands:</b>\n"
-        "• <code>/subs off</code> - disable subtitles\n"
-        "• <code>/subs on</code> - enable Always Ask mode\n"
-        "• <code>/subs ru</code> - set language\n"
-        "• <code>/subs ru auto</code> - set language with AUTO/TRANS",
+        Messages.SUBTITLES_MENU_TITLE_MSG.format(status_text=status_text) +
+        Messages.SUBTITLES_QUICK_COMMANDS_MSG,
         reply_markup=get_language_keyboard(page, user_id=user_id)
     )
     callback_query.answer()
@@ -396,7 +387,8 @@ def subs_lang_callback(app, callback_query):
         status = f"✅ Subtitle language set: {LANGUAGES[lang_code]['flag']} {LANGUAGES[lang_code]['name']}"
     
     callback_query.edit_message_text(status)
-    callback_query.answer("Subtitle language settings updated.")
+    from CONFIG.messages import MessagesConfig as Messages
+    callback_query.answer(Messages.SUBTITLES_SETTINGS_UPDATED_MSG)
     send_to_logger(callback_query.message, f"User set subtitle language to: {lang_code}")
 
 @app.on_callback_query(filters.regex(r"^subs_auto\|"))
@@ -432,8 +424,9 @@ def subs_auto_callback(app, callback_query):
             status_text = f"{lang_info['flag']} Selected language: {lang_info['name']}{auto_text}"
         
         # We update the message from the new menu
+        from CONFIG.messages import MessagesConfig as Messages
         callback_query.edit_message_text(
-            f"<b>💬 Subtitle settings</b>\n\n{status_text}\n\nSelect subtitle language:",
+            Messages.SUBTITLES_MENU_TITLE_SIMPLE_MSG.format(status_text=status_text),
             reply_markup=get_language_keyboard(page=page, user_id=user_id)
         )
         
@@ -475,7 +468,8 @@ def subs_lang_close_callback(app, callback_query):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        callback_query.answer("Subtitle language menu closed.")
+        from CONFIG.messages import MessagesConfig as Messages
+        callback_query.answer(Messages.SUBTITLES_MENU_CLOSED_MSG)
         send_to_logger(callback_query.message, "Subtitle language menu closed.")
         return
 
@@ -1394,7 +1388,8 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
                     title = "Video"
                 
                 # Form caption
-                caption = f"<b>💬 Subtitles</b>\n\n"
+                from CONFIG.messages import MessagesConfig as Messages
+                caption = Messages.SUBTITLES_CAPTION_MSG
                 caption += f"<b>Video:</b> {title}\n"
                 caption += f"<b>Language:</b> {subs_lang}\n"
                 caption += f"<b>Type:</b> {'AUTO/TRANSerated' if auto_mode else 'Manual'}\n"

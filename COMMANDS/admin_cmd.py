@@ -256,7 +256,13 @@ def get_user_log(app, message):
     least_10 = sorted(data_tg[-10:], key=str.lower) if total > 10 else sorted(data_tg, key=str.lower)
     format_str = "\n\n".join(least_10)
     now = datetime.fromtimestamp(math.floor(time.time()))
-    txt_format = f"Logs of {Config.BOT_NAME_FOR_USERS}\nUser: {user_id}\nTotal logs: {total}\nCurrent time: {now}\n\n" + '\n'.join(sorted(data, key=str.lower))
+    from CONFIG.messages import MessagesConfig as Messages
+    txt_format = Messages.ADMIN_LOGS_FORMAT_MSG.format(
+        bot_name=Config.BOT_NAME_FOR_USERS,
+        user_id=user_id,
+        total=total,
+        now=now
+    ) + '\n'.join(sorted(data, key=str.lower))
 
     user_dir = os.path.join("users", str(message.chat.id))
     os.makedirs(user_dir, exist_ok=True)
@@ -333,8 +339,17 @@ def get_user_details(app, message):
     display_list = modified_lst[-20:] if len(modified_lst) > 20 else modified_lst
 
     now = datetime.fromtimestamp(math.floor(time.time()))
-    txt_format = f"{Config.BOT_NAME_FOR_USERS} {path}\nTotal {path}: {len(modified_lst)}\nCurrent time: {now}\n\n" + '\n'.join(txt_lst)
-    mod = f"<i>Total Users: {len(modified_lst)}</i>\nLast 20 {path}:\n\n" + '\n'.join(display_list)
+    from CONFIG.messages import MessagesConfig as Messages
+    txt_format = Messages.ADMIN_USERS_FORMAT_MSG.format(
+        bot_name=Config.BOT_NAME_FOR_USERS,
+        path=path,
+        total=len(modified_lst),
+        now=now
+    ) + '\n'.join(txt_lst)
+    mod = Messages.ADMIN_USERS_DISPLAY_MSG.format(
+        total=len(modified_lst),
+        path=path
+    ) + '\n'.join(display_list)
 
     file = f"{path}.txt"
     with open(file, 'w', encoding="utf-8") as f:
@@ -566,22 +581,21 @@ def reload_porn_command(app, message):
         from HELPERS.porn import reload_all_porn_caches
         counts = reload_all_porn_caches()
 
+        from CONFIG.messages import MessagesConfig as Messages
         send_to_user(
             message,
-            (
-                "✅ Porn caches reloaded successfully!\n\n"
-                "📊 Current cache status:\n"
-                f"• Porn domains: {counts.get('porn_domains', 0)}\n"
-                f"• Porn keywords: {counts.get('porn_keywords', 0)}\n"
-                f"• Supported sites: {counts.get('supported_sites', 0)}\n"
-                f"• WHITELIST: {counts.get('whitelist', 0)}\n"
-                f"• GREYLIST: {counts.get('greylist', 0)}\n"
-                f"• BLACK_LIST: {counts.get('black_list', 0)}\n"
-                f"• WHITE_KEYWORDS: {counts.get('white_keywords', 0)}\n"
-                f"• PROXY_DOMAINS: {counts.get('proxy_domains', 0)}\n"
-                f"• PROXY_2_DOMAINS: {counts.get('proxy_2_domains', 0)}\n"
-                f"• CLEAN_QUERY: {counts.get('clean_query', 0)}\n"
-                f"• NO_COOKIE_DOMAINS: {counts.get('no_cookie_domains', 0)}"
+            Messages.PORN_CACHE_RELOADED_MSG.format(
+                porn_domains=counts.get('porn_domains', 0),
+                porn_keywords=counts.get('porn_keywords', 0),
+                supported_sites=counts.get('supported_sites', 0),
+                whitelist=counts.get('whitelist', 0),
+                greylist=counts.get('greylist', 0),
+                black_list=counts.get('black_list', 0),
+                white_keywords=counts.get('white_keywords', 0),
+                proxy_domains=counts.get('proxy_domains', 0),
+                proxy_2_domains=counts.get('proxy_2_domains', 0),
+                clean_query=counts.get('clean_query', 0),
+                no_cookie_domains=counts.get('no_cookie_domains', 0)
             )
         )
 
@@ -646,10 +660,13 @@ def check_porn_command(app, message):
         status_icon = "🔞" if is_nsfw else "✅"
         status_text = "NSFW" if is_nsfw else "Clean"
         
-        result_message = f"{status_icon} <b>Porn Check Result</b>\n\n"
-        result_message += f"<b>URL:</b> <code>{url}</code>\n"
-        result_message += f"<b>Status:</b> <b>{status_text}</b>\n\n"
-        result_message += f"<b>Explanation:</b>\n{explanation}"
+        from CONFIG.messages import MessagesConfig as Messages
+        result_message = Messages.PORN_CHECK_RESULT_MSG.format(
+            status_icon=status_icon,
+            url=url,
+            status_text=status_text,
+            explanation=explanation
+        )
         
         # Update the status message with results
         if status_msg:

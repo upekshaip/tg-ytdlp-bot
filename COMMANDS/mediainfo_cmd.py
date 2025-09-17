@@ -89,7 +89,8 @@ def mediainfo_option_callback(app, callback_query):
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'MEDIAINFO_ENABLED_MSG', Messages.MEDIAINFO_ENABLED_MSG))
         send_to_logger(callback_query.message, "MediaInfo enabled.")
         try:
-            callback_query.answer("MediaInfo enabled.")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.MEDIAINFO_ENABLED_ANSWER_MSG)
         except Exception:
             pass
         return
@@ -100,7 +101,8 @@ def mediainfo_option_callback(app, callback_query):
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'MEDIAINFO_DISABLED_MSG', Messages.MEDIAINFO_DISABLED_MSG))
         send_to_logger(callback_query.message, "MediaInfo disabled.")
         try:
-            callback_query.answer("MediaInfo disabled.")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.MEDIAINFO_DISABLED_ANSWER_MSG)
         except Exception:
             pass
         return

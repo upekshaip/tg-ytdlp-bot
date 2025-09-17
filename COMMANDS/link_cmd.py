@@ -318,19 +318,8 @@ def link_command(app, message):
         parts = text.strip().split()
         
         if len(parts) < 2:
-            send_to_user(message, 
-                "🔗 <b>Usage:</b>\n"
-                "<code>/link [quality] URL</code>\n\n"
-                "<b>Examples:</b>\n"
-                "<blockquote>"
-                "• /link https://youtube.com/watch?v=... - best quality\n"
-                "• /link 720 https://youtube.com/watch?v=... - 720p or lower\n"
-                "• /link 720p https://youtube.com/watch?v=... - same as above\n"
-                "• /link 4k https://youtube.com/watch?v=... - 4K or lower\n"
-                "• /link 8k https://youtube.com/watch?v=... - 8K or lower"
-                "</blockquote>\n\n"
-                "<b>Quality:</b> from 1 to 10000 (e.g., 144, 240, 720, 1080)"
-            )
+            from CONFIG.messages import MessagesConfig as Messages
+            send_to_user(message, Messages.LINK_USAGE_MSG)
             return
         
         # Determine URL and quality
@@ -365,17 +354,18 @@ def link_command(app, message):
             format_spec = result.get('format', 'best')
             
             # Form response
-            response = f"🔗 <b>Direct link obtained</b>\n\n"
+            from CONFIG.messages import MessagesConfig as Messages
+            response = Messages.LINK_DIRECT_OBTAINED_MSG
             response += f"📹 <b>Title:</b> {title}\n"
             if duration > 0:
                 response += f"⏱ <b>Duration:</b> {duration} sec\n"
-            response += f"🎛 <b>Format:</b> <code>{format_spec}</code>\n\n"
+            response += Messages.LINK_FORMAT_MSG.format(format_spec=format_spec)
             
             if video_url:
-                response += f"🎬 <b>Video stream:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
+                response += Messages.LINK_VIDEO_STREAM_MSG.format(video_url=video_url)
             
             if audio_url:
-                response += f"🎵 <b>Audio stream:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
+                response += Messages.LINK_AUDIO_STREAM_MSG.format(audio_url=audio_url)
             
             if not video_url and not audio_url:
                 response += "❌ Failed to get stream links"
