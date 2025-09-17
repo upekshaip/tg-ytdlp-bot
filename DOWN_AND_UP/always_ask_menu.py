@@ -1119,6 +1119,9 @@ def askq_callback(app, callback_query):
                 fallback_text += " #nsfw"
                 logger.info(f"[ASKQ FALLBACK] Added #nsfw tag for NSFW content: {url}")
             
+            # Очищаем меню перед запуском скачивания (аналогично yt-dlp)
+            app.delete_messages(user_id, callback_query.message.id)
+            
             # Запускаем /img с «фейковым» сообщением, чтобы работать через gallery-dl
             image_command(app, fake_message(fallback_text, original_message.chat.id, original_chat_id=original_message.chat.id))
         except Exception as e:
