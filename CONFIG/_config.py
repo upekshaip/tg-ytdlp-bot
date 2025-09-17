@@ -89,6 +89,7 @@ class Config(object):
     YOUTUBE_POT_BASE_URL = "http://127.0.0.1:4416"
     # Disable innertube if tokens stop working
     YOUTUBE_POT_DISABLE_INNERTUBE = False
+    MINIAPP_URL = "https://t.me/tgytdlp_test_bot/?startapp"
     #######################################################
     # Firebase initialization
     # your firebase DB path

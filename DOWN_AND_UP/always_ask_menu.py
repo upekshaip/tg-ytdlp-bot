@@ -3535,7 +3535,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 auto_subs = get_available_subs_languages(url, user_id, auto_only=True)
                 total_subs = len(set(normal_subs) | set(auto_subs))
                 if total_subs > 0:
-                    subs_count_info = f"💬Subtitles: {total_subs} available"
+                    subs_count_info = f"💬Subtitles: {total_subs} available\n"
             except Exception as e:
                 logger.error(f"Error getting subtitles count: {e}")
         
@@ -3543,7 +3543,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         fstate = get_filters(user_id)
         available_dubs = fstate.get("available_dubs", [])
         if len(available_dubs) > 1:  # More than 1 language means dubs are available
-            dubs_count_info = f"\n🗣Dubbed audio: {len(available_dubs)} languages"
+            dubs_count_info = f"🗣Dubbed audio: {len(available_dubs)} languages"
         
         # Add the info to caption if any is available
         if subs_count_info or dubs_count_info:

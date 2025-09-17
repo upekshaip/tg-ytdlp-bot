@@ -587,6 +587,8 @@ Use:
     COOKIE_FALLBACK_ERROR_MSG = "❌ Error downloading fallback cookie. Try /cookie or upload cookie.txt."
     COOKIE_FALLBACK_UNEXPECTED_MSG = "❌ Unexpected error during fallback cookie download."
     SELECT_BROWSER_MSG = "Select a browser to download cookies from:"
+    BROWSER_MONITOR_HINT_MSG = "🌐 <b>Open Browser</b> - to monitor browser status in mini-app"
+    BROWSER_OPEN_BUTTON_MSG = "🌐 Open Browser"
     BROWSER_NOT_INSTALLED_EDIT_MSG = "⚠️ {browser} browser not installed."
     COOKIES_SAVED_USING_BROWSER_MSG = "✅ Cookies saved using browser: {browser}"
     COOKIES_SAVE_FAILED_MSG = "❌ Failed to save cookies: {error}"

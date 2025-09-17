@@ -2,7 +2,7 @@
 # Command to Set Browser Cookies and Auto-Update YouTube Cookies
 from pyrogram import filters, enums
 from CONFIG.config import Config
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters, WebAppInfo
 
 from HELPERS.app_instance import get_app
 
@@ -161,15 +161,21 @@ def cookies_from_browser(app, message):
         button = InlineKeyboardButton(f"✅ {display_name}", callback_data=f"browser_choice|{browser}")
         buttons.append([button])
 
-    # Add a close button
+    # Add a button to open mini-app with browser
     from CONFIG.messages import MessagesConfig as Messages
+    buttons.append([InlineKeyboardButton(getattr(Messages, 'BROWSER_OPEN_BUTTON_MSG', '🌐 Open Browser'), web_app=WebAppInfo(url=Config.MINIAPP_URL))])
+    
+    # Add a close button
     buttons.append([InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="browser_choice|close")])
     keyboard = InlineKeyboardMarkup(buttons)
 
     from CONFIG.messages import MessagesConfig as Messages
+    message_text = getattr(Messages, 'SELECT_BROWSER_MSG', "Select a browser to download cookies from:")
+    message_text += f"\n\n{getattr(Messages, 'BROWSER_MONITOR_HINT_MSG', '🌐 <b>Open Browser</b> - to monitor browser status in mini-app')}"
+    
     safe_send_message(
         user_id,
-        getattr(Messages, 'SELECT_BROWSER_MSG', "Select a browser to download cookies from:"),
+        message_text,
         reply_markup=keyboard,
         message=message
     )
