@@ -1408,24 +1408,10 @@ def image_command(app, message):
                                     # ЖЕСТКО: Отправка в лог-каналы должна быть ВНЕ цикла, только один раз для всего альбома
                                     if is_paid_media:
                                         # For NSFW content in private chat, send to both channels but don't cache
-                                        # Add delay to allow Telegram to process paid media before sending to log channels
-                                        time.sleep(2.0)
-                                        
-                                        # Send to LOGS_PAID_ID (for paid content) - forward the paid message
-                                        log_channel_paid = get_log_channel("image", nsfw=False, paid=True)
                                         try:
-                                            # Forward the paid message to paid log channel
-                                            app.forward_messages(
-                                                chat_id=log_channel_paid,
-                                                from_chat_id=user_id,
-                                                message_ids=[msg.id for msg in sent if msg is not None]
-                                            )
-                                            logger.info(f"[IMG LOG] Paid media message forwarded to PAID channel")
-                                        except Exception as fe:
-                                            logger.error(f"[IMG LOG] Failed to forward paid media to PAID channel: {fe}")
-                                        
-                                        # Don't cache NSFW content
-                                        logger.info(f"[IMG LOG] NSFW content sent to PAID channel, not cached")
+                                            send_paid_images_to_logs(app, sent, media_group, user_id, message, nsfw_flag, is_private_chat, tags_text_norm)
+                                        except Exception as e:
+                                            logger.error(f"[IMG LOG] Failed to send paid images to log channels: {e}")
                                     
                                     elif nsfw_flag and not is_private_chat:
                                         # NSFW content in groups -> LOGS_NSFW_ID only - send as album
