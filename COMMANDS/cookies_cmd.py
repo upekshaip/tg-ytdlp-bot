@@ -163,7 +163,12 @@ def cookies_from_browser(app, message):
 
     # Add a button to open mini-app with browser
     from CONFIG.messages import MessagesConfig as Messages
-    buttons.append([InlineKeyboardButton(getattr(Messages, 'BROWSER_OPEN_BUTTON_MSG', '🌐 Open Browser'), web_app=WebAppInfo(url=Config.MINIAPP_URL))])
+    miniapp_url = getattr(Config, 'MINIAPP_URL', None)
+    if miniapp_url and miniapp_url.startswith('https://t.me/'):
+        logger.info(f"Adding mini-app button with URL: {miniapp_url}")
+        buttons.append([InlineKeyboardButton(getattr(Messages, 'BROWSER_OPEN_BUTTON_MSG', '🌐 Open Browser'), web_app=WebAppInfo(url=miniapp_url))])
+    else:
+        logger.warning(f"Mini-app URL not configured or invalid: {miniapp_url}")
     
     # Add a close button
     buttons.append([InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="browser_choice|close")])
@@ -171,7 +176,8 @@ def cookies_from_browser(app, message):
 
     from CONFIG.messages import MessagesConfig as Messages
     message_text = getattr(Messages, 'SELECT_BROWSER_MSG', "Select a browser to download cookies from:")
-    message_text += f"\n\n{getattr(Messages, 'BROWSER_MONITOR_HINT_MSG', '🌐 <b>Open Browser</b> - to monitor browser status in mini-app')}"
+    if miniapp_url and miniapp_url.startswith('https://t.me/'):
+        message_text += f"\n\n{getattr(Messages, 'BROWSER_MONITOR_HINT_MSG', '🌐 <b>Open Browser</b> - to monitor browser status in mini-app')}"
     
     safe_send_message(
         user_id,
