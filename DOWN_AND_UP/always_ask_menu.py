@@ -2501,7 +2501,7 @@ def show_other_qualities_menu(app, callback_query, page=0):
                     # Join with | separator
                     button_text = ' | '.join(button_parts)
                     
-                    # Add rocket emoji if format is cached
+                    # Add rocket emoji if format is cached, or paid emoji for NSFW
                     if format_id in cached_qualities and not is_nsfw:
                         button_text = f"🚀 {button_text}"
                     elif is_nsfw and is_private_chat:
@@ -2623,7 +2623,7 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
                 # Join with | separator
                 button_text = ' | '.join(button_parts)
                 
-                # Add rocket emoji if format is cached
+                # Add rocket emoji if format is cached, or paid emoji for NSFW
                 if format_id in cached_qualities and not is_nsfw:
                     button_text = f"🚀 {button_text}"
                 elif is_nsfw and is_private_chat:

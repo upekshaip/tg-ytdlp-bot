@@ -19,6 +19,8 @@ from HELPERS.filesystem_hlp import sanitize_filename, create_directory, check_di
 from DATABASE.firebase_init import write_logs
 from URL_PARSERS.tags import generate_final_tags
 from URL_PARSERS.nocookie import is_no_cookie_domain
+from URL_PARSERS.filter_check import is_no_filter_domain
+from URL_PARSERS.filter_utils import create_smart_match_filter, create_legacy_match_filter
 from URL_PARSERS.youtube import is_youtube_url, download_thumbnail
 from URL_PARSERS.thumbnail_downloader import download_thumbnail as download_universal_thumbnail
 from HELPERS.pot_helper import add_pot_to_ytdl_opts
@@ -621,12 +623,17 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                'geo_bypass': True,
                'check_certificate': False,
                'live_from_start': True,
-               # Default filter: skip live streams and long videos by limits
-               'match_filter': yt_dlp.utils.match_filter_func(f'!is_live & duration <= {Config.MAX_VIDEO_DURATION}'),
                'writethumbnail': True,  # Enable thumbnail writing for manual embedding
                'writesubtitles': False,  # Disable subtitles for audio
                'writeautomaticsub': False,  # Disable auto subtitles for audio
             }
+            
+            # Add match_filter only if domain is not in NO_FILTER_DOMAINS
+            if not is_no_filter_domain(url):
+                # Use smart filter that allows downloads when duration is unknown
+                ytdl_opts['match_filter'] = create_smart_match_filter()
+            else:
+                logger.info(f"Skipping match_filter for domain in NO_FILTER_DOMAINS: {url}")
             
             # Add user's custom yt-dlp arguments
             from COMMANDS.args_cmd import get_user_ytdlp_args, log_ytdlp_options
