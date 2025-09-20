@@ -738,9 +738,17 @@ def build_filter_rows(user_id, url=None, is_private_chat=False):
                 is_cached_mp3 = ('mp3' in cq)
             except Exception:
                 is_cached_mp3 = False
+        # Get user's audio format setting
+        try:
+            from COMMANDS.args_cmd import get_user_args
+            user_args = get_user_args(user_id)
+            audio_format = user_args.get('audio_format', 'mp3').upper()
+        except Exception:
+            audio_format = 'MP3'
+        
         mp3_label = (
-            "1⭐️MP3" if (is_nsfw and is_private_chat)
-            else ("🚀MP3" if is_cached_mp3 else "🎧MP3")
+            f"1⭐️{audio_format}" if (is_nsfw and is_private_chat)
+            else (f"🚀{audio_format}" if is_cached_mp3 else f"🎧{audio_format}")
         )
         row = [InlineKeyboardButton("📼CODEC", callback_data="askf|toggle|on"), InlineKeyboardButton(mp3_label, callback_data="askq|mp3")]
         # Show DUBS button only if audio dubs are detected for this video (set elsewhere)
@@ -787,9 +795,17 @@ def build_filter_rows(user_id, url=None, is_private_chat=False):
             is_cached_mp3 = ('mp3' in cq)
         except Exception:
             is_cached_mp3 = False
+    # Get user's audio format setting
+    try:
+        from COMMANDS.args_cmd import get_user_args
+        user_args = get_user_args(user_id)
+        audio_format = user_args.get('audio_format', 'mp3').upper()
+    except Exception:
+        audio_format = 'MP3'
+    
     mp3_label = (
-        "1⭐️MP3" if (is_nsfw and is_private_chat)
-        else ("🚀MP3" if is_cached_mp3 else "🎧MP3")
+        f"1⭐️{audio_format}" if (is_nsfw and is_private_chat)
+        else (f"🚀{audio_format}" if is_cached_mp3 else f"🎧{audio_format}")
     )
     rows = [
         [InlineKeyboardButton(avc1_btn, callback_data="askf|codec|avc1"), InlineKeyboardButton(av01_btn, callback_data="askf|codec|av01"), InlineKeyboardButton(vp9_btn, callback_data="askf|codec|vp9")],
@@ -2463,6 +2479,13 @@ def show_other_qualities_menu(app, callback_query, page=0):
         end_idx = min(start_idx + formats_per_page, total_formats)
         page_formats = format_lines[start_idx:end_idx]
         
+        # Get cached qualities to show rocket emoji for cached formats
+        cached_qualities = set()
+        try:
+            cached_qualities = get_cached_qualities(url)
+        except Exception:
+            pass
+        
         # Build keyboard with format buttons (1 row × 10 columns max)
         keyboard_rows = []
         row = []
@@ -2477,7 +2500,11 @@ def show_other_qualities_menu(app, callback_query, page=0):
                 if button_parts:  # Only create button if we have valid data
                     # Join with | separator
                     button_text = ' | '.join(button_parts)
-                    if is_nsfw and is_private_chat:
+                    
+                    # Add rocket emoji if format is cached
+                    if format_id in cached_qualities and not is_nsfw:
+                        button_text = f"🚀 {button_text}"
+                    elif is_nsfw and is_private_chat:
                         button_text = f"1⭐️ {button_text}"
                     
                     # Limit button text length
@@ -2575,6 +2602,13 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
     end_idx = min(start_idx + formats_per_page, total_formats)
     page_formats = format_lines[start_idx:end_idx]
     
+    # Get cached qualities to show rocket emoji for cached formats
+    cached_qualities = set()
+    try:
+        cached_qualities = get_cached_qualities(url)
+    except Exception:
+        pass
+    
     # Build keyboard with format buttons (1 column × 10 rows max)
     keyboard_rows = []
     for i, format_line in enumerate(page_formats):
@@ -2588,7 +2622,11 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
             if button_parts:  # Only create button if we have valid data
                 # Join with | separator
                 button_text = ' | '.join(button_parts)
-                if is_nsfw and is_private_chat:
+                
+                # Add rocket emoji if format is cached
+                if format_id in cached_qualities and not is_nsfw:
+                    button_text = f"🚀 {button_text}"
+                elif is_nsfw and is_private_chat:
                     button_text = f"1⭐️ {button_text}"
                 
                 # Limit button text length
@@ -3972,8 +4010,10 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         else:
             dynamic_hints.append("📹 — Choose download quality")
         
-        # Repost hint (🚀) - only if show_repost_hint is True
-        if show_repost_hint:
+        # Repost hint (🚀) - only if show_repost_hint is True AND there are cached qualities
+        # Also check if any button has rocket emoji (including Other button)
+        has_rocket_button = "🚀" in used_emojis
+        if show_repost_hint and cached_qualities and has_rocket_button:
             dynamic_hints.append("🚀 — Instant repost from cache")
         
         # Watch hint (👁) - only for YouTube and if button is present
@@ -3991,6 +4031,10 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         # Image hint (🖼) - only if no quality keys found and button is present
         if not found_quality_keys and "🖼" in used_emojis:
             dynamic_hints.append("🖼 — Download image (gallery-dl)")
+        
+        # Audio hint (🎧) - if audio button is present
+        if "🎧" in used_emojis:
+            dynamic_hints.append("🎧 — Extract only audio from media")
         
         # Subs hints
         if subs_hint:
