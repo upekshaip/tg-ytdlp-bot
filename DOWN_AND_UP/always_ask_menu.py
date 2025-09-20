@@ -738,9 +738,17 @@ def build_filter_rows(user_id, url=None, is_private_chat=False):
                 is_cached_mp3 = ('mp3' in cq)
             except Exception:
                 is_cached_mp3 = False
+        # Get user's audio format setting
+        try:
+            from COMMANDS.args_cmd import get_user_args
+            user_args = get_user_args(user_id)
+            audio_format = user_args.get('audio_format', 'mp3').upper()
+        except Exception:
+            audio_format = 'MP3'
+        
         mp3_label = (
-            "1⭐️MP3" if (is_nsfw and is_private_chat)
-            else ("🚀MP3" if is_cached_mp3 else "🎧MP3")
+            f"1⭐️{audio_format}" if (is_nsfw and is_private_chat)
+            else (f"🚀{audio_format}" if is_cached_mp3 else f"🎧{audio_format}")
         )
         row = [InlineKeyboardButton("📼CODEC", callback_data="askf|toggle|on"), InlineKeyboardButton(mp3_label, callback_data="askq|mp3")]
         # Show DUBS button only if audio dubs are detected for this video (set elsewhere)
@@ -787,9 +795,17 @@ def build_filter_rows(user_id, url=None, is_private_chat=False):
             is_cached_mp3 = ('mp3' in cq)
         except Exception:
             is_cached_mp3 = False
+    # Get user's audio format setting
+    try:
+        from COMMANDS.args_cmd import get_user_args
+        user_args = get_user_args(user_id)
+        audio_format = user_args.get('audio_format', 'mp3').upper()
+    except Exception:
+        audio_format = 'MP3'
+    
     mp3_label = (
-        "1⭐️MP3" if (is_nsfw and is_private_chat)
-        else ("🚀MP3" if is_cached_mp3 else "🎧MP3")
+        f"1⭐️{audio_format}" if (is_nsfw and is_private_chat)
+        else (f"🚀{audio_format}" if is_cached_mp3 else f"🎧{audio_format}")
     )
     rows = [
         [InlineKeyboardButton(avc1_btn, callback_data="askf|codec|avc1"), InlineKeyboardButton(av01_btn, callback_data="askf|codec|av01"), InlineKeyboardButton(vp9_btn, callback_data="askf|codec|vp9")],
@@ -937,6 +953,11 @@ def askq_callback(app, callback_query):
             
             send_to_logger(original_message, f"Failed to extract direct link via LINK button for user {user_id} from {url}: {error_msg}")
         
+        # Удаляем Always Ask меню после обработки
+        try:
+            app.delete_messages(callback_query.message.chat.id, callback_query.message.id)
+        except Exception as e:
+            logger.warning(f"Failed to delete Always Ask menu: {e}")
         return
 
     # Handle LIST button - get available formats
@@ -1042,6 +1063,12 @@ def askq_callback(app, callback_query):
                 f"❌ Failed to get formats:\n<code>{output}</code>",
                 reply_parameters=ReplyParameters(message_id=original_message.id)
             )
+        
+        # Удаляем Always Ask меню после обработки
+        try:
+            app.delete_messages(callback_query.message.chat.id, callback_query.message.id)
+        except Exception as e:
+            logger.warning(f"Failed to delete Always Ask menu: {e}")
         return
 
     # ---- IMAGE fallback: process via gallery-dl (/img) ----
@@ -1108,6 +1135,12 @@ def askq_callback(app, callback_query):
             image_command(app, fake_message(fallback_text, original_message.chat.id, original_chat_id=original_message.chat.id))
         except Exception as e:
             logger.error(f"[ASKQ] IMAGE fallback failed: {e}")
+        
+        # Удаляем Always Ask меню после обработки
+        try:
+            app.delete_messages(callback_query.message.chat.id, callback_query.message.id)
+        except Exception as e:
+            logger.warning(f"Failed to delete Always Ask menu: {e}")
         return
     
     if data == "quick_embed":
@@ -1951,6 +1984,12 @@ def askq_callback(app, callback_query):
                 # Don't show error message if we successfully got video from cache
                 # The video was already sent successfully in the try block
                 askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs)
+            
+            # Удаляем Always Ask меню после обработки
+            try:
+                app.delete_messages(callback_query.message.chat.id, callback_query.message.id)
+            except Exception as e:
+                logger.warning(f"Failed to delete Always Ask menu: {e}")
             return
     else:
         if is_subs_always_ask(user_id):
@@ -1958,6 +1997,12 @@ def askq_callback(app, callback_query):
         else:
             logger.info(f"[VIDEO CACHE] Skipping cache check because need_subs=True: url={url}, quality={data}")
     askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs)
+    
+    # Удаляем Always Ask меню после обработки
+    try:
+        app.delete_messages(callback_query.message.chat.id, callback_query.message.id)
+    except Exception as e:
+        logger.warning(f"Failed to delete Always Ask menu: {e}")
 
 ###########################
 
@@ -2434,6 +2479,13 @@ def show_other_qualities_menu(app, callback_query, page=0):
         end_idx = min(start_idx + formats_per_page, total_formats)
         page_formats = format_lines[start_idx:end_idx]
         
+        # Get cached qualities to show rocket emoji for cached formats
+        cached_qualities = set()
+        try:
+            cached_qualities = get_cached_qualities(url)
+        except Exception:
+            pass
+        
         # Build keyboard with format buttons (1 row × 10 columns max)
         keyboard_rows = []
         row = []
@@ -2448,7 +2500,11 @@ def show_other_qualities_menu(app, callback_query, page=0):
                 if button_parts:  # Only create button if we have valid data
                     # Join with | separator
                     button_text = ' | '.join(button_parts)
-                    if is_nsfw and is_private_chat:
+                    
+                    # Add rocket emoji if format is cached, or paid emoji for NSFW
+                    if format_id in cached_qualities and not is_nsfw:
+                        button_text = f"🚀 {button_text}"
+                    elif is_nsfw and is_private_chat:
                         button_text = f"1⭐️ {button_text}"
                     
                     # Limit button text length
@@ -2546,6 +2602,13 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
     end_idx = min(start_idx + formats_per_page, total_formats)
     page_formats = format_lines[start_idx:end_idx]
     
+    # Get cached qualities to show rocket emoji for cached formats
+    cached_qualities = set()
+    try:
+        cached_qualities = get_cached_qualities(url)
+    except Exception:
+        pass
+    
     # Build keyboard with format buttons (1 column × 10 rows max)
     keyboard_rows = []
     for i, format_line in enumerate(page_formats):
@@ -2559,7 +2622,11 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
             if button_parts:  # Only create button if we have valid data
                 # Join with | separator
                 button_text = ' | '.join(button_parts)
-                if is_nsfw and is_private_chat:
+                
+                # Add rocket emoji if format is cached, or paid emoji for NSFW
+                if format_id in cached_qualities and not is_nsfw:
+                    button_text = f"🚀 {button_text}"
+                elif is_nsfw and is_private_chat:
                     button_text = f"1⭐️ {button_text}"
                 
                 # Limit button text length
@@ -3577,8 +3644,56 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         watch_hint = "\n👁 — Watch video in poketube" if is_youtube_url(url) else ""
         link_hint = "\n🔗 — Get direct link to video"  # Link button is always present
         list_hint = "\n📃 — Show available formats list"  # LIST button is always present
-        # Compose hint block with preferred order
-        hint = (
+        
+        # Create dynamic hints based on actual buttons that will be shown
+        def create_dynamic_hints(action_buttons, found_quality_keys, is_youtube_url, url, is_nsfw, is_private_chat, get_filters, user_id, subs_hint, subs_warn):
+            """Create hints only for emojis that are actually used in the menu"""
+            hints = []
+            
+            # Always show format change hint (📼) - this is always available
+            hints.append("📼 — Сhange video ext/codec")
+            
+            # Quality hint (📹) - always shown unless NSFW
+            if is_nsfw and is_private_chat:
+                hints.append("⭐️ — 🔞NSFW is paid (⭐️$0.02)")
+            else:
+                hints.append("📹 — Choose download quality")
+            
+            # Repost hint (🚀) - only if show_repost_hint is True
+            if show_repost_hint:
+                hints.append("🚀 — Instant repost from cache")
+            
+            # Watch hint (👁) - only for YouTube
+            if is_youtube_url(url):
+                hints.append("👁 — Watch video in poketube")
+            
+            # Link hint (🔗) - always present
+            hints.append("🔗 — Get direct link to video")
+            
+            # List hint (📃) - always present
+            hints.append("📃 — Show available formats list")
+            
+            # Image hint (🖼) - only if no quality keys found
+            if not found_quality_keys:
+                hints.append("🖼 — Download image (gallery-dl)")
+            
+            # Subs hints
+            if subs_hint:
+                hints.append(subs_hint.strip())
+            if subs_warn:
+                hints.append(subs_warn.strip())
+            
+            # Dubs hint (🗣) - only if available
+            if get_filters(user_id).get("has_dubs"):
+                hints.append("🗣 — Choose audio language")
+            
+            return "\n".join(hints)
+        
+        # We need to create action_buttons first to determine which hints to show
+        # This will be done later in the code, so for now we'll use the old logic
+        # but we'll replace it after action_buttons are created
+        # Temporary hint for now - will be replaced later
+        temp_hint = (
             "<pre language=\"info\">📼 — Сhange video ext/codec"
             + paid_hint
             + repost_line
@@ -3591,7 +3706,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             + dubs_hint
             + "</pre>"
         )
-        cap += f"\n{hint}\n"
+        cap += f"\n{temp_hint}\n"
         buttons = []
         # Sort buttons by quality from lowest to highest
         if ("youtube.com" in url or "youtu.be" in url):
@@ -3848,8 +3963,104 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         for i, row in enumerate(keyboard_rows):
             logger.info(f"Row {i}: {[btn.text for btn in row]}")
         
+        # Now that we have all action_buttons, create dynamic hints
+        # Extract emojis from all buttons to determine which hints to show
+        used_emojis = set()
+        
+        # Check action_buttons
+        for button in action_buttons:
+            if hasattr(button, 'text') and button.text:
+                text = button.text
+                if text and len(text) > 0:
+                    first_char = text[0]
+                    if ord(first_char) > 127:  # Simple emoji detection
+                        used_emojis.add(first_char)
+        
+        # Check quality buttons
+        for button in buttons:
+            if hasattr(button, 'text') and button.text:
+                text = button.text
+                if text and len(text) > 0:
+                    first_char = text[0]
+                    if ord(first_char) > 127:  # Simple emoji detection
+                        used_emojis.add(first_char)
+        
+        # Check filter buttons
+        for row in filter_rows:
+            for button in row:
+                if hasattr(button, 'text') and button.text:
+                    text = button.text
+                    if text and len(text) > 0:
+                        first_char = text[0]
+                        if ord(first_char) > 127:  # Simple emoji detection
+                            used_emojis.add(first_char)
+        
+        # Log detected emojis for debugging
+        logger.info(f"Detected emojis in menu for user {user_id}: {sorted(used_emojis)}")
+        
+        # Create dynamic hints based on actually used emojis
+        dynamic_hints = []
+        
+        # Always show format change hint (📼) - this is always available
+        dynamic_hints.append("📼 — Сhange video ext/codec")
+        
+        # Quality hint (📹) - always shown unless NSFW
+        if is_nsfw and is_private_chat:
+            dynamic_hints.append("⭐️ — 🔞NSFW is paid (⭐️$0.02)")
+        else:
+            dynamic_hints.append("📹 — Choose download quality")
+        
+        # Repost hint (🚀) - only if show_repost_hint is True AND there are cached qualities
+        # Also check if any button has rocket emoji (including Other button)
+        has_rocket_button = "🚀" in used_emojis
+        if show_repost_hint and cached_qualities and has_rocket_button:
+            dynamic_hints.append("🚀 — Instant repost from cache")
+        
+        # Watch hint (👁) - only for YouTube and if button is present
+        if is_youtube_url(url) and "👁" in used_emojis:
+            dynamic_hints.append("👁 — Watch video in poketube")
+        
+        # Link hint (🔗) - always present
+        if "🔗" in used_emojis:
+            dynamic_hints.append("🔗 — Get direct link to video")
+        
+        # List hint (📃) - always present
+        if "📃" in used_emojis:
+            dynamic_hints.append("📃 — Show available formats list")
+        
+        # Image hint (🖼) - only if no quality keys found and button is present
+        if not found_quality_keys and "🖼" in used_emojis:
+            dynamic_hints.append("🖼 — Download image (gallery-dl)")
+        
+        # Audio hint (🎧) - if audio button is present
+        if "🎧" in used_emojis:
+            dynamic_hints.append("🎧 — Extract only audio from media")
+        
+        # Subs hints
+        if subs_hint:
+            dynamic_hints.append(subs_hint.strip())
+        if subs_warn:
+            dynamic_hints.append(subs_warn.strip())
+        
+        # Dubs hint (🗣) - only if available and button is present
+        if get_filters(user_id).get("has_dubs") and "🗣" in used_emojis:
+            dynamic_hints.append("🗣 — Choose audio language")
+        
+        # Replace the old hint in cap with dynamic one
+        dynamic_hint_text = "<pre language=\"info\">" + "\n".join(dynamic_hints) + "</pre>"
+        
+        # Log final hints for debugging
+        logger.info(f"Final dynamic hints for user {user_id}: {dynamic_hints}")
+        
+        # Find and replace the old hint in cap
+        import re
+        # Remove old hint block
+        cap = re.sub(r'<pre language="info">.*?</pre>', '', cap, flags=re.DOTALL)
+        # Add new dynamic hint
+        cap += f"\n{dynamic_hint_text}\n"
+        
         keyboard = InlineKeyboardMarkup(keyboard_rows)
-        # cap already contains a hint and a table
+        # cap now contains dynamic hints based on actual buttons
         # Replace current menu in-place if possible
         if cb is not None and getattr(cb, 'message', None):
                 # Edit caption or text in place
@@ -4504,3 +4715,4 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
             f.write(_json.dumps(payload, ensure_ascii=False, indent=2))
     except Exception:
         pass
+    
