@@ -937,6 +937,11 @@ def askq_callback(app, callback_query):
             
             send_to_logger(original_message, f"Failed to extract direct link via LINK button for user {user_id} from {url}: {error_msg}")
         
+        # Удаляем Always Ask меню после обработки
+        try:
+            app.delete_messages(callback_query.message.chat.id, callback_query.message.id)
+        except Exception as e:
+            logger.warning(f"Failed to delete Always Ask menu: {e}")
         return
 
     # Handle LIST button - get available formats
@@ -1042,6 +1047,12 @@ def askq_callback(app, callback_query):
                 f"❌ Failed to get formats:\n<code>{output}</code>",
                 reply_parameters=ReplyParameters(message_id=original_message.id)
             )
+        
+        # Удаляем Always Ask меню после обработки
+        try:
+            app.delete_messages(callback_query.message.chat.id, callback_query.message.id)
+        except Exception as e:
+            logger.warning(f"Failed to delete Always Ask menu: {e}")
         return
 
     # ---- IMAGE fallback: process via gallery-dl (/img) ----
@@ -1108,6 +1119,12 @@ def askq_callback(app, callback_query):
             image_command(app, fake_message(fallback_text, original_message.chat.id, original_chat_id=original_message.chat.id))
         except Exception as e:
             logger.error(f"[ASKQ] IMAGE fallback failed: {e}")
+        
+        # Удаляем Always Ask меню после обработки
+        try:
+            app.delete_messages(callback_query.message.chat.id, callback_query.message.id)
+        except Exception as e:
+            logger.warning(f"Failed to delete Always Ask menu: {e}")
         return
     
     if data == "quick_embed":
@@ -1951,6 +1968,12 @@ def askq_callback(app, callback_query):
                 # Don't show error message if we successfully got video from cache
                 # The video was already sent successfully in the try block
                 askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs)
+            
+            # Удаляем Always Ask меню после обработки
+            try:
+                app.delete_messages(callback_query.message.chat.id, callback_query.message.id)
+            except Exception as e:
+                logger.warning(f"Failed to delete Always Ask menu: {e}")
             return
     else:
         if is_subs_always_ask(user_id):
@@ -1958,6 +1981,12 @@ def askq_callback(app, callback_query):
         else:
             logger.info(f"[VIDEO CACHE] Skipping cache check because need_subs=True: url={url}, quality={data}")
     askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs)
+    
+    # Удаляем Always Ask меню после обработки
+    try:
+        app.delete_messages(callback_query.message.chat.id, callback_query.message.id)
+    except Exception as e:
+        logger.warning(f"Failed to delete Always Ask menu: {e}")
 
 ###########################
 
@@ -4504,3 +4533,4 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
             f.write(_json.dumps(payload, ensure_ascii=False, indent=2))
     except Exception:
         pass
+    
