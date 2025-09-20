@@ -76,13 +76,24 @@ def split_command(app, message):
             with open(split_file, "w", encoding="utf-8") as f:
                 f.write(str(size))
             
-            from CONFIG.messages import MessagesConfig as Messages
-            safe_send_message(user_id, Messages.SPLIT_SIZE_SET_MSG.format(size=humanbytes(size)), message=message)
+            safe_send_message(user_id, f"✅ Split part size set to: {humanbytes(size)}", message=message)
             send_to_logger(message, f"Split size set to {size} bytes via argument.")
             return
         else:
-            from CONFIG.messages import MessagesConfig as Messages
-            safe_send_message(user_id, Messages.SPLIT_INVALID_SIZE_MSG
+            safe_send_message(user_id, 
+                "❌ **Invalid size!**\n\n"
+                "**Valid range:** 100MB to 2GB\n\n"
+                "**Valid formats:**\n"
+                "• `100mb` to `2000mb` (megabytes)\n"
+                "• `0.1gb` to `2gb` (gigabytes)\n\n"
+                "**Examples:**\n"
+                "• `/split 100mb` - 100 megabytes\n"
+                "• `/split 500mb` - 500 megabytes\n"
+                "• `/split 1.5gb` - 1.5 gigabytes\n"
+                "• `/split 2gb` - 2 gigabytes\n"
+                "• `/split 2000mb` - 2000 megabytes (2GB)\n\n"
+                "**Presets:**\n"
+                "• `/split 250mb`, `/split 500mb`, `/split 1gb`, `/split 1.5gb`, `/split 2gb`"
             , message=message)
             return
     
@@ -107,11 +118,15 @@ def split_command(app, message):
                 text, size = sizes[i + j]
                 row.append(InlineKeyboardButton(text, callback_data=f"split_size|{size}"))
         buttons.append(row)
-    from CONFIG.messages import MessagesConfig as Messages
-    buttons.append([InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="split_size|close")])
+    buttons.append([InlineKeyboardButton("🔚Close", callback_data="split_size|close")])
     keyboard = InlineKeyboardMarkup(buttons)
-    from CONFIG.messages import MessagesConfig as Messages
-    safe_send_message(user_id, Messages.SPLIT_CHOOSE_SIZE_MSG,
+    safe_send_message(user_id, 
+        "🎬 **Choose max part size for video splitting:**\n\n"
+        "**Range:** 100MB to 2GB\n\n"
+        "**Quick commands:**\n"
+        "• `/split 100mb` - `/split 2000mb`\n"
+        "• `/split 0.1gb` - `/split 2gb`\n\n"
+        "**Examples:** `/split 300mb`, `/split 1.2gb`, `/split 1500mb`", 
         reply_markup=keyboard,
         message=message
     )
@@ -129,8 +144,7 @@ def split_size_callback(app, callback_query):
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.SPLIT_MENU_CLOSED_MSG)
+            callback_query.answer("Menu closed.")
         except Exception:
             pass
         send_to_logger(callback_query.message, "Split selection closed.")
@@ -138,16 +152,14 @@ def split_size_callback(app, callback_query):
     try:
         size = int(data)
     except Exception:
-        from CONFIG.messages import MessagesConfig as Messages
-        callback_query.answer(Messages.SPLIT_INVALID_SIZE_SHORT_MSG)
+        callback_query.answer("Invalid size.")
         return
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
     split_file = os.path.join(user_dir, "split.txt")
     with open(split_file, "w", encoding="utf-8") as f:
         f.write(str(size))
-    from CONFIG.messages import MessagesConfig as Messages
-    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.SPLIT_SIZE_SET_MSG.format(size=humanbytes(size)))
+    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, f"✅ Split part size set to: {humanbytes(size)}")
     send_to_logger(callback_query.message, f"Split size set to {size} bytes.")
 
 # --- Function for reading split.txt ---

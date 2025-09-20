@@ -214,18 +214,17 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 format_spec = result.get('format', 'best')
                 
                 # Form response
-                from CONFIG.messages import MessagesConfig as Messages
-                response = Messages.LINK_DIRECT_OBTAINED_MSG
+                response = f"🔗 <b>Direct link obtained</b>\n\n"
                 response += f"📹 <b>Title:</b> {title}\n"
                 if duration > 0:
                     response += f"⏱ <b>Duration:</b> {duration} sec\n"
-                response += Messages.LINK_FORMAT_MSG.format(format_spec=format_spec)
+                response += f"🎛 <b>Format:</b> <code>{format_spec}</code>\n\n"
                 
                 if video_url:
-                    response += Messages.LINK_VIDEO_STREAM_MSG.format(video_url=video_url)
+                    response += f"🎬 <b>Video stream:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
                 
                 if audio_url:
-                    response += Messages.LINK_AUDIO_STREAM_MSG.format(audio_url=audio_url)
+                    response += f"🎵 <b>Audio stream:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
                 
                 if not video_url and not audio_url:
                     response += "❌ Failed to get stream links"
@@ -325,13 +324,11 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     except Exception as e:
                         logger.error(f"down_and_audio: error reposting cached audio index={index}: {e}")
             if len(uncached_indices) == 0:
-                from CONFIG.messages import MessagesConfig as Messages
-                app.send_message(user_id, Messages.PLAYLIST_AUDIO_SENT_FROM_CACHE_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+                app.send_message(user_id, f"✅ Playlist audio sent from cache ({len(cached_videos)}/{len(requested_indices)} files).", reply_parameters=ReplyParameters(message_id=message.id))
                 send_to_logger(message, LoggerMsg.PLAYLIST_AUDIO_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
                 return
             else:
-                from CONFIG.messages import MessagesConfig as Messages
-                app.send_message(user_id, Messages.AUDIO_CACHE_PARTIAL_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+                app.send_message(user_id, f"📥 {len(cached_videos)}/{len(requested_indices)} audio sent from cache, downloading missing ones...", reply_parameters=ReplyParameters(message_id=message.id))
     elif quality_key and not is_playlist:
         # Check if Always Ask mode is enabled - if yes, skip cache completely
         if not is_subs_always_ask(user_id):
@@ -385,8 +382,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     if thread_id:
                         forward_kwargs['message_thread_id'] = thread_id
                 app.forward_messages(**forward_kwargs)
-                from CONFIG.messages import MessagesConfig as Messages
-                app.send_message(user_id, Messages.AUDIO_SENT_FROM_CACHE_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+                app.send_message(user_id, "✅ Audio sent from cache.", reply_parameters=ReplyParameters(message_id=message.id))
                 send_to_logger(message, LoggerMsg.AUDIO_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
                 return
             except Exception as e:
@@ -405,7 +401,6 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     status_msg_id = None
     hourglass_msg = None
     hourglass_msg_id = None
-    download_started_msg_id = None
     audio_files = []
     try:
         # Check if there is a saved waiting time
@@ -420,11 +415,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 minutes = (wait_time % 3600) // 60
                 seconds = wait_time % 60
                 time_str = f"{hours}h {minutes}m {seconds}s"
-                from CONFIG.messages import MessagesConfig as Messages
-                proc_msg = safe_send_message(user_id, Messages.FLOOD_LIMIT_WITH_TIME_MSG.format(time=time_str), message=message)
+                proc_msg = safe_send_message(user_id, f"⚠️ Telegram has limited message sending.\n⏳ Please wait: {time_str}\nTo update timer send URL again 2 times.", message=message)
         else:
-            from CONFIG.messages import MessagesConfig as Messages
-            proc_msg = safe_send_message(user_id, Messages.RATE_LIMIT_NO_TIME_MSG, message=message)
+            proc_msg = safe_send_message(user_id, "⚠️ Telegram has limited message sending.\n⏳ Please wait: \nTo update timer send URL again 2 times.", message=message)
 
         # We are trying to replace with "Download started"
         try:
@@ -447,23 +440,19 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             return
 
         # If there is no flood error, send a normal message (only once)
-        from CONFIG.messages import MessagesConfig as Messages
-        proc_msg = app.send_message(user_id, Messages.PROCESSING_GENERIC_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+        proc_msg = app.send_message(user_id, "🔄 Processing...", reply_parameters=ReplyParameters(message_id=message.id))
         # Pin proc/status message for visibility
         try:
             app.pin_chat_message(user_id, proc_msg.id, disable_notification=True)
         except Exception:
             pass
         proc_msg_id = proc_msg.id
-        from CONFIG.messages import MessagesConfig as Messages
-        status_msg = safe_send_message(user_id, Messages.AUDIO_PROCESSING_MSG, message=message)
-        hourglass_msg = safe_send_message(user_id, Messages.PLEASE_WAIT_MSG, message=message)
+        status_msg = safe_send_message(user_id, "🎙️ Audio is processing...", message=message)
+        hourglass_msg = safe_send_message(user_id, "⏳ Please wait...", message=message)
         try:
             from HELPERS.safe_messeger import schedule_delete_message
             if status_msg and hasattr(status_msg, 'id'):
                 schedule_delete_message(user_id, status_msg.id, delete_after_seconds=5)
-            # track to force-delete on error
-            download_started_msg_id = proc_msg.id
         except Exception:
             pass
         status_msg_id = status_msg.id
@@ -475,8 +464,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         create_directory(user_folder)
 
         if not check_disk_space(user_folder, 500 * 1024 * 1024 * video_count):
-            from CONFIG.messages import MessagesConfig as Messages
-            send_to_user(message, Messages.ERROR_NO_DISK_SPACE_AUDIO_MSG)
+            send_to_user(message, "❌ Not enough disk space to download the audio files.")
             return
 
         # Create user directory (subscription already checked in video_extractor)
@@ -494,79 +482,32 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         # Check if cookie.txt exists in the user's folder
         user_cookie_path = os.path.join(user_folder, "cookie.txt")
         
-        # For YouTube URLs, use optimized cookie logic - check existing first on user's URL, then retry if needed
-        if is_youtube_url(url):
-            from COMMANDS.cookies_cmd import get_youtube_cookie_urls, test_youtube_cookies_on_url, _download_content
-            import time
-            
-            # Always check existing cookies first on user's URL for maximum speed
-            if os.path.exists(user_cookie_path):
-                logger.info(f"Checking existing YouTube cookies on user's URL for user {user_id}")
-                if test_youtube_cookies_on_url(user_cookie_path, url):
-                    cookie_file = user_cookie_path
-                    logger.info(f"Existing YouTube cookies work on user's URL for user {user_id} - using them")
-                else:
-                    logger.info(f"Existing YouTube cookies failed on user's URL, trying to get new ones for user {user_id}")
-                    # Try to get new cookies using the same logic as /cookie youtube
-                    cookie_urls = get_youtube_cookie_urls()
-                    if cookie_urls:
-                        success = False
-                        for i, cookie_url in enumerate(cookie_urls, 1):
-                            try:
-                                logger.info(f"Trying YouTube cookie source {i}/{len(cookie_urls)} for user {user_id}")
-                                ok, status, content, err = _download_content(cookie_url, timeout=30)
-                                if ok and content and len(content) <= 100 * 1024:
-                                    with open(user_cookie_path, "wb") as cf:
-                                        cf.write(content)
-                                    if test_youtube_cookies_on_url(user_cookie_path, url):
-                                        cookie_file = user_cookie_path
-                                        logger.info(f"YouTube cookies from source {i} work on user's URL for user {user_id} - saved to user folder")
-                                        success = True
-                                        break
-                                    else:
-                                        if os.path.exists(user_cookie_path):
-                                            os.remove(user_cookie_path)
-                            except Exception as e:
-                                logger.error(f"Error processing YouTube cookie source {i} for user {user_id}: {e}")
-                                continue
-                        
-                        if not success:
-                            cookie_file = None
-                            logger.warning(f"All YouTube cookie sources failed for user {user_id}, will try without cookies")
-                    else:
-                        cookie_file = None
-                        logger.warning(f"No YouTube cookie sources configured for user {user_id}, will try without cookies")
+        # For YouTube URLs, ensure working cookies (skip if already checked in Always Ask menu)
+        if is_youtube_url(url) and not cookies_already_checked:
+            from COMMANDS.cookies_cmd import ensure_working_youtube_cookies
+            has_working_cookies = ensure_working_youtube_cookies(user_id)
+            if has_working_cookies and os.path.exists(user_cookie_path):
+                cookie_file = user_cookie_path
+                logger.info(f"Using working YouTube cookies for user {user_id}")
             else:
-                # No existing cookies, try to get new ones
-                logger.info(f"No YouTube cookies found for user {user_id}, attempting to get new ones")
-                cookie_urls = get_youtube_cookie_urls()
-                if cookie_urls:
-                    success = False
-                    for i, cookie_url in enumerate(cookie_urls, 1):
-                        try:
-                            logger.info(f"Trying YouTube cookie source {i}/{len(cookie_urls)} for user {user_id}")
-                            ok, status, content, err = _download_content(cookie_url, timeout=30)
-                            if ok and content and len(content) <= 100 * 1024:
-                                with open(user_cookie_path, "wb") as cf:
-                                    cf.write(content)
-                                if test_youtube_cookies_on_url(user_cookie_path, url):
-                                    cookie_file = user_cookie_path
-                                    logger.info(f"YouTube cookies from source {i} work on user's URL for user {user_id} - saved to user folder")
-                                    success = True
-                                    break
-                                else:
-                                    if os.path.exists(user_cookie_path):
-                                        os.remove(user_cookie_path)
-                        except Exception as e:
-                            logger.error(f"Error processing YouTube cookie source {i} for user {user_id}: {e}")
-                            continue
-                    
-                    if not success:
-                        cookie_file = None
-                        logger.warning(f"All YouTube cookie sources failed for user {user_id}, will try without cookies")
+                cookie_file = None
+                logger.info(f"No working YouTube cookies available for user {user_id}, will try without cookies")
+        elif is_youtube_url(url) and cookies_already_checked:
+            # Cookies already checked in Always Ask menu - use them directly without verification
+            if os.path.exists(user_cookie_path):
+                cookie_file = user_cookie_path
+                logger.info(f"Using YouTube cookies for user {user_id} (already validated in Always Ask menu)")
+            else:
+                # Cookies were deleted - try to restore them
+                logger.info(f"No YouTube cookies found for user {user_id}, attempting to restore...")
+                from COMMANDS.cookies_cmd import ensure_working_youtube_cookies
+                has_working_cookies = ensure_working_youtube_cookies(user_id)
+                if has_working_cookies and os.path.exists(user_cookie_path):
+                    cookie_file = user_cookie_path
+                    logger.info(f"Successfully restored working YouTube cookies for user {user_id}")
                 else:
                     cookie_file = None
-                    logger.warning(f"No YouTube cookie sources configured for user {user_id}, will try without cookies")
+                    logger.info(f"Failed to restore YouTube cookies for user {user_id}, will try without cookies")
         else:
             # For non-YouTube URLs, use existing logic
             if os.path.exists(user_cookie_path):
@@ -619,24 +560,21 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 blocks = int(percent // 10)
                 bar = "🟩" * blocks + "⬜️" * (10 - blocks)
                 try:
-                    from CONFIG.messages import MessagesConfig as Messages
-                    safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{Messages.AUDIO_DOWNLOADING_MSG}\n{bar}   {percent:.1f}%")
+                    safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n📥 Downloading audio:\n{bar}   {percent:.1f}%")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "finished":
                 try:
                     full_bar = "🟩" * 10
-                    from CONFIG.messages import MessagesConfig as Messages
                     safe_edit_message_text(user_id, proc_msg_id,
-                        f"{current_total_process}\n{Messages.AUDIO_DOWNLOADING_MSG}\n{full_bar}   100.0%\nDownload finished, processing audio...")
+                        f"{current_total_process}\n📥 Downloading audio:\n{full_bar}   100.0%\nDownload finished, processing audio...")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "error":
                 try:
-                    from CONFIG.messages import MessagesConfig as Messages
-                    safe_edit_message_text(user_id, proc_msg_id, getattr(Messages, 'ERROR_DOWNLOAD_MSG', '❌ Sorry... Some error occurred during download.'))
+                    safe_edit_message_text(user_id, proc_msg_id, "Error occurred during audio download.")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
@@ -914,15 +852,13 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 
                 # Check if this is a TikTok infinite loop error
                 if "TikTok API keeps sending the same page" in error_text and "infinite loop" in error_text:
-                    from CONFIG.messages import MessagesConfig as Messages
-                    error_message = Messages.TIKTOK_API_ERROR_MSG.format(index=current_index + video_start_with)
+                    error_message = f"⚠️ TikTok API error at index {current_index + video_start_with}, skipping to next audio..."
                     send_to_user(message, error_message)
                     logger.info(f"Skipping TikTok audio at index {current_index} due to API error")
                     return "SKIP"  # Skip this audio and continue with next
                 
                 else:
-                    from CONFIG.messages import MessagesConfig as Messages
-                    send_to_user(message, Messages.UNKNOWN_ERROR_MSG.format(error=e))
+                    send_to_user(message, f"❌ Unknown error: {e}")
                 return None
 
         # Download thumbnail for embedding (only once for the URL)
@@ -1000,8 +936,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             # Check if info_dict is None before accessing it
             if info_dict is None:
                 logger.error("info_dict is None, cannot proceed with audio processing")
-                from CONFIG.messages import MessagesConfig as Messages
-                send_to_user(message, Messages.AUDIO_INFO_EXTRACT_FAILED_MSG)
+                send_to_user(message, "❌ Failed to extract audio information")
                 break
 
             audio_title = info_dict.get("title", "audio")
@@ -1065,8 +1000,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
             audio_file = os.path.join(user_folder, final_name)
             if not os.path.exists(audio_file):
-                from CONFIG.messages import MessagesConfig as Messages
-                send_to_user(message, Messages.AUDIO_FILE_NOT_FOUND_MSG)
+                send_to_user(message, "Audio file not found after download.")
                 continue
 
             # Embed cover into MP3 file if thumbnail is available
@@ -1119,8 +1053,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
             try:
                 full_bar = "🟩" * 10
-                from CONFIG.messages import MessagesConfig as Messages
-                safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{Messages.AUDIO_UPLOAD_PROGRESS_MSG}\n{full_bar}   100.0%")
+                safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n📤 Uploading audio file...\n{full_bar}   100.0%")
             except Exception as e:
                 logger.error(f"Error updating upload status: {e}")
 
@@ -1303,9 +1236,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 elif is_nsfw:
                     logger.info(f"down_and_audio: skipping cache for NSFW content (url={url})")
             except Exception as send_error:
-                from CONFIG.messages import MessagesConfig as Messages
                 logger.error(f"Error sending audio: {send_error}")
-                send_to_user(message, Messages.AUDIO_SEND_FAILED_MSG.format(error=send_error))
+                send_to_user(message, f"❌ Failed to send audio: {send_error}")
                 continue
 
             # Clean up the audio file after sending
@@ -1333,30 +1265,16 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
         if is_playlist and quality_key:
             total_sent = len(cached_videos) + successful_uploads
-            from CONFIG.messages import MessagesConfig as Messages
-            app.send_message(user_id, Messages.PLAYLIST_AUDIO_SENT_MSG.format(sent=total_sent, total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+            app.send_message(user_id, f"✅Playlist audio sent: {total_sent}/{len(requested_indices)} files.", reply_parameters=ReplyParameters(message_id=message.id))
             send_to_logger(message, f"Playlist audio sent: {total_sent}/{len(requested_indices)} files (quality={quality_key}) to user{user_id}")
 
     except Exception as e:
         if "Download timeout exceeded" in str(e):
-            from CONFIG.messages import MessagesConfig as Messages
-            send_to_user(message, Messages.AUDIO_DOWNLOAD_TIMEOUT_MSG)
+            send_to_user(message, "⏰ Download cancelled due to timeout (2 hours)")
             send_to_logger(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG)
         else:
-            from CONFIG.messages import MessagesConfig as Messages
             logger.error(f"Error in audio download: {e}")
-            send_to_user(message, Messages.AUDIO_DOWNLOAD_FAILED_MSG.format(error=e))
-        # Immediate cleanup on error
-        try:
-            if status_msg_id:
-                safe_delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
-            if hourglass_msg_id:
-                safe_delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
-            if download_started_msg_id:
-                safe_delete_messages(chat_id=user_id, message_ids=[download_started_msg_id], revoke=True)
-            stop_anim.set()
-        except Exception:
-            pass
+            send_to_user(message, f"❌ Failed to download audio: {e}")
     finally:
         # Always clean up resources
         stop_anim.set()

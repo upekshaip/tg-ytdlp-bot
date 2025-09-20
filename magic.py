@@ -239,16 +239,30 @@ def _vid_handler(app, message):
             from pyrogram import enums
             from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
             kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔚Close", callback_data="vid_help|close")]])
-            from CONFIG.messages import MessagesConfig as Messages
-            help_text = Messages.VIDEO_HELP_MSG
+            help_text = (
+                "<b>🎬 Video Download Command</b>\n\n"
+                "Usage: <code>/vid URL</code>\n\n"
+                "<b>Examples:</b>\n"
+                "• <code>/vid https://youtube.com/watch?v=123abc</code>\n"
+                "• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n"
+                "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code>\n\n"
+                "Also see: /audio, /img, /help, /playlist, /settings"
+            )
             safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
     except Exception:
         from HELPERS.safe_messeger import safe_send_message
         from pyrogram import enums
         from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔚Close", callback_data="vid_help|close")]])
-        from CONFIG.messages import MessagesConfig as Messages
-        help_text = Messages.VIDEO_HELP_MSG
+        help_text = (
+            "<b>🎬 Video Download Command</b>\n\n"
+            "Usage: <code>/vid URL</code>\n\n"
+            "<b>Examples:</b>\n"
+            "• <code>/vid https://youtube.com/watch?v=123abc</code>\n"
+            "• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n"
+            "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code>\n\n"
+            "Also see: /audio, /img, /help, /playlist, /settings"
+        )
         safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
 
 # Register /vid in private and allowed groups
@@ -269,8 +283,7 @@ def vid_help_callback(app, callback_query):
             except Exception:
                 pass
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.HELP_CLOSED_MSG)
+            callback_query.answer("Help closed.")
         except Exception:
             pass
         return

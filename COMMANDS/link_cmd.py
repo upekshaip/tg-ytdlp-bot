@@ -303,7 +303,7 @@ def link_command(app, message):
         user_id = message.chat.id
         
         # Subscription check for non-admins
-        if not is_user_in_channel(app, message):
+        if int(user_id) not in is_user_in_channel(app, message):
             return  # is_user_in_channel already sends subscription message
         
         # Create user directory after subscription check
@@ -318,8 +318,19 @@ def link_command(app, message):
         parts = text.strip().split()
         
         if len(parts) < 2:
-            from CONFIG.messages import MessagesConfig as Messages
-            send_to_user(message, Messages.LINK_USAGE_MSG)
+            send_to_user(message, 
+                "🔗 <b>Usage:</b>\n"
+                "<code>/link [quality] URL</code>\n\n"
+                "<b>Examples:</b>\n"
+                "<blockquote>"
+                "• /link https://youtube.com/watch?v=... - best quality\n"
+                "• /link 720 https://youtube.com/watch?v=... - 720p or lower\n"
+                "• /link 720p https://youtube.com/watch?v=... - same as above\n"
+                "• /link 4k https://youtube.com/watch?v=... - 4K or lower\n"
+                "• /link 8k https://youtube.com/watch?v=... - 8K or lower"
+                "</blockquote>\n\n"
+                "<b>Quality:</b> from 1 to 10000 (e.g., 144, 240, 720, 1080)"
+            )
             return
         
         # Determine URL and quality
@@ -334,14 +345,12 @@ def link_command(app, message):
         
         # Check if this is a URL
         if not url.startswith(('http://', 'https://')):
-            from CONFIG.messages import MessagesConfig as Messages
-            send_to_user(message, Messages.VALID_URL_REQUIRED_MSG)
+            send_to_user(message, "❌ Please provide a valid URL")
             return
         
         # Send processing start message
         from HELPERS.safe_messeger import safe_send_message
-        from CONFIG.messages import MessagesConfig as Messages
-        status_msg = safe_send_message(user_id, Messages.DIRECT_LINK_GETTING_MSG, reply_to_message_id=message.id, message=message)
+        status_msg = safe_send_message(user_id, "🔗 Getting direct link...", reply_to_message_id=message.id, message=message)
         
         # Get direct link - use proxy only if user has proxy enabled and domain requires it
         result = get_direct_link(url, user_id, quality_arg, use_proxy=False)
@@ -354,18 +363,17 @@ def link_command(app, message):
             format_spec = result.get('format', 'best')
             
             # Form response
-            from CONFIG.messages import MessagesConfig as Messages
-            response = Messages.LINK_DIRECT_OBTAINED_MSG
+            response = f"🔗 <b>Direct link obtained</b>\n\n"
             response += f"📹 <b>Title:</b> {title}\n"
             if duration > 0:
                 response += f"⏱ <b>Duration:</b> {duration} sec\n"
-            response += Messages.LINK_FORMAT_MSG.format(format_spec=format_spec)
+            response += f"🎛 <b>Format:</b> <code>{format_spec}</code>\n\n"
             
             if video_url:
-                response += Messages.LINK_VIDEO_STREAM_MSG.format(video_url=video_url)
+                response += f"🎬 <b>Video stream:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
             
             if audio_url:
-                response += Messages.LINK_AUDIO_STREAM_MSG.format(audio_url=audio_url)
+                response += f"🎵 <b>Audio stream:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
             
             if not video_url and not audio_url:
                 response += "❌ Failed to get stream links"

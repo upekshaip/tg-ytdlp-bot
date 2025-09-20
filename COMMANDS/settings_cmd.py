@@ -1,7 +1,7 @@
 # ===================== /settings =====================
 from pyrogram import filters
 from CONFIG.config import Config
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ReplyParameters
 from pyrogram import enums
 from HELPERS.logger import send_to_logger
 from HELPERS.limitter import is_user_in_channel
@@ -22,14 +22,14 @@ from COMMANDS.other_handlers import playlist_command
 # Create command2 function for compatibility
 def command2(app, message):
     """Help command - alias for compatibility"""
-    from CONFIG.messages import MessagesConfig as Messages
     from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     from pyrogram import enums
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="help_msg|close")]
+        [InlineKeyboardButton("🔚Close", callback_data="help_msg|close")]
     ])
 
     result = safe_send_message(message.chat.id, (Config.HELP_MSG),
+
                       parse_mode=enums.ParseMode.HTML,
                       reply_markup=keyboard)
     send_to_logger(message, f"Send help txt to user")
@@ -41,7 +41,6 @@ app = get_app()
 @app.on_message(filters.command("settings") & filters.private)
 # @reply_with_keyboard
 def settings_command(app, message):
-    from CONFIG.messages import MessagesConfig as Messages
     user_id = message.chat.id
     # Subscription check for non-admins
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
@@ -58,16 +57,15 @@ def settings_command(app, message):
         ],
         [
             InlineKeyboardButton("⚙️ MORE", callback_data="settings__menu__more"),
-            InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="settings__menu__close"),
+            InlineKeyboardButton("🔚Close", callback_data="settings__menu__close"),
         ]
     ])
-    from CONFIG.messages import MessagesConfig as Messages
     safe_send_message(
         user_id,
-        Messages.SETTINGS_MAIN_TITLE_MSG,
+        "<b>Bot Settings</b>\n\nChoose a category:",
         reply_markup=keyboard,
         parse_mode=enums.ParseMode.HTML,
-        message=message
+        reply_parameters=ReplyParameters(message_id=message.id)
     )
     send_to_logger(message, "Opened /settings menu")
 
@@ -75,7 +73,6 @@ def settings_command(app, message):
 @app.on_callback_query(filters.regex(r"^settings__menu__"))
 # @reply_with_keyboard
 def settings_menu_callback(app, callback_query: CallbackQuery):
-    from CONFIG.messages import MessagesConfig as Messages
     user_id = callback_query.from_user.id
     data = callback_query.data.split("__")[-1]
     if data == "close":
@@ -84,34 +81,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.MENU_CLOSED_MSG)
-        except Exception:
-            pass
-        return
-    if data == "back":
-        # Return to main settings menu
-        keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("🧹 CLEAN", callback_data="settings__menu__clean"),
-                InlineKeyboardButton("🍪 COOKIES", callback_data="settings__menu__cookies"),
-            ],
-            [
-                InlineKeyboardButton("🎞 MEDIA", callback_data="settings__menu__media"),
-                InlineKeyboardButton("📖 INFO", callback_data="settings__menu__logs"),
-            ],
-            [
-                InlineKeyboardButton("⚙️ MORE", callback_data="settings__menu__more"),
-                InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="settings__menu__close"),
-            ]
-        ])
-        try:
-            callback_query.edit_message_text(
-                Messages.SETTINGS_MAIN_TITLE_MSG,
-                reply_markup=keyboard,
-                parse_mode=enums.ParseMode.HTML
-            )
-            callback_query.answer()
+            callback_query.answer("Menu closed.")
         except Exception:
             pass
         return
@@ -145,14 +115,10 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [
                 InlineKeyboardButton("🗑  All files", callback_data="clean_option|all"),
             ],
-            [
-                InlineKeyboardButton("🔙Back", callback_data="settings__menu__back"),
-                InlineKeyboardButton("🔚Close", callback_data="settings__menu__close")
-            ]
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
-        from CONFIG.messages import MessagesConfig as Messages
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
-                               Messages.SETTINGS_CLEAN_TITLE_MSG,
+                               "<b>🧹 Clean Options</b>\n\nChoose what to clean:",
                                reply_markup=keyboard,
                                parse_mode=enums.ParseMode.HTML)
 
@@ -172,12 +138,10 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
                                   callback_data="settings__cmd__check_cookie")],
             [InlineKeyboardButton("🔖 /save_as_cookie - Upload custom cookie",
                                   callback_data="settings__cmd__save_as_cookie")],
-            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")],
-            [InlineKeyboardButton("🔚Close", callback_data="settings__menu__close")]
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
-        from CONFIG.messages import MessagesConfig as Messages
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
-                               Messages.SETTINGS_COOKIES_TITLE_MSG,
+                               "<b>🍪 COOKIES</b>\n\nChoose an action:",
                                reply_markup=keyboard,
                                parse_mode=enums.ParseMode.HTML)
 
@@ -196,8 +160,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("💬 /subs - Subtitles language settings", callback_data="settings__cmd__subs")],
             [InlineKeyboardButton("⏯️ /playlist - How to download playlists", callback_data="settings__cmd__playlist")],
             [InlineKeyboardButton("🖼 /img - Download images via gallery-dl", callback_data="settings__cmd__img")],
-            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")],
-            [InlineKeyboardButton("🔚Close", callback_data="settings__menu__close")]
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
                                "<b>🎞 MEDIA</b>\n\nChoose an action:",
@@ -217,8 +180,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("📃 /usage -Send your logs", callback_data="settings__cmd__usage")],
             [InlineKeyboardButton("⏯️ /playlist - Playlist's help", callback_data="settings__cmd__playlist")],
             [InlineKeyboardButton("🤖 /add_bot_to_group - howto", callback_data="settings__cmd__add_bot_to_group")],
-            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")],
-            [InlineKeyboardButton("🔚Close", callback_data="settings__menu__close")]
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
                                "<b>📖 INFO</b>\n\nChoose an action:",
@@ -239,8 +201,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("🔍 /search - Inline search helper", callback_data="settings__cmd__search_menu")],
             [InlineKeyboardButton("⚙️ /args - yt-dlp arguments", callback_data="settings__cmd__args")],
             [InlineKeyboardButton("🔞 /nsfw - NSFW blur settings", callback_data="settings__cmd__nsfw")],
-            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")],
-            [InlineKeyboardButton("🔚Close", callback_data="settings__menu__close")]
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
                                "<b>⚙️ MORE COMMANDS</b>\n\nChoose an action:",
@@ -266,8 +227,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             ],
             [
                 InlineKeyboardButton("⚙️ MORE", callback_data="settings__menu__more"),
-                InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="settings__menu__close"),
-                InlineKeyboardButton("🔚Close", callback_data="settings__menu__close")
+                InlineKeyboardButton("🔚Close", callback_data="settings__menu__close"),
             ]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
@@ -314,10 +274,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             [
                 InlineKeyboardButton("🗑  All files", callback_data="clean_option|all"),
             ],
-            [
-                InlineKeyboardButton("🔙Back", callback_data="settings__menu__back"),
-                InlineKeyboardButton("🔚Close", callback_data="settings__menu__close")
-            ]
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
         try:
             callback_query.edit_message_text(
@@ -341,14 +298,12 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
                 f.write(str(e.value))
             try:
-                from CONFIG.messages import MessagesConfig as Messages
-                callback_query.answer(Messages.FLOOD_LIMIT_TRY_LATER_MSG, show_alert=False)
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
             except Exception:
                 pass
             return
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.COMMAND_EXECUTED_MSG)
+            callback_query.answer("Command executed.")
         except Exception:
             pass
         return
@@ -361,14 +316,12 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
                 f.write(str(e.value))
             try:
-                from CONFIG.messages import MessagesConfig as Messages
-                callback_query.answer(Messages.FLOOD_LIMIT_TRY_LATER_MSG, show_alert=False)
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
             except Exception:
                 pass
             return
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.COMMAND_EXECUTED_MSG)
+            callback_query.answer("Command executed.")
         except Exception:
             pass
         return
@@ -381,27 +334,24 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
                 f.write(str(e.value))
             try:
-                from CONFIG.messages import MessagesConfig as Messages
-                callback_query.answer(Messages.FLOOD_LIMIT_TRY_LATER_MSG, show_alert=False)
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
             except Exception:
                 pass
             return
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.COMMAND_EXECUTED_MSG)
+            callback_query.answer("Command executed.")
         except Exception:
             pass
         return
     if data == "save_as_cookie":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="save_as_cookie_hint|close")]
+            [InlineKeyboardButton("🔚Close", callback_data="save_as_cookie_hint|close")]
         ])
-        safe_send_message(user_id, Config.SAVE_AS_COOKIE_HINT, message=callback_query.message,
+        safe_send_message(user_id, Config.SAVE_AS_COOKIE_HINT, reply_parameters=ReplyParameters(message_id=callback_query.message.id),
                           parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
 
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.HINT_SENT_MSG)
+            callback_query.answer("Hint sent.")
         except Exception:
             pass
 
@@ -415,13 +365,11 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             os.makedirs(user_dir, exist_ok=True)
             with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
                 f.write(str(e.value))
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.FLOOD_LIMIT_TRY_LATER_MSG, show_alert=False)
+            callback_query.answer("Flood wait active. Try later.", show_alert=False)
             return
 
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.COMMAND_EXECUTED_MSG)
+            callback_query.answer("Command executed.")
         except Exception:
             pass
 
@@ -436,13 +384,11 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             os.makedirs(user_dir, exist_ok=True)
             with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
                 f.write(str(e.value))
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.FLOOD_LIMIT_TRY_LATER_MSG, show_alert=False)
+            callback_query.answer("Flood wait active. Try later.", show_alert=False)
             return
 
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.COMMAND_EXECUTED_MSG)
+            callback_query.answer("Command executed.")
         except Exception:
             pass
 
@@ -456,13 +402,11 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             os.makedirs(user_dir, exist_ok=True)
             with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
                 f.write(str(e.value))
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.FLOOD_LIMIT_TRY_LATER_MSG, show_alert=False)
+            callback_query.answer("Flood wait active. Try later.", show_alert=False)
             return
 
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.COMMAND_EXECUTED_MSG)
+            callback_query.answer("Command executed.")
         except Exception:
             pass
 
@@ -475,26 +419,23 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             os.makedirs(user_dir, exist_ok=True)
             with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
                 f.write(str(e.value))
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.FLOOD_LIMIT_TRY_LATER_MSG, show_alert=False)
+            callback_query.answer("Flood wait active. Try later.", show_alert=False)
             return
-        from CONFIG.messages import MessagesConfig as Messages
-        callback_query.answer(Messages.COMMAND_EXECUTED_MSG)
+        callback_query.answer("Command executed.")
         return
     if data == "audio":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="audio_hint|close")]
+            [InlineKeyboardButton("🔚Close", callback_data="audio_hint|close")]
         ])
         safe_send_message(user_id,
                           Config.AUDIO_HINT_MSG,
-                          message=callback_query.message,
+                          reply_parameters=ReplyParameters(message_id=callback_query.message.id),
 
                           reply_markup=keyboard,
                           _callback_query=callback_query,
-                          _fallback_notice=Messages.FLOOD_LIMIT_TRY_LATER_MSG)
+                          _fallback_notice="⏳ Flood limit. Try later.")
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.HINT_SENT_MSG)
+            callback_query.answer("Hint sent.")
         except Exception:
             pass
 
@@ -507,13 +448,11 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             os.makedirs(user_dir, exist_ok=True)
             with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
                 f.write(str(e.value))
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.FLOOD_LIMIT_TRY_LATER_MSG, show_alert=False)
+            callback_query.answer("Flood wait active. Try later.", show_alert=False)
             return
 
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.COMMAND_EXECUTED_MSG)
+            callback_query.answer("Command executed.")
         except Exception:
             pass
         return
@@ -528,22 +467,19 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
                 f.write(str(e.value))
 
             try:
-                from CONFIG.messages import MessagesConfig as Messages
-                callback_query.answer(Messages.FLOOD_LIMIT_TRY_LATER_MSG, show_alert=False)
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
             except Exception:
                 pass
             return
         # If safe_send_message returned None due to FloodWait, notify via callback
         if res is None:
             try:
-                from CONFIG.messages import MessagesConfig as Messages
-                callback_query.answer(Messages.FLOOD_LIMIT_TRY_LATER_MSG, show_alert=False)
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
             except Exception:
                 pass
         else:
             try:
-                from CONFIG.messages import MessagesConfig as Messages
-                callback_query.answer(Messages.COMMAND_EXECUTED_MSG)
+                callback_query.answer("Command executed.")
             except Exception:
                 pass
 
@@ -558,14 +494,12 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
                 f.write(str(e.value))
 
             try:
-                from CONFIG.messages import MessagesConfig as Messages
-                callback_query.answer(Messages.FLOOD_LIMIT_TRY_LATER_MSG, show_alert=False)
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
             except Exception:
                 pass
             return
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.COMMAND_EXECUTED_MSG)
+            callback_query.answer("Command executed.")
         except Exception:
             pass
 
@@ -580,50 +514,46 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
                 f.write(str(e.value))
 
             try:
-                from CONFIG.messages import MessagesConfig as Messages
-                callback_query.answer(Messages.FLOOD_LIMIT_TRY_LATER_MSG, show_alert=False)
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
             except Exception:
                 pass
             return
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.COMMAND_EXECUTED_MSG)
+            callback_query.answer("Command executed.")
         except Exception:
             pass
 
         return
     if data == "img":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="img_hint|close")]
+            [InlineKeyboardButton("🔚Close", callback_data="img_hint|close")]
         ])
         safe_send_message(
             user_id,
             Config.IMG_HELP_MSG,
-            message=callback_query.message,
+            reply_parameters=ReplyParameters(message_id=callback_query.message.id),
             reply_markup=keyboard,
             _callback_query=callback_query,
-            _fallback_notice=Messages.FLOOD_LIMIT_TRY_LATER_MSG,
+            _fallback_notice="⏳ Flood limit. Try later.",
             parse_mode=enums.ParseMode.HTML,
         )
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.HINT_SENT_MSG)
+            callback_query.answer("Hint sent.")
         except Exception:
             pass
         return
     if data == "link":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="link_hint|close")]
+            [InlineKeyboardButton("🔚Close", callback_data="link_hint|close")]
         ])
         safe_send_message(user_id,
                           Config.LINK_HINT_MSG,
-                          message=callback_query.message,
+                          reply_parameters=ReplyParameters(message_id=callback_query.message.id),
                           reply_markup=keyboard,
                           _callback_query=callback_query,
-                          _fallback_notice=Messages.FLOOD_LIMIT_TRY_LATER_MSG)
+                          _fallback_notice="⏳ Flood limit. Try later.")
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.HINT_SENT_MSG)
+            callback_query.answer("Hint sent.")
         except Exception:
             pass
         return
@@ -636,14 +566,12 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
                 f.write(str(e.value))
             try:
-                from CONFIG.messages import MessagesConfig as Messages
-                callback_query.answer(Messages.FLOOD_LIMIT_TRY_LATER_MSG, show_alert=False)
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
             except Exception:
                 pass
             return
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.COMMAND_EXECUTED_MSG)
+            callback_query.answer("Command executed.")
         except Exception:
             pass
         return
@@ -656,14 +584,12 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
                 f.write(str(e.value))
             try:
-                from CONFIG.messages import MessagesConfig as Messages
-                callback_query.answer(Messages.FLOOD_LIMIT_TRY_LATER_MSG, show_alert=False)
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
             except Exception:
                 pass
             return
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.COMMAND_EXECUTED_MSG)
+            callback_query.answer("Command executed.")
         except Exception:
             pass
         return
@@ -681,7 +607,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             ],
             [
                 InlineKeyboardButton(
-                    Messages.BTN_CLOSE,
+                    "🔚Close",
                     callback_data="search_msg|close"
                 )
             ]
@@ -695,14 +621,13 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             text,
             parse_mode=enums.ParseMode.HTML,
             reply_markup=keyboard,
-            message=callback_query.message,
+            reply_parameters=ReplyParameters(message_id=callback_query.message.id),
             _callback_query=callback_query,
-            _fallback_notice=Messages.FLOOD_LIMIT_TRY_LATER_MSG
+            _fallback_notice="⏳ Flood limit. Try later."
         )
         
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.SEARCH_HELPER_OPENED_MSG)
+            callback_query.answer("Search helper opened.")
         except Exception:
             pass
         return
@@ -715,14 +640,12 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
                 f.write(str(e.value))
             try:
-                from CONFIG.messages import MessagesConfig as Messages
-                callback_query.answer(Messages.FLOOD_LIMIT_TRY_LATER_MSG, show_alert=False)
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
             except Exception:
                 pass
             return
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.COMMAND_EXECUTED_MSG)
+            callback_query.answer("Command executed.")
         except Exception:
             pass
         return
@@ -736,14 +659,12 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
                 f.write(str(e.value))
             try:
-                from CONFIG.messages import MessagesConfig as Messages
-                callback_query.answer(Messages.FLOOD_LIMIT_TRY_LATER_MSG, show_alert=False)
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
             except Exception:
                 pass
             return
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.COMMAND_EXECUTED_MSG)
+            callback_query.answer("Command executed.")
         except Exception:
             pass
         return
@@ -757,20 +678,17 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
                 f.write(str(e.value))
             try:
-                from CONFIG.messages import MessagesConfig as Messages
-                callback_query.answer(Messages.FLOOD_LIMIT_TRY_LATER_MSG, show_alert=False)
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
             except Exception:
                 pass
             return
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.COMMAND_EXECUTED_MSG)
+            callback_query.answer("Command executed.")
         except Exception:
             pass
         return
     try:
-        from CONFIG.messages import MessagesConfig as Messages
-        callback_query.answer(Messages.UNKNOWN_COMMAND_MSG, show_alert=True)
+        callback_query.answer("Unknown command.", show_alert=True)
     except Exception:
         pass
 
@@ -785,8 +703,7 @@ def hint_callback(app, callback_query: CallbackQuery):
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.HINT_CLOSED_MSG)
+            callback_query.answer("Hint closed.")
         except Exception:
             pass
         return

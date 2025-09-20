@@ -68,8 +68,7 @@ def proxy_command(app, message):
             proxy_file = os.path.join(user_dir, "proxy.txt")
             if arg in ("on", "off"):
                 if safe_write_file(proxy_file, "ON" if arg == "on" else "OFF"):
-                    from CONFIG.messages import MessagesConfig as Messages
-                    safe_send_message(user_id, Messages.PROXY_SET_MSG.format(state='enabled' if arg=='on' else 'disabled'), message=message)
+                    safe_send_message(user_id, f"✅ Proxy {'enabled' if arg=='on' else 'disabled' }.", message=message)
                     send_to_logger(message, f"Proxy set via command: {arg}")
                     return
                 else:
@@ -81,10 +80,9 @@ def proxy_command(app, message):
     except Exception:
         pass
     
-    from CONFIG.messages import MessagesConfig as Messages
     buttons = [
         [InlineKeyboardButton("✅ ON", callback_data="proxy_option|on"), InlineKeyboardButton("❌ OFF", callback_data="proxy_option|off")],
-        [InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="proxy_option|close")],
+        [InlineKeyboardButton("🔚Close", callback_data="proxy_option|close")],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
     # Get available proxy count
@@ -92,9 +90,9 @@ def proxy_command(app, message):
     proxy_count = len(configs)
     
     if proxy_count > 1:
-        proxy_text = Messages.PROXY_MENU_TEXT_MULTI_MSG.format(count=proxy_count, method=Config.PROXY_SELECT)
+        proxy_text = f"Enable or disable using proxy servers ({proxy_count} available) for all yt-dlp operations?\n\nWhen enabled, proxies will be selected using {Config.PROXY_SELECT} method."
     else:
-        proxy_text = Messages.PROXY_MENU_TEXT_SINGLE_MSG
+        proxy_text = "Enable or disable using proxy server for all yt-dlp operations?"
     
     safe_send_message(
         user_id,
@@ -119,9 +117,8 @@ def proxy_option_callback(app, callback_query):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        from CONFIG.messages import MessagesConfig as Messages
         try:
-            callback_query.answer(Messages.PROXY_MENU_CLOSED_MSG)
+            callback_query.answer("Menu closed.")
         except Exception:
             pass
         send_to_logger(callback_query.message, "Proxy: closed.")
@@ -129,9 +126,8 @@ def proxy_option_callback(app, callback_query):
     
     if data == "on":
         if not safe_write_file(proxy_file, "ON"):
-            from CONFIG.messages import MessagesConfig as Messages
             try:
-                callback_query.answer(Messages.PROXY_SAVE_ERROR_MSG)
+                callback_query.answer("❌ Error saving proxy settings.")
             except Exception:
                 pass
             return
@@ -143,32 +139,28 @@ def proxy_option_callback(app, callback_query):
         if proxy_count > 1:
             message_text = f"✅ Proxy enabled. All yt-dlp operations will use {proxy_count} proxy servers with {Config.PROXY_SELECT} selection method."
         else:
-            message_text = Messages.PROXY_ENABLED_MSG
+            message_text = "✅ Proxy enabled. All yt-dlp operations will use proxy."
         
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, message_text)
         send_to_logger(callback_query.message, "Proxy enabled.")
-        from CONFIG.messages import MessagesConfig as Messages
         try:
-            callback_query.answer(Messages.PROXY_ENABLED_MSG)
+            callback_query.answer("Proxy enabled.")
         except Exception:
             pass
         return
     
     if data == "off":
         if not safe_write_file(proxy_file, "OFF"):
-            from CONFIG.messages import MessagesConfig as Messages
             try:
-                callback_query.answer(Messages.PROXY_SAVE_ERROR_MSG)
+                callback_query.answer("❌ Error saving proxy settings.")
             except Exception:
                 pass
             return
         
-        from CONFIG.messages import MessagesConfig as Messages
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'PROXY_DISABLED_MSG', "❌ Proxy disabled."))
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "❌ Proxy disabled.")
         send_to_logger(callback_query.message, "Proxy disabled.")
-        from CONFIG.messages import MessagesConfig as Messages
         try:
-            callback_query.answer(Messages.PROXY_DISABLED_MSG)
+            callback_query.answer("Proxy disabled.")
         except Exception:
             pass
         return

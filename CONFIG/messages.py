@@ -392,7 +392,6 @@ Use:
     ERROR_SENDING_VIDEO_MSG = "❌ Error sending video: {error}"
     ERROR_UNKNOWN_MSG = "❌ Unknown error: {error}"
     ERROR_NO_DISK_SPACE_MSG = "❌ Not enough disk space to download videos."
-    ERROR_NO_DISK_SPACE_AUDIO_MSG = "❌ Not enough disk space to download the audio files."
     ERROR_FILE_SIZE_LIMIT_MSG = "❌ The file size exceeds the {limit} GB limit. Please select a smaller file within the allowed size."
     ERROR_NO_VIDEOS_PLAYLIST_MSG = "❌ No videos found in playlist at index {index}."
     ERROR_TIKTOK_API_MSG = "⚠️ TikTok API error at index {index}, skipping to next video..."
@@ -401,46 +400,18 @@ Use:
     ERROR_GETTING_LINK_MSG = "❌ <b>Error getting link:</b>\n{error}"
     ERROR_AV1_NOT_AVAILABLE_MSG = "❌ AV1 format is not available for this video.\n\nAvailable formats:\n{formats}"
     ERROR_AV1_NOT_AVAILABLE_SHORT_MSG = "❌ **AV1 format is not available for this video.**\n\n"
-    GENERIC_ERROR_WITH_DETAIL_MSG = "❌ Error: {detail}"
-
-    # Generic/Unknown Errors
-    UNKNOWN_ERROR_MSG = "❌ Unknown error: {error}"
-    ERROR_RUNNING_SCRIPT_MSG = "❌ Error running script: {error}"
-    SCRIPT_NOT_FOUND_MSG = "❌ Script not found: {path}"
-    SCRIPT_FAILED_WITH_CODE_MSG = "❌ Script failed with return code {code}:\n<code>{error}</code>"
-    SCRIPT_COMPLETED_WITH_OUTPUT_MSG = "✅ Script completed successfully!\n\nOutput:\n<code>{output}</code>"
-    SCRIPT_COMPLETED_SUCCESS_MSG = "✅ Script completed successfully!"
     
     # Telegram Rate Limit Messages
     RATE_LIMIT_WITH_TIME_MSG = "⚠️ Telegram has limited message sending.\n⏳ Please wait: {time}\nTo update timer send URL again 2 times."
     RATE_LIMIT_NO_TIME_MSG = "⚠️ Telegram has limited message sending.\n⏳ Please wait: \nTo update timer send URL again 2 times."
-    PLEASE_WAIT_MSG = "⏳ Please wait..."
-    WAIT_PREV_DOWNLOAD_MSG = "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED"
-    ERROR_OCCURRED_SHORT_MSG = "❌ Error occurred"
-    CLOSED_MSG_GENERIC = "Closed"
-    MENU_CLOSED_MSG = "Menu closed."
-    HELP_CLOSED_MSG = "Help closed."
     
     # Subtitles Messages
     SUBTITLES_FAILED_MSG = "⚠️ Failed to download subtitles"
-    SUBTITLES_DOWNLOAD_IN_PROGRESS_MSG = "💬 Downloading subtitles..."
     SUBTITLES_NOT_FOUND_MSG = "⚠️ Subtitles for {flag} {name} not found for this video. Download without subtitles."
     SUBTITLES_EMBEDDING_MSG = "⚠️ Embedding subtitles may take a long time (up to 1 min per 1 min of video)!\n🔥 Starting to burn subtitles..."
     SUBTITLES_SUCCESS_MSG = "Subtitles successfully embedded! ✅"
     SUBTITLES_NOT_FOUND_VIDEO_MSG = "⚠️ Subtitles not found for this video"
     SUBTITLES_SIZE_LIMIT_MSG = "⚠️ Subtitles not embedded: exceeded size/duration limits"
-    SUBTITLES_PROCESSING_FILE_ERROR_MSG = "❌ Error processing subtitle file."
-
-    # Audio Download Messages
-    AUDIO_PROCESSING_MSG = "🎙️ Audio is processing..."
-    AUDIO_DOWNLOADING_MSG = "📥 Downloading audio:"
-    AUDIO_UPLOAD_PROGRESS_MSG = "📤 Uploading audio file..."
-    AUDIO_INFO_EXTRACT_FAILED_MSG = "❌ Failed to extract audio information"
-    AUDIO_FILE_NOT_FOUND_MSG = "Audio file not found after download."
-    AUDIO_SEND_FAILED_MSG = "❌ Failed to send audio: {error}"
-    AUDIO_DOWNLOAD_TIMEOUT_MSG = "⏰ Download cancelled due to timeout (2 hours)"
-    AUDIO_DOWNLOAD_FAILED_MSG = "❌ Failed to download audio: {error}"
-    PLAYLIST_AUDIO_SENT_MSG = "✅Playlist audio sent: {sent}/{total} files."
     
     # Video Processing Messages
     HLS_STREAM_MSG = "Detected HLS stream.\n📥 Downloading..."
@@ -448,8 +419,6 @@ Use:
     DOWNLOADED_PROCESSING_MSG = "☑️ Downloaded video.\n📤 Processing for upload..."
     FILE_TOO_LARGE_MSG = "⚠️ Your video size ({size}) is too large.\nSplitting file... ✂️"
     SPLIT_PART_UPLOADED_MSG = "📤 Splitted part {part} file uploaded"
-    DOWNLOAD_STARTED_MSG = "<b>▶️ Download started</b>"
-    PROCESSING_GENERIC_MSG = "🔄 Processing..."
     
     # Stream/Link Messages
     STREAM_LINKS_TITLE_MSG = "🔗 <b>Direct Stream Links</b>\n\n"
@@ -472,7 +441,6 @@ Use:
     CACHED_QUALITIES_TITLE_MSG = "📹 Available Qualities (from cache)"
     CACHED_QUALITIES_DESC_MSG = "⚠️ Using cached qualities - new formats may not be available"
     ERROR_GETTING_FORMATS_MSG = "❌ Error getting available formats.\nPlease try again later."
-    DOWNLOADING_QUALITY_ANSWER_MSG = "📥 Downloading {quality}..."
     
     # NSFW Paid Content Messages
     NSFW_PAID_WARNING_MSG = "⭐️ — 🔞NSFW is paid (⭐️$0.02)\nUse /add_bot_to_group to make NSFW free"
@@ -487,392 +455,13 @@ Use:
     ERROR_CODEC_NOT_AVAILABLE_MSG = "❌ {codec} codec not available for this video"
     ERROR_FORMAT_NOT_AVAILABLE_MSG = "❌ {format} format not available for this video"
     
-    # Always Ask (inline menu) messages
-    AA_NO_SUBTITLES_DETECTED_MSG = "No subtitles detected"
-    AA_CHOOSE_SUBTITLE_LANGUAGE_MSG = "Choose subtitle language"
-    AA_SUBTITLE_MENU_CLOSED_MSG = "Subtitle menu closed"
-    AA_NO_ALT_AUDIO_LANGS_MSG = "No alternative audio languages detected"
-    AA_CHOOSE_AUDIO_LANGUAGE_MSG = "Choose audio language"
-    AA_SUB_LANG_SET_MSG = "Subtitle language set: {value}"
-    AA_AUDIO_SET_MSG = "Audio set: {value}"
-    AA_FILTERS_UPDATED_MSG = "Filters updated"
-    AA_MENU_CLOSED_MSG = "Menu closed"
-    AA_GETTING_DIRECT_LINK_MSG = "🔗 Getting direct link..."
-    AA_GETTING_FORMATS_MSG = "Getting available formats..."
-    AA_STARTING_GALLERY_MSG = "Starting gallery-dl..."
-    AA_FOUND_IN_CACHE_REPOSTING_MSG = "Found in cache: re-posting"
-    AA_FOUND_IN_CACHE_FORWARDING_MSG = "Found in cache: forwarding"
-    AA_ERROR_SHOWING_FORMATS_MSG = "❌ Error showing formats"
-    AA_UNKNOWN_QUALITY_MSG = "❌ Unknown quality selected"
-    
     # Tags Error Messages
     TAG_FORBIDDEN_CHARS_MSG = "❌ Tag #{tag} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}"
     
     # Playlist Messages
     PLAYLIST_SENT_MSG = "✅ Playlist videos sent: {sent}/{total} files."
     PLAYLIST_CACHE_SENT_MSG = "✅ Sent from cache: {cached}/{total} files."
-    PLAYLIST_VIDEOS_SENT_MSG = "✅ Playlist videos sent: {sent}/{total} files."
-    PLAYLIST_AUDIO_SENT_MSG = "✅ Playlist audio sent: {sent}/{total} files."
-    PLAYLIST_AUDIO_SENT_FROM_CACHE_MSG = "✅ Playlist audio sent from cache ({cached}/{total} files)."
-    AUDIO_SENT_FROM_CACHE_MSG = "✅ Audio sent from cache."
-    AUDIO_CACHE_PARTIAL_MSG = "📥 {cached}/{total} audio sent from cache, downloading missing ones..."
     
     # Failed Stream Messages
     FAILED_STREAM_LINKS_MSG = "❌ Failed to get stream links"
-
-    # Admin and Access Messages
-    ACCESS_DENIED_ADMIN_MSG = "❌ Access denied. Admin only."
-    BOT_RUNNING_TIME_MSG = "⏳ <i>Bot running time -</i> <b>{uptime}</b>"
-    ADMIN_LOGS_TOTAL_MSG = "🧾 <b>Total logs:</b> {total} for user <code>{user}</code>\n{lines}"
-    ADMIN_ALL_LOGS_CAPTION_MSG = "📄 All logs for user <code>{user}</code>"
-    ADMIN_DUMP_CAPTION_MSG = "🗂 {bot} — dump file: <code>{path}</code>"
-    ADMIN_FIREBASE_DUMP_MSG = "⏳ Downloading fresh Firebase dump using {path} ..."
-    ADMIN_FIREBASE_RELOADED_SUCCESS_MSG = "✅ Firebase cache reloaded successfully!"
-    ADMIN_FIREBASE_RELOAD_FAILED_MSG = "❌ Failed to reload Firebase cache. Check if {cache_file} exists."
-    USAGE_BLOCK_USER_MSG = "❌ Usage: /block_user <user_id>"
-    USER_BLOCKED_MSG = "User blocked 🔒❌\n \nID: <code>{user_id}</code>\nBlocked Date: {blocked_date}"
-    USER_ALREADY_BLOCKED_MSG = "<code>{user_id}</code> is already blocked ❌😐"
-    USAGE_UNBLOCK_USER_MSG = "❌ Usage: /unblock_user <user_id>"
-    USER_ALREADY_UNBLOCKED_MSG = "<code>{user_id}</code> is already unblocked ✅😐"
-    ADMIN_USER_UNBLOCKED_MSG = "User unblocked 🔓✅\n \nID: <code>{user}</code>\nUnblocked Date: {date}"
-    ADMIN_PROMO_SENT_MSG = "<b>✅ Promo message sent to all other users</b>"
-    ADMIN_PROMO_FAILED_MSG = "<b>❌ Cannot send the promo message. Try replying to a message\nOr some error occurred</b>"
-    ADMIN_USER_NO_LOGS_MSG = "<b>❌ User did not download any content yet...</b> Not exist in logs"
-    ADMIN_INVALID_COMMAND_MSG = "❌ Invalid command"
-    ADMIN_NO_DATA_IN_CACHE_MSG = "❌ No data found in cache for <code>{path}</code>"
-    ADMIN_NOT_ADMIN_MSG = "🚫 Sorry! You are not an admin"
-    UNCACHE_USAGE_MSG = "❌ Please provide a URL to clear cache for.\nUsage: <code>/uncache &lt;URL&gt;</code>"
-    UNCACHE_URL_INVALID_MSG = "❌ Please provide a valid URL.\nUsage: <code>/uncache &lt;URL&gt;</code>"
-    UNCACHE_CLEARED_MSG = "✅ Cache cleared successfully for URL:\n<code>{url}</code>"
-    UNCACHE_NOT_FOUND_MSG = "ℹ️ No cache found for this link."
-    RELOADING_FIREBASE_MSG = "🔄 Reloading Firebase cache into memory..."
-    RELOADING_PORN_CACHE_MSG = "⏳ Reloading porn and domain-related caches..."
-    RUNNING_PORN_UPDATE_SCRIPT_MSG = "⏳ Running porn list update script: {path}"
-    ADMIN_CHECKING_URL_NSFW_MSG = "🔍 Checking URL for NSFW content...\n<code>{url}</code>"
-    CHECK_PORN_USAGE_MSG = "❌ Please provide a URL to check.\nUsage: <code>/check_porn &lt;URL&gt;</code>"
-    CHECK_PORN_URL_INVALID_MSG = "❌ Please provide a valid URL.\nUsage: <code>/check_porn &lt;URL&gt;</code>"
-
-    # Command Responses
-    DIRECT_LINK_GETTING_MSG = "🔗 Getting direct link..."
-    BTN_CLOSE = "🔚Close"
-    KEYBOARD_ACTIVATED_MSG = "🎹 keyboard activated!"
-    KEYBOARD_SET_MSG = "Keyboard set to {setting}"
-    KEYBOARD_SETTING_ERROR_MSG = "Error processing setting"
-    SPLIT_SIZE_SET_MSG = "✅ Split part size set to: {size}"
-    SPLIT_MENU_CLOSED_MSG = "Menu closed."
-    SPLIT_INVALID_SIZE_SHORT_MSG = "Invalid size."
-    MEDIINFO_SET_MSG = "✅ MediaInfo {state}."
-    MEDIAINFO_ENABLED_MSG = "✅ MediaInfo enabled. After downloading, file info will be sent."
-    MEDIAINFO_DISABLED_MSG = "❌ MediaInfo disabled."
-    MEDIAINFO_MENU_CLOSED_MSG = "Menu closed."
-    PROXY_SET_MSG = "✅ Proxy {state}."
-    PROXY_MENU_TEXT_MULTI_MSG = "Enable or disable using proxy servers ({count} available) for all yt-dlp operations?\n\nWhen enabled, proxies will be selected using {method} method."
-    PROXY_MENU_TEXT_SINGLE_MSG = "Enable or disable using proxy server for all yt-dlp operations?"
-    PROXY_ENABLED_MSG = "Proxy enabled."
-    PROXY_DISABLED_MSG = "Proxy disabled."
-    PROXY_SAVE_ERROR_MSG = "❌ Error saving proxy settings."
-    PROXY_MENU_CLOSED_MSG = "Menu closed."
-    COOKIES_WORKING_OK_MSG = "✅ YouTube cookies are working properly"
-    COOKIES_EXPIRED_MSG = "❌ YouTube cookies are expired or invalid\n\nUse /cookie to get new cookies"
-    BROWSER_CHOICE_UPDATED_MSG = "✅ Browser choice updated."
-    BROWSER_NOT_INSTALLED_ANSWER_MSG = "⚠️ Browser not installed."
-    COOKIE_HINT_CLOSED_MSG = "Cookie hint closed."
-    VALID_URL_REQUIRED_MSG = "❌ Please provide a valid URL"
-
-    # Cookies and Browser Messages
-    COOKIES_NO_BROWSERS_NO_URL_MSG = "❌ No supported browsers found and no COOKIE_URL configured. Use /cookie or upload cookie.txt."
-    COOKIE_FALLBACK_URL_NOT_TXT_MSG = "❌ Fallback COOKIE_URL must point to a .txt file."
-    COOKIE_FALLBACK_TOO_LARGE_MSG = "❌ Fallback cookie file is too large (>100KB)."
-    COOKIE_FALLBACK_UNAVAILABLE_MSG = "❌ Fallback cookie source unavailable (status {status}). Try /cookie or upload cookie.txt."
-    COOKIE_FALLBACK_ERROR_MSG = "❌ Error downloading fallback cookie. Try /cookie or upload cookie.txt."
-    COOKIE_FALLBACK_UNEXPECTED_MSG = "❌ Unexpected error during fallback cookie download."
-    SELECT_BROWSER_MSG = "Select a browser to download cookies from:"
-    SELECT_BROWSER_NO_BROWSERS_MSG = "No browsers found on this system. You can download cookies from remote URL or monitor browser status:"
-    BROWSER_MONITOR_HINT_MSG = "🌐 <b>Open Browser</b> - to monitor browser status in mini-app"
-    BROWSER_OPEN_BUTTON_MSG = "🌐 Open Browser"
-    DOWNLOAD_FROM_URL_BUTTON_MSG = "📥 Download from Remote URL"
-    BROWSER_NOT_INSTALLED_EDIT_MSG = "⚠️ {browser} browser not installed."
-    COOKIES_SAVED_USING_BROWSER_MSG = "✅ Cookies saved using browser: {browser}"
-    COOKIES_SAVE_FAILED_MSG = "❌ Failed to save cookies: {error}"
-    COOKIE_SOURCE_NOT_CONFIGURED_MSG = "❌ {service} cookie source is not configured!"
-    COOKIE_SOURCE_MUST_BE_TXT_MSG = "❌ {service} cookie source must be a .txt file!"
-    COOKIE_TOO_LARGE_MSG = "❌ {service} cookie file is too large! Max 100KB, got {size}KB."
-    COOKIE_DOWNLOADED_SAVED_MSG = "<b>✅ {service} cookie file downloaded and saved as cookie.txt in your folder.</b>"
-    COOKIE_SOURCE_UNAVAILABLE_MSG = "❌ {service} cookie source is unavailable (status {status}). Please try again later."
-    COOKIE_DOWNLOAD_ERROR_MSG = "❌ Error downloading {service} cookie file. Please try again later."
-    COOKIE_UPDATED_MSG = "<b>✅ Cookie successfully updated:</b>\n<code>{cookie}</code>"
-    COOKIE_NOT_VALID_TEXT_MSG = "<b>❌ Not a valid cookie.</b>"
-    COOKIE_INCORRECT_FORMAT_MSG = "❌ Incorrect cookie format. Please provide Netscape cookie text or cookie.txt file."
-    COOKIE_NOT_FOUND_MSG = "❌ Cookie file not found. Upload cookie.txt or use /cookie"
-    COOKIE_EXISTS_OK_MSG = "✅ Cookie file exists and has correct format"
-    COOKIE_YT_FALLBACK_SAVED_MSG = "✅ YouTube cookie file downloaded via fallback and saved as cookie.txt"
-    COOKIE_SKIPPED_VALIDATION_MSG = "✅ Skipped validation for non-YouTube cookies"
-    COOKIE_YT_EXISTING_OK_MSG = "✅ Existing YouTube cookies are working properly"
-    COOKIE_YT_EXISTING_INVALID_MSG = "❌ Existing YouTube cookies are expired or invalid"
-    COOKIE_TEST_START_MSG = "🔄 Starting YouTube cookies test...\n\nPlease wait while I check and validate your cookies."
-    COOKIE_YT_DOWNLOADING_CHECKING_MSG = "🔄 Downloading and checking YouTube cookies...\n\nAttempt {attempt} of {total}"
-    COOKIE_YT_DOWNLOADING_CHECKING_TESTING_MSG = "🔄 Downloading and checking YouTube cookies...\n\nAttempt {attempt} of {total}\n🔍 Testing cookies..."
-    COOKIE_YT_VALIDATED_MSG = "✅ YouTube cookies successfully downloaded and validated!\n\nUsed source {source} of {total}"
-    COOKIE_YT_ALL_FAILED_MSG = "❌ All YouTube cookies are expired or unavailable!\n\nContact the bot administrator to replace them."
-
-    # Subtitles extra
-    SUBTITLES_NOT_AVAILABLE_SELECTED_MSG = "ℹ️ Subtitles are not available for the selected language"
-    
-    # Image command messages
-    IMAGES_MEDIA_LIMIT_EXCEEDED_MSG = (
-        "❗️ Media limit exceeded: {detected} files found (maximum {max}).\n\n"
-        "Use one of these commands to download maximum available files:\n\n"
-        "<code>/img {start}-{end} {url}</code>\n\n"
-        "<code>{suggest}</code>"
-    )
-    IMAGES_PROGRESS_MSG = (
-        "{downloading}"
-        "Downloaded: <b>{downloaded}</b> / <b>{total}</b>\n"
-        "Sent: <b>{sent}</b>\n"
-        "Pending to send: <b>{pending}</b>"
-    )
-    
-    # Cache/Auto-cache messages
-    AUTO_CACHE_UPDATED_MSG = (
-        "⏱️ Auto Firebase cache interval updated!\n\n"
-        "📊 Status: {status}\n"
-        "⏰ Schedule: every {interval} hours from 00:00\n"
-        "🕒 Next reload: {next_time} (in {delta_min} minutes)"
-    )
-    AUTO_CACHE_INVALID_ARG_MSG = "❌ Invalid argument. Use /auto_cache on | off | N (1..168)"
-    AUTO_CACHE_INTERVAL_RANGE_MSG = "❌ Interval must be between 1 and 168 hours"
-    AUTO_CACHE_SET_FAILED_MSG = "❌ Failed to set interval"
-    
-    # Args command messages
-    ARGS_INVALID_BOOL_MSG = "❌ Invalid boolean value"
-    ARGS_CLOSED_MSG = "Closed"
-    ARGS_ALL_RESET_MSG = "✅ All arguments reset"
-    ARGS_RESET_ERROR_MSG = "❌ Error resetting arguments"
-    ARGS_INVALID_PARAM_MSG = "❌ Invalid parameter"
-    ARGS_BOOL_SET_MSG = "Set to {value}"
-    ARGS_BOOL_ALREADY_SET_MSG = "Already set to {value}"
-    ARGS_INVALID_SELECT_MSG = "❌ Invalid select value"
-    ARGS_VALUE_SET_MSG = "Set to {value}"
-    ARGS_VALUE_ALREADY_SET_MSG = "Already set to {value}"
-    ARGS_INPUT_TIMEOUT_MSG = "⏰ Input mode automatically closed due to inactivity (5 minutes)."
-    ARGS_MENU_TEXT = (
-        "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n"
-        "<blockquote>📋 <b>Groups:</b>\n"
-        "• ✅/❌ <b>Boolean</b> - True/False switches\n"
-        "• 📋 <b>Select</b> - Choose from options\n"
-        "• 🔢 <b>Numeric</b> - Number input\n"
-        "• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\n"
-        "These settings will be applied to all your downloads."
-    )
-    
-    # Clean command messages and buttons
-    CLEAN_COOKIES_CLEANED_MSG = "Cookies cleaned."
-    CLEAN_LOGS_CLEANED_MSG = "logs cleaned."
-    CLEAN_TAGS_CLEANED_MSG = "tags cleaned."
-    CLEAN_FORMAT_CLEANED_MSG = "format cleaned."
-    CLEAN_SPLIT_CLEANED_MSG = "split cleaned."
-    CLEAN_MEDIAINFO_CLEANED_MSG = "mediainfo cleaned."
-    CLEAN_SUBS_CLEANED_MSG = "Subtitle settings cleaned."
-    CLEAN_KEYBOARD_CLEANED_MSG = "Keyboard settings cleaned."
-    CLEAN_ARGS_CLEANED_MSG = "Args settings cleaned."
-    CLEAN_NSFW_CLEANED_MSG = "NSFW settings cleaned."
-    CLEAN_PROXY_CLEANED_MSG = "Proxy settings cleaned."
-    CLEAN_FLOOD_WAIT_CLEANED_MSG = "Flood wait settings cleaned."
-    CLEAN_ALL_FILES_CLEANED_MSG = "All files cleaned."
-    CLEAN_BTN_COOKIE = "📥 /cookie - Download my 5 cookies"
-    CLEAN_BTN_COOKIES_FROM_BROWSER = "🌐 /cookies_from_browser - Get browser's YT-cookie"
-    CLEAN_BTN_CHECK_COOKIE = "🔎 /check_cookie - Validate your cookie file"
-    CLEAN_BTN_SAVE_AS_COOKIE = "🔖 /save_as_cookie - Upload custom cookie"
-    CLEAN_BTN_BACK = "🔙Back"
-    CLEAN_MENU_CLOSED_MSG = "Menu closed."
-
-    # Format/Quality Messages
-    FORMAT_ALWAYS_ASK_SET_MSG = "✅ Format set to: Always Ask. You will be prompted for quality each time you send a URL."
-    FORMAT_UPDATED_BEST_MSG = "✅ Format updated to best quality:\n{format}"
-    FORMAT_UPDATED_ID_NOTE_AUDIO_MSG = "✅ Format updated to ID {format_id}:\n{format}\n\n💡 <b>Note:</b> If this is an audio-only format, it will be downloaded as MP3 audio file."
-    FORMAT_UPDATED_ID_AUDIO_ONLY_MSG = "✅ Format updated to ID {format_id} (audio-only):\n{format}\n\n💡 This will be downloaded as MP3 audio file."
-    FORMAT_UPDATED_QUALITY_MSG = "✅ Format updated to quality {quality}:\n{format}"
-    FORMAT_UPDATED_GENERIC_MSG = "✅ Format updated to:\n{format}"
-    FORMAT_SELECT_RESOLUTION_MSG = "Select your desired resolution and codec:"
-    FORMAT_SELECT_OPTIONS_MSG = "Select a format option or send a custom one using:\n• <code>/format &lt;format_string&gt;</code> - custom format\n"
-    FORMAT_UPDATED_INLINE_MSG = "✅ Format updated to:\n{format}"
-    FORMAT_CHOICE_UPDATED_MSG = "✅ Format choice updated."
-    FORMAT_HINT_SENT_MSG = "Hint sent."
-    FORMAT_SAVED_MSG = "✅ Format saved."
-    FORMAT_CODEC_SET_MSG = "✅ Codec set to {codec}"
-    FORMAT_MKV_TOGGLED_MSG = "MKV is now {state}"
-    FORMAT_CUSTOM_MENU_CLOSED_MSG = "Custom format menu closed."
-
-    # Other small closures
-    LOGS_CLOSED_MSG = "Logs message closed."
-    PLAYLIST_HELP_CLOSED_MSG = "Playlist help closed."
-    AUDIO_HINT_CLOSED_MSG = "Audio hint closed."
-    IMAGES_HELP_CLOSED_MSG = "Help closed."
-    SEARCH_HELPER_OPENED_MSG = "Search helper opened."
-    COMMAND_EXECUTED_MSG = "Command executed."
-    HINT_SENT_MSG = "Hint sent."
-    HINT_CLOSED_MSG = "Hint closed."
-    UNKNOWN_COMMAND_MSG = "Unknown command."
-    FLOOD_LIMIT_TRY_LATER_MSG = "⏳ Flood limit. Try later."
-    
-    # Missing constants from recent edits
-    TIKTOK_API_ERROR_MSG = "⚠️ TikTok API error at index {index}, skipping to next audio..."
-    SUBTITLES_DISABLED_ALWAYS_ASK_OFF_MSG = "❌ Subtitles are disabled. Use /subs to configure."
-    SUBTITLES_YOUTUBE_ONLY_MSG = "❌ Subtitle downloading is only supported for YouTube."
-    ADMIN_ERROR_RELOADING_PORN_CACHE_MSG = "❌ Error reloading porn cache: {error}"
-    FLOOD_LIMIT_WITH_TIME_MSG = "⚠️ Telegram has limited message sending.\n⏳ Please wait: {time}\nTo update timer send URL again 2 times."
-    
-    # Cookie file validation messages
-    COOKIE_FILE_TOO_LARGE_MSG = "❌ The file is too large. Maximum size is 100 KB."
-    COOKIE_FILE_WRONG_FORMAT_MSG = "❌ Only files of the following format are allowed .txt."
-    COOKIE_FILE_INVALID_FORMAT_MSG = "❌ The file does not look like cookie.txt (there is no line '# Netscape HTTP Cookie File')."
-    COOKIE_FILE_READ_ERROR_MSG = "❌ Error reading file: {error}"
-    COOKIE_USER_PROVIDED_MSG = "<b>✅ User provided a new cookie file.</b>"
-    
-    # Callback query error messages
-    CALLBACK_FAILED_CHECK_COOKIE_MSG = "❌ Failed to run /check_cookie"
-    CALLBACK_FAILED_BROWSER_MENU_MSG = "❌ Failed to open browser cookie menu"
-    
-    # Subtitles command messages
-    SUBTITLES_DISABLED_MSG = "✅ Subtitles disabled and Always Ask mode turned off."
-    SUBTITLES_ALWAYS_ASK_ENABLED_MSG = "✅ SUBS Always Ask enabled."
-    SUBTITLES_LANG_SET_MSG = "✅ Subtitle language set to: {flag} {name}"
-    SUBTITLES_LANG_SET_AUTO_MSG = "✅ Subtitle language set to: {flag} {name} with AUTO/TRANS enabled."
-    SUBTITLES_INVALID_ARG_MSG = "❌ **Invalid argument!**\n\nValid options:\n• `/subs off` - disable subtitles\n• `/subs on` - enable Always Ask mode\n• `/subs ru` - set language (any language code)\n• `/subs ru auto` - set language with AUTO/TRANS enabled\n\nExample: `/subs en auto`"
-    SUBTITLES_SETTINGS_UPDATED_MSG = "Subtitle language settings updated."
-    SUBTITLES_MENU_CLOSED_MSG = "Subtitle language menu closed."
-    
-    # Always Ask Menu messages
-    AA_PAGE_MSG = "Page {page}"
-    AA_CODEC_NOT_AVAILABLE_MSG = "❌ {codec} codec not available for this video"
-    AA_FORMAT_NOT_AVAILABLE_MSG = "❌ {format} format not available for this video"
-    AA_DOWNLOADING_FORMAT_MSG = "📥 Downloading format {format_id}..."
-    AA_DOWNLOADING_QUALITY_MSG = "📥 Downloading {quality}..."
-    AA_ERROR_ORIGINAL_NOT_FOUND_MSG = "❌ Error: Original message not found."
-    AA_ERROR_URL_NOT_FOUND_MSG = "❌ Error: URL not found."
-    
-    # MediaInfo command messages
-    MEDIAINFO_ENABLED_ANSWER_MSG = "MediaInfo enabled."
-    MEDIAINFO_DISABLED_ANSWER_MSG = "MediaInfo disabled."
-    
-    # Safe messenger fallback message
-    FLOOD_LIMIT_FALLBACK_MSG = "⏳ Flood limit. Try later."
-    
-    # Tag command messages
-    TAGS_NO_TAGS_YET_MSG = "You have no tags yet."
-    TAGS_MESSAGE_CLOSED_MSG = "Tags message closed."
-    
-    # NSFW command messages
-    NSFW_MENU_CLOSED_MSG = "Menu closed."
-    NSFW_BLUR_DISABLED_MSG = "NSFW blur disabled."
-    NSFW_BLUR_ENABLED_MSG = "NSFW blur enabled."
-    
-    # Magic.py messages
-    HELP_CLOSED_MSG = "Help closed."
-    
-    # Subtitles menu messages
-    SUBTITLES_MENU_TITLE_MSG = "<b>💬 Subtitle settings</b>\n\n{status_text}\n\nSelect subtitle language:\n\n"
-    SUBTITLES_WARNING_MSG = "<blockquote>❗️WARNING: due to high CPU impact this function is very slow (near real-time) and limited to:\n- 720p max quality\n- 1.5 hour max duration\n- 500mb max video size</blockquote>\n\n"
-    SUBTITLES_QUICK_COMMANDS_MSG = "<b>Quick commands:</b>\n• <code>/subs off</code> - disable subtitles\n• <code>/subs on</code> - enable Always Ask mode\n• <code>/subs ru</code> - set language\n• <code>/subs ru auto</code> - set language with AUTO/TRANS"
-    SUBTITLES_MENU_TITLE_SIMPLE_MSG = "<b>💬 Subtitle settings</b>\n\n{status_text}\n\nSelect subtitle language:"
-    SUBTITLES_CAPTION_MSG = "<b>💬 Subtitles</b>\n\n"
-    
-    # NSFW menu messages
-    NSFW_MENU_TITLE_MSG = "🔞 <b>NSFW Blur Settings</b>\n\nNSFW content is <b>{status_text}</b>.\n\nChoose whether to blur NSFW content:"
-    
-    # Settings menu messages
-    SETTINGS_MAIN_TITLE_MSG = "<b>Bot Settings</b>\n\nChoose a category:"
-    SETTINGS_CLEAN_TITLE_MSG = "<b>🧹 Clean Options</b>\n\nChoose what to clean:"
-    SETTINGS_COOKIES_TITLE_MSG = "<b>🍪 COOKIES</b>\n\nChoose an action:"
-    
-    # Args command messages
-    ARGS_PARAM_DESCRIPTION_MSG = "<b>📝 {description}</b>\n\n"
-    ARGS_CURRENT_VALUE_MSG = "<b>Current value:</b> <code>{current_value}</code>\n\n"
-    ARGS_XFF_EXAMPLES_MSG = "<b>Examples:</b>\n• <code>default</code> - Use default XFF strategy\n• <code>never</code> - Never use XFF header\n• <code>US</code> - United States country code\n• <code>GB</code> - United Kingdom country code\n• <code>DE</code> - Germany country code\n• <code>FR</code> - France country code\n• <code>JP</code> - Japan country code\n• <code>192.168.1.0/24</code> - IP block (CIDR)\n• <code>10.0.0.0/8</code> - Private IP range\n• <code>203.0.113.0/24</code> - Public IP block\n\n"
-    ARGS_XFF_NOTE_MSG = "<b>Note:</b> This replaces --geo-bypass options. Use any 2-letter country code or IP block in CIDR notation.\n\n"
-    ARGS_EXAMPLE_MSG = "<b>Example:</b> <code>{placeholder}</code>\n\n"
-    ARGS_SEND_VALUE_MSG = "Please send your new value."
-    ARGS_NUMBER_PARAM_MSG = "<b>🔢 {description}</b>\n\n"
-    ARGS_RANGE_MSG = "<b>Range:</b> {min_val} - {max_val}\n\n"
-    ARGS_SEND_NUMBER_MSG = "Please send a number."
-    ARGS_JSON_PARAM_MSG = "<b>🔧 {description}</b>\n\n"
-    ARGS_HTTP_HEADERS_EXAMPLES_MSG = "<b>Examples:</b>\n<code>{placeholder}</code>\n<code>{{\"X-API-Key\": \"your-key\"}}</code>\n<code>{{\"Authorization\": \"Bearer token\"}}</code>\n<code>{{\"Accept\": \"application/json\"}}</code>\n<code>{{\"X-Custom-Header\": \"value\"}}</code>\n\n"
-    ARGS_HTTP_HEADERS_NOTE_MSG = "<b>Note:</b> These headers will be added to existing Referer and User-Agent headers.\n\n"
-    ARGS_CURRENT_ARGS_MSG = "<b>📋 Current yt-dlp Arguments:</b>\n\n"
-    ARGS_MENU_DESCRIPTION_MSG = "• ✅/❌ <b>Boolean</b> - True/False switches\n• 📋 <b>Select</b> - Choose from options\n• 🔢 <b>Numeric</b> - Number input\n• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\nThese settings will be applied to all your downloads."
-    ARGS_CONFIG_TITLE_MSG = "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n<blockquote>📋 <b>Groups:</b>\n{groups_msg}"
-    
-    # Image command messages
-    IMAGES_RANGE_LIMIT_EXCEEDED_MSG = "❗️ Range limit exceeded: {range_count} files requested (maximum {max_img_files}).\n\nUse one of these commands to download maximum available files:\n\n<code>/img {start_range}-{end_range} {url}</code>\n\n<code>/img {suggested_command_url_format}</code>"
-    
-    # Link command messages
-    LINK_USAGE_MSG = "🔗 <b>Usage:</b>\n<code>/link [quality] URL</code>\n\n<b>Examples:</b>\n<blockquote>• /link https://youtube.com/watch?v=... - best quality\n• /link 720 https://youtube.com/watch?v=... - 720p or lower\n• /link 720p https://youtube.com/watch?v=... - same as above\n• /link 4k https://youtube.com/watch?v=... - 4K or lower\n• /link 8k https://youtube.com/watch?v=... - 8K or lower</blockquote>\n\n<b>Quality:</b> from 1 to 10000 (e.g., 144, 240, 720, 1080)"
-    LINK_DIRECT_OBTAINED_MSG = "🔗 <b>Direct link obtained</b>\n\n"
-    LINK_FORMAT_MSG = "🎛 <b>Format:</b> <code>{format_spec}</code>\n\n"
-    LINK_VIDEO_STREAM_MSG = "🎬 <b>Video stream:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
-    LINK_AUDIO_STREAM_MSG = "🎵 <b>Audio stream:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
-    
-    # List command messages
-    LIST_HELP_MSG = "<b>📃 List Available Formats</b>\n\nGet available video/audio formats for a URL.\n\n<b>Usage:</b>\n<code>/list URL</code>\n\n<b>Examples:</b>\n• <code>/list https://youtube.com/watch?v=123abc</code>\n• <code>/list https://youtube.com/playlist?list=123abc</code>\n\n<b>💡 How to use format IDs:</b>\nAfter getting the list, use specific format ID:\n• <code>/format id 401</code> - download format 401\n\nThis command will show all available formats that can be downloaded."
-    LIST_FORMATS_CAPTION_MSG = "📃 Available formats for:\n<code>{url}</code>\n\n"
-    LIST_FORMAT_INSTRUCTIONS_MSG = "💡 <b>How to set format:</b>\n• <code>/format id 134</code> - Download specific format ID\n• <code>/format 720p</code> - Download by quality\n• <code>/format best</code> - Download best quality\n• <code>/format ask</code> - Always ask for quality\n\n"
-    LIST_AUDIO_FORMATS_MSG = "🎵 <b>Audio-only formats:</b> {audio_formats}\n• <code>/format id 140 audio</code> - Download format 140 as MP3 audio\nThese will be downloaded as MP3 audio files.\n\n"
-    LIST_USE_FORMAT_ID_MSG = "📋 Use format ID from the list above"
-    
-    # Split command messages
-    SPLIT_INVALID_SIZE_MSG = "❌ **Invalid size!**\n\n**Valid range:** 100MB to 2GB\n\n**Valid formats:**\n• `100mb` to `2000mb` (megabytes)\n• `0.1gb` to `2gb` (gigabytes)\n\n**Examples:**\n• `/split 100mb` - 100 megabytes\n• `/split 500mb` - 500 megabytes\n• `/split 1.5gb` - 1.5 gigabytes\n• `/split 2gb` - 2 gigabytes\n• `/split 2000mb` - 2000 megabytes (2GB)\n\n**Presets:**\n• `/split 250mb`, `/split 500mb`, `/split 1gb`, `/split 1.5gb`, `/split 2gb`"
-    SPLIT_CHOOSE_SIZE_MSG = "🎬 **Choose max part size for video splitting:**\n\n**Range:** 100MB to 2GB\n\n**Quick commands:**\n• `/split 100mb` - `/split 2000mb`\n• `/split 0.1gb` - `/split 2gb`\n\n**Examples:** `/split 300mb`, `/split 1.2gb`, `/split 1500mb`"
-    
-    # Cache database messages
-    CACHE_AUTO_RELOAD_UPDATED_MSG = "🔄 Auto Firebase cache reloading updated!\n\n📊 Status: {status}\n⏰ Schedule: every {interval} hours from 00:00\n🕒 Next reload: {next_time} (in {delta_min} minutes)"
-    CACHE_AUTO_RELOAD_STOPPED_MSG = "🛑 Auto Firebase cache reloading stopped!\n\n📊 Status: ❌ DISABLED\n💡 Use /auto_cache on to re-enable"
-    
-    # Always Ask Menu stream messages
-    AA_STREAM_FORMAT_MSG = "🎛 <b>Format:</b> <code>bv+ba/best</code>\n\n"
-    AA_STREAM_BROWSER_MSG = "🌐 <b>Browser:</b> Open in web browser\n\n"
-    AA_VLC_IOS_MSG = "🎬 <b><a href=\"https://itunes.apple.com/app/apple-store/id650377962\">VLC Player (iOS)</a></b>\n\n<i>Click button to copy stream URL, then paste it in VLC app</i>"
-    AA_VLC_ANDROID_MSG = "🎬 <b><a href=\"https://play.google.com/store/apps/details?id=org.videolan.vlc\">VLC Player (Android)</a></b>\n\n<i>Click button to copy stream URL, then paste it in VLC app</i>"
-    
-    # Limitter messages
-    LIMITTER_RANGE_EXCEEDED_MSG = "❗️ Range limit exceeded for {service}: {count} (maximum {max_count}).\n\nUse one of these commands to download maximum available files:\n\n<code>{suggested_command_url_format}</code>\n\n<code>{suggested_command_vid_format}</code>\n\n<code>{suggested_command_audio_format}</code>"
-    
-    # Magic.py video help messages
-    VIDEO_HELP_MSG = "<b>🎬 Video Download Command</b>\n\nUsage: <code>/vid URL</code>\n\n<b>Examples:</b>\n• <code>/vid https://youtube.com/watch?v=123abc</code>\n• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code>\n\nAlso see: /audio, /img, /help, /playlist, /settings"
-    
-    # Format error messages
-    FORMAT_ID_NOT_FOUND_MSG = "❌ Format ID {requested_id} not found for this video.\n\nAvailable format IDs: {available_ids}\nUse /list command to see all available formats."
-    AV1_NOT_AVAILABLE_MSG = "❌ **AV1 format is not available for this video.**\n\n**Available formats:**\n{formats_text}\n\nPlease select a different format using `/format` command."
-    
-    # URL extractor messages
-    URL_EXTRACTOR_AUDIO_HINT_MSG = "Download only audio from video source.\n\nUsage: /audio + URL \n\n(ex. /audio https://youtu.be/abc123)\n(ex. /audio https://youtu.be/playlist?list=abc123*1*10)"
-    URL_EXTRACTOR_WELCOME_MSG = "Hello {first_name},\n \n<i>This bot🤖 can download any videos into telegram directly.😊 For more information press <b>/help</b></i> 👈\n \n {credits}"
-    URL_EXTRACTOR_FILES_REMOVED_MSG = "🗑 All files removed successfully!\n\nRemoved files:\n{files_list}"
-    CLEAN_NO_FILES_MSG = "🗑 No files to remove."
-    CLEAN_MEDIA_FILES_REMOVED_MSG = "🗑 All media files are removed."
-    CLEAN_FLOOD_WAIT_REMOVED_MSG = "🗑 Flood wait settings removed."
-    CLEAN_PROXY_REMOVED_MSG = "🗑 Proxy settings removed."
-    CLEAN_NSFW_REMOVED_MSG = "🗑 NSFW settings removed."
-    CLEAN_ARGS_REMOVED_MSG = "🗑 Args settings removed."
-    CLEAN_KEYBOARD_REMOVED_MSG = "🗑 Keyboard settings removed."
-    CLEAN_SUBTITLES_REMOVED_MSG = "🗑 Subtitle settings removed."
-    CLEAN_MEDIAINFO_REMOVED_MSG = "🗑 Mediainfo file removed."
-    CLEAN_SPLIT_REMOVED_MSG = "🗑 Split file removed."
-    CLEAN_FORMAT_REMOVED_MSG = "🗑 Format file removed."
-    CLEAN_TAGS_REMOVED_MSG = "🗑 Tags file removed."
-    CLEAN_LOGS_REMOVED_MSG = "🗑 Logs file removed."
-    CLEAN_COOKIE_REMOVED_MSG = "🗑 Cookie file removed and cache cleared."
-    
-    # Admin command messages
-    ADMIN_LOGS_FORMAT_MSG = "Logs of {bot_name}\nUser: {user_id}\nTotal logs: {total}\nCurrent time: {now}\n\n"
-    ADMIN_USERS_FORMAT_MSG = "{bot_name} {path}\nTotal {path}: {total}\nCurrent time: {now}\n\n"
-    ADMIN_USERS_DISPLAY_MSG = "<i>Total Users: {total}</i>\nLast 20 {path}:\n\n"
-    PORN_CACHE_RELOADED_MSG = "✅ Porn caches reloaded successfully!\n\n📊 Current cache status:\n• Porn domains: {porn_domains}\n• Porn keywords: {porn_keywords}\n• Supported sites: {supported_sites}\n• WHITELIST: {whitelist}\n• GREYLIST: {greylist}\n• BLACK_LIST: {black_list}\n• WHITE_KEYWORDS: {white_keywords}\n• PROXY_DOMAINS: {proxy_domains}\n• PROXY_2_DOMAINS: {proxy_2_domains}\n• CLEAN_QUERY: {clean_query}\n• NO_COOKIE_DOMAINS: {no_cookie_domains}"
-    PORN_CHECK_RESULT_MSG = "{status_icon} <b>Porn Check Result</b>\n\n<b>URL:</b> <code>{url}</code>\n<b>Status:</b> <b>{status_text}</b>\n\n<b>Explanation:</b>\n{explanation}"
-    
-    # Missing constants found by test script
-    AA_ERROR_OCCURRED_MSG = "❌ Error occurred"
-    AA_HELP_CLOSED_MSG = "Help closed."
-    MEDIAINFO_DOC_CAPTION = "📄 <b>MediaInfo</b>\n\n"
-    MEDIAINFO_DOC_CAPTION_FOR_USER = "📄 <b>MediaInfo</b>\n\n<b>File:</b> {filename}\n<b>Size:</b> {size}\n<b>Duration:</b> {duration}\n\n"
-    
     #######################################################

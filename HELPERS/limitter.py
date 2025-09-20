@@ -280,17 +280,13 @@ def check_playlist_range_limits(url, video_start_with, video_end_with, app, mess
         suggested_command_vid_format = f"/vid {video_start_with}-{video_start_with + max_count - 1} {url}"
         suggested_command_audio_format = f"/audio {video_start_with}-{video_start_with + max_count - 1} {url}"
         
-        from CONFIG.messages import MessagesConfig as Messages
         safe_send_message(
             message.chat.id,
-            Messages.LIMITTER_RANGE_EXCEEDED_MSG.format(
-                service=service,
-                count=count,
-                max_count=max_count,
-                suggested_command_url_format=suggested_command_url_format,
-                suggested_command_vid_format=suggested_command_vid_format,
-                suggested_command_audio_format=suggested_command_audio_format
-            ),
+            f"❗️ Range limit exceeded for {service}: {count} (maximum {max_count}).\n\n"
+            f"Use one of these commands to download maximum available files:\n\n"
+            f"<code>{suggested_command_url_format}</code>\n\n"
+            f"<code>{suggested_command_vid_format}</code>\n\n"
+            f"<code>{suggested_command_audio_format}</code>",
             parse_mode=enums.ParseMode.HTML,
             reply_to_message_id=message.id
         )

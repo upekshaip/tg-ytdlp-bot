@@ -61,8 +61,7 @@ def video_url_extractor(app, message):
             del playlist_errors[key]
             
     if get_active_download(user_id):
-        from CONFIG.messages import MessagesConfig as Messages
-        app.send_message(user_id, Messages.WAIT_PREV_DOWNLOAD_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+        app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_parameters=ReplyParameters(message_id=message.id))
         return
         
     full_string = message.text
@@ -70,8 +69,7 @@ def video_url_extractor(app, message):
     url, video_start_with, video_end_with, playlist_name, tags, tags_text, tag_error = extract_url_range_tags(full_string)
     if tag_error:
         wrong, example = tag_error
-        from CONFIG.messages import MessagesConfig as Messages
-        error_msg = Messages.TAG_FORBIDDEN_CHARS_MSG.format(tag=wrong, example=example)
+        error_msg = f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}"
         app.send_message(user_id, error_msg, reply_parameters=ReplyParameters(message_id=message.id))
         from HELPERS.logger import log_error_to_channel
         log_error_to_channel(message, error_msg)

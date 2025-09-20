@@ -20,92 +20,69 @@ def clean_option_callback(app, callback_query):
     data = callback_query.data.split("|")[1]
 
     if data == "cookies":
-        from CONFIG.messages import MessagesConfig as Messages
         url_distractor(app, fake_message("/clean cookie", user_id))
-        callback_query.answer(Messages.CLEAN_COOKIES_CLEANED_MSG)
+        callback_query.answer("Cookies cleaned.")
         return
     elif data == "logs":
-        from CONFIG.messages import MessagesConfig as Messages
         url_distractor(app, fake_message("/clean logs", user_id))
-        callback_query.answer(Messages.CLEAN_LOGS_CLEANED_MSG)
+        callback_query.answer("logs cleaned.")
         return
     elif data == "tags":
-        from CONFIG.messages import MessagesConfig as Messages
         url_distractor(app, fake_message("/clean tags", user_id))
-        callback_query.answer(Messages.CLEAN_TAGS_CLEANED_MSG)
+        callback_query.answer("tags cleaned.")
         return
     elif data == "format":
-        from CONFIG.messages import MessagesConfig as Messages
         url_distractor(app, fake_message("/clean format", user_id))
-        callback_query.answer(Messages.CLEAN_FORMAT_CLEANED_MSG)
+        callback_query.answer("format cleaned.")
         return
     elif data == "split":
-        from CONFIG.messages import MessagesConfig as Messages
         url_distractor(app, fake_message("/clean split", user_id))
-        callback_query.answer(Messages.CLEAN_SPLIT_CLEANED_MSG)
+        callback_query.answer("split cleaned.")
         return
     elif data == "mediainfo":
-        from CONFIG.messages import MessagesConfig as Messages
         url_distractor(app, fake_message("/clean mediainfo", user_id))
-        callback_query.answer(Messages.CLEAN_MEDIAINFO_CLEANED_MSG)
+        callback_query.answer("mediainfo cleaned.")
         return
     elif data == "subs":
-        from CONFIG.messages import MessagesConfig as Messages
         url_distractor(app, fake_message("/clean subs", user_id))
-        callback_query.answer(Messages.CLEAN_SUBS_CLEANED_MSG)
+        callback_query.answer("Subtitle settings cleaned.")
         return
     elif data == "keyboard":
-        from CONFIG.messages import MessagesConfig as Messages
         url_distractor(app, fake_message("/clean keyboard", user_id))
-        callback_query.answer(Messages.CLEAN_KEYBOARD_CLEANED_MSG)
+        callback_query.answer("Keyboard settings cleaned.")
         return
     elif data == "args":
-        from CONFIG.messages import MessagesConfig as Messages
         url_distractor(app, fake_message("/clean args", user_id))
-        callback_query.answer(Messages.CLEAN_ARGS_CLEANED_MSG)
+        callback_query.answer("Args settings cleaned.")
         return
     elif data == "nsfw":
-        from CONFIG.messages import MessagesConfig as Messages
         url_distractor(app, fake_message("/clean nsfw", user_id))
-        callback_query.answer(Messages.CLEAN_NSFW_CLEANED_MSG)
+        callback_query.answer("NSFW settings cleaned.")
         return
     elif data == "proxy":
-        from CONFIG.messages import MessagesConfig as Messages
         url_distractor(app, fake_message("/clean proxy", user_id))
-        callback_query.answer(Messages.CLEAN_PROXY_CLEANED_MSG)
+        callback_query.answer("Proxy settings cleaned.")
         return
     elif data == "flood_wait":
-        from CONFIG.messages import MessagesConfig as Messages
         url_distractor(app, fake_message("/clean flood_wait", user_id))
-        callback_query.answer(Messages.CLEAN_FLOOD_WAIT_CLEANED_MSG)
+        callback_query.answer("Flood wait settings cleaned.")
         return
     elif data == "all":
-        from CONFIG.messages import MessagesConfig as Messages
         url_distractor(app, fake_message("/clean all", user_id))
-        callback_query.answer(Messages.CLEAN_ALL_FILES_CLEANED_MSG)
-        return
-    elif data == "close":
-        # Close the clean menu
-        try:
-            callback_query.message.delete()
-        except Exception:
-            callback_query.edit_message_reply_markup(reply_markup=None)
-        from CONFIG.messages import MessagesConfig as Messages
-        callback_query.answer(Messages.CLEAN_MENU_CLOSED_MSG)
+        callback_query.answer("All files cleaned.")
         return
     elif data == "back":
         # Back to the cookies menu
-        from CONFIG.messages import MessagesConfig as Messages
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(Messages.CLEAN_BTN_COOKIE,
+            [InlineKeyboardButton("📥 /cookie - Download my 5 cookies",
                                   callback_data="settings__cmd__download_cookie")],
-            [InlineKeyboardButton(Messages.CLEAN_BTN_COOKIES_FROM_BROWSER,
+            [InlineKeyboardButton("🌐 /cookies_from_browser - Get browser's YT-cookie",
                                   callback_data="settings__cmd__cookies_from_browser")],
-            [InlineKeyboardButton(Messages.CLEAN_BTN_CHECK_COOKIE,
+            [InlineKeyboardButton("🔎 /check_cookie - Validate your cookie file",
                                   callback_data="settings__cmd__check_cookie")],
-            [InlineKeyboardButton(Messages.CLEAN_BTN_SAVE_AS_COOKIE,
+            [InlineKeyboardButton("🔖 /save_as_cookie - Upload custom cookie",
                                   callback_data="settings__cmd__save_as_cookie")],
-            [InlineKeyboardButton(Messages.CLEAN_BTN_BACK, callback_data="settings__menu__back")]
+            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
         callback_query.edit_message_text(
             "<b>🍪 COOKIES</b>\n\nChoose an action:",

@@ -20,16 +20,14 @@ def tags_command(app, message):
     user_dir = os.path.join("users", str(user_id))
     tags_file = os.path.join(user_dir, "tags.txt")
     if not os.path.exists(tags_file):
-        from CONFIG.messages import MessagesConfig as Messages
-        reply_text = Messages.TAGS_NO_TAGS_YET_MSG
+        reply_text = "You have no tags yet."
         safe_send_message(user_id, reply_text, reply_parameters=ReplyParameters(message_id=message.id))
         send_to_logger(message, reply_text)
         return
     with open(tags_file, "r", encoding="utf-8") as f:
         tags = [line.strip() for line in f if line.strip()]
     if not tags:
-        from CONFIG.messages import MessagesConfig as Messages
-        reply_text = Messages.TAGS_NO_TAGS_YET_MSG
+        reply_text = "You have no tags yet."
         safe_send_message(user_id, reply_text, reply_parameters=ReplyParameters(message_id=message.id))
         send_to_logger(message, reply_text)
         return
@@ -56,8 +54,7 @@ def tags_close_callback(app, callback_query):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        from CONFIG.messages import MessagesConfig as Messages
-        callback_query.answer(Messages.TAGS_MESSAGE_CLOSED_MSG)
+        callback_query.answer("Tags message closed.")
         send_to_logger(callback_query.message, "Tags message closed.")
         return
 
@@ -67,7 +64,6 @@ def tags_close_callback(app, callback_query):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        from CONFIG.messages import MessagesConfig as Messages
-        callback_query.answer(Messages.TAGS_MESSAGE_CLOSED_MSG)
+        callback_query.answer("Tags message closed.")
         send_to_logger(callback_query.message, "Tags message closed.")
         return

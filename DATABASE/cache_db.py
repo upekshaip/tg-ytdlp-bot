@@ -325,8 +325,7 @@ def auto_cache_command(app, message):
     """
     try:
         if int(message.chat.id) not in Config.ADMIN:
-            from CONFIG.messages import MessagesConfig as Messages
-            send_to_user(message, Messages.ACCESS_DENIED_ADMIN_MSG)
+            send_to_user(message, "❌ Access denied. Admin only.")
             return
 
         text = (message.text or "").strip()
@@ -341,22 +340,20 @@ def auto_cache_command(app, message):
                 interval = max(1, int(reload_interval_hours))
                 next_exec = get_next_reload_time(interval)
                 delta_min = int((next_exec - datetime.now()).total_seconds() // 60)
-                from CONFIG.messages import MessagesConfig as Messages
                 send_to_user(
                     message,
-                    Messages.CACHE_AUTO_RELOAD_UPDATED_MSG.format(
-                        status=status,
-                        interval=interval,
-                        next_time=next_exec.strftime('%H:%M'),
-                        delta_min=delta_min
-                    )
+                    "🔄 Auto Firebase cache reloading updated!\n\n"
+                    f"📊 Status: {status}\n"
+                    f"⏰ Schedule: every {interval} hours from 00:00\n"
+                    f"🕒 Next reload: {next_exec.strftime('%H:%M')} (in {delta_min} minutes)"
                 )
                 send_to_logger(message, f"Auto reload ENABLED; next at {next_exec}")
             else:
-                from CONFIG.messages import MessagesConfig as Messages
                 send_to_user(
                     message,
-                    Messages.CACHE_AUTO_RELOAD_STOPPED_MSG
+                    "🛑 Auto Firebase cache reloading stopped!\n\n"
+                    "📊 Status: ❌ DISABLED\n"
+                    "💡 Use /auto_cache on to re-enable"
                 )
                 send_to_logger(message, "Auto reload DISABLED by admin.")
             return
@@ -366,30 +363,24 @@ def auto_cache_command(app, message):
             try:
                 n = int(arg)
             except Exception:
-                from CONFIG.messages import MessagesConfig as Messages
-                send_to_user(message, getattr(Messages, 'AUTO_CACHE_INVALID_ARG_MSG', "❌ Invalid argument. Use /auto_cache on | off | N (1..168)"))
+                send_to_user(message, "❌ Invalid argument. Use /auto_cache on | off | N (1..168)")
                 return
             if n < 1 or n > 168:
-                from CONFIG.messages import MessagesConfig as Messages
-                send_to_user(message, getattr(Messages, 'AUTO_CACHE_INTERVAL_RANGE_MSG', "❌ Interval must be between 1 and 168 hours"))
+                send_to_user(message, "❌ Interval must be between 1 and 168 hours")
                 return
             ok = set_reload_interval_hours(n)
             if not ok:
-                from CONFIG.messages import MessagesConfig as Messages
-                send_to_user(message, getattr(Messages, 'AUTO_CACHE_SET_FAILED_MSG', "❌ Failed to set interval"))
+                send_to_user(message, "❌ Failed to set interval")
                 return
             interval = max(1, int(reload_interval_hours))
             next_exec = get_next_reload_time(interval)
             delta_min = int((next_exec - datetime.now()).total_seconds() // 60)
-            from CONFIG.messages import MessagesConfig as Messages
             send_to_user(
                 message,
-                Messages.AUTO_CACHE_UPDATED_MSG.format(
-                    status='✅ ENABLED' if auto_cache_enabled else '❌ DISABLED',
-                    interval=interval,
-                    next_time=next_exec.strftime('%H:%M'),
-                    delta_min=delta_min
-                )
+                "⏱️ Auto Firebase cache interval updated!\n\n"
+                f"📊 Status: {'✅ ENABLED' if auto_cache_enabled else '❌ DISABLED'}\n"
+                f"⏰ Schedule: every {interval} hours from 00:00\n"
+                f"🕒 Next reload: {next_exec.strftime('%H:%M')} (in {delta_min} minutes)"
             )
             send_to_logger(message, f"Auto reload interval set to {interval}h; next at {next_exec}")
             return

@@ -130,7 +130,6 @@ def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
                 
                 emoji = emojis[counter % len(emojis)]
                 # Attempt to edit message but don't keep trying if message is invalid
-                from CONFIG.messages import MessagesConfig as Messages
                 result = safe_edit_message_text(user_id, hourglass_msg_id, f"{emoji} Please wait...")
 
                 # If message edit returns None due to MESSAGE_ID_INVALID, stop animation

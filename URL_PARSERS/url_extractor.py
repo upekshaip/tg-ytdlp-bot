@@ -47,18 +47,10 @@ def url_distractor(app, message):
     text = message.text.strip()
     
     # Check if user is in args input state
-    from COMMANDS.args_cmd import user_input_states, handle_args_text_input, clear_input_state_timer
+    from COMMANDS.args_cmd import user_input_states, handle_args_text_input
     if user_id in user_input_states:
-        # If user sends a command (starts with /), clear the input state and continue with normal processing
-        if text.startswith('/'):
-            # Clear the input state and timer
-            thread_id = getattr(message, 'message_thread_id', None) or 0
-            clear_input_state_timer(user_id, thread_id)
-            # Continue with normal command processing (don't return here)
-        else:
-            # Handle normal text input for args
-            handle_args_text_input(app, message)
-            return
+        handle_args_text_input(app, message)
+        return
     # Normalize commands like /cmd@bot to /cmd for group mentions
     try:
         bot_mention = f"@{getattr(Config, 'BOT_NAME', '').strip()}"
@@ -95,10 +87,9 @@ def url_distractor(app, message):
         # Special case: headphones emoji should show audio usage hint
         if mapped == "/audio":
             from HELPERS.safe_messeger import safe_send_message
-            from CONFIG.messages import MessagesConfig as Messages
             safe_send_message(
                 message.chat.id,
-                Messages.URL_EXTRACTOR_AUDIO_HINT_MSG,
+                "Download only audio from video source.\n\nUsage: /audio + URL \n\n(ex. /audio https://youtu.be/abc123)\n(ex. /audio https://youtu.be/playlist?list=abc123*1*10)",
                 message=message
             )
             return
@@ -151,10 +142,9 @@ def url_distractor(app, message):
                 return  # is_user_in_channel already sends subscription message
             # User is subscribed, send welcome message
             from HELPERS.safe_messeger import safe_send_message
-            from CONFIG.messages import MessagesConfig as Messages
             safe_send_message(
                 message.chat.id,
-                Messages.URL_EXTRACTOR_WELCOME_MSG.format(first_name=message.chat.first_name, credits=Config.CREDITS_MSG),
+                f"Hello {message.chat.first_name},\n \n<i>This bot🤖 can download any videos into telegram directly.😊 For more information press <b>/help</b></i> 👈\n \n {Config.CREDITS_MSG}",
                 parse_mode=enums.ParseMode.HTML,
                 message=message)
             send_to_logger(message, LoggerMsg.USER_STARTED_BOT.format(chat_id=message.chat.id))
@@ -421,7 +411,7 @@ def url_distractor(app, message):
                 reply_parameters=ReplyParameters(message_id=fake_callback.message.id if hasattr(fake_callback.message, 'id') else None),
                 reply_markup=keyboard,
                 _callback_query=fake_callback,
-                _fallback_notice=Messages.FLOOD_LIMIT_TRY_LATER_MSG
+                _fallback_notice="⏳ Flood limit. Try later."
             )
             return
             
@@ -501,71 +491,58 @@ def url_distractor(app, message):
                 clear_youtube_cookie_cache(message.chat.id)
             except Exception as e:
                 logger.error(f"Failed to clear YouTube cookie cache: {e}")
-            from CONFIG.messages import MessagesConfig as Messages
-            send_to_all(message, Messages.CLEAN_COOKIE_REMOVED_MSG)
+            send_to_all(message, "🗑 Cookie file removed and cache cleared.")
             return
         elif clean_args in ["log", "logs"]:
             remove_media(message, only=["logs.txt"])
-            from CONFIG.messages import MessagesConfig as Messages
-            send_to_all(message, Messages.CLEAN_LOGS_REMOVED_MSG)
+            send_to_all(message, "🗑 Logs file removed.")
             return
         elif clean_args in ["tag", "tags"]:
             remove_media(message, only=["tags.txt"])
-            from CONFIG.messages import MessagesConfig as Messages
-            send_to_all(message, Messages.CLEAN_TAGS_REMOVED_MSG)
+            send_to_all(message, "🗑 Tags file removed.")
             return
         elif clean_args == "format":
             remove_media(message, only=["format.txt"])
-            from CONFIG.messages import MessagesConfig as Messages
-            send_to_all(message, Messages.CLEAN_FORMAT_REMOVED_MSG)
+            send_to_all(message, "🗑 Format file removed.")
             return
         elif clean_args == "split":
             remove_media(message, only=["split.txt"])
-            from CONFIG.messages import MessagesConfig as Messages
-            send_to_all(message, Messages.CLEAN_SPLIT_REMOVED_MSG)
+            send_to_all(message, "🗑 Split file removed.")
             return
         elif clean_args == "mediainfo":
             remove_media(message, only=["mediainfo.txt"])
-            from CONFIG.messages import MessagesConfig as Messages
-            send_to_all(message, Messages.CLEAN_MEDIAINFO_REMOVED_MSG)
+            send_to_all(message, "🗑 Mediainfo file removed.")
             return
         elif clean_args == "subs":
             remove_media(message, only=["subs.txt"])
-            from CONFIG.messages import MessagesConfig as Messages
-            send_to_all(message, Messages.CLEAN_SUBTITLES_REMOVED_MSG)
+            send_to_all(message, "🗑 Subtitle settings removed.")
             clear_subs_check_cache()
             return
         elif clean_args == "keyboard":
             remove_media(message, only=["keyboard.txt"])
-            from CONFIG.messages import MessagesConfig as Messages
-            send_to_all(message, Messages.CLEAN_KEYBOARD_REMOVED_MSG)
+            send_to_all(message, "🗑 Keyboard settings removed.")
             return
         elif clean_args == "args":
             remove_media(message, only=["args.txt"])
-            from CONFIG.messages import MessagesConfig as Messages
-            send_to_all(message, Messages.CLEAN_ARGS_REMOVED_MSG)
+            send_to_all(message, "🗑 Args settings removed.")
             return
         elif clean_args == "nsfw":
             remove_media(message, only=["nsfw_blur.txt"])
-            from CONFIG.messages import MessagesConfig as Messages
-            send_to_all(message, Messages.CLEAN_NSFW_REMOVED_MSG)
+            send_to_all(message, "🗑 NSFW settings removed.")
             return
         elif clean_args == "proxy":
             remove_media(message, only=["proxy.txt"])
-            from CONFIG.messages import MessagesConfig as Messages
-            send_to_all(message, Messages.CLEAN_PROXY_REMOVED_MSG)
+            send_to_all(message, "🗑 Proxy settings removed.")
             return
         elif clean_args == "flood_wait":
             remove_media(message, only=["flood_wait.txt"])
-            from CONFIG.messages import MessagesConfig as Messages
-            send_to_all(message, Messages.CLEAN_FLOOD_WAIT_REMOVED_MSG)
+            send_to_all(message, "🗑 Flood wait settings removed.")
             return
         elif clean_args == "all":
             # Delete all files and display the list of deleted ones
             user_dir = f'./users/{str(message.chat.id)}'
             if not os.path.exists(user_dir):
-                from CONFIG.messages import MessagesConfig as Messages
-                send_to_all(message, Messages.CLEAN_NO_FILES_MSG)
+                send_to_all(message, "🗑 No files to remove.")
                 clear_subs_check_cache()
                 return
 
@@ -592,17 +569,14 @@ def url_distractor(app, message):
             
             if removed_files:
                 files_list = "\n".join([f"• {file}" for file in removed_files])
-                from CONFIG.messages import MessagesConfig as Messages
-                send_to_all(message, Messages.URL_EXTRACTOR_FILES_REMOVED_MSG.format(files_list=files_list))
+                send_to_all(message, f"🗑 All files removed successfully!\n\nRemoved files:\n{files_list}")
             else:
-                from CONFIG.messages import MessagesConfig as Messages
-                send_to_all(message, Messages.CLEAN_NO_FILES_MSG)
+                send_to_all(message, "🗑 No files to remove.")
             return
         else:
             # Regular command /clean - delete only media files with filtering
             remove_media(message)
-            from CONFIG.messages import MessagesConfig as Messages
-            send_to_all(message, Messages.CLEAN_MEDIA_FILES_REMOVED_MSG)
+            send_to_all(message, "🗑 All media files are removed.")
             try:
                 from COMMANDS.cookies_cmd import clear_youtube_cookie_cache
                 clear_youtube_cookie_cache(message.chat.id)
@@ -671,8 +645,15 @@ def url_distractor(app, message):
                 from HELPERS.safe_messeger import safe_send_message
                 # Use top-level imports to avoid shadowing names in function scope
                 kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔚Close", callback_data="vid_help|close")]])
-                from CONFIG.messages import MessagesConfig as Messages
-                help_text = Messages.VIDEO_HELP_MSG
+                help_text = (
+                    "<b>🎬 Video Download Command</b>\n\n"
+                    "Usage: <code>/vid URL</code>\n\n"
+                    "<b>Examples:</b>\n"
+                    "• <code>/vid https://youtube.com/watch?v=123abc</code>\n"
+                    "• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n"
+                    "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code>\n\n"
+                    "Also see: /audio, /img, /help, /playlist, /settings"
+                )
                 safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
             except Exception:
                 pass
@@ -801,8 +782,7 @@ def add_group_msg_callback(app, callback_query):
                 )
             
             # Answer callback query
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.CLOSED_MSG_GENERIC)
+            callback_query.answer("Closed")
             
             # Log the action
             send_to_logger(callback_query.message, f"User {user_id} closed add_bot_to_group command")
@@ -810,7 +790,6 @@ def add_group_msg_callback(app, callback_query):
     except Exception as e:
         # Log error and answer callback
         send_to_logger(callback_query.message, f"Error in add_group_msg callback handler: {e}")
-        from CONFIG.messages import MessagesConfig as Messages
-        callback_query.answer(Messages.ERROR_OCCURRED_SHORT_MSG, show_alert=True)
+        callback_query.answer("Error occurred", show_alert=True)
 
 ######################################################  

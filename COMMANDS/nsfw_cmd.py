@@ -72,10 +72,9 @@ def nsfw_command(app, message):
     keyboard = InlineKeyboardMarkup(buttons)
     
     status_text = "currently blurred" if current_setting else "currently not blurred"
-    from CONFIG.messages import MessagesConfig as Messages
     safe_send_message(
         chat_id,
-        Messages.NSFW_MENU_TITLE_MSG.format(status_text=status_text),
+        f"🔞 <b>NSFW Blur Settings</b>\n\nNSFW content is <b>{status_text}</b>.\n\nChoose whether to blur NSFW content:",
         reply_markup=keyboard,
         parse_mode=enums.ParseMode.HTML,
         message=message
@@ -102,8 +101,7 @@ def nsfw_option_callback(app, callback_query):
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.NSFW_MENU_CLOSED_MSG)
+            callback_query.answer("Menu closed.")
         except Exception:
             pass
         send_to_logger(callback_query.message, "NSFW: closed.")
@@ -115,8 +113,7 @@ def nsfw_option_callback(app, callback_query):
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Config.NSFW_ON_MSG, parse_mode=enums.ParseMode.HTML)
         send_to_logger(callback_query.message, "NSFW blur disabled.")
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.NSFW_BLUR_DISABLED_MSG)
+            callback_query.answer("NSFW blur disabled.")
         except Exception:
             pass
         return
@@ -127,8 +124,7 @@ def nsfw_option_callback(app, callback_query):
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Config.NSFW_OFF_MSG, parse_mode=enums.ParseMode.HTML)
         send_to_logger(callback_query.message, "NSFW blur enabled.")
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.NSFW_BLUR_ENABLED_MSG)
+            callback_query.answer("NSFW blur enabled.")
         except Exception:
             pass
         return

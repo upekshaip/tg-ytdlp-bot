@@ -89,8 +89,20 @@ def list_command(app, message):
         parts = message.text.strip().split(maxsplit=1)
         if len(parts) < 2:
             # Show help message
-            from CONFIG.messages import MessagesConfig as Messages
-            help_text = Messages.LIST_HELP_MSG
+            help_text = (
+                "<b>📃 List Available Formats</b>\n\n"
+                "Get available video/audio formats for a URL.\n\n"
+                "<b>Usage:</b>\n"
+                "<code>/list URL</code>\n\n"
+                "<b>Examples:</b>\n"
+                "• <code>/list https://youtube.com/watch?v=123abc</code>\n"
+                "• <code>/list https://youtube.com/playlist?list=123abc</code>\n\n"
+                "<b>💡 How to use format IDs:</b>\n"
+                "After getting the list, use specific format ID:\n"
+                "• <code>/format id 401</code> - download format 401\n"
+                "• <code>/format id401</code> - same as above\n\n"
+                "This command will show all available formats that can be downloaded."
+            )
             keyboard = InlineKeyboardMarkup([[
                 InlineKeyboardButton("🔚 Close", callback_data="list_help|close")
             ]])
@@ -140,7 +152,9 @@ def list_command(app, message):
                 temp_file.write("💡 How to use format IDs:\n")
                 temp_file.write("After getting the list, use specific format ID:\n")
                 temp_file.write("• /format id 401 - download format 401\n")
+                temp_file.write("• /format id401 - same as above\n")
                 temp_file.write("• /format id 140 audio - download format 140 as MP3 audio\n")
+                temp_file.write("• /format id140 audio - same as above\n")
                 
                 # Add special note for audio-only formats
                 if audio_only_formats:
@@ -151,15 +165,21 @@ def list_command(app, message):
             
             try:
                 # Send the file
-                from CONFIG.messages import MessagesConfig as Messages
-                caption = Messages.LIST_FORMATS_CAPTION_MSG.format(url=url)
-                caption += Messages.LIST_FORMAT_INSTRUCTIONS_MSG
+                caption = f"📃 Available formats for:\n<code>{url}</code>\n\n"
+                caption += f"💡 <b>How to set format:</b>\n"
+                caption += f"• <code>/format id 134</code> - Download specific format ID\n"
+                caption += f"• <code>/format 720p</code> - Download by quality\n"
+                caption += f"• <code>/format best</code> - Download best quality\n"
+                caption += f"• <code>/format ask</code> - Always ask for quality\n\n"
                 
                 # Add special note for audio-only formats
                 if audio_only_formats:
-                    caption += Messages.LIST_AUDIO_FORMATS_MSG.format(audio_formats=', '.join(audio_only_formats))
+                    caption += f"🎵 <b>Audio-only formats:</b> {', '.join(audio_only_formats)}\n"
+                    caption += f"• <code>/format id 140 audio</code> - Download format 140 as MP3 audio\n"
+                    caption += f"• <code>/format id140 audio</code> - same as above\n"
+                    caption += f"These will be downloaded as MP3 audio files.\n\n"
                 
-                caption += Messages.LIST_USE_FORMAT_ID_MSG
+                caption += f"📋 Use format ID from the list above"
                 
                 app.send_document(
                     user_id,
@@ -203,10 +223,8 @@ def list_help_callback(app, callback_query):
     try:
         data = callback_query.data.split("|")[1]
         if data == "close":
-            from CONFIG.messages import MessagesConfig as Messages
             callback_query.message.delete()
-            callback_query.answer(Messages.AA_HELP_CLOSED_MSG)
+            callback_query.answer("Help closed")
     except Exception as e:
-        from CONFIG.messages import MessagesConfig as Messages
         logger.error(f"Error in list help callback: {e}")
-        callback_query.answer(Messages.AA_ERROR_OCCURRED_MSG, show_alert=True)
+        callback_query.answer("Error occurred", show_alert=True)

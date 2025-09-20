@@ -40,8 +40,7 @@ def mediainfo_command(app, message):
             if arg in ("on", "off"):
                 with open(mediainfo_file, "w", encoding="utf-8") as f:
                     f.write("ON" if arg == "on" else "OFF")
-                from CONFIG.messages import MessagesConfig as Messages
-                safe_send_message(user_id, Messages.MEDIINFO_SET_MSG.format(state='enabled' if arg=='on' else 'disabled'), message=message)
+                safe_send_message(user_id, f"✅ MediaInfo {'enabled' if arg=='on' else 'disabled' }.", message=message)
                 send_to_logger(message, f"MediaInfo set via command: {arg}")
                 return
     except Exception:
@@ -51,10 +50,9 @@ def mediainfo_command(app, message):
         [InlineKeyboardButton("🔚Close", callback_data="mediainfo_option|close")],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
-    from CONFIG.messages import MessagesConfig as Messages
     safe_send_message(
         user_id,
-        getattr(Messages, 'MEDIAINFO_MENU_TEXT', "Enable or disable sending MediaInfo for downloaded files?"),
+        "Enable or disable sending MediaInfo for downloaded files?",
         reply_markup=keyboard,
         message=message
     )
@@ -76,8 +74,7 @@ def mediainfo_option_callback(app, callback_query):
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.MEDIAINFO_MENU_CLOSED_MSG)
+            callback_query.answer("Menu closed.")
         except Exception:
             pass
         send_to_logger(callback_query.message, "MediaInfo: closed.")
@@ -85,24 +82,20 @@ def mediainfo_option_callback(app, callback_query):
     if data == "on":
         with open(mediainfo_file, "w", encoding="utf-8") as f:
             f.write("ON")
-        from CONFIG.messages import MessagesConfig as Messages
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'MEDIAINFO_ENABLED_MSG', Messages.MEDIAINFO_ENABLED_MSG))
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "✅ MediaInfo enabled. After downloading, file info will be sent.")
         send_to_logger(callback_query.message, "MediaInfo enabled.")
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.MEDIAINFO_ENABLED_ANSWER_MSG)
+            callback_query.answer("MediaInfo enabled.")
         except Exception:
             pass
         return
     if data == "off":
         with open(mediainfo_file, "w", encoding="utf-8") as f:
             f.write("OFF")
-        from CONFIG.messages import MessagesConfig as Messages
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'MEDIAINFO_DISABLED_MSG', Messages.MEDIAINFO_DISABLED_MSG))
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "❌ MediaInfo disabled.")
         send_to_logger(callback_query.message, "MediaInfo disabled.")
         try:
-            from CONFIG.messages import MessagesConfig as Messages
-            callback_query.answer(Messages.MEDIAINFO_DISABLED_ANSWER_MSG)
+            callback_query.answer("MediaInfo disabled.")
         except Exception:
             pass
         return
@@ -149,12 +142,11 @@ def send_mediainfo_if_enabled(user_id, file_path, message):
             with open(mediainfo_path, "w", encoding="utf-8") as f:
                 f.write(mediainfo_text)
 
-            from CONFIG.messages import MessagesConfig as Messages
-            app.send_document(user_id, mediainfo_path, caption=Messages.MEDIAINFO_DOC_CAPTION,
+            app.send_document(user_id, mediainfo_path, caption="<blockquote>📊 MediaInfo</blockquote>",
                               reply_parameters=ReplyParameters(message_id=msg_id))
             from HELPERS.logger import get_log_channel
             app.send_document(get_log_channel("video"), mediainfo_path,
-                              caption=Messages.MEDIAINFO_DOC_CAPTION_FOR_USER.format(user_id=user_id))
+                              caption=f"<blockquote>📊 MediaInfo</blockquote> for user {user_id}")
 
             if os.path.exists(mediainfo_path):
                 os.remove(mediainfo_path)

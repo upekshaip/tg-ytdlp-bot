@@ -140,15 +140,13 @@ def set_format(app, message):
             # Set to Always Ask mode
             with open(os.path.join(user_dir, "format.txt"), "w", encoding="utf-8") as f:
                 f.write("ALWAYS_ASK")
-            from CONFIG.messages import MessagesConfig as Messages
-            safe_send_message(user_id, Messages.FORMAT_ALWAYS_ASK_SET_MSG, message=message)
+            safe_send_message(user_id, "✅ Format set to: Always Ask. You will be prompted for quality each time you send a URL.", message=message)
             send_to_logger(message, "Format set to ALWAYS_ASK.")
             return
         elif arg.lower() == "best":
             # Set to bv+ba/best format
-            from CONFIG.messages import MessagesConfig as Messages
             custom_format = "bv+ba/best"
-            safe_send_message(user_id, Messages.FORMAT_UPDATED_BEST_MSG.format(format=custom_format), message=message)
+            safe_send_message(user_id, f"✅ Format updated to best quality:\n{custom_format}", message=message)
             send_to_logger(message, f"Format updated to best: {custom_format}")
         # Check if it's a format ID (e.g., "id 401", "id401")
         elif re.match(r'^id\s*\d+$', arg, re.IGNORECASE):
@@ -167,15 +165,14 @@ def set_format(app, message):
                 
                 # Check if we can determine if it's audio-only by looking at recent URL
                 # This is a simplified approach - in a real scenario, you might want to store the last URL
-                from CONFIG.messages import MessagesConfig as Messages
-                safe_send_message(user_id, Messages.FORMAT_UPDATED_ID_NOTE_AUDIO_MSG.format(format_id=format_id, format=custom_format), message=message)
+                safe_send_message(user_id, f"✅ Format updated to ID {format_id}:\n{custom_format}\n\n"
+                                         f"💡 <b>Note:</b> If this is an audio-only format, it will be downloaded as MP3 audio file.", message=message)
                 send_to_logger(message, f"Format updated to ID {format_id}: {custom_format}")
                 
             except Exception as e:
                 # Fallback to original behavior
-                from CONFIG.messages import MessagesConfig as Messages
                 custom_format = f"{format_id}+bestaudio/bv+ba/best"
-                safe_send_message(user_id, Messages.FORMAT_UPDATED_INLINE_MSG.format(format=custom_format), message=message)
+                safe_send_message(user_id, f"✅ Format updated to ID {format_id}:\n{custom_format}", message=message)
                 send_to_logger(message, f"Format updated to ID {format_id}: {custom_format}")
         
         # Check if it's a format ID with audio flag (e.g., "id 140 audio", "id140 audio")
@@ -184,31 +181,27 @@ def set_format(app, message):
             format_id = re.search(r'\d+', arg).group()
             
             # Use format ID with bestaudio fallback for audio-only formats
-            from CONFIG.messages import MessagesConfig as Messages
             custom_format = f"{format_id}/bestaudio"
             
-            safe_send_message(user_id, Messages.FORMAT_UPDATED_ID_AUDIO_ONLY_MSG.format(format_id=format_id, format=custom_format), message=message)
+            safe_send_message(user_id, f"✅ Format updated to ID {format_id} (audio-only):\n{custom_format}\n\n💡 This will be downloaded as MP3 audio file.", message=message)
             send_to_logger(message, f"Format updated to ID {format_id} (audio-only): {custom_format}")
         
         # Check if it's a quality argument (number, number+p, 4k, 8k)
         elif re.match(r'^(\d+p?|4k|8k|4K|8K)$', arg, re.IGNORECASE):
             # It's a quality argument, convert to format
-            from CONFIG.messages import MessagesConfig as Messages
             custom_format = parse_quality_argument(arg)
-            safe_send_message(user_id, Messages.FORMAT_UPDATED_QUALITY_MSG.format(quality=arg, format=custom_format), message=message)
+            safe_send_message(user_id, f"✅ Format updated to quality {arg}:\n{custom_format}", message=message)
             send_to_logger(message, f"Format updated to quality {arg}: {custom_format}")
         else:
             # It's a custom format string
-            from CONFIG.messages import MessagesConfig as Messages
             custom_format = arg
-            safe_send_message(user_id, Messages.FORMAT_UPDATED_GENERIC_MSG.format(format=custom_format), message=message)
+            safe_send_message(user_id, f"✅ Format updated to:\n{custom_format}", message=message)
             send_to_logger(message, f"Format updated to: {custom_format}")
         
         with open(os.path.join(user_dir, "format.txt"), "w", encoding="utf-8") as f:
             f.write(custom_format)
     else:
         # Main Menu with A Few Popular Options, Plus The Others Button
-        from CONFIG.messages import MessagesConfig as Messages
         main_keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("❓ Always Ask (menu + buttons)", callback_data="format_option|alwaysask")],
             [InlineKeyboardButton("🎛 Others (144p - 4320p)", callback_data="format_option|others")],
@@ -217,11 +210,12 @@ def set_format(app, message):
             [InlineKeyboardButton("📈Bestvideo+Bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
             # [InlineKeyboardButton("📉best (no ffmpeg) (bad)", callback_data="format_option|best")],
             [InlineKeyboardButton("🎚 Custom (enter your own)", callback_data="format_option|custom")],
-            [InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="format_option|close")]
+            [InlineKeyboardButton("🔚Close", callback_data="format_option|close")]
         ])
         safe_send_message(
             user_id,
-            Messages.FORMAT_SELECT_OPTIONS_MSG +
+            "Select a format option or send a custom one using:\n"
+            "• <code>/format &lt;format_string&gt;</code> - custom format\n"
             "• <code>/format 720</code> - 720p quality\n"
             "• <code>/format 4k</code> - 4K quality\n"
             "• <code>/format 8k</code> - 8K quality\n"
@@ -244,21 +238,19 @@ def format_option_callback(app, callback_query):
 
     # If you press the close button
     if data == "close":
-        from CONFIG.messages import MessagesConfig as Messages
         try:
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        callback_query.answer(Messages.FORMAT_CHOICE_UPDATED_MSG)
+        callback_query.answer("✅ Format choice updated.")
         send_to_logger(callback_query.message, "Format selection closed.")
         return
 
     # If the Custom button is pressed
     if data == "custom":
         # Sending a message with the Close button
-        from CONFIG.messages import MessagesConfig as Messages
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="format_custom|close")]
+            [InlineKeyboardButton("🔚Close", callback_data="format_custom|close")]
         ])
         safe_send_message(
             user_id,
@@ -266,7 +258,7 @@ def format_option_callback(app, callback_query):
             reply_parameters=ReplyParameters(message_id=callback_query.message.id),
             reply_markup=keyboard
         )
-        callback_query.answer(Messages.FORMAT_HINT_SENT_MSG)
+        callback_query.answer("Hint sent.")
         send_to_logger(callback_query.message, "Custom format hint sent.")
         return
 
@@ -282,7 +274,6 @@ def format_option_callback(app, callback_query):
         vp9_button = "✅ vp09 (VP9)" if current_codec == "vp9" else "☑️ vp09 (VP9)"
         mkv_button = "✅ MKV: ON" if mkv_on else "☑️ MKV: OFF"
         
-        from CONFIG.messages import MessagesConfig as Messages
         full_res_keyboard = InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("144p (256×144)", callback_data="format_option|bv144"),
@@ -304,9 +295,9 @@ def format_option_callback(app, callback_query):
                 InlineKeyboardButton(av01_button, callback_data="format_codec|av01"),
                 InlineKeyboardButton(vp9_button, callback_data="format_codec|vp9"),
             ],
-            [InlineKeyboardButton("🔙Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="format_option|close")]
+            [InlineKeyboardButton("🔙Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton("🔚Close", callback_data="format_option|close")]
         ])
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.FORMAT_SELECT_RESOLUTION_MSG, reply_markup=full_res_keyboard)
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "Select your desired resolution and codec:", reply_markup=full_res_keyboard)
         try:
             callback_query.answer()
         except Exception:
@@ -316,7 +307,6 @@ def format_option_callback(app, callback_query):
 
     # If the Back button is pressed - we return to the main menu
     if data == "back":
-        from CONFIG.messages import MessagesConfig as Messages
         main_keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("❓ Always Ask (menu + buttons)", callback_data="format_option|alwaysask")],
             [InlineKeyboardButton("🎛Others (144p - 4320p)", callback_data="format_option|others")],
@@ -325,9 +315,10 @@ def format_option_callback(app, callback_query):
             [InlineKeyboardButton("📈Bestvideo+Bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
             # [InlineKeyboardButton("📉best (no ffmpeg) (bad)", callback_data="format_option|best")],
             [InlineKeyboardButton("🎚 Custom (enter your own)", callback_data="format_option|custom")],
-            [InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="format_option|close")]
+            [InlineKeyboardButton("🔚Close", callback_data="format_option|close")]
         ])
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.FORMAT_SELECT_OPTIONS_MSG +
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "Select a format option or send a custom one using:\n"
+                               "• <code>/format &lt;format_string&gt;</code> - custom format\n"
                                "• <code>/format 720</code> - 720p quality\n"
                                "• <code>/format 4k</code> - 4K quality\n"
                                "• <code>/format 8k</code> - 8K quality", reply_markup=main_keyboard)
@@ -427,10 +418,9 @@ def format_option_callback(app, callback_query):
     create_directory(user_dir)
     with open(os.path.join(user_dir, "format.txt"), "w", encoding="utf-8") as f:
         f.write(chosen_format)
-    from CONFIG.messages import MessagesConfig as Messages
-    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.FORMAT_UPDATED_INLINE_MSG.format(format=chosen_format))
+    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, f"✅ Format updated to:\n{chosen_format}")
     try:
-        callback_query.answer(Messages.FORMAT_SAVED_MSG)
+        callback_query.answer("✅ Format saved.")
     except Exception:
         pass
     send_to_logger(callback_query.message, f"Format updated to: {chosen_format}")
@@ -440,8 +430,8 @@ def format_option_callback(app, callback_query):
         create_directory(user_dir)
         with open(os.path.join(user_dir, "format.txt"), "w", encoding="utf-8") as f:
             f.write("ALWAYS_ASK")
-        from CONFIG.messages import MessagesConfig as Messages
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.FORMAT_ALWAYS_ASK_SET_MSG)
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
+                               "✅ Format set to: Always Ask. Now you will be prompted for quality each time you send a URL.")
         send_to_logger(callback_query.message, "Format set to ALWAYS_ASK.")
         return
 
@@ -453,8 +443,7 @@ def format_codec_callback(app, callback_query):
     
     if data in ["avc1", "av01", "vp9"]:
         set_user_codec_preference(user_id, data)
-        from CONFIG.messages import MessagesConfig as Messages
-        callback_query.answer(Messages.FORMAT_CODEC_SET_MSG.format(codec=data.upper()))
+        callback_query.answer(f"✅ Codec set to {data.upper()}")
         
         # Refresh the menu to show updated codec selection
         current_codec = get_user_codec_preference(user_id)
@@ -485,7 +474,7 @@ def format_codec_callback(app, callback_query):
                 InlineKeyboardButton(av01_button, callback_data="format_codec|av01"),
                 InlineKeyboardButton(vp9_button, callback_data="format_codec|vp9")
             ],
-            [InlineKeyboardButton("🔙Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="format_option|close")]
+            [InlineKeyboardButton("🔙Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton("🔚Close", callback_data="format_option|close")]
         ])
         try:
             callback_query.edit_message_reply_markup(reply_markup=full_res_keyboard)
@@ -516,9 +505,8 @@ def format_container_callback(app, callback_query):
             callback_query.edit_message_reply_markup(reply_markup=full_res_keyboard)
         except Exception:
             pass
-        from CONFIG.messages import MessagesConfig as Messages
         try:
-            callback_query.answer(Messages.FORMAT_MKV_TOGGLED_MSG.format(state='ON' if mkv_on else 'OFF'))
+            callback_query.answer(f"MKV is now {'ON' if mkv_on else 'OFF'}")
         except Exception:
             pass
 
@@ -531,9 +519,8 @@ def format_custom_callback(app, callback_query):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        from CONFIG.messages import MessagesConfig as Messages
         try:
-            callback_query.answer(Messages.FORMAT_CUSTOM_MENU_CLOSED_MSG)
+            callback_query.answer("Custom format menu closed.")
         except Exception:
             pass
         send_to_logger(callback_query.message, "Custom format menu closed")
