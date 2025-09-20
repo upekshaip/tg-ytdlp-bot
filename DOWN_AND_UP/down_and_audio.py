@@ -13,7 +13,7 @@ from pyrogram.errors import FloodWait
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, send_error_to_user
 from HELPERS.limitter import TimeFormatter, humanbytes, check_user
-from HELPERS.download_status import set_active_download, clear_download_start_time, check_download_timeout, start_hourglass_animation, playlist_errors, playlist_errors_lock
+from HELPERS.download_status import set_active_download, clear_download_start_time, check_download_timeout, start_hourglass_animation, start_cycle_progress, playlist_errors, playlist_errors_lock
 from HELPERS.safe_messeger import safe_delete_messages, safe_edit_message_text, safe_forward_messages
 from HELPERS.filesystem_hlp import sanitize_filename, create_directory, check_disk_space, cleanup_user_temp_files
 from DATABASE.firebase_init import write_logs
@@ -403,6 +403,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     status_msg_id = None
     hourglass_msg = None
     hourglass_msg_id = None
+    download_started_msg_id = None
     audio_files = []
     try:
         # Check if there is a saved waiting time
@@ -455,6 +456,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             from HELPERS.safe_messeger import schedule_delete_message
             if status_msg and hasattr(status_msg, 'id'):
                 schedule_delete_message(user_id, status_msg.id, delete_after_seconds=5)
+            # track to force-delete on error
+            download_started_msg_id = proc_msg.id
         except Exception:
             pass
         status_msg_id = status_msg.id
@@ -484,32 +487,75 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         # Check if cookie.txt exists in the user's folder
         user_cookie_path = os.path.join(user_folder, "cookie.txt")
         
-        # For YouTube URLs, ensure working cookies (skip if already checked in Always Ask menu)
-        if is_youtube_url(url) and not cookies_already_checked:
-            from COMMANDS.cookies_cmd import ensure_working_youtube_cookies
-            has_working_cookies = ensure_working_youtube_cookies(user_id)
-            if has_working_cookies and os.path.exists(user_cookie_path):
-                cookie_file = user_cookie_path
-                logger.info(f"Using working YouTube cookies for user {user_id}")
-            else:
-                cookie_file = None
-                logger.info(f"No working YouTube cookies available for user {user_id}, will try without cookies")
-        elif is_youtube_url(url) and cookies_already_checked:
-            # Cookies already checked in Always Ask menu - use them directly without verification
+        # For YouTube URLs, use optimized cookie logic - check existing first on user's URL, then retry if needed
+        if is_youtube_url(url):
+            from COMMANDS.cookies_cmd import get_youtube_cookie_urls, test_youtube_cookies_on_url, _download_content
+            import time
+            
+            # Always check existing cookies first on user's URL for maximum speed
             if os.path.exists(user_cookie_path):
-                cookie_file = user_cookie_path
-                logger.info(f"Using YouTube cookies for user {user_id} (already validated in Always Ask menu)")
-            else:
-                # Cookies were deleted - try to restore them
-                logger.info(f"No YouTube cookies found for user {user_id}, attempting to restore...")
-                from COMMANDS.cookies_cmd import ensure_working_youtube_cookies
-                has_working_cookies = ensure_working_youtube_cookies(user_id)
-                if has_working_cookies and os.path.exists(user_cookie_path):
+                logger.info(f"Checking existing YouTube cookies on user's URL for user {user_id}")
+                if test_youtube_cookies_on_url(user_cookie_path, url):
                     cookie_file = user_cookie_path
-                    logger.info(f"Successfully restored working YouTube cookies for user {user_id}")
+                    logger.info(f"Existing YouTube cookies work on user's URL for user {user_id} - using them")
+                else:
+                    logger.info(f"Existing YouTube cookies failed on user's URL, trying to get new ones for user {user_id}")
+                    cookie_urls = get_youtube_cookie_urls()
+                    if cookie_urls:
+                        success = False
+                        for i, cookie_url in enumerate(cookie_urls, 1):
+                            try:
+                                logger.info(f"Trying YouTube cookie source {i}/{len(cookie_urls)} for user {user_id}")
+                                ok, status, content, err = _download_content(cookie_url, timeout=30)
+                                if ok and content and len(content) <= 100 * 1024:
+                                    with open(user_cookie_path, "wb") as cf:
+                                        cf.write(content)
+                                    if test_youtube_cookies_on_url(user_cookie_path, url):
+                                        cookie_file = user_cookie_path
+                                        logger.info(f"YouTube cookies from source {i} work on user's URL for user {user_id} - saved to user folder")
+                                        success = True
+                                        break
+                                    else:
+                                        if os.path.exists(user_cookie_path):
+                                            os.remove(user_cookie_path)
+                            except Exception as e:
+                                logger.error(f"Error processing YouTube cookie source {i} for user {user_id}: {e}")
+                                continue
+                        if not success:
+                            cookie_file = None
+                            logger.warning(f"All YouTube cookie sources failed for user {user_id}, will try without cookies")
+                    else:
+                        cookie_file = None
+                        logger.warning(f"No YouTube cookie sources configured for user {user_id}, will try without cookies")
+            else:
+                logger.info(f"No YouTube cookies found for user {user_id}, attempting to get new ones")
+                cookie_urls = get_youtube_cookie_urls()
+                if cookie_urls:
+                    success = False
+                    for i, cookie_url in enumerate(cookie_urls, 1):
+                        try:
+                            logger.info(f"Trying YouTube cookie source {i}/{len(cookie_urls)} for user {user_id}")
+                            ok, status, content, err = _download_content(cookie_url, timeout=30)
+                            if ok and content and len(content) <= 100 * 1024:
+                                with open(user_cookie_path, "wb") as cf:
+                                    cf.write(content)
+                                if test_youtube_cookies_on_url(user_cookie_path, url):
+                                    cookie_file = user_cookie_path
+                                    logger.info(f"YouTube cookies from source {i} work on user's URL for user {user_id} - saved to user folder")
+                                    success = True
+                                    break
+                                else:
+                                    if os.path.exists(user_cookie_path):
+                                        os.remove(user_cookie_path)
+                        except Exception as e:
+                            logger.error(f"Error processing YouTube cookie source {i} for user {user_id}: {e}")
+                            continue
+                    if not success:
+                        cookie_file = None
+                        logger.warning(f"All YouTube cookie sources failed for user {user_id}, will try without cookies")
                 else:
                     cookie_file = None
-                    logger.info(f"Failed to restore YouTube cookies for user {user_id}, will try without cookies")
+                    logger.warning(f"No YouTube cookie sources configured for user {user_id}, will try without cookies")
         else:
             # For non-YouTube URLs, use existing logic
             if os.path.exists(user_cookie_path):
@@ -561,6 +607,12 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 percent = (downloaded / total * 100) if total else 0
                 blocks = int(percent // 10)
                 bar = "🟩" * blocks + "⬜️" * (10 - blocks)
+                
+                # For HLS audio, update progress data for cycle animation
+                if hasattr(progress_hook, 'progress_data') and progress_hook.progress_data:
+                    progress_hook.progress_data['downloaded_bytes'] = downloaded
+                    progress_hook.progress_data['total_bytes'] = total
+                
                 try:
                     safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n📥 Downloading audio:\n{bar}   {percent:.1f}%")
                 except Exception as e:
@@ -598,6 +650,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             if audio_format == 'best':
                 audio_format = 'mp3'
             
+            # Check if this is an HLS stream
+            is_hls = ("m3u8" in url.lower())
+            
             ytdl_opts = {
                'format': download_format,
                'postprocessors': [{
@@ -627,6 +682,15 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                'writesubtitles': False,  # Disable subtitles for audio
                'writeautomaticsub': False,  # Disable auto subtitles for audio
             }
+            
+            # Configure HLS-specific options if detected
+            if is_hls:
+                ytdl_opts["downloader"] = "ffmpeg"
+                ytdl_opts["hls_prefer_native"] = False
+                ytdl_opts["hls_use_mpegts"] = True
+                ytdl_opts.pop("http_chunk_size", None)
+                # Reduce parallelism for fragile HLS endpoints
+                ytdl_opts["concurrent_fragment_downloads"] = 1
             
             # Add match_filter only if domain is not in NO_FILTER_DOMAINS
             if not is_no_filter_domain(url):
@@ -708,15 +772,33 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         info_dict = entries[0]  # Just take the first video
 
                 try:
-                    safe_edit_message_text(user_id, proc_msg_id,
-                        f"{current_total_process}\n> <i>📥 Downloading audio using format: {download_format}...</i>")
+                    if is_hls:
+                        safe_edit_message_text(user_id, proc_msg_id,
+                            f"{current_total_process}\n<i>Detected HLS audio stream.\n📥 Downloading with progress tracking...</i>")
+                    else:
+                        safe_edit_message_text(user_id, proc_msg_id,
+                            f"{current_total_process}\n> <i>📥 Downloading audio using format: {download_format}...</i>")
                 except Exception as e:
                     logger.error(f"Status update error: {e}")
                 
                 # Try with proxy fallback if user proxy is enabled
                 def download_operation(opts):
                     with yt_dlp.YoutubeDL(opts) as ydl:
-                        ydl.download([url])
+                        if is_hls:
+                            # For HLS audio, start cycle progress as fallback, but progress_hook will override it if percentages are available
+                            cycle_stop = threading.Event()
+                            progress_data = {'downloaded_bytes': 0, 'total_bytes': 0}
+                            cycle_thread = start_cycle_progress(user_id, proc_msg_id, current_total_process, user_folder, cycle_stop, progress_data)
+                            # Pass cycle_stop and progress_data to progress_hook so it can update the cycle animation
+                            progress_hook.cycle_stop = cycle_stop
+                            progress_hook.progress_data = progress_data
+                            try:
+                                ydl.download([url])
+                            finally:
+                                cycle_stop.set()
+                                cycle_thread.join(timeout=1)
+                        else:
+                            ydl.download([url])
                     return True
                 
                 from HELPERS.proxy_helper import try_with_proxy_fallback
@@ -1282,6 +1364,17 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         else:
             logger.error(f"Error in audio download: {e}")
             send_to_user(message, f"❌ Failed to download audio: {e}")
+        # Immediate cleanup on error
+        try:
+            if status_msg_id:
+                safe_delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
+            if hourglass_msg_id:
+                safe_delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
+            if download_started_msg_id:
+                safe_delete_messages(chat_id=user_id, message_ids=[download_started_msg_id], revoke=True)
+            stop_anim.set()
+        except Exception:
+            pass
     finally:
         # Always clean up resources
         stop_anim.set()

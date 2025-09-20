@@ -26,6 +26,8 @@ class Config(object):
     API_HASH = "abc0000000000000000000"
     # Токен бота
     BOT_TOKEN = "00000000000:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    # Mini-app URL
+    MINIAPP_URL = "https://t.me/tgytdlp_test_bot/?startapp"
     # ID канала для логов
     LOGS_ID = -100111111111111  # ID канала для логов
     LOGS_VIDEO_ID = -100111111111111  # ID канала для логов видео

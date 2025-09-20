@@ -464,4 +464,63 @@ Use:
     
     # Failed Stream Messages
     FAILED_STREAM_LINKS_MSG = "❌ Failed to get stream links"
+
+    # new messages
+    # Browser Cookie Messages
+    SELECT_BROWSER_MSG = "Select a browser to download cookies from:"
+    SELECT_BROWSER_NO_BROWSERS_MSG = "No browsers found on this system. You can download cookies from remote URL or monitor browser status:"
+    BROWSER_MONITOR_HINT_MSG = "🌐 <b>Open Browser</b> - to monitor browser status in mini-app"
+    BROWSER_OPEN_BUTTON_MSG = "🌐 Open Browser"
+    DOWNLOAD_FROM_URL_BUTTON_MSG = "📥 Download from Remote URL"
+    COOKIE_YT_FALLBACK_SAVED_MSG = "✅ YouTube cookie file downloaded via fallback and saved as cookie.txt"
+    BROWSER_CHOICE_UPDATED_MSG = "✅ Browser choice updated."
+    COOKIES_NO_BROWSERS_NO_URL_MSG = "❌ No supported browsers found and no COOKIE_URL configured. Use /cookie or upload cookie.txt."
+    COOKIE_FALLBACK_URL_NOT_TXT_MSG = "❌ Fallback COOKIE_URL must point to a .txt file."
+    COOKIE_FALLBACK_TOO_LARGE_MSG = "❌ Fallback cookie file is too large (>100KB)."
+    COOKIE_FALLBACK_UNAVAILABLE_MSG = "❌ Fallback cookie source unavailable (status {status}). Try /cookie or upload cookie.txt."
+    COOKIE_FALLBACK_ERROR_MSG = "❌ Error downloading fallback cookie. Try /cookie or upload cookie.txt."
+    COOKIE_FALLBACK_UNEXPECTED_MSG = "❌ Unexpected error during fallback cookie download."
+    BTN_CLOSE = "🔚Close"
+    
+    # Args command messages
+    ARGS_INVALID_BOOL_MSG = "❌ Invalid boolean value"
+    ARGS_CLOSED_MSG = "Closed"
+    ARGS_ALL_RESET_MSG = "✅ All arguments reset"
+    ARGS_RESET_ERROR_MSG = "❌ Error resetting arguments"
+    ARGS_INVALID_PARAM_MSG = "❌ Invalid parameter"
+    ARGS_BOOL_SET_MSG = "Set to {value}"
+    ARGS_BOOL_ALREADY_SET_MSG = "Already set to {value}"
+    ARGS_INVALID_SELECT_MSG = "❌ Invalid select value"
+    ARGS_VALUE_SET_MSG = "Set to {value}"
+    ARGS_VALUE_ALREADY_SET_MSG = "Already set to {value}"
+    ARGS_PARAM_DESCRIPTION_MSG = "<b>📝 {description}</b>\n\n"
+    ARGS_CURRENT_VALUE_MSG = "<b>Current value:</b> <code>{current_value}</code>\n\n"
+    ARGS_XFF_EXAMPLES_MSG = "<b>Examples:</b>\n• <code>default</code> - Use default XFF strategy\n• <code>never</code> - Never use XFF header\n• <code>US</code> - United States country code\n• <code>GB</code> - United Kingdom country code\n• <code>DE</code> - Germany country code\n• <code>FR</code> - France country code\n• <code>JP</code> - Japan country code\n• <code>192.168.1.0/24</code> - IP block (CIDR)\n• <code>10.0.0.0/8</code> - Private IP range\n• <code>203.0.113.0/24</code> - Public IP block\n\n"
+    ARGS_XFF_NOTE_MSG = "<b>Note:</b> This replaces --geo-bypass options. Use any 2-letter country code or IP block in CIDR notation.\n\n"
+    ARGS_EXAMPLE_MSG = "<b>Example:</b> <code>{placeholder}</code>\n\n"
+    ARGS_SEND_VALUE_MSG = "Please send your new value."
+    ARGS_NUMBER_PARAM_MSG = "<b>🔢 {description}</b>\n\n"
+    ARGS_RANGE_MSG = "<b>Range:</b> {min_val} - {max_val}\n\n"
+    ARGS_SEND_NUMBER_MSG = "Please send a number."
+    ARGS_JSON_PARAM_MSG = "<b>🔧 {description}</b>\n\n"
+    ARGS_HTTP_HEADERS_EXAMPLES_MSG = "<b>Examples:</b>\n<code>{placeholder}</code>\n<code>{{\"X-API-Key\": \"your-key\"}}</code>\n<code>{{\"Authorization\": \"Bearer token\"}}</code>\n<code>{{\"Accept\": \"application/json\"}}</code>\n<code>{{\"X-Custom-Header\": \"value\"}}</code>\n\n"
+    ARGS_HTTP_HEADERS_NOTE_MSG = "<b>Note:</b> These headers will be added to existing Referer and User-Agent headers.\n\n"
+    ARGS_CURRENT_ARGS_MSG = "<b>📋 Current yt-dlp Arguments:</b>\n\n"
+    ARGS_MENU_DESCRIPTION_MSG = "• ✅/❌ <b>Boolean</b> - True/False switches\n• 📋 <b>Select</b> - Choose from options\n• 🔢 <b>Numeric</b> - Number input\n• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\nThese settings will be applied to all your downloads."
+    ARGS_CONFIG_TITLE_MSG = "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n<blockquote>📋 <b>Groups:</b>\n{groups_msg}"
+    ARGS_MENU_TEXT = (
+        "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n"
+        "<blockquote>📋 <b>Groups:</b>\n"
+        "• ✅/❌ <b>Boolean</b> - True/False switches\n"
+        "• 📋 <b>Select</b> - Choose from options\n"
+        "• 🔢 <b>Numeric</b> - Number input\n"
+        "• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\n"
+        "These settings will be applied to all your downloads."
+    )
+    
+    # Additional missing messages
+    PLEASE_WAIT_MSG = "⏳ Please wait..."
+    ERROR_OCCURRED_SHORT_MSG = "❌ Error occurred"
+    MANUAL_QUALITY_TITLE_MSG = "🎛 Manual Quality Selection"
+    
     #######################################################

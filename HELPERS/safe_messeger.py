@@ -13,6 +13,10 @@ from pyrogram.types import ReplyParameters
 # Configure local logger
 logger = logging.getLogger(__name__)
 
+# Global message sending throttle to prevent msg_seqno issues
+_last_message_sent = {}
+_message_send_lock = threading.Lock()
+
 # Get app instance dynamically to avoid None issues
 def get_app_safe():
     app = get_app()
@@ -80,6 +84,14 @@ def safe_send_message(chat_id, text, **kwargs):
         if isinstance(k, str) and k.startswith('_'):
             kwargs.pop(k, None)
 
+    # Throttle message sending to prevent msg_seqno issues
+    with _message_send_lock:
+        last_sent = _last_message_sent.get(chat_id, 0)
+        now = time.time()
+        if now - last_sent < 0.1:  # 100ms minimum delay between messages
+            time.sleep(0.1 - (now - last_sent))
+        _last_message_sent[chat_id] = time.time()
+
     for attempt in range(max_retries):
         try:
             app = get_app_safe()
@@ -115,6 +127,13 @@ def safe_send_message(chat_id, text, **kwargs):
                 else:
                     logger.warning(f"Flood wait detected but couldn't extract time, sleeping for {retry_delay} seconds")
                     time.sleep(retry_delay)
+                if attempt < max_retries - 1:
+                    continue
+            
+            # Handle msg_seqno errors
+            elif "msg_seqno is too high" in str(e):
+                logger.warning(f"msg_seqno error detected, sleeping for {retry_delay} seconds")
+                time.sleep(retry_delay)
                 if attempt < max_retries - 1:
                     continue
             logger.error(f"Failed to send message after {max_retries} attempts: {e}")
@@ -240,6 +259,13 @@ def safe_edit_message_text(chat_id, message_id, text, **kwargs):
                     logger.warning(f"Flood wait detected but couldn't extract time, sleeping for {retry_delay} seconds")
                     time.sleep(retry_delay)
 
+                if attempt < max_retries - 1:
+                    continue
+            
+            # Handle msg_seqno errors
+            elif "msg_seqno is too high" in str(e):
+                logger.warning(f"msg_seqno error detected, sleeping for {retry_delay} seconds")
+                time.sleep(retry_delay)
                 if attempt < max_retries - 1:
                     continue
 

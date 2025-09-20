@@ -5,9 +5,11 @@
 import os
 import json
 import re
+import threading
+import time
 from typing import Dict, Any, Optional
 from pyrogram import filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram import enums
 
 from HELPERS.app_instance import get_app
@@ -27,8 +29,87 @@ user_input_states_topic = {}  # {(chat_id, thread_id): {"param": param_name, "ty
 # Backward-compatibility alias for modules importing user_input_states (used in private chat flow)
 user_input_states = user_input_states_dm
 
+# Timers for auto-closing input states after 5 minutes
+input_state_timers_dm = {}  # {user_id: timer_thread}
+input_state_timers_topic = {}  # {(chat_id, thread_id): timer_thread}
+# Flags to prevent duplicate timeout messages
+timeout_sent_dm = set()  # {user_id}
+timeout_sent_topic = set()  # {(chat_id, thread_id)}
+
 # File to store user args settings
 ARGS_FILE = "args.txt"
+
+def clear_input_state_timer(user_id: int, thread_id: int = None):
+    """Clear input state and its timer"""
+    if thread_id:
+        # Clear topic state
+        user_input_states_topic.pop((user_id, thread_id), None)
+        timer = input_state_timers_topic.pop((user_id, thread_id), None)
+        if timer:
+            try:
+                timer.cancel()
+            except Exception:
+                pass
+        # Clear timeout flag
+        timeout_sent_topic.discard((user_id, thread_id))
+    else:
+        # Clear DM state
+        user_input_states_dm.pop(user_id, None)
+        timer = input_state_timers_dm.pop(user_id, None)
+        if timer:
+            try:
+                timer.cancel()
+            except Exception:
+                pass
+        # Clear timeout flag
+        timeout_sent_dm.discard(user_id)
+
+def start_input_state_timer(user_id: int, thread_id: int = None):
+    """Start a 5-minute timer to auto-close input state"""
+    def auto_close():
+        time.sleep(300)  # 5 minutes = 300 seconds
+        # Check if timer still exists (not cancelled)
+        if thread_id:
+            if (user_id, thread_id) not in input_state_timers_topic:
+                return
+            # Check if timeout message already sent
+            if (user_id, thread_id) in timeout_sent_topic:
+                return
+            timeout_sent_topic.add((user_id, thread_id))
+        else:
+            if user_id not in input_state_timers_dm:
+                return
+            # Check if timeout message already sent
+            if user_id in timeout_sent_dm:
+                return
+            timeout_sent_dm.add(user_id)
+        
+        clear_input_state_timer(user_id, thread_id)
+        # Send notification to user only once
+        try:
+            from CONFIG.messages import MessagesConfig as Messages
+            safe_send_message(
+                user_id,
+                getattr(Messages, 'ARGS_INPUT_TIMEOUT_MSG', "⏰ Input mode automatically closed due to inactivity (5 minutes).")
+            )
+        except Exception as e:
+            logger.error(f"Error sending timeout message: {e}")
+    
+    # Cancel existing timer if any
+    if thread_id:
+        existing_timer = input_state_timers_topic.get((user_id, thread_id))
+        if existing_timer:
+            existing_timer.cancel()
+        timer = threading.Thread(target=auto_close, daemon=True)
+        input_state_timers_topic[(user_id, thread_id)] = timer
+    else:
+        existing_timer = input_state_timers_dm.get(user_id)
+        if existing_timer:
+            existing_timer.cancel()
+        timer = threading.Thread(target=auto_close, daemon=True)
+        input_state_timers_dm[user_id] = timer
+    
+    timer.start()
 
 # Available yt-dlp parameters with their types and options
 YTDLP_PARAMS = {
@@ -600,27 +681,18 @@ def get_text_input_message(param_name: str, current_value: str) -> str:
     param_config = YTDLP_PARAMS[param_name]
     placeholder = param_config.get("placeholder", "")
     
-    message = f"<b>📝 {param_config['description']}</b>\n\n"
+    from CONFIG.messages import MessagesConfig as Messages
+    message = Messages.ARGS_PARAM_DESCRIPTION_MSG.format(description=param_config['description'])
     if current_value:
-        message += f"<b>Current value:</b> <code>{current_value}</code>\n\n"
+        message += Messages.ARGS_CURRENT_VALUE_MSG.format(current_value=current_value)
     
     if param_name == "xff":
-        message += f"<b>Examples:</b>\n"
-        message += f"• <code>default</code> - Use default XFF strategy\n"
-        message += f"• <code>never</code> - Never use XFF header\n"
-        message += f"• <code>US</code> - United States country code\n"
-        message += f"• <code>GB</code> - United Kingdom country code\n"
-        message += f"• <code>DE</code> - Germany country code\n"
-        message += f"• <code>FR</code> - France country code\n"
-        message += f"• <code>JP</code> - Japan country code\n"
-        message += f"• <code>192.168.1.0/24</code> - IP block (CIDR)\n"
-        message += f"• <code>10.0.0.0/8</code> - Private IP range\n"
-        message += f"• <code>203.0.113.0/24</code> - Public IP block\n\n"
-        message += "<b>Note:</b> This replaces --geo-bypass options. Use any 2-letter country code or IP block in CIDR notation.\n\n"
+        message += Messages.ARGS_XFF_EXAMPLES_MSG
+        message += Messages.ARGS_XFF_NOTE_MSG
     elif placeholder:
-        message += f"<b>Example:</b> <code>{placeholder}</code>\n\n"
+        message += Messages.ARGS_EXAMPLE_MSG.format(placeholder=placeholder)
     
-    message += "Please send your new value."
+    message += Messages.ARGS_SEND_VALUE_MSG
     
     return message
 
@@ -630,11 +702,12 @@ def get_number_input_message(param_name: str, current_value: Any) -> str:
     min_val = param_config.get("min", 0)
     max_val = param_config.get("max", 999999)
     
-    message = f"<b>🔢 {param_config['description']}</b>\n\n"
+    from CONFIG.messages import MessagesConfig as Messages
+    message = Messages.ARGS_NUMBER_PARAM_MSG.format(description=param_config['description'])
     if current_value is not None:
-        message += f"<b>Current value:</b> <code>{current_value}</code>\n\n"
-    message += f"<b>Range:</b> {min_val} - {max_val}\n\n"
-    message += "Please send a number."
+        message += Messages.ARGS_CURRENT_VALUE_MSG.format(current_value=current_value)
+    message += Messages.ARGS_RANGE_MSG.format(min_val=min_val, max_val=max_val)
+    message += Messages.ARGS_SEND_NUMBER_MSG
     
     return message
 
@@ -643,20 +716,16 @@ def get_json_input_message(param_name: str, current_value: str) -> str:
     param_config = YTDLP_PARAMS[param_name]
     placeholder = param_config.get("placeholder", "{}")
     
-    message = f"<b>🔧 {param_config['description']}</b>\n\n"
+    from CONFIG.messages import MessagesConfig as Messages
+    message = Messages.ARGS_JSON_PARAM_MSG.format(description=param_config['description'])
     if current_value and current_value != "{}":
-        message += f"<b>Current value:</b>\n<code>{current_value}</code>\n\n"
+        message += Messages.ARGS_CURRENT_VALUE_MSG.format(current_value=current_value)
     
     if param_name == "http_headers":
-        message += f"<b>Examples:</b>\n"
-        message += f"<code>{placeholder}</code>\n"
-        message += f"<code>{{\"X-API-Key\": \"your-key\"}}</code>\n"
-        message += f"<code>{{\"Authorization\": \"Bearer token\"}}</code>\n"
-        message += f"<code>{{\"Accept\": \"application/json\"}}</code>\n"
-        message += f"<code>{{\"X-Custom-Header\": \"value\"}}</code>\n\n"
-        message += "<b>Note:</b> These headers will be added to existing Referer and User-Agent headers.\n\n"
+        message += Messages.ARGS_HTTP_HEADERS_EXAMPLES_MSG.format(placeholder=placeholder)
+        message += Messages.ARGS_HTTP_HEADERS_NOTE_MSG
     else:
-        message += f"<b>Example:</b>\n<code>{placeholder}</code>\n\n"
+        message += Messages.ARGS_EXAMPLE_MSG.format(placeholder=placeholder)
     
     message += "Please send valid JSON."
     
@@ -667,7 +736,8 @@ def format_current_args(user_args: Dict[str, Any]) -> str:
     if not user_args:
         return "No custom arguments set. All parameters use default values."
     
-    message = "<b>📋 Current yt-dlp Arguments:</b>\n\n"
+    from CONFIG.messages import MessagesConfig as Messages
+    message = Messages.ARGS_CURRENT_ARGS_MSG
     
     for param_name, value in user_args.items():
         param_config = YTDLP_PARAMS.get(param_name, {})
@@ -701,15 +771,10 @@ def args_command(app, message):
     
     keyboard = get_args_menu_keyboard(invoker_id)
     
+    from CONFIG.messages import MessagesConfig as Messages
     safe_send_message(
         chat_id,
-        "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n"
-        "<blockquote>📋 <b>Groups:</b>\n"
-        "• ✅/❌ <b>Boolean</b> - True/False switches\n"
-        "• 📋 <b>Select</b> - Choose from options\n"
-        "• 🔢 <b>Numeric</b> - Number input\n"
-        "• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\n"
-        "These settings will be applied to all your downloads.",
+        Messages.ARGS_CONFIG_TITLE_MSG.format(groups_msg=Messages.ARGS_MENU_DESCRIPTION_MSG),
         reply_markup=keyboard,
         message=message
     )
@@ -723,7 +788,8 @@ def args_callback_handler(app, callback_query):
     try:
         if data == "args_close":
             callback_query.message.delete()
-            callback_query.answer("Closed")
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.ARGS_CLOSED_MSG)
             return
         
         elif data == "args_empty":
@@ -737,23 +803,16 @@ def args_callback_handler(app, callback_query):
                 chat_id = callback_query.message.chat.id
                 thread_id = getattr(callback_query.message, 'message_thread_id', None) or 0
                 if thread_id:
-                    state_key = (chat_id, thread_id)
-                    user_input_states_topic.pop(state_key, None)
+                    clear_input_state_timer(chat_id, thread_id)
                 else:
-                    uid = callback_query.from_user.id
-                    user_input_states_dm.pop(uid, None)
+                    clear_input_state_timer(callback_query.from_user.id)
             except Exception:
                 pass
             keyboard = get_args_menu_keyboard(user_id)
             try:
+                from CONFIG.messages import MessagesConfig as Messages
                 callback_query.edit_message_text(
-                    "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n"
-                    "<blockquote>📋 <b>Groups:</b>\n"
-                    "• ✅/❌ <b>Boolean</b> - True/False switches\n"
-                    "• 📋 <b>Select</b> - Choose from options\n"
-                    "• 🔢 <b>Numeric</b> - Number input\n"
-                    "• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\n"
-                    "These settings will be applied to all your downloads.",
+                    Messages.ARGS_CONFIG_TITLE_MSG.format(groups_msg=Messages.ARGS_MENU_DESCRIPTION_MSG),
                     reply_markup=keyboard
                 )
             except Exception:
@@ -778,26 +837,23 @@ def args_callback_handler(app, callback_query):
         elif data == "args_reset_all":
             if save_user_args(user_id, {}):
                 keyboard = get_args_menu_keyboard(user_id)
+                from CONFIG.messages import MessagesConfig as Messages
                 callback_query.edit_message_text(
-                    "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n"
-                    "✅ All arguments reset to defaults.\n\n"
-                    "<blockquote>📋 <b>Groups:</b>\n"
-                    "• ✅/❌ <b>Boolean</b> - True/False switches\n"
-                    "• 📋 <b>Select</b> - Choose from options\n"
-                    "• 🔢 <b>Numeric</b> - Number input\n"
-                    "• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\n"
-                    "These settings will be applied to all your downloads.",
+                    Messages.ARGS_CONFIG_TITLE_MSG.format(groups_msg=Messages.ARGS_MENU_DESCRIPTION_MSG) + "\n\n✅ All arguments reset to defaults.",
                     reply_markup=keyboard
                 )
-                callback_query.answer("✅ All arguments reset")
+                from CONFIG.messages import MessagesConfig as Messages
+                callback_query.answer(Messages.ARGS_ALL_RESET_MSG)
             else:
-                callback_query.answer("❌ Error resetting arguments", show_alert=True)
+                from CONFIG.messages import MessagesConfig as Messages
+                callback_query.answer(Messages.ARGS_RESET_ERROR_MSG, show_alert=True)
             return
         
         elif data.startswith("args_set_"):
             param_name = data.replace("args_set_", "")
             if param_name not in YTDLP_PARAMS:
-                callback_query.answer("❌ Invalid parameter", show_alert=True)
+                from CONFIG.messages import MessagesConfig as Messages
+                callback_query.answer(Messages.ARGS_INVALID_PARAM_MSG, show_alert=True)
                 return
             
             param_config = YTDLP_PARAMS[param_name]
@@ -827,8 +883,10 @@ def args_callback_handler(app, callback_query):
                 state = {"param": param_name, "type": param_config["type"]}
                 if thread_id:
                     user_input_states_topic[(chat_id, thread_id)] = state
+                    start_input_state_timer(chat_id, thread_id)
                 else:
                     user_input_states_dm[callback_query.from_user.id] = state
+                    start_input_state_timer(callback_query.from_user.id)
                 
                 if param_config["type"] == "text":
                     message = get_text_input_message(param_name, current_value)
@@ -863,7 +921,8 @@ def args_callback_handler(app, callback_query):
                 param_name = remaining[:-6]  # Remove "_false"
                 value = False
             else:
-                callback_query.answer("❌ Invalid boolean value", show_alert=True)
+                from CONFIG.messages import MessagesConfig as Messages
+                callback_query.answer(Messages.ARGS_INVALID_BOOL_MSG, show_alert=True)
                 return
             
             user_args = get_user_args(user_id)
@@ -891,24 +950,21 @@ def args_callback_handler(app, callback_query):
             if current_value != value:
                 # Rebuild main menu to reflect paired toggles instantly
                 keyboard = get_args_menu_keyboard(user_id)
+                from CONFIG.messages import MessagesConfig as Messages
                 callback_query.edit_message_text(
-                    "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n"
-                    "<blockquote>📋 <b>Groups:</b>\n"
-                    "• ✅/❌ <b>Boolean</b> - True/False switches\n"
-                    "• 📋 <b>Select</b> - Choose from options\n"
-                    "• 🔢 <b>Numeric</b> - Number input\n"
-                    "• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\n"
-                    "These settings will be applied to all your downloads.",
+                    Messages.ARGS_MENU_TEXT,
                     reply_markup=keyboard
                 )
                 try:
-                    callback_query.answer(f"Set to {'True' if value else 'False'}")
+                    from CONFIG.messages import MessagesConfig as Messages
+                    callback_query.answer(Messages.ARGS_BOOL_SET_MSG.format(value='True' if value else 'False'))
                 except Exception:
                     pass
             else:
                 # Value is the same, just acknowledge
                 try:
-                    callback_query.answer(f"Already set to {'True' if value else 'False'}")
+                    from CONFIG.messages import MessagesConfig as Messages
+                    callback_query.answer(Messages.ARGS_BOOL_ALREADY_SET_MSG.format(value='True' if value else 'False'))
                 except Exception:
                     pass
             return
@@ -919,7 +975,8 @@ def args_callback_handler(app, callback_query):
             # Find the last underscore to separate param_name and value
             last_underscore = remaining.rfind("_")
             if last_underscore == -1:
-                callback_query.answer("❌ Invalid select value", show_alert=True)
+                from CONFIG.messages import MessagesConfig as Messages
+                callback_query.answer(Messages.ARGS_INVALID_SELECT_MSG, show_alert=True)
                 return
             param_name = remaining[:last_underscore]
             value = remaining[last_underscore + 1:]
@@ -941,13 +998,15 @@ def args_callback_handler(app, callback_query):
                     reply_markup=keyboard
                 )
                 try:
-                    callback_query.answer(f"Set to {value}")
+                    from CONFIG.messages import MessagesConfig as Messages
+                    callback_query.answer(Messages.ARGS_VALUE_SET_MSG.format(value=value))
                 except Exception:
                     pass
             else:
                 # Value is the same, just acknowledge
                 try:
-                    callback_query.answer(f"Already set to {value}")
+                    from CONFIG.messages import MessagesConfig as Messages
+                    callback_query.answer(Messages.ARGS_VALUE_ALREADY_SET_MSG.format(value=value))
                 except Exception:
                     pass
             return
@@ -955,7 +1014,8 @@ def args_callback_handler(app, callback_query):
     except Exception as e:
         logger.error(f"Error in args callback handler: {e}")
         try:
-            callback_query.answer("❌ Error occurred", show_alert=False)
+            from CONFIG.messages import MessagesConfig as Messages
+            callback_query.answer(Messages.ERROR_OCCURRED_SHORT_MSG, show_alert=False)
         except Exception:
             pass
 
@@ -993,10 +1053,7 @@ def handle_args_text_input(app, message):
             save_user_args(owner_id, user_args)
             
             # Clear state and show success
-            if thread_id:
-                user_input_states_topic.pop((user_id, thread_id), None)
-            else:
-                user_input_states_dm.pop(owner_id, None)
+            clear_input_state_timer(user_id, thread_id)
             safe_send_message(
                 user_id,
                 f"✅ {YTDLP_PARAMS[param_name]['description']} set to: <code>{text}</code>",
@@ -1022,10 +1079,7 @@ def handle_args_text_input(app, message):
                 save_user_args(owner_id, user_args)
                 
                 # Clear state and show success
-                if thread_id:
-                    user_input_states_topic.pop((user_id, thread_id), None)
-                else:
-                    user_input_states_dm.pop(owner_id, None)
+                clear_input_state_timer(user_id, thread_id)
                 safe_send_message(
                     user_id,
                     f"✅ {YTDLP_PARAMS[param_name]['description']} set to: <code>{text}</code>",
@@ -1062,10 +1116,7 @@ def handle_args_text_input(app, message):
                 save_user_args(owner_id, user_args)
                 
                 # Clear state and show success
-                if thread_id:
-                    user_input_states_topic.pop((user_id, thread_id), None)
-                else:
-                    user_input_states_dm.pop(owner_id, None)
+                clear_input_state_timer(user_id, thread_id)
                 safe_send_message(
                     user_id,
                     f"✅ {YTDLP_PARAMS[param_name]['description']} set to: <code>{value}</code>",
@@ -1087,10 +1138,7 @@ def handle_args_text_input(app, message):
         from HELPERS.logger import log_error_to_channel
         log_error_to_channel(message, error_msg)
         # Clear state on error
-        if thread_id:
-            user_input_states_topic.pop((user_id, thread_id), None)
-        else:
-            user_input_states_dm.pop(owner_id, None)
+        clear_input_state_timer(user_id, thread_id)
 
 def _has_args_state(flt, client, message) -> bool:
     try:

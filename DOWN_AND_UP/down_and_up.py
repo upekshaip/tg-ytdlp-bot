@@ -327,6 +327,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     hourglass_msg_id = None
     anim_thread = None
     stop_anim = threading.Event()
+    download_started_msg_id = None
     proc_msg = None
     proc_msg_id = None
     try:
@@ -356,7 +357,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             )
             try:
                 from HELPERS.safe_messeger import schedule_delete_message
-                schedule_delete_message(user_id, proc_msg.id, delete_after_seconds=5)
+                download_started_msg_id = proc_msg.id
+                schedule_delete_message(user_id, download_started_msg_id, delete_after_seconds=5)
             except Exception:
                 pass
             # If you managed to replace, then there is no flood error
@@ -477,7 +479,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     ]
 
         status_msg = safe_send_message(user_id, Config.VIDEO_PROCESSING_MSG, message=message)
-        hourglass_msg = safe_send_message(user_id, Config.WAITING_HOURGLASS_MSG, message=message)
+        from CONFIG.messages import MessagesConfig as Messages
+        hourglass_msg = safe_send_message(user_id, Messages.PLEASE_WAIT_MSG, message=message)
         try:
             from HELPERS.safe_messeger import schedule_delete_message
             if status_msg and hasattr(status_msg, 'id'):
@@ -619,6 +622,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 percent = (downloaded / total * 100) if total else 0
                 blocks = int(percent // 10)
                 bar = "🟩" * blocks + "⬜️" * (10 - blocks)
+                
+                # For HLS, update progress data for cycle animation
+                if is_hls and hasattr(progress_func, 'progress_data') and progress_func.progress_data:
+                    progress_func.progress_data['downloaded_bytes'] = downloaded
+                    progress_func.progress_data['total_bytes'] = total
                 try:
                     # With the first renewal of progress, we delete the first posts Processing
                     if first_progress_update:
@@ -723,32 +731,75 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Check if cookie.txt exists in the user's folder
                 user_cookie_path = os.path.join("users", str(user_id), "cookie.txt")
                 
-                # For YouTube URLs, ensure working cookies (skip if already checked in Always Ask menu)
-                if is_youtube_url(url) and not cookies_already_checked:
-                    from COMMANDS.cookies_cmd import ensure_working_youtube_cookies
-                    has_working_cookies = ensure_working_youtube_cookies(user_id)
-                    if has_working_cookies and os.path.exists(user_cookie_path):
-                        common_opts['cookiefile'] = user_cookie_path
-                        logger.info(f"Using working YouTube cookies for user {user_id}")
-                    else:
-                        common_opts['cookiefile'] = None
-                        logger.info(f"No working YouTube cookies available for user {user_id}, will try without cookies")
-                elif is_youtube_url(url) and cookies_already_checked:
-                    # Cookies already checked in Always Ask menu - use them directly without verification
+                # For YouTube URLs, use optimized cookie logic - check existing first on user's URL, then retry if needed
+                if is_youtube_url(url):
+                    from COMMANDS.cookies_cmd import get_youtube_cookie_urls, test_youtube_cookies_on_url, _download_content
+                    import time
+                    
+                    # Always check existing cookies first on user's URL for maximum speed
                     if os.path.exists(user_cookie_path):
-                        common_opts['cookiefile'] = user_cookie_path
-                        logger.info(f"Using YouTube cookies for user {user_id} (already validated in Always Ask menu)")
-                    else:
-                        # Cookies were deleted - try to restore them
-                        logger.info(f"No YouTube cookies found for user {user_id}, attempting to restore...")
-                        from COMMANDS.cookies_cmd import ensure_working_youtube_cookies
-                        has_working_cookies = ensure_working_youtube_cookies(user_id)
-                        if has_working_cookies and os.path.exists(user_cookie_path):
+                        logger.info(f"Checking existing YouTube cookies on user's URL for user {user_id}")
+                        if test_youtube_cookies_on_url(user_cookie_path, url):
                             common_opts['cookiefile'] = user_cookie_path
-                            logger.info(f"Successfully restored working YouTube cookies for user {user_id}")
+                            logger.info(f"Existing YouTube cookies work on user's URL for user {user_id} - using them")
+                        else:
+                            logger.info(f"Existing YouTube cookies failed on user's URL, trying to get new ones for user {user_id}")
+                            cookie_urls = get_youtube_cookie_urls()
+                            if cookie_urls:
+                                success = False
+                                for i, cookie_url in enumerate(cookie_urls, 1):
+                                    try:
+                                        logger.info(f"Trying YouTube cookie source {i}/{len(cookie_urls)} for user {user_id}")
+                                        ok, status, content, err = _download_content(cookie_url, timeout=30)
+                                        if ok and content and len(content) <= 100 * 1024:
+                                            with open(user_cookie_path, "wb") as cf:
+                                                cf.write(content)
+                                            if test_youtube_cookies_on_url(user_cookie_path, url):
+                                                common_opts['cookiefile'] = user_cookie_path
+                                                logger.info(f"YouTube cookies from source {i} work on user's URL for user {user_id} - saved to user folder")
+                                                success = True
+                                                break
+                                            else:
+                                                if os.path.exists(user_cookie_path):
+                                                    os.remove(user_cookie_path)
+                                    except Exception as e:
+                                        logger.error(f"Error processing YouTube cookie source {i} for user {user_id}: {e}")
+                                        continue
+                                if not success:
+                                    common_opts['cookiefile'] = None
+                                    logger.warning(f"All YouTube cookie sources failed for user {user_id}, will try without cookies")
+                            else:
+                                common_opts['cookiefile'] = None
+                                logger.warning(f"No YouTube cookie sources configured for user {user_id}, will try without cookies")
+                    else:
+                        logger.info(f"No YouTube cookies found for user {user_id}, attempting to get new ones")
+                        cookie_urls = get_youtube_cookie_urls()
+                        if cookie_urls:
+                            success = False
+                            for i, cookie_url in enumerate(cookie_urls, 1):
+                                try:
+                                    logger.info(f"Trying YouTube cookie source {i}/{len(cookie_urls)} for user {user_id}")
+                                    ok, status, content, err = _download_content(cookie_url, timeout=30)
+                                    if ok and content and len(content) <= 100 * 1024:
+                                        with open(user_cookie_path, "wb") as cf:
+                                            cf.write(content)
+                                        if test_youtube_cookies_on_url(user_cookie_path, url):
+                                            common_opts['cookiefile'] = user_cookie_path
+                                            logger.info(f"YouTube cookies from source {i} work on user's URL for user {user_id} - saved to user folder")
+                                            success = True
+                                            break
+                                        else:
+                                            if os.path.exists(user_cookie_path):
+                                                os.remove(user_cookie_path)
+                                except Exception as e:
+                                    logger.error(f"Error processing YouTube cookie source {i} for user {user_id}: {e}")
+                                    continue
+                            if not success:
+                                common_opts['cookiefile'] = None
+                                logger.warning(f"All YouTube cookie sources failed for user {user_id}, will try without cookies")
                         else:
                             common_opts['cookiefile'] = None
-                            logger.info(f"Failed to restore YouTube cookies for user {user_id}, will try without cookies")
+                            logger.warning(f"No YouTube cookie sources configured for user {user_id}, will try without cookies")
                 else:
                     # For non-YouTube URLs, use existing logic
                     if os.path.exists(user_cookie_path):
@@ -775,8 +826,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 common_opts['noplaylist'] = True
             
             is_hls = ("m3u8" in url.lower())
-            if not is_hls:
-                common_opts['progress_hooks'] = [progress_func]
+            # Always use progress_hooks, even for HLS
+            common_opts['progress_hooks'] = [progress_func]
             # Respect MKV toggle: remux to mkv when MKV is ON; otherwise prefer mp4
             try:
                 from COMMANDS.format_cmd import get_user_mkv_preference
@@ -992,11 +1043,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     ytdl_opts["concurrent_fragment_downloads"] = 1
                 try:
                     if is_hls:
-                                        safe_edit_message_text(user_id, proc_msg_id,
-                    f"{current_total_process}\n<i>Detected HLS stream.\n📥 Downloading...</i>")
+                        safe_edit_message_text(user_id, proc_msg_id,
+                            f"{current_total_process}\n<i>Detected HLS stream.\n📥 Downloading with progress tracking...</i>")
                     else:
-                                            safe_edit_message_text(user_id, proc_msg_id,
-                        f"{current_total_process}\n> <i>📥 Downloading using format: {ytdl_opts.get('format', 'default')}...</i>")
+                        safe_edit_message_text(user_id, proc_msg_id,
+                            f"{current_total_process}\n> <i>📥 Downloading using format: {ytdl_opts.get('format', 'default')}...</i>")
                 except Exception as e:
                     logger.error(f"Status update error: {e}")
                 
@@ -1005,17 +1056,20 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 def download_operation(opts):
                     with yt_dlp.YoutubeDL(opts) as ydl:
                         if is_hls:
+                            # For HLS, start cycle progress as fallback, but progress_func will override it if percentages are available
                             cycle_stop = threading.Event()
-                            cycle_thread = start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_name, cycle_stop)
+                            progress_data = {'downloaded_bytes': 0, 'total_bytes': 0}
+                            cycle_thread = start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_name, cycle_stop, progress_data)
+                            # Pass cycle_stop and progress_data to progress_func so it can update the cycle animation
+                            progress_func.cycle_stop = cycle_stop
+                            progress_func.progress_data = progress_data
                             try:
-                                with yt_dlp.YoutubeDL(opts) as ydl:
-                                    ydl.download([url])
+                                ydl.download([url])
                             finally:
                                 cycle_stop.set()
                                 cycle_thread.join(timeout=1)
                         else:
-                            with yt_dlp.YoutubeDL(opts) as ydl:
-                                ydl.download([url])
+                            ydl.download([url])
                         return True
                 
                 from HELPERS.proxy_helper import try_with_proxy_fallback
@@ -2155,6 +2209,18 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             logger.error(f"Error in video download: {e}")
             send_to_user(message, f"❌ Failed to download video: {e}")
         
+        # Immediate cleanup of temporary status messages on error
+        try:
+            if status_msg_id:
+                safe_delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
+            if hourglass_msg_id:
+                safe_delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
+            if download_started_msg_id:
+                safe_delete_messages(chat_id=user_id, message_ids=[download_started_msg_id], revoke=True)
+            stop_anim.set()
+        except Exception:
+            pass
+        
         # Clean up temporary files on error
         try:
             cleanup_user_temp_files(user_id)
@@ -2182,6 +2248,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 safe_delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
         except Exception as e:
             logger.error(f"Error deleting status messages: {e}")
+        # Also try to delete the 'Download started' message if it still exists
+        try:
+            if download_started_msg_id:
+                safe_delete_messages(chat_id=user_id, message_ids=[download_started_msg_id], revoke=True)
+        except Exception:
+            pass
 
         # --- ADDED: summary of cache after cycle ---
         if is_playlist and playlist_indices and playlist_msg_ids:
