@@ -37,6 +37,12 @@ def create_smart_match_filter():
                 logger.info("Duration not available, allowing download")
                 return None
             
+            # Проверяем, является ли это завершенным стримом
+            was_live = info_dict.get('was_live', False)
+            if was_live and not is_live:
+                logger.info(f"Completed live stream detected (duration: {duration}s), allowing download")
+                return None
+            
             # Если длительность определена, проверяем лимит
             if duration > Config.MAX_VIDEO_DURATION:
                 return f"Video too long: {duration}s > {Config.MAX_VIDEO_DURATION}s"
