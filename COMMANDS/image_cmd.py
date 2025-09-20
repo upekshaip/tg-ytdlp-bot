@@ -988,25 +988,7 @@ def image_command(app, message):
                                                 except Exception as e2:
                                                     logger.error(f"[IMG PAID] Individual paid media failed: {e2}")
                                         
-                                        # Send paid media copy to LOGS_PAID_ID
-                                        try:
-                                            # Add delay to allow Telegram to process paid media before forwarding
-                                            time.sleep(2.0)
-                                            
-                                            # Forward paid media to LOGS_PAID_ID
-                                            log_channel_paid = getattr(Config, "LOGS_PAID_ID", 0)
-                                            if log_channel_paid:
-                                                for msg in sent:
-                                                    if msg is not None:
-                                                        app.forward_messages(
-                                                            chat_id=log_channel_paid,
-                                                            from_chat_id=user_id,
-                                                            message_ids=[msg.id]
-                                                        )
-                                                        time.sleep(0.1)  # Small delay between forwards
-                                                logger.info(f"[IMG LOG] Paid media forwarded to LOGS_PAID_ID: {len(sent)} messages")
-                                        except Exception as e:
-                                            logger.error(f"[IMG LOG] Failed to forward paid media to LOGS_PAID_ID: {e}")
+                                        # Note: LOGS_PAID_ID forwarding is handled in main logic, not in fallback
                                         
                                         # Send open copy to LOGS_NSFW_ID for history
                                         try:
@@ -1596,25 +1578,7 @@ def image_command(app, message):
                                                 except Exception as e2:
                                                     logger.error(f"[IMG FALLBACK PAID] Individual paid media failed: {e2}")
                                         
-                                        # Send paid media copy to LOGS_PAID_ID
-                                        try:
-                                            # Add delay to allow Telegram to process paid media before forwarding
-                                            time.sleep(2.0)
-                                            
-                                            # Forward paid media to LOGS_PAID_ID
-                                            log_channel_paid = getattr(Config, "LOGS_PAID_ID", 0)
-                                            if log_channel_paid:
-                                                for msg in sent:
-                                                    if msg is not None:
-                                                        app.forward_messages(
-                                                            chat_id=log_channel_paid,
-                                                            from_chat_id=user_id,
-                                                            message_ids=[msg.id]
-                                                        )
-                                                        time.sleep(0.1)  # Small delay between forwards
-                                                logger.info(f"[IMG LOG] Paid media forwarded to LOGS_PAID_ID: {len(sent)} messages")
-                                        except Exception as e:
-                                            logger.error(f"[IMG LOG] Failed to forward paid media to LOGS_PAID_ID: {e}")
+                                        # Note: LOGS_PAID_ID forwarding is handled in main logic, not in fallback
                                         
                                         # Send open copy to LOGS_NSFW_ID for history
                                         try:
@@ -2066,25 +2030,7 @@ def image_command(app, message):
                                         except Exception as e2:
                                             logger.error(f"[IMG TAIL PAID] Individual paid media failed: {e2}")
                                 
-                                # Send paid media copy to LOGS_PAID_ID
-                                try:
-                                    # Add delay to allow Telegram to process paid media before forwarding
-                                    time.sleep(2.0)
-                                    
-                                    # Forward paid media to LOGS_PAID_ID
-                                    log_channel_paid = getattr(Config, "LOGS_PAID_ID", 0)
-                                    if log_channel_paid:
-                                        for msg in sent:
-                                            if msg is not None:
-                                                app.forward_messages(
-                                                    chat_id=log_channel_paid,
-                                                    from_chat_id=user_id,
-                                                    message_ids=[msg.id]
-                                                )
-                                                time.sleep(0.1)  # Small delay between forwards
-                                        logger.info(f"[IMG LOG] Paid media forwarded to LOGS_PAID_ID: {len(sent)} messages")
-                                except Exception as e:
-                                    logger.error(f"[IMG LOG] Failed to forward paid media to LOGS_PAID_ID: {e}")
+                                # Note: LOGS_PAID_ID forwarding is handled in main logic, not in tail
                                 
                                 # Send open copy to LOGS_NSFW_ID for history
                                 try:

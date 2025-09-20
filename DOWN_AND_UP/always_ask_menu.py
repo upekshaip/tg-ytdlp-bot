@@ -3606,8 +3606,56 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         watch_hint = "\n👁 — Watch video in poketube" if is_youtube_url(url) else ""
         link_hint = "\n🔗 — Get direct link to video"  # Link button is always present
         list_hint = "\n📃 — Show available formats list"  # LIST button is always present
-        # Compose hint block with preferred order
-        hint = (
+        
+        # Create dynamic hints based on actual buttons that will be shown
+        def create_dynamic_hints(action_buttons, found_quality_keys, is_youtube_url, url, is_nsfw, is_private_chat, get_filters, user_id, subs_hint, subs_warn):
+            """Create hints only for emojis that are actually used in the menu"""
+            hints = []
+            
+            # Always show format change hint (📼) - this is always available
+            hints.append("📼 — Сhange video ext/codec")
+            
+            # Quality hint (📹) - always shown unless NSFW
+            if is_nsfw and is_private_chat:
+                hints.append("⭐️ — 🔞NSFW is paid (⭐️$0.02)")
+            else:
+                hints.append("📹 — Choose download quality")
+            
+            # Repost hint (🚀) - only if show_repost_hint is True
+            if show_repost_hint:
+                hints.append("🚀 — Instant repost from cache")
+            
+            # Watch hint (👁) - only for YouTube
+            if is_youtube_url(url):
+                hints.append("👁 — Watch video in poketube")
+            
+            # Link hint (🔗) - always present
+            hints.append("🔗 — Get direct link to video")
+            
+            # List hint (📃) - always present
+            hints.append("📃 — Show available formats list")
+            
+            # Image hint (🖼) - only if no quality keys found
+            if not found_quality_keys:
+                hints.append("🖼 — Download image (gallery-dl)")
+            
+            # Subs hints
+            if subs_hint:
+                hints.append(subs_hint.strip())
+            if subs_warn:
+                hints.append(subs_warn.strip())
+            
+            # Dubs hint (🗣) - only if available
+            if get_filters(user_id).get("has_dubs"):
+                hints.append("🗣 — Choose audio language")
+            
+            return "\n".join(hints)
+        
+        # We need to create action_buttons first to determine which hints to show
+        # This will be done later in the code, so for now we'll use the old logic
+        # but we'll replace it after action_buttons are created
+        # Temporary hint for now - will be replaced later
+        temp_hint = (
             "<pre language=\"info\">📼 — Сhange video ext/codec"
             + paid_hint
             + repost_line
@@ -3620,7 +3668,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             + dubs_hint
             + "</pre>"
         )
-        cap += f"\n{hint}\n"
+        cap += f"\n{temp_hint}\n"
         buttons = []
         # Sort buttons by quality from lowest to highest
         if ("youtube.com" in url or "youtu.be" in url):
@@ -3877,8 +3925,98 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         for i, row in enumerate(keyboard_rows):
             logger.info(f"Row {i}: {[btn.text for btn in row]}")
         
+        # Now that we have all action_buttons, create dynamic hints
+        # Extract emojis from all buttons to determine which hints to show
+        used_emojis = set()
+        
+        # Check action_buttons
+        for button in action_buttons:
+            if hasattr(button, 'text') and button.text:
+                text = button.text
+                if text and len(text) > 0:
+                    first_char = text[0]
+                    if ord(first_char) > 127:  # Simple emoji detection
+                        used_emojis.add(first_char)
+        
+        # Check quality buttons
+        for button in buttons:
+            if hasattr(button, 'text') and button.text:
+                text = button.text
+                if text and len(text) > 0:
+                    first_char = text[0]
+                    if ord(first_char) > 127:  # Simple emoji detection
+                        used_emojis.add(first_char)
+        
+        # Check filter buttons
+        for row in filter_rows:
+            for button in row:
+                if hasattr(button, 'text') and button.text:
+                    text = button.text
+                    if text and len(text) > 0:
+                        first_char = text[0]
+                        if ord(first_char) > 127:  # Simple emoji detection
+                            used_emojis.add(first_char)
+        
+        # Log detected emojis for debugging
+        logger.info(f"Detected emojis in menu for user {user_id}: {sorted(used_emojis)}")
+        
+        # Create dynamic hints based on actually used emojis
+        dynamic_hints = []
+        
+        # Always show format change hint (📼) - this is always available
+        dynamic_hints.append("📼 — Сhange video ext/codec")
+        
+        # Quality hint (📹) - always shown unless NSFW
+        if is_nsfw and is_private_chat:
+            dynamic_hints.append("⭐️ — 🔞NSFW is paid (⭐️$0.02)")
+        else:
+            dynamic_hints.append("📹 — Choose download quality")
+        
+        # Repost hint (🚀) - only if show_repost_hint is True
+        if show_repost_hint:
+            dynamic_hints.append("🚀 — Instant repost from cache")
+        
+        # Watch hint (👁) - only for YouTube and if button is present
+        if is_youtube_url(url) and "👁" in used_emojis:
+            dynamic_hints.append("👁 — Watch video in poketube")
+        
+        # Link hint (🔗) - always present
+        if "🔗" in used_emojis:
+            dynamic_hints.append("🔗 — Get direct link to video")
+        
+        # List hint (📃) - always present
+        if "📃" in used_emojis:
+            dynamic_hints.append("📃 — Show available formats list")
+        
+        # Image hint (🖼) - only if no quality keys found and button is present
+        if not found_quality_keys and "🖼" in used_emojis:
+            dynamic_hints.append("🖼 — Download image (gallery-dl)")
+        
+        # Subs hints
+        if subs_hint:
+            dynamic_hints.append(subs_hint.strip())
+        if subs_warn:
+            dynamic_hints.append(subs_warn.strip())
+        
+        # Dubs hint (🗣) - only if available and button is present
+        if get_filters(user_id).get("has_dubs") and "🗣" in used_emojis:
+            dynamic_hints.append("🗣 — Choose audio language")
+        
+        # Replace the old hint in cap with dynamic one
+        dynamic_hint_text = "<pre language=\"info\">" + "\n".join(dynamic_hints) + "</pre>"
+        
+        # Log final hints for debugging
+        logger.info(f"Final dynamic hints for user {user_id}: {dynamic_hints}")
+        
+        # Find and replace the old hint in cap
+        import re
+        # Remove old hint block
+        cap = re.sub(r'<pre language="info">.*?</pre>', '', cap, flags=re.DOTALL)
+        # Add new dynamic hint
+        cap += f"\n{dynamic_hint_text}\n"
+        
         keyboard = InlineKeyboardMarkup(keyboard_rows)
-        # cap already contains a hint and a table
+        # cap now contains dynamic hints based on actual buttons
         # Replace current menu in-place if possible
         if cb is not None and getattr(cb, 'message', None):
                 # Edit caption or text in place
