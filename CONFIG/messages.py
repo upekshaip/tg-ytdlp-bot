@@ -14,7 +14,8 @@ class MessagesConfig(object):
     PLAYLIST_HELP_MSG = """
 <blockquote expandable>📋 <b>Playlists (yt-dlp)</b>
 
-To download playlists send its URL with <code>*start*end</code> ranges in the end.
+To download playlists send its URL with <code>*start*end</code> ranges in the end. For example: <code>URL*1*5</code>.
+Or you can use <code>/vid FROM-TO URL</code>. For example: <code>/vid 3-7 URL</code>. Also works for <code>/audio</code> command.
 
 <b>Examples:</b>
 
@@ -83,14 +84,16 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 🎬 <b>Video Download Bot - Help</b>
 
 📥 <b>Basic Usage:</b>
-• Send video link → download
+• Send any link → bot downloads it
+  <blockquote>the bot automatically tries to download videos via yt-dlp and images via gallery-dl.</blockquote>
 • <code>/audio URL</code> → extract audio
 • <code>/link [quality] URL</code> → get direct links
 • <code>/proxy</code> → enable/disable proxy for all downloads
 • Reply to video with text → change caption
 
-📋 <b>Playlists:</b>
+📋 <b>Playlists & Ranges:</b>
 • <code>URL*1*5</code> → download videos 1-5
+• <code>/vid 3-7 URL</code> → becomes <code>URL*3*7</code>
 
 🍪 <b>Cookies & Private:</b>
 • Upload *.txt cookie for private videos
@@ -108,8 +111,9 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 ⚙️ <b>Settings:</b>
 • <code>/settings</code> → settings menu
 • <code>/format</code> → quality & format
-• <code>/split</code> → part size (250MB-2GB)
+• <code>/split</code> → split video into parts
 • <code>/mediainfo on/off</code> → media info
+• <code>/nsfw on/off</code> → NSFW blur
 • <code>/tags</code> → view saved tags
 • <code>/sub on/off</code> → subtitles
 • <code>/keyboard</code> → keyboard (OFF/1x3/2x3)
@@ -124,10 +128,11 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 • <code>/link [144-4320]/720p/1080p/4k/8k URL</code> → specific quality
 
 ⚙️ <b>Quick Commands:</b>
-• <code>/format [144-4320]/720p/1080p/4k/8k</code> → set quality
+• <code>/format [144-4320]/720p/1080p/4k/8k/best/ask/id 134</code> → set quality
 • <code>/keyboard off/1x3/2x3/full</code> → keyboard layout
-• <code>/split 100mb-2000mb</code> → part size (100MB to 2GB)
+• <code>/split 100mb-2000mb</code> → change part size
 • <code>/subs off/ru/en auto</code> → subtitle language
+• <code>/list URL</code> → список доступных форматов
 • <code>/mediainfo on/off</code> → on/off media info
 • <code>/proxy on/off</code> → enable/disable proxy for all downloads
 
@@ -136,14 +141,16 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 • <code>/search</code> → inline search via @vid
 
 🖼 <b>Images:</b>
-• <code>/img URL</code> → download images from various platforms
-• <code>/img 11-20 URL</code> → download specific range (batchwise)
-• <code>/img 11- URL</code> → download from 11th to the end (up to limit)
+• <code>URL</code> → download images URL
+• <code>/img URL</code> → download images from URL
+• <code>/img 11-20 URL</code> → download specific range
+• <code>/img 11- URL</code> → download from 11th to the end
 
 <blockquote expandable>🇷🇺 <b>Бот для скачивания видео - Помощь</b>
 
 📥 <b>Основное:</b>
-• Отправьте ссылку → скачать
+• Отправьте любую ссылку → бот скачает её
+  <blockquote>бот автоматически попробует скачать видео через yt-dlp и изображения через gallery-dl.</blockquote>
 • <code>/audio URL</code> → аудио
 • <code>/link [качество] URL</code> → прямые ссылки
 • <code>/proxy</code> → включить/выключить прокси для всех загрузок
@@ -151,6 +158,7 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 
 📋 <b>Плейлисты:</b>
 • <code>URL*1*5</code> → скачать видео 1-5
+• <code>/vid 3-7 URL</code> → становится <code>URL*3*7</code>
 
 🍪 <b>Cookies:</b>
 • Загрузите *.txt для приватных видео
@@ -168,8 +176,9 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 ⚙️ <b>Настройки:</b>
 • <code>/settings</code> → меню настроек
 • <code>/format</code> → качество и формат
-• <code>/split</code> → размер части (250MB-2GB)
+• <code>/split</code> → резать видео на части
 • <code>/mediainfo on/off</code> → информация о файле
+• <code>/nsfw on/off</code> → размытие NSFW
 • <code>/tags</code> → ваши теги
 • <code>/sub on/off</code> → субтитры
 • <code>/keyboard</code> → клавиатура (OFF/1x3/2x3)
@@ -184,10 +193,11 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 • <code>/link [144-4320]/720p/1080p/4k/8k URL</code> → конкретное качество
 
 ⚙️ <b>Быстрые команды:</b>
-• <code>/format [144-4320]/720p/1080p/4k/8k</code> → качество
+• <code>/format [144-4320]/720p/1080p/4k/8k/best/ask/id 134</code> → качество
 • <code>/keyboard off/1x3/2x3/full</code> → клавиатура
-• <code>/split 100mb-2000mb</code> → размер части (100MB до 2GB)
+• <code>/split 100mb-2000mb</code> → резать видео на части
 • <code>/subs off/ru/en auto</code> → язык субтитров
+• <code>/list URL</code> → список доступных форматов
 • <code>/mediainfo on/off</code> → вкл/выкл медиаинфо
 • <code>/proxy on/off</code> → включить/выключить прокси для всех загрузок
 
@@ -196,12 +206,13 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 • <code>/search</code> → поиск через @vid
 
 🖼 <b>Изображения:</b>
-• <code>/img URL</code> → скачать изображения с различных платформ
+• <code>URL</code> → скачать изображения с URL
+• <code>/img URL</code> → скачать изображения с URL
 • <code>/img 11-20 URL</code> → скачать конкретный диапазон
-• <code>/img 11- URL</code> → скачать с 11-го до конца (до лимита)
+• <code>/img 11- URL</code> → скачать с 11-го до конца
 </blockquote>
 
-👨‍💻 <i>Developer:</i> @upekshaip 
+👨‍💻 <i>Developer:</i> @upekshaip
 <a href="https://github.com/upekshaip/tg-ytdlp-bot">[🛠 github]</a>
 🤝 <i>Contributor:</i> @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl 
 <a href="https://github.com/chelaxian/tg-ytdlp-bot">[🛠 github]</a>
@@ -234,8 +245,223 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 
 Press the button below to activate inline search via @vid.
 
-<blockquote>
-This helps you quickly find and download videos from various platforms.
-</blockquote>
+<blockquote>On PC just type <b>"@vid Your_Search_Query"</b> in any chat.</blockquote>
     """
+    
+    # Settings and Hints (English)
+    
+    AUDIO_HINT_MSG = (
+        "Download only audio from video source.\n\n"
+        "Usage: /audio + URL \n\n"
+        "(ex. /audio https://youtu.be/abc123)\n"
+        "(ex. /audio https://youtu.be/playlist?list=abc123*1*10)"
+    )
+    
+    IMG_HELP_MSG = (
+        "<b>🖼 Image Download Command</b>\n\n"
+        "Usage: <code>/img URL</code>\n\n"
+        "<b>Examples:</b>\n"
+        "• <code>/img https://example.com/image.jpg</code>\n"
+        "• <code>/img 11-20 https://example.com/album</code>\n"
+        "• <code>/img 11- https://example.com/album</code>\n"
+        "• <code>/img https://vk.com/wall-160916577_408508</code>\n"
+        "• <code>/img https://2ch.hk/fd/res/1747651.html</code>\n"
+        "• <code>/img https://imgur.com/abc123</code>\n\n"
+        "<b>Supported platforms (examples):</b>\n"
+        "<blockquote>vk, 2ch, 35photo, 4chan, 500px, ArtStation, Boosty, Civitai, Cyberdrop, DeviantArt, Discord, Facebook, Fansly, Instagram, Patreon, Pinterest, Reddit, TikTok, Tumblr, Twitter/X, JoyReactor, etc. — <a href=\"https://github.com/mikf/gallery-dl/blob/master/docs/supportedsites.md\">full list</a></blockquote>"
+    )
+    
+    LINK_HINT_MSG = (
+        "Get direct video links with quality selection.\n\n"
+        "Usage: /link + URL \n\n"
+        "(ex. /link https://youtu.be/abc123)\n"
+        "(ex. /link 720 https://youtu.be/abc123)"
+    )
+    
+    # Add bot to group command message
+    ADD_BOT_TO_GROUP_MSG = """
+🤖 <b>Add Bot to Group</b>
+
+Add my bots to your groups to get enhanced features and higher limits!
+————————————
+📊 <b>Current FREE Limits (in Bot’s DM):</b>
+<blockquote>•🗑 Messy junk from all the files unsorted 👎
+• Max 1 file size: <b>8 GB </b>
+• Max 1 file quality: <b>UNLIM</b>
+• Max 1 file duration: <b>UNLIM</b>
+• Max number of downloads: <b>UNLIM</b>
+• Max playlist items per 1 time: <b>50</b>
+• Max TikTok videos per 1 time: <b>500</b>
+• Max images per 1 time: <b>1000</b>
+• 1 Download max time: <b>2 hours</b>
+• 🔞 NSFW content is paid! 1⭐️ = $0.02
+• 🆓 ALL OTHER MEDIA ARE TOTALY FREE
+• 📝 All content logs & caching to my log-channels for instant repost when re-downloading</blockquote>
+
+💬<b>This limits only for video with subtitles:</b>
+<blockquote>• Max video+subs duration: <b>1.5 hours</b>
+• Max video+subs file size: <b>500 MB</b>
+• Max video+subs quality: <b>720p</b></blockquote>
+————————————
+🚀 <b>Paid Group Benefits (2️⃣x Limits):</b>
+<blockquote>•  🗂 Structured neat media vault sorted by topics 👍
+•  📁 Bots reply in the topic you call them
+•  📌 Auto pin status message with download progress
+•  🖼 /img command downloads media as 10-item albums
+• Max 1 file size: <b>16 GB</b> ⬆️
+• Max playlist items per 1 time: <b>100</b> ⬆️
+• Max TikTok videos per 1 time: 1000 ⬆️
+• Max images per 1 time: 2000 ⬆️
+• 1 Download max time: <b>4 hours</b> ⬆️
+• 🔞 NSFW content: Free with full metadata 🆓
+• 📢 No need to subscribe to my channel for groups
+• 👥 All group members will have access to paid functions!
+• 🗒 No logs / no cache to my log-channels! You can reject copy/repost in group settings</blockquote>
+
+💬 <b>2️⃣x limits for video with subtitles:</b>
+<blockquote>• Max video+subs duration: <b>3 hours</b> ⬆️
+• Max video+subs file size: <b>1000 MB</b> ⬆️
+• Max video+subs quality: <b>1080p</b> ⬆️</blockquote>
+————————————
+💰 <b>Pricing & Setup:</b>
+<blockquote>• Price: <b>$5/month</b> per 1 bot in group
+• Setup: Contact @iilililiiillliiliililliilliliiil
+• Payment: 💎TON or other methods💲
+• Support: Full technical support included</blockquote>
+————————————
+You can add my bots to your group to unblock free 🔞<b>NSFW</b> and to double (x2️⃣) all limits.
+Contact me if you want me to allow your group to use my bots @iilililiiillliiliililliilliliiil
+————————————
+💡<b>TIP:</b> <blockquote>You can chip in money with any amount of your friends (for example 100 people) and made 1 purchase for whole group - ALL GROUP MEMBERS WILL HAVE FULL UNLIMITED ACCESS to all bots functions in that group for just <b>0.05$</b></blockquote>
+    """
+    
+    # NSFW Command Messages
+    NSFW_ON_MSG = """
+🔞 <b>NSFW Mode: ON✅</b>
+
+• NSFW content will be displayed without blurring.
+• Spoilers will not apply to NSFW media.
+• The content will be visible immediately
+
+<i>Use /nsfw off to enable blur</i>
+    """
+    
+    NSFW_OFF_MSG = """
+🔞 <b>NSFW Mode: OFF</b>
+
+⚠️ <b>Blur enabled</b>
+• NSFW content will be hidden under spoiler   
+• To view, you will need to click on the media
+• Spoilers will apply to NSFW media.
+
+<i>Use /nsfw on to disable blur</i>
+    """
+    
+    NSFW_INVALID_MSG = """
+❌ <b>Invalid parameter</b>
+
+Use:
+• <code>/nsfw on</code> - disable blur
+• <code>/nsfw off</code> - enable blur
+    """
+    
+    # UI Messages - Status and Progress
+    CHECKING_CACHE_MSG = "🔄 <b>Checking cache...</b>\n\n<code>{url}</code>"
+    PROCESSING_MSG = "🔄 Processing..."
+    DOWNLOADING_MSG = "📥 <b>Downloading media...</b>\n\n"
+    DOWNLOADING_VIDEO_MSG = "📥 <b>Downloading video...</b>\n\n"
+    DOWNLOADING_IMAGE_MSG = "📥 <b>Downloading image...</b>\n\n"
+    UPLOAD_COMPLETE_MSG = "✅ <b>Upload complete</b> - {count} files uploaded.\n{credits}"
+    DOWNLOAD_COMPLETE_MSG = "✅ <b>Download complete</b>\n\n"
+    VIDEO_PROCESSING_MSG = "📽 Video is processing..."
+    WAITING_HOURGLASS_MSG = "⌛️"
+    
+    # Cache Messages
+    SENT_FROM_CACHE_MSG = "✅ <b>Sent from cache</b>\n\nSent albums: <b>{count}</b>"
+    VIDEO_SENT_FROM_CACHE_MSG = "✅ Video successfully sent from cache."
+    PLAYLIST_SENT_FROM_CACHE_MSG = "✅ Playlist videos sent from cache ({cached}/{total} files)."
+    CACHE_PARTIAL_MSG = "📥 {cached}/{total} videos sent from cache, downloading missing ones..."
+    CACHE_FAILED_VIDEO_MSG = "⚠️ Unable to get video from cache, starting new download..."
+    CACHE_FAILED_GENERIC_MSG = "⚠️ Failed to get video from cache, starting a new download..."
+    
+    # Error Messages
+    INVALID_URL_MSG = "❌ <b>Invalid URL</b>\n\nPlease provide a valid URL starting with http:// or https://"
+    FAILED_ANALYZE_MSG = "❌ <b>Failed to analyze image</b>\n\n<code>{url}</code>\n\n"
+    ERROR_OCCURRED_MSG = "❌ <b>Error occurred</b>\n\n<code>{url}</code>\n\nError: {error}"
+    ERROR_DOWNLOAD_MSG = "❌ Sorry... Some error occurred during download."
+    ERROR_SENDING_VIDEO_MSG = "❌ Error sending video: {error}"
+    ERROR_UNKNOWN_MSG = "❌ Unknown error: {error}"
+    ERROR_NO_DISK_SPACE_MSG = "❌ Not enough disk space to download videos."
+    ERROR_FILE_SIZE_LIMIT_MSG = "❌ The file size exceeds the {limit} GB limit. Please select a smaller file within the allowed size."
+    ERROR_NO_VIDEOS_PLAYLIST_MSG = "❌ No videos found in playlist at index {index}."
+    ERROR_TIKTOK_API_MSG = "⚠️ TikTok API error at index {index}, skipping to next video..."
+    ERROR_FFMPEG_NOT_FOUND_MSG = "❌ FFmpeg not found. Please install FFmpeg."
+    ERROR_CONVERSION_FAILED_MSG = "❌ Conversion to MP4 failed: {error}"
+    ERROR_GETTING_LINK_MSG = "❌ <b>Error getting link:</b>\n{error}"
+    ERROR_AV1_NOT_AVAILABLE_MSG = "❌ AV1 format is not available for this video.\n\nAvailable formats:\n{formats}"
+    ERROR_AV1_NOT_AVAILABLE_SHORT_MSG = "❌ **AV1 format is not available for this video.**\n\n"
+    
+    # Telegram Rate Limit Messages
+    RATE_LIMIT_WITH_TIME_MSG = "⚠️ Telegram has limited message sending.\n⏳ Please wait: {time}\nTo update timer send URL again 2 times."
+    RATE_LIMIT_NO_TIME_MSG = "⚠️ Telegram has limited message sending.\n⏳ Please wait: \nTo update timer send URL again 2 times."
+    
+    # Subtitles Messages
+    SUBTITLES_FAILED_MSG = "⚠️ Failed to download subtitles"
+    SUBTITLES_NOT_FOUND_MSG = "⚠️ Subtitles for {flag} {name} not found for this video. Download without subtitles."
+    SUBTITLES_EMBEDDING_MSG = "⚠️ Embedding subtitles may take a long time (up to 1 min per 1 min of video)!\n🔥 Starting to burn subtitles..."
+    SUBTITLES_SUCCESS_MSG = "Subtitles successfully embedded! ✅"
+    SUBTITLES_NOT_FOUND_VIDEO_MSG = "⚠️ Subtitles not found for this video"
+    SUBTITLES_SIZE_LIMIT_MSG = "⚠️ Subtitles not embedded: exceeded size/duration limits"
+    
+    # Video Processing Messages
+    HLS_STREAM_MSG = "Detected HLS stream.\n📥 Downloading..."
+    DOWNLOADING_FORMAT_MSG = "> <i>📥 Downloading using format: {format}...</i>"
+    DOWNLOADED_PROCESSING_MSG = "☑️ Downloaded video.\n📤 Processing for upload..."
+    FILE_TOO_LARGE_MSG = "⚠️ Your video size ({size}) is too large.\nSplitting file... ✂️"
+    SPLIT_PART_UPLOADED_MSG = "📤 Splitted part {part} file uploaded"
+    
+    # Stream/Link Messages
+    STREAM_LINKS_TITLE_MSG = "🔗 <b>Direct Stream Links</b>\n\n"
+    STREAM_TITLE_MSG = "📹 <b>Title:</b> {title}\n"
+    STREAM_DURATION_MSG = "⏱ <b>Duration:</b> {duration} sec\n"
+    STREAM_FORMAT_MSG = "🎛 <b>Format:</b> <code>bv+ba/best</code>\n\n"
+    STREAM_BROWSER_MSG = "🌐 <b>Browser:</b> Open in web browser\n\n"
+    VLC_PLAYER_IOS_MSG = "🎬 <b><a href=\"https://itunes.apple.com/app/apple-store/id650377962\">VLC Player (iOS)</a></b>\n\n<i>Click button to copy stream URL, then paste it in VLC app</i>"
+    VLC_PLAYER_ANDROID_MSG = "🎬 <b><a href=\"https://play.google.com/store/apps/details?id=org.videolan.vlc\">VLC Player (Android)</a></b>\n\n<i>Click button to copy stream URL, then paste it in VLC app</i>"
+    
+    # Download Progress Messages
+    DOWNLOADING_FORMAT_ID_MSG = "📥 Downloading format {format_id}..."
+    DOWNLOADING_QUALITY_MSG = "📥 Downloading {quality}..."
+    
+    # Quality Selection Messages
+    MANUAL_QUALITY_TITLE_MSG = "🎛 Manual Quality Selection"
+    MANUAL_QUALITY_DESC_MSG = "Choose quality manually since automatic detection failed:"
+    ALL_FORMATS_TITLE_MSG = "🎛 All Available Formats"
+    ALL_FORMATS_PAGE_MSG = "Page {page}"
+    CACHED_QUALITIES_TITLE_MSG = "📹 Available Qualities (from cache)"
+    CACHED_QUALITIES_DESC_MSG = "⚠️ Using cached qualities - new formats may not be available"
+    ERROR_GETTING_FORMATS_MSG = "❌ Error getting available formats.\nPlease try again later."
+    
+    # NSFW Paid Content Messages
+    NSFW_PAID_WARNING_MSG = "⭐️ — 🔞NSFW is paid (⭐️$0.02)\nUse /add_bot_to_group to make NSFW free"
+    NSFW_PAID_INFO_MSG = "⭐️ — 🔞NSFW is paid (⭐️$0.02)\nUse /add_bot_to_group to make NSFW free"
+    
+    # Callback Error Messages
+    ERROR_ORIGINAL_NOT_FOUND_MSG = "❌ Error: Original message not found."
+    ERROR_ORIGINAL_NOT_FOUND_DELETED_MSG = "❌ Error: Original message not found. It might have been deleted. Please send the link again."
+    ERROR_URL_NOT_FOUND_MSG = "❌ Error: URL not found."
+    ERROR_ORIGINAL_URL_NOT_FOUND_MSG = "❌ Error: Original URL not found. Please send the link again."
+    ERROR_URL_NOT_EMBEDDABLE_MSG = "❌ This URL cannot be embedded."
+    ERROR_CODEC_NOT_AVAILABLE_MSG = "❌ {codec} codec not available for this video"
+    ERROR_FORMAT_NOT_AVAILABLE_MSG = "❌ {format} format not available for this video"
+    
+    # Tags Error Messages
+    TAG_FORBIDDEN_CHARS_MSG = "❌ Tag #{tag} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}"
+    
+    # Playlist Messages
+    PLAYLIST_SENT_MSG = "✅ Playlist videos sent: {sent}/{total} files."
+    PLAYLIST_CACHE_SENT_MSG = "✅ Sent from cache: {cached}/{total} files."
+    
+    # Failed Stream Messages
+    FAILED_STREAM_LINKS_MSG = "❌ Failed to get stream links"
     #######################################################

@@ -117,19 +117,12 @@ def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
                 elapsed = current_time - start_time
                 minutes_passed = int(elapsed // 60)
                 
-                # After 1 hour, stop animating and show static hourglass
+                # Adaptive animation interval (linear slow-down every 5 minutes)
                 if minutes_passed >= 60:
-                    safe_edit_message_text(user_id, hourglass_msg_id, "⏳ Please wait...")
-                    break
-                
-                # Adaptive animation interval
-                if minutes_passed < 5:
-                    interval = 3.0  # First 5 minutes: every 3 seconds
+                    interval = 90.0  # After 1 hour, update once per 90 seconds
                 else:
-                    # Exponential backoff for animation
-                    base_interval = 3.0
-                    interval = base_interval * (2 ** (minutes_passed - 4))  # Start exponential after 5 minutes
-                    interval = min(interval, 30.0)  # Cap at 30 seconds
+                    # 0-4 min: 3s, 5-9: 4s, 10-14: 5s, ... up to 55-59: 14s
+                    interval = 3.0 + max(0, minutes_passed // 5)
                 
                 if current_time - last_update < interval:
                     time.sleep(1.0)
@@ -192,18 +185,11 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
                 elapsed = current_time - start_time
                 minutes_passed = int(elapsed // 60)
                 
-                # After 1 hour, stop showing intermediate progress
+                # Adaptive update interval (linear; after 1h fixed 90s)
                 if minutes_passed >= 60:
-                    break
-                
-                # Adaptive update interval
-                if minutes_passed < 5:
-                    interval = 3.0  # First 5 minutes: every 3 seconds
+                    interval = 90.0
                 else:
-                    # Exponential backoff
-                    base_interval = 3.0
-                    interval = base_interval * (2 ** (minutes_passed - 4))  # Start exponential after 5 minutes
-                    interval = min(interval, 30.0)  # Cap at 30 seconds
+                    interval = 3.0 + max(0, minutes_passed // 5)
                 
                 if current_time - last_update < interval:
                     time.sleep(1.0)

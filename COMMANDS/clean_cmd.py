@@ -51,6 +51,22 @@ def clean_option_callback(app, callback_query):
         url_distractor(app, fake_message("/clean keyboard", user_id))
         callback_query.answer("Keyboard settings cleaned.")
         return
+    elif data == "args":
+        url_distractor(app, fake_message("/clean args", user_id))
+        callback_query.answer("Args settings cleaned.")
+        return
+    elif data == "nsfw":
+        url_distractor(app, fake_message("/clean nsfw", user_id))
+        callback_query.answer("NSFW settings cleaned.")
+        return
+    elif data == "proxy":
+        url_distractor(app, fake_message("/clean proxy", user_id))
+        callback_query.answer("Proxy settings cleaned.")
+        return
+    elif data == "flood_wait":
+        url_distractor(app, fake_message("/clean flood_wait", user_id))
+        callback_query.answer("Flood wait settings cleaned.")
+        return
     elif data == "all":
         url_distractor(app, fake_message("/clean all", user_id))
         callback_query.answer("All files cleaned.")

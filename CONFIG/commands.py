@@ -34,4 +34,8 @@ class CommandsConfig(object):
     LINK_COMMAND = "/link"
     PROXY_COMMAND = "/proxy"
     IMG_COMMAND = "/img"
+    ADD_BOT_TO_GROUP_COMMAND = "/add_bot_to_group"
+    NSFW_COMMAND = "/nsfw"  
+    ARGS_COMMAND = "/args"
+    LIST_COMMAND = "/list"
     #######################################################

@@ -12,11 +12,13 @@ import requests
 from HELPERS.app_instance import get_app
 from HELPERS.decorators import get_main_reply_keyboard
 from HELPERS.logger import send_to_logger, logger
+from CONFIG.logger_msg import LoggerMsg
 from HELPERS.filesystem_hlp import create_directory
 from HELPERS.qualifier import get_quality_by_min_side, get_real_height_for_quality
 from HELPERS.limitter import check_subs_limits, check_playlist_range_limits, TimeFormatter
 
 from CONFIG.config import Config
+from URL_PARSERS.tags import extract_url_range_tags
 
 from COMMANDS.subtitles_cmd import (
     clear_subs_check_cache, is_subs_enabled, check_subs_availability, 
@@ -26,6 +28,7 @@ from COMMANDS.subtitles_cmd import (
     save_user_subs_language, save_user_subs_auto_mode,
 )
 from COMMANDS.split_sizer import get_user_split_size
+from COMMANDS.nsfw_cmd import should_apply_spoiler
 
 from DATABASE.cache_db import (
     get_cached_qualities, get_cached_playlist_count, get_cached_playlist_videos, 
@@ -33,6 +36,7 @@ from DATABASE.cache_db import (
 )
 
 from DOWN_AND_UP.yt_dlp_hook import get_video_formats
+from HELPERS.pot_helper import build_cli_extractor_args
 from COMMANDS.format_cmd import set_session_mkv_override
 from DOWN_AND_UP.down_and_audio import down_and_audio
 from DOWN_AND_UP.down_and_up import down_and_up
@@ -44,6 +48,8 @@ from URL_PARSERS.tiktok import is_tiktok_url
 from URL_PARSERS.normalizer import get_clean_playlist_url
 from URL_PARSERS.embedder import transform_to_embed_url, is_instagram_url, is_twitter_url, is_reddit_url
 from URL_PARSERS.thumbnail_downloader import download_thumbnail as download_universal_thumbnail
+from COMMANDS.image_cmd import image_command
+from HELPERS.safe_messeger import fake_message
 
 # Get app instance for decorators
 app = get_app()
@@ -369,7 +375,7 @@ def ask_filter_callback(app, callback_query):
         if kind == "subs" and value == "open":
             original_message = callback_query.message.reply_to_message
             if not original_message:
-                callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+                callback_query.answer(Config.ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
                 return
             url_text = original_message.text or (original_message.caption or "")
             import re as _re
@@ -401,7 +407,7 @@ def ask_filter_callback(app, callback_query):
             page = int(value)
             original_message = callback_query.message.reply_to_message
             if not original_message:
-                callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+                callback_query.answer(Config.ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
                 return
             url_text = original_message.text or (original_message.caption or "")
             import re as _re
@@ -464,7 +470,7 @@ def ask_filter_callback(app, callback_query):
         if kind == "dubs" and value == "open":
             original_message = callback_query.message.reply_to_message
             if not original_message:
-                callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+                callback_query.answer(Config.ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
                 return
             url_text = original_message.text or (original_message.caption or "")
             import re as _re
@@ -700,7 +706,7 @@ def set_link_mode(user_id, enabled):
         logger.error(f"Error setting link mode for user {user_id}: {e}")
         return False
 
-def build_filter_rows(user_id, url=None):
+def build_filter_rows(user_id, url=None, is_private_chat=False):
     f = get_filters(user_id)
     codec = f.get("codec", "avc1")
     ext = f.get("ext", "mp4")
@@ -715,7 +721,36 @@ def build_filter_rows(user_id, url=None):
     
     # When filters are hidden – show compact row with CODEC + audio (+ optional DUBS, SUBS)
     if not visible:
-        row = [InlineKeyboardButton("📼CODEC", callback_data="askf|toggle|on"), InlineKeyboardButton("🎧MP3", callback_data="askq|mp3")]
+        # Determine NSFW for star icon on MP3
+        is_nsfw = False
+        if url:
+            try:
+                info = load_ask_info(user_id, url) or {}
+                tags_text = ' '.join(generate_final_tags(url, [], info)) if isinstance(generate_final_tags(url, [], info), list) else generate_final_tags(url, [], info)
+                is_nsfw = isinstance(tags_text, str) and ('#nsfw' in tags_text.lower())
+            except Exception:
+                is_nsfw = False
+        # Determine MP3 cache status for rocket icon
+        is_cached_mp3 = False
+        if url:
+            try:
+                cq = get_cached_qualities(url)
+                is_cached_mp3 = ('mp3' in cq)
+            except Exception:
+                is_cached_mp3 = False
+        # Get user's audio format setting
+        try:
+            from COMMANDS.args_cmd import get_user_args
+            user_args = get_user_args(user_id)
+            audio_format = user_args.get('audio_format', 'mp3').upper()
+        except Exception:
+            audio_format = 'MP3'
+        
+        mp3_label = (
+            f"1⭐️{audio_format}" if (is_nsfw and is_private_chat)
+            else (f"🚀{audio_format}" if is_cached_mp3 else f"🎧{audio_format}")
+        )
+        row = [InlineKeyboardButton("📼CODEC", callback_data="askf|toggle|on"), InlineKeyboardButton(mp3_label, callback_data="askq|mp3")]
         # Show DUBS button only if audio dubs are detected for this video (set elsewhere)
         if has_dubs:
             row.insert(1, InlineKeyboardButton("🗣 DUBS", callback_data="askf|dubs|open"))
@@ -743,9 +778,38 @@ def build_filter_rows(user_id, url=None):
     mp4_btn = ("✅ MP4" if ext == "mp4" else "☑️ MP4") if mp4_available else "❌ MP4"
     mkv_btn = ("✅ MKV" if ext == "mkv" else "☑️ MKV") if mkv_available else "❌ MKV"
     
+    # NSFW detection for expanded filters
+    is_nsfw = False
+    if url:
+        try:
+            info = load_ask_info(user_id, url) or {}
+            tags_text = ' '.join(generate_final_tags(url, [], info)) if isinstance(generate_final_tags(url, [], info), list) else generate_final_tags(url, [], info)
+            is_nsfw = isinstance(tags_text, str) and ('#nsfw' in tags_text.lower())
+        except Exception:
+            is_nsfw = False
+    # Determine MP3 cache status for rocket icon (expanded filters)
+    is_cached_mp3 = False
+    if url:
+        try:
+            cq = get_cached_qualities(url)
+            is_cached_mp3 = ('mp3' in cq)
+        except Exception:
+            is_cached_mp3 = False
+    # Get user's audio format setting
+    try:
+        from COMMANDS.args_cmd import get_user_args
+        user_args = get_user_args(user_id)
+        audio_format = user_args.get('audio_format', 'mp3').upper()
+    except Exception:
+        audio_format = 'MP3'
+    
+    mp3_label = (
+        f"1⭐️{audio_format}" if (is_nsfw and is_private_chat)
+        else (f"🚀{audio_format}" if is_cached_mp3 else f"🎧{audio_format}")
+    )
     rows = [
         [InlineKeyboardButton(avc1_btn, callback_data="askf|codec|avc1"), InlineKeyboardButton(av01_btn, callback_data="askf|codec|av01"), InlineKeyboardButton(vp9_btn, callback_data="askf|codec|vp9")],
-        [InlineKeyboardButton(mp4_btn, callback_data="askf|ext|mp4"), InlineKeyboardButton(mkv_btn, callback_data="askf|ext|mkv"), InlineKeyboardButton("🎧MP3", callback_data="askq|mp3")]
+        [InlineKeyboardButton(mp4_btn, callback_data="askf|ext|mp4"), InlineKeyboardButton(mkv_btn, callback_data="askf|ext|mkv"), InlineKeyboardButton(mp3_label, callback_data="askq|mp3")]
     ]
     action_buttons = []
     if has_dubs:
@@ -826,8 +890,8 @@ def askq_callback(app, callback_query):
             # Browser button will be sent in main message
             
             # Send main response with browser button
-            main_response = f"🔗 <b>Direct Stream Links</b>\n\n"
-            main_response += f"📹 <b>Title:</b> {title}\n"
+            main_response = Config.STREAM_LINKS_TITLE_MSG
+            main_response += Config.STREAM_TITLE_MSG.format(title=title)
             if duration > 0:
                 main_response += f"⏱ <b>Duration:</b> {duration} sec\n"
             main_response += f"🎛 <b>Format:</b> <code>bv+ba/best</code>\n\n"
@@ -889,6 +953,194 @@ def askq_callback(app, callback_query):
             
             send_to_logger(original_message, f"Failed to extract direct link via LINK button for user {user_id} from {url}: {error_msg}")
         
+        # Удаляем Always Ask меню после обработки
+        try:
+            app.delete_messages(callback_query.message.chat.id, callback_query.message.id)
+        except Exception as e:
+            logger.warning(f"Failed to delete Always Ask menu: {e}")
+        return
+
+    # Handle LIST button - get available formats
+    if data == "list":
+        # Get original URL from the reply message
+        original_message = callback_query.message.reply_to_message
+        if not original_message:
+            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            return
+            
+        url_text = original_message.text or (original_message.caption or "")
+        import re as _re
+        m = _re.search(r'https?://[^\s\*#]+', url_text)
+        url = m.group(0) if m else url_text
+        
+        try:
+            callback_query.answer("📃 Getting available formats...")
+        except Exception:
+            pass
+        
+        # Import list function
+        from COMMANDS.list_cmd import run_ytdlp_list
+        
+        # Run yt-dlp list command
+        success, output = run_ytdlp_list(url, user_id)
+        
+        if success:
+            # Check if any format contains "audio only" and extract format IDs
+            audio_only_formats = []
+            lines = output.split('\n')
+            for line in lines:
+                if 'audio only' in line.lower() or 'audio_only' in line.lower():
+                    # Extract format ID from the line (usually at the beginning)
+                    parts = line.strip().split()
+                    if parts and parts[0].isdigit():
+                        format_id = parts[0]
+                        audio_only_formats.append(format_id)
+            
+            # Create temporary file with output
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as temp_file:
+                temp_file.write(f"Available formats for: {url}\n")
+                temp_file.write("=" * 50 + "\n\n")
+                temp_file.write(output)
+                temp_file.write("\n\n" + "=" * 50 + "\n")
+                temp_file.write("💡 How to use format IDs:\n")
+                temp_file.write("After getting the list, use specific format ID:\n")
+                temp_file.write("• /format id 401 - download format 401\n")
+                temp_file.write("• /format id401 - same as above\n")
+                temp_file.write("• /format id 140 audio - download format 140 as MP3 audio\n")
+                
+                # Add special note for audio-only formats
+                if audio_only_formats:
+                    temp_file.write(f"\n🎵 Audio-only formats detected: {', '.join(audio_only_formats)}\n")
+                    temp_file.write("These formats will be downloaded as MP3 audio files.\n")
+                
+                temp_file_path = temp_file.name
+            
+            try:
+                # Send the file
+                # Build caption with audio-only format info
+                caption = f"📃 Available formats for:\n<code>{url}</code>\n\n"
+                caption += f"💡 <b>How to set format:</b>\n"
+                caption += f"• <code>/format id 134</code> - Download specific format ID\n"
+                caption += f"• <code>/format 720p</code> - Download by quality\n"
+                caption += f"• <code>/format best</code> - Download best quality\n"
+                caption += f"• <code>/format ask</code> - Always ask for quality\n\n"
+                
+                # Add special note for audio-only formats
+                if audio_only_formats:
+                    caption += f"🎵 <b>Audio-only formats:</b> {', '.join(audio_only_formats)}\n"
+                    caption += f"• <code>/format id 140 audio</code> - Download format 140 as MP3 audio\n"
+                    caption += f"These will be downloaded as MP3 audio files.\n\n"
+                
+                caption += f"📋 Use format ID from the list above"
+                
+                app.send_document(
+                    user_id,
+                    document=temp_file_path,
+                    file_name=f"formats_{user_id}.txt",
+                    caption=caption,
+                    reply_parameters=ReplyParameters(message_id=original_message.id)
+                )
+                
+                send_to_logger(original_message, f"LIST command executed for user {user_id}, url: {url}")
+                    
+            except Exception as e:
+                logger.error(f"Error sending formats file: {e}")
+                app.send_message(
+                    user_id,
+                    f"❌ Error sending formats file: {str(e)}",
+                    reply_parameters=ReplyParameters(message_id=original_message.id)
+                )
+            finally:
+                # Clean up temporary file
+                try:
+                    os.unlink(temp_file_path)
+                except Exception:
+                    pass
+        else:
+            app.send_message(
+                user_id,
+                f"❌ Failed to get formats:\n<code>{output}</code>",
+                reply_parameters=ReplyParameters(message_id=original_message.id)
+            )
+        
+        # Удаляем Always Ask меню после обработки
+        try:
+            app.delete_messages(callback_query.message.chat.id, callback_query.message.id)
+        except Exception as e:
+            logger.warning(f"Failed to delete Always Ask menu: {e}")
+        return
+
+    # ---- IMAGE fallback: process via gallery-dl (/img) ----
+    if data == "image":
+        original_message = callback_query.message.reply_to_message
+        if not original_message:
+            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            return
+        # ЖЕСТКО: Получаем полный текст сообщения
+        url_text = original_message.text or (original_message.caption or "")
+        logger.info(f"[ASKQ FALLBACK DEBUG] original_message.text: {original_message.text}")
+        logger.info(f"[ASKQ FALLBACK DEBUG] original_message.caption: {original_message.caption}")
+        logger.info(f"[ASKQ FALLBACK DEBUG] url_text: {url_text}")
+        
+        # ЖЕСТКО: Ищем URL с диапазоном в полном тексте
+        import re as _re
+        # Сначала ищем URL с диапазоном *start*end
+        range_url_match = _re.search(r'(https?://[^\s\*#]+)\*(\d+)\*(\d+)', url_text)
+        if range_url_match:
+            url = range_url_match.group(1)
+            start_range = int(range_url_match.group(2))
+            end_range = int(range_url_match.group(3))
+            logger.info(f"[ASKQ FALLBACK DEBUG] FOUND RANGE URL: {url} with range {start_range}-{end_range}")
+        else:
+            # Fallback к обычному URL
+            m = _re.search(r'https?://[^\s\*#]+', url_text)
+            url = m.group(0) if m else url_text
+            start_range = 1
+            end_range = 1
+            logger.info(f"[ASKQ FALLBACK DEBUG] NO RANGE FOUND, using url: {url}")
+        try:
+            callback_query.answer("🖼 Starting gallery-dl…")
+        except Exception:
+            pass
+        try:
+            # Check if content is NSFW for fallback - same as original function
+            from HELPERS.porn import is_porn
+            is_nsfw = bool(is_porn(url, "", "", None))
+            logger.info(f"[ASKQ FALLBACK] is_porn check for {url}: {is_nsfw}")
+            
+            # Check for explicit NSFW tags in original message
+            user_forced_nsfw = bool(re.search(r"(?i)(?:^|\s)#nsfw(?:\s|$)", url_text))
+            if user_forced_nsfw:
+                is_nsfw = True
+                logger.info(f"[ASKQ FALLBACK] User forced NSFW tag detected for {url}")
+            
+            # Range already extracted above - ЖЕСТКО!
+            parsed_url = url
+            
+            # Create fallback command converting *1*10 to 1-10 format
+            if start_range and end_range and start_range != 1 and end_range != 1:
+                # Convert *1*10 format to 1-10 format
+                fallback_text = f"/img {start_range}-{end_range} {parsed_url}"
+                logger.info(f"[ASKQ FALLBACK] Converting range: *{start_range}*{end_range} -> {start_range}-{end_range}, fallback_text: {fallback_text}")
+            else:
+                fallback_text = f"/img {url}"
+                logger.info(f"[ASKQ FALLBACK] No range detected, fallback_text: {fallback_text}")
+            
+            if is_nsfw and "#nsfw" not in fallback_text.lower():
+                fallback_text += " #nsfw"
+                logger.info(f"[ASKQ FALLBACK] Added #nsfw tag for NSFW content: {url}")
+            
+            # Запускаем /img с «фейковым» сообщением, чтобы работать через gallery-dl
+            image_command(app, fake_message(fallback_text, original_message.chat.id, original_chat_id=original_message.chat.id))
+        except Exception as e:
+            logger.error(f"[ASKQ] IMAGE fallback failed: {e}")
+        
+        # Удаляем Always Ask меню после обработки
+        try:
+            app.delete_messages(callback_query.message.chat.id, callback_query.message.id)
+        except Exception as e:
+            logger.warning(f"Failed to delete Always Ask menu: {e}")
         return
     
     if data == "quick_embed":
@@ -938,7 +1190,7 @@ def askq_callback(app, callback_query):
             # Get original message and URL
             original_message = callback_query.message.reply_to_message
             if not original_message:
-                callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+                callback_query.answer(Config.ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
                 return
             url = original_message.text or (original_message.caption or "")
             # try to extract url
@@ -970,7 +1222,7 @@ def askq_callback(app, callback_query):
             # Build and show dubs selection menu with flags
             original_message = callback_query.message.reply_to_message
             if not original_message:
-                callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+                callback_query.answer(Config.ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
                 return
             url_text = original_message.text or (original_message.caption or "")
             import re as _re
@@ -1008,7 +1260,7 @@ def askq_callback(app, callback_query):
             original_message = callback_query.message.reply_to_message
             if not original_message:
                 logger.error(f"[ASKQ] No original message found for SUBS menu")
-                callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+                callback_query.answer(Config.ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
                 return
             url_text = original_message.text or (original_message.caption or "")
             import re as _re
@@ -1050,7 +1302,7 @@ def askq_callback(app, callback_query):
             page = int(value)
             original_message = callback_query.message.reply_to_message
             if not original_message:
-                callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+                callback_query.answer(Config.ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
                 return
             url_text = original_message.text or (original_message.caption or "")
             import re as _re
@@ -1415,32 +1667,121 @@ def askq_callback(app, callback_query):
         video_count = video_end_with - video_start_with + 1
         requested_indices = list(range(video_start_with, video_start_with + video_count))
         
-        # Check cache for selected quality
-        cached_videos = get_cached_playlist_videos(get_clean_playlist_url(url), data, requested_indices)
-        uncached_indices = [i for i in requested_indices if i not in cached_videos]
-        used_quality_key = data
-        
-        # If there is no cache for the selected quality, try fallback to best
-        if not cached_videos and data != "best":
-            logger.info(f"askq_callback: no cache for quality_key={data}, trying fallback to best")
-            best_cached = get_cached_playlist_videos(get_clean_playlist_url(url), "best", requested_indices)
-            if best_cached:
-                cached_videos = best_cached
-                used_quality_key = "best"
-                uncached_indices = [i for i in requested_indices if i not in cached_videos]
-                logger.info(f"askq_callback: found cache with best quality, cached: {list(cached_videos.keys())}, uncached: {uncached_indices}")
+        # Check if Always Ask mode is enabled - if yes, skip cache completely
+        if not is_subs_always_ask(user_id):
+            # Check cache for selected quality
+            cached_videos = get_cached_playlist_videos(get_clean_playlist_url(url), data, requested_indices)
+            uncached_indices = [i for i in requested_indices if i not in cached_videos]
+            used_quality_key = data
+            
+            # If there is no cache for the selected quality, try fallback to best
+            if not cached_videos and data != "best":
+                logger.info(f"askq_callback: no cache for quality_key={data}, trying fallback to best")
+                best_cached = get_cached_playlist_videos(get_clean_playlist_url(url), "best", requested_indices)
+                if best_cached:
+                    cached_videos = best_cached
+                    used_quality_key = "best"
+                    uncached_indices = [i for i in requested_indices if i not in cached_videos]
+                    logger.info(f"askq_callback: found cache with best quality, cached: {list(cached_videos.keys())}, uncached: {uncached_indices}")
+        else:
+            logger.info(f"[VIDEO CACHE] Skipping cache check for playlist because Always Ask mode is enabled: url={url}, quality={data}")
+            cached_videos = {}
+            uncached_indices = requested_indices
+            used_quality_key = data
         
         if cached_videos:
             # Reposting cached videos
             callback_query.answer("🚀 Found in cache! Reposting...", show_alert=False)
+            try:
+                target_chat_id = getattr(original_message.chat, 'id', user_id)
+            except Exception:
+                target_chat_id = user_id
             for index in requested_indices:
                 if index in cached_videos:
                     try:
-                        app.forward_messages(
-                            chat_id=user_id,
-                            from_chat_id=Config.LOGS_ID,
-                            message_ids=[cached_videos[index]]
-                        )
+                        thread_id = getattr(original_message, 'message_thread_id', None)
+                        # Use forward everywhere; in groups try to keep topic via message_thread_id
+                        if thread_id:
+                            from HELPERS.logger import get_log_channel
+                            from HELPERS.porn import is_porn
+                            # Determine the correct log channel based on content type
+                            is_nsfw = is_porn(url, "", "", None)
+                            is_private_chat = getattr(original_message.chat, "type", None) == enums.ChatType.PRIVATE
+                            is_paid = is_nsfw and is_private_chat
+                            logger.info(f"[VIDEO CACHE] URL analysis: url={url}, is_nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}")
+                            
+                            # Get the correct log channel for reposting
+                            if is_paid:
+                                from_chat_id = get_log_channel("video", paid=True)
+                                channel_type = "PAID"
+                            elif is_nsfw:
+                                from_chat_id = get_log_channel("video", nsfw=True)
+                                channel_type = "NSFW"
+                            else:
+                                from_chat_id = get_log_channel("video")
+                                channel_type = "regular"
+                            
+                            logger.info(f"[VIDEO CACHE] Channel selection: nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}, channel_type={channel_type}, from_chat_id={from_chat_id}")
+                            
+                            # Verify we're reposting from a valid log channel
+                            valid_channels = [
+                                get_log_channel("video"),
+                                get_log_channel("video", nsfw=True),
+                                get_log_channel("video", paid=True)
+                            ]
+                            if from_chat_id not in valid_channels:
+                                logger.error(f"CRITICAL: Attempting to repost from wrong channel {from_chat_id}")
+                                continue
+                                
+                            logger.info(f"[VIDEO CACHE] Reposting video {index} from channel {from_chat_id} to user {target_chat_id}, message_id={cached_videos[index]}")
+                            app.forward_messages(
+                                chat_id=target_chat_id,
+                                from_chat_id=from_chat_id,
+                                message_ids=[cached_videos[index]],
+                                message_thread_id=thread_id
+                            )
+                        else:
+                            from HELPERS.logger import get_log_channel
+                            from HELPERS.porn import is_porn
+                            # Determine the correct log channel based on content type
+                            is_nsfw = is_porn(url, "", "", None)
+                            is_private_chat = getattr(original_message.chat, "type", None) == enums.ChatType.PRIVATE
+                            is_paid = is_nsfw and is_private_chat
+                            logger.info(f"[VIDEO CACHE] URL analysis: url={url}, is_nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}")
+                            
+                            # Get the correct log channel for reposting
+                            if is_paid:
+                                from_chat_id = get_log_channel("video", paid=True)
+                                channel_type = "PAID"
+                            elif is_nsfw:
+                                from_chat_id = get_log_channel("video", nsfw=True)
+                                channel_type = "NSFW"
+                            else:
+                                from_chat_id = get_log_channel("video")
+                                channel_type = "regular"
+                            
+                            logger.info(f"[VIDEO CACHE] Channel selection: nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}, channel_type={channel_type}, from_chat_id={from_chat_id}")
+                            
+                            # Verify we're reposting from a valid log channel
+                            valid_channels = [
+                                get_log_channel("video"),
+                                get_log_channel("video", nsfw=True),
+                                get_log_channel("video", paid=True)
+                            ]
+                            if from_chat_id not in valid_channels:
+                                logger.error(f"CRITICAL: Attempting to repost from wrong channel {from_chat_id}")
+                                continue
+                                
+                            logger.info(f"[VIDEO CACHE] Reposting video {index} from channel {from_chat_id} to user {target_chat_id}, message_id={cached_videos[index]}")
+                            forward_kwargs = {
+                                'chat_id': target_chat_id,
+                                'from_chat_id': from_chat_id,
+                                'message_ids': [cached_videos[index]]
+                            }
+                            # Only apply thread_id in groups/channels, not in private chats
+                            if getattr(original_message.chat, "type", None) != enums.ChatType.PRIVATE and thread_id:
+                                forward_kwargs['message_thread_id'] = thread_id
+                            app.forward_messages(**forward_kwargs)
                     except Exception as e:
                         logger.warning(f"askq_callback: cached video for index {index} not found: {e}")
             
@@ -1487,7 +1828,7 @@ def askq_callback(app, callback_query):
                     down_and_up(app, original_message, url, playlist_name, new_count, new_start, tags_text, force_no_title=False, format_override=format_override, quality_key=used_quality_key, cookies_already_checked=True)
             else:
                 # All videos were in the cache
-                app.send_message(user_id, f"✅ Sent from cache: {len(cached_videos)}/{len(requested_indices)} files.", reply_parameters=ReplyParameters(message_id=original_message.id))
+                app.send_message(target_chat_id, f"✅ Sent from cache: {len(cached_videos)}/{len(requested_indices)} files.", reply_parameters=ReplyParameters(message_id=original_message.id))
                 media_type = "Audio" if data == "mp3" else "Video"
                 log_msg = f"{media_type} playlist sent from cache to user.\nURL: {url}\nUser: {callback_query.from_user.first_name} ({user_id})"
                 send_to_logger(original_message, log_msg)
@@ -1539,24 +1880,99 @@ def askq_callback(app, callback_query):
     subs_enabled = is_subs_enabled(user_id)
     auto_mode = get_user_subs_auto_mode(user_id)
     need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-    if not need_subs:
+    if not need_subs and not is_subs_always_ask(user_id):
 
         message_ids = get_cached_message_ids(url, data)
         if message_ids:
             callback_query.answer("🚀 Found in cache! Forwarding instantly...", show_alert=False)
             # found_type = None
             try:
-                app.forward_messages(
-                    chat_id=user_id,
-                    from_chat_id=Config.LOGS_ID,
-                    message_ids=message_ids
-                )
-                app.send_message(user_id, "✅ Video successfully sent from cache.", reply_parameters=ReplyParameters(message_id=original_message.id))
+                try:
+                    target_chat_id = getattr(original_message.chat, 'id', user_id)
+                except Exception:
+                    target_chat_id = user_id
+                thread_id = getattr(original_message, 'message_thread_id', None)
+                # Only apply thread_id in groups/channels, not in private chats
+                if thread_id and getattr(original_message.chat, "type", None) != enums.ChatType.PRIVATE:
+                    # Forward each to ensure thread id is applied
+                    for mid in message_ids:
+                        from HELPERS.logger import get_log_channel
+                        from HELPERS.porn import is_porn
+                        # Determine if this is paid media (NSFW in private chat)
+                        is_nsfw = is_porn(url, "", "", None)
+                        is_private_chat = getattr(original_message.chat, "type", None) == enums.ChatType.PRIVATE
+                        is_paid = is_nsfw and is_private_chat
+                        logger.info(f"[VIDEO CACHE] URL analysis: url={url}, is_nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}")
+                        # Get the correct log channel for reposting
+                        if is_paid:
+                            from_chat_id = get_log_channel("video", paid=True)
+                            channel_type = "PAID"
+                        elif is_nsfw:
+                            from_chat_id = get_log_channel("video", nsfw=True)
+                            channel_type = "NSFW"
+                        else:
+                            from_chat_id = get_log_channel("video")
+                            channel_type = "regular"
+                        
+                        logger.info(f"[VIDEO CACHE] Channel selection: nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}, channel_type={channel_type}, from_chat_id={from_chat_id}")
+                        
+                        # Check channel access restrictions
+                        if is_private_chat and channel_type == "NSFW":
+                            logger.info(f"[VIDEO CACHE] Access denied: NSFW cache not allowed in private chat, skipping message {mid}")
+                            continue  # Skip this message
+                        elif not is_private_chat and channel_type == "PAID":
+                            logger.info(f"[VIDEO CACHE] Access denied: Paid cache not allowed in group chat, skipping message {mid}")
+                            continue  # Skip this message
+                        
+                        app.forward_messages(
+                            chat_id=target_chat_id,
+                            from_chat_id=from_chat_id,
+                            message_ids=[mid],
+                            message_thread_id=thread_id
+                        )
+                else:
+                    from HELPERS.logger import get_log_channel
+                    from HELPERS.porn import is_porn
+                    # Determine if this is paid media (NSFW in private chat)
+                    is_nsfw = is_porn(url, "", "", None)
+                    is_private_chat = getattr(original_message.chat, "type", None) == enums.ChatType.PRIVATE
+                    is_paid = is_nsfw and is_private_chat
+                    logger.info(f"[VIDEO CACHE] URL analysis: url={url}, is_nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}")
+                    # Get the correct log channel for reposting
+                    if is_paid:
+                        from_chat_id = get_log_channel("video", paid=True)
+                        channel_type = "PAID"
+                    elif is_nsfw:
+                        from_chat_id = get_log_channel("video", nsfw=True)
+                        channel_type = "NSFW"
+                    else:
+                        from_chat_id = get_log_channel("video")
+                        channel_type = "regular"
+                    
+                    logger.info(f"[VIDEO CACHE] Channel selection: nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}, channel_type={channel_type}, from_chat_id={from_chat_id}")
+                    
+                    # Check channel access restrictions
+                    if is_private_chat and channel_type == "NSFW":
+                        logger.info(f"[VIDEO CACHE] Access denied: NSFW cache not allowed in private chat, forcing re-download")
+                        # Don't forward, let the function continue to download
+                        return
+                    elif not is_private_chat and channel_type == "PAID":
+                        logger.info(f"[VIDEO CACHE] Access denied: Paid cache not allowed in group chat, forcing re-download")
+                        # Don't forward, let the function continue to download
+                        return
+                    
+                    app.forward_messages(
+                        chat_id=target_chat_id,
+                        from_chat_id=from_chat_id,
+                        message_ids=message_ids
+                    )
+                app.send_message(target_chat_id, "✅ Video successfully sent from cache.", reply_parameters=ReplyParameters(message_id=original_message.id))
                 media_type = "Audio" if data == "mp3" else "Video"
                 log_msg = f"{media_type} sent from cache to user.\nURL: {url}\nUser: {callback_query.from_user.first_name} ({user_id})"
                 send_to_logger(original_message, log_msg)
                 return
             except Exception as e:
+                logger.error(f"Error forwarding cached video: {e}")
                 # found_type = check_subs_availability(url, user_id, data, return_type=True)
                 subs_enabled = is_subs_enabled(user_id)
                 auto_mode = get_user_subs_auto_mode(user_id)
@@ -1565,10 +1981,28 @@ def askq_callback(app, callback_query):
                     save_to_video_cache(url, data, [], clear=True)
                 else:
                     logger.info("Video with subtitles (real subs found and needed) is not cached!")
-                app.send_message(user_id, "⚠️ Failed to get video from cache, starting a new download...", reply_parameters=ReplyParameters(message_id=original_message.id))
+                # Don't show error message if we successfully got video from cache
+                # The video was already sent successfully in the try block
                 askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs)
+            
+            # Удаляем Always Ask меню после обработки
+            try:
+                app.delete_messages(callback_query.message.chat.id, callback_query.message.id)
+            except Exception as e:
+                logger.warning(f"Failed to delete Always Ask menu: {e}")
             return
+    else:
+        if is_subs_always_ask(user_id):
+            logger.info(f"[VIDEO CACHE] Skipping cache check because Always Ask mode is enabled: url={url}, quality={data}")
+        else:
+            logger.info(f"[VIDEO CACHE] Skipping cache check because need_subs=True: url={url}, quality={data}")
     askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs)
+    
+    # Удаляем Always Ask меню после обработки
+    try:
+        app.delete_messages(callback_query.message.chat.id, callback_query.message.id)
+    except Exception as e:
+        logger.warning(f"Failed to delete Always Ask menu: {e}")
 
 ###########################
 
@@ -1608,6 +2042,14 @@ def show_manual_quality_menu(app, callback_query):
         if tag_matches:
             tags = tag_matches
     tags_text = ' '.join(tags)
+    # NSFW detection for paid media warning
+    try:
+        is_nsfw = isinstance(tags_text, str) and ('#nsfw' in tags_text.lower())
+    except Exception:
+        is_nsfw = False
+    
+    # Check if we're in a private chat (paid media only works in private chats)
+    is_private_chat = getattr(callback_query.message.chat, "type", None) == enums.ChatType.PRIVATE
     
     # Check if it's a playlist
     original_text = original_message.text or original_message.caption or ""
@@ -1629,11 +2071,11 @@ def show_manual_quality_menu(app, callback_query):
             indices = list(range(playlist_range[0], playlist_range[1]+1))
             n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality, indices)
             total = len(indices)
-            icon = "🚀" if n_cached > 0 else "📹"
+            icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
             postfix = f" ({n_cached}/{total})" if total > 1 else ""
             button_text = f"{icon}{quality}{postfix}"
         else:
-            icon = "🚀" if quality in cached_qualities else "📹"
+            icon = "🚀" if (quality in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
             button_text = f"{icon}{quality}"
         buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|manual_{quality}"))
 
@@ -1642,11 +2084,11 @@ def show_manual_quality_menu(app, callback_query):
         indices = list(range(playlist_range[0], playlist_range[1]+1))
         n_cached = get_cached_playlist_count(get_clean_playlist_url(url), "best", indices)
         total = len(indices)
-        icon = "🚀" if n_cached > 0 else "📹"
+        icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
         postfix = f" ({n_cached}/{total})" if total > 1 else ""
         button_text = f"{icon}Best Quality{postfix}"
     else:
-        icon = "🚀" if "best" in cached_qualities else "📹"
+        icon = "🚀" if ("best" in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
         button_text = f"{icon}Best Quality"
     buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|manual_best"))
     
@@ -1661,11 +2103,11 @@ def show_manual_quality_menu(app, callback_query):
         indices = list(range(playlist_range[0], playlist_range[1]+1))
         n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
         total = len(indices)
-        icon = "🚀" if n_cached > 0 else "🎧"
+        icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "🎧")
         postfix = f" ({n_cached}/{total})" if total > 1 else ""
         button_text = f"{icon} audio (mp3){postfix}"
     else:
-        icon = "🚀" if quality_key in cached_qualities else "🎧"
+        icon = "🚀" if (quality_key in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "🎧")
         button_text = f"{icon} audio (mp3)"
     keyboard_rows.append([InlineKeyboardButton(button_text, callback_data=f"askq|manual_{quality_key}")])
     
@@ -1677,7 +2119,7 @@ def show_manual_quality_menu(app, callback_query):
         need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
         
         if need_subs:
-            keyboard_rows.append([InlineKeyboardButton("💬Subs", callback_data="askq|subs_only")])
+            keyboard_rows.append([InlineKeyboardButton("📝sub only", callback_data="askq|subs_only")])
     
     # Add Back and close buttons
     keyboard_rows.append([
@@ -1699,10 +2141,18 @@ def show_manual_quality_menu(app, callback_query):
     cap = f"<b>{video_title}</b>\n"
     if tags_text:
         cap += f"{tags_text}\n"
+    try:
+        is_nsfw = isinstance(tags_text, str) and ('#nsfw' in tags_text.lower())
+    except Exception:
+        is_nsfw = False
+    if is_nsfw and is_private_chat:
+        cap += "\n<b>⭐️ — 🔞NSFW is paid (⭐️$0.02)</b>\n"
+    if is_nsfw and is_private_chat:
+        cap += "\n<b>⭐️ — 🔞NSFW is paid (⭐️$0.02)</b>\n"
     cap += f"\n<b>🎛 Manual Quality Selection</b>\n"
     cap += f"\n<i>Choose quality manually since automatic detection failed:</i>\n"
     
-    # Обновление текущего меню; при ошибке MESSAGE_ID_INVALID отправляем новое сообщение
+    # Update current menu; if MESSAGE_ID_INVALID, send new message
     if callback_query and getattr(callback_query, 'message', None):
         try:
             if callback_query.message.photo:
@@ -1731,6 +2181,21 @@ def show_manual_quality_menu(app, callback_query):
 def show_other_qualities_menu(app, callback_query, page=0):
     """Show all available qualities from yt-dlp -F output with pagination"""
     user_id = callback_query.from_user.id
+    
+    # Local safe wrapper to avoid noisy QueryIdInvalid when answering twice/late
+    def _safe_answer(text, show_alert=False):
+        try:
+            callback_query.answer(text, show_alert=show_alert)
+        except Exception as e:
+            if 'QUERY_ID_INVALID' in str(e).upper():
+                return
+            try:
+                # Some environments provide .MESSAGE_ID_INVALID
+                if 'MESSAGE_ID_INVALID' in str(e).upper():
+                    return
+            except Exception:
+                pass
+            raise
     
     # Check if we have cached formats for this URL
     url = None
@@ -1813,6 +2278,13 @@ def show_other_qualities_menu(app, callback_query, page=0):
         if tag_matches:
             tags = tag_matches
     tags_text = ' '.join(tags)
+    try:
+        is_nsfw = isinstance(tags_text, str) and ('#nsfw' in tags_text.lower())
+    except Exception:
+        is_nsfw = False
+    
+    # Check if we're in a private chat (paid media only works in private chats)
+    is_private_chat = getattr(callback_query.message.chat, "type", None) == enums.ChatType.PRIVATE
     
     # Check if it's a playlist
     original_text = original_message.text or original_message.caption or ""
@@ -1830,12 +2302,15 @@ def show_other_qualities_menu(app, callback_query, page=0):
     cap = f"<b>{video_title}</b>\n"
     if tags_text:
         cap += f"{tags_text}\n"
+    if is_nsfw and is_private_chat:
+        cap += "\n<b>⭐️ — 🔞NSFW is paid (⭐️$0.02)</b>\n"
     cap += f"\n<b>🎛 All Available Formats</b>\n"
     cap += f"\n<i>Page {page + 1}</i>\n"
     
     # Get all formats using yt-dlp -F
     try:
         import subprocess
+        import sys
         
         # Create cache file path
         user_dir = os.path.join("users", str(user_id))
@@ -1859,8 +2334,12 @@ def show_other_qualities_menu(app, callback_query, page=0):
             # Run yt-dlp -F to get all formats
             logger.info(f"Running yt-dlp -F for URL: {url}")
             
-            # Build command with cookies if available
-            cmd = ["yt-dlp", "-F"]
+            # Build command with cookies if available (use same yt-dlp as Python API)
+            cmd = [sys.executable, "-m", "yt_dlp"]
+            # Add PO token extractor-args for CLI if applicable (YouTube only)
+            cmd.extend(build_cli_extractor_args(url))
+            # -F list formats
+            cmd.append("-F")
             
             # Add cookies file if it exists
             user_cookie_file = os.path.join("users", str(user_id), "cookie.txt")
@@ -2000,6 +2479,13 @@ def show_other_qualities_menu(app, callback_query, page=0):
         end_idx = min(start_idx + formats_per_page, total_formats)
         page_formats = format_lines[start_idx:end_idx]
         
+        # Get cached qualities to show rocket emoji for cached formats
+        cached_qualities = set()
+        try:
+            cached_qualities = get_cached_qualities(url)
+        except Exception:
+            pass
+        
         # Build keyboard with format buttons (1 row × 10 columns max)
         keyboard_rows = []
         row = []
@@ -2014,6 +2500,12 @@ def show_other_qualities_menu(app, callback_query, page=0):
                 if button_parts:  # Only create button if we have valid data
                     # Join with | separator
                     button_text = ' | '.join(button_parts)
+                    
+                    # Add rocket emoji if format is cached, or paid emoji for NSFW
+                    if format_id in cached_qualities and not is_nsfw:
+                        button_text = f"🚀 {button_text}"
+                    elif is_nsfw and is_private_chat:
+                        button_text = f"1⭐️ {button_text}"
                     
                     # Limit button text length
                     if len(button_text) > 40:
@@ -2045,7 +2537,7 @@ def show_other_qualities_menu(app, callback_query, page=0):
                 callback_query.edit_message_caption(caption=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
             else:
                 callback_query.edit_message_text(text=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
-            callback_query.answer(f"Formats page {page + 1}/{total_pages}")
+            _safe_answer(f"Formats page {page + 1}/{total_pages}")
         except Exception as e:
             # Fallback: send new message
             try:
@@ -2053,21 +2545,17 @@ def show_other_qualities_menu(app, callback_query, page=0):
                 ref_id = original_message.id if original_message else None
                 app.send_message(chat_id, cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard,
                                reply_parameters=ReplyParameters(message_id=ref_id))
-                callback_query.answer(f"Formats page {page + 1}/{total_pages}")
+                _safe_answer(f"Formats page {page + 1}/{total_pages}")
             except Exception as e2:
                 logger.error(f"Error showing other qualities menu: {e2}")
-                callback_query.answer("❌ Error showing formats menu", show_alert=True)
+                _safe_answer("❌ Error showing formats menu", show_alert=True)
         
             # Clean up temp file
-        try:
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
-        except:
-            pass
+        # No temp file used here; keep block for future extensions
             
     except Exception as e:
         logger.error(f"Error getting formats: {e}")
-        callback_query.answer("❌ Error getting formats", show_alert=True)
+        _safe_answer("❌ Error getting formats", show_alert=True)
         # Show error message
         error_cap = f"<b>{video_title}</b>\n\n❌ Error getting available formats.\nPlease try again later."
         try:
@@ -2094,6 +2582,15 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
     # Form caption
     cap = f"<b>{video_title}</b>\n"
     cap += f"\n<b>🎛 All Available Formats</b>\n"
+    try:
+        orig_text = callback_query.message.reply_to_message.text or callback_query.message.reply_to_message.caption or ""
+    except Exception:
+        orig_text = ""
+    is_nsfw = isinstance(orig_text, str) and ('#nsfw' in orig_text.lower())
+    # Check if we're in a private chat (paid media only works in private chats)
+    is_private_chat = getattr(callback_query.message.chat, "type", None) == enums.ChatType.PRIVATE
+    if isinstance(url, str) and is_nsfw and is_private_chat:
+        cap += "\n<b>⭐️ — 🔞NSFW is paid (⭐️$0.02)</b>\n"
     cap += f"\n<i>Page {page + 1}</i>\n"
     
     # Pagination: 10 formats per page (1 column × 10 rows)
@@ -2104,6 +2601,13 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
     start_idx = page * formats_per_page
     end_idx = min(start_idx + formats_per_page, total_formats)
     page_formats = format_lines[start_idx:end_idx]
+    
+    # Get cached qualities to show rocket emoji for cached formats
+    cached_qualities = set()
+    try:
+        cached_qualities = get_cached_qualities(url)
+    except Exception:
+        pass
     
     # Build keyboard with format buttons (1 column × 10 rows max)
     keyboard_rows = []
@@ -2118,6 +2622,12 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
             if button_parts:  # Only create button if we have valid data
                 # Join with | separator
                 button_text = ' | '.join(button_parts)
+                
+                # Add rocket emoji if format is cached, or paid emoji for NSFW
+                if format_id in cached_qualities and not is_nsfw:
+                    button_text = f"🚀 {button_text}"
+                elif is_nsfw and is_private_chat:
+                    button_text = f"1⭐️ {button_text}"
                 
                 # Limit button text length
                 if len(button_text) > 64:
@@ -2231,10 +2741,15 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         except Exception:
             is_nsfw = False
         
+        # Check if we're in a private chat (paid media only works in private chats)
+        is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+        
         # Создаем заголовок
         cap = f"<b>{title}</b>\n"
         if tags_text:
             cap += f"{tags_text}\n"
+        if is_nsfw and is_private_chat:
+            cap += "\n<b>⭐️ — 🔞NSFW is paid (⭐️$0.02)</b>\n"
         cap += f"\n<b>📹 Available Qualities (from cache)</b>\n"
         cap += f"\n<i>⚠️ Using cached qualities - new formats may not be available</i>\n"
         
@@ -2250,11 +2765,11 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
                     indices = list(range(playlist_range[0], playlist_range[1]+1))
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
                     total = len(indices)
-                    icon = "🚀" if n_cached > 0 else "📹"
+                    icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     postfix = f" ({n_cached}/{total})" if total > 1 else ""
                     button_text = f"{icon}{quality_key}{postfix}"
                 else:
-                    icon = "🚀" if quality_key in cached_qualities else "📹"
+                    icon = "🚀" if (quality_key in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     button_text = f"{icon}{quality_key}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         
@@ -2264,22 +2779,22 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
             indices = list(range(playlist_range[0], playlist_range[1]+1))
             n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
             total = len(indices)
-            icon = "🚀" if n_cached > 0 else "📹"
+            icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
             postfix = f" ({n_cached}/{total})" if total > 1 else ""
             button_text = f"{icon}Best{postfix}"
         else:
-            icon = "🚀" if quality_key in cached_qualities else "📹"
+            icon = "🚀" if (quality_key in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
             button_text = f"{icon}Best"
         buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         
         # Всегда добавляем Other Qualities
         buttons.append(InlineKeyboardButton("🎛Other", callback_data=f"askq|other_qualities"))
-        
+
         # Создаем клавиатуру
         keyboard_rows = []
         
         # Добавляем фильтры
-        filter_rows, filter_action_buttons = build_filter_rows(user_id, url)
+        filter_rows, filter_action_buttons = build_filter_rows(user_id, url, is_private_chat)
         keyboard_rows.extend(filter_rows)
         
         # Группируем кнопки качества по 3 в ряд
@@ -2300,13 +2815,23 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         # Собираем action buttons
         action_buttons = []
         action_buttons.extend(filter_action_buttons)
-        
-        # Добавляем WATCH кнопку для YouTube (без LINK кнопки)
+        # IMAGE fallback из кэш-меню
+        action_buttons.append(InlineKeyboardButton("🖼IMAGE", callback_data="askq|image"))        
+        # Добавляем WATCH кнопку для YouTube
+        # - в личке: WebApp (удобный просмотр)
+        # - в группах: обычная URL-кнопка (WebApp может давать BUTTON_TYPE_INVALID в некоторых контекстах)
         try:
             if is_youtube_url(url):
                 piped_url = youtube_to_piped_url(url)
-                wa = WebAppInfo(url=piped_url)
-                action_buttons.append(InlineKeyboardButton("👁Watch", web_app=wa))
+                try:
+                    is_group = isinstance(user_id, int) and user_id < 0
+                except Exception:
+                    is_group = False
+                if is_group:
+                    action_buttons.append(InlineKeyboardButton("👁Watch", url=piped_url))
+                else:
+                    wa = WebAppInfo(url=piped_url)
+                    action_buttons.append(InlineKeyboardButton("👁Watch", web_app=wa))
         except Exception as e:
             logger.error(f"Error adding WATCH button: {e}")
         
@@ -2331,10 +2856,20 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
                     if "MESSAGE_ID_INVALID" in str(edit_error):
                         logger.warning(f"Message ID invalid, sending new message: {edit_error}")
                         app.send_message(user_id, cap, reply_parameters=ReplyParameters(message_id=message.id), parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+                    elif "BUTTON_TYPE_INVALID" in str(edit_error):
+                        logger.warning(f"Button type invalid, sending without keyboard: {edit_error}")
+                        app.send_message(user_id, cap, reply_parameters=ReplyParameters(message_id=message.id), parse_mode=enums.ParseMode.HTML)
                     else:
                         raise edit_error
             else:
-                app.send_message(user_id, cap, reply_parameters=ReplyParameters(message_id=message.id), parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+                try:
+                    app.send_message(user_id, cap, reply_parameters=ReplyParameters(message_id=message.id), parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+                except Exception as send_error:
+                    if "BUTTON_TYPE_INVALID" in str(send_error):
+                        logger.warning(f"Button type invalid, sending without keyboard: {send_error}")
+                        app.send_message(user_id, cap, reply_parameters=ReplyParameters(message_id=message.id), parse_mode=enums.ParseMode.HTML)
+                    else:
+                        raise send_error
             
             logger.info(f"Successfully created cached qualities menu for user {user_id}")
             return True
@@ -2352,6 +2887,8 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
     """Show quality selection menu for video"""
     user_id = message.chat.id
     proc_msg = None
+    # Defensive init to avoid UnboundLocalError in rare branches
+    action_buttons = []
     
     # Clean up old format cache files before starting
     try:
@@ -2394,7 +2931,12 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             else:
                 proc_msg = app.send_message(user_id, "⚠️ Telegram has limited message sending.\n⏳ Please wait: \nTo update timer send URL again 2 times.")
             try:
-                app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text="Download started")
+                app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text="<b>▶️ Download started</b>", parse_mode=enums.ParseMode.HTML)
+                try:
+                    from HELPERS.safe_messeger import schedule_delete_message
+                    schedule_delete_message(user_id, proc_msg.id, delete_after_seconds=5)
+                except Exception:
+                    pass
                 if os.path.exists(flood_time_file):
                     os.remove(flood_time_file)
             except FloodWait as e:
@@ -2455,6 +2997,9 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             is_nsfw = isinstance(tags_text, str) and ('#nsfw' in tags_text.lower())
         except Exception:
             is_nsfw = False
+        
+        # Check if we're in a private chat (paid media only works in private chats)
+        is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
         thumb_path = None
         user_dir = os.path.join("users", str(user_id))
         create_directory(user_dir)
@@ -2661,7 +3206,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                     is_cached = q in cached_qualities
                     postfix = ""
                 need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-                emoji = "🚀" if is_cached and not need_subs else "📹"
+                emoji = "🚀" if (is_cached and not need_subs and not is_nsfw) else "📹"
                 # Show selected audio language if any
                 sel_audio_lang = get_filters(user_id).get("audio_lang")
                 audio_mark = f" 🗣{sel_audio_lang}" if sel_audio_lang else ""
@@ -3083,14 +3628,85 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             if need_subs:
                 subs_hint = "\n💬 — Subtitles are available"
                 show_repost_hint = False  # 🚀 we don't show if subs really exist and are needed
+            elif is_always_ask_mode and not need_subs:
+                # In Always Ask mode, show subs hint even if not found (user can still try)
+                subs_hint = "\n💬 — Choose subtitle language"
             else:
                 subs_warn = "\n⚠️ Subs not found & won't embed"
 
         repost_line = "\n🚀 — Instant repost from cache" if show_repost_hint else ""
         # Add DUBS hint if available
         dubs_hint = "\n🗣 — Choose audio language" if get_filters(user_id).get("has_dubs") else ""
-        hint = "<pre language=\"info\">📼 — Сhange video ext/codec\n📹 — Choose download quality" + repost_line + subs_hint + subs_warn + dubs_hint + "</pre>"
-        cap += f"\n{hint}\n"
+        # Replace quality hint with paid note for NSFW
+        paid_hint = "\n⭐️ — 🔞NSFW is paid (⭐️$0.02)" if (is_nsfw and is_private_chat) else "\n📹 — Choose download quality"
+        # Hints tied to optional buttons
+        image_hint = "\n🖼 — Download image (gallery-dl)" if not found_quality_keys else ""
+        watch_hint = "\n👁 — Watch video in poketube" if is_youtube_url(url) else ""
+        link_hint = "\n🔗 — Get direct link to video"  # Link button is always present
+        list_hint = "\n📃 — Show available formats list"  # LIST button is always present
+        
+        # Create dynamic hints based on actual buttons that will be shown
+        def create_dynamic_hints(action_buttons, found_quality_keys, is_youtube_url, url, is_nsfw, is_private_chat, get_filters, user_id, subs_hint, subs_warn):
+            """Create hints only for emojis that are actually used in the menu"""
+            hints = []
+            
+            # Always show format change hint (📼) - this is always available
+            hints.append("📼 — Сhange video ext/codec")
+            
+            # Quality hint (📹) - always shown unless NSFW
+            if is_nsfw and is_private_chat:
+                hints.append("⭐️ — 🔞NSFW is paid (⭐️$0.02)")
+            else:
+                hints.append("📹 — Choose download quality")
+            
+            # Repost hint (🚀) - only if show_repost_hint is True
+            if show_repost_hint:
+                hints.append("🚀 — Instant repost from cache")
+            
+            # Watch hint (👁) - only for YouTube
+            if is_youtube_url(url):
+                hints.append("👁 — Watch video in poketube")
+            
+            # Link hint (🔗) - always present
+            hints.append("🔗 — Get direct link to video")
+            
+            # List hint (📃) - always present
+            hints.append("📃 — Show available formats list")
+            
+            # Image hint (🖼) - only if no quality keys found
+            if not found_quality_keys:
+                hints.append("🖼 — Download image (gallery-dl)")
+            
+            # Subs hints
+            if subs_hint:
+                hints.append(subs_hint.strip())
+            if subs_warn:
+                hints.append(subs_warn.strip())
+            
+            # Dubs hint (🗣) - only if available
+            if get_filters(user_id).get("has_dubs"):
+                hints.append("🗣 — Choose audio language")
+            
+            return "\n".join(hints)
+        
+        # We need to create action_buttons first to determine which hints to show
+        # This will be done later in the code, so for now we'll use the old logic
+        # but we'll replace it after action_buttons are created
+        # Temporary hint for now - will be replaced later
+        temp_hint = (
+            "<pre language=\"info\">📼 — Сhange video ext/codec"
+            + paid_hint
+            + repost_line
+            + watch_hint
+            + link_hint
+            + list_hint
+            + image_hint
+            + subs_hint
+            + subs_warn
+            + dubs_hint
+            + "</pre>"
+        )
+        cap += f"\n{temp_hint}\n"
         buttons = []
         # Sort buttons by quality from lowest to highest
         if ("youtube.com" in url or "youtu.be" in url):
@@ -3149,7 +3765,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                     indices = list(range(playlist_range[0], playlist_range[1]+1))
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
                     total = len(indices)
-                    icon = "🚀" if n_cached > 0 else "📹"
+                    icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     postfix = f" ({n_cached}/{total})" if total > 1 else ""
                     button_text = f"{icon}{quality_key}{subs_available}{postfix}"
                 else:
@@ -3163,7 +3779,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                         # In manual mode, respect user's auto_mode setting
                         need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
                     
-                    icon = "🚀" if quality_key in cached_qualities and not need_subs else "📹"
+                    icon = "🚀" if (quality_key in cached_qualities and not need_subs and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     button_text = f"{icon}{quality_key}{subs_available}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         else:
@@ -3185,11 +3801,11 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                     indices = list(range(playlist_range[0], playlist_range[1]+1))
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
                     total = len(indices)
-                    icon = "🚀" if n_cached > 0 else "📹"
+                    icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     postfix = f" ({n_cached}/{total})" if total > 1 else ""
                     button_text = f"{icon}{quality_key}{postfix}"
                 else:
-                    icon = "🚀" if quality_key in cached_qualities else "📹"
+                    icon = "🚀" if (quality_key in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     button_text = f"{icon}{quality_key}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
 
@@ -3199,25 +3815,27 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             indices = list(range(playlist_range[0], playlist_range[1]+1))
             n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
             total = len(indices)
-            icon = "🚀" if n_cached > 0 else "📹"
+            icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
             postfix = f" ({n_cached}/{total})" if total > 1 else ""
             button_text = f"{icon}Best{postfix}"
         else:
-            icon = "🚀" if quality_key in cached_qualities else "📹"
+            icon = "🚀" if (quality_key in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
             button_text = f"{icon}Best"
         buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         
         # Always add Other Qualities button
-        buttons.append(InlineKeyboardButton("🎛Other", callback_data=f"askq|other_qualities"))
+        other_label = "🎛Other" if not is_nsfw else "🎛Other"
+        buttons.append(InlineKeyboardButton(other_label, callback_data=f"askq|other_qualities"))
         
         if not found_quality_keys:
             # Add explanation when automatic quality detection fails
             autodiscovery_note = "<blockquote>⚠️ Qualities not auto-detected\nUse 'Other' button to see all available formats.</blockquote>"
             cap += f"\n{autodiscovery_note}\n"
+
         # --- Form rows of 3 buttons ---
         keyboard_rows = []
         # Add filter rows first
-        filter_rows, filter_action_buttons = build_filter_rows(user_id, url)
+        filter_rows, filter_action_buttons = build_filter_rows(user_id, url, is_private_chat)
         keyboard_rows.extend(filter_rows)
         
         # Collect all action buttons to group them by 3 in a row
@@ -3229,7 +3847,11 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         # Add LINK button - always available
         logger.info(f"Adding LINK button for user {user_id}")
         action_buttons.append(InlineKeyboardButton("🔗Link", callback_data="askq|link"))
-        
+        # Add LIST button - always available
+        action_buttons.append(InlineKeyboardButton("📃LIST", callback_data="askq|list"))
+        # Add IMAGE button only if qualities were NOT auto-detected
+        if not found_quality_keys:
+            action_buttons.append(InlineKeyboardButton("🖼IMAGE", callback_data="askq|image"))        
         # Add Quick Embed button for supported services (but not for ranges)
         if (is_instagram_url(url) or is_twitter_url(url) or is_reddit_url(url)) and not is_playlist_with_range(original_text):
             action_buttons.append(InlineKeyboardButton("🚀Embed", callback_data="askq|quick_embed"))
@@ -3259,8 +3881,16 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 logger.info(f"Processing YouTube URL for WATCH button: {url}")
                 piped_url = youtube_to_piped_url(url)
                 logger.info(f"Converted to Piped URL: {piped_url}")
-                wa = WebAppInfo(url=piped_url)
-                action_buttons.append(InlineKeyboardButton("👁Watch", web_app=wa))
+                # Check if this is a group (negative user_id)
+                try:
+                    is_group = isinstance(user_id, int) and user_id < 0
+                except Exception:
+                    is_group = False
+                if is_group:
+                    action_buttons.append(InlineKeyboardButton("👁Watch", url=piped_url))
+                else:
+                    wa = WebAppInfo(url=piped_url)
+                    action_buttons.append(InlineKeyboardButton("👁Watch", web_app=wa))
                 logger.info(f"Added WATCH button to action_buttons for user {user_id}")
         except Exception as e:
             logger.error(f"Error adding WATCH button for user {user_id}: {e}")
@@ -3281,7 +3911,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
             
             if need_subs:
-                action_buttons.append(InlineKeyboardButton("💬Subs", callback_data="askq|subs_only"))
+                action_buttons.append(InlineKeyboardButton("📝sub only", callback_data="askq|subs_only"))
         
         # Smart grouping of action buttons - prefer 3 buttons per row, then 2, avoid single buttons
         logger.info(f"Smart grouping {len(action_buttons)} action buttons for user {user_id}")
@@ -3333,8 +3963,104 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         for i, row in enumerate(keyboard_rows):
             logger.info(f"Row {i}: {[btn.text for btn in row]}")
         
+        # Now that we have all action_buttons, create dynamic hints
+        # Extract emojis from all buttons to determine which hints to show
+        used_emojis = set()
+        
+        # Check action_buttons
+        for button in action_buttons:
+            if hasattr(button, 'text') and button.text:
+                text = button.text
+                if text and len(text) > 0:
+                    first_char = text[0]
+                    if ord(first_char) > 127:  # Simple emoji detection
+                        used_emojis.add(first_char)
+        
+        # Check quality buttons
+        for button in buttons:
+            if hasattr(button, 'text') and button.text:
+                text = button.text
+                if text and len(text) > 0:
+                    first_char = text[0]
+                    if ord(first_char) > 127:  # Simple emoji detection
+                        used_emojis.add(first_char)
+        
+        # Check filter buttons
+        for row in filter_rows:
+            for button in row:
+                if hasattr(button, 'text') and button.text:
+                    text = button.text
+                    if text and len(text) > 0:
+                        first_char = text[0]
+                        if ord(first_char) > 127:  # Simple emoji detection
+                            used_emojis.add(first_char)
+        
+        # Log detected emojis for debugging
+        logger.info(f"Detected emojis in menu for user {user_id}: {sorted(used_emojis)}")
+        
+        # Create dynamic hints based on actually used emojis
+        dynamic_hints = []
+        
+        # Always show format change hint (📼) - this is always available
+        dynamic_hints.append("📼 — Сhange video ext/codec")
+        
+        # Quality hint (📹) - always shown unless NSFW
+        if is_nsfw and is_private_chat:
+            dynamic_hints.append("⭐️ — 🔞NSFW is paid (⭐️$0.02)")
+        else:
+            dynamic_hints.append("📹 — Choose download quality")
+        
+        # Repost hint (🚀) - only if show_repost_hint is True AND there are cached qualities
+        # Also check if any button has rocket emoji (including Other button)
+        has_rocket_button = "🚀" in used_emojis
+        if show_repost_hint and cached_qualities and has_rocket_button:
+            dynamic_hints.append("🚀 — Instant repost from cache")
+        
+        # Watch hint (👁) - only for YouTube and if button is present
+        if is_youtube_url(url) and "👁" in used_emojis:
+            dynamic_hints.append("👁 — Watch video in poketube")
+        
+        # Link hint (🔗) - always present
+        if "🔗" in used_emojis:
+            dynamic_hints.append("🔗 — Get direct link to video")
+        
+        # List hint (📃) - always present
+        if "📃" in used_emojis:
+            dynamic_hints.append("📃 — Show available formats list")
+        
+        # Image hint (🖼) - only if no quality keys found and button is present
+        if not found_quality_keys and "🖼" in used_emojis:
+            dynamic_hints.append("🖼 — Download image (gallery-dl)")
+        
+        # Audio hint (🎧) - if audio button is present
+        if "🎧" in used_emojis:
+            dynamic_hints.append("🎧 — Extract only audio from media")
+        
+        # Subs hints
+        if subs_hint:
+            dynamic_hints.append(subs_hint.strip())
+        if subs_warn:
+            dynamic_hints.append(subs_warn.strip())
+        
+        # Dubs hint (🗣) - only if available and button is present
+        if get_filters(user_id).get("has_dubs") and "🗣" in used_emojis:
+            dynamic_hints.append("🗣 — Choose audio language")
+        
+        # Replace the old hint in cap with dynamic one
+        dynamic_hint_text = "<pre language=\"info\">" + "\n".join(dynamic_hints) + "</pre>"
+        
+        # Log final hints for debugging
+        logger.info(f"Final dynamic hints for user {user_id}: {dynamic_hints}")
+        
+        # Find and replace the old hint in cap
+        import re
+        # Remove old hint block
+        cap = re.sub(r'<pre language="info">.*?</pre>', '', cap, flags=re.DOTALL)
+        # Add new dynamic hint
+        cap += f"\n{dynamic_hint_text}\n"
+        
         keyboard = InlineKeyboardMarkup(keyboard_rows)
-        # cap already contains a hint and a table
+        # cap now contains dynamic hints based on actual buttons
         # Replace current menu in-place if possible
         if cb is not None and getattr(cb, 'message', None):
                 # Edit caption or text in place
@@ -3360,18 +4086,34 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 except Exception:
                     pass
                 proc_msg = None
-            if thumb_path and os.path.exists(thumb_path):
-                app.send_photo(
-                    user_id,
-                    thumb_path,
-                    caption=cap,
-                    parse_mode=enums.ParseMode.HTML,
-                    reply_markup=keyboard,
-                    reply_parameters=ReplyParameters(message_id=message.id),
-                    has_spoiler=is_nsfw
-                )
-            else:
-                app.send_message(user_id, cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_parameters=ReplyParameters(message_id=message.id))
+            # Try to send with keyboard first
+            try:
+                if thumb_path and os.path.exists(thumb_path):
+                    app.send_photo(
+                        user_id,
+                        thumb_path,
+                        caption=cap,
+                        parse_mode=enums.ParseMode.HTML,
+                        reply_markup=keyboard,
+                        reply_parameters=ReplyParameters(message_id=message.id),
+                        has_spoiler=should_apply_spoiler(user_id, is_nsfw, getattr(message.chat, "type", None) == enums.ChatType.PRIVATE)
+                    )
+                else:
+                    app.send_message(user_id, cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_parameters=ReplyParameters(message_id=message.id))
+            except Exception as keyboard_error:
+                # If keyboard fails (e.g., BUTTON_TYPE_INVALID), try without keyboard
+                logger.warning(f"Failed to send with keyboard, retrying without: {keyboard_error}")
+                if thumb_path and os.path.exists(thumb_path):
+                    app.send_photo(
+                        user_id,
+                        thumb_path,
+                        caption=cap,
+                        parse_mode=enums.ParseMode.HTML,
+                        reply_parameters=ReplyParameters(message_id=message.id),
+                        has_spoiler=should_apply_spoiler(user_id, is_nsfw, getattr(message.chat, "type", None) == enums.ChatType.PRIVATE)
+                    )
+                else:
+                    app.send_message(user_id, cap, parse_mode=enums.ParseMode.HTML, reply_parameters=ReplyParameters(message_id=message.id))
         send_to_logger(message, f"Always Ask menu sent for {url}")
     except FloodWait as e:
         wait_time = e.value
@@ -3403,6 +4145,85 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         return
     except Exception as e:
         logger.error(f"Error retrieving video information for user {user_id}: {e}")
+        # If this looks like a non-video URL, try gallery-dl fallback first
+        try:
+            emsg = str(e)
+            if (
+                "No videos found in playlist" in emsg
+                or "Unsupported URL" in emsg
+                or "No video could be found" in emsg
+                or "No video found" in emsg
+                or "No media found" in emsg
+                or "This tweet does not contain" in emsg
+            ):
+                try:
+                    from COMMANDS.image_cmd import image_command
+                    from HELPERS.safe_messeger import fake_message
+                except Exception as imp_e:
+                    logger.error(f"Failed to import gallery-dl fallback handlers (menu): {imp_e}")
+                else:
+                    try:
+                        safe_edit_message_text(user_id, proc_msg.id if proc_msg else None,
+                            "❔ No video formats found. Trying image downloader…")
+                    except Exception:
+                        pass
+                    try:
+                        # Check if content is NSFW for fallback
+                        from HELPERS.porn import is_porn
+                        is_nsfw = is_porn(url, "", "", None)
+                        logger.info(f"[ASKQ FALLBACK] is_porn check for {url}: {is_nsfw}")
+                        
+                        # Check for explicit NSFW tags
+                        user_forced_nsfw = any(t.lower() in ("#nsfw", "#porn") for t in (tags or []))
+                        if user_forced_nsfw:
+                            is_nsfw = True
+                            logger.info(f"[ASKQ FALLBACK] User forced NSFW tag detected for {url}")
+                        
+                        # ЖЕСТКО: Используем оригинальный текст сообщения
+                        original_text = message.text or message.caption or ""
+                        logger.info(f"[ASKQ FALLBACK DEBUG] original_text: {original_text}")
+                        
+                        # Ищем URL с диапазоном *start*end
+                        import re
+                        range_url_match = re.search(r'(https?://[^\s\*#]+)\*(\d+)\*(\d+)', original_text)
+                        if range_url_match:
+                            parsed_url = range_url_match.group(1)
+                            start_range = int(range_url_match.group(2))
+                            end_range = int(range_url_match.group(3))
+                            logger.info(f"[ASKQ FALLBACK DEBUG] FOUND RANGE: {parsed_url} with range {start_range}-{end_range}")
+                        else:
+                            # Fallback к обычному URL
+                            m = re.search(r'https?://[^\s\*#]+', original_text)
+                            parsed_url = m.group(0) if m else original_text
+                            start_range = 1
+                            end_range = 1
+                            logger.info(f"[ASKQ FALLBACK DEBUG] NO RANGE FOUND, using url: {parsed_url}")
+                        
+                        # Build fallback command converting *1*10 to 1-10 format
+                        if start_range and end_range and (start_range != 1 or end_range != 1):
+                            # Convert *1*10 format to 1-10 format
+                            fallback_text = f"/img {start_range}-{end_range} {parsed_url}"
+                            logger.info(f"[ASKQ FALLBACK] Converting range: *{start_range}*{end_range} -> {start_range}-{end_range}, fallback_text: {fallback_text}")
+                        else:
+                            fallback_text = f"/img {parsed_url}"
+                            logger.info(f"[ASKQ FALLBACK] No range detected, fallback_text: {fallback_text}")
+                        
+                        if tags:
+                            tags_text = ' '.join(tags)
+                            fallback_text += f" {tags_text}"
+                        
+                        # Add NSFW tag if content is detected as NSFW
+                        if is_nsfw and "#nsfw" not in fallback_text.lower():
+                            fallback_text += " #nsfw"
+                            logger.info(f"[ASKQ FALLBACK] Added #nsfw tag for NSFW content: {url}")
+                        
+                        image_command(app, fake_message(fallback_text, user_id, original_chat_id=user_id))
+                        logger.info(f"Triggered gallery-dl fallback via /img from Always Ask menu, is_nsfw={is_nsfw}, range={start_range}-{end_range}")
+                        return
+                    except Exception as call_e:
+                        logger.error(f"Failed to trigger gallery-dl fallback from Always Ask menu: {call_e}")
+        except Exception:
+            pass
         
         # Сначала пробуем создать меню из кэшированных качеств
         try:
@@ -3417,17 +4238,24 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             logger.error(f"Error creating cached qualities menu: {cache_error}")
         
         # Если кэшированных качеств нет, показываем ошибку
-        error_text = f"❌ Error retrieving video information:\n{e}\n> Try the /clean command and try again. If the error persists, YouTube requires authorization. Update cookies.txt via /cookie or /cookies_from_browser and try again."
+        error_text = f"❌ <b>Error retrieving video information:</b>\n<blockquote>{e}</blockquote>\n\nTry the <code>/clean</code> command and try again. If the error persists, YouTube requires authorization. Update cookies.txt via <code>/cookie</code> or <code>/cookies_from_browser</code> and try again."
+        
+        # Try to edit the processing message to show error first
         try:
             if proc_msg:
-                result = app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=error_text)
-                if result is None:
-                    app.send_message(user_id, error_text, reply_parameters=ReplyParameters(message_id=message.id))
-            else:
-                app.send_message(user_id, error_text, reply_parameters=ReplyParameters(message_id=message.id))
+                result = app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=error_text, parse_mode=enums.ParseMode.HTML)
+                if result is not None:
+                    # Successfully edited the processing message, now log to channel
+                    from HELPERS.logger import log_error_to_channel
+                    log_error_to_channel(message, error_text)
+                    send_to_logger(message, f"Always Ask menu error for {url}: {e}")
+                    return
         except Exception as e2:
-            logger.error(f"Error sending error message: {e2}")
-            app.send_message(user_id, error_text, reply_parameters=ReplyParameters(message_id=message.id))
+            logger.error(f"Error editing processing message: {e2}")
+        
+        # If editing failed or no proc_msg, send new message and log to channel
+        from HELPERS.logger import send_error_to_user
+        send_error_to_user(message, error_text)
         send_to_logger(message, f"Always Ask menu error for {url}: {e}")
         return
 
@@ -3485,7 +4313,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
                 parse_mode=enums.ParseMode.HTML
             )
             
-            send_to_logger(original_message, f"Direct link extracted via Always Ask menu for user {user_id} from {url}")
+            send_to_logger(original_message, LoggerMsg.DIRECT_LINK_EXTRACTED.format(source="Always Ask menu", user_id=user_id, url=url))
             
         else:
             error_msg = result.get('error', 'Unknown error')
@@ -3496,7 +4324,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
                 parse_mode=enums.ParseMode.HTML
             )
             
-            send_to_logger(original_message, f"Failed to extract direct link via Always Ask menu for user {user_id} from {url}: {error_msg}")
+            send_to_logger(original_message, LoggerMsg.DIRECT_LINK_FAILED.format(source="Always Ask menu", user_id=user_id, url=url, error=error_msg))
         
         return
     # Read current filters to build correct format strings and container override
@@ -3715,7 +4543,10 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
     # This mistake should have already been caught earlier, but for safety
     if tag_error:
         wrong, example = tag_error
-        app.send_message(message.chat.id, f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}", reply_parameters=ReplyParameters(message_id=message.id))
+        error_msg = f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}"
+        app.send_message(message.chat.id, error_msg, reply_parameters=ReplyParameters(message_id=message.id))
+        from HELPERS.logger import log_error_to_channel
+        log_error_to_channel(message, error_msg)
         return
 
     video_count = video_end_with - video_start_with + 1
@@ -3789,6 +4620,13 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
         logger.error(f"Error checking LINK mode for user {user_id}: {e}")
         # Continue with normal download if LINK mode check fails
 
+    # Check if format contains /bestaudio (audio-only format)
+    logger.info(f"Checking format: {fmt} for /bestaudio")
+    if fmt and '/bestaudio' in fmt:
+        logger.info(f"Audio-only format detected: {fmt}, redirecting to down_and_audio")
+        down_and_audio(app, message, url, tags_text, quality_key=quality_key, format_override=fmt, cookies_already_checked=True)
+        return
+
     # Analyze the format to determine if it's audio-only, video-only, or full
     format_type = None
     complementary_format = None
@@ -3809,7 +4647,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
             if selected_format:
                 format_type = analyze_format_type(selected_format)
                 
-                # If it's audio-only, convert to mp3
+                # If it's audio-only, convert to user's preferred audio format
                 if format_type == 'audio_only':
                     # Use audio download function with the selected format
                     # Pass cookies_already_checked=True since we already checked cookies in get_video_formats
@@ -3877,3 +4715,4 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
             f.write(_json.dumps(payload, ensure_ascii=False, indent=2))
     except Exception:
         pass
+    

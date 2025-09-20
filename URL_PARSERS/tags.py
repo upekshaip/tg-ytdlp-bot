@@ -77,22 +77,42 @@ def extract_url_range_tags(text: str):
     # This function now always returns the full original download link
     if not isinstance(text, str):
         return None, 1, 1, None, [], '', None
-    url_match = re.search(r'https?://[^\s\*#]+', text)
-    if not url_match:
-        return None, 1, 1, None, [], '', None
-    url = url_match.group(0)
-
-    after_url = text[url_match.end():]
-    # Range
-    range_match = re.match(r'\*([0-9]+)\*([0-9]+)', after_url)
-    if range_match:
-        video_start_with = int(range_match.group(1))
-        video_end_with = int(range_match.group(2))
-        after_range = after_url[range_match.end():]
-    else:
-        video_start_with = 1
-        video_end_with = 1
+    
+    # ЖЕСТКО: Сначала ищем формат /img start-end URL
+    img_range_match = re.search(r'/img\s+(\d+)-(\d+)\s+(https?://[^\s\*#]+)', text)
+    if img_range_match:
+        video_start_with = int(img_range_match.group(1))
+        video_end_with = int(img_range_match.group(2))
+        url = img_range_match.group(3)
+        after_url = text[img_range_match.end():]
         after_range = after_url
+    else:
+        # First, try to find URL with range pattern *start*end at the end
+        url_with_range_match = re.search(r'(https?://[^\s\*#]+)\*([0-9]+)\*([0-9]+)', text)
+        if url_with_range_match:
+            url = url_with_range_match.group(1)
+            video_start_with = int(url_with_range_match.group(2))
+            video_end_with = int(url_with_range_match.group(3))
+            after_url = text[url_with_range_match.end():]
+            after_range = after_url
+        else:
+            # Fallback to original logic
+            url_match = re.search(r'https?://[^\s\*#]+', text)
+            if not url_match:
+                return None, 1, 1, None, [], '', None
+            url = url_match.group(0)
+
+            after_url = text[url_match.end():]
+            # Range
+            range_match = re.match(r'\*([0-9]+)\*([0-9]+)', after_url)
+            if range_match:
+                video_start_with = int(range_match.group(1))
+                video_end_with = int(range_match.group(2))
+                after_range = after_url[range_match.end():]
+            else:
+                video_start_with = 1
+                video_end_with = 1
+                after_range = after_url
     playlist_name = None
     playlist_match = re.match(r'\*([^\s\*#]+)', after_range)
     if playlist_match:

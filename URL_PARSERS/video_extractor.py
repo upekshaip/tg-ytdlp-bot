@@ -2,7 +2,7 @@
 from HELPERS.app_instance import get_app
 from HELPERS.limitter import check_user, check_playlist_range_limits
 from HELPERS.download_status import get_active_download
-from HELPERS.logger import send_to_logger, send_to_all, logger
+from HELPERS.logger import send_to_logger, send_to_all, send_error_to_user, logger
 from HELPERS.filesystem_hlp import create_directory
 from URL_PARSERS.tags import extract_url_range_tags, save_user_tags, get_auto_tags
 from URL_PARSERS.tiktok import is_tiktok_url
@@ -22,9 +22,12 @@ app = get_app()
 # Called from url_distractor - no decorator needed
 def video_url_extractor(app, message):
     global active_downloads
-    check_user(message)
     user_id = message.chat.id
     user_dir = os.path.join("users", str(user_id))
+    
+    # Create user directory (subscription already checked in url_distractor)
+    if not os.path.exists(user_dir):
+        os.makedirs(user_dir, exist_ok=True)
     format_file = os.path.join(user_dir, "format.txt")
 
     # By default, ask for quality if a specific format is not selected
@@ -43,7 +46,10 @@ def video_url_extractor(app, message):
         # Add tag error check
         if tag_error:
             wrong, example = tag_error
-            app.send_message(user_id, f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}", reply_parameters=ReplyParameters(message_id=message.id))
+            error_msg = f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}"
+            app.send_message(user_id, error_msg, reply_parameters=ReplyParameters(message_id=message.id))
+            from HELPERS.logger import log_error_to_channel
+            log_error_to_channel(message, error_msg)
             return
         ask_quality_menu(app, message, url, tags, video_start_with)
         return
@@ -63,7 +69,10 @@ def video_url_extractor(app, message):
     url, video_start_with, video_end_with, playlist_name, tags, tags_text, tag_error = extract_url_range_tags(full_string)
     if tag_error:
         wrong, example = tag_error
-        app.send_message(user_id, f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}", reply_parameters=ReplyParameters(message_id=message.id))
+        error_msg = f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}"
+        app.send_message(user_id, error_msg, reply_parameters=ReplyParameters(message_id=message.id))
+        from HELPERS.logger import log_error_to_channel
+        log_error_to_channel(message, error_msg)
         return
     
     # Checking the range limit
@@ -75,7 +84,7 @@ def video_url_extractor(app, message):
         send_to_logger(message, f"User entered a <b>url</b>\n <b>user's name:</b> {users_first_name}\nURL: {full_string}")
         for j in range(len(Config.BLACK_LIST)):
             if Config.BLACK_LIST[j] in full_string:
-                send_to_all(message, "User entered a porn content. Cannot be downloaded.")
+                send_error_to_user(message, "User entered a porn content. Cannot be downloaded.")
                 return
         # --- TikTok: auto-tag profile and no title ---
         is_tiktok = is_tiktok_url(url)
@@ -147,4 +156,4 @@ def video_url_extractor(app, message):
         else:
             down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full, format_override=saved_format, quality_key=quality_key)
     else:
-        send_to_all(message, f"<b>User entered like this:</b> {full_string}\n{Config.ERROR1}")
+        send_error_to_user(message, f"<b>User entered like this:</b> {full_string}\n{Config.ERROR1}")

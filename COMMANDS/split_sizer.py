@@ -76,7 +76,7 @@ def split_command(app, message):
             with open(split_file, "w", encoding="utf-8") as f:
                 f.write(str(size))
             
-            safe_send_message(user_id, f"✅ Split part size set to: {humanbytes(size)}")
+            safe_send_message(user_id, f"✅ Split part size set to: {humanbytes(size)}", message=message)
             send_to_logger(message, f"Split size set to {size} bytes via argument.")
             return
         else:
@@ -94,7 +94,7 @@ def split_command(app, message):
                 "• `/split 2000mb` - 2000 megabytes (2GB)\n\n"
                 "**Presets:**\n"
                 "• `/split 250mb`, `/split 500mb`, `/split 1gb`, `/split 1.5gb`, `/split 2gb`"
-            )
+            , message=message)
             return
     
     user_dir = os.path.join("users", str(user_id))
@@ -127,7 +127,8 @@ def split_command(app, message):
         "• `/split 100mb` - `/split 2000mb`\n"
         "• `/split 0.1gb` - `/split 2gb`\n\n"
         "**Examples:** `/split 300mb`, `/split 1.2gb`, `/split 1500mb`", 
-        reply_markup=keyboard
+        reply_markup=keyboard,
+        message=message
     )
     send_to_logger(message, "User opened /split menu.")
 

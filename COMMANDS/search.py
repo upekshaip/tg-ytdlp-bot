@@ -3,6 +3,7 @@
 
 from HELPERS.app_instance import get_app
 from HELPERS.logger import send_to_all, send_to_logger
+from CONFIG.logger_msg import LoggerMsg
 from CONFIG.config import Config
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram import enums, filters
@@ -36,22 +37,19 @@ def search_command(app, message):
     ])
 
     # Send single message with updated instructions (English)
-    text = (
-        "🔍 <b>YouTube Video search</b>\n\n"
-        "📱 <b>For mobile:</b> tap button below and type your search query after text @vid.\n\n"
-        "💻 <b>For PC:</b> type <code>@vid Your_Search_Query</code> in any chat\n\n"
-        "<blockquote>For example: <b>@vid funny cats</b></blockquote>"
-    )
+    text = Config.SEARCH_MSG
 
-    app.send_message(
+    from HELPERS.safe_messeger import safe_send_message
+    safe_send_message(
         message.chat.id,
         text,
         parse_mode=enums.ParseMode.HTML,
-        reply_markup=keyboard
+        reply_markup=keyboard,
+        message=message
     )
 
     # Log the action
-    send_to_logger(message, f"User {user_id} opened search helper")
+    send_to_logger(message, LoggerMsg.SEARCH_HELPER_OPENED.format(user_id=user_id))
 
 # Callback handler for search command buttons
 @app.on_callback_query(filters.regex(r"^search_msg\|"))
@@ -80,9 +78,9 @@ def handle_search_callback(client, callback_query):
             callback_query.answer("Closed")
             
             # Log the action (pass message object, not callback_query)
-            send_to_logger(callback_query.message, f"User {user_id} closed search command")
+            send_to_logger(callback_query.message, LoggerMsg.SEARCH_HELPER_CLOSED.format(user_id=user_id))
             
     except Exception as e:
         # Log error and answer callback
-        send_to_logger(callback_query.message, f"Error in search callback handler: {e}")
+        send_to_logger(callback_query.message, LoggerMsg.SEARCH_CALLBACK_ERROR.format(error=e))
         callback_query.answer("Error occurred", show_alert=True)

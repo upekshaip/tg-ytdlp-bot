@@ -92,7 +92,8 @@ def cookies_from_browser(app, message):
         if not fallback_url:
             safe_send_message(
                 user_id,
-                "❌ No supported browsers found and no COOKIE_URL configured. Use /cookie or upload cookie.txt."
+                "❌ No supported browsers found and no COOKIE_URL configured. Use /cookie or upload cookie.txt.",
+                message=message
             )
             send_to_logger(message, "No installed browsers found. COOKIE_URL is not configured.")
             return
@@ -107,27 +108,42 @@ def cookies_from_browser(app, message):
             if ok:
                 # basic validation
                 if not fallback_url.lower().endswith('.txt'):
-                    safe_send_message(user_id, "❌ Fallback COOKIE_URL must point to a .txt file.")
+                    error_msg = "❌ Fallback COOKIE_URL must point to a .txt file."
+                    safe_send_message(user_id, error_msg, message=message)
+                    from HELPERS.logger import log_error_to_channel
+                    log_error_to_channel(message, error_msg)
                     send_to_logger(message, "COOKIE_URL does not end with .txt (hidden)")
                     return
                 if len(content or b"") > 100 * 1024:
-                    safe_send_message(user_id, "❌ Fallback cookie file is too large (>100KB).")
+                    error_msg = "❌ Fallback cookie file is too large (>100KB)."
+                    safe_send_message(user_id, error_msg, message=message)
+                    from HELPERS.logger import log_error_to_channel
+                    log_error_to_channel(message, error_msg)
                     send_to_logger(message, "Fallback cookie too large (source hidden)")
                     return
                 with open(cookie_file_path, "wb") as f:
                     f.write(content)
-                safe_send_message(user_id, "✅ YouTube cookie file downloaded via fallback and saved as cookie.txt")
+                safe_send_message(user_id, "✅ YouTube cookie file downloaded via fallback and saved as cookie.txt", message=message)
                 send_to_logger(message, "Fallback COOKIE_URL used successfully (source hidden)")
             else:
                 if status is not None:
-                    safe_send_message(user_id, f"❌ Fallback cookie source unavailable (status {status}). Try /cookie or upload cookie.txt.")
+                    error_msg = f"❌ Fallback cookie source unavailable (status {status}). Try /cookie or upload cookie.txt."
+                    safe_send_message(user_id, error_msg, message=message)
+                    from HELPERS.logger import log_error_to_channel
+                    log_error_to_channel(message, error_msg)
                     send_to_logger(message, f"Fallback COOKIE_URL failed: status={status} (hidden)")
                 else:
-                    safe_send_message(user_id, "❌ Error downloading fallback cookie. Try /cookie or upload cookie.txt.")
+                    error_msg = "❌ Error downloading fallback cookie. Try /cookie or upload cookie.txt."
+                    safe_send_message(user_id, error_msg, message=message)
+                    from HELPERS.logger import log_error_to_channel
+                    log_error_to_channel(message, error_msg)
                     safe_err = _sanitize_error_detail(err or "", fallback_url)
                     send_to_logger(message, f"Fallback COOKIE_URL error: {safe_err}")
         except Exception as e:
-            safe_send_message(user_id, "❌ Unexpected error during fallback cookie download.")
+            error_msg = "❌ Unexpected error during fallback cookie download."
+            safe_send_message(user_id, error_msg, message=message)
+            from HELPERS.logger import log_error_to_channel
+            log_error_to_channel(message, error_msg)
             send_to_logger(message, f"Fallback COOKIE_URL unexpected error: {type(e).__name__}: {e}")
         return
 
@@ -145,7 +161,8 @@ def cookies_from_browser(app, message):
     safe_send_message(
         user_id,
         "Select a browser to download cookies from:",
-        reply_markup=keyboard
+        reply_markup=keyboard,
+        message=message
     )
     send_to_logger(message, "Browser selection keyboard sent with installed browsers only.")
 
@@ -210,9 +227,10 @@ def browser_choice_callback(app, callback_query):
         send_to_logger(callback_query.message, f"Browser {browser_option} not installed.")
         return
 
-    # Build the command for cookie extraction: yt-dlp --cookies "cookie.txt" --cookies-from-browser <browser_option>
-    cmd = f'yt-dlp --cookies "{cookie_file}" --cookies-from-browser {browser_option}'
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
+    # Build the command for cookie extraction using the same yt-dlp as Python API
+    import sys
+    cmd = [sys.executable, '-m', 'yt_dlp', '--cookies', str(cookie_file), '--cookies-from-browser', str(browser_option)]
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
 
     if result.returncode != 0:
         if "You must provide at least one URL" in result.stderr:
@@ -810,12 +828,18 @@ def test_youtube_cookies(cookie_file_path: str) -> bool:
             
     except yt_dlp.utils.DownloadError as e:
         error_text = str(e).lower()
-        logger.warning(f"YouTube cookies test failed with DownloadError: {e}")
-        # Check for specific YouTube errors
+        
+        # Check for specific YouTube errors that are not cookie-related
         if any(keyword in error_text for keyword in [
-            'sign in', 'login required', 'private video', 'age restricted',
-            'video unavailable', 'cookies', 'authentication', 'format not found',
-            'no formats found', 'unable to extract'
+            'video unavailable', 'this content isn\'t available', 'content not available',
+            'video is private', 'private video', 'members only', 'premium content'
+        ]):
+            # These are content availability issues, not cookie issues
+            logger.info(f"YouTube test video is unavailable (not a cookie issue): {e}")
+            return False
+        elif any(keyword in error_text for keyword in [
+            'sign in', 'login required', 'age restricted', 'cookies', 
+            'authentication', 'format not found', 'no formats found', 'unable to extract'
         ]):
             logger.warning(f"YouTube cookies test failed - authentication/format error: {e}")
             return False
@@ -1204,14 +1228,22 @@ def is_youtube_cookie_error(error_message: str) -> bool:
     """
     error_lower = error_message.lower()
     
+    # Сначала проверяем на ошибки недоступности контента (НЕ связанные с куками)
+    content_unavailable_keywords = [
+        'video unavailable', 'this content isn\'t available', 'content not available',
+        'video is private', 'private video', 'members only', 'premium content',
+        'this video is not available', 'copyright', 'dmca'
+    ]
+    
+    if any(keyword in error_lower for keyword in content_unavailable_keywords):
+        return False  # Это не ошибка куков
+    
     # Ключевые слова, указывающие на проблемы с куками/авторизацией
     cookie_related_keywords = [
-        'sign in', 'login required', 'private video', 'age restricted',
-        'video unavailable', 'cookies', 'authentication', 'format not found',
-        'no formats found', 'unable to extract', 'http error 403',
-        'http error 401', 'forbidden', 'unauthorized', 'access denied',
-        'this video is not available', 'video is private', 'members only',
-        'premium content', 'subscription required', 'copyright', 'dmca'
+        'sign in', 'login required', 'age restricted', 'cookies', 
+        'authentication', 'format not found', 'no formats found', 'unable to extract', 
+        'http error 403', 'http error 401', 'forbidden', 'unauthorized', 'access denied',
+        'subscription required'
     ]
     
     return any(keyword in error_lower for keyword in cookie_related_keywords)

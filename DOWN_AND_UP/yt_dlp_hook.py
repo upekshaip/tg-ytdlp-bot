@@ -6,7 +6,10 @@ from HELPERS.logger import logger
 from HELPERS.filesystem_hlp import create_directory
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url
+from URL_PARSERS.filter_check import is_no_filter_domain
+from URL_PARSERS.filter_utils import create_smart_match_filter, create_legacy_match_filter
 from HELPERS.pot_helper import add_pot_to_ytdl_opts
+from CONFIG.limits import LimitsConfig
 
 def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already_checked=False, use_proxy=False):
     ytdl_opts = {
@@ -30,6 +33,24 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
         'check_certificate': False,
         'live_from_start': True
     }
+    
+    # Add match_filter only if domain is not in NO_FILTER_DOMAINS
+    if not is_no_filter_domain(url):
+        # Use smart filter that allows downloads when duration is unknown
+        ytdl_opts['match_filter'] = create_smart_match_filter()
+    else:
+        logger.info(f"Skipping match_filter for domain in NO_FILTER_DOMAINS: {url}")
+    
+    # Add user's custom yt-dlp arguments
+    if user_id is not None:
+        from COMMANDS.args_cmd import get_user_ytdlp_args, log_ytdlp_options
+        user_args = get_user_ytdlp_args(user_id, url)
+        if user_args:
+            ytdl_opts.update(user_args)
+        
+        # Log final yt-dlp options for debugging
+        log_ytdlp_options(user_id, ytdl_opts, "get_video_formats")
+    
     if user_id is not None:
         user_dir = os.path.join("users", str(user_id))
         # Check the availability of cookie.txt in the user folder
@@ -131,11 +152,15 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
     
     # Try with proxy fallback if user proxy is enabled
     def extract_info_operation(opts):
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-        if 'entries' in info and info.get('entries'):
-            return info['entries'][0]
-        return info
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+            if 'entries' in info and info.get('entries'):
+                return info['entries'][0]
+            return info
+        except Exception as e:
+            logger.error(f"Error extracting info for {url}: {e}")
+            raise e
     
     from HELPERS.proxy_helper import try_with_proxy_fallback
     result = try_with_proxy_fallback(ytdl_opts, url, user_id, extract_info_operation)

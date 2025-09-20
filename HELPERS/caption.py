@@ -24,7 +24,8 @@ def caption_editor(app, message):
         # Sending to logs
         send_to_logger(message, info_of_video)
         app.send_video(user_id, video_file_id, caption=caption)
-        app.send_video(Config.LOGS_ID, video_file_id, caption=caption)
+        from HELPERS.logger import get_log_channel
+        app.send_video(get_log_channel("video"), video_file_id, caption=caption)
     except AttributeError as e:
         # Логируем ошибку, но не прерываем работу бота
         from HELPERS.logger import logger
