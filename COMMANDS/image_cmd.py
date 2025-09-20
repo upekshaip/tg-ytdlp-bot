@@ -1016,7 +1016,7 @@ def image_command(app, message):
                                             caption_lines = []
                                             if tags_text_norm:
                                                 caption_lines.append(tags_text_norm)
-                                            caption_lines.append(f"[Image URL]({url}) @{Config.BOT_NAME_FOR_USERS}")
+                                            caption_lines.append(f"[Image URL]({url}) @{Config.BOT_NAME}")
                                             full_caption = "\n".join(caption_lines)
                                             
                                             for idx, m in enumerate(media_group):
@@ -1176,7 +1176,7 @@ def image_command(app, message):
                                                     user_caption_lines = []
                                                     if tags_text_norm:
                                                         user_caption_lines.append(tags_text_norm)
-                                                    user_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME_FOR_USERS}")
+                                                    user_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
                                                     user_caption = "\n".join(user_caption_lines)
                                                     
                                                     _sep = (' ' if _exist and not _exist.endswith('\n') else '')
@@ -1263,7 +1263,7 @@ def image_command(app, message):
                                                 caption_lines = []
                                                 if tags_text_norm:
                                                     caption_lines.append(tags_text_norm)
-                                                caption_lines.append(f"[Image URL]({url}) @{Config.BOT_NAME_FOR_USERS}")
+                                                caption_lines.append(f"[Image URL]({url}) @{Config.BOT_NAME}")
                                                 full_caption = "\n".join(caption_lines)
                                                 
                                                 for _idx, _media_obj in enumerate(media_group):
@@ -1309,7 +1309,7 @@ def image_command(app, message):
                                             log_caption_lines = []
                                             if tags_text_norm:
                                                 log_caption_lines.append(tags_text_norm)
-                                            log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME_FOR_USERS}")
+                                            log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
                                             log_caption = "\n".join(log_caption_lines)
                                             
                                             for _idx, _media_obj in enumerate(media_group):
@@ -1624,7 +1624,7 @@ def image_command(app, message):
                                             caption_lines = []
                                             if tags_text_norm:
                                                 caption_lines.append(tags_text_norm)
-                                            caption_lines.append(f"[Image URL]({url}) @{Config.BOT_NAME_FOR_USERS}")
+                                            caption_lines.append(f"[Image URL]({url}) @{Config.BOT_NAME}")
                                             full_caption = "\n".join(caption_lines)
                                             
                                             for idx, (p, t, orig) in enumerate(fallback):
@@ -1859,7 +1859,7 @@ def image_command(app, message):
                                                         log_caption_lines = []
                                                         if tags_text_norm:
                                                             log_caption_lines.append(tags_text_norm)
-                                                        log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME_FOR_USERS}")
+                                                        log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
                                                         log_caption = "\n".join(log_caption_lines)
                                                         
                                                         for _idx, _media_obj in enumerate(media_group):
@@ -2094,7 +2094,7 @@ def image_command(app, message):
                                     caption_lines = []
                                     if tags_text_norm:
                                         caption_lines.append(tags_text_norm)
-                                    caption_lines.append(f"[Image URL]({url}) @{Config.BOT_NAME_FOR_USERS}")
+                                    caption_lines.append(f"[Image URL]({url}) @{Config.BOT_NAME}")
                                     full_caption = "\n".join(caption_lines)
                                     
                                     for idx, m in enumerate(media_group):
@@ -2184,7 +2184,7 @@ def image_command(app, message):
                                             user_caption_lines = []
                                             if tags_text_norm:
                                                 user_caption_lines.append(tags_text_norm)
-                                            user_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME_FOR_USERS}")
+                                            user_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
                                             user_caption = "\n".join(user_caption_lines)
                                             
                                             _sep = (' ' if _exist and not _exist.endswith('\n') else '')
@@ -2323,7 +2323,7 @@ def image_command(app, message):
                                     log_caption_lines = []
                                     if tags_text_norm:
                                         log_caption_lines.append(tags_text_norm)
-                                    log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME_FOR_USERS}")
+                                    log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
                                     log_caption = "\n".join(log_caption_lines)
                                     
                                     for _idx, _media_obj in enumerate(media_group):
@@ -2718,7 +2718,7 @@ def image_command(app, message):
                             user_caption_lines = []
                             if tags_text_norm:
                                 user_caption_lines.append(tags_text_norm)
-                            user_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME_FOR_USERS}")
+                            user_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
                             user_caption = "\n".join(user_caption_lines)
                             _first.caption = user_caption
                         # Clear captions from other items
