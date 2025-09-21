@@ -148,6 +148,11 @@ YTDLP_PARAMS = {
         "description": "Download live streams from start",
         "default": True
     },
+    "no_live_from_start": {
+        "type": "boolean",
+        "description": "Do not download live streams from start",
+        "default": False
+    },
     "hls_use_mpegts": {
         "type": "boolean",
         "description": "Use MPEG-TS container for HLS videos",
@@ -486,6 +491,7 @@ def get_args_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
         "geo_bypass": "Geo Bypass",
         "check_certificate": "Check Cert",
         "live_from_start": "Live Start",
+        "no_live_from_start": "No Live Start",
         "user_agent": "User Agent",
         "hls_use_mpegts": "HLS MPEG-TS",
         "no_playlist": "No Playlist",
@@ -535,7 +541,7 @@ def get_args_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
         boolean_params.append(InlineKeyboardButton(btn_text, callback_data=f"args_set_{pname}"))
 
     # Ensure paired items stay together
-    preferred_order = ["check_certificate", "no_check_certificates", "force_ipv4", "force_ipv6"]
+    preferred_order = ["check_certificate", "no_check_certificates", "live_from_start", "no_live_from_start", "force_ipv4", "force_ipv6"]
     for pname in preferred_order:
         _append_boolean_button(pname)
     # Append the rest
@@ -937,6 +943,13 @@ def args_callback_handler(app, callback_query):
                     user_args[opposite] = (not value)
             except Exception:
                 pass
+            # Enforce pairs: live_from_start vs no_live_from_start
+            try:
+                if param_name in ("live_from_start", "no_live_from_start"):
+                    opposite = "no_live_from_start" if param_name == "live_from_start" else "live_from_start"
+                    user_args[opposite] = (not value)
+            except Exception:
+                pass
             # Enforce pairs: force_ipv4 vs force_ipv6
             try:
                 if param_name in ("force_ipv4", "force_ipv6"):
@@ -1196,7 +1209,7 @@ def get_user_ytdlp_args(user_id: int, url: str = None) -> Dict[str, Any]:
                 except json.JSONDecodeError:
                     pass
         
-        elif param_name in ["geo_bypass", "check_certificate", "live_from_start", "hls_use_mpegts", 
+        elif param_name in ["geo_bypass", "check_certificate", "live_from_start", "no_live_from_start", "hls_use_mpegts", 
                            "no_playlist", "no_part", "no_continue", "embed_metadata", "embed_thumbnail", 
                            "write_thumbnail", "force_ipv4", "force_ipv6", "legacy_server_connect", 
                            "no_check_certificates", "ignore_errors"]:

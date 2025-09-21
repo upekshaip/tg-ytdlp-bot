@@ -593,9 +593,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         progress_start_time = time.time()
         # One-time retry guards to avoid infinite retry loops across attempts
         # (already initialized at the beginning of the function)
+        
+        # Check if this is an HLS stream (needed for progress_func)
+        # This will be updated later based on actual format detection
+        is_hls = ("m3u8" in url.lower())
 
         def progress_func(d):
-            nonlocal last_update, first_progress_update
+            nonlocal last_update, first_progress_update, is_hls
             # Check the timeout
             if check_download_timeout(user_id):
                 raise Exception(f"Download timeout exceeded ({Config.DOWNLOAD_TIMEOUT // 3600} hours)")
@@ -825,7 +829,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             if not is_playlist and 'list=' in url:
                 common_opts['noplaylist'] = True
             
-            is_hls = ("m3u8" in url.lower())
             # Always use progress_hooks, even for HLS
             common_opts['progress_hooks'] = [progress_func]
             # Respect MKV toggle: remux to mkv when MKV is ON; otherwise prefer mp4

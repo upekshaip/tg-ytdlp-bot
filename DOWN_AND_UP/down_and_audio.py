@@ -580,9 +580,13 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         progress_start_time = time.time()
         current_total_process = ""
         successful_uploads = 0
+        
+        # Check if this is an HLS stream (needed for progress_hook)
+        # This will be updated later based on actual format detection
+        is_hls = ("m3u8" in url.lower())
 
         def progress_hook(d):
-            nonlocal last_update
+            nonlocal last_update, is_hls
             # Check the timeout
             if check_download_timeout(user_id):
                 raise Exception(f"Download timeout exceeded ({Config.DOWNLOAD_TIMEOUT // 3600} hours)")
@@ -637,7 +641,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         # (already initialized at the beginning of the function)
 
         def try_download_audio(url, current_index):
-            nonlocal current_total_process, did_cookie_retry, did_proxy_retry
+            nonlocal current_total_process, did_cookie_retry, did_proxy_retry, is_hls
             # Use format_override if provided, otherwise use default 'ba'
             download_format = format_override if format_override else 'ba'
             
@@ -650,7 +654,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             if audio_format == 'best':
                 audio_format = 'mp3'
             
-            # Check if this is an HLS stream
+            # Update is_hls based on actual URL analysis
             is_hls = ("m3u8" in url.lower())
             
             ytdl_opts = {
