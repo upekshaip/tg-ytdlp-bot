@@ -242,29 +242,40 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 logger.info(f"[VIDEO CACHE] Skipping cache check for NSFW playlist: url={url}, quality={quality_key}")
         
         uncached_indices = [i for i in requested_indices if i not in cached_videos]
-        # First, repost the cached ones
+        # First, repost the cached ones (skip if send_as_file is enabled)
         if cached_videos:
-            for index in requested_indices:
-                if index in cached_videos:
-                    try:
-                        # For cached content, always use regular channel (no NSFW/PAID in cache)
-                        from_chat_id = get_log_channel("video")
-                        channel_type = "regular"
-                        
-                        logger.info(f"[VIDEO CACHE] Reposting video {index} from channel {from_chat_id} to user {user_id}, message_id={cached_videos[index]}")
-                        forward_kwargs = {
-                            'chat_id': user_id,
-                            'from_chat_id': from_chat_id,
-                            'message_ids': [cached_videos[index]]
-                        }
-                        # Only apply thread_id in groups/channels, not in private chats
-                        if getattr(message.chat, "type", None) != enums.ChatType.PRIVATE:
-                            thread_id = getattr(message, 'message_thread_id', None)
-                            if thread_id:
-                                forward_kwargs['message_thread_id'] = thread_id
-                        app.forward_messages(**forward_kwargs)
-                    except Exception as e:
-                        logger.error(f"down_and_up: error reposting cached video index={index}: {e}")
+            # Check if send_as_file is enabled - if so, skip cache repost
+            from COMMANDS.args_cmd import get_user_args
+            user_args = get_user_args(user_id)
+            send_as_file = user_args.get("send_as_file", False)
+            
+            if not send_as_file:
+                for index in requested_indices:
+                    if index in cached_videos:
+                        try:
+                            # For cached content, always use regular channel (no NSFW/PAID in cache)
+                            from_chat_id = get_log_channel("video")
+                            channel_type = "regular"
+                            
+                            logger.info(f"[VIDEO CACHE] Reposting video {index} from channel {from_chat_id} to user {user_id}, message_id={cached_videos[index]}")
+                            forward_kwargs = {
+                                'chat_id': user_id,
+                                'from_chat_id': from_chat_id,
+                                'message_ids': [cached_videos[index]]
+                            }
+                            # Only apply thread_id in groups/channels, not in private chats
+                            if getattr(message.chat, "type", None) != enums.ChatType.PRIVATE:
+                                thread_id = getattr(message, 'message_thread_id', None)
+                                if thread_id:
+                                    forward_kwargs['message_thread_id'] = thread_id
+                            app.forward_messages(**forward_kwargs)
+                        except Exception as e:
+                            logger.error(f"down_and_up: error reposting cached video index={index}: {e}")
+            else:
+                # If send_as_file is enabled, treat all indices as uncached
+                logger.info(f"[VIDEO CACHE] send_as_file enabled for user {user_id}, skipping cache repost for playlist")
+                uncached_indices = requested_indices
+            
             if len(uncached_indices) == 0:
                 app.send_message(user_id, Config.PLAYLIST_SENT_FROM_CACHE_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
                 send_to_logger(message, LoggerMsg.PLAYLIST_VIDEOS_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
@@ -293,36 +304,45 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 logger.info(f"[VIDEO CACHE] Skipping cache check for NSFW content: url={url}, quality={quality_key}")
             
             if cached_ids:
-                #found_type = None
-                try:
-                    # For cached content, always use regular channel (no NSFW/PAID in cache)
-                    from_chat_id = get_log_channel("video")
-                    channel_type = "regular"
-                    
-                    logger.info(f"[VIDEO CACHE] Reposting video from channel {from_chat_id} to user {user_id}, message_ids={cached_ids}")
-                    forward_kwargs = {
-                        'chat_id': user_id,
-                        'from_chat_id': from_chat_id,
-                        'message_ids': cached_ids
-                    }
-                    # Only apply thread_id in groups/channels, not in private chats
-                    if getattr(message.chat, "type", None) != enums.ChatType.PRIVATE:
-                        thread_id = getattr(message, 'message_thread_id', None)
-                        if thread_id:
-                            forward_kwargs['message_thread_id'] = thread_id
-                    app.forward_messages(**forward_kwargs)
-                    app.send_message(user_id, Config.VIDEO_SENT_FROM_CACHE_MSG, reply_parameters=ReplyParameters(message_id=message.id))
-                    send_to_logger(message, LoggerMsg.VIDEO_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
-                    return
-                except Exception as e:
-                    logger.error(f"Error reposting video from cache: {e}")
-                    # Use the already determined subtitle availability
-                    if not need_subs:
-                        _save_video_cache_with_logging(url, quality_key, [], original_text="", user_id=user_id)
-                    else:
-                        logger.info("Video with subs (subs.txt found) is not cached!")
-                    # Don't show error message if we successfully got video from cache
-                    # The video was already sent successfully in the try block
+                # Check if send_as_file is enabled - if so, skip cache repost
+                from COMMANDS.args_cmd import get_user_args
+                user_args = get_user_args(user_id)
+                send_as_file = user_args.get("send_as_file", False)
+                
+                if not send_as_file:
+                    #found_type = None
+                    try:
+                        # For cached content, always use regular channel (no NSFW/PAID in cache)
+                        from_chat_id = get_log_channel("video")
+                        channel_type = "regular"
+                        
+                        logger.info(f"[VIDEO CACHE] Reposting video from channel {from_chat_id} to user {user_id}, message_ids={cached_ids}")
+                        forward_kwargs = {
+                            'chat_id': user_id,
+                            'from_chat_id': from_chat_id,
+                            'message_ids': cached_ids
+                        }
+                        # Only apply thread_id in groups/channels, not in private chats
+                        if getattr(message.chat, "type", None) != enums.ChatType.PRIVATE:
+                            thread_id = getattr(message, 'message_thread_id', None)
+                            if thread_id:
+                                forward_kwargs['message_thread_id'] = thread_id
+                        app.forward_messages(**forward_kwargs)
+                        app.send_message(user_id, Config.VIDEO_SENT_FROM_CACHE_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+                        send_to_logger(message, LoggerMsg.VIDEO_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
+                        return
+                    except Exception as e:
+                        logger.error(f"Error reposting video from cache: {e}")
+                        # Use the already determined subtitle availability
+                        if not need_subs:
+                            _save_video_cache_with_logging(url, quality_key, [], original_text="", user_id=user_id)
+                        else:
+                            logger.info("Video with subs (subs.txt found) is not cached!")
+                        # Don't show error message if we successfully got video from cache
+                        # The video was already sent successfully in the try block
+                else:
+                    # If send_as_file is enabled, skip cache repost and continue with download
+                    logger.info(f"[VIDEO CACHE] send_as_file enabled for user {user_id}, skipping cache repost for single video")
         else:
             if is_subs_always_ask(user_id):
                 logger.info(f"[VIDEO CACHE] Skipping cache check because Always Ask mode is enabled: url={url}, quality={quality_key}")
