@@ -768,26 +768,32 @@ def build_filter_rows(user_id, url=None, is_private_chat=False):
             else (f"🚀{audio_format}" if is_cached_mp3 else f"🎧{audio_format}")
         )
         
-        # Create 2x2 layout instead of 1x4
-        first_row = [InlineKeyboardButton("📼CODEC", callback_data="askf|toggle|on"), InlineKeyboardButton(mp3_label, callback_data="askq|mp3")]
-        second_row = []
+        # Create dynamic layout based on available buttons
+        buttons = [InlineKeyboardButton("📼CODEC", callback_data="askf|toggle|on"), InlineKeyboardButton(mp3_label, callback_data="askq|mp3")]
         
         # Show DUBS button only if audio dubs are detected for this video (set elsewhere)
         if has_dubs:
-            second_row.append(InlineKeyboardButton("🗣 DUBS", callback_data="askf|dubs|open"))
+            buttons.append(InlineKeyboardButton("🗣 DUBS", callback_data="askf|dubs|open"))
         
         # Show SUBS button if Always Ask is enabled for this user
         try:
             if is_subs_always_ask(user_id):
-                second_row.append(InlineKeyboardButton("💬 SUBS", callback_data="askf|subs|open"))
+                buttons.append(InlineKeyboardButton("💬 SUBS", callback_data="askf|subs|open"))
         except Exception:
             pass
         
-        # If second row is empty, add a placeholder button or just return first row
-        if not second_row:
-            return [first_row], []
-        
-        return [first_row, second_row], []
+        # Dynamic layout: 2 or 4 buttons = 2 per row, 3 buttons = all in one row
+        if len(buttons) == 2 or len(buttons) == 4:
+            # Split into 2 rows of 2 buttons each
+            first_row = buttons[:2]
+            second_row = buttons[2:] if len(buttons) > 2 else []
+            return [first_row, second_row] if second_row else [first_row], []
+        elif len(buttons) == 3:
+            # All 3 buttons in one row
+            return [buttons], []
+        else:
+            # Fallback: single row
+            return [buttons], []
     
     # Build codec buttons with availability check
     avc1_available = 'avc1' in available_formats["codecs"] or not available_formats["codecs"]  # Show if available or if no cache
