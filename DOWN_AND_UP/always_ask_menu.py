@@ -1744,7 +1744,11 @@ def askq_callback(app, callback_query):
         requested_indices = list(range(video_start_with, video_start_with + video_count))
         
         # Check if Always Ask mode is enabled - if yes, skip cache completely
-        if not is_subs_always_ask(user_id):
+        # Also check if send_as_file is enabled - if so, skip cache completely
+        user_args = get_user_args(user_id)
+        send_as_file = user_args.get("send_as_file", False)
+        
+        if not is_subs_always_ask(user_id) and not send_as_file:
             # Check cache for selected quality
             cached_videos = get_cached_playlist_videos(get_clean_playlist_url(url), data, requested_indices)
             uncached_indices = [i for i in requested_indices if i not in cached_videos]
@@ -1956,7 +1960,12 @@ def askq_callback(app, callback_query):
     subs_enabled = is_subs_enabled(user_id)
     auto_mode = get_user_subs_auto_mode(user_id)
     need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-    if not need_subs and not is_subs_always_ask(user_id):
+    
+    # Check if send_as_file is enabled - if so, skip cache repost
+    user_args = get_user_args(user_id)
+    send_as_file = user_args.get("send_as_file", False)
+    
+    if not need_subs and not is_subs_always_ask(user_id) and not send_as_file:
 
         message_ids = get_cached_message_ids(url, data)
         if message_ids:
@@ -4254,7 +4263,8 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         # Always show format change hint (📼) - this is always available
         dynamic_hints.append("📼 — Сhange video ext/codec")
         
-        # Quality hint (📹) - always shown unless NSFW
+        # Quality hint (📹) - always sh
+        # own unless NSFW
         if is_nsfw and is_private_chat:
             dynamic_hints.append("⭐️ — 🔞NSFW is paid (⭐️$0.02)")
         else:
