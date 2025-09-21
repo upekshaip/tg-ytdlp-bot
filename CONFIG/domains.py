@@ -46,7 +46,7 @@ class DomainsConfig(object):
     ]    
     PROXY_DOMAINS = [
         'pornhub.com', 'pornhub.org'
-        # Other secure domains can be added
+        # Other secure domains can be added 1
     ]
     PROXY_2_DOMAINS = [
         'instagram.com', 'ig.me'
