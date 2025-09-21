@@ -669,9 +669,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         def try_download(url, attempt_opts):
             nonlocal current_total_process, error_message, did_cookie_retry, did_proxy_retry, is_hls
             
+            # Clean filename template to avoid invalid characters
+            safe_outtmpl = os.path.join(user_dir_name, "%(title)s.%(ext)s")
+            
             common_opts = {
                 'playlist_items': str(current_index),
-                'outtmpl': os.path.join(user_dir_name, "%(title).50s.%(ext)s"),
+                'outtmpl': safe_outtmpl,
                 'postprocessors': [
                     {'key': 'EmbedThumbnail'},
                     {'key': 'FFmpegMetadata'}
@@ -1110,6 +1113,21 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     )
                     send_error_to_user(message, live_stream_message)
                     return "LIVE_STREAM"
+                
+                # Check for postprocessing errors
+                if "Postprocessing" in error_message and "Error opening output files" in error_message:
+                    postprocessing_message = (
+                        "❌ **File Processing Error**\n\n"
+                        "The video was downloaded but couldn't be processed due to invalid characters in the filename.\n\n"
+                        "**Solutions:**\n"
+                        "• Try downloading again - the system will use a safer filename\n"
+                        "• If the problem persists, the video title may contain unsupported characters\n"
+                        "• Consider using a different video source if available\n\n"
+                        "The download will be retried automatically with a cleaned filename."
+                    )
+                    send_error_to_user(message, postprocessing_message)
+                    logger.error(f"Postprocessing error: {error_message}")
+                    return "POSTPROCESSING_ERROR"
                 
                 # Auto-fallback to gallery-dl (/img) for non-video posts (albums/images)
                 if (

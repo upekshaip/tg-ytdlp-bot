@@ -144,9 +144,10 @@ def set_format(app, message):
             send_to_logger(message, "Format set to ALWAYS_ASK.")
             return
         elif arg.lower() == "best":
-            # Set to bv+ba/best format
-            custom_format = "bv+ba/best"
-            safe_send_message(user_id, f"✅ Format updated to best quality:\n{custom_format}", message=message)
+            # Set to best format with AVC codec and MP4 container priority
+            # with fallback to bv+ba/best if no AVC+MP4 available
+            custom_format = "bv*[vcodec*=avc1][ext=mp4]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bv*[ext=mp4]+ba/bv+ba/best"
+            safe_send_message(user_id, f"✅ Format updated to best quality (AVC+MP4 priority):\n{custom_format}", message=message)
             send_to_logger(message, f"Format updated to best: {custom_format}")
         # Check if it's a format ID (e.g., "id 401", "id401")
         elif re.match(r'^id\s*\d+$', arg, re.IGNORECASE):
@@ -405,11 +406,11 @@ def format_option_callback(app, callback_query):
             chosen_format = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bv*[vcodec*=avc1]+ba/bv+ba/best"
     elif data == "best":
         if user_codec == "av01":
-            chosen_format = "bestvideo[vcodec*=av01]+bestaudio/bv*[vcodec*=av01]+ba"
+            chosen_format = "bv*[vcodec*=av01][ext=mp4]+ba[acodec*=mp4a]/bv*[vcodec*=av01]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba/bv+ba/best"
         elif user_codec == "vp9":
-            chosen_format = "bestvideo[vcodec*=vp9]+bestaudio/bv*[vcodec*=vp9]+ba"
+            chosen_format = "bv*[vcodec*=vp9][ext=mp4]+ba[acodec*=mp4a]/bv*[vcodec*=vp9]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba/bv+ba/best"
         else:  # avc1
-            chosen_format = "bestvideo[vcodec*=avc1]+bestaudio/bv*[vcodec*=avc1]+ba"
+            chosen_format = "bv*[vcodec*=avc1][ext=mp4]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bv*[vcodec*=avc1]+ba/bv+ba/best"
     else:
         chosen_format = data
 

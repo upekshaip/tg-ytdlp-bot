@@ -672,7 +672,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                'prefer_ffmpeg': True,
                'extractaudio': True,
                'playlist_items': str(current_index + video_start_with),
-               'outtmpl': os.path.join(user_folder, "%(title).50s.%(ext)s"),
+               'outtmpl': os.path.join(user_folder, "%(title)s.%(ext)s"),
                'progress_hooks': [progress_hook],
                'extractor_args': {
                   'generic': {
@@ -834,6 +834,21 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     )
                     send_error_to_user(message, live_stream_message)
                     return "LIVE_STREAM"
+                
+                # Check for postprocessing errors
+                if "Postprocessing" in error_text and "Error opening output files" in error_text:
+                    postprocessing_message = (
+                        "❌ **File Processing Error**\n\n"
+                        "The audio was downloaded but couldn't be processed due to invalid characters in the filename.\n\n"
+                        "**Solutions:**\n"
+                        "• Try downloading again - the system will use a safer filename\n"
+                        "• If the problem persists, the audio title may contain unsupported characters\n"
+                        "• Consider using a different audio source if available\n\n"
+                        "The download will be retried automatically with a cleaned filename."
+                    )
+                    send_error_to_user(message, postprocessing_message)
+                    logger.error(f"Postprocessing error: {error_text}")
+                    return "POSTPROCESSING_ERROR"
                 
                 # Auto-fallback to gallery-dl (/img) for non-video posts (albums/images)
                 if (

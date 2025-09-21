@@ -3526,6 +3526,25 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                         continue
                     if user_fixed_format == 'asf' and ext != 'asf':
                         continue
+                
+                # Filter by selected codec
+                vcodec = f.get('vcodec') or ''
+                if sel_codec == 'avc1' and 'avc1' not in vcodec:
+                    continue
+                if sel_codec == 'av01' and not vcodec.startswith('av01'):
+                    continue
+                if sel_codec == 'vp9' and 'vp9' not in vcodec:
+                    continue
+                
+                # Filter by selected extension
+                ext = f.get('ext') or ''
+                target_ext = user_fixed_format if user_fixed_format else sel_ext
+                if target_ext == 'mp4' and ext != 'mp4':
+                    continue
+                if target_ext == 'mkv' and ext == 'mp4':
+                    continue
+                if target_ext == 'webm' and ext != 'webm':
+                    continue
 
                 qk = infer_quality_key(f)
                 if not qk or qk == 'best':
@@ -4549,8 +4568,10 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
             callback_query.answer("📥 Downloading best quality...")
         except Exception:
             pass
-        # Use fixed format bv+ba for Best quality
-        fmt = "bv+ba/best"
+        # Use format with AVC codec and MP4 container priority for Best quality
+        # with fallback to bv+ba/best if no AVC+MP4 available
+        audio_filter = f"[language^={sel_audio_lang}]" if sel_audio_lang else ""
+        fmt = f"bv*[vcodec*={sel_codec}][ext={sel_ext}]+ba{audio_filter}/bv*[vcodec*={sel_codec}]+ba{audio_filter}/bv*[ext={sel_ext}]+ba{audio_filter}/bv+ba/best"
         quality_key = "best"
     else:
         try:
