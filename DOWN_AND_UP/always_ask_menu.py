@@ -48,6 +48,24 @@ from URL_PARSERS.tiktok import is_tiktok_url
 from URL_PARSERS.normalizer import get_clean_playlist_url
 from URL_PARSERS.embedder import transform_to_embed_url, is_instagram_url, is_twitter_url, is_reddit_url
 from URL_PARSERS.thumbnail_downloader import download_thumbnail as download_universal_thumbnail
+
+# Import function to get user args
+def get_user_args(user_id: int):
+    """Get user's saved args settings"""
+    import os
+    import json
+    user_dir = os.path.join("users", str(user_id))
+    args_file = os.path.join(user_dir, "args.txt")
+    
+    if not os.path.exists(args_file):
+        return {}
+    
+    try:
+        with open(args_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Error reading user args for {user_id}: {e}")
+        return {}
 from COMMANDS.image_cmd import image_command
 from HELPERS.safe_messeger import fake_message
 
@@ -717,7 +735,6 @@ def build_filter_rows(user_id, url=None, is_private_chat=False):
     # Check if user has fixed container format via /args
     user_fixed_format = None
     try:
-        from COMMANDS.args_cmd import get_user_args
         user_args = get_user_args(user_id)
         user_video_format = user_args.get('video_format', 'mp4')
         user_merge_format = user_args.get('merge_output_format', 'mp4')
@@ -747,21 +764,23 @@ def build_filter_rows(user_id, url=None, is_private_chat=False):
                 is_nsfw = isinstance(tags_text, str) and ('#nsfw' in tags_text.lower())
             except Exception:
                 is_nsfw = False
-        # Determine MP3 cache status for rocket icon
+        # Get user's audio format setting and check send_as_file
+        try:
+            user_args = get_user_args(user_id)
+            audio_format = user_args.get('audio_format', 'mp3').upper()
+            send_as_file = user_args.get('send_as_file', False)
+        except Exception:
+            audio_format = 'MP3'
+            send_as_file = False
+        
+        # Determine MP3 cache status for rocket icon (skip if send_as_file is enabled)
         is_cached_mp3 = False
-        if url:
+        if url and not send_as_file:
             try:
                 cq = get_cached_qualities(url)
                 is_cached_mp3 = ('mp3' in cq)
             except Exception:
                 is_cached_mp3 = False
-        # Get user's audio format setting
-        try:
-            from COMMANDS.args_cmd import get_user_args
-            user_args = get_user_args(user_id)
-            audio_format = user_args.get('audio_format', 'mp3').upper()
-        except Exception:
-            audio_format = 'MP3'
         
         mp3_label = (
             f"1⭐️{audio_format}" if (is_nsfw and is_private_chat)
@@ -827,21 +846,23 @@ def build_filter_rows(user_id, url=None, is_private_chat=False):
             is_nsfw = isinstance(tags_text, str) and ('#nsfw' in tags_text.lower())
         except Exception:
             is_nsfw = False
-    # Determine MP3 cache status for rocket icon (expanded filters)
+    # Get user's audio format setting and check send_as_file
+    try:
+        user_args = get_user_args(user_id)
+        audio_format = user_args.get('audio_format', 'mp3').upper()
+        send_as_file = user_args.get('send_as_file', False)
+    except Exception:
+        audio_format = 'MP3'
+        send_as_file = False
+    
+    # Determine MP3 cache status for rocket icon (skip if send_as_file is enabled)
     is_cached_mp3 = False
-    if url:
+    if url and not send_as_file:
         try:
             cq = get_cached_qualities(url)
             is_cached_mp3 = ('mp3' in cq)
         except Exception:
             is_cached_mp3 = False
-    # Get user's audio format setting
-    try:
-        from COMMANDS.args_cmd import get_user_args
-        user_args = get_user_args(user_id)
-        audio_format = user_args.get('audio_format', 'mp3').upper()
-    except Exception:
-        audio_format = 'MP3'
     
     mp3_label = (
         f"1⭐️{audio_format}" if (is_nsfw and is_private_chat)
@@ -2106,6 +2127,10 @@ def show_manual_quality_menu(app, callback_query):
     # Check if we're in a private chat (paid media only works in private chats)
     is_private_chat = getattr(callback_query.message.chat, "type", None) == enums.ChatType.PRIVATE
     
+    # Check if user has send_as_file enabled
+    user_args = get_user_args(user_id)
+    send_as_file = user_args.get("send_as_file", False)
+    
     # Check if it's a playlist
     original_text = original_message.text or original_message.caption or ""
     is_playlist = is_playlist_with_range(original_text)
@@ -2113,9 +2138,9 @@ def show_manual_quality_menu(app, callback_query):
     if is_playlist:
         _, video_start_with, video_end_with, _, _, _, _ = extract_url_range_tags(original_text)
         playlist_range = (video_start_with, video_end_with)
-        cached_qualities = get_cached_playlist_qualities(get_clean_playlist_url(url))
+        cached_qualities = get_cached_playlist_qualities(get_clean_playlist_url(url)) if not send_as_file else set()
     else:
-        cached_qualities = get_cached_qualities(url)
+        cached_qualities = get_cached_qualities(url) if not send_as_file else set()
     
     # Create manual quality buttons
     manual_qualities = ["144p", "240p", "360p", "480p", "720p", "1080p", "1440p", "2160p", "4320p"]
@@ -2534,12 +2559,17 @@ def show_other_qualities_menu(app, callback_query, page=0):
         end_idx = min(start_idx + formats_per_page, total_formats)
         page_formats = format_lines[start_idx:end_idx]
         
-        # Get cached qualities to show rocket emoji for cached formats
+        # Check if user has send_as_file enabled
+        user_args = get_user_args(user_id)
+        send_as_file = user_args.get("send_as_file", False)
+        
+        # Get cached qualities to show rocket emoji for cached formats (skip if send_as_file is enabled)
         cached_qualities = set()
-        try:
-            cached_qualities = get_cached_qualities(url)
-        except Exception:
-            pass
+        if not send_as_file:
+            try:
+                cached_qualities = get_cached_qualities(url)
+            except Exception:
+                pass
         
         # Build keyboard with format buttons (1 row × 10 columns max)
         keyboard_rows = []
@@ -2657,12 +2687,17 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
     end_idx = min(start_idx + formats_per_page, total_formats)
     page_formats = format_lines[start_idx:end_idx]
     
-    # Get cached qualities to show rocket emoji for cached formats
+    # Check if user has send_as_file enabled
+    user_args = get_user_args(user_id)
+    send_as_file = user_args.get("send_as_file", False)
+    
+    # Get cached qualities to show rocket emoji for cached formats (skip if send_as_file is enabled)
     cached_qualities = set()
-    try:
-        cached_qualities = get_cached_qualities(url)
-    except Exception:
-        pass
+    if not send_as_file:
+        try:
+            cached_qualities = get_cached_qualities(url)
+        except Exception:
+            pass
     
     # Build keyboard with format buttons (1 column × 10 rows max)
     keyboard_rows = []
@@ -2769,7 +2804,6 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         # Check if user has fixed format via /args
         user_fixed_format = None
         try:
-            from COMMANDS.args_cmd import get_user_args
             user_args = get_user_args(user_id)
             user_video_format = user_args.get('video_format', 'mp4')
             user_merge_format = user_args.get('merge_output_format', 'mp4')
@@ -2783,8 +2817,14 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         except Exception:
             pass
         
-        # Получаем кэшированные качества
-        if is_playlist and playlist_range:
+        # Check if user has send_as_file enabled
+        user_args = get_user_args(user_id)
+        send_as_file = user_args.get("send_as_file", False)
+        
+        # Получаем кэшированные качества (skip if send_as_file is enabled)
+        if send_as_file:
+            cached_qualities = set()
+        elif is_playlist and playlist_range:
             cached_qualities = get_cached_playlist_qualities(get_clean_playlist_url(url))
         else:
             cached_qualities = get_cached_qualities(url)
@@ -3048,12 +3088,16 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         original_text = message.text or message.caption or ""
         is_playlist = is_playlist_with_range(original_text)
         playlist_range = None
+        # Check if user has send_as_file enabled
+        user_args = get_user_args(user_id)
+        send_as_file = user_args.get("send_as_file", False)
+        
         if is_playlist:
             _, video_start_with, video_end_with, _, _, _, _ = extract_url_range_tags(original_text)
             playlist_range = (video_start_with, video_end_with)
-            cached_qualities = get_cached_playlist_qualities(get_clean_playlist_url(url))
+            cached_qualities = get_cached_playlist_qualities(get_clean_playlist_url(url)) if not send_as_file else set()
         else:
-            cached_qualities = get_cached_qualities(url)
+            cached_qualities = get_cached_qualities(url) if not send_as_file else set()
         # Try load cached info first to make UI instant
         info = load_ask_info(user_id, url)
         if not info:
@@ -3223,7 +3267,6 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         # Check if user has fixed format via /args
         user_fixed_format = None
         try:
-            from COMMANDS.args_cmd import get_user_args
             user_args = get_user_args(user_id)
             user_video_format = user_args.get('video_format', 'mp4')
             user_merge_format = user_args.get('merge_output_format', 'mp4')
@@ -3320,8 +3363,11 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                             }
                             if check_subs_limits(temp_info, q):
                                 subs_available = "💬"
-                # Cache/icon
-                if is_playlist and playlist_range:
+                # Cache/icon (skip if send_as_file is enabled)
+                if send_as_file:
+                    is_cached = False
+                    postfix = ""
+                elif is_playlist and playlist_range:
                     indices = list(range(playlist_range[0], playlist_range[1]+1))
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), q, indices)
                     total = len(indices)
@@ -3960,7 +4006,12 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                                 if check_subs_limits(temp_info, quality_key):
                                     subs_available = "💬"
                 
-                if is_playlist and playlist_range:
+                # Cache/icon (skip if send_as_file is enabled)
+                if send_as_file:
+                    icon = "1⭐️" if (is_nsfw and is_private_chat) else "📹"
+                    postfix = ""
+                    button_text = f"{icon}{quality_key}{subs_available}"
+                elif is_playlist and playlist_range:
                     indices = list(range(playlist_range[0], playlist_range[1]+1))
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
                     total = len(indices)
