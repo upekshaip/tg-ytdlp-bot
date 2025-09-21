@@ -111,6 +111,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     # Initialize retry guards early to avoid UnboundLocalError
     did_proxy_retry = False
     did_cookie_retry = False
+    is_hls = False
     
     # Determine forced NSFW via user tags
     try:
@@ -666,7 +667,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         successful_uploads = 0
 
         def try_download(url, attempt_opts):
-            nonlocal current_total_process, error_message, did_cookie_retry, did_proxy_retry
+            nonlocal current_total_process, error_message, did_cookie_retry, did_proxy_retry, is_hls
             
             common_opts = {
                 'playlist_items': str(current_index),

@@ -183,6 +183,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     # Initialize retry guards early to avoid UnboundLocalError
     did_proxy_retry = False
     did_cookie_retry = False
+    is_hls = False
     
     # Determine forced NSFW via user tags
     try:
