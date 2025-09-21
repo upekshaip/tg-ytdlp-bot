@@ -48,9 +48,18 @@ from URL_PARSERS.tags import extract_url_range_tags
 app = get_app()
 
 
-def _save_video_cache_with_logging(url: str, quality_key: str, message_ids: list, original_text: str = None):
+def _save_video_cache_with_logging(url: str, quality_key: str, message_ids: list, original_text: str = None, user_id: int = None):
     """Save video to cache with channel type logging."""
     try:
+        # Check if user has send_as_file enabled
+        if user_id is not None:
+            from COMMANDS.args_cmd import get_user_args
+            user_args = get_user_args(user_id)
+            send_as_file = user_args.get("send_as_file", False)
+            if send_as_file:
+                logger.info(f"[VIDEO CACHE] Skipping cache save for user {user_id} with send_as_file enabled: url={url}, quality={quality_key}")
+                return
+        
         # Determine channel type for logging
         from HELPERS.porn import is_porn
         is_nsfw = is_porn(url, "", "", None)
@@ -309,7 +318,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     logger.error(f"Error reposting video from cache: {e}")
                     # Use the already determined subtitle availability
                     if not need_subs:
-                        _save_video_cache_with_logging(url, quality_key, [], original_text="")
+                        _save_video_cache_with_logging(url, quality_key, [], original_text="", user_id=user_id)
                     else:
                         logger.info("Video with subs (subs.txt found) is not cached!")
                     # Don't show error message if we successfully got video from cache
@@ -858,7 +867,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 else:
                     for _attempt in attempts:
                         if isinstance(_attempt, dict) and 'merge_output_format' not in _attempt:
-                            _attempt['merge_output_format'] = 'mp4'
+                            # Use user's preferred format
+                            _attempt['merge_output_format'] = user_merge_format
             except Exception:
                 pass
 
@@ -1151,6 +1161,26 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     send_error_to_user(message, postprocessing_message)
                     logger.error(f"Postprocessing error (Invalid argument): {error_message}")
                     return "POSTPROCESSING_ERROR"
+                
+                # Check for format not available error
+                if "Requested format is not available" in error_message:
+                    format_error_message = (
+                        "❌ **Format Not Available**\n\n"
+                        "The requested video format is not available for this video.\n\n"
+                        "**Possible causes:**\n"
+                        "• The video doesn't have the requested format (e.g., webm, mp4)\n"
+                        "• The video quality is not available in the requested format\n"
+                        "• The video source has limited format options\n\n"
+                        "**Solutions:**\n"
+                        "• Try downloading with a different quality setting\n"
+                        "• Use the 'Always Ask' menu to see available formats\n"
+                        "• Try changing your format preferences in /args settings\n"
+                        "• The system will automatically try alternative formats\n\n"
+                        "The download will be retried with available formats."
+                    )
+                    send_error_to_user(message, format_error_message)
+                    logger.error(f"Format not available error: {error_message}")
+                    return "FORMAT_NOT_AVAILABLE"
                 
                 
                 
@@ -1539,8 +1569,28 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
             if rename_name == video_title:
                 caption_name = original_video_title  # Original title for caption
-                # Sanitize filename for disk storage while keeping original title for caption
-                final_name = sanitize_filename(downloaded_file)
+                # Clean up the filename by removing common subtitle indicators
+                cleaned_title = original_video_title
+                # Remove common subtitle indicators from the title
+                subtitle_indicators = [
+                    " (English subtitles)",
+                    " (English)",
+                    " (Subtitles)",
+                    " (Subs)",
+                    " [English subtitles]",
+                    " [English]",
+                    " [Subtitles]",
+                    " [Subs]",
+                    " - English subtitles",
+                    " - English",
+                    " - Subtitles",
+                    " - Subs"
+                ]
+                for indicator in subtitle_indicators:
+                    cleaned_title = cleaned_title.replace(indicator, "")
+                
+                # Use cleaned title for filename
+                final_name = sanitize_filename(cleaned_title + os.path.splitext(downloaded_file)[1])
                 if final_name != downloaded_file:
                     old_path = os.path.join(dir_path, downloaded_file)
                     new_path = os.path.join(dir_path, final_name)
@@ -1915,7 +1965,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     auto_mode = get_user_subs_auto_mode(user_id)
                     need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                     if not need_subs:
-                        _save_video_cache_with_logging(url, quality_key, split_msg_ids, original_text=message.text or message.caption or "")
+                        _save_video_cache_with_logging(url, quality_key, split_msg_ids, original_text=message.text or message.caption or "", user_id=user_id)
                     else:
                         logger.info(f"Split video with subtitles is not cached (found_type={found_type}, auto_mode={auto_mode})")
                 if os.path.exists(thumb_dir):
@@ -2159,7 +2209,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     if not need_subs:
                                         # Only cache regular content (not NSFW)
                                         if not is_nsfw:
-                                            _save_video_cache_with_logging(url, quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                            _save_video_cache_with_logging(url, quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "", user_id=user_id)
                                         else:
                                             logger.info("NSFW content not cached")
                                     else:
@@ -2245,7 +2295,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                                 if not need_subs:
                                                     # Only cache regular content (not NSFW)
                                                     if not is_nsfw:
-                                                        _save_video_cache_with_logging(url, quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                                        _save_video_cache_with_logging(url, quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "", user_id=user_id)
                                                     else:
                                                         logger.info("NSFW content not cached (manual)")
                                                 else:
@@ -2344,7 +2394,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         if not need_subs:
                                             # Only cache regular content (not NSFW)
                                             if not is_nsfw:
-                                                _save_video_cache_with_logging(url, quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                                _save_video_cache_with_logging(url, quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "", user_id=user_id)
                                             else:
                                                 logger.info("NSFW content not cached (error recovery)")
                                         else:

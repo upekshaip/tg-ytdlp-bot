@@ -42,6 +42,24 @@ from URL_PARSERS.tags import extract_url_range_tags
 # Get app instance for decorators
 app = get_app()
 
+# Import function to get user args
+def get_user_args(user_id: int):
+    """Get user's saved args settings"""
+    import os
+    import json
+    user_dir = os.path.join("users", str(user_id))
+    args_file = os.path.join(user_dir, "args.txt")
+    
+    if not os.path.exists(args_file):
+        return {}
+    
+    try:
+        with open(args_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Error reading user args for {user_id}: {e}")
+        return {}
+
 def create_telegram_thumbnail(cover_path, output_path, size=320):
     """Create a Telegram-compliant thumbnail from cover image using center crop (no black bars)."""
     try:
@@ -175,6 +193,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         
     user_id = message.chat.id
     logger.info(f"down_and_audio called: url={url}, quality_key={quality_key}, video_count={video_count}, video_start_with={video_start_with}")
+    
+    # Check if user has send_as_file enabled
+    user_args = get_user_args(user_id)
+    send_as_file = user_args.get("send_as_file", False)
     
     # ЖЕСТКО: Сохраняем оригинальный текст с диапазоном для фоллбэка
     original_message_text = message.text or message.caption or ""
@@ -1229,8 +1251,28 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
             if rename_name == audio_title:
                 caption_name = audio_title  # Original title for caption
-                # Sanitize filename for disk storage while keeping original title for caption
-                final_name = sanitize_filename(downloaded_file)
+                # Clean up the filename by removing common subtitle indicators
+                cleaned_title = audio_title
+                # Remove common subtitle indicators from the title
+                subtitle_indicators = [
+                    " (English subtitles)",
+                    " (English)",
+                    " (Subtitles)",
+                    " (Subs)",
+                    " [English subtitles]",
+                    " [English]",
+                    " [Subtitles]",
+                    " [Subs]",
+                    " - English subtitles",
+                    " - English",
+                    " - Subtitles",
+                    " - Subs"
+                ]
+                for indicator in subtitle_indicators:
+                    cleaned_title = cleaned_title.replace(indicator, "")
+                
+                # Use cleaned title for filename
+                final_name = sanitize_filename(cleaned_title + os.path.splitext(downloaded_file)[1])
                 if final_name != downloaded_file:
                     old_path = os.path.join(user_folder, downloaded_file)
                     new_path = os.path.join(user_folder, final_name)
@@ -1352,7 +1394,20 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 file_ext = os.path.splitext(audio_file)[1].lower()
                 
                 # Send audio with appropriate method based on content type and file format
-                if is_paid:
+                if send_as_file:
+                    # User wants to send as document
+                    logger.info(f"User {user_id} has send_as_file enabled, sending audio as document")
+                    # Get original filename for document
+                    original_filename = os.path.basename(audio_file)
+                    audio_msg = app.send_document(
+                        chat_id=user_id, 
+                        document=audio_file, 
+                        file_name=original_filename,
+                        caption=caption_with_link, 
+                        reply_parameters=ReplyParameters(message_id=message.id)
+                    )
+                    logger.info(f"Audio sent as document (send_as_file enabled)")
+                elif is_paid:
                     # Send paid audio for NSFW content in private chats
                     try:
                         from pyrogram.types import InputPaidMediaAudio
@@ -1393,9 +1448,11 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                                 )
                         else:
                             # Send as document for unsupported audio formats
+                            original_filename = os.path.basename(audio_file)
                             audio_msg = app.send_document(
                                 chat_id=user_id, 
                                 document=audio_file, 
+                                file_name=original_filename,
                                 caption=caption_with_link, 
                                 reply_parameters=ReplyParameters(message_id=message.id)
                             )
@@ -1422,9 +1479,11 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                             logger.info("Audio sent without thumbnail")
                     else:
                         # Send as document for unsupported audio formats
+                        original_filename = os.path.basename(audio_file)
                         audio_msg = app.send_document(
                             chat_id=user_id, 
                             document=audio_file, 
+                            file_name=original_filename,
                             caption=caption_with_link, 
                             reply_parameters=ReplyParameters(message_id=message.id)
                         )
@@ -1477,8 +1536,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     log_channel = get_log_channel("video")
                     forwarded_msg = safe_forward_messages(log_channel, user_id, [audio_msg.id])
                 
-                # Save to cache after sending audio (only for non-NSFW content)
-                if quality_key and forwarded_msg and not is_nsfw:
+                # Save to cache after sending audio (only for non-NSFW content and when send_as_file is disabled)
+                if quality_key and forwarded_msg and not is_nsfw and not send_as_file:
                     if isinstance(forwarded_msg, list):
                         msg_ids = [m.id for m in forwarded_msg]
                     else:
@@ -1499,6 +1558,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         save_to_video_cache(url, quality_key, msg_ids, original_text=message.text or message.caption or "", user_id=user_id)
                 elif is_nsfw:
                     logger.info(f"down_and_audio: skipping cache for NSFW content (url={url})")
+                elif send_as_file:
+                    logger.info(f"down_and_audio: skipping cache for user {user_id} with send_as_file enabled (url={url})")
             except Exception as send_error:
                 logger.error(f"Error sending audio: {send_error}")
                 send_to_user(message, f"❌ Failed to send audio: {send_error}")

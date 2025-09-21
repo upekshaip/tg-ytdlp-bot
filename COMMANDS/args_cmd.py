@@ -357,6 +357,11 @@ YTDLP_PARAMS = {
         "description": "Output container format for merging",
         "options": ["mp4", "webm", "mkv", "avi", "mov", "flv", "3gp", "ogv", "m4v", "wmv", "asf"],
         "default": "mp4"
+    },
+    "send_as_file": {
+        "type": "boolean",
+        "description": "Send all media as document instead of media",
+        "default": False
     }
 }
 
@@ -535,7 +540,8 @@ def get_args_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
         "sleep_interval": "Sleep Interval",
         "max_sleep_interval": "Max Sleep",
         "video_format": "Video Format",
-        "merge_output_format": "Merge Format"
+        "merge_output_format": "Merge Format",
+        "send_as_file": "Send As File"
     }
     
     buttons = []
@@ -605,7 +611,19 @@ def get_args_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     for param_name, param_config in YTDLP_PARAMS.items():
         if param_config["type"] == "number" or param_name in date_like_params:
             current_value = user_args.get(param_name, param_config.get("default", ""))
-            status = f"🔢 {current_value}"
+            
+            # Special handling for send_as_file parameter
+            if param_name == "send_as_file":
+                # Convert boolean to True/False display
+                if isinstance(current_value, bool):
+                    display_value = "True" if current_value else "False"
+                else:
+                    display_value = str(current_value)
+                status = "✅" if current_value else "❌"
+            else:
+                status = f"🔢 {current_value}"
+                display_value = str(current_value)
+            
             short_desc = short_descriptions.get(param_name, param_config['description'][:15])
             button_text = f"{status} {short_desc}"
             if len(button_text) > 30:
@@ -719,6 +737,17 @@ def get_text_input_message(param_name: str, current_value: str) -> str:
 def get_number_input_message(param_name: str, current_value: Any) -> str:
     """Generate number input message"""
     param_config = YTDLP_PARAMS[param_name]
+    
+    # Special handling for send_as_file parameter
+    if param_name == "send_as_file":
+        from CONFIG.messages import MessagesConfig as Messages
+        message = f"<b>⚙️ {param_config['description']}</b>\n\n"
+        if current_value is not None:
+            display_value = "True" if current_value else "False"
+            message += f"Current value: <code>{display_value}</code>\n\n"
+        message += "Please send <code>True</code> or <code>False</code> to enable/disable this option."
+        return message
+    
     min_val = param_config.get("min", 0)
     max_val = param_config.get("max", 999999)
     
@@ -880,7 +909,7 @@ def args_callback_handler(app, callback_query):
             user_args = get_user_args(user_id)
             current_value = user_args.get(param_name, param_config.get("default", ""))
             
-            if param_config["type"] == "boolean":
+            if param_config["type"] == "boolean" or param_name == "send_as_file":
                 keyboard = get_boolean_menu_keyboard(param_name, current_value)
                 callback_query.edit_message_text(
                     f"<b>⚙️ {param_config['description']}</b>\n\n"
@@ -1122,19 +1151,19 @@ def handle_args_text_input(app, message):
                 return
                 
         elif param_type == "number":
-            # Validate number input
-            try:
-                value = int(text)
-                param_config = YTDLP_PARAMS[param_name]
-                min_val = param_config.get("min", 0)
-                max_val = param_config.get("max", 999999)
-                
-                if value < min_val or value > max_val:
-                    safe_send_message(
-                        user_id,
-                        f"❌ Value must be between {min_val} and {max_val}.",
-                        message=message
-                    )
+            # Special handling for send_as_file parameter
+            if param_name == "send_as_file":
+                # Handle True/False input for send_as_file
+                text_lower = text.lower().strip()
+                if text_lower in ["true", "1", "yes", "on", "включено", "да"]:
+                    value = True
+                elif text_lower in ["false", "0", "no", "off", "выключено", "нет"]:
+                    value = False
+                else:
+                    error_msg = "❌ Please enter 'True' or 'False' for Send As File option."
+                    safe_send_message(user_id, error_msg, message=message)
+                    from HELPERS.logger import log_error_to_channel
+                    log_error_to_channel(message, error_msg)
                     return
                 
                 # Save the value
@@ -1146,17 +1175,46 @@ def handle_args_text_input(app, message):
                 clear_input_state_timer(user_id, thread_id)
                 safe_send_message(
                     user_id,
-                    f"✅ {YTDLP_PARAMS[param_name]['description']} set to: <code>{value}</code>",
+                    f"✅ {YTDLP_PARAMS[param_name]['description']} set to: <code>{'True' if value else 'False'}</code>",
                     parse_mode=enums.ParseMode.HTML,
                     message=message
                 )
-                
-            except ValueError:
-                error_msg = "❌ Please provide a valid number."
-                safe_send_message(user_id, error_msg, message=message)
-                from HELPERS.logger import log_error_to_channel
-                log_error_to_channel(message, error_msg)
-                return
+            else:
+                # Validate number input for other parameters
+                try:
+                    value = int(text)
+                    param_config = YTDLP_PARAMS[param_name]
+                    min_val = param_config.get("min", 0)
+                    max_val = param_config.get("max", 999999)
+                    
+                    if value < min_val or value > max_val:
+                        safe_send_message(
+                            user_id,
+                            f"❌ Value must be between {min_val} and {max_val}.",
+                            message=message
+                        )
+                        return
+                    
+                    # Save the value
+                    user_args = get_user_args(owner_id)
+                    user_args[param_name] = value
+                    save_user_args(owner_id, user_args)
+                    
+                    # Clear state and show success
+                    clear_input_state_timer(user_id, thread_id)
+                    safe_send_message(
+                        user_id,
+                        f"✅ {YTDLP_PARAMS[param_name]['description']} set to: <code>{value}</code>",
+                        parse_mode=enums.ParseMode.HTML,
+                        message=message
+                    )
+                    
+                except ValueError:
+                    error_msg = "❌ Please provide a valid number."
+                    safe_send_message(user_id, error_msg, message=message)
+                    from HELPERS.logger import log_error_to_channel
+                    log_error_to_channel(message, error_msg)
+                    return
                 
     except Exception as e:
         logger.error(f"Error handling args text input: {e}")
@@ -1190,6 +1248,7 @@ def args_text_handler(app, message):
 def get_user_ytdlp_args(user_id: int, url: str = None) -> Dict[str, Any]:
     """Get user's yt-dlp arguments for use in download functions"""
     user_args = get_user_args(user_id)
+    logger.info(f"User {user_id} args loaded: {user_args}")
     if not user_args:
         return {}
     
@@ -1200,7 +1259,14 @@ def get_user_ytdlp_args(user_id: int, url: str = None) -> Dict[str, Any]:
     if "video_format" in user_args:
         value = user_args["video_format"]
         if value and value != "mp4":
-            ytdlp_args["format"] = f"best[ext={value}]"
+            # Use more flexible format selection with fallbacks
+            if value == "webm":
+                # For webm, use best available format and let FFmpeg convert to webm
+                ytdlp_args["format"] = "best"
+                logger.info(f"User {user_id} selected video_format=webm, using format=best for compatibility")
+            else:
+                ytdlp_args["format"] = f"best[ext={value}]/best[ext=mp4]/best"
+                logger.info(f"User {user_id} selected video_format={value}, using format={ytdlp_args['format']}")
     
     for param_name, value in user_args.items():
         if param_name == "impersonate":
@@ -1242,6 +1308,7 @@ def get_user_ytdlp_args(user_id: int, url: str = None) -> Dict[str, Any]:
         elif param_name == "merge_output_format":
             if value and value != "mp4":
                 ytdlp_args["merge_output_format"] = value
+                logger.info(f"User {user_id} selected merge_output_format={value}")
         
         elif param_name == "format":
             # Handle format parameter (including id: format) - only if video_format not set
@@ -1272,7 +1339,13 @@ def get_user_ytdlp_args(user_id: int, url: str = None) -> Dict[str, Any]:
         elif param_name in ["date", "datebefore", "dateafter"]:
             if value:
                 ytdlp_args[param_name] = value
+        
+        elif param_name == "send_as_file":
+            # This parameter is handled in the sender functions, not in yt-dlp
+            # We'll store it in user_args but not pass to yt-dlp
+            ytdlp_args[param_name] = value
     
+    logger.info(f"User {user_id} final ytdlp_args: {ytdlp_args}")
     return ytdlp_args
 
 def log_ytdlp_options(user_id: int, ytdlp_opts: dict, operation: str = "download"):
