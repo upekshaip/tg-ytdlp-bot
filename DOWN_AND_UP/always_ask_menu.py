@@ -11,7 +11,7 @@ import requests
 
 from HELPERS.app_instance import get_app
 from HELPERS.decorators import get_main_reply_keyboard
-from HELPERS.logger import send_to_logger, logger
+from HELPERS.logger import send_to_logger, logger, send_error_to_user
 from CONFIG.logger_msg import LoggerMsg
 from HELPERS.filesystem_hlp import create_directory
 from HELPERS.qualifier import get_quality_by_min_side, get_real_height_for_quality
@@ -3042,6 +3042,21 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         info = load_ask_info(user_id, url)
         if not info:
             info = get_video_formats(url, user_id, playlist_start_index, cookies_already_checked=True)
+            
+            # Check for live stream detection
+            if isinstance(info, dict) and info.get('error') == 'LIVE_STREAM_DETECTED':
+                live_stream_message = (
+                    "🚫 **Live Stream Detected**\n\n"
+                    "Downloading of ongoing or infinite live streams is not allowed.\n\n"
+                    "Please wait for the stream to end and try downloading again when:\n"
+                    "• The stream duration is known\n"
+                    "• The stream has finished\n"
+                    "• You can see the final video length\n\n"
+                    "Once the stream is completed, you'll be able to download it as a regular video."
+                )
+                send_error_to_user(message, live_stream_message)
+                return
+            
             # Save minimal info to cache
             try:
                 save_ask_info(user_id, url, info)

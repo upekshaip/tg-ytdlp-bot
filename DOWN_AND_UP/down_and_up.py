@@ -1095,6 +1095,21 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 nonlocal error_message
                 error_message = str(e)
                 logger.error(f"DownloadError: {error_message}")
+                
+                # Check for live stream detection
+                if "LIVE_STREAM_DETECTED" in error_message:
+                    live_stream_message = (
+                        "🚫 **Live Stream Detected**\n\n"
+                        "Downloading of ongoing or infinite live streams is not allowed.\n\n"
+                        "Please wait for the stream to end and try downloading again when:\n"
+                        "• The stream duration is known\n"
+                        "• The stream has finished\n"
+                        "• You can see the final video length\n\n"
+                        "Once the stream is completed, you'll be able to download it as a regular video."
+                    )
+                    send_error_to_user(message, live_stream_message)
+                    return "LIVE_STREAM"
+                
                 # Auto-fallback to gallery-dl (/img) for non-video posts (albums/images)
                 if (
                     "No videos found in playlist" in error_message

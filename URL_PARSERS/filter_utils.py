@@ -27,7 +27,7 @@ def create_smart_match_filter():
             # Проверяем, является ли видео живым
             is_live = info_dict.get('is_live', False)
             if is_live:
-                return "Live stream detected, skipping"
+                return "LIVE_STREAM_DETECTED"
             
             # Получаем длительность
             duration = info_dict.get('duration')

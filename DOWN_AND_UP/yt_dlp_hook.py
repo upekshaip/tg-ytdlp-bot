@@ -158,6 +158,16 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
             if 'entries' in info and info.get('entries'):
                 return info['entries'][0]
             return info
+        except yt_dlp.utils.DownloadError as e:
+            error_text = str(e)
+            logger.error(f"DownloadError in get_video_formats: {error_text}")
+            
+            # Check for live stream detection
+            if "LIVE_STREAM_DETECTED" in error_text:
+                return {'error': 'LIVE_STREAM_DETECTED'}
+            
+            # Re-raise other DownloadErrors
+            raise e
         except Exception as e:
             logger.error(f"Error extracting info for {url}: {e}")
             raise e
