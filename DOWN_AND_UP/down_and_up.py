@@ -669,16 +669,19 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         def try_download(url, attempt_opts):
             nonlocal current_total_process, error_message, did_cookie_retry, did_proxy_retry, is_hls
             
-            # Clean filename template to avoid invalid characters
-            safe_outtmpl = os.path.join(user_dir_name, "%(title)s.%(ext)s")
+            # Use original filename for first attempt
+            original_outtmpl = os.path.join(user_dir_name, "%(title)s.%(ext)s")
             
+            # First try with original filename
             common_opts = {
                 'playlist_items': str(current_index),
-                'outtmpl': safe_outtmpl,
+                'outtmpl': original_outtmpl,
                 'postprocessors': [
                     {'key': 'EmbedThumbnail'},
                     {'key': 'FFmpegMetadata'}
                 ],
+                # Add restrictfilenames to sanitize output filename
+                'restrictfilenames': True,
                 'extractor_args': {
                     'generic': {'impersonate': ['chrome']},
                     'youtubetab': {'skip': ['authcheck']}
@@ -747,7 +750,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # For YouTube URLs, use optimized cookie logic - check existing first on user's URL, then retry if needed
                 if is_youtube_url(url):
                     from COMMANDS.cookies_cmd import get_youtube_cookie_urls, test_youtube_cookies_on_url, _download_content
-                    import time
                     
                     # Always check existing cookies first on user's URL for maximum speed
                     if os.path.exists(user_cookie_path):
@@ -1129,6 +1131,29 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     logger.error(f"Postprocessing error: {error_message}")
                     return "POSTPROCESSING_ERROR"
                 
+                # Check for postprocessing errors with Invalid argument
+                if "Postprocessing" in error_message and "Invalid argument" in error_message:
+                    postprocessing_message = (
+                        "❌ **File Processing Error**\n\n"
+                        "The video was downloaded but couldn't be processed due to an invalid argument error.\n\n"
+                        "**Possible causes:**\n"
+                        "• Corrupted or incomplete download\n"
+                        "• Unsupported file format or codec\n"
+                        "• File system permissions issue\n"
+                        "• Insufficient disk space\n\n"
+                        "**Solutions:**\n"
+                        "• Try downloading again - the system will retry with different settings\n"
+                        "• Check if you have enough disk space\n"
+                        "• Try a different quality or format\n"
+                        "• If the problem persists, the video source may be corrupted\n\n"
+                        "The download will be retried automatically."
+                    )
+                    send_error_to_user(message, postprocessing_message)
+                    logger.error(f"Postprocessing error (Invalid argument): {error_message}")
+                    return "POSTPROCESSING_ERROR"
+                
+                
+                
                 # Auto-fallback to gallery-dl (/img) for non-video posts (albums/images)
                 if (
                     "No videos found in playlist" in error_message
@@ -1348,6 +1373,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             info_dict = None
             skip_item = False
             stop_all = False
+            
+            # Define safe filename template for fallback
+            timestamp = int(time.time())
+            safe_outtmpl = os.path.join(user_dir_name, f"download_{timestamp}.%(ext)s")
+            
             for attempt in attempts:
                 result = try_download(url, attempt)
                 if result == "STOP":
@@ -1360,9 +1390,32 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     # Gallery-dl fallback has been triggered; stop further video processing
                     logger.info("Stopping video workflow after gallery-dl fallback trigger")
                     return
-                elif result is not None:
+                elif result is not None and isinstance(result, dict):
                     info_dict = result
                     break
+                elif result is not None and isinstance(result, str):
+                    # Handle string return values (like "POSTPROCESSING_ERROR")
+                    logger.info(f"Download attempt returned string result: {result}")
+                    if result == "POSTPROCESSING_ERROR":
+                        # Try again with safe filename if this was the first attempt
+                        if attempt == attempts[0]:  # First attempt failed
+                            logger.info("First attempt failed with postprocessing error, retrying with safe filename")
+                            # Modify the attempt to use safe filename
+                            safe_attempt = attempt.copy()
+                            safe_attempt['outtmpl'] = safe_outtmpl
+                            safe_result = try_download(url, safe_attempt)
+                            if safe_result is not None and isinstance(safe_result, dict):
+                                info_dict = safe_result
+                                break
+                            elif safe_result is not None and isinstance(safe_result, str):
+                                logger.info(f"Safe filename attempt also failed: {safe_result}")
+                                continue
+                        else:
+                            # Already tried safe filename, skip this attempt
+                            continue
+                    else:
+                        # Other string results, skip this attempt
+                        continue
 
             if stop_all:
                 logger.info(f"Stopping all downloads due to playlist error at index {current_index}")
@@ -1464,6 +1517,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             # Log all found files for debugging
             logger.info(f"Found video files in {dir_path}: {files}")
             
+            # If no files found with preferred format, try to find any video file
+            if not files:
+                logger.warning(f"No files found with preferred format {target_format}, searching for any video file")
+                fallback_extensions = ('.mp4', '.mkv', '.webm', '.ts', '.avi', '.mov', '.flv', '.3gp', '.ogv', '.wmv', '.asf', '.m4v')
+                files = [fname for fname in allfiles if fname.endswith(fallback_extensions)]
+                files.sort()
+                logger.info(f"Found video files with fallback search: {files}")
+            
             if not files:
                 send_error_to_user(message, f"Skipping unsupported file type in playlist at index {idx + video_start_with}")
                 continue
@@ -1541,10 +1602,48 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     mp4_file
                 ]
                 try:
-                    subprocess.run(ffmpeg_cmd, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
+                    result = subprocess.run(ffmpeg_cmd, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
                     os.remove(user_vid_path)
                     user_vid_path = mp4_file
                     final_name = mp4_basename
+                except subprocess.CalledProcessError as e:
+                    error_details = f"Return code: {e.returncode}"
+                    if e.stderr:
+                        error_details += f"\nError output: {e.stderr[:500]}"
+                    if e.stdout:
+                        error_details += f"\nStandard output: {e.stdout[:500]}"
+                    
+                    # Check for specific FFmpeg errors
+                    if "Invalid argument" in str(e.stderr):
+                        error_message = (
+                            "❌ **Video Conversion Failed**\n\n"
+                            "The video couldn't be converted to MP4 due to an invalid argument error.\n\n"
+                            "**Possible causes:**\n"
+                            "• Unsupported video codec or format\n"
+                            "• Corrupted source file\n"
+                            "• Incompatible video parameters\n"
+                            "• Insufficient system resources\n\n"
+                            "**Solutions:**\n"
+                            "• Try downloading with a different quality\n"
+                            "• Check if the source video is corrupted\n"
+                            "• Try a different video source if available\n"
+                            "• The original file will be sent without conversion\n\n"
+                            f"**Technical details:** {error_details}"
+                        )
+                    else:
+                        error_message = (
+                            "❌ **Video Conversion Failed**\n\n"
+                            "The video couldn't be converted to MP4.\n\n"
+                            "**Solutions:**\n"
+                            "• Try downloading with a different quality\n"
+                            "• The original file will be sent without conversion\n"
+                            "• If the problem persists, try a different video source\n\n"
+                            f"**Technical details:** {error_details}"
+                        )
+                    
+                    send_error_to_user(message, error_message)
+                    logger.error(f"FFmpeg conversion failed: {error_details}")
+                    break
                 except Exception as e:
                     send_error_to_user(message, f"❌ Conversion to MP4 failed: {e}")
                     break
