@@ -2189,7 +2189,7 @@ def show_manual_quality_menu(app, callback_query):
     # Form caption
     cap = f"<b>{video_title}</b>\n"
     if tags_text:
-        cap += f"{tags_text}\n"
+        cap += f"{tags_text}"
     try:
         is_nsfw = isinstance(tags_text, str) and ('#nsfw' in tags_text.lower())
     except Exception:
@@ -2350,7 +2350,7 @@ def show_other_qualities_menu(app, callback_query, page=0):
     # Form caption
     cap = f"<b>{video_title}</b>\n"
     if tags_text:
-        cap += f"{tags_text}\n"
+        cap += f"{tags_text}"
     if is_nsfw and is_private_chat:
         cap += "\n<b>⭐️ — 🔞NSFW is paid (⭐️$0.02)</b>\n"
     cap += f"\n<b>🎛 All Available Formats</b>\n"
@@ -2813,7 +2813,7 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         # Создаем заголовок
         cap = f"<b>{title}</b>\n"
         if tags_text:
-            cap += f"{tags_text}\n"
+            cap += f"{tags_text}"
         if is_nsfw and is_private_chat:
             cap += "\n<b>⭐️ — 🔞NSFW is paid (⭐️$0.02)</b>\n"
         if user_fixed_format:
@@ -3717,7 +3717,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             cap += f"<blockquote>{subs_count_info}{dubs_count_info}</blockquote>\n"
         # --- tags ---
         if tags_text:
-            cap += f"{tags_text}\n"
+            cap += f"{tags_text}"
         # --- links at the very bottom ---
         # if ("youtube.com" in url or "youtu.be" in url):
             # webpage_url = info.get('webpage_url') or ''
@@ -4230,8 +4230,8 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         import re
         # Remove old hint block
         cap = re.sub(r'<pre language="info">.*?</pre>', '', cap, flags=re.DOTALL)
-        # Add new dynamic hint
-        cap += f"\n{dynamic_hint_text}\n"
+        # Add new dynamic hint with reduced spacing
+        cap += f"{dynamic_hint_text}\n"
         
         keyboard = InlineKeyboardMarkup(keyboard_rows)
         # cap now contains dynamic hints based on actual buttons
