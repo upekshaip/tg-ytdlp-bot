@@ -455,7 +455,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         # Get user's merge_output_format preference once
         from COMMANDS.args_cmd import get_user_ytdlp_args
         user_args = get_user_ytdlp_args(user_id, url)
-        user_merge_format = user_args.get('merge_output_format', output_format)
+        user_merge_format = user_args.get('merge_output_format', 'mp4')
         
         if format_override:
             attempts = [{'format': format_override, 'prefer_ffmpeg': True, 'merge_output_format': user_merge_format}]

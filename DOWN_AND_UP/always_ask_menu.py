@@ -767,17 +767,27 @@ def build_filter_rows(user_id, url=None, is_private_chat=False):
             f"1⭐️{audio_format}" if (is_nsfw and is_private_chat)
             else (f"🚀{audio_format}" if is_cached_mp3 else f"🎧{audio_format}")
         )
-        row = [InlineKeyboardButton("📼CODEC", callback_data="askf|toggle|on"), InlineKeyboardButton(mp3_label, callback_data="askq|mp3")]
+        
+        # Create 2x2 layout instead of 1x4
+        first_row = [InlineKeyboardButton("📼CODEC", callback_data="askf|toggle|on"), InlineKeyboardButton(mp3_label, callback_data="askq|mp3")]
+        second_row = []
+        
         # Show DUBS button only if audio dubs are detected for this video (set elsewhere)
         if has_dubs:
-            row.insert(1, InlineKeyboardButton("🗣 DUBS", callback_data="askf|dubs|open"))
+            second_row.append(InlineKeyboardButton("🗣 DUBS", callback_data="askf|dubs|open"))
+        
         # Show SUBS button if Always Ask is enabled for this user
         try:
             if is_subs_always_ask(user_id):
-                row.append(InlineKeyboardButton("💬 SUBS", callback_data="askf|subs|open"))
+                second_row.append(InlineKeyboardButton("💬 SUBS", callback_data="askf|subs|open"))
         except Exception:
             pass
-        return [row], []
+        
+        # If second row is empty, add a placeholder button or just return first row
+        if not second_row:
+            return [first_row], []
+        
+        return [first_row, second_row], []
     
     # Build codec buttons with availability check
     avc1_available = 'avc1' in available_formats["codecs"] or not available_formats["codecs"]  # Show if available or if no cache
@@ -4198,7 +4208,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         
         # Audio hint (🎧) - if audio button is present
         if "🎧" in used_emojis:
-            dynamic_hints.append("🎧 — Extract only audio from media")
+            dynamic_hints.append("🎧 — Extract only audio")
         
         # Subs hints
         if subs_hint:
