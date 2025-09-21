@@ -1,3 +1,4 @@
+from CONFIG.messages import MessagesConfig as Messages
 # Domains Configuration
 
 class DomainsConfig(object):
@@ -52,13 +53,13 @@ class DomainsConfig(object):
         # Other secure domains can be added
     ]
     
-    # Domains that don't work well with match_filter (duration/live detection issues)
+    # Domains that don't work well with match_filter (Messages.STREAM_Messages.STREAM_DURATION_MSG.format(duration=duration)_MSG.format(Messages.STREAM_DURATION_MSG.format(duration=duration)=Messages.STREAM_DURATION_MSG.format(duration=duration))/live detection issues)
     NO_FILTER_DOMAINS = [
         'bashlinker.alenwalak.workers.dev',
         'cdn.indexer.eu.org',
         'a-tushar-82q-fef07c6bf20a.herokuapp.com',
         'file-to-link-632f24ac9728.herokuapp.com'
-        # Add other domains that have issues with duration/live detection
+        # Add other domains that have issues with Messages.STREAM_Messages.STREAM_DURATION_MSG.format(duration=duration)_MSG.format(Messages.STREAM_DURATION_MSG.format(duration=duration)=Messages.STREAM_DURATION_MSG.format(duration=duration))/live detection
     ]
       
     # TikTok Domain List
@@ -90,3 +91,4 @@ class DomainsConfig(object):
     
     # Piped frontend domain for opening YouTube links as a WebApp
     PIPED_DOMAIN = "poketube.fun"
+    #######################################################

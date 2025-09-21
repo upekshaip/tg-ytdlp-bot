@@ -22,10 +22,6 @@ playlist_errors_lock = threading.Lock()
 download_start_times = {}
 download_start_times_lock = threading.Lock()
 
-
-
-from HELPERS.app_instance import get_app
-
 # Get app instance for decorators
 app = get_app()
 
@@ -157,7 +153,7 @@ def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
 _last_upload_update_ts = {}
 
 # Helper function to start cycle progress animation
-def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_name, cycle_stop):
+def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_name, cycle_stop, progress_data=None):
     """
     Start a progress animation for HLS downloads
 
@@ -167,6 +163,7 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
         current_total_process: String describing the current process
         user_dir_name: Directory name where fragments are saved
         cycle_stop: Event to signal animation stop
+        progress_data: Optional dict with 'downloaded_bytes' and 'total_bytes' for real progress
 
     Returns:
         The animation thread
@@ -211,11 +208,20 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
                 else:
                     frag_text = "waiting for fragments"
 
-                bar = "🟩" * counter + "⬜️" * (10 - counter)
-
-                # Use safe_edit_message_text and check if message exists
-                result = safe_edit_message_text(user_id, proc_msg_id,
-                    f"{current_total_process}\n📥 Downloading HLS stream: {frag_text}\n{bar}")
+                # Check if we have real progress data (percentages)
+                if progress_data and progress_data.get('downloaded_bytes') and progress_data.get('total_bytes'):
+                    downloaded = progress_data.get('downloaded_bytes', 0)
+                    total = progress_data.get('total_bytes', 0)
+                    percent = (downloaded / total * 100) if total else 0
+                    blocks = int(percent // 10)
+                    bar = "🟩" * blocks + "⬜️" * (10 - blocks)
+                    result = safe_edit_message_text(user_id, proc_msg_id,
+                        f"{current_total_process}\n📥 Downloading HLS stream:\n{bar}   {percent:.1f}%")
+                else:
+                    # Fallback to fragment-based animation
+                    bar = "🟩" * counter + "⬜️" * (10 - counter)
+                    result = safe_edit_message_text(user_id, proc_msg_id,
+                        f"{current_total_process}\n📥 Downloading HLS stream: {frag_text}\n{bar}")
 
                 # If message was deleted (returns None), stop animation
                 if result is None and counter > 2:  # Allow first few attempts to fail
