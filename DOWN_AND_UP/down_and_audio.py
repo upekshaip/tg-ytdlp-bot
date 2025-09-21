@@ -183,6 +183,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     # Initialize retry guards early to avoid UnboundLocalError
     did_proxy_retry = False
     did_cookie_retry = False
+    is_hls = False
     
     # Determine forced NSFW via user tags
     try:
@@ -490,7 +491,6 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         # For YouTube URLs, use optimized cookie logic - check existing first on user's URL, then retry if needed
         if is_youtube_url(url):
             from COMMANDS.cookies_cmd import get_youtube_cookie_urls, test_youtube_cookies_on_url, _download_content
-            import time
             
             # Always check existing cookies first on user's URL for maximum speed
             if os.path.exists(user_cookie_path):
@@ -671,7 +671,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                'prefer_ffmpeg': True,
                'extractaudio': True,
                'playlist_items': str(current_index + video_start_with),
-               'outtmpl': os.path.join(user_folder, "%(title).50s.%(ext)s"),
+               # Try original filename first, fallback to safe filename if needed
+               'outtmpl': os.path.join(user_folder, "%(title)s.%(ext)s"),
+               # Add restrictfilenames to sanitize output filename
+               'restrictfilenames': True,
                'progress_hooks': [progress_hook],
                'extractor_args': {
                   'generic': {
@@ -819,6 +822,56 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             except yt_dlp.utils.DownloadError as e:
                 error_text = str(e)
                 logger.error(f"DownloadError: {error_text}")
+                
+                # Check for live stream detection
+                if "LIVE_STREAM_DETECTED" in error_text:
+                    live_stream_message = (
+                        "🚫 **Live Stream Detected**\n\n"
+                        "Downloading of ongoing or infinite live streams is not allowed.\n\n"
+                        "Please wait for the stream to end and try downloading again when:\n"
+                        "• The stream duration is known\n"
+                        "• The stream has finished\n"
+                        "• You can see the final video length\n\n"
+                        "Once the stream is completed, you'll be able to download it as a regular video."
+                    )
+                    send_error_to_user(message, live_stream_message)
+                    return "LIVE_STREAM"
+                
+                # Check for postprocessing errors
+                if "Postprocessing" in error_text and "Error opening output files" in error_text:
+                    postprocessing_message = (
+                        "❌ **File Processing Error**\n\n"
+                        "The audio was downloaded but couldn't be processed due to invalid characters in the filename.\n\n"
+                        "**Solutions:**\n"
+                        "• Try downloading again - the system will use a safer filename\n"
+                        "• If the problem persists, the audio title may contain unsupported characters\n"
+                        "• Consider using a different audio source if available\n\n"
+                        "The download will be retried automatically with a cleaned filename."
+                    )
+                    send_error_to_user(message, postprocessing_message)
+                    logger.error(f"Postprocessing error: {error_text}")
+                    return "POSTPROCESSING_ERROR"
+                
+                # Check for postprocessing errors with Invalid argument
+                if "Postprocessing" in error_text and "Invalid argument" in error_text:
+                    postprocessing_message = (
+                        "❌ **File Processing Error**\n\n"
+                        "The audio was downloaded but couldn't be processed due to an invalid argument error.\n\n"
+                        "**Possible causes:**\n"
+                        "• Corrupted or incomplete download\n"
+                        "• Unsupported audio format or codec\n"
+                        "• File system permissions issue\n"
+                        "• Insufficient disk space\n\n"
+                        "**Solutions:**\n"
+                        "• Try downloading again - the system will retry with different settings\n"
+                        "• Check if you have enough disk space\n"
+                        "• Try a different quality or format\n"
+                        "• If the problem persists, the audio source may be corrupted\n\n"
+                        "The download will be retried automatically."
+                    )
+                    send_error_to_user(message, postprocessing_message)
+                    logger.error(f"Postprocessing error (Invalid argument): {error_text}")
+                    return "POSTPROCESSING_ERROR"
                 
                 # Auto-fallback to gallery-dl (/img) for non-video posts (albums/images)
                 if (
@@ -997,6 +1050,11 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             indices_to_download = uncached_indices
         else:
             indices_to_download = range(video_count)
+        
+        # Define safe filename template for fallback
+        timestamp = int(time.time())
+        safe_outtmpl = os.path.join(user_folder, f"download_{timestamp}.%(ext)s")
+        
         for idx, current_index in enumerate(indices_to_download):
             current_index = current_index - video_start_with  # for numbering/display
             total_process = f"""
@@ -1014,15 +1072,119 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 # No new name set - extract name from metadata
                 rename_name = None
 
-            info_dict = try_download_audio(url, current_index)
+            result = try_download_audio(url, current_index)
 
-            if info_dict is None:
+            if result is None:
                 with playlist_errors_lock:
                     error_key = f"{user_id}_{playlist_name}"
                     if error_key not in playlist_errors:
                         playlist_errors[error_key] = True
 
                 break
+            elif isinstance(result, str):
+                # Handle string return values (like "POSTPROCESSING_ERROR", "SKIP", etc.)
+                logger.info(f"Audio download attempt returned string result: {result}")
+                if result == "POSTPROCESSING_ERROR":
+                    # Try again with safe filename
+                    logger.info("Audio download failed with postprocessing error, retrying with safe filename")
+                    
+                    # Create a simple retry with safe filename by modifying the ytdl_opts
+                    # We'll create a new ytdl_opts with safe filename and retry
+                    try:
+                        # Get the same options as in try_download_audio but with safe filename
+                        download_format = format_override if format_override else 'ba'
+                        from COMMANDS.args_cmd import get_user_ytdlp_args
+                        user_args = get_user_ytdlp_args(user_id, url)
+                        audio_format = user_args.get('audio_format', 'mp3')
+                        if audio_format == 'best':
+                            audio_format = 'mp3'
+                        
+                        is_hls = ("m3u8" in url.lower())
+                        
+                        ytdl_opts = {
+                           'format': download_format,
+                           'postprocessors': [{
+                              'key': 'FFmpegExtractAudio',
+                              'preferredcodec': audio_format,
+                              'preferredquality': '192',
+                           },
+                           {
+                              'key': 'FFmpegMetadata'
+                           }],
+                           'prefer_ffmpeg': True,
+                           'extractaudio': True,
+                           'playlist_items': str(current_index + video_start_with),
+                           'outtmpl': safe_outtmpl,  # Use safe filename
+                           'restrictfilenames': True,
+                           'progress_hooks': [progress_hook],
+                           'extractor_args': {
+                              'generic': {'impersonate': ['chrome']}
+                           },
+                           'referer': url,
+                           'geo_bypass': True,
+                           'check_certificate': False,
+                           'live_from_start': True,
+                           'writethumbnail': True,
+                           'writesubtitles': False,
+                           'writeautomaticsub': False,
+                        }
+                        
+                        # Add match_filter only if domain is not in NO_FILTER_DOMAINS
+                        if not is_no_filter_domain(url):
+                            ytdl_opts['match_filter'] = create_smart_match_filter()
+                        
+                        # Add user's custom yt-dlp arguments
+                        if user_args:
+                            ytdl_opts.update(user_args)
+                        
+                        # Check if we need to use --no-cookies for this domain
+                        if is_no_cookie_domain(url):
+                            ytdl_opts['cookiefile'] = None
+                        else:
+                            ytdl_opts['cookiefile'] = cookie_file
+                        
+                        # Add proxy configuration
+                        from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
+                        ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url, user_id)
+                        
+                        # Add PO token provider for YouTube domains
+                        ytdl_opts = add_pot_to_ytdl_opts(ytdl_opts, url)
+                        
+                        # Try download with safe filename
+                        with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
+                            info_dict = ydl.extract_info(url, download=False)
+                            if "entries" in info_dict:
+                                entries = info_dict["entries"]
+                                if len(entries) > 1:
+                                    actual_index = current_index + video_start_with - 1
+                                    if actual_index < len(entries):
+                                        info_dict = entries[actual_index]
+                                    else:
+                                        raise Exception(f"Audio index {actual_index + 1} out of range (total {len(entries)})")
+                                else:
+                                    info_dict = entries[0]
+                            
+                            # Download with safe filename
+                            ydl.download([url])
+                            
+                            logger.info("Audio download with safe filename succeeded")
+                            # Continue with the rest of the processing
+                            
+                    except Exception as e:
+                        logger.error(f"Audio download with safe filename also failed: {e}")
+                        continue
+                elif result == "SKIP":
+                    # Skip this item and continue with next
+                    continue
+                elif result == "LIVE_STREAM":
+                    # Live stream detected, skip this item
+                    continue
+                else:
+                    # Other string results, skip this attempt
+                    continue
+            else:
+                # result is a dict (info_dict)
+                info_dict = result
 
             successful_uploads += 1
 
@@ -1048,6 +1210,15 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             files = [fname for fname in allfiles if any(fname.endswith(ext) for ext in audio_extensions)]
             logger.info(f"Found audio files: {files}")
             files.sort()
+            
+            # If no files found with standard audio extensions, try additional formats
+            if not files:
+                logger.warning(f"No files found with standard audio extensions, trying additional formats")
+                additional_extensions = ['.mka', '.wma', '.aiff', '.au', '.ra', '.rm', '.3ga', '.amr', '.awb', '.m4b', '.m4p', '.oga', '.spx', '.tta', '.weba']
+                files = [fname for fname in allfiles if any(fname.endswith(ext) for ext in additional_extensions)]
+                files.sort()
+                logger.info(f"Found audio files with additional formats: {files}")
+            
             if not files:
                 logger.error(f"No audio files found in {user_folder}. Available files: {allfiles}")
                 send_error_to_user(message, f"Skipping unsupported file type in playlist at index {idx + video_start_with}")

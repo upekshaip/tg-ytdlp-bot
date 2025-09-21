@@ -11,7 +11,7 @@ import requests
 
 from HELPERS.app_instance import get_app
 from HELPERS.decorators import get_main_reply_keyboard
-from HELPERS.logger import send_to_logger, logger
+from HELPERS.logger import send_to_logger, logger, send_error_to_user
 from CONFIG.logger_msg import LoggerMsg
 from HELPERS.filesystem_hlp import create_directory
 from HELPERS.qualifier import get_quality_by_min_side, get_real_height_for_quality
@@ -714,6 +714,23 @@ def build_filter_rows(user_id, url=None, is_private_chat=False):
     audio_lang = f.get("audio_lang")
     has_dubs = bool(f.get("has_dubs"))
     
+    # Check if user has fixed container format via /args
+    user_fixed_format = None
+    try:
+        from COMMANDS.args_cmd import get_user_args
+        user_args = get_user_args(user_id)
+        user_video_format = user_args.get('video_format', 'mp4')
+        user_merge_format = user_args.get('merge_output_format', 'mp4')
+        
+        # If user has set video_format to something other than mp4, it's fixed
+        if user_video_format != 'mp4':
+            user_fixed_format = user_video_format
+        # If user has set merge_output_format to something other than mp4, it's fixed
+        elif user_merge_format != 'mp4':
+            user_fixed_format = user_merge_format
+    except Exception:
+        pass
+    
     # Get available formats from cache if URL is provided
     available_formats = {"codecs": set(), "formats": set()}
     if url:
@@ -750,17 +767,33 @@ def build_filter_rows(user_id, url=None, is_private_chat=False):
             f"1⭐️{audio_format}" if (is_nsfw and is_private_chat)
             else (f"🚀{audio_format}" if is_cached_mp3 else f"🎧{audio_format}")
         )
-        row = [InlineKeyboardButton("📼CODEC", callback_data="askf|toggle|on"), InlineKeyboardButton(mp3_label, callback_data="askq|mp3")]
+        
+        # Create dynamic layout based on available buttons
+        buttons = [InlineKeyboardButton("📼CODEC", callback_data="askf|toggle|on"), InlineKeyboardButton(mp3_label, callback_data="askq|mp3")]
+        
         # Show DUBS button only if audio dubs are detected for this video (set elsewhere)
         if has_dubs:
-            row.insert(1, InlineKeyboardButton("🗣 DUBS", callback_data="askf|dubs|open"))
+            buttons.append(InlineKeyboardButton("🗣 DUBS", callback_data="askf|dubs|open"))
+        
         # Show SUBS button if Always Ask is enabled for this user
         try:
             if is_subs_always_ask(user_id):
-                row.append(InlineKeyboardButton("💬 SUBS", callback_data="askf|subs|open"))
+                buttons.append(InlineKeyboardButton("💬 SUBS", callback_data="askf|subs|open"))
         except Exception:
             pass
-        return [row], []
+        
+        # Dynamic layout: 2 or 4 buttons = 2 per row, 3 buttons = all in one row
+        if len(buttons) == 2 or len(buttons) == 4:
+            # Split into 2 rows of 2 buttons each
+            first_row = buttons[:2]
+            second_row = buttons[2:] if len(buttons) > 2 else []
+            return [first_row, second_row] if second_row else [first_row], []
+        elif len(buttons) == 3:
+            # All 3 buttons in one row
+            return [buttons], []
+        else:
+            # Fallback: single row
+            return [buttons], []
     
     # Build codec buttons with availability check
     avc1_available = 'avc1' in available_formats["codecs"] or not available_formats["codecs"]  # Show if available or if no cache
@@ -772,11 +805,18 @@ def build_filter_rows(user_id, url=None, is_private_chat=False):
     vp9_btn = ("✅ VP9" if codec == "vp9" else "☑️ VP9") if vp9_available else "❌ VP9"
     
     # Build format buttons with availability check
-    mp4_available = 'mp4' in available_formats["formats"] or not available_formats["formats"]
-    mkv_available = 'mkv' in available_formats["formats"] or not available_formats["formats"]
-    
-    mp4_btn = ("✅ MP4" if ext == "mp4" else "☑️ MP4") if mp4_available else "❌ MP4"
-    mkv_btn = ("✅ MKV" if ext == "mkv" else "☑️ MKV") if mkv_available else "❌ MKV"
+    # If user has fixed format via /args, don't show container buttons
+    if user_fixed_format:
+        # Show fixed format as read-only
+        fixed_format_btn = f"🔒 {user_fixed_format.upper()}"
+        mp4_btn = fixed_format_btn
+        mkv_btn = None  # Don't show MKV button
+    else:
+        mp4_available = 'mp4' in available_formats["formats"] or not available_formats["formats"]
+        mkv_available = 'mkv' in available_formats["formats"] or not available_formats["formats"]
+        
+        mp4_btn = ("✅ MP4" if ext == "mp4" else "☑️ MP4") if mp4_available else "❌ MP4"
+        mkv_btn = ("✅ MKV" if ext == "mkv" else "☑️ MKV") if mkv_available else "❌ MKV"
     
     # NSFW detection for expanded filters
     is_nsfw = False
@@ -807,10 +847,20 @@ def build_filter_rows(user_id, url=None, is_private_chat=False):
         f"1⭐️{audio_format}" if (is_nsfw and is_private_chat)
         else (f"🚀{audio_format}" if is_cached_mp3 else f"🎧{audio_format}")
     )
+    # Build rows based on whether format is fixed
     rows = [
-        [InlineKeyboardButton(avc1_btn, callback_data="askf|codec|avc1"), InlineKeyboardButton(av01_btn, callback_data="askf|codec|av01"), InlineKeyboardButton(vp9_btn, callback_data="askf|codec|vp9")],
-        [InlineKeyboardButton(mp4_btn, callback_data="askf|ext|mp4"), InlineKeyboardButton(mkv_btn, callback_data="askf|ext|mkv"), InlineKeyboardButton(mp3_label, callback_data="askq|mp3")]
+        [InlineKeyboardButton(avc1_btn, callback_data="askf|codec|avc1"), InlineKeyboardButton(av01_btn, callback_data="askf|codec|av01"), InlineKeyboardButton(vp9_btn, callback_data="askf|codec|vp9")]
     ]
+    
+    # Add format row - only show container buttons if not fixed via /args
+    if user_fixed_format:
+        # Show fixed format as non-clickable
+        format_row = [InlineKeyboardButton(mp4_btn, callback_data="askf|empty"), InlineKeyboardButton(mp3_label, callback_data="askq|mp3")]
+    else:
+        # Show normal container selection
+        format_row = [InlineKeyboardButton(mp4_btn, callback_data="askf|ext|mp4"), InlineKeyboardButton(mkv_btn, callback_data="askf|ext|mkv"), InlineKeyboardButton(mp3_label, callback_data="askq|mp3")]
+    
+    rows.append(format_row)
     action_buttons = []
     if has_dubs:
         action_buttons.append(InlineKeyboardButton("🗣 DUBS", callback_data="askf|dubs|open"))
@@ -1187,6 +1237,11 @@ def askq_callback(app, callback_query):
         # support both prefixes
         _, kind, value = parts[0], parts[1], parts[2]
         if kind in ("codec", "ext"):
+            # Handle empty callback (fixed format)
+            if value == "empty":
+                callback_query.answer("Format is fixed via /args settings", show_alert=True)
+                return
+                
             # Get original message and URL
             original_message = callback_query.message.reply_to_message
             if not original_message:
@@ -2140,7 +2195,7 @@ def show_manual_quality_menu(app, callback_query):
     # Form caption
     cap = f"<b>{video_title}</b>\n"
     if tags_text:
-        cap += f"{tags_text}\n"
+        cap += f"{tags_text}"
     try:
         is_nsfw = isinstance(tags_text, str) and ('#nsfw' in tags_text.lower())
     except Exception:
@@ -2301,7 +2356,7 @@ def show_other_qualities_menu(app, callback_query, page=0):
     # Form caption
     cap = f"<b>{video_title}</b>\n"
     if tags_text:
-        cap += f"{tags_text}\n"
+        cap += f"{tags_text}"
     if is_nsfw and is_private_chat:
         cap += "\n<b>⭐️ — 🔞NSFW is paid (⭐️$0.02)</b>\n"
     cap += f"\n<b>🎛 All Available Formats</b>\n"
@@ -2711,6 +2766,23 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
     try:
         logger.info(f"Attempting to create menu from cached qualities for user {user_id}")
         
+        # Check if user has fixed format via /args
+        user_fixed_format = None
+        try:
+            from COMMANDS.args_cmd import get_user_args
+            user_args = get_user_args(user_id)
+            user_video_format = user_args.get('video_format', 'mp4')
+            user_merge_format = user_args.get('merge_output_format', 'mp4')
+            
+            # If user has set video_format to something other than mp4, it's fixed
+            if user_video_format != 'mp4':
+                user_fixed_format = user_video_format
+            # If user has set merge_output_format to something other than mp4, it's fixed
+            elif user_merge_format != 'mp4':
+                user_fixed_format = user_merge_format
+        except Exception:
+            pass
+        
         # Получаем кэшированные качества
         if is_playlist and playlist_range:
             cached_qualities = get_cached_playlist_qualities(get_clean_playlist_url(url))
@@ -2747,9 +2819,11 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         # Создаем заголовок
         cap = f"<b>{title}</b>\n"
         if tags_text:
-            cap += f"{tags_text}\n"
+            cap += f"{tags_text}"
         if is_nsfw and is_private_chat:
             cap += "\n<b>⭐️ — 🔞NSFW is paid (⭐️$0.02)</b>\n"
+        if user_fixed_format:
+            cap += f"\n<b>🔒 Format fixed via /args: {user_fixed_format.upper()}</b>\n"
         cap += f"\n<b>📹 Available Qualities (from cache)</b>\n"
         cap += f"\n<i>⚠️ Using cached qualities - new formats may not be available</i>\n"
         
@@ -2984,6 +3058,21 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         info = load_ask_info(user_id, url)
         if not info:
             info = get_video_formats(url, user_id, playlist_start_index, cookies_already_checked=True)
+            
+            # Check for live stream detection
+            if isinstance(info, dict) and info.get('error') == 'LIVE_STREAM_DETECTED':
+                live_stream_message = (
+                    "🚫 **Live Stream Detected**\n\n"
+                    "Downloading of ongoing or infinite live streams is not allowed.\n\n"
+                    "Please wait for the stream to end and try downloading again when:\n"
+                    "• The stream duration is known\n"
+                    "• The stream has finished\n"
+                    "• You can see the final video length\n\n"
+                    "Once the stream is completed, you'll be able to download it as a regular video."
+                )
+                send_error_to_user(message, live_stream_message)
+                return
+            
             # Save minimal info to cache
             try:
                 save_ask_info(user_id, url, info)
@@ -3130,6 +3219,24 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         # --- Table with qualities and sizes ---
         table_block = ''
         found_quality_keys = set()
+        
+        # Check if user has fixed format via /args
+        user_fixed_format = None
+        try:
+            from COMMANDS.args_cmd import get_user_args
+            user_args = get_user_args(user_id)
+            user_video_format = user_args.get('video_format', 'mp4')
+            user_merge_format = user_args.get('merge_output_format', 'mp4')
+            
+            # If user has set video_format to something other than mp4, it's fixed
+            if user_video_format != 'mp4':
+                user_fixed_format = user_video_format
+            # If user has set merge_output_format to something other than mp4, it's fixed
+            elif user_merge_format != 'mp4':
+                user_fixed_format = user_merge_format
+        except Exception:
+            pass
+        
         if ("youtube.com" in url or "youtu.be" in url):
             quality_map = {}
             for f in info.get('formats', []):
@@ -3143,10 +3250,28 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                         continue
                     if sel_codec == 'vp9' and 'vp9' not in vcodec:
                         continue
-                    # Filter by extension: mp4 exact; mkv acts as "not mp4"
-                    if sel_ext == 'mp4' and ext != 'mp4':
+                    
+                    # Filter by extension - use fixed format if available
+                    target_ext = user_fixed_format if user_fixed_format else sel_ext
+                    if target_ext == 'mp4' and ext != 'mp4':
                         continue
-                    if sel_ext == 'mkv' and ext == 'mp4':
+                    if target_ext == 'mkv' and ext == 'mp4':
+                        continue
+                    if target_ext == 'webm' and ext != 'webm':
+                        continue
+                    if target_ext == 'avi' and ext != 'avi':
+                        continue
+                    if target_ext == 'mov' and ext != 'mov':
+                        continue
+                    if target_ext == 'flv' and ext != 'flv':
+                        continue
+                    if target_ext == '3gp' and ext not in ('3gp', '3g2'):
+                        continue
+                    if target_ext == 'ogv' and ext not in ('ogv', 'ogg'):
+                        continue
+                    if target_ext == 'wmv' and ext != 'wmv':
+                        continue
+                    if target_ext == 'asf' and ext != 'asf':
                         continue
                     w = f['width']
                     h = f['height']
@@ -3378,6 +3503,49 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 if f.get('vcodec') == 'none' and (f.get('audio_ext') or '') != 'none':
                     continue
 
+                # Filter by user's fixed format if set
+                if user_fixed_format:
+                    ext = f.get('ext') or ''
+                    if user_fixed_format == 'mp4' and ext != 'mp4':
+                        continue
+                    if user_fixed_format == 'webm' and ext != 'webm':
+                        continue
+                    if user_fixed_format == 'mkv' and ext == 'mp4':
+                        continue
+                    if user_fixed_format == 'avi' and ext != 'avi':
+                        continue
+                    if user_fixed_format == 'mov' and ext != 'mov':
+                        continue
+                    if user_fixed_format == 'flv' and ext != 'flv':
+                        continue
+                    if user_fixed_format == '3gp' and ext not in ('3gp', '3g2'):
+                        continue
+                    if user_fixed_format == 'ogv' and ext not in ('ogv', 'ogg'):
+                        continue
+                    if user_fixed_format == 'wmv' and ext != 'wmv':
+                        continue
+                    if user_fixed_format == 'asf' and ext != 'asf':
+                        continue
+                
+                # Filter by selected codec
+                vcodec = f.get('vcodec') or ''
+                if sel_codec == 'avc1' and 'avc1' not in vcodec:
+                    continue
+                if sel_codec == 'av01' and not vcodec.startswith('av01'):
+                    continue
+                if sel_codec == 'vp9' and 'vp9' not in vcodec:
+                    continue
+                
+                # Filter by selected extension
+                ext = f.get('ext') or ''
+                target_ext = user_fixed_format if user_fixed_format else sel_ext
+                if target_ext == 'mp4' and ext != 'mp4':
+                    continue
+                if target_ext == 'mkv' and ext == 'mp4':
+                    continue
+                if target_ext == 'webm' and ext != 'webm':
+                    continue
+
                 qk = infer_quality_key(f)
                 if not qk or qk == 'best':
                     continue
@@ -3449,6 +3617,11 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
 
         # --- Forming caption ---
         cap = f"<b>{title}</b>\n"
+        
+        # Show fixed format info if set via /args
+        if user_fixed_format:
+            cap += f"\n<b>🔒 Format fixed via /args: {user_fixed_format.upper()}</b>\n"
+        
         # Audio/subs selection summary line
         fstate = get_filters(user_id)
         sel_audio_lang = fstate.get("audio_lang")
@@ -3569,7 +3742,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             cap += f"<blockquote>{subs_count_info}{dubs_count_info}</blockquote>\n"
         # --- tags ---
         if tags_text:
-            cap += f"{tags_text}\n"
+            cap += f"{tags_text}"
         # --- links at the very bottom ---
         # if ("youtube.com" in url or "youtu.be" in url):
             # webpage_url = info.get('webpage_url') or ''
@@ -4060,7 +4233,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         
         # Audio hint (🎧) - if audio button is present
         if "🎧" in used_emojis:
-            dynamic_hints.append("🎧 — Extract only audio from media")
+            dynamic_hints.append("🎧 — Extract only audio")
         
         # Subs hints
         if subs_hint:
@@ -4082,8 +4255,8 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         import re
         # Remove old hint block
         cap = re.sub(r'<pre language="info">.*?</pre>', '', cap, flags=re.DOTALL)
-        # Add new dynamic hint
-        cap += f"\n{dynamic_hint_text}\n"
+        # Add new dynamic hint with reduced spacing
+        cap += f"{dynamic_hint_text}\n"
         
         keyboard = InlineKeyboardMarkup(keyboard_rows)
         # cap now contains dynamic hints based on actual buttons
@@ -4395,8 +4568,10 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
             callback_query.answer("📥 Downloading best quality...")
         except Exception:
             pass
-        # Use fixed format bv+ba for Best quality
-        fmt = "bv+ba/best"
+        # Use format with AVC codec and MP4 container priority for Best quality
+        # with fallback to bv+ba/best if no AVC+MP4 available
+        audio_filter = f"[language^={sel_audio_lang}]" if sel_audio_lang else ""
+        fmt = f"bv*[vcodec*={sel_codec}][ext={sel_ext}]+ba{audio_filter}/bv*[vcodec*={sel_codec}]+ba{audio_filter}/bv*[ext={sel_ext}]+ba{audio_filter}/bv+ba/best"
         quality_key = "best"
     else:
         try:
