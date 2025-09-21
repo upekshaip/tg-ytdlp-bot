@@ -452,13 +452,18 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         if use_default_format:
             format_override = None
 
+        # Get user's merge_output_format preference once
+        from COMMANDS.args_cmd import get_user_ytdlp_args
+        user_args = get_user_ytdlp_args(user_id, url)
+        user_merge_format = user_args.get('merge_output_format', output_format)
+        
         if format_override:
-            attempts = [{'format': format_override, 'prefer_ffmpeg': True, 'merge_output_format': 'mp4'}]
+            attempts = [{'format': format_override, 'prefer_ffmpeg': True, 'merge_output_format': user_merge_format}]
         else:
             # if use_default_format is True, then do not take from format.txt, but use default ones
             if use_default_format:
                 attempts = [
-                    {'format': 'bv*[vcodec*=avc1][height<=1080][height>720]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bv+ba/best', 'prefer_ffmpeg': True, 'merge_output_format': output_format, 'extract_flat': False},
+                    {'format': 'bv*[vcodec*=avc1][height<=1080][height>720]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bv+ba/best', 'prefer_ffmpeg': True, 'merge_output_format': user_merge_format, 'extract_flat': False},
                     {'format': 'best', 'prefer_ffmpeg': False, 'extract_flat': False}
                 ]
             else:
@@ -468,13 +473,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     if custom_format.lower() == "best":
                         attempts = [{'format': custom_format, 'prefer_ffmpeg': False}]
                     else:
-                        attempts = [{'format': custom_format, 'prefer_ffmpeg': True, 'merge_output_format': output_format}]
+                        attempts = [{'format': custom_format, 'prefer_ffmpeg': True, 'merge_output_format': user_merge_format}]
                 else:
                     attempts = [
                         {'format': 'bv*[vcodec*=avc1][height<=1080][height>720]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<=1080]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bv+ba/best',
-                        'prefer_ffmpeg': True, 'merge_output_format': output_format, 'extract_flat': False},
+                        'prefer_ffmpeg': True, 'merge_output_format': user_merge_format, 'extract_flat': False},
                         {'format': 'bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bestvideo+bestaudio/best/bv+ba/best',
-                        'prefer_ffmpeg': True, 'merge_output_format': output_format, 'extract_flat': False},
+                        'prefer_ffmpeg': True, 'merge_output_format': user_merge_format, 'extract_flat': False},
                         {'format': 'best', 'prefer_ffmpeg': False, 'extract_flat': False}
                     ]
 
@@ -1383,7 +1388,43 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
             dir_path = os.path.join("users", str(user_id))
             allfiles = os.listdir(dir_path)
-            files = [fname for fname in allfiles if fname.endswith(('.mp4', '.mkv', '.webm', '.ts'))]
+            
+            # Get user's preferred video format to determine file extensions
+            from COMMANDS.args_cmd import get_user_ytdlp_args
+            user_args = get_user_ytdlp_args(user_id, url)
+            user_video_format = user_args.get('video_format', 'mp4')
+            user_merge_format = user_args.get('merge_output_format', 'mp4')
+            
+            # Determine which format to look for based on user preferences
+            # Priority: video_format > merge_output_format > default
+            target_format = user_video_format if user_video_format != 'mp4' else user_merge_format
+            
+            # Define supported video extensions based on user preference
+            if target_format == 'mp4':
+                video_extensions = ('.mp4', '.m4v')
+            elif target_format == 'webm':
+                video_extensions = ('.webm',)
+            elif target_format == 'mkv':
+                video_extensions = ('.mkv',)
+            elif target_format == 'avi':
+                video_extensions = ('.avi',)
+            elif target_format == 'mov':
+                video_extensions = ('.mov',)
+            elif target_format == 'flv':
+                video_extensions = ('.flv',)
+            elif target_format == '3gp':
+                video_extensions = ('.3gp', '.3g2')
+            elif target_format == 'ogv':
+                video_extensions = ('.ogv', '.ogg')
+            elif target_format == 'wmv':
+                video_extensions = ('.wmv',)
+            elif target_format == 'asf':
+                video_extensions = ('.asf',)
+            else:
+                # Fallback to all supported formats
+                video_extensions = ('.mp4', '.mkv', '.webm', '.ts', '.avi', '.mov', '.flv', '.3gp', '.ogv', '.wmv', '.asf')
+            
+            files = [fname for fname in allfiles if fname.endswith(video_extensions)]
             files.sort()
             
             # Log all found files for debugging

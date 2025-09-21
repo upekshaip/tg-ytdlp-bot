@@ -345,6 +345,18 @@ YTDLP_PARAMS = {
         "default": 10,
         "min": 0,
         "max": 50
+    },
+    "video_format": {
+        "type": "select",
+        "description": "Video container format",
+        "options": ["mp4", "webm", "mkv", "avi", "mov", "flv", "3gp", "ogv", "m4v", "wmv", "asf"],
+        "default": "mp4"
+    },
+    "merge_output_format": {
+        "type": "select",
+        "description": "Output container format for merging",
+        "options": ["mp4", "webm", "mkv", "avi", "mov", "flv", "3gp", "ogv", "m4v", "wmv", "asf"],
+        "default": "mp4"
     }
 }
 
@@ -521,7 +533,9 @@ def get_args_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
         "dateafter": "Date After",
         "http_headers": "HTTP Headers",
         "sleep_interval": "Sleep Interval",
-        "max_sleep_interval": "Max Sleep"
+        "max_sleep_interval": "Max Sleep",
+        "video_format": "Video Format",
+        "merge_output_format": "Merge Format"
     }
     
     buttons = []
@@ -1182,6 +1196,12 @@ def get_user_ytdlp_args(user_id: int, url: str = None) -> Dict[str, Any]:
     # Convert user args to yt-dlp format
     ytdlp_args = {}
     
+    # Priority parameters - these override other format settings
+    if "video_format" in user_args:
+        value = user_args["video_format"]
+        if value and value != "mp4":
+            ytdlp_args["format"] = f"best[ext={value}]"
+    
     for param_name, value in user_args.items():
         if param_name == "impersonate":
             ytdlp_args["extractor_args"] = ytdlp_args.get("extractor_args", {})
@@ -1219,9 +1239,13 @@ def get_user_ytdlp_args(user_id: int, url: str = None) -> Dict[str, Any]:
             if value and value != "best":
                 ytdlp_args["audio_format"] = value
         
+        elif param_name == "merge_output_format":
+            if value and value != "mp4":
+                ytdlp_args["merge_output_format"] = value
+        
         elif param_name == "format":
-            # Handle format parameter (including id: format)
-            if value:
+            # Handle format parameter (including id: format) - only if video_format not set
+            if value and "format" not in ytdlp_args:
                 ytdlp_args["format"] = value
         
         elif param_name in ["sleep_interval", "max_sleep_interval", "retries", "concurrent_fragments", 
