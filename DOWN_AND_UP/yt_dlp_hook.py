@@ -76,7 +76,7 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                         success = False
                         for i, cookie_url in enumerate(cookie_urls, 1):
                             logger.info(f"Trying YouTube cookie source {i} for format detection for user {user_id}")
-                            ok, content = _download_content(cookie_url)
+                            ok, status_code, content, error = _download_content(cookie_url)
                             if ok and content and len(content) <= 100 * 1024:
                                 with open(user_cookie_path, "wb") as cf:
                                     cf.write(content)
@@ -103,7 +103,7 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                     success = False
                     for i, cookie_url in enumerate(cookie_urls, 1):
                         logger.info(f"Trying YouTube cookie source {i} for format detection for user {user_id}")
-                        ok, content = _download_content(cookie_url)
+                        ok, status_code, content, error = _download_content(cookie_url)
                         if ok and content and len(content) <= 100 * 1024:
                             with open(user_cookie_path, "wb") as cf:
                                 cf.write(content)
@@ -137,7 +137,7 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                     success = False
                     for i, cookie_url in enumerate(cookie_urls, 1):
                         logger.info(f"Trying YouTube cookie source {i} for format detection for user {user_id}")
-                        ok, content = _download_content(cookie_url)
+                        ok, status_code, content, error = _download_content(cookie_url)
                         if ok and content and len(content) <= 100 * 1024:
                             with open(user_cookie_path, "wb") as cf:
                                 cf.write(content)
