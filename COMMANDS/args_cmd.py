@@ -17,6 +17,7 @@ from HELPERS.logger import logger, send_to_user, send_error_to_user
 from HELPERS.limitter import check_user, is_user_in_channel
 from HELPERS.safe_messeger import safe_send_message
 from CONFIG.config import Config
+from CONFIG.messages import MessagesConfig as Messages
 
 # Get app instance
 app = get_app()
@@ -404,23 +405,23 @@ def validate_input(value: str, param_name: str) -> tuple[bool, str]:
     
     for pattern in dangerous_patterns:
         if re.search(pattern, value, re.IGNORECASE):
-            return False, f"❌ Input contains potentially dangerous content: {pattern}"
+            return False, Messages.ARGS_INPUT_DANGEROUS_MSG.format(pattern=pattern)
     
     # Length check
     if len(value) > 1000:
-        return False, "❌ Input too long (max 1000 characters)"
+        return False, Messages.ARGS_INPUT_TOO_LONG_MSG
     
     # Type-specific validation
     if validation_type == "url":
         if value and not re.match(r'^https?://[^\s]+$', value):
-            return False, "❌ Invalid URL format. Must start with http:// or https://"
+            return False, Messages.ARGS_INVALID_URL_MSG
     
     elif validation_type == "json":
         if value:
             try:
                 json.loads(value)
             except json.JSONDecodeError:
-                return False, "❌ Invalid JSON format"
+                return False, Messages.ARGS_INVALID_JSON_MSG
     
     elif validation_type == "number":
         try:
@@ -428,27 +429,27 @@ def validate_input(value: str, param_name: str) -> tuple[bool, str]:
             min_val = param_config.get("min", 0)
             max_val = param_config.get("max", 999999)
             if num < min_val or num > max_val:
-                return False, f"❌ Number must be between {min_val} and {max_val}"
+                return False, Messages.ARGS_NUMBER_RANGE_MSG.format(min_val=min_val, max_val=max_val)
         except ValueError:
-            return False, "❌ Invalid number format"
+            return False, Messages.ARGS_INVALID_NUMBER_MSG
     
     elif validation_type == "date":
         if value:
             # Validate YYYYMMDD format
             if not re.match(r'^\d{8}$', value):
-                return False, "❌ Date must be in YYYYMMDD format (e.g., 20230930)"
+                return False, Messages.ARGS_DATE_FORMAT_MSG
             try:
                 year = int(value[:4])
                 month = int(value[4:6])
                 day = int(value[6:8])
                 if year < 1900 or year > 2100:
-                    return False, "❌ Year must be between 1900 and 2100"
+                    return False, Messages.ARGS_YEAR_RANGE_MSG
                 if month < 1 or month > 12:
-                    return False, "❌ Month must be between 01 and 12"
+                    return False, Messages.ARGS_MONTH_RANGE_MSG
                 if day < 1 or day > 31:
-                    return False, "❌ Day must be between 01 and 31"
+                    return False, Messages.ARGS_DAY_RANGE_MSG
             except ValueError:
-                return False, "❌ Invalid date format"
+                return False, Messages.ARGS_INVALID_DATE_MSG
     
     elif validation_type == "xff":
         if value:
@@ -464,7 +465,7 @@ def validate_input(value: str, param_name: str) -> tuple[bool, str]:
             if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(/\d{1,2})?$', value):
                 return True, ""
             
-            return False, "❌ XFF must be 'default', 'never', country code (e.g., US), or IP block (e.g., 192.168.1.0/24)"
+            return False, Messages.ARGS_INVALID_XFF_MSG
     
     return True, ""
 
@@ -783,7 +784,7 @@ def get_json_input_message(param_name: str, current_value: str) -> str:
 def format_current_args(user_args: Dict[str, Any]) -> str:
     """Format current args for display"""
     if not user_args:
-        return "No custom arguments set. All parameters use default values."
+        return Messages.ARGS_NO_CUSTOM_MSG
     
     from CONFIG.messages import MessagesConfig as Messages
     message = Messages.ARGS_CURRENT_ARGS_MSG
@@ -888,7 +889,7 @@ def args_callback_handler(app, callback_query):
                 keyboard = get_args_menu_keyboard(user_id)
                 from CONFIG.messages import MessagesConfig as Messages
                 callback_query.edit_message_text(
-                    Messages.ARGS_CONFIG_TITLE_MSG.format(groups_msg=Messages.ARGS_MENU_DESCRIPTION_MSG) + "\n\n✅ All arguments reset to defaults.",
+                    Messages.ARGS_CONFIG_TITLE_MSG.format(groups_msg=Messages.ARGS_MENU_DESCRIPTION_MSG) + "\n\n" + Messages.ARGS_RESET_SUCCESS_MSG,
                     reply_markup=keyboard
                 )
                 from CONFIG.messages import MessagesConfig as Messages

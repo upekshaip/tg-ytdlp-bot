@@ -1429,116 +1429,132 @@ def retry_download_with_different_cookies(user_id: int, url: str, download_func,
     if not is_youtube_url(url):
         return None
     
-    logger.info(f"Attempting to retry download with different cookies for user {user_id}")
-    
-    # Получаем список источников куков
-    cookie_urls = get_youtube_cookie_urls()
-    if not cookie_urls:
-        logger.warning(f"No YouTube cookie sources available for retry for user {user_id}")
+    # Защита от рекурсивных вызовов - проверяем, не вызывается ли уже retry
+    retry_key = f"{user_id}_{url}_retry"
+    if retry_key in globals().get('_active_retries', set()):
+        logger.warning(f"Retry already in progress for user {user_id}, skipping to avoid infinite loop")
         return None
     
-    user_dir = os.path.join("users", str(user_id))
-    create_directory(user_dir)
-    cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
-    cookie_file_path = os.path.join(user_dir, cookie_filename)
+    # Добавляем ключ в активные retry
+    if '_active_retries' not in globals():
+        globals()['_active_retries'] = set()
+    globals()['_active_retries'].add(retry_key)
     
-    # Определяем порядок попыток
-    indices = list(range(len(cookie_urls)))
-    global _yt_round_robin_index
-    order = getattr(Config, 'YOUTUBE_COOKIE_ORDER', 'round_robin')
-    if order == 'random':
-        import random
-        random.shuffle(indices)
-    else:
-        # round_robin: начинаем со следующего источника
-        if len(indices) > 0:
-            start = _yt_round_robin_index % len(indices)
-            indices = indices[start:] + indices[:start]
-            _yt_round_robin_index = (start + 1) % len(indices)
-    
-    logger.info(f"Retrying download with cookie sources in order: {[i+1 for i in indices]}")
-    
-    # Пробуем каждый источник куков
-    for attempt, idx in enumerate(indices, 1):
-        try:
-            logger.info(f"Retry attempt {attempt}/{len(indices)} with cookie source {idx + 1} for user {user_id}")
-            
-            # Скачиваем куки
-            ok, status, content, err = _download_content(cookie_urls[idx], timeout=30)
-            if not ok:
-                logger.warning(f"Failed to download cookie from source {idx + 1}: status={status}, error={err}")
-                continue
-            
-            # Проверяем формат и размер
-            if not cookie_urls[idx].lower().endswith('.txt'):
-                logger.warning(f"Cookie URL {idx + 1} is not .txt file")
-                continue
+    try:
+        logger.info(f"Attempting to retry download with different cookies for user {user_id}")
+        
+        # Получаем список источников куков
+        cookie_urls = get_youtube_cookie_urls()
+        if not cookie_urls:
+            logger.warning(f"No YouTube cookie sources available for retry for user {user_id}")
+            return None
+        
+        user_dir = os.path.join("users", str(user_id))
+        create_directory(user_dir)
+        cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
+        cookie_file_path = os.path.join(user_dir, cookie_filename)
+        
+        # Определяем порядок попыток
+        indices = list(range(len(cookie_urls)))
+        global _yt_round_robin_index
+        order = getattr(Config, 'YOUTUBE_COOKIE_ORDER', 'round_robin')
+        if order == 'random':
+            import random
+            random.shuffle(indices)
+        else:
+            # round_robin: начинаем со следующего источника
+            if len(indices) > 0:
+                start = _yt_round_robin_index % len(indices)
+                indices = indices[start:] + indices[:start]
+                _yt_round_robin_index = (start + 1) % len(indices)
+        
+        logger.info(f"Retrying download with cookie sources in order: {[i+1 for i in indices]}")
+        
+        # Пробуем каждый источник куков
+        for attempt, idx in enumerate(indices, 1):
+            try:
+                logger.info(f"Retry attempt {attempt}/{len(indices)} with cookie source {idx + 1} for user {user_id}")
                 
-            content_size = len(content or b"")
-            if content_size > 100 * 1024:
-                logger.warning(f"Cookie file {idx + 1} is too large: {content_size} bytes")
-                continue
-            
-            # Сохраняем куки
-            with open(cookie_file_path, "wb") as cf:
-                cf.write(content)
-            
-            # Проверяем работоспособность
-            if test_youtube_cookies(cookie_file_path):
-                logger.info(f"Cookie source {idx + 1} is working, retrying download for user {user_id}")
+                # Скачиваем куки
+                ok, status, content, err = _download_content(cookie_urls[idx], timeout=30)
+                if not ok:
+                    logger.warning(f"Failed to download cookie from source {idx + 1}: status={status}, error={err}")
+                    continue
                 
-                # Обновляем кеш
-                current_time = time.time()
-                _youtube_cookie_cache[user_id] = {
-                    'result': True,
-                    'timestamp': current_time,
-                    'cookie_path': cookie_file_path
-                }
+                # Проверяем формат и размер
+                if not cookie_urls[idx].lower().endswith('.txt'):
+                    logger.warning(f"Cookie URL {idx + 1} is not .txt file")
+                    continue
+                    
+                content_size = len(content or b"")
+                if content_size > 100 * 1024:
+                    logger.warning(f"Cookie file {idx + 1} is too large: {content_size} bytes")
+                    continue
                 
-                # Повторяем скачивание
-                try:
-                    result = download_func(*args, **kwargs)
-                    if result is not None:
-                        logger.info(f"Download retry successful with cookie source {idx + 1} for user {user_id}")
-                        return result
-                    else:
-                        logger.warning(f"Download retry failed with cookie source {idx + 1} for user {user_id}")
-                except Exception as e:
-                    logger.warning(f"Download retry failed with cookie source {idx + 1} for user {user_id}: {e}")
-                    # Проверяем, связана ли ошибка с куками
-                    if is_youtube_cookie_error(str(e)):
-                        logger.info(f"Error is cookie-related, trying next source for user {user_id}")
-                        continue
-                    else:
-                        logger.info(f"Error is not cookie-related, stopping retry for user {user_id}")
-                        return None
-            else:
-                logger.warning(f"Cookie source {idx + 1} failed validation for user {user_id}")
-                # Удаляем нерабочие куки
+                # Сохраняем куки
+                with open(cookie_file_path, "wb") as cf:
+                    cf.write(content)
+                
+                # Проверяем работоспособность
+                if test_youtube_cookies(cookie_file_path):
+                    logger.info(f"Cookie source {idx + 1} is working, retrying download for user {user_id}")
+                    
+                    # Обновляем кеш
+                    current_time = time.time()
+                    _youtube_cookie_cache[user_id] = {
+                        'result': True,
+                        'timestamp': current_time,
+                        'cookie_path': cookie_file_path
+                    }
+                    
+                    # Повторяем скачивание
+                    try:
+                        result = download_func(*args, **kwargs)
+                        if result is not None:
+                            logger.info(f"Download retry successful with cookie source {idx + 1} for user {user_id}")
+                            return result
+                        else:
+                            logger.warning(f"Download retry failed with cookie source {idx + 1} for user {user_id}")
+                    except Exception as e:
+                        logger.warning(f"Download retry failed with cookie source {idx + 1} for user {user_id}: {e}")
+                        # Проверяем, связана ли ошибка с куками
+                        if is_youtube_cookie_error(str(e)):
+                            logger.info(f"Error is cookie-related, trying next source for user {user_id}")
+                            continue
+                        else:
+                            logger.info(f"Error is not cookie-related, stopping retry for user {user_id}")
+                            return None
+                else:
+                    logger.warning(f"Cookie source {idx + 1} failed validation for user {user_id}")
+                    # Удаляем нерабочие куки
+                    if os.path.exists(cookie_file_path):
+                        os.remove(cookie_file_path)
+                        
+            except Exception as e:
+                logger.error(f"Error processing cookie source {idx + 1} for user {user_id}: {e}")
+                # Удаляем файл в случае ошибки
                 if os.path.exists(cookie_file_path):
                     os.remove(cookie_file_path)
-                    
-        except Exception as e:
-            logger.error(f"Error processing cookie source {idx + 1} for user {user_id}: {e}")
-            # Удаляем файл в случае ошибки
-            if os.path.exists(cookie_file_path):
-                os.remove(cookie_file_path)
-            continue
-    
-    # Если все источники не сработали
-    logger.warning(f"All cookie sources failed for retry download for user {user_id}")
-    if os.path.exists(cookie_file_path):
-        os.remove(cookie_file_path)
-    
-    # Обновляем кеш
-    current_time = time.time()
-    _youtube_cookie_cache[user_id] = {
-        'result': False,
-        'timestamp': current_time,
-        'cookie_path': cookie_file_path
-    }
-    
-    return None
+                continue
+        
+        # Если все источники не сработали
+        logger.warning(f"All cookie sources failed for retry download for user {user_id}")
+        if os.path.exists(cookie_file_path):
+            os.remove(cookie_file_path)
+        
+        # Обновляем кеш
+        current_time = time.time()
+        _youtube_cookie_cache[user_id] = {
+            'result': False,
+            'timestamp': current_time,
+            'cookie_path': cookie_file_path
+        }
+        
+        return None
+    finally:
+        # Удаляем ключ из активных retry
+        if '_active_retries' in globals():
+            globals()['_active_retries'].discard(retry_key)
 
 def clear_youtube_cookie_cache(user_id: int = None):
     """

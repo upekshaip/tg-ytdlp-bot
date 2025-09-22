@@ -18,6 +18,7 @@ import math
 from pyrogram import filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 from CONFIG.config import Config
+from CONFIG.messages import MessagesConfig as Messages
 import os
 import glob
 
@@ -276,7 +277,7 @@ def subs_command(app, message):
             save_subs_always_ask(user_id, False)
             save_user_subs_language(user_id, "OFF")
             from HELPERS.safe_messeger import safe_send_message
-            safe_send_message(user_id, "✅ Subtitles disabled and Always Ask mode turned off.", message=message)
+            safe_send_message(user_id, Messages.SUBS_DISABLED_MSG, message=message)
             send_to_logger(message, f"SUBS disabled via command: {arg}")
             return
         
@@ -284,7 +285,7 @@ def subs_command(app, message):
         elif arg == "on":
             save_subs_always_ask(user_id, True)
             from HELPERS.safe_messeger import safe_send_message
-            safe_send_message(user_id, "✅ SUBS Always Ask enabled.", message=message)
+            safe_send_message(user_id, Messages.SUBS_ALWAYS_ASK_ENABLED_MSG, message=message)
             send_to_logger(message, f"SUBS Always Ask enabled via command: {arg}")
             return
         

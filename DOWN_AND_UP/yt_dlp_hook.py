@@ -231,7 +231,13 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
             if 'entries' in info and info.get('entries'):
-                return info['entries'][0]
+                info = info['entries'][0]
+            
+            # Check for live stream after extraction
+            if info and info.get('is_live', False):
+                logger.warning(f"Live stream detected in get_video_formats: {url}")
+                return {'error': 'LIVE_STREAM_DETECTED'}
+            
             return info
         except yt_dlp.utils.DownloadError as e:
             error_text = str(e)
