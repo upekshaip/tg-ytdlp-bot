@@ -5,7 +5,7 @@ from CONFIG.config import Config
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 
 from HELPERS.app_instance import get_app
-from CONFIG.messages import Messages as Messages
+from CONFIG.messages import Messages
 
 from HELPERS.decorators import reply_with_keyboard
 from HELPERS.limitter import is_user_in_channel
@@ -97,7 +97,7 @@ def cookies_from_browser(app, message):
         buttons.append([button])
 
     # Add a button to download from remote URL (always available)
-    from CONFIG.messages import Messages as Messages
+    from CONFIG.messages import Messages
     fallback_url = getattr(Config, "COOKIE_URL", None)
     if fallback_url:
         buttons.append([InlineKeyboardButton(Messages.DOWNLOAD_FROM_URL_BUTTON_MSG, callback_data="browser_choice|download_from_url")])
@@ -115,7 +115,7 @@ def cookies_from_browser(app, message):
     buttons.append([InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="browser_choice|close")])
     keyboard = InlineKeyboardMarkup(buttons)
 
-    from CONFIG.messages import Messages as Messages
+    from CONFIG.messages import Messages
     # Choose message based on whether browsers are found
     if installed_browsers:
         message_text = Messages.SELECT_BROWSER_MSG
@@ -163,7 +163,7 @@ def browser_choice_callback(app, callback_query):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        from CONFIG.messages import Messages as Messages
+        from CONFIG.messages import Messages
         callback_query.answer(Messages.COOKIES_MENU_CLOSED_MSG)
         send_to_logger(callback_query.message, Messages.COOKIES_BROWSER_SELECTION_CLOSED_LOG_MSG)
         return
@@ -172,13 +172,13 @@ def browser_choice_callback(app, callback_query):
         # Handle download from remote URL
         fallback_url = getattr(Config, "COOKIE_URL", None)
         if not fallback_url:
-            from CONFIG.messages import Messages as Messages
+            from CONFIG.messages import Messages
             safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.COOKIES_NO_BROWSERS_NO_URL_MSG)
             callback_query.answer(Messages.COOKIES_NO_REMOTE_URL_MSG)
             return
 
         # Update message to show downloading
-        from CONFIG.messages import Messages as Messages
+        from CONFIG.messages import Messages
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.COOKIES_DOWNLOADING_FROM_URL_MSG)
         
         try:
@@ -687,14 +687,14 @@ def download_and_save_cookie(app, callback_query, url, service):
             # Do not leak URL in user-facing errors
             if status is not None:
                 send_to_user(callback_query.message, Messages.COOKIES_SOURCE_UNAVAILABLE_MSG.format(service=service.capitalize(), status=status))
-                send_to_logger(callback_query.message, f"Failed to download {service.capitalize()} cookie: status={status} (url hidden)")
+                send_to_logger(callback_query.message, Messages.COOKIES_DOWNLOAD_FAILED_LOG_MSG.format(service=service.capitalize(), status=status))
             else:
                 send_to_user(callback_query.message, Messages.COOKIES_ERROR_DOWNLOADING_MSG.format(service=service.capitalize()))
                 safe_err = _sanitize_error_detail(err or "", url)
-                send_to_logger(callback_query.message, f"Error downloading {service.capitalize()} cookie: {safe_err} (url hidden)")
+                send_to_logger(callback_query.message, Messages.COOKIES_DOWNLOAD_ERROR_LOG_MSG.format(service=service.capitalize(), error=safe_err))
     except Exception as e:
         send_to_user(callback_query.message, Messages.COOKIES_ERROR_DOWNLOADING_MSG.format(service=service.capitalize()))
-        send_to_logger(callback_query.message, f"Unexpected error while downloading {service.capitalize()} cookie (url hidden): {type(e).__name__}: {e}")
+        send_to_logger(callback_query.message, Messages.COOKIES_DOWNLOAD_UNEXPECTED_ERROR_LOG_MSG.format(service=service.capitalize(), error_type=type(e).__name__, error=e))
 
 # Updating The Cookie File.
 # @reply_with_keyboard
@@ -744,10 +744,10 @@ def save_as_cookie_file(app, message):
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(final_cookie)
         send_to_user(message, Messages.COOKIES_SUCCESSFULLY_UPDATED_MSG.format(final_cookie=final_cookie))
-        send_to_logger(message, f"Cookie file updated for user {user_id}.")
+        send_to_logger(message, Messages.COOKIES_FILE_UPDATED_LOG_MSG.format(user_id=user_id))
     else:
         send_to_user(message, Messages.COOKIES_NOT_VALID_MSG)
-        send_to_logger(message, f"Invalid cookie content provided by user {user_id}.")
+        send_to_logger(message, Messages.COOKIES_INVALID_CONTENT_LOG_MSG.format(user_id=user_id))
 
 def test_youtube_cookies_on_url(cookie_file_path: str, url: str) -> bool:
     """
@@ -1008,7 +1008,7 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
         # Safe logging
         try:
             if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
-                send_to_logger(message, f"YouTube cookie URLs are empty for user {user_id}.")
+                send_to_logger(message, Messages.COOKIES_YOUTUBE_URLS_EMPTY_LOG_MSG.format(user_id=user_id))
             else:
                 logger.error(f"YouTube cookie URLs are empty for user {user_id}")
         except Exception as e:
@@ -1122,7 +1122,7 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
                 # Safe logging
                 try:
                     if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
-                        send_to_logger(message, f"YouTube cookies downloaded and validated for user {user_id} from source {idx + 1}.")
+                        send_to_logger(message, Messages.COOKIES_YOUTUBE_DOWNLOADED_VALIDATED_LOG_MSG.format(user_id=user_id, source=idx + 1))
                     else:
                         logger.info(f"YouTube cookies downloaded and validated for user {user_id} from source {idx + 1}")
                 except Exception as e:
@@ -1146,7 +1146,7 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
     # Safe logging
     try:
         if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
-            send_to_logger(message, f"All YouTube cookie sources failed for user {user_id}.")
+            send_to_logger(message, Messages.COOKIES_YOUTUBE_ALL_FAILED_LOG_MSG.format(user_id=user_id))
         else:
             logger.error(f"All YouTube cookie sources failed for user {user_id}")
     except Exception as e:

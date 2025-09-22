@@ -141,7 +141,7 @@ def split_size_callback(app, callback_query):
     split_file = os.path.join(user_dir, "split.txt")
     with open(split_file, "w", encoding="utf-8") as f:
         f.write(str(size))
-    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, f"✅ Split part size set to: {humanbytes(size)}")
+    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.SPLIT_SIZE_SET_MSG.format(size=humanbytes(size)))
     send_to_logger(callback_query.message, Messages.SPLIT_SIZE_SET_CALLBACK_LOG_MSG.format(size=size))
 
 # --- Function for reading split.txt ---

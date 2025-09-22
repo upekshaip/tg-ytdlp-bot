@@ -1372,7 +1372,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     logger.info(f"Skipping TikTok video at index {current_index} due to API error")
                     return "SKIP"  # Skip this video and continue with next
 
-                send_to_user(message, f"❌ Unknown error: {e}")
+                send_to_user(message, Messages.UNKNOWN_ERROR_MSG.format(error=e))
                 return None
 
         if is_playlist and quality_key:
@@ -1572,7 +1572,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 logger.info(f"Found video files with fallback search: {files}")
             
             if not files:
-                send_error_to_user(message, f"Skipping unsupported file type in playlist at index {idx + video_start_with}")
+                send_error_to_user(message, Messages.SKIPPING_UNSUPPORTED_FILE_TYPE_MSG.format(index=idx + video_start_with))
                 continue
 
             downloaded_file = files[0]
@@ -1653,7 +1653,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 from DOWN_AND_UP.ffmpeg import get_ffmpeg_path
                 ffmpeg_path = get_ffmpeg_path()
                 if not ffmpeg_path:
-                    send_error_to_user(message, "❌ FFmpeg not found. Please install FFmpeg.")
+                    send_error_to_user(message, Messages.FFMPEG_NOT_FOUND_MSG)
                     break
                 
                 ffmpeg_cmd = [
@@ -1711,7 +1711,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     logger.error(f"FFmpeg conversion failed: {error_details}")
                     break
                 except Exception as e:
-                    send_error_to_user(message, f"❌ Conversion to MP4 failed: {e}")
+                    send_error_to_user(message, Messages.CONVERSION_TO_MP4_FAILED_MSG.format(error=e))
                     break
 
             after_rename_abs_path = os.path.abspath(user_vid_path)
@@ -1990,7 +1990,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     os.remove(user_vid_path)
                 success_msg = f"<b>✅ Upload complete</b> - {video_count} files uploaded.\n{Config.CREDITS_MSG}"
                 safe_edit_message_text(user_id, proc_msg_id, success_msg)
-                send_to_logger(message, "Video upload completed with file splitting.")
+                send_to_logger(message, Messages.VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
                 break
             else:
                 if final_name:
@@ -2054,7 +2054,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     }
                                     
                                     if check_subs_limits(real_info, quality_key):
-                                        status_msg = app.send_message(user_id, "⚠️ Embedding subtitles may take a long time (up to 1 min per 1 min of video)!\n🔥 Starting to burn subtitles...")
+                                        status_msg = app.send_message(user_id, Messages.EMBEDDING_SUBTITLES_WARNING_MSG)
                                         def tg_update_callback(progress, eta):
                                             blocks = int(progress * 10)
                                             bar = '🟩' * blocks + '⬜️' * (10 - blocks)
@@ -2101,9 +2101,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         except Exception as e:
                                             logger.error(f"Failed to update subtitle progress (final): {e}")
                                     else:
-                                        app.send_message(user_id, "ℹ️ Subtitles cannot be embedded due to limits (quality/duration/size)", reply_parameters=ReplyParameters(message_id=message.id))
+                                        app.send_message(user_id, Messages.SUBTITLES_CANNOT_EMBED_LIMITS_MSG, reply_parameters=ReplyParameters(message_id=message.id))
                                 else:
-                                    app.send_message(user_id, "ℹ️ Subtitles are not available for the selected language", reply_parameters=ReplyParameters(message_id=message.id))
+                                    app.send_message(user_id, Messages.SUBTITLES_NOT_AVAILABLE_LANGUAGE_MSG, reply_parameters=ReplyParameters(message_id=message.id))
                             
                             # Clean up subtitle files after embedding attempt
                             try:
@@ -2432,7 +2432,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     except Exception as e:
                         logger.error(f"Error sending video: {e}")
                         logger.error(traceback.format_exc())
-                        send_error_to_user(message, f"❌ Error sending video: {str(e)}")
+                        send_error_to_user(message, Messages.ERROR_SENDING_VIDEO_MSG.format(error=str(e)))
                         continue
         if successful_uploads == len(indices_to_download):
             success_msg = f"<b>✅ Upload complete</b> - {video_count} files uploaded.\n{Config.CREDITS_MSG}"
@@ -2441,16 +2441,16 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
         if is_playlist and quality_key:
             total_sent = len(cached_videos) + successful_uploads
-            app.send_message(user_id, f"✅ Playlist videos sent: {total_sent}/{len(requested_indices)} files.", reply_parameters=ReplyParameters(message_id=message.id))
-            send_to_logger(message, f"Playlist videos sent: {total_sent}/{len(requested_indices)} files (quality={quality_key}) to user {user_id}")
+            app.send_message(user_id, Messages.PLAYLIST_VIDEOS_SENT_MSG.format(sent=total_sent, total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+            send_to_logger(message, Messages.PLAYLIST_VIDEOS_SENT_LOG_MSG.format(sent=total_sent, total=len(requested_indices), quality=quality_key, user_id=user_id))
 
     except Exception as e:
         if "Download timeout exceeded" in str(e):
-            send_to_user(message, "⏰ Download cancelled due to timeout (2 hours)")
+            send_to_user(message, Messages.DOWNLOAD_CANCELLED_TIMEOUT_MSG)
             send_to_logger(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG)
         else:
             logger.error(f"Error in video download: {e}")
-            send_to_user(message, f"❌ Failed to download video: {e}")
+            send_to_user(message, Messages.FAILED_DOWNLOAD_VIDEO_MSG.format(error=e))
         
         # Immediate cleanup of temporary status messages on error
         try:

@@ -625,5 +625,5 @@ def check_porn_command(app, message):
             safe_edit_message_text(message.chat.id, status_msg.id, error_msg)
         else:
             safe_send_message(user_id, error_msg, parse_mode=enums.ParseMode.HTML)
-        send_to_logger(message, f"Error in check_porn command by admin {message.chat.id}: {str(e)}")
+        send_to_logger(message, Messages.ADMIN_CHECK_PORN_ERROR_LOG_MSG.format(admin_id=message.chat.id, error=str(e)))
 

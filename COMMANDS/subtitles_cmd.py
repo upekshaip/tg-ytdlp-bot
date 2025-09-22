@@ -18,7 +18,7 @@ import math
 from pyrogram import filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 from CONFIG.config import Config
-from CONFIG.messages import Messages as Messages
+from CONFIG.messages import Messages
 import os
 import glob
 
@@ -1432,7 +1432,7 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
     except Exception as e:
         logger.error(f"Error downloading subtitles: {e}")
         try:
-            app.edit_message_text(user_id, status_msg.id, f"❌ Error: {str(e)}")
+            app.edit_message_text(user_id, status_msg.id, Messages.ERROR_SUBTITLES_NOT_FOUND_MSG.format(error=str(e)))
         except:
             from HELPERS.safe_messeger import safe_send_message
             error_msg = Messages.SUBS_ERROR_MSG.format(error=str(e))

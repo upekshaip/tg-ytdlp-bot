@@ -5,7 +5,7 @@ from pyrogram import enums
 from HELPERS.logger import send_to_all, send_to_logger
 from CONFIG.config import Config
 from CONFIG.messages import Messages as Messages
-from HELPERS.safe_messeger import safe_send_message
+from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
 
 def keyboard_command(app, message):
     """Handle keyboard settings command"""
@@ -26,17 +26,14 @@ def keyboard_command(app, message):
                 f.write(arg.upper())
             
             # Show confirmation by editing the original message
-            try:
-                app.edit_message_text(
-                    chat_id=message.chat.id,
-                    message_id=message.id,
-                    text=Messages.KEYBOARD_UPDATED_MSG.format(setting=arg.upper()),
-                    parse_mode=enums.ParseMode.MARKDOWN
-                )
-            except Exception as e:
-                from HELPERS.logger import logger
-                logger.warning(f"Failed to edit message: {e}")
-                # Fallback to sending new message
+            result = safe_edit_message_text(
+                message.chat.id,
+                message.id,
+                Messages.KEYBOARD_UPDATED_MSG.format(setting=arg.upper()),
+                parse_mode=enums.ParseMode.MARKDOWN
+            )
+            # If editing failed, send new message as fallback
+            if result is None:
                 safe_send_message(
                     message.chat.id,
                     Messages.KEYBOARD_UPDATED_MSG.format(setting=arg.upper()),
@@ -50,17 +47,14 @@ def keyboard_command(app, message):
             send_to_logger(message, Messages.KEYBOARD_SET_LOG_MSG.format(user_id=user_id, setting=arg.upper()))
             return
         else:
-            try:
-                app.edit_message_text(
-                    chat_id=message.chat.id,
-                    message_id=message.id,
-                    text=Messages.KEYBOARD_INVALID_ARG_MSG,
-                    parse_mode=enums.ParseMode.MARKDOWN
-                )
-            except Exception as e:
-                from HELPERS.logger import logger
-                logger.warning(f"Failed to edit message: {e}")
-                # Fallback to sending new message
+            result = safe_edit_message_text(
+                message.chat.id,
+                message.id,
+                Messages.KEYBOARD_INVALID_ARG_MSG,
+                parse_mode=enums.ParseMode.MARKDOWN
+            )
+            # If editing failed, send new message as fallback
+            if result is None:
                 safe_send_message(
                     message.chat.id,
                     Messages.KEYBOARD_INVALID_ARG_MSG,
@@ -90,18 +84,15 @@ def keyboard_command(app, message):
     status_text = Messages.KEYBOARD_SETTINGS_MSG.format(current=current_setting)
     
     # Edit the original message instead of sending new one
-    try:
-        app.edit_message_text(
-            chat_id=message.chat.id,
-            message_id=message.id,
-            text=status_text,
-            parse_mode=enums.ParseMode.MARKDOWN,
-            reply_markup=keyboard
-        )
-    except Exception as e:
-        from HELPERS.logger import logger
-        logger.warning(f"Failed to edit message: {e}")
-        # Fallback to sending new message
+    result = safe_edit_message_text(
+        message.chat.id,
+        message.id,
+        status_text,
+        parse_mode=enums.ParseMode.MARKDOWN,
+        reply_markup=keyboard
+    )
+    # If editing failed, send new message as fallback
+    if result is None:
         safe_send_message(
             message.chat.id,
             status_text,
@@ -141,12 +132,20 @@ def keyboard_callback_handler(app, callback_query):
         # Prepare status text
         status_text = f"🎹 **Keyboard setting updated!**\n\nNew setting: **{setting}**"
 
-        app.edit_message_text(
-            chat_id=callback_query.message.chat.id,
-            message_id=callback_query.message.id,
-            text=status_text,
+        result = safe_edit_message_text(
+            callback_query.message.chat.id,
+            callback_query.message.id,
+            status_text,
             parse_mode=enums.ParseMode.MARKDOWN
         )
+        # If editing failed, send new message as fallback
+        if result is None:
+            safe_send_message(
+                callback_query.message.chat.id,
+                status_text,
+                parse_mode=enums.ParseMode.MARKDOWN,
+                message=callback_query.message
+            )
 
         # Answer callback query
         callback_query.answer(Messages.KEYBOARD_SET_TO_MSG.format(setting=setting))

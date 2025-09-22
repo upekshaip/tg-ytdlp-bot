@@ -51,7 +51,7 @@ def nsfw_command(app, message):
                 else:
                     safe_send_message(chat_id, Messages.NSFW_OFF_MSG, parse_mode=enums.ParseMode.HTML, message=message)
                 
-                send_to_logger(message, f"NSFW blur set via command: {arg}")
+                send_to_logger(message, Messages.NSFW_BLUR_SET_COMMAND_LOG_MSG.format(arg=arg))
                 return
             else:
                 safe_send_message(chat_id, Messages.NSFW_INVALID_MSG, parse_mode=enums.ParseMode.HTML, message=message)
@@ -80,7 +80,7 @@ Messages.NSFW_BLUR_SETTINGS_TITLE_MSG.format(status=status_text),
         parse_mode=enums.ParseMode.HTML,
         message=message
     )
-    send_to_logger(message, "User opened /nsfw menu.")
+    send_to_logger(message, Messages.NSFW_MENU_OPENED_LOG_MSG)
 
 
 @app.on_callback_query(filters.regex(r"^nsfw_option\|"))
@@ -105,7 +105,7 @@ def nsfw_option_callback(app, callback_query):
             callback_query.answer(Messages.NSFW_MENU_CLOSED_MSG)
         except Exception:
             pass
-        send_to_logger(callback_query.message, "NSFW: closed.")
+        send_to_logger(callback_query.message, Messages.NSFW_MENU_CLOSED_LOG_MSG)
         return
     
     if data == "on":
