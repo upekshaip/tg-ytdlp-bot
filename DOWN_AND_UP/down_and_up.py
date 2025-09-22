@@ -1272,7 +1272,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         except Exception as call_e:
                             logger.error(f"Failed to trigger gallery-dl fallback: {call_e}")
                 
-                # Проверяем, связана ли ошибка с куками или региональными ограничениями YouTube
+                # Проверяем, связана ли ошибка с региональными ограничениями YouTube
                 if is_youtube_url(url):
                     if is_youtube_geo_error(error_message) and not did_proxy_retry:
                         logger.info(f"YouTube geo-blocked error detected for user {user_id}, attempting retry with proxy")
@@ -1289,22 +1289,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         else:
                             logger.warning(f"Download retry with proxy failed for user {user_id}")
                             did_proxy_retry = True
-                    
-                    elif is_youtube_cookie_error(error_message) and not did_cookie_retry:
-                        logger.info(f"YouTube cookie-related error detected for user {user_id}, attempting retry with different cookies")
-                        
-                        # Пробуем скачать с другими куками
-                        retry_result = retry_download_with_different_cookies(
-                            user_id, url, try_download, url, attempt_opts
-                        )
-                        
-                        if retry_result is not None:
-                            logger.info(f"Download retry successful for user {user_id}")
-                            did_cookie_retry = True
-                            return retry_result
-                        else:
-                            logger.warning(f"All cookie retry attempts failed for user {user_id}")
-                            did_cookie_retry = True
                 
                 # Send full error message with instructions immediately
                 send_error_to_user(
@@ -1420,6 +1404,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # No new name set - extract name from metadata
                 rename_name = None
 
+            # Reset retry flags for each new item in playlist
+            did_cookie_retry = False
+            did_proxy_retry = False
+
             info_dict = None
             skip_item = False
             stop_all = False
@@ -1430,6 +1418,23 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             
             for attempt in attempts:
                 result = try_download(url, attempt)
+                
+                # If download failed and it's a YouTube URL, try automatic cookie retry
+                if result is None and is_youtube_url(url) and not did_cookie_retry:
+                    logger.info(f"Video download failed for user {user_id}, attempting automatic cookie retry")
+                    
+                    # Try retry with different cookies
+                    retry_result = retry_download_with_different_cookies(
+                        user_id, url, try_download, url, attempt
+                    )
+                    
+                    if retry_result is not None:
+                        logger.info(f"Video download retry with different cookies successful for user {user_id}")
+                        result = retry_result
+                        did_cookie_retry = True
+                    else:
+                        logger.warning(f"All cookie retry attempts failed for user {user_id}")
+                        did_cookie_retry = True
                 if result == "STOP":
                     stop_all = True
                     break
