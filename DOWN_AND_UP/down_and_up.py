@@ -161,17 +161,17 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 format_spec = result.get('format', 'best')
                 
                 # Form response
-                response = f"🔗 <b>Direct link obtained</b>\n\n"
-                response += f"📹 <b>Title:</b> {title}\n"
+                response = Messages.DIRECT_LINK_OBTAINED_MSG
+                response += Messages.TITLE_FIELD_MSG.format(title=title)
                 if duration > 0:
-                    response += f"⏱ <b>Duration:</b> {duration} sec\n"
-                response += f"🎛 <b>Format:</b> <code>{format_spec}</code>\n\n"
+                    response += Messages.DURATION_FIELD_MSG.format(duration=duration)
+                response += Messages.FORMAT_FIELD_MSG.format(format_spec=format_spec)
                 
                 if video_url:
-                    response += f"🎬 <b>Video stream:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
+                    response += Messages.VIDEO_STREAM_FIELD_MSG.format(video_url=video_url)
                 
                 if audio_url:
-                    response += f"🎵 <b>Audio stream:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
+                    response += Messages.AUDIO_STREAM_FIELD_MSG.format(audio_url=audio_url)
                 
                 if not video_url and not audio_url:
                     response += Config.FAILED_STREAM_LINKS_MSG
@@ -975,8 +975,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 logger.info(f"Available format IDs: {available_ids}")
                                 send_error_to_user(
                                     message,
-                                    f"❌ Format ID {requested_id} not found for this video.\n\n"
-                                    f"Available format IDs: {', '.join(available_ids[:10])}\n"
+                                    Messages.FORMAT_ID_NOT_FOUND_MSG.format(format_id=requested_id, available_ids=', '.join(available_ids[:10]))
                                     f"Use /list command to see all available formats."
                                 )
                                 return None
@@ -1031,9 +1030,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             formats_text = "\n".join(available_formats_list) if available_formats_list else "• No video formats available"
                             
                             send_to_user(message, 
-                                f"❌ **AV1 format is not available for this video.**\n\n"
-                                f"**Available formats:**\n{formats_text}\n\n"
-                                f"Please select a different format using `/format` command.")
+                                Messages.AV1_FORMAT_NOT_AVAILABLE_MSG.format(formats_text=formats_text) +
+                                Messages.AV1_NOT_AVAILABLE_FORMAT_SELECT_MSG)
                             
                             return None
                 
@@ -1135,11 +1133,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Check for live stream detection
                 if "LIVE_STREAM_DETECTED" in error_message:
                     live_stream_message = (
-                        "🚫 **Live Stream Detected**\n\n"
-                        "Downloading of ongoing or infinite live streams is not allowed.\n\n"
-                        "Please wait for the stream to end and try downloading again when:\n"
-                        "• The stream duration is known\n"
-                        "• The stream has finished\n"
+                        Messages.LIVE_STREAM_DETECTED_MSG
                         "• You can see the final video length\n\n"
                         "Once the stream is completed, you'll be able to download it as a regular video."
                     )
@@ -1149,8 +1143,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Check for postprocessing errors
                 if "Postprocessing" in error_message and "Error opening output files" in error_message:
                     postprocessing_message = (
-                        "❌ **File Processing Error**\n\n"
-                        "The video was downloaded but couldn't be processed due to invalid characters in the filename.\n\n"
+                        Messages.FILE_PROCESSING_ERROR_INVALID_CHARS_MSG
                         "**Solutions:**\n"
                         "• Try downloading again - the system will use a safer filename\n"
                         "• If the problem persists, the video title may contain unsupported characters\n"
@@ -1164,8 +1157,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Check for postprocessing errors with Invalid argument
                 if "Postprocessing" in error_message and "Invalid argument" in error_message:
                     postprocessing_message = (
-                        "❌ **File Processing Error**\n\n"
-                        "The video was downloaded but couldn't be processed due to an invalid argument error.\n\n"
+                        Messages.FILE_PROCESSING_ERROR_INVALID_ARG_MSG
                         "**Possible causes:**\n"
                         "• Corrupted or incomplete download\n"
                         "• Unsupported file format or codec\n"
@@ -1185,8 +1177,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Check for format not available error
                 if "Requested format is not available" in error_message:
                     format_error_message = (
-                        "❌ **Format Not Available**\n\n"
-                        "The requested video format is not available for this video.\n\n"
+                        Messages.FORMAT_NOT_AVAILABLE_MSG
                         "**Possible causes:**\n"
                         "• The video doesn't have the requested format (e.g., webm, mp4)\n"
                         "• The video quality is not available in the requested format\n"

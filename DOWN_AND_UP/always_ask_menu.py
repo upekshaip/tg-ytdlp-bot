@@ -18,6 +18,7 @@ from HELPERS.qualifier import get_quality_by_min_side, get_real_height_for_quali
 from HELPERS.limitter import check_subs_limits, check_playlist_range_limits, TimeFormatter
 
 from CONFIG.config import Config
+from CONFIG.messages import Messages
 from URL_PARSERS.tags import extract_url_range_tags
 
 from COMMANDS.subtitles_cmd import (
@@ -412,14 +413,14 @@ def ask_filter_callback(app, callback_query):
                 normal, auto = load_subs_langs_cache(user_id, url)
                 langs = sorted(set(normal) | set(auto))
             if not langs:
-                callback_query.answer("No subtitles detected", show_alert=True)
+                callback_query.answer(Messages.NO_SUBTITLES_DETECTED_MSG, show_alert=True)
                 return
             kb = get_language_keyboard_always_ask(page=0, user_id=user_id, langs_override=langs, per_page_rows=8, normal_langs=normal, auto_langs=auto)
             try:
                 callback_query.edit_message_reply_markup(reply_markup=kb)
             except Exception:
                 pass
-            callback_query.answer("Choose subtitle language")
+            callback_query.answer(Messages.CHOOSE_SUBTITLE_LANGUAGE_MSG)
             return
         if kind == "subs_page":
             page = int(value)
@@ -444,7 +445,7 @@ def ask_filter_callback(app, callback_query):
                 callback_query.edit_message_reply_markup(reply_markup=kb)
             except Exception:
                 pass
-            callback_query.answer(f"Page {page + 1}")
+            callback_query.answer(Messages.PAGE_NUMBER_MSG.format(page=page + 1))
             return
         if kind == "subs" and value in ("back", "close"):
             if value == "back":
@@ -461,7 +462,7 @@ def ask_filter_callback(app, callback_query):
                 app.delete_messages(user_id, callback_query.message.id)
             except Exception:
                 app.edit_message_reply_markup(chat_id=user_id, message_id=callback_query.message.id, reply_markup=None)
-            callback_query.answer("Subtitle menu closed.")
+            callback_query.answer(Messages.SUBTITLE_MENU_CLOSED_MSG)
             return
         if kind == "subs_lang":
             # Persist selected subtitle language as global setting used by embed logic
@@ -480,7 +481,7 @@ def ask_filter_callback(app, callback_query):
                 # Close subs keyboard and rebuild Always Ask menu with selected lang in summary
                 ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
             try:
-                callback_query.answer(f"Subtitle language set: {value}")
+                callback_query.answer(Messages.SUBTITLE_LANGUAGE_SET_MSG.format(value=value))
             except Exception:
                 pass
             return
@@ -497,7 +498,7 @@ def ask_filter_callback(app, callback_query):
             fstate = get_filters(user_id)
             langs = fstate.get("available_dubs", [])
             if not langs or len(langs) <= 1:
-                callback_query.answer("No alternative audio languages", show_alert=True)
+                callback_query.answer(Messages.NO_ALTERNATIVE_AUDIO_LANGUAGES_MSG, show_alert=True)
                 return
             rows, row = [], []
             for i, lang in enumerate(sorted(langs)):
@@ -510,13 +511,13 @@ def ask_filter_callback(app, callback_query):
                     row = []
             if row:
                 rows.append(row)
-            rows.append([InlineKeyboardButton("🔙Back", callback_data="askf|dubs|back"), InlineKeyboardButton("🔚Close", callback_data="askf|dubs|close")])
+            rows.append([InlineKeyboardButton(Messages.BACK_BUTTON_TEXT, callback_data="askf|dubs|back"), InlineKeyboardButton(Messages.CLOSE_BUTTON_TEXT, callback_data="askf|dubs|close")])
             try:
                 callback_query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(rows))
             except Exception:
                 pass
             try:
-                callback_query.answer("Choose audio language")
+                callback_query.answer(Messages.CHOOSE_AUDIO_LANGUAGE_MSG)
             except Exception:
                 pass
             return
@@ -530,7 +531,7 @@ def ask_filter_callback(app, callback_query):
                 url = m.group(0) if m else url_text
                 ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
             try:
-                callback_query.answer(f"Audio set: {value}")
+                callback_query.answer(Messages.AUDIO_SET_MSG.format(value=value))
             except Exception:
                 pass
             return
@@ -543,7 +544,7 @@ def ask_filter_callback(app, callback_query):
                 url = m.group(0) if m else url_text
                 ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
             try:
-                callback_query.answer("Filters updated")
+                callback_query.answer(Messages.FILTERS_UPDATED_MSG)
             except Exception:
                 pass
             return
@@ -570,12 +571,12 @@ def ask_filter_callback(app, callback_query):
             ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
             # After starting download from menu, we will remove temp subs cache in down_and_up_with_format
             try:
-                callback_query.answer("Filters updated")
+                callback_query.answer(Messages.FILTERS_UPDATED_MSG)
             except Exception:
                 pass
             return
         try:
-            callback_query.answer("Filters updated")
+            callback_query.answer(Messages.FILTERS_UPDATED_MSG)
         except Exception:
             pass
 
@@ -1291,7 +1292,7 @@ def askq_callback(app, callback_query):
             
             # Set filter and reopen menu
             set_filter(callback_query.from_user.id, kind, value)
-            callback_query.answer("Filters updated")
+            callback_query.answer(Messages.FILTERS_UPDATED_MSG)
             ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
             return
         if kind == "dubs" and value == "open":
@@ -1395,7 +1396,7 @@ def askq_callback(app, callback_query):
                 callback_query.edit_message_reply_markup(reply_markup=kb)
             except Exception:
                 pass
-            callback_query.answer(f"Page {page + 1}")
+            callback_query.answer(Messages.PAGE_NUMBER_MSG.format(page=page + 1))
             return
         if kind == "subs" and value == "back":
             # Go back to main Always Ask menu
@@ -1413,7 +1414,7 @@ def askq_callback(app, callback_query):
                 app.delete_messages(user_id, callback_query.message.id)
             except Exception:
                 app.edit_message_reply_markup(chat_id=user_id, message_id=callback_query.message.id, reply_markup=None)
-            callback_query.answer("Subtitle menu closed.")
+            callback_query.answer(Messages.SUBTITLE_MENU_CLOSED_MSG)
             return
         # OLD LINK TOGGLE HANDLER REMOVED - now using submenu approach
         if kind == "subs_lang":
@@ -1423,7 +1424,7 @@ def askq_callback(app, callback_query):
             fstate = get_filters(user_id)
             fstate['selected_subs_lang'] = selected_lang
             save_filters(user_id, fstate)
-            callback_query.answer(f"Subtitle language set: {selected_lang}")
+            callback_query.answer(Messages.SUBTITLE_LANGUAGE_SET_MSG.format(value=selected_lang))
             # Return to main Always Ask menu
             original_message = callback_query.message.reply_to_message
             if original_message:
@@ -1445,7 +1446,7 @@ def askq_callback(app, callback_query):
             return
         if kind == "audio_lang":
             set_filter(callback_query.from_user.id, kind, value)
-            callback_query.answer(f"Audio set: {value}")
+            callback_query.answer(Messages.AUDIO_SET_MSG.format(value=value))
             # Return to main menu with updated summary
             original_message = callback_query.message.reply_to_message
             if original_message:
@@ -2212,8 +2213,8 @@ def show_manual_quality_menu(app, callback_query):
     
     # Add Back and close buttons
     keyboard_rows.append([
-        InlineKeyboardButton("🔙Back", callback_data="askq|manual_back"),
-        InlineKeyboardButton("🔚Close", callback_data="askq|close")
+        InlineKeyboardButton(Messages.BACK_BUTTON_TEXT, callback_data="askq|manual_back"),
+        InlineKeyboardButton(Messages.CLOSE_BUTTON_TEXT, callback_data="askq|close")
     ])
     
     keyboard = InlineKeyboardMarkup(keyboard_rows)
@@ -2619,8 +2620,8 @@ def show_other_qualities_menu(app, callback_query, page=0):
         
         # Add back and close buttons
         keyboard_rows.append([
-            InlineKeyboardButton("🔙Back", callback_data="askq|other_back"),
-            InlineKeyboardButton("🔚Close", callback_data="askq|close")
+            InlineKeyboardButton(Messages.BACK_BUTTON_TEXT, callback_data="askq|other_back"),
+            InlineKeyboardButton(Messages.CLOSE_BUTTON_TEXT, callback_data="askq|close")
         ])
         
         keyboard = InlineKeyboardMarkup(keyboard_rows)
@@ -2939,7 +2940,7 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         action_buttons = []
         action_buttons.extend(filter_action_buttons)
         # IMAGE fallback из кэш-меню
-        action_buttons.append(InlineKeyboardButton("🖼IMAGE", callback_data="askq|image"))        
+        action_buttons.append(InlineKeyboardButton(Messages.IMAGE_BUTTON_TEXT, callback_data="askq|image"))        
         # Добавляем WATCH кнопку для YouTube
         # - в личке: WebApp (удобный просмотр)
         # - в группах: обычная URL-кнопка (WebApp может давать BUTTON_TYPE_INVALID в некоторых контекстах)
@@ -2964,7 +2965,7 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
                 keyboard_rows.append(action_buttons[i:i+3])
         
         # Добавляем кнопку закрытия
-        keyboard_rows.append([InlineKeyboardButton("🔚Close", callback_data="askq|close")])
+        keyboard_rows.append([InlineKeyboardButton(Messages.CLOSE_BUTTON_TEXT, callback_data="askq|close")])
         
         keyboard = InlineKeyboardMarkup(keyboard_rows)
         
@@ -4089,7 +4090,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         
         if not found_quality_keys:
             # Add explanation when automatic quality detection fails
-            autodiscovery_note = "<blockquote>⚠️ Qualities not auto-detected\nUse 'Other' button to see all available formats.</blockquote>"
+            autodiscovery_note = Messages.QUALITIES_NOT_AUTO_DETECTED_NOTE
             cap += f"\n{autodiscovery_note}\n"
 
         # --- Form rows of 3 buttons ---
@@ -4108,10 +4109,10 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         logger.info(f"Adding LINK button for user {user_id}")
         action_buttons.append(InlineKeyboardButton("🔗Link", callback_data="askq|link"))
         # Add LIST button - always available
-        action_buttons.append(InlineKeyboardButton("📃LIST", callback_data="askq|list"))
+        action_buttons.append(InlineKeyboardButton(Messages.LIST_BUTTON_TEXT, callback_data="askq|list"))
         # Add IMAGE button only if qualities were NOT auto-detected
         if not found_quality_keys:
-            action_buttons.append(InlineKeyboardButton("🖼IMAGE", callback_data="askq|image"))        
+            action_buttons.append(InlineKeyboardButton(Messages.IMAGE_BUTTON_TEXT, callback_data="askq|image"))        
         # Add Quick Embed button for supported services (but not for ranges)
         if (is_instagram_url(url) or is_twitter_url(url) or is_reddit_url(url)) and not is_playlist_with_range(original_text):
             action_buttons.append(InlineKeyboardButton("🚀Embed", callback_data="askq|quick_embed"))
@@ -4204,9 +4205,9 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         # Smart grouping for bottom row - try to combine with action buttons if possible
         bottom_buttons = []
         if bool(filters_state.get('visible', False)):
-            bottom_buttons = [InlineKeyboardButton("🔙Back", callback_data="askf|toggle|off"), InlineKeyboardButton("🔚Close", callback_data="askq|close")]
+            bottom_buttons = [InlineKeyboardButton(Messages.BACK_BUTTON_TEXT, callback_data="askf|toggle|off"), InlineKeyboardButton(Messages.CLOSE_BUTTON_TEXT, callback_data="askq|close")]
         else:
-            bottom_buttons = [InlineKeyboardButton("🔚Close", callback_data="askq|close")]
+            bottom_buttons = [InlineKeyboardButton(Messages.CLOSE_BUTTON_TEXT, callback_data="askq|close")]
         
         # Try to add bottom buttons to last action row if it has space
         if keyboard_rows and len(keyboard_rows[-1]) < 3 and len(bottom_buttons) <= (3 - len(keyboard_rows[-1])):

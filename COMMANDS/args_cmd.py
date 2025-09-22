@@ -746,7 +746,7 @@ def get_number_input_message(param_name: str, current_value: Any) -> str:
         if current_value is not None:
             display_value = "True" if current_value else "False"
             message += f"Current value: <code>{display_value}</code>\n\n"
-        message += "Please send <code>True</code> or <code>False</code> to enable/disable this option."
+        message += Messages.ARGS_BOOL_VALUE_REQUEST_MSG
         return message
     
     min_val = param_config.get("min", 0)
@@ -777,7 +777,7 @@ def get_json_input_message(param_name: str, current_value: str) -> str:
     else:
         message += Messages.ARGS_EXAMPLE_MSG.format(placeholder=placeholder)
     
-    message += "Please send valid JSON."
+    message += Messages.ARGS_JSON_VALUE_REQUEST_MSG
     
     return message
 

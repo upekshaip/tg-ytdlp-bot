@@ -543,6 +543,8 @@ Use:
     ARGS_ERROR_PROCESSING_MSG = "❌ Error processing input. Please try again."
     ARGS_BOOL_INPUT_MSG = "❌ Please enter 'True' or 'False' for Send As File option."
     ARGS_INVALID_NUMBER_INPUT_MSG = "❌ Please provide a valid number."
+    ARGS_BOOL_VALUE_REQUEST_MSG = "Please send <code>True</code> or <code>False</code> to enable/disable this option."
+    ARGS_JSON_VALUE_REQUEST_MSG = "Please send valid JSON."
     
     # Tags command messages
     TAGS_NO_TAGS_MSG = "You have no tags yet."
@@ -714,6 +716,14 @@ Use:
     LIST_ERROR_GETTING_MSG = "❌ Failed to get formats:\n<code>{error}</code>"
     LIST_ERROR_OCCURRED_MSG = "❌ An error occurred while processing the command"
     LIST_ERROR_CALLBACK_MSG = "Error occurred"
+    LIST_HOW_TO_USE_FORMAT_IDS_TITLE = "💡 How to use format IDs:\n"
+    LIST_FORMAT_USAGE_INSTRUCTIONS = "After getting the list, use specific format ID:\n"
+    LIST_FORMAT_EXAMPLE_401 = "• /format id 401 - download format 401\n"
+    LIST_FORMAT_EXAMPLE_401_SHORT = "• /format id401 - same as above\n"
+    LIST_FORMAT_EXAMPLE_140_AUDIO = "• /format id 140 audio - download format 140 as MP3 audio\n"
+    LIST_FORMAT_EXAMPLE_140_AUDIO_SHORT = "• /format id140 audio - same as above\n"
+    LIST_AUDIO_FORMATS_DETECTED = "🎵 Audio-only formats detected: {formats}\n"
+    LIST_AUDIO_FORMATS_NOTE = "These formats will be downloaded as MP3 audio files.\n"
     
     # Link command messages
     LINK_USAGE_MSG = (
@@ -1192,5 +1202,72 @@ Use:
     
     # Sender messages
     ERROR_SENDING_DESCRIPTION_FILE_MSG = "❌ Error sending description file: {error}"
+    CHANGE_CAPTION_HINT_MSG = "<blockquote>📝 if you want to change video caption - reply to video with new text</blockquote>"
+    
+    # Always Ask Menu Messages
+    NO_SUBTITLES_DETECTED_MSG = "No subtitles detected"
+    CHOOSE_SUBTITLE_LANGUAGE_MSG = "Choose subtitle language"
+    NO_ALTERNATIVE_AUDIO_LANGUAGES_MSG = "No alternative audio languages"
+    CHOOSE_AUDIO_LANGUAGE_MSG = "Choose audio language"
+    PAGE_NUMBER_MSG = "Page {page}"
+    SUBTITLE_MENU_CLOSED_MSG = "Subtitle menu closed."
+    SUBTITLE_LANGUAGE_SET_MSG = "Subtitle language set: {value}"
+    AUDIO_SET_MSG = "Audio set: {value}"
+    FILTERS_UPDATED_MSG = "Filters updated"
+    
+    # Always Ask Menu Buttons
+    BACK_BUTTON_TEXT = "🔙Back"
+    CLOSE_BUTTON_TEXT = "🔚Close"
+    LIST_BUTTON_TEXT = "📃LIST"
+    IMAGE_BUTTON_TEXT = "🖼IMAGE"
+    
+    # Always Ask Menu Notes
+    QUALITIES_NOT_AUTO_DETECTED_NOTE = "<blockquote>⚠️ Qualities not auto-detected\nUse 'Other' button to see all available formats.</blockquote>"
+    
+    # Live Stream Messages
+    LIVE_STREAM_DETECTED_MSG = "🚫 **Live Stream Detected**\n\nDownloading of ongoing or infinite live streams is not allowed.\n\nPlease wait for the stream to end and try downloading again when:\n• The stream duration is known\n• The stream has finished\n"
+    AV1_NOT_AVAILABLE_FORMAT_SELECT_MSG = "Please select a different format using `/format` command."
+    
+    # Direct Link Messages
+    DIRECT_LINK_OBTAINED_MSG = "🔗 <b>Direct link obtained</b>\n\n"
+    TITLE_FIELD_MSG = "📹 <b>Title:</b> {title}\n"
+    DURATION_FIELD_MSG = "⏱ <b>Duration:</b> {duration} sec\n"
+    FORMAT_FIELD_MSG = "🎛 <b>Format:</b> <code>{format_spec}</code>\n\n"
+    VIDEO_STREAM_FIELD_MSG = "🎬 <b>Video stream:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
+    AUDIO_STREAM_FIELD_MSG = "🎵 <b>Audio stream:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
+    
+    # Processing Error Messages
+    FILE_PROCESSING_ERROR_INVALID_CHARS_MSG = "❌ **File Processing Error**\n\nThe video was downloaded but couldn't be processed due to invalid characters in the filename.\n\n"
+    FILE_PROCESSING_ERROR_INVALID_ARG_MSG = "❌ **File Processing Error**\n\nThe video was downloaded but couldn't be processed due to an invalid argument error.\n\n"
+    FORMAT_NOT_AVAILABLE_MSG = "❌ **Format Not Available**\n\nThe requested video format is not available for this video.\n\n"
+    FORMAT_ID_NOT_FOUND_MSG = "❌ Format ID {format_id} not found for this video.\n\nAvailable format IDs: {available_ids}\n"
+    AV1_FORMAT_NOT_AVAILABLE_MSG = "❌ **AV1 format is not available for this video.**\n\n**Available formats:**\n{formats_text}\n\n"
+    
+    # Additional Error Messages  
+    AUDIO_FILE_PROCESSING_ERROR_INVALID_CHARS_MSG = "❌ **File Processing Error**\n\nThe audio was downloaded but couldn't be processed due to invalid characters in the filename.\n\n"
+    AUDIO_FILE_PROCESSING_ERROR_INVALID_ARG_MSG = "❌ **File Processing Error**\n\nThe audio was downloaded but couldn't be processed due to an invalid argument error.\n\n"
+    
+    # Keyboard Buttons
+    CLEAN_EMOJI = "🧹"
+    COOKIE_EMOJI = "🍪" 
+    SETTINGS_EMOJI = "⚙️"
+    PROXY_EMOJI = "🌐"
+    IMAGE_EMOJI = "🖼"
+    SEARCH_EMOJI = "🔍"
+    VIDEO_EMOJI = "📼"
+    USAGE_EMOJI = "📊"
+    SPLIT_EMOJI = "✂️"
+    AUDIO_EMOJI = "🎧"
+    SUBTITLE_EMOJI = "💬"
+    LANGUAGE_EMOJI = "🌎"
+    TAG_EMOJI = "#️⃣"
+    HELP_EMOJI = "🆘"
+    LIST_EMOJI = "📃"
+    PLAY_EMOJI = "⏯️"
+    KEYBOARD_EMOJI = "🎹"
+    LINK_EMOJI = "🔗"
+    
+    # NSFW Content Messages
+    PORN_CONTENT_CANNOT_DOWNLOAD_MSG = "User entered a porn content. Cannot be downloaded."
     
     #######################################################

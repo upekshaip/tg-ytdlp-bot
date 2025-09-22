@@ -139,17 +139,17 @@ Messages.LIST_PROCESSING_MSG,
                 temp_file.write("=" * 50 + "\n\n")
                 temp_file.write(output)
                 temp_file.write("\n\n" + "=" * 50 + "\n")
-                temp_file.write("💡 How to use format IDs:\n")
-                temp_file.write("After getting the list, use specific format ID:\n")
-                temp_file.write("• /format id 401 - download format 401\n")
-                temp_file.write("• /format id401 - same as above\n")
-                temp_file.write("• /format id 140 audio - download format 140 as MP3 audio\n")
-                temp_file.write("• /format id140 audio - same as above\n")
+                temp_file.write(Messages.LIST_HOW_TO_USE_FORMAT_IDS_TITLE)
+                temp_file.write(Messages.LIST_FORMAT_USAGE_INSTRUCTIONS)
+                temp_file.write(Messages.LIST_FORMAT_EXAMPLE_401)
+                temp_file.write(Messages.LIST_FORMAT_EXAMPLE_401_SHORT)
+                temp_file.write(Messages.LIST_FORMAT_EXAMPLE_140_AUDIO)
+                temp_file.write(Messages.LIST_FORMAT_EXAMPLE_140_AUDIO_SHORT)
                 
                 # Add special note for audio-only formats
                 if audio_only_formats:
-                    temp_file.write(f"\n🎵 Audio-only formats detected: {', '.join(audio_only_formats)}\n")
-                    temp_file.write("These formats will be downloaded as MP3 audio files.\n")
+                    temp_file.write(f"\n{Messages.LIST_AUDIO_FORMATS_DETECTED.format(formats=', '.join(audio_only_formats))}")
+                    temp_file.write(Messages.LIST_AUDIO_FORMATS_NOTE)
                 
                 temp_file_path = temp_file.name
             

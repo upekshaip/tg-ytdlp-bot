@@ -29,6 +29,7 @@ import subprocess
 from PIL import Image
 import io
 from CONFIG.config import Config
+from CONFIG.messages import Messages
 from COMMANDS.subtitles_cmd import is_subs_enabled, check_subs_availability, get_user_subs_auto_mode, _subs_check_cache, download_subtitles_ytdlp, is_subs_always_ask
 from COMMANDS.mediainfo_cmd import send_mediainfo_if_enabled
 from URL_PARSERS.playlist_utils import is_playlist_with_range
@@ -217,17 +218,17 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 format_spec = result.get('format', 'best')
                 
                 # Form response
-                response = f"🔗 <b>Direct link obtained</b>\n\n"
-                response += f"📹 <b>Title:</b> {title}\n"
+                response = Messages.DIRECT_LINK_OBTAINED_MSG
+                response += Messages.TITLE_FIELD_MSG.format(title=title)
                 if duration > 0:
-                    response += f"⏱ <b>Duration:</b> {duration} sec\n"
-                response += f"🎛 <b>Format:</b> <code>{format_spec}</code>\n\n"
+                    response += Messages.DURATION_FIELD_MSG.format(duration=duration)
+                response += Messages.FORMAT_FIELD_MSG.format(format_spec=format_spec)
                 
                 if video_url:
-                    response += f"🎬 <b>Video stream:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
+                    response += Messages.VIDEO_STREAM_FIELD_MSG.format(video_url=video_url)
                 
                 if audio_url:
-                    response += f"🎵 <b>Audio stream:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
+                    response += Messages.AUDIO_STREAM_FIELD_MSG.format(audio_url=audio_url)
                 
                 if not video_url and not audio_url:
                     response += "❌ Failed to get stream links"
@@ -845,11 +846,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 # Check for live stream detection
                 if "LIVE_STREAM_DETECTED" in error_text:
                     live_stream_message = (
-                        "🚫 **Live Stream Detected**\n\n"
-                        "Downloading of ongoing or infinite live streams is not allowed.\n\n"
-                        "Please wait for the stream to end and try downloading again when:\n"
-                        "• The stream duration is known\n"
-                        "• The stream has finished\n"
+                        Messages.LIVE_STREAM_DETECTED_MSG +
                         "• You can see the final video length\n\n"
                         "Once the stream is completed, you'll be able to download it as a regular video."
                     )
@@ -859,8 +856,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 # Check for postprocessing errors
                 if "Postprocessing" in error_text and "Error opening output files" in error_text:
                     postprocessing_message = (
-                        "❌ **File Processing Error**\n\n"
-                        "The audio was downloaded but couldn't be processed due to invalid characters in the filename.\n\n"
+                        Messages.AUDIO_FILE_PROCESSING_ERROR_INVALID_CHARS_MSG +
                         "**Solutions:**\n"
                         "• Try downloading again - the system will use a safer filename\n"
                         "• If the problem persists, the audio title may contain unsupported characters\n"
@@ -874,8 +870,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 # Check for postprocessing errors with Invalid argument
                 if "Postprocessing" in error_text and "Invalid argument" in error_text:
                     postprocessing_message = (
-                        "❌ **File Processing Error**\n\n"
-                        "The audio was downloaded but couldn't be processed due to an invalid argument error.\n\n"
+                        Messages.AUDIO_FILE_PROCESSING_ERROR_INVALID_ARG_MSG +
                         "**Possible causes:**\n"
                         "• Corrupted or incomplete download\n"
                         "• Unsupported audio format or codec\n"

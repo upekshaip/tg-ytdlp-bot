@@ -522,7 +522,7 @@ def send_videos(
                 user_doc_msg = app.send_document(
                     chat_id=user_id,
                     document=temp_desc_path,
-                    caption="<blockquote>📝 if you want to change video caption - reply to video with new text</blockquote>",
+                    caption=Messages.CHANGE_CAPTION_HINT_MSG,
                     reply_parameters=ReplyParameters(message_id=message.id),
                     parse_mode=enums.ParseMode.HTML
                 )
