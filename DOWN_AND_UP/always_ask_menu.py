@@ -4515,8 +4515,12 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         except Exception as e2:
             logger.error(f"Error editing processing message: {e2}")
         
-        # If editing failed or no proc_msg, log to channel
+        # If editing failed or no proc_msg, send new message to user
         logger.error(f"Always Ask menu error for user {user_id}: {e}")
+        from HELPERS.safe_messeger import safe_send_message
+        safe_send_message(user_id, error_text, parse_mode=enums.ParseMode.HTML, message=message)
+        from HELPERS.logger import log_error_to_channel
+        log_error_to_channel(message, error_text)
         send_to_logger(message, Messages.ALWAYS_ASK_MENU_ERROR_LOG_MSG.format(url=url, error=str(e)))
         return
 
