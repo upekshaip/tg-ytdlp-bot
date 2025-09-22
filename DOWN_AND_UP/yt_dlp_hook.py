@@ -241,6 +241,24 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
             if "LIVE_STREAM_DETECTED" in error_text:
                 return {'error': 'LIVE_STREAM_DETECTED'}
             
+            # Check for YouTube cookie errors and try automatic retry
+            if is_youtube_url(url) and user_id is not None:
+                from COMMANDS.cookies_cmd import is_youtube_cookie_error, retry_download_with_different_cookies
+                
+                if is_youtube_cookie_error(error_text):
+                    logger.info(f"YouTube cookie error detected in get_video_formats for user {user_id}, attempting automatic retry")
+                    
+                    # Try retry with different cookies
+                    retry_result = retry_download_with_different_cookies(
+                        user_id, url, extract_info_operation, opts
+                    )
+                    
+                    if retry_result is not None:
+                        logger.info(f"get_video_formats retry with different cookies successful for user {user_id}")
+                        return retry_result
+                    else:
+                        logger.warning(f"All cookie retry attempts failed in get_video_formats for user {user_id}")
+            
             # Re-raise other DownloadErrors
             raise e
         except Exception as e:
