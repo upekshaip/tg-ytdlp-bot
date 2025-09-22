@@ -8,6 +8,7 @@ import os
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger
 from HELPERS.safe_messeger import safe_send_message
+from CONFIG.messages import Messages
 
 def app_handler(func):
     """Decorator to automatically inject app instance"""

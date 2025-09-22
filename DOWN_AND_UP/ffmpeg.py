@@ -12,6 +12,7 @@ from moviepy.video.fx.all import resize
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger, send_to_all, send_to_logger
 from CONFIG.config import Config
+from CONFIG.messages import Messages
 from HELPERS.safe_messeger import safe_forward_messages
 from COMMANDS.format_cmd import get_user_mkv_preference
 from pyrogram import enums
