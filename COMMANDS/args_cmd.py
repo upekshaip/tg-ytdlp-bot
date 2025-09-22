@@ -1098,7 +1098,7 @@ def handle_args_text_input(app, message):
         if param_type == "text":
             # Basic validation for text input
             if len(text) > 500:
-                error_msg = "❌ Text too long. Maximum 500 characters."
+                error_msg = Messages.ARGS_TEXT_TOO_LONG_MSG
                 safe_send_message(user_id, error_msg, message=message)
                 from HELPERS.logger import log_error_to_channel
                 log_error_to_channel(message, error_msg)
@@ -1161,7 +1161,7 @@ def handle_args_text_input(app, message):
                 elif text_lower in ["false", "0", "no", "off", "выключено", "нет"]:
                     value = False
                 else:
-                    error_msg = "❌ Please enter 'True' or 'False' for Send As File option."
+                    error_msg = Messages.ARGS_BOOL_INPUT_MSG
                     safe_send_message(user_id, error_msg, message=message)
                     from HELPERS.logger import log_error_to_channel
                     log_error_to_channel(message, error_msg)
@@ -1211,7 +1211,7 @@ def handle_args_text_input(app, message):
                     )
                     
                 except ValueError:
-                    error_msg = "❌ Please provide a valid number."
+                    error_msg = Messages.ARGS_INVALID_NUMBER_INPUT_MSG
                     safe_send_message(user_id, error_msg, message=message)
                     from HELPERS.logger import log_error_to_channel
                     log_error_to_channel(message, error_msg)
@@ -1219,7 +1219,7 @@ def handle_args_text_input(app, message):
                 
     except Exception as e:
         logger.error(f"Error handling args text input: {e}")
-        error_msg = "❌ Error processing input. Please try again."
+        error_msg = Messages.ARGS_ERROR_PROCESSING_MSG
         safe_send_message(user_id, error_msg, message=message)
         from HELPERS.logger import log_error_to_channel
         log_error_to_channel(message, error_msg)

@@ -12,6 +12,7 @@ from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all
 from HELPERS.limitter import check_user, is_user_in_channel
 from HELPERS.filesystem_hlp import create_directory
 from CONFIG.config import Config
+from CONFIG.messages import MessagesConfig as Messages
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url
 from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
@@ -318,19 +319,7 @@ def link_command(app, message):
         parts = text.strip().split()
         
         if len(parts) < 2:
-            send_to_user(message, 
-                "🔗 <b>Usage:</b>\n"
-                "<code>/link [quality] URL</code>\n\n"
-                "<b>Examples:</b>\n"
-                "<blockquote>"
-                "• /link https://youtube.com/watch?v=... - best quality\n"
-                "• /link 720 https://youtube.com/watch?v=... - 720p or lower\n"
-                "• /link 720p https://youtube.com/watch?v=... - same as above\n"
-                "• /link 4k https://youtube.com/watch?v=... - 4K or lower\n"
-                "• /link 8k https://youtube.com/watch?v=... - 8K or lower"
-                "</blockquote>\n\n"
-                "<b>Quality:</b> from 1 to 10000 (e.g., 144, 240, 720, 1080)"
-            )
+            send_to_user(message, Messages.LINK_USAGE_MSG)
             return
         
         # Determine URL and quality
@@ -345,12 +334,12 @@ def link_command(app, message):
         
         # Check if this is a URL
         if not url.startswith(('http://', 'https://')):
-            send_to_user(message, "❌ Please provide a valid URL")
+            send_to_user(message, Messages.LINK_INVALID_URL_MSG)
             return
         
         # Send processing start message
         from HELPERS.safe_messeger import safe_send_message
-        status_msg = safe_send_message(user_id, "🔗 Getting direct link...", reply_to_message_id=message.id, message=message)
+        status_msg = safe_send_message(user_id, Messages.LINK_PROCESSING_MSG, reply_to_message_id=message.id, message=message)
         
         # Get direct link - use proxy only if user has proxy enabled and domain requires it
         result = get_direct_link(url, user_id, quality_arg, use_proxy=False)
@@ -363,20 +352,20 @@ def link_command(app, message):
             format_spec = result.get('format', 'best')
             
             # Form response
-            response = f"🔗 <b>Direct link obtained</b>\n\n"
-            response += f"📹 <b>Title:</b> {title}\n"
+            response = Messages.LINK_DIRECT_LINK_OBTAINED_MSG
+            response += Messages.LINK_TITLE_MSG.format(title=title)
             if duration > 0:
-                response += f"⏱ <b>Duration:</b> {duration} sec\n"
-            response += f"🎛 <b>Format:</b> <code>{format_spec}</code>\n\n"
+                response += Messages.LINK_DURATION_MSG.format(duration=duration)
+            response += Messages.LINK_FORMAT_INFO_MSG.format(format_spec=format_spec)
             
             if video_url:
-                response += f"🎬 <b>Video stream:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
+                response += Messages.LINK_VIDEO_STREAM_MSG.format(video_url=video_url)
             
             if audio_url:
-                response += f"🎵 <b>Audio stream:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
+                response += Messages.LINK_AUDIO_STREAM_MSG.format(audio_url=audio_url)
             
             if not video_url and not audio_url:
-                response += "❌ Failed to get stream links"
+                response += Messages.LINK_FAILED_GET_STREAMS_MSG
             
             # Update message
             app.edit_message_text(
@@ -386,21 +375,21 @@ def link_command(app, message):
                 parse_mode=enums.ParseMode.HTML
             )
             
-            send_to_logger(message, f"Direct link extracted for user {user_id} from {url}")
+            send_to_logger(message, Messages.LINK_EXTRACTED_LOG_MSG.format(user_id=user_id, url=url))
             
         else:
             error_msg = result.get('error', 'Unknown error')
             app.edit_message_text(
                 chat_id=user_id,
                 message_id=status_msg.id,
-                text=f"❌ <b>Error getting link:</b>\n{error_msg}",
+                text=Messages.LINK_ERROR_GETTING_MSG.format(error_msg=error_msg),
                 parse_mode=enums.ParseMode.HTML
             )
             
-            send_to_logger(message, f"Failed to extract direct link for user {user_id} from {url}: {error_msg}")
+            send_to_logger(message, Messages.LINK_EXTRACTION_FAILED_LOG_MSG.format(user_id=user_id, url=url, error=error_msg))
             
     except Exception as e:
         logger.error(f"Error in link command: {e}")
         from HELPERS.logger import send_error_to_user
-        send_error_to_user(message, f"❌ An error occurred: {str(e)}")
-        send_to_logger(message, f"Error in link command for user {message.chat.id}: {e}")
+        send_error_to_user(message, Messages.LINK_ERROR_OCCURRED_MSG.format(error=str(e)))
+        send_to_logger(message, Messages.LINK_COMMAND_ERROR_LOG_MSG.format(user_id=message.chat.id, error=str(e)))

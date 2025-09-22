@@ -4,6 +4,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyb
 from pyrogram import enums
 from HELPERS.logger import send_to_all, send_to_logger
 from CONFIG.config import Config
+from CONFIG.messages import MessagesConfig as Messages
 from HELPERS.safe_messeger import safe_send_message
 
 def keyboard_command(app, message):
@@ -27,7 +28,7 @@ def keyboard_command(app, message):
             # Show confirmation
             safe_send_message(
                 message.chat.id,
-                f"🎹 **Keyboard setting updated!**\n\nNew setting: **{arg.upper()}**",
+Messages.KEYBOARD_UPDATED_MSG.format(setting=arg.upper()),
                 message=message
             )
             
@@ -35,12 +36,12 @@ def keyboard_command(app, message):
             apply_keyboard_setting(app, message.chat.id, arg.upper())
             
             # Log the action
-            send_to_logger(message, f"User {user_id} set keyboard to {arg.upper()}")
+            send_to_logger(message, Messages.KEYBOARD_SET_LOG_MSG.format(user_id=user_id, setting=arg.upper()))
             return
         else:
             safe_send_message(
                 message.chat.id,
-                "❌ **Invalid argument!**\n\nValid options: `off`, `1x3`, `2x3`, `full`\n\nExample: `/keyboard off`",
+Messages.KEYBOARD_INVALID_ARG_MSG,
                 message=message
             )
             return
@@ -64,7 +65,7 @@ def keyboard_command(app, message):
         [InlineKeyboardButton("📱 1x3", callback_data=f"keyboard|1x3"), InlineKeyboardButton("📱 2x3", callback_data=f"keyboard|2x3")]
     ])
     
-    status_text = f"🎹 **Keyboard Settings**\n\nCurrent: **{current_setting}**\n\nChoose an option:\n\nOr use: `/keyboard off`, `/keyboard 1x3`, `/keyboard 2x3`, `/keyboard full`"
+    status_text = Messages.KEYBOARD_SETTINGS_MSG.format(current=current_setting)
     
     # Send the settings message
     safe_send_message(
@@ -82,7 +83,7 @@ def keyboard_command(app, message):
     ]
     
     reply_markup = ReplyKeyboardMarkup(full_keyboard, resize_keyboard=True)
-    safe_send_message(message.chat.id, "🎹 keyboard activated!", reply_markup=reply_markup, message=message)
+    safe_send_message(message.chat.id, Messages.KEYBOARD_ACTIVATED_MSG, reply_markup=reply_markup, message=message)
 
 def keyboard_callback_handler(app, callback_query):
     """Handle keyboard setting callbacks"""
@@ -114,14 +115,14 @@ def keyboard_callback_handler(app, callback_query):
         )
 
         # Answer callback query
-        callback_query.answer(f"Keyboard set to {setting}")
+        callback_query.answer(Messages.KEYBOARD_SET_TO_MSG.format(setting=setting))
 
         # Apply visual keyboard immediately
         if setting == "OFF":
             try:
                 safe_send_message(
                     callback_query.message.chat.id,
-                    "⌨️ Keyboard hidden",
+Messages.KEYBOARD_HIDDEN_MSG,
                     reply_markup=ReplyKeyboardRemove(selective=False),
                     reply_parameters=ReplyParameters(message_id=callback_query.message.id)
                 )
@@ -132,7 +133,7 @@ def keyboard_callback_handler(app, callback_query):
             one_by_three = [["/clean", "/cookie", "/settings"]]
             safe_send_message(
                 callback_query.message.chat.id,
-                "📱 1x3 keyboard activated!",
+Messages.KEYBOARD_1X3_ACTIVATED_MSG,
                 reply_markup=ReplyKeyboardMarkup(one_by_three, resize_keyboard=True),
                 reply_parameters=ReplyParameters(message_id=callback_query.message.id)
             )
@@ -143,7 +144,7 @@ def keyboard_callback_handler(app, callback_query):
             ]
             safe_send_message(
                 callback_query.message.chat.id,
-                "📱 2x3 keyboard activated!",
+Messages.KEYBOARD_2X3_ACTIVATED_MSG,
                 reply_markup=ReplyKeyboardMarkup(two_by_three, resize_keyboard=True),
                 reply_parameters=ReplyParameters(message_id=callback_query.message.id)
             )
@@ -155,16 +156,16 @@ def keyboard_callback_handler(app, callback_query):
             ]
             safe_send_message(
                 callback_query.message.chat.id,
-                "🔣 Emoji keyboard activated!",
+Messages.KEYBOARD_EMOJI_ACTIVATED_MSG,
                 reply_markup=ReplyKeyboardMarkup(emoji_keyboard, resize_keyboard=True),
                 reply_parameters=ReplyParameters(message_id=callback_query.message.id)
             )
 
         # Log the action
-        send_to_logger(callback_query.message, f"User {user_id} set keyboard to {setting}")
+        send_to_logger(callback_query.message, Messages.KEYBOARD_SET_CALLBACK_LOG_MSG.format(user_id=user_id, setting=setting))
 
     except Exception as e:
-        callback_query.answer("Error processing setting", show_alert=True)
+        callback_query.answer(Messages.KEYBOARD_ERROR_PROCESSING_MSG, show_alert=True)
         from HELPERS.logger import logger
         logger.error(f"Error processing keyboard setting: {e}")
 
@@ -181,7 +182,7 @@ def apply_keyboard_setting(app, chat_id, setting):
             one_by_three = [["/clean", "/cookie", "/settings"]]
             safe_send_message(
                 chat_id,
-                "📱 1x3 keyboard activated!",
+Messages.KEYBOARD_1X3_ACTIVATED_MSG,
                 reply_markup=ReplyKeyboardMarkup(one_by_three, resize_keyboard=True)
             )
         elif setting == "2x3":
@@ -191,7 +192,7 @@ def apply_keyboard_setting(app, chat_id, setting):
             ]
             safe_send_message(
                 chat_id,
-                "📱 2x3 keyboard activated!",
+Messages.KEYBOARD_2X3_ACTIVATED_MSG,
                 reply_markup=ReplyKeyboardMarkup(two_by_three, resize_keyboard=True)
             )
         elif setting == "FULL":
@@ -202,9 +203,9 @@ def apply_keyboard_setting(app, chat_id, setting):
             ]
             safe_send_message(
                 chat_id,
-                "🔣 Emoji keyboard activated!",
+Messages.KEYBOARD_EMOJI_ACTIVATED_MSG,
                 reply_markup=ReplyKeyboardMarkup(emoji_keyboard, resize_keyboard=True)
             )
     except Exception as e:
         from HELPERS.logger import logger
-        logger.error(f"Error applying keyboard setting {setting}: {e}")
+        logger.error(Messages.KEYBOARD_ERROR_APPLYING_MSG.format(setting=setting, error=e))

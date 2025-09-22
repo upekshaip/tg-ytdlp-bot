@@ -2,7 +2,7 @@
 import os
 import yt_dlp
 from CONFIG.config import Config
-from HELPERS.logger import logger
+from HELPERS.logger import logger, send_error_to_user
 from HELPERS.filesystem_hlp import create_directory
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url

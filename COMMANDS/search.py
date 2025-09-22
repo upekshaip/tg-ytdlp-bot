@@ -7,6 +7,7 @@ from CONFIG.logger_msg import LoggerMsg
 from CONFIG.config import Config
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram import enums, filters
+from CONFIG.messages import MessagesConfig as Messages
 
 # Get app instance
 app = get_app()
@@ -71,11 +72,11 @@ def handle_search_callback(client, callback_query):
                 client.edit_message_text(
                     callback_query.message.chat.id,
                     callback_query.message.id,
-                    "🔍 Search helper closed"
+                    Messages.SEARCH_HELPER_CLOSED_MSG
                 )
             
             # Answer callback query
-            callback_query.answer("Closed")
+            callback_query.answer(Messages.SEARCH_CLOSED_MSG)
             
             # Log the action (pass message object, not callback_query)
             send_to_logger(callback_query.message, LoggerMsg.SEARCH_HELPER_CLOSED.format(user_id=user_id))
@@ -83,4 +84,4 @@ def handle_search_callback(client, callback_query):
     except Exception as e:
         # Log error and answer callback
         send_to_logger(callback_query.message, LoggerMsg.SEARCH_CALLBACK_ERROR.format(error=e))
-        callback_query.answer("Error occurred", show_alert=True)
+        callback_query.answer(Messages.ERROR_OCCURRED_SHORT_MSG, show_alert=True)

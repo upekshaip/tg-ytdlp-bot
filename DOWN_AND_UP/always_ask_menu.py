@@ -3114,13 +3114,14 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             
             # Check for live stream detection
             if isinstance(info, dict) and info.get('error') == 'LIVE_STREAM_DETECTED':
+                logger.warning(f"Live stream detected in ask_quality_menu for user {user_id}: {url}")
                 live_stream_message = (
-                    "🚫 **Live Stream Detected**\n\n"
+                    "🚫 <b>Live Stream Detected</b>\n\n"
                     "Downloading of ongoing or infinite live streams is not allowed.\n\n"
-                    "Please wait for the stream to end and try downloading again when:\n"
+                    "<blockquote>Please wait for the stream to end and try downloading again when:\n"
                     "• The stream duration is known\n"
                     "• The stream has finished\n"
-                    "• You can see the final video length\n\n"
+                    "• You can see the final video length</blockquote>\n\n"
                     "Once the stream is completed, you'll be able to download it as a regular video."
                 )
                 send_error_to_user(message, live_stream_message)
@@ -4513,9 +4514,8 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         except Exception as e2:
             logger.error(f"Error editing processing message: {e2}")
         
-        # If editing failed or no proc_msg, send new message and log to channel
-        from HELPERS.logger import send_error_to_user
-        send_error_to_user(message, error_text)
+        # If editing failed or no proc_msg, log to channel
+        logger.error(f"Always Ask menu error for user {user_id}: {e}")
         send_to_logger(message, f"Always Ask menu error for {url}: {e}")
         return
 

@@ -28,6 +28,7 @@ from CONFIG.config import Config
 from HELPERS.limitter import is_user_in_channel
 from HELPERS.porn import is_porn
 from COMMANDS.nsfw_cmd import should_apply_spoiler
+from CONFIG.messages import MessagesConfig as Messages
 from DATABASE.cache_db import save_to_image_cache, get_cached_image_posts, get_cached_image_post_indices
 import json
 from URL_PARSERS.tags import save_user_tags, extract_url_range_tags
@@ -426,7 +427,7 @@ def image_command(app, message):
         ])
         safe_send_message(
             user_id,
-            Config.IMG_HELP_MSG + "Also see: /audio, /vid, /help, /playlist, /settings",
+            Messages.IMG_HELP_MSG + " /audio, /vid, /help, /playlist, /settings",
             reply_markup=keyboard,
             parse_mode=enums.ParseMode.HTML,
             reply_parameters=ReplyParameters(message_id=message.id)
@@ -503,7 +504,7 @@ def image_command(app, message):
     if not url.startswith(('http://', 'https://')):
         safe_send_message(
             user_id,
-            Config.INVALID_URL_MSG,
+            Messages.INVALID_URL_MSG,
             parse_mode=enums.ParseMode.HTML,
             reply_parameters=ReplyParameters(message_id=message.id)
         )
@@ -516,7 +517,7 @@ def image_command(app, message):
     # Send initial message
     status_msg = safe_send_message(
         user_id,
-        Config.CHECKING_CACHE_MSG.format(url=url),
+        Messages.CHECKING_CACHE_MSG.format(url=url),
         parse_mode=enums.ParseMode.HTML,
         reply_parameters=ReplyParameters(message_id=message.id)
     )
@@ -576,7 +577,7 @@ def image_command(app, message):
             try:
                 safe_edit_message_text(
                     user_id, status_msg.id,
-                    Config.SENT_FROM_CACHE_MSG.format(count=len(cached_map)),
+                    Messages.SENT_FROM_CACHE_MSG.format(count=len(cached_map)),
                     parse_mode=enums.ParseMode.HTML,
                 )
             except Exception:
@@ -613,10 +614,14 @@ def image_command(app, message):
             
             safe_send_message(
                 user_id,
-                f"❗️ Range limit exceeded: {range_count} files requested (maximum {max_img_files}).\n\n"
-                f"Use one of these commands to download maximum available files:\n\n"
-                f"<code>/img {start_range}-{end_range} {url}</code>\n\n"
-                f"<code>/img {suggested_command_url_format}</code>",
+                Messages.IMG_RANGE_LIMIT_EXCEEDED_MSG.format(
+                    range_count=range_count,
+                    max_img_files=max_img_files,
+                    start_range=start_range,
+                    end_range=end_range,
+                    url=url,
+                    suggested_command_url_format=suggested_command_url_format
+                ),
                 parse_mode=enums.ParseMode.HTML,
                 reply_parameters=ReplyParameters(message_id=message.id)
             )
@@ -2809,7 +2814,7 @@ def img_help_callback(app, callback_query: CallbackQuery):
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
         try:
-            callback_query.answer("Help closed.")
+            callback_query.answer(Messages.IMG_HELP_CLOSED_MSG)
         except Exception:
             pass
         return
