@@ -14,6 +14,7 @@ import re
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, send_error_to_user, get_log_channel
 from CONFIG.logger_msg import LoggerMsg
+from CONFIG.messages import Messages
 from HELPERS.limitter import TimeFormatter, humanbytes, check_user, check_file_size_limit, check_subs_limits
 from HELPERS.download_status import set_active_download, clear_download_start_time, check_download_timeout, start_hourglass_animation, start_cycle_progress, playlist_errors_lock, playlist_errors
 from HELPERS.safe_messeger import safe_delete_messages, safe_edit_message_text, safe_forward_messages
@@ -514,7 +515,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     ]
 
         status_msg = safe_send_message(user_id, Config.VIDEO_PROCESSING_MSG, message=message)
-        from CONFIG.messages import Messages as Messages
         hourglass_msg = safe_send_message(user_id, Messages.PLEASE_WAIT_MSG, message=message)
         try:
             from HELPERS.safe_messeger import schedule_delete_message

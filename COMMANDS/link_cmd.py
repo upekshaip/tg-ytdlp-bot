@@ -304,7 +304,7 @@ def link_command(app, message):
         user_id = message.chat.id
         
         # Subscription check for non-admins
-        if int(user_id) not in is_user_in_channel(app, message):
+        if not is_user_in_channel(app, message):
             return  # is_user_in_channel already sends subscription message
         
         # Create user directory after subscription check

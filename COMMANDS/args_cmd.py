@@ -88,7 +88,6 @@ def start_input_state_timer(user_id: int, thread_id: int = None):
         clear_input_state_timer(user_id, thread_id)
         # Send notification to user only once
         try:
-            from CONFIG.messages import Messages as Messages
             safe_send_message(
                 user_id,
                 getattr(Messages, 'ARGS_INPUT_TIMEOUT_MSG', "⏰ Input mode automatically closed due to inactivity (5 minutes).")
@@ -720,7 +719,6 @@ def get_text_input_message(param_name: str, current_value: str) -> str:
     param_config = YTDLP_PARAMS[param_name]
     placeholder = param_config.get("placeholder", "")
     
-    from CONFIG.messages import Messages as Messages
     message = Messages.ARGS_PARAM_DESCRIPTION_MSG.format(description=param_config['description'])
     if current_value:
         message += Messages.ARGS_CURRENT_VALUE_MSG.format(current_value=current_value)
@@ -741,7 +739,6 @@ def get_number_input_message(param_name: str, current_value: Any) -> str:
     
     # Special handling for send_as_file parameter
     if param_name == "send_as_file":
-        from CONFIG.messages import Messages as Messages
         message = f"<b>⚙️ {param_config['description']}</b>\n\n"
         if current_value is not None:
             display_value = "True" if current_value else "False"
@@ -752,7 +749,6 @@ def get_number_input_message(param_name: str, current_value: Any) -> str:
     min_val = param_config.get("min", 0)
     max_val = param_config.get("max", 999999)
     
-    from CONFIG.messages import Messages as Messages
     message = Messages.ARGS_NUMBER_PARAM_MSG.format(description=param_config['description'])
     if current_value is not None:
         message += Messages.ARGS_CURRENT_VALUE_MSG.format(current_value=current_value)
@@ -766,7 +762,6 @@ def get_json_input_message(param_name: str, current_value: str) -> str:
     param_config = YTDLP_PARAMS[param_name]
     placeholder = param_config.get("placeholder", "{}")
     
-    from CONFIG.messages import Messages as Messages
     message = Messages.ARGS_JSON_PARAM_MSG.format(description=param_config['description'])
     if current_value and current_value != "{}":
         message += Messages.ARGS_CURRENT_VALUE_MSG.format(current_value=current_value)
@@ -786,7 +781,6 @@ def format_current_args(user_args: Dict[str, Any]) -> str:
     if not user_args:
         return Messages.ARGS_NO_CUSTOM_MSG
     
-    from CONFIG.messages import Messages as Messages
     message = Messages.ARGS_CURRENT_ARGS_MSG
     
     for param_name, value in user_args.items():
@@ -821,7 +815,6 @@ def args_command(app, message):
     
     keyboard = get_args_menu_keyboard(invoker_id)
     
-    from CONFIG.messages import Messages as Messages
     safe_send_message(
         chat_id,
         Messages.ARGS_CONFIG_TITLE_MSG.format(groups_msg=Messages.ARGS_MENU_DESCRIPTION_MSG),
@@ -838,7 +831,6 @@ def args_callback_handler(app, callback_query):
     try:
         if data == "args_close":
             callback_query.message.delete()
-            from CONFIG.messages import Messages as Messages
             callback_query.answer(Messages.ARGS_CLOSED_MSG)
             return
         
@@ -860,7 +852,6 @@ def args_callback_handler(app, callback_query):
                 pass
             keyboard = get_args_menu_keyboard(user_id)
             try:
-                from CONFIG.messages import Messages as Messages
                 callback_query.edit_message_text(
                     Messages.ARGS_CONFIG_TITLE_MSG.format(groups_msg=Messages.ARGS_MENU_DESCRIPTION_MSG),
                     reply_markup=keyboard
@@ -887,22 +878,18 @@ def args_callback_handler(app, callback_query):
         elif data == "args_reset_all":
             if save_user_args(user_id, {}):
                 keyboard = get_args_menu_keyboard(user_id)
-                from CONFIG.messages import Messages as Messages
                 callback_query.edit_message_text(
                     Messages.ARGS_CONFIG_TITLE_MSG.format(groups_msg=Messages.ARGS_MENU_DESCRIPTION_MSG) + "\n\n" + Messages.ARGS_RESET_SUCCESS_MSG,
                     reply_markup=keyboard
                 )
-                from CONFIG.messages import Messages as Messages
                 callback_query.answer(Messages.ARGS_ALL_RESET_MSG)
             else:
-                from CONFIG.messages import Messages as Messages
                 callback_query.answer(Messages.ARGS_RESET_ERROR_MSG, show_alert=True)
             return
         
         elif data.startswith("args_set_"):
             param_name = data.replace("args_set_", "")
             if param_name not in YTDLP_PARAMS:
-                from CONFIG.messages import Messages as Messages
                 callback_query.answer(Messages.ARGS_INVALID_PARAM_MSG, show_alert=True)
                 return
             
@@ -971,7 +958,6 @@ def args_callback_handler(app, callback_query):
                 param_name = remaining[:-6]  # Remove "_false"
                 value = False
             else:
-                from CONFIG.messages import Messages as Messages
                 callback_query.answer(Messages.ARGS_INVALID_BOOL_MSG, show_alert=True)
                 return
             
@@ -1007,20 +993,17 @@ def args_callback_handler(app, callback_query):
             if current_value != value:
                 # Rebuild main menu to reflect paired toggles instantly
                 keyboard = get_args_menu_keyboard(user_id)
-                from CONFIG.messages import Messages as Messages
                 callback_query.edit_message_text(
                     Messages.ARGS_MENU_TEXT,
                     reply_markup=keyboard
                 )
                 try:
-                    from CONFIG.messages import Messages as Messages
                     callback_query.answer(Messages.ARGS_BOOL_SET_MSG.format(value='True' if value else 'False'))
                 except Exception:
                     pass
             else:
                 # Value is the same, just acknowledge
                 try:
-                    from CONFIG.messages import Messages as Messages
                     callback_query.answer(Messages.ARGS_BOOL_ALREADY_SET_MSG.format(value='True' if value else 'False'))
                 except Exception:
                     pass
@@ -1032,7 +1015,6 @@ def args_callback_handler(app, callback_query):
             # Find the last underscore to separate param_name and value
             last_underscore = remaining.rfind("_")
             if last_underscore == -1:
-                from CONFIG.messages import Messages as Messages
                 callback_query.answer(Messages.ARGS_INVALID_SELECT_MSG, show_alert=True)
                 return
             param_name = remaining[:last_underscore]
@@ -1055,14 +1037,12 @@ def args_callback_handler(app, callback_query):
                     reply_markup=keyboard
                 )
                 try:
-                    from CONFIG.messages import Messages as Messages
                     callback_query.answer(Messages.ARGS_VALUE_SET_MSG.format(value=value))
                 except Exception:
                     pass
             else:
                 # Value is the same, just acknowledge
                 try:
-                    from CONFIG.messages import Messages as Messages
                     callback_query.answer(Messages.ARGS_VALUE_ALREADY_SET_MSG.format(value=value))
                 except Exception:
                     pass
@@ -1071,7 +1051,6 @@ def args_callback_handler(app, callback_query):
     except Exception as e:
         logger.error(f"Error in args callback handler: {e}")
         try:
-            from CONFIG.messages import Messages as Messages
             callback_query.answer(Messages.ERROR_OCCURRED_SHORT_MSG, show_alert=False)
         except Exception:
             pass

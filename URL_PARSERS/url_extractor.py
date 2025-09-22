@@ -279,6 +279,11 @@ def url_distractor(app, message):
         list_command(app, message)
         return
 
+    # /NSFW Command
+    if text.startswith(Config.NSFW_COMMAND):
+        from COMMANDS.nsfw_cmd import nsfw_command
+        nsfw_command(app, message)
+        return
 
     # /cookie Command (exact or with arguments only). Avoid matching '/cookies_from_browser'.
     if text == Config.DOWNLOAD_COOKIE_COMMAND or text.startswith(Config.DOWNLOAD_COOKIE_COMMAND + " "):

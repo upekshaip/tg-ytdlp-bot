@@ -97,7 +97,6 @@ def cookies_from_browser(app, message):
         buttons.append([button])
 
     # Add a button to download from remote URL (always available)
-    from CONFIG.messages import Messages
     fallback_url = getattr(Config, "COOKIE_URL", None)
     if fallback_url:
         buttons.append([InlineKeyboardButton(Messages.DOWNLOAD_FROM_URL_BUTTON_MSG, callback_data="browser_choice|download_from_url")])
@@ -115,7 +114,6 @@ def cookies_from_browser(app, message):
     buttons.append([InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="browser_choice|close")])
     keyboard = InlineKeyboardMarkup(buttons)
 
-    from CONFIG.messages import Messages
     # Choose message based on whether browsers are found
     if installed_browsers:
         message_text = Messages.SELECT_BROWSER_MSG
@@ -163,7 +161,6 @@ def browser_choice_callback(app, callback_query):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        from CONFIG.messages import Messages
         callback_query.answer(Messages.COOKIES_MENU_CLOSED_MSG)
         send_to_logger(callback_query.message, Messages.COOKIES_BROWSER_SELECTION_CLOSED_LOG_MSG)
         return
@@ -172,13 +169,11 @@ def browser_choice_callback(app, callback_query):
         # Handle download from remote URL
         fallback_url = getattr(Config, "COOKIE_URL", None)
         if not fallback_url:
-            from CONFIG.messages import Messages
             safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.COOKIES_NO_BROWSERS_NO_URL_MSG)
             callback_query.answer(Messages.COOKIES_NO_REMOTE_URL_MSG)
             return
 
         # Update message to show downloading
-        from CONFIG.messages import Messages
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.COOKIES_DOWNLOADING_FROM_URL_MSG)
         
         try:
