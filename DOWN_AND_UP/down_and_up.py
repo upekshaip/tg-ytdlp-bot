@@ -122,6 +122,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     did_proxy_retry = False
     did_cookie_retry = False
     is_hls = False
+    error_message_sent = False  # Flag to prevent duplicate error messages
     
     # Determine forced NSFW via user tags
     try:
@@ -696,7 +697,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         successful_uploads = 0
 
         def try_download(url, attempt_opts):
-            nonlocal current_total_process, error_message, did_cookie_retry, did_proxy_retry, is_hls
+            nonlocal current_total_process, error_message, did_cookie_retry, did_proxy_retry, is_hls, error_message_sent
             
             # Use original filename for first attempt
             original_outtmpl = os.path.join(user_dir_name, "%(title)s.%(ext)s")
@@ -1281,14 +1282,16 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             logger.warning(f"Download retry with proxy failed for user {user_id}")
                             did_proxy_retry = True
                 
-                # Send full error message with instructions immediately
-                send_error_to_user(
-                    message,                   
-                    "<blockquote>Check <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>here</a> if your site supported</blockquote>\n"
-                    "<blockquote>You may need <code>cookie</code> for downloading this video. First, clean your workspace via <b>/clean</b> command</blockquote>\n"
-                    "<blockquote>For Youtube - get <code>cookie</code> via <b>/cookie</b> command. For any other supported site - send your own cookie (<a href='https://t.me/c/2303231066/18'>guide1</a>) (<a href='https://t.me/c/2303231066/22'>guide2</a>) and after that send your video link again.</blockquote>\n"
-                    f"────────────────\n❌ Error downloading: {error_message}"
-                )
+                # Send full error message with instructions immediately (only once)
+                if not error_message_sent:
+                    send_error_to_user(
+                        message,                   
+                        "<blockquote>Check <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>here</a> if your site supported</blockquote>\n"
+                        "<blockquote>You may need <code>cookie</code> for downloading this video. First, clean your workspace via <b>/clean</b> command</blockquote>\n"
+                        "<blockquote>For Youtube - get <code>cookie</code> via <b>/cookie</b> command. For any other supported site - send your own cookie (<a href='https://t.me/c/2303231066/18'>guide1</a>) (<a href='https://t.me/c/2303231066/22'>guide2</a>) and after that send your video link again.</blockquote>\n"
+                        f"────────────────\n❌ Error downloading: {error_message}"
+                    )
+                    error_message_sent = True
                 return None
             except Exception as e:
                 error_message = str(e)
@@ -1398,6 +1401,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             # Reset retry flags for each new item in playlist
             did_cookie_retry = False
             did_proxy_retry = False
+            error_message_sent = False  # Reset error message flag for each playlist item
 
             info_dict = None
             skip_item = False

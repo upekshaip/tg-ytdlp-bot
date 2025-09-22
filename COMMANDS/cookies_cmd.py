@@ -894,7 +894,6 @@ def test_youtube_cookies(cookie_file_path: str) -> bool:
         
         # Check for specific YouTube errors that are not cookie-related
         if any(keyword in error_text for keyword in [
-            'video unavailable', 'this content isn\'t available', 'content not available',
             'video is private', 'private video', 'members only', 'premium content'
         ]):
             # These are content availability issues, not cookie issues
@@ -1291,15 +1290,18 @@ def is_youtube_cookie_error(error_message: str) -> bool:
     """
     error_lower = error_message.lower()
     
-    # Сначала проверяем на ошибки недоступности контента (НЕ связанные с куками)
+    # Проверяем на ошибки недоступности контента, которые МОГУТ быть связаны с куками
+    # "Video unavailable" может быть из-за невалидных cookies, поэтому пробуем перебор
     content_unavailable_keywords = [
-        'video unavailable', 'this content isn\'t available', 'content not available',
         'video is private', 'private video', 'members only', 'premium content',
         'this video is not available', 'copyright', 'dmca'
     ]
     
     if any(keyword in error_lower for keyword in content_unavailable_keywords):
-        return False  # Это не ошибка куков
+        return False  # Это точно не ошибка куков
+    
+    # "Video unavailable" и "content isn't available" МОГУТ быть из-за невалидных cookies
+    # Поэтому НЕ исключаем их из перебора cookies
     
     # Ключевые слова, указывающие на проблемы с куками/авторизацией
     cookie_related_keywords = [

@@ -974,14 +974,16 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                             logger.warning(f"Audio download retry with proxy failed for user {user_id}")
                             did_proxy_retry = True
                 
-                # Send full error message with instructions immediately
-                send_error_to_user(
-                    message,
-                    "<blockquote>Check <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>here</a> if your site supported</blockquote>\n"
-                    "<blockquote>You may need <code>cookie</code> for downloading this audio. First, clean your workspace via <b>/clean</b> command</blockquote>\n"
-                    "<blockquote>For Youtube - get <code>cookie</code> via <b>/cookie</b> command. For any other supported site - send your own cookie (<a href='https://t.me/c/2303231066/18'>guide1</a>) (<a href='https://t.me/c/2303231066/22'>guide2</a>) and after that send your audio link again.</blockquote>\n"
-                    f"────────────────\n❌ Error downloading: {error_text}"
-                )
+                # Send full error message with instructions immediately (only once)
+                if not getattr(down_and_audio, '_error_message_sent', False):
+                    send_error_to_user(
+                        message,
+                        "<blockquote>Check <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>here</a> if your site supported</blockquote>\n"
+                        "<blockquote>You may need <code>cookie</code> for downloading this audio. First, clean your workspace via <b>/clean</b> command</blockquote>\n"
+                        "<blockquote>For Youtube - get <code>cookie</code> via <b>/cookie</b> command. For any other supported site - send your own cookie (<a href='https://t.me/c/2303231066/18'>guide1</a>) (<a href='https://t.me/c/2303231066/22'>guide2</a>) and after that send your audio link again.</blockquote>\n"
+                        f"────────────────\n❌ Error downloading: {error_text}"
+                    )
+                    down_and_audio._error_message_sent = True
                 return None
             except Exception as e:
                 error_text = str(e)
