@@ -1218,8 +1218,8 @@ Use:
     # Always Ask Menu Buttons
     BACK_BUTTON_TEXT = "🔙Back"
     CLOSE_BUTTON_TEXT = "🔚Close"
-    LIST_BUTTON_TEXT = "📃LIST"
-    IMAGE_BUTTON_TEXT = "🖼IMAGE"
+    LIST_BUTTON_TEXT = "📃List"
+    IMAGE_BUTTON_TEXT = "🖼Image"
     
     # Always Ask Menu Notes
     QUALITIES_NOT_AUTO_DETECTED_NOTE = "<blockquote>⚠️ Qualities not auto-detected\nUse 'Other' button to see all available formats.</blockquote>"
