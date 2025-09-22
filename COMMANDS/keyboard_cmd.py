@@ -25,12 +25,23 @@ def keyboard_command(app, message):
             with open(keyboard_file, 'w') as f:
                 f.write(arg.upper())
             
-            # Show confirmation
-            safe_send_message(
-                message.chat.id,
-Messages.KEYBOARD_UPDATED_MSG.format(setting=arg.upper()),
-                message=message
-            )
+            # Show confirmation by editing the original message
+            try:
+                app.edit_message_text(
+                    chat_id=message.chat.id,
+                    message_id=message.id,
+                    text=Messages.KEYBOARD_UPDATED_MSG.format(setting=arg.upper()),
+                    parse_mode=enums.ParseMode.MARKDOWN
+                )
+            except Exception as e:
+                from HELPERS.logger import logger
+                logger.warning(f"Failed to edit message: {e}")
+                # Fallback to sending new message
+                safe_send_message(
+                    message.chat.id,
+                    Messages.KEYBOARD_UPDATED_MSG.format(setting=arg.upper()),
+                    message=message
+                )
             
             # Apply visual keyboard immediately
             apply_keyboard_setting(app, message.chat.id, arg.upper())
@@ -39,11 +50,22 @@ Messages.KEYBOARD_UPDATED_MSG.format(setting=arg.upper()),
             send_to_logger(message, Messages.KEYBOARD_SET_LOG_MSG.format(user_id=user_id, setting=arg.upper()))
             return
         else:
-            safe_send_message(
-                message.chat.id,
-Messages.KEYBOARD_INVALID_ARG_MSG,
-                message=message
-            )
+            try:
+                app.edit_message_text(
+                    chat_id=message.chat.id,
+                    message_id=message.id,
+                    text=Messages.KEYBOARD_INVALID_ARG_MSG,
+                    parse_mode=enums.ParseMode.MARKDOWN
+                )
+            except Exception as e:
+                from HELPERS.logger import logger
+                logger.warning(f"Failed to edit message: {e}")
+                # Fallback to sending new message
+                safe_send_message(
+                    message.chat.id,
+                    Messages.KEYBOARD_INVALID_ARG_MSG,
+                    message=message
+                )
             return
     
     # Read current keyboard setting
@@ -67,14 +89,26 @@ Messages.KEYBOARD_INVALID_ARG_MSG,
     
     status_text = Messages.KEYBOARD_SETTINGS_MSG.format(current=current_setting)
     
-    # Send the settings message
-    safe_send_message(
-        message.chat.id,
-        status_text,
-        parse_mode=enums.ParseMode.MARKDOWN,
-        reply_markup=keyboard,
-        message=message
-    )
+    # Edit the original message instead of sending new one
+    try:
+        app.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=message.id,
+            text=status_text,
+            parse_mode=enums.ParseMode.MARKDOWN,
+            reply_markup=keyboard
+        )
+    except Exception as e:
+        from HELPERS.logger import logger
+        logger.warning(f"Failed to edit message: {e}")
+        # Fallback to sending new message
+        safe_send_message(
+            message.chat.id,
+            status_text,
+            parse_mode=enums.ParseMode.MARKDOWN,
+            reply_markup=keyboard,
+            message=message
+        )
     
     # Always show full keyboard when /keyboard command is used
     full_keyboard = [
@@ -169,10 +203,11 @@ Messages.KEYBOARD_EMOJI_ACTIVATED_MSG,
         from HELPERS.logger import logger
         logger.error(f"Error processing keyboard setting: {e}")
 
-def apply_keyboard_setting(app, chat_id, setting):
+def apply_keyboard_setting(app, chat_id, setting, message_id=None):
     """Apply keyboard setting immediately"""
     try:
         if setting == "OFF":
+            # Send keyboard removal as a separate message since it's a visual change
             safe_send_message(
                 chat_id,
                 "⌨️ Keyboard hidden",
@@ -180,6 +215,7 @@ def apply_keyboard_setting(app, chat_id, setting):
             )
         elif setting == "1x3":
             one_by_three = [["/clean", "/cookie", "/settings"]]
+            # Send keyboard change as a separate message since it's a visual change
             safe_send_message(
                 chat_id,
 Messages.KEYBOARD_1X3_ACTIVATED_MSG,
@@ -190,6 +226,7 @@ Messages.KEYBOARD_1X3_ACTIVATED_MSG,
                 ["/clean", "/cookie", "/settings"],
                 ["/playlist", "/search", "/help"]
             ]
+            # Send keyboard change as a separate message since it's a visual change
             safe_send_message(
                 chat_id,
 Messages.KEYBOARD_2X3_ACTIVATED_MSG,
@@ -201,6 +238,7 @@ Messages.KEYBOARD_2X3_ACTIVATED_MSG,
                 ["📼", "📊", "✂️", "🎧", "💬", "🌎"],
                 ["#️⃣", "🆘", "📃", "⏯️", "🎹", "🔗"]
             ]
+            # Send keyboard change as a separate message since it's a visual change
             safe_send_message(
                 chat_id,
 Messages.KEYBOARD_EMOJI_ACTIVATED_MSG,
