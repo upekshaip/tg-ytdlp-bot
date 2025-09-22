@@ -80,6 +80,9 @@ def url_distractor(app, message):
         "🌎": Config.PROXY_COMMAND,
         "✅": Config.CHECK_COOKIE_COMMAND,
         "🖼": Config.IMG_COMMAND,
+        "🧰": "/args",
+        "🔞": "/nsfw",
+        "🧾": "/list",
     }
 
     if text in emoji_to_command:
