@@ -309,7 +309,7 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
         # First check if video file exists
         if not os.path.exists(video_path):
             logger.error(f"Video file does not exist: {video_path}")
-            send_to_all(message, f"❌ Video file not found: {os.path.basename(video_path)}")
+            send_to_all(message, Messages.VIDEO_FILE_NOT_FOUND_MSG.format(filename=os.path.basename(video_path)))
             return None
 
         # Get video dimensions
@@ -399,11 +399,11 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
         return duration, thumb_dir
     except subprocess.CalledProcessError as e:
         logger.error(f"Command execution error: {e.stderr if hasattr(e, 'stderr') else e}")
-        send_to_all(message, f"❌ Error processing video: {e}")
+        send_to_all(message, Messages.VIDEO_PROCESSING_ERROR_MSG.format(error=str(e)))
         return None
     except Exception as e:
         logger.error(f"Unexpected error processing video: {e}")
-        send_to_all(message, f"❌ Error processing video: {e}")
+        send_to_all(message, Messages.VIDEO_PROCESSING_ERROR_MSG.format(error=str(e)))
         return None
 
 def create_default_thumbnail(thumb_path, width=480, height=480):
@@ -828,7 +828,7 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
                     )
                     from HELPERS.logger import get_log_channel
                     safe_forward_messages(get_log_channel("video"), user_id, [sent_msg.id])
-                    send_to_logger(message, "💬 Subtitles SRT-file sent to user.") 
+                    send_to_logger(message, Messages.SUBS_SENT_MSG) 
             except Exception as e:
                 logger.error(f"Error sending srt file: {e}")
             try:

@@ -184,7 +184,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                send_to_logger(message, LoggerMsg.DIRECT_LINK_EXTRACTED.format(source="down_and_up", user_id=user_id, url=url))
+                send_to_logger(message, Messages.DIRECT_LINK_EXTRACTED_DOWN_UP_LOG_MSG.format(user_id=user_id, url=url))
                 
             else:
                 error_msg = result.get('error', 'Unknown error')
@@ -195,7 +195,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                send_to_logger(message, LoggerMsg.DIRECT_LINK_FAILED.format(source="down_and_up", user_id=user_id, url=url, error=error_msg))
+                send_to_logger(message, Messages.DIRECT_LINK_FAILED_DOWN_UP_LOG_MSG.format(user_id=user_id, url=url, error=error_msg))
             
             return
     except Exception as e:
@@ -685,7 +685,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     logger.error(f"Error updating progress: {e}")
             elif d.get("status") == "finished":
                 try:
-                    safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{full_bar}   100.0%")
+                    safe_edit_message_text(user_id, proc_msg_id, Messages.VIDEO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
             elif d.get("status") == "error":
@@ -1121,7 +1121,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 if result is None:
                     raise Exception("Failed to download video with all available proxies")
                 try:
-                    safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{full_bar}   100.0%")
+                    safe_edit_message_text(user_id, proc_msg_id, Messages.VIDEO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
                 except Exception as e:
                     logger.error(f"Final progress update error: {e}")
                 

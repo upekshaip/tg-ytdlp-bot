@@ -1011,7 +1011,7 @@ def askq_callback(app, callback_query):
                     parse_mode=enums.ParseMode.HTML
                 )
             
-            send_to_logger(original_message, f"Direct link menu created via LINK button for user {user_id} from {url}")
+            send_to_logger(original_message, Messages.DIRECT_LINK_MENU_CREATED_LOG_MSG.format(user_id=user_id, url=url))
             
         else:
             error_msg = result.get('error', 'Unknown error')
@@ -1022,7 +1022,7 @@ def askq_callback(app, callback_query):
                 parse_mode=enums.ParseMode.HTML
             )
             
-            send_to_logger(original_message, f"Failed to extract direct link via LINK button for user {user_id} from {url}: {error_msg}")
+            send_to_logger(original_message, Messages.DIRECT_LINK_EXTRACTION_FAILED_LOG_MSG.format(user_id=user_id, url=url, error=error_msg))
         
         # Удаляем Always Ask меню после обработки
         try:
@@ -1113,7 +1113,7 @@ def askq_callback(app, callback_query):
                     reply_parameters=ReplyParameters(message_id=original_message.id)
                 )
                 
-                send_to_logger(original_message, f"LIST command executed for user {user_id}, url: {url}")
+                send_to_logger(original_message, Messages.LIST_COMMAND_EXECUTED_LOG_MSG.format(user_id=user_id, url=url))
                     
             except Exception as e:
                 logger.error(f"Error sending formats file: {e}")
@@ -1238,7 +1238,7 @@ def askq_callback(app, callback_query):
             embed_url,
             reply_parameters=ReplyParameters(message_id=original_message.id)
         )
-        send_to_logger(original_message, f"Quick Embed: {embed_url}")
+        send_to_logger(original_message, Messages.QUICK_EMBED_LOG_MSG.format(embed_url=embed_url))
         app.delete_messages(user_id, callback_query.message.id)
         return
     
@@ -1908,7 +1908,7 @@ def askq_callback(app, callback_query):
                     down_and_up(app, original_message, url, playlist_name, new_count, new_start, tags_text, force_no_title=False, format_override=format_override, quality_key=used_quality_key, cookies_already_checked=True)
             else:
                 # All videos were in the cache
-                app.send_message(target_chat_id, f"✅ Sent from cache: {len(cached_videos)}/{len(requested_indices)} files.", reply_parameters=ReplyParameters(message_id=original_message.id))
+                app.send_message(target_chat_id, Messages.PLAYLIST_CACHE_SENT_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=original_message.id))
                 media_type = "Audio" if data == "mp3" else "Video"
                 log_msg = f"{media_type} playlist sent from cache to user.\nURL: {url}\nUser: {callback_query.from_user.first_name} ({user_id})"
                 send_to_logger(original_message, log_msg)
@@ -2051,7 +2051,7 @@ def askq_callback(app, callback_query):
                         from_chat_id=from_chat_id,
                         message_ids=message_ids
                     )
-                app.send_message(target_chat_id, "✅ Video successfully sent from cache.", reply_parameters=ReplyParameters(message_id=original_message.id))
+                app.send_message(target_chat_id, Messages.VIDEO_SENT_FROM_CACHE_MSG, reply_parameters=ReplyParameters(message_id=original_message.id))
                 media_type = "Audio" if data == "mp3" else "Video"
                 log_msg = f"{media_type} sent from cache to user.\nURL: {url}\nUser: {callback_query.from_user.first_name} ({user_id})"
                 send_to_logger(original_message, log_msg)
@@ -3050,11 +3050,11 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 minutes = (wait_time % 3600) // 60
                 seconds = wait_time % 60
                 time_str = f"{hours}h {minutes}m {seconds}s"
-                proc_msg = app.send_message(user_id, f"⚠️ Telegram has limited message sending.\n⏳ Please wait: {time_str}\nTo update timer send URL again 2 times.")
+                proc_msg = app.send_message(user_id, Messages.RATE_LIMIT_WITH_TIME_MSG.format(time=time_str))
             else:
-                proc_msg = app.send_message(user_id, "⚠️ Telegram has limited message sending.\n⏳ Please wait: \nTo update timer send URL again 2 times.")
+                proc_msg = app.send_message(user_id, Messages.RATE_LIMIT_NO_TIME_MSG)
             try:
-                app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text="<b>▶️ Download started</b>", parse_mode=enums.ParseMode.HTML)
+                app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=Messages.DOWNLOAD_STARTED_MSG, parse_mode=enums.ParseMode.HTML)
                 try:
                     from HELPERS.safe_messeger import schedule_delete_message
                     schedule_delete_message(user_id, proc_msg.id, delete_after_seconds=5)
@@ -4375,7 +4375,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                     )
                 else:
                     app.send_message(user_id, cap, parse_mode=enums.ParseMode.HTML, reply_parameters=ReplyParameters(message_id=message.id))
-        send_to_logger(message, f"Always Ask menu sent for {url}")
+        send_to_logger(message, Messages.ALWAYS_ASK_MENU_SENT_LOG_MSG.format(url=url))
     except FloodWait as e:
         wait_time = e.value
         user_dir = os.path.join("users", str(user_id))
@@ -4491,7 +4491,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             logger.info(f"Attempting to create menu from cached qualities for user {user_id}")
             if create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, original_text, is_playlist, playlist_range):
                 logger.info(f"Successfully created cached qualities menu for user {user_id}")
-                send_to_logger(message, f"Created cached qualities menu for user {user_id} after error: {e}")
+                send_to_logger(message, Messages.CACHED_QUALITIES_MENU_CREATED_LOG_MSG.format(user_id=user_id, error=str(e)))
                 return
             else:
                 logger.info(f"No cached qualities available for user {user_id}, showing error message")
@@ -4509,14 +4509,14 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                     # Successfully edited the processing message, now log to channel
                     from HELPERS.logger import log_error_to_channel
                     log_error_to_channel(message, error_text)
-                    send_to_logger(message, f"Always Ask menu error for {url}: {e}")
+                    send_to_logger(message, Messages.ALWAYS_ASK_MENU_ERROR_LOG_MSG.format(url=url, error=str(e)))
                     return
         except Exception as e2:
             logger.error(f"Error editing processing message: {e2}")
         
         # If editing failed or no proc_msg, log to channel
         logger.error(f"Always Ask menu error for user {user_id}: {e}")
-        send_to_logger(message, f"Always Ask menu error for {url}: {e}")
+        send_to_logger(message, Messages.ALWAYS_ASK_MENU_ERROR_LOG_MSG.format(url=url, error=str(e)))
         return
 
 def askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs):
@@ -4573,7 +4573,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
                 parse_mode=enums.ParseMode.HTML
             )
             
-            send_to_logger(original_message, LoggerMsg.DIRECT_LINK_EXTRACTED.format(source="Always Ask menu", user_id=user_id, url=url))
+            send_to_logger(original_message, Messages.DIRECT_LINK_EXTRACTED_ALWAYS_ASK_LOG_MSG.format(user_id=user_id, url=url))
             
         else:
             error_msg = result.get('error', 'Unknown error')
@@ -4584,7 +4584,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
                 parse_mode=enums.ParseMode.HTML
             )
             
-            send_to_logger(original_message, LoggerMsg.DIRECT_LINK_FAILED.format(source="Always Ask menu", user_id=user_id, url=url, error=error_msg))
+            send_to_logger(original_message, Messages.DIRECT_LINK_FAILED_ALWAYS_ASK_LOG_MSG.format(user_id=user_id, url=url, error=error_msg))
         
         return
     # Read current filters to build correct format strings and container override
@@ -4864,7 +4864,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                send_to_logger(message, f"Direct link extracted via down_and_up_with_format for user {user_id} from {url}")
+                send_to_logger(message, Messages.DIRECT_LINK_EXTRACTED_DOWN_UP_LOG_MSG.format(user_id=user_id, url=url))
                 
             else:
                 error_msg = result.get('error', 'Unknown error')
@@ -4875,7 +4875,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                send_to_logger(message, f"Failed to extract direct link via down_and_up_with_format for user {user_id} from {url}: {error_msg}")
+                send_to_logger(message, Messages.DIRECT_LINK_FAILED_DOWN_UP_LOG_MSG.format(user_id=user_id, url=url, error=error_msg))
             
             return
     except Exception as e:

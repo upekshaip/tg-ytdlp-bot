@@ -1154,4 +1154,43 @@ Use:
     PLAYLIST_HELP_CLOSED_LOG_MSG = "Playlist help closed."
     AUDIO_HINT_CLOSED_LOG_MSG = "Audio hint closed."
     
+    # Down and Up log messages
+    DIRECT_LINK_MENU_CREATED_LOG_MSG = "Direct link menu created via LINK button for user {user_id} from {url}"
+    DIRECT_LINK_EXTRACTION_FAILED_LOG_MSG = "Failed to extract direct link via LINK button for user {user_id} from {url}: {error}"
+    LIST_COMMAND_EXECUTED_LOG_MSG = "LIST command executed for user {user_id}, url: {url}"
+    QUICK_EMBED_LOG_MSG = "Quick Embed: {embed_url}"
+    ALWAYS_ASK_MENU_SENT_LOG_MSG = "Always Ask menu sent for {url}"
+    CACHED_QUALITIES_MENU_CREATED_LOG_MSG = "Created cached qualities menu for user {user_id} after error: {error}"
+    ALWAYS_ASK_MENU_ERROR_LOG_MSG = "Always Ask menu error for {url}: {error}"
+    DIRECT_LINK_EXTRACTED_ALWAYS_ASK_LOG_MSG = "Direct link extracted via Always Ask menu for user {user_id} from {url}"
+    DIRECT_LINK_FAILED_ALWAYS_ASK_LOG_MSG = "Failed to extract direct link via Always Ask menu for user {user_id} from {url}: {error}"
+    DIRECT_LINK_EXTRACTED_DOWN_UP_LOG_MSG = "Direct link extracted via down_and_up_with_format for user {user_id} from {url}"
+    DIRECT_LINK_FAILED_DOWN_UP_LOG_MSG = "Failed to extract direct link via down_and_up_with_format for user {user_id} from {url}: {error}"
+    DIRECT_LINK_EXTRACTED_DOWN_AUDIO_LOG_MSG = "Direct link extracted via down_and_audio for user {user_id} from {url}"
+    DIRECT_LINK_FAILED_DOWN_AUDIO_LOG_MSG = "Failed to extract direct link via down_and_audio for user {user_id} from {url}: {error}"
+    
+    # Audio processing messages
+    AUDIO_SENT_FROM_CACHE_MSG = "✅ Audio sent from cache."
+    AUDIO_PROCESSING_MSG = "🎙️ Audio is processing..."
+    AUDIO_DOWNLOADING_PROGRESS_MSG = "{process}\n📥 Downloading audio:\n{bar}   {percent:.1f}%"
+    AUDIO_DOWNLOAD_ERROR_MSG = "Error occurred during audio download."
+    AUDIO_DOWNLOAD_COMPLETE_MSG = "{process}\n{bar}   100.0%"
+    AUDIO_EXTRACTION_FAILED_MSG = "❌ Failed to extract audio information"
+    AUDIO_UNSUPPORTED_FILE_TYPE_MSG = "Skipping unsupported file type in playlist at index {index}"
+    AUDIO_FILE_NOT_FOUND_MSG = "Audio file not found after download."
+    AUDIO_UPLOADING_MSG = "{process}\n📤 Uploading audio file...\n{bar}   100.0%"
+    AUDIO_SEND_FAILED_MSG = "❌ Failed to send audio: {error}"
+    PLAYLIST_AUDIO_SENT_LOG_MSG = "Playlist audio sent: {sent}/{total} files (quality={quality}) to user{user_id}"
+    AUDIO_DOWNLOAD_FAILED_MSG = "❌ Failed to download audio: {error}"
+    DOWNLOAD_TIMEOUT_MSG = "⏰ Download cancelled due to timeout (2 hours)"
+    DOWNLOAD_STARTED_MSG = "<b>▶️ Download started</b>"
+    VIDEO_DOWNLOAD_COMPLETE_MSG = "{process}\n{bar}   100.0%"
+    
+    # FFmpeg messages
+    VIDEO_FILE_NOT_FOUND_MSG = "❌ Video file not found: {filename}"
+    VIDEO_PROCESSING_ERROR_MSG = "❌ Error processing video: {error}"
+    
+    # Sender messages
+    ERROR_SENDING_DESCRIPTION_FILE_MSG = "❌ Error sending description file: {error}"
+    
     #######################################################
