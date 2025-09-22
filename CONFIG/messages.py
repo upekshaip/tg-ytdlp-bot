@@ -1266,6 +1266,9 @@ Use:
     PLAY_EMOJI = "⏯️"
     KEYBOARD_EMOJI = "🎹"
     LINK_EMOJI = "🔗"
+    ARGS_EMOJI = "🧰"
+    NSFW_EMOJI = "🔞"
+    LIST_EMOJI = "📃"
     
     # NSFW Content Messages
     PORN_CONTENT_CANNOT_DOWNLOAD_MSG = "User entered a porn content. Cannot be downloaded."

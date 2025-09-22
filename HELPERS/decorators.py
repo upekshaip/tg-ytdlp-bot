@@ -39,9 +39,9 @@ def get_main_reply_keyboard(mode="2x3"):
         ]
     elif mode == "FULL":
         keyboard = [
-            [Messages.CLEAN_EMOJI, Messages.COOKIE_EMOJI, Messages.SETTINGS_EMOJI, Messages.PROXY_EMOJI, Messages.IMAGE_EMOJI, Messages.SEARCH_EMOJI],
-            [Messages.VIDEO_EMOJI, Messages.USAGE_EMOJI, Messages.SPLIT_EMOJI, Messages.AUDIO_EMOJI, Messages.SUBTITLE_EMOJI, Messages.LANGUAGE_EMOJI],
-            [Messages.TAG_EMOJI, Messages.HELP_EMOJI, Messages.LIST_EMOJI, Messages.PLAY_EMOJI, Messages.KEYBOARD_EMOJI, Messages.LINK_EMOJI]
+            [Messages.CLEAN_EMOJI, Messages.COOKIE_EMOJI, Messages.SETTINGS_EMOJI, Messages.PROXY_EMOJI, Messages.IMAGE_EMOJI, Messages.SEARCH_EMOJI, Messages.ARGS_EMOJI],
+            [Messages.VIDEO_EMOJI, Messages.USAGE_EMOJI, Messages.SPLIT_EMOJI, Messages.AUDIO_EMOJI, Messages.SUBTITLE_EMOJI, Messages.LANGUAGE_EMOJI, Messages.NSFW_EMOJI],
+            [Messages.TAG_EMOJI, Messages.HELP_EMOJI, Messages.LIST_EMOJI, Messages.PLAY_EMOJI, Messages.KEYBOARD_EMOJI, Messages.LINK_EMOJI, "🧾"]
         ]
     else:  # 2x3 mode (default)
         keyboard = [
