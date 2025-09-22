@@ -20,6 +20,24 @@ import time
 # Get app instance for decorators
 app = get_app()
 
+# Import function to get user args
+def get_user_args(user_id: int):
+    """Get user's saved args settings"""
+    import os
+    import json
+    user_dir = os.path.join("users", str(user_id))
+    args_file = os.path.join(user_dir, "args.txt")
+    
+    if not os.path.exists(args_file):
+        return {}
+    
+    try:
+        with open(args_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Error reading user args for {user_id}: {e}")
+        return {}
+
 def send_videos(
     message,
     video_abs_path: str,
@@ -39,6 +57,10 @@ def send_videos(
     video_url = m.group(0) if m else ""
     temp_desc_path = os.path.join(os.path.dirname(video_abs_path), "full_description.txt")
     was_truncated = False
+    
+    # Check if user has send_as_file enabled
+    user_args = get_user_args(user_id)
+    send_as_file = user_args.get("send_as_file", False)
 
     # --- Define the size of the preview/video ---
     width = None
@@ -394,9 +416,12 @@ def send_videos(
                     return video_msg
                 except Exception:
                     return result
+            # Get original filename for document
+            original_filename = os.path.basename(video_abs_path)
             result = app.send_document(
                 chat_id=user_id,
                 document=video_abs_path,
+                file_name=original_filename,
                 caption=caption_text,
                 thumb=local_thumb,
                 progress=progress_bar,
@@ -417,22 +442,27 @@ def send_videos(
             return result
 
         try:
-            # Первая попытка с полным описанием, с ограничением на количество ретраев по таймауту
-            attempts_left = 3
-            while True:
-                try:
-                    video_msg = _try_send_video(cap)
-                    break
-                except Exception as e:
-                    if "Request timed out" in str(e) or isinstance(e, TimeoutError):
-                        attempts_left -= 1
-                        if attempts_left <= 0:
-                            logger.warning("send_video timed out repeatedly; falling back to send_document")
-                            video_msg = _fallback_send_document(cap)
-                            break
-                        time.sleep(2)
-                        continue
-                    raise
+            # Check if user wants to send as file
+            if send_as_file:
+                logger.info(f"User {user_id} has send_as_file enabled, sending as document")
+                video_msg = _fallback_send_document(cap)
+            else:
+                # Первая попытка с полным описанием, с ограничением на количество ретраев по таймауту
+                attempts_left = 3
+                while True:
+                    try:
+                        video_msg = _try_send_video(cap)
+                        break
+                    except Exception as e:
+                        if "Request timed out" in str(e) or isinstance(e, TimeoutError):
+                            attempts_left -= 1
+                            if attempts_left <= 0:
+                                logger.warning("send_video timed out repeatedly; falling back to send_document")
+                                video_msg = _fallback_send_document(cap)
+                                break
+                            time.sleep(2)
+                            continue
+                        raise
         except Exception as e:
             if "MEDIA_CAPTION_TOO_LONG" in str(e):
                 logger.info("Caption too long, trying with minimal caption")
@@ -443,27 +473,34 @@ def send_videos(
                 minimal_cap += link_block
                 
                 try:
-                    # Попытка с коротким описанием и ограниченными ретраями по таймауту
-                    attempts_left = 2
-                    while True:
-                        try:
-                            video_msg = _try_send_video(minimal_cap)
-                            break
-                        except Exception as e2:
-                            if "Request timed out" in str(e2) or isinstance(e2, TimeoutError):
-                                attempts_left -= 1
-                                if attempts_left <= 0:
-                                    logger.warning("send_video (minimal caption) timed out; fallback to send_document")
-                                    video_msg = _fallback_send_document(minimal_cap)
-                                    break
-                                time.sleep(2)
-                                continue
-                            raise
+                    if send_as_file:
+                        # If send_as_file is enabled, always use document
+                        video_msg = _fallback_send_document(minimal_cap)
+                    else:
+                        # Попытка с коротким описанием и ограниченными ретраями по таймауту
+                        attempts_left = 2
+                        while True:
+                            try:
+                                video_msg = _try_send_video(minimal_cap)
+                                break
+                            except Exception as e2:
+                                if "Request timed out" in str(e2) or isinstance(e2, TimeoutError):
+                                    attempts_left -= 1
+                                    if attempts_left <= 0:
+                                        logger.warning("send_video (minimal caption) timed out; fallback to send_document")
+                                        video_msg = _fallback_send_document(minimal_cap)
+                                        break
+                                    time.sleep(2)
+                                    continue
+                                raise
                 except Exception as e:
                     logger.error(f"Error sending video with minimal caption: {e}")
                     # Последний фолбэк — без описания, с документом при таймауте
                     try:
-                        video_msg = _try_send_video("")
+                        if send_as_file:
+                            video_msg = _fallback_send_document("")
+                        else:
+                            video_msg = _try_send_video("")
                     except Exception as e3:
                         if "Request timed out" in str(e3) or isinstance(e3, TimeoutError):
                             video_msg = _fallback_send_document("")

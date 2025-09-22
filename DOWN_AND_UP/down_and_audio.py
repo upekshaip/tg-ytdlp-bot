@@ -282,50 +282,60 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             logger.info(f"[AUDIO CACHE] Skipping cache check for playlist because Always Ask mode is enabled: url={url}, quality={quality_key}")
             cached_videos = {}
             uncached_indices = requested_indices
-        # First, repost the cached ones
+        # First, repost the cached ones (skip if send_as_file is enabled)
         if cached_videos:
-            for index in requested_indices:
-                if index in cached_videos:
-                    try:
-                        # Determine the correct log channel based on content type
-                        from HELPERS.porn import is_porn
-                        is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
-                        logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
-                        is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                        is_paid = is_nsfw and is_private_chat
-                        
-                        # Get the correct log channel for reposting
-                        if is_paid:
-                            from_chat_id = get_log_channel("video", paid=True)
-                        elif is_nsfw:
-                            from_chat_id = get_log_channel("video", nsfw=True)
-                        else:
-                            from_chat_id = get_log_channel("video")
-                        
-                        # Verify we're reposting from a valid log channel
-                        valid_channels = [
-                            get_log_channel("video"),
-                            get_log_channel("video", nsfw=True),
-                            get_log_channel("video", paid=True)
-                        ]
-                        if from_chat_id not in valid_channels:
-                            logger.error(f"CRITICAL: Attempting to repost from wrong channel {from_chat_id}")
-                            continue
-                        
-                        logger.info(f"[AUDIO CACHE] Reposting audio {index} from channel {from_chat_id} to user {user_id}, message_id={cached_videos[index]}")
-                        forward_kwargs = {
-                            'chat_id': user_id,
-                            'from_chat_id': from_chat_id,
-                            'message_ids': [cached_videos[index]]
-                        }
-                        # Only apply thread_id in groups/channels, not in private chats
-                        if getattr(message.chat, "type", None) != enums.ChatType.PRIVATE:
-                            thread_id = getattr(message, 'message_thread_id', None)
-                            if thread_id:
-                                forward_kwargs['message_thread_id'] = thread_id
-                        app.forward_messages(**forward_kwargs)
-                    except Exception as e:
-                        logger.error(f"down_and_audio: error reposting cached audio index={index}: {e}")
+            # Check if send_as_file is enabled - if so, skip cache repost
+            from COMMANDS.args_cmd import get_user_args
+            user_args = get_user_args(user_id)
+            send_as_file = user_args.get("send_as_file", False)
+            
+            if not send_as_file:
+                for index in requested_indices:
+                    if index in cached_videos:
+                        try:
+                            # Determine the correct log channel based on content type
+                            from HELPERS.porn import is_porn
+                            is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
+                            logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
+                            is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                            is_paid = is_nsfw and is_private_chat
+                            
+                            # Get the correct log channel for reposting
+                            if is_paid:
+                                from_chat_id = get_log_channel("video", paid=True)
+                            elif is_nsfw:
+                                from_chat_id = get_log_channel("video", nsfw=True)
+                            else:
+                                from_chat_id = get_log_channel("video")
+                            
+                            # Verify we're reposting from a valid log channel
+                            valid_channels = [
+                                get_log_channel("video"),
+                                get_log_channel("video", nsfw=True),
+                                get_log_channel("video", paid=True)
+                            ]
+                            if from_chat_id not in valid_channels:
+                                logger.error(f"CRITICAL: Attempting to repost from wrong channel {from_chat_id}")
+                                continue
+                            
+                            logger.info(f"[AUDIO CACHE] Reposting audio {index} from channel {from_chat_id} to user {user_id}, message_id={cached_videos[index]}")
+                            forward_kwargs = {
+                                'chat_id': user_id,
+                                'from_chat_id': from_chat_id,
+                                'message_ids': [cached_videos[index]]
+                            }
+                            # Only apply thread_id in groups/channels, not in private chats
+                            if getattr(message.chat, "type", None) != enums.ChatType.PRIVATE:
+                                thread_id = getattr(message, 'message_thread_id', None)
+                                if thread_id:
+                                    forward_kwargs['message_thread_id'] = thread_id
+                            app.forward_messages(**forward_kwargs)
+                        except Exception as e:
+                            logger.error(f"down_and_audio: error reposting cached audio index={index}: {e}")
+            else:
+                # If send_as_file is enabled, treat all indices as uncached
+                logger.info(f"[AUDIO CACHE] send_as_file enabled for user {user_id}, skipping cache repost for playlist")
+                uncached_indices = requested_indices
             if len(uncached_indices) == 0:
                 app.send_message(user_id, f"✅ Playlist audio sent from cache ({len(cached_videos)}/{len(requested_indices)} files).", reply_parameters=ReplyParameters(message_id=message.id))
                 send_to_logger(message, LoggerMsg.PLAYLIST_AUDIO_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
@@ -349,50 +359,59 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             cached_ids = None
         
         if cached_ids:
-            try:
-                # Determine the correct log channel based on content type
-                # is_nsfw already determined above
-                is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                is_paid = is_nsfw and is_private_chat
-                
-                # Get the correct log channel for reposting
-                if is_paid:
-                    from_chat_id = get_log_channel("video", paid=True)
-                elif is_nsfw:
-                    from_chat_id = get_log_channel("video", nsfw=True)
-                else:
-                    from_chat_id = get_log_channel("video")
-                
-                # Verify we're reposting from a valid log channel
-                valid_channels = [
-                    get_log_channel("video"),
-                    get_log_channel("video", nsfw=True),
-                    get_log_channel("video", paid=True)
-                ]
-                if from_chat_id not in valid_channels:
-                    logger.error(f"CRITICAL: Attempting to repost from wrong channel {from_chat_id}")
-                    raise Exception("Wrong channel for repost")
-                
-                logger.info(f"[AUDIO CACHE] Reposting audio from channel {from_chat_id} to user {user_id}, message_ids={cached_ids}")
-                forward_kwargs = {
-                    'chat_id': user_id,
-                    'from_chat_id': from_chat_id,
-                    'message_ids': cached_ids
-                }
-                # Only apply thread_id in groups/channels, not in private chats
-                if getattr(message.chat, "type", None) != enums.ChatType.PRIVATE:
-                    thread_id = getattr(message, 'message_thread_id', None)
-                    if thread_id:
-                        forward_kwargs['message_thread_id'] = thread_id
-                app.forward_messages(**forward_kwargs)
-                app.send_message(user_id, "✅ Audio sent from cache.", reply_parameters=ReplyParameters(message_id=message.id))
-                send_to_logger(message, LoggerMsg.AUDIO_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
-                return
-            except Exception as e:
-                logger.error(f"Error reposting audio from cache: {e}")
-                save_to_video_cache(url, quality_key, [], clear=True)
-                # Don't show error message if we successfully got audio from cache
-                # The audio was already sent successfully in the try block
+            # Check if send_as_file is enabled - if so, skip cache repost
+            from COMMANDS.args_cmd import get_user_args
+            user_args = get_user_args(user_id)
+            send_as_file = user_args.get("send_as_file", False)
+            
+            if not send_as_file:
+                try:
+                    # Determine the correct log channel based on content type
+                    # is_nsfw already determined above
+                    is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
+                    is_paid = is_nsfw and is_private_chat
+                    
+                    # Get the correct log channel for reposting
+                    if is_paid:
+                        from_chat_id = get_log_channel("video", paid=True)
+                    elif is_nsfw:
+                        from_chat_id = get_log_channel("video", nsfw=True)
+                    else:
+                        from_chat_id = get_log_channel("video")
+                    
+                    # Verify we're reposting from a valid log channel
+                    valid_channels = [
+                        get_log_channel("video"),
+                        get_log_channel("video", nsfw=True),
+                        get_log_channel("video", paid=True)
+                    ]
+                    if from_chat_id not in valid_channels:
+                        logger.error(f"CRITICAL: Attempting to repost from wrong channel {from_chat_id}")
+                        raise Exception("Wrong channel for repost")
+                    
+                    logger.info(f"[AUDIO CACHE] Reposting audio from channel {from_chat_id} to user {user_id}, message_ids={cached_ids}")
+                    forward_kwargs = {
+                        'chat_id': user_id,
+                        'from_chat_id': from_chat_id,
+                        'message_ids': cached_ids
+                    }
+                    # Only apply thread_id in groups/channels, not in private chats
+                    if getattr(message.chat, "type", None) != enums.ChatType.PRIVATE:
+                        thread_id = getattr(message, 'message_thread_id', None)
+                        if thread_id:
+                            forward_kwargs['message_thread_id'] = thread_id
+                    app.forward_messages(**forward_kwargs)
+                    app.send_message(user_id, "✅ Audio sent from cache.", reply_parameters=ReplyParameters(message_id=message.id))
+                    send_to_logger(message, LoggerMsg.AUDIO_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
+                    return
+                except Exception as e:
+                    logger.error(f"Error reposting audio from cache: {e}")
+                    save_to_video_cache(url, quality_key, [], clear=True)
+                    # Don't show error message if we successfully got audio from cache
+                    # The audio was already sent successfully in the try block
+            else:
+                # If send_as_file is enabled, skip cache repost and continue with download
+                logger.info(f"[AUDIO CACHE] send_as_file enabled for user {user_id}, skipping cache repost for single audio")
     else:
         logger.info(f"down_and_audio: quality_key is None, skipping cache check")
 
@@ -942,7 +961,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         except Exception as call_e:
                             logger.error(f"Failed to trigger gallery-dl fallback from audio downloader: {call_e}")
                 
-                # Проверяем, связана ли ошибка с куками или региональными ограничениями YouTube
+                # Проверяем, связана ли ошибка с региональными ограничениями YouTube
                 if is_youtube_url(url):
                     if is_youtube_geo_error(error_text) and not did_proxy_retry:
                         logger.info(f"YouTube geo-blocked error detected for user {user_id}, attempting retry with proxy")
@@ -959,22 +978,6 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         else:
                             logger.warning(f"Audio download retry with proxy failed for user {user_id}")
                             did_proxy_retry = True
-                    
-                    elif is_youtube_cookie_error(error_text) and not did_cookie_retry:
-                        logger.info(f"YouTube cookie-related error detected for user {user_id}, attempting retry with different cookies")
-                        
-                        # Пробуем скачать с другими куками
-                        retry_result = retry_download_with_different_cookies(
-                            user_id, url, try_download_audio, url, current_index
-                        )
-                        
-                        if retry_result is not None:
-                            logger.info(f"Audio download retry successful for user {user_id}")
-                            did_cookie_retry = True
-                            return retry_result
-                        else:
-                            logger.warning(f"All cookie retry attempts failed for user {user_id}")
-                            did_cookie_retry = True
                 
                 # Send full error message with instructions immediately
                 send_error_to_user(
@@ -1072,7 +1075,28 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 # No new name set - extract name from metadata
                 rename_name = None
 
+            # Reset retry flags for each new item in playlist
+            did_cookie_retry = False
+            did_proxy_retry = False
+
             result = try_download_audio(url, current_index)
+            
+            # If download failed and it's a YouTube URL, try automatic cookie retry
+            if result is None and is_youtube_url(url) and not did_cookie_retry:
+                logger.info(f"Audio download failed for user {user_id}, attempting automatic cookie retry")
+                
+                # Try retry with different cookies
+                retry_result = retry_download_with_different_cookies(
+                    user_id, url, try_download_audio, url, current_index
+                )
+                
+                if retry_result is not None:
+                    logger.info(f"Audio download retry with different cookies successful for user {user_id}")
+                    result = retry_result
+                    did_cookie_retry = True
+                else:
+                    logger.warning(f"All cookie retry attempts failed for user {user_id}")
+                    did_cookie_retry = True
 
             if result is None:
                 with playlist_errors_lock:
