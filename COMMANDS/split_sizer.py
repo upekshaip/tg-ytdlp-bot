@@ -8,7 +8,7 @@ from HELPERS.filesystem_hlp import create_directory
 from HELPERS.logger import send_to_logger, logger
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
 from HELPERS.limitter import humanbytes, is_user_in_channel
-from CONFIG.messages import MessagesConfig as Messages
+from CONFIG.messages import Messages as Messages
 import re
 
 def parse_size_argument(arg):

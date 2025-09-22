@@ -18,7 +18,7 @@ import math
 from pyrogram import filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 from CONFIG.config import Config
-from CONFIG.messages import MessagesConfig as Messages
+from CONFIG.messages import Messages as Messages
 import os
 import glob
 

@@ -5,7 +5,7 @@ from pyrogram import enums
 from HELPERS.app_instance import get_app
 from HELPERS.safe_messeger import fake_message
 from HELPERS.logger import logger
-from CONFIG.messages import MessagesConfig as Messages
+from CONFIG.messages import Messages as Messages
 # Lazy import to avoid circular dependency - import url_distractor inside functions
 
 # Get app instance for decorators

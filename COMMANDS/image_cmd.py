@@ -28,7 +28,7 @@ from CONFIG.config import Config
 from HELPERS.limitter import is_user_in_channel
 from HELPERS.porn import is_porn
 from COMMANDS.nsfw_cmd import should_apply_spoiler
-from CONFIG.messages import MessagesConfig as Messages
+from CONFIG.messages import Messages as Messages
 from DATABASE.cache_db import save_to_image_cache, get_cached_image_posts, get_cached_image_post_indices
 import json
 from URL_PARSERS.tags import save_user_tags, extract_url_range_tags

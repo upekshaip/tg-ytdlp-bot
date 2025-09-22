@@ -1,4 +1,4 @@
-from CONFIG.messages import MessagesConfig as Messages
+from CONFIG.messages import Messages as Messages
 # Domains Configuration
 
 class DomainsConfig(object):

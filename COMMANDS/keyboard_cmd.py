@@ -4,7 +4,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyb
 from pyrogram import enums
 from HELPERS.logger import send_to_all, send_to_logger
 from CONFIG.config import Config
-from CONFIG.messages import MessagesConfig as Messages
+from CONFIG.messages import Messages as Messages
 from HELPERS.safe_messeger import safe_send_message
 
 def keyboard_command(app, message):

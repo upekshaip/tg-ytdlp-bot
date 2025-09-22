@@ -514,7 +514,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     ]
 
         status_msg = safe_send_message(user_id, Config.VIDEO_PROCESSING_MSG, message=message)
-        from CONFIG.messages import MessagesConfig as Messages
+        from CONFIG.messages import Messages as Messages
         hourglass_msg = safe_send_message(user_id, Messages.PLEASE_WAIT_MSG, message=message)
         try:
             from HELPERS.safe_messeger import schedule_delete_message
@@ -975,7 +975,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 logger.info(f"Available format IDs: {available_ids}")
                                 send_error_to_user(
                                     message,
-                                    Messages.FORMAT_ID_NOT_FOUND_MSG.format(format_id=requested_id, available_ids=', '.join(available_ids[:10]))
+                                    Messages.FORMAT_ID_NOT_FOUND_MSG.format(format_id=requested_id, available_ids=', '.join(available_ids[:10])) +
                                     f"Use /list command to see all available formats."
                                 )
                                 return None
@@ -1133,7 +1133,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Check for live stream detection
                 if "LIVE_STREAM_DETECTED" in error_message:
                     live_stream_message = (
-                        Messages.LIVE_STREAM_DETECTED_MSG
+                        Messages.LIVE_STREAM_DETECTED_MSG +
                         "• You can see the final video length\n\n"
                         "Once the stream is completed, you'll be able to download it as a regular video."
                     )
@@ -1143,7 +1143,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Check for postprocessing errors
                 if "Postprocessing" in error_message and "Error opening output files" in error_message:
                     postprocessing_message = (
-                        Messages.FILE_PROCESSING_ERROR_INVALID_CHARS_MSG
+                        Messages.FILE_PROCESSING_ERROR_INVALID_CHARS_MSG +
                         "**Solutions:**\n"
                         "• Try downloading again - the system will use a safer filename\n"
                         "• If the problem persists, the video title may contain unsupported characters\n"
@@ -1157,7 +1157,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Check for postprocessing errors with Invalid argument
                 if "Postprocessing" in error_message and "Invalid argument" in error_message:
                     postprocessing_message = (
-                        Messages.FILE_PROCESSING_ERROR_INVALID_ARG_MSG
+                        Messages.FILE_PROCESSING_ERROR_INVALID_ARG_MSG +
                         "**Possible causes:**\n"
                         "• Corrupted or incomplete download\n"
                         "• Unsupported file format or codec\n"
@@ -1177,7 +1177,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Check for format not available error
                 if "Requested format is not available" in error_message:
                     format_error_message = (
-                        Messages.FORMAT_NOT_AVAILABLE_MSG
+                        Messages.FORMAT_NOT_AVAILABLE_MSG +
                         "**Possible causes:**\n"
                         "• The video doesn't have the requested format (e.g., webm, mp4)\n"
                         "• The video quality is not available in the requested format\n"

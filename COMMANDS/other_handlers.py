@@ -13,7 +13,7 @@ from HELPERS.download_status import get_active_download
 from HELPERS.filesystem_hlp import create_directory
 
 from CONFIG.config import Config
-from CONFIG.messages import MessagesConfig as Messages
+from CONFIG.messages import Messages as Messages
 
 from URL_PARSERS.tags import extract_url_range_tags, save_user_tags
 

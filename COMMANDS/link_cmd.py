@@ -12,7 +12,7 @@ from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all
 from HELPERS.limitter import check_user, is_user_in_channel
 from HELPERS.filesystem_hlp import create_directory
 from CONFIG.config import Config
-from CONFIG.messages import MessagesConfig as Messages
+from CONFIG.messages import Messages as Messages
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url
 from HELPERS.proxy_helper import add_proxy_to_ytdl_opts

@@ -7,7 +7,7 @@ from CONFIG.logger_msg import LoggerMsg
 from CONFIG.config import Config
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram import enums, filters
-from CONFIG.messages import MessagesConfig as Messages
+from CONFIG.messages import Messages as Messages
 
 # Get app instance
 app = get_app()

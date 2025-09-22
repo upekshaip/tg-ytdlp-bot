@@ -15,7 +15,7 @@ from HELPERS.logger import logger, send_to_user, send_error_to_user
 from HELPERS.limitter import is_user_in_channel
 from HELPERS.safe_messeger import safe_send_message
 from CONFIG.config import Config
-from CONFIG.messages import MessagesConfig as Messages
+from CONFIG.messages import Messages as Messages
 from HELPERS.pot_helper import build_cli_extractor_args
 
 # Get app instance

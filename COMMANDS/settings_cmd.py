@@ -9,7 +9,7 @@ from HELPERS.limitter import is_user_in_channel
 from HELPERS.app_instance import get_app
 from HELPERS.safe_messeger import fake_message, safe_send_message, safe_edit_message_text
 from pyrogram.errors import FloodWait
-from CONFIG.messages import MessagesConfig as Messages
+from CONFIG.messages import Messages as Messages
 import os
 # Lazy imports to avoid circular dependency - import url_distractor inside functions
 from COMMANDS.cookies_cmd import cookies_from_browser

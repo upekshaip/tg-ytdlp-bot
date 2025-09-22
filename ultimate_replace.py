@@ -10,7 +10,7 @@ from pathlib import Path
 
 # Добавляем путь к проекту
 sys.path.append('/mnt/c/Users/chelaxian/Desktop/tg-ytdlp-NEW')
-from CONFIG.messages import MessagesConfig as Messages
+from CONFIG.messages import Messages as Messages
 
 def get_variables_with_zero_occurrences():
     """Получить список переменных с 0 вхождений"""
@@ -167,9 +167,9 @@ def add_import_if_needed(file_path):
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        if 'Messages.' in content and 'from CONFIG.messages import MessagesConfig as Messages' not in content:
+        if 'Messages.' in content and 'from CONFIG.messages import Messages as Messages' not in content:
             lines = content.split('\n')
-            import_line = 'from CONFIG.messages import MessagesConfig as Messages'
+            import_line = 'from CONFIG.messages import Messages as Messages'
             
             for i, line in enumerate(lines):
                 if line.startswith('import ') or line.startswith('from '):
@@ -209,7 +209,7 @@ def main():
         message_text = get_message_text(var_name)
         
         if not message_text:
-            print(f"❌ Переменная {var_name} не найдена в MessagesConfig")
+            print(f"❌ Переменная {var_name} не найдена в Messages")
             continue
         
         print(f"📝 Текст: {message_text[:100]}...")

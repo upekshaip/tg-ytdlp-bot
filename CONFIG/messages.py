@@ -1,6 +1,6 @@
 # Messages Configuration
 
-class MessagesConfig(object):
+class Messages(object):
     #######################################################
     # Messages and errors
     #######################################################

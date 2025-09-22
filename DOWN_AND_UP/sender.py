@@ -14,6 +14,7 @@ import json
 from HELPERS.safe_messeger import safe_forward_messages
 from URL_PARSERS.thumbnail_downloader import download_thumbnail
 from CONFIG.config import Config
+from CONFIG.messages import Messages
 from CONFIG.limits import LimitsConfig
 import time
 

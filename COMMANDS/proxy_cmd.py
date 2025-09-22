@@ -10,7 +10,7 @@ from HELPERS.filesystem_hlp import create_directory
 from HELPERS.logger import send_to_logger, logger, send_to_all
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
 from HELPERS.limitter import is_user_in_channel
-from CONFIG.messages import MessagesConfig as Messages
+from CONFIG.messages import Messages as Messages
 
 # Get app instance for decorators
 app = get_app()

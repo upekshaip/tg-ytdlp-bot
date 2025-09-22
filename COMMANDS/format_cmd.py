@@ -9,7 +9,7 @@ from HELPERS.logger import send_to_logger, logger
 from HELPERS.filesystem_hlp import create_directory
 from HELPERS.limitter import is_user_in_channel
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
-from CONFIG.messages import MessagesConfig as Messages
+from CONFIG.messages import Messages as Messages
 from urllib.parse import urlparse
 import os
 import json
