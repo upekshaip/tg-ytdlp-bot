@@ -44,12 +44,6 @@ def settings_command(app, message):
     user_id = message.chat.id
     # Subscription check for non-admins
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
-        try:
-            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Join Channel", url=Config.SUBSCRIBE_CHANNEL_URL)]])
-            safe_send_message(user_id, f"{Config.TO_USE_MSG}\n \n{Config.CREDITS_MSG}", reply_markup=keyboard,
-                              reply_parameters=ReplyParameters(message_id=message.id))
-        except Exception:
-            pass
         return
     # Main settings menu
     keyboard = InlineKeyboardMarkup([
@@ -109,6 +103,14 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [
                 InlineKeyboardButton("💬 Subtitles", callback_data="clean_option|subs"),
                 InlineKeyboardButton("🎹 Keyboard", callback_data="clean_option|keyboard"),
+            ],
+            [
+                InlineKeyboardButton("⚙️ Args", callback_data="clean_option|args"),
+                InlineKeyboardButton("🔞 NSFW", callback_data="clean_option|nsfw"),
+            ],
+            [
+                InlineKeyboardButton("🌎 Proxy", callback_data="clean_option|proxy"),
+                InlineKeyboardButton("🔄 Flood wait", callback_data="clean_option|flood_wait"),
             ],
             [
                 InlineKeyboardButton("🗑  All files", callback_data="clean_option|all"),
@@ -177,7 +179,7 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("🆘 /help - Get instructions", callback_data="settings__cmd__help")],
             [InlineKeyboardButton("📃 /usage -Send your logs", callback_data="settings__cmd__usage")],
             [InlineKeyboardButton("⏯️ /playlist - Playlist's help", callback_data="settings__cmd__playlist")],
-            [InlineKeyboardButton("🔍 /search - Inline search helper", callback_data="settings__cmd__search")],
+            [InlineKeyboardButton("🤖 /add_bot_to_group - howto", callback_data="settings__cmd__add_bot_to_group")],
             [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
@@ -196,7 +198,9 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("🔗 /link - Get direct video links", callback_data="settings__cmd__link")],
             [InlineKeyboardButton("🌍 /proxy - Enable/disable proxy", callback_data="settings__cmd__proxy")],
             [InlineKeyboardButton("🎹 /keyboard - Keyboard layout", callback_data="settings__cmd__keyboard")],
-            [InlineKeyboardButton("🔍 /search - Inline search helper", callback_data="settings__cmd__search")],
+            [InlineKeyboardButton("🔍 /search - Inline search helper", callback_data="settings__cmd__search_menu")],
+            [InlineKeyboardButton("⚙️ /args - yt-dlp arguments", callback_data="settings__cmd__args")],
+            [InlineKeyboardButton("🔞 /nsfw - NSFW blur settings", callback_data="settings__cmd__nsfw")],
             [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
@@ -424,7 +428,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("🔚Close", callback_data="audio_hint|close")]
         ])
         safe_send_message(user_id,
-                          "Download only audio from video source.\n\nUsage: /audio + URL \n\n(ex. /audio https://youtu.be/abc123)\n(ex. /audio https://youtu.be/playlist?list=abc123*1*10)",
+                          Config.AUDIO_HINT_MSG,
                           reply_parameters=ReplyParameters(message_id=callback_query.message.id),
 
                           reply_markup=keyboard,
@@ -526,17 +530,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         ])
         safe_send_message(
             user_id,
-            "<b>🖼 Image Download Command</b>\n\n"
-            "Usage: <code>/img URL</code>\n\n"
-            "<b>Examples:</b>\n"
-            "• <code>/img https://example.com/image.jpg</code>\n"
-            "• <code>/img 11-20 https://example.com/album</code>\n"
-            "• <code>/img 11- https://example.com/album</code>\n"
-            "• <code>/img https://vk.com/wall-160916577_408508</code>\n"
-            "• <code>/img https://2ch.hk/fd/res/1747651.html</code>\n"
-            "• <code>/img https://imgur.com/abc123</code>\n\n"
-            "<b>Supported platforms (examples):</b>\n"
-            "<blockquote>vk, 2ch, 35photo, 4chan, 500px, ArtStation, Boosty, Civitai, Cyberdrop, DeviantArt, Discord, Facebook, Fansly, Instagram, Patreon, Pinterest, Reddit, TikTok, Tumblr, Twitter/X, JoyReactor, etc. — <a href=\"https://github.com/mikf/gallery-dl/blob/master/docs/supportedsites.md\">full list</a></blockquote>",
+            Config.IMG_HELP_MSG,
             reply_parameters=ReplyParameters(message_id=callback_query.message.id),
             reply_markup=keyboard,
             _callback_query=callback_query,
@@ -553,7 +547,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             [InlineKeyboardButton("🔚Close", callback_data="link_hint|close")]
         ])
         safe_send_message(user_id,
-                          "Get direct video links with quality selection.\n\nUsage: /link + URL \n\n(ex. /link https://youtu.be/abc123)\n(ex. /link 720 https://youtu.be/abc123)",
+                          Config.LINK_HINT_MSG,
                           reply_parameters=ReplyParameters(message_id=callback_query.message.id),
                           reply_markup=keyboard,
                           _callback_query=callback_query,
@@ -599,18 +593,97 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         except Exception:
             pass
         return
-    if data == "search":
+    if data == "search_menu":
+        # Get bot name from config
+        bot_name = Config.BOT_NAME
+        
+        # Create inline keyboard with mobile button and close button (same as search.py)
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚Close", callback_data="search_hint|close")]
+            [
+                InlineKeyboardButton(
+                    "📱 Mobile: Activate @vid search",
+                    url=f"tg://msg?text=%40vid%20%E2%80%8B&to=%40{bot_name}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "🔚Close",
+                    callback_data="search_msg|close"
+                )
+            ]
         ])
-        safe_send_message(user_id,
-                          "Open inline search helper for quick @vid usage.\n\nMobile: tap the button to open chat with prefilled @vid\nDesktop: type @vid Your_Search_Query manually",
-                          reply_parameters=ReplyParameters(message_id=callback_query.message.id),
-                          reply_markup=keyboard,
-                          _callback_query=callback_query,
-                          _fallback_notice="⏳ Flood limit. Try later.")
+        
+        # Send message with search instructions (same as search.py)
+        text = Config.SEARCH_MSG
+        
+        safe_send_message(
+            user_id,
+            text,
+            parse_mode=enums.ParseMode.HTML,
+            reply_markup=keyboard,
+            reply_parameters=ReplyParameters(message_id=callback_query.message.id),
+            _callback_query=callback_query,
+            _fallback_notice="⏳ Flood limit. Try later."
+        )
+        
         try:
-            callback_query.answer("Hint sent.")
+            callback_query.answer("Search helper opened.")
+        except Exception:
+            pass
+        return
+    if data == "add_bot_to_group":
+        try:
+            url_distractor(app, fake_message("/add_bot_to_group", user_id))
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+            try:
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
+            return
+        try:
+            callback_query.answer("Command executed.")
+        except Exception:
+            pass
+        return
+    if data == "args":
+        try:
+            from COMMANDS.args_cmd import args_command
+            args_command(app, fake_message("/args", user_id))
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+            try:
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
+            return
+        try:
+            callback_query.answer("Command executed.")
+        except Exception:
+            pass
+        return
+    if data == "nsfw":
+        try:
+            from COMMANDS.nsfw_cmd import nsfw_command
+            nsfw_command(app, fake_message("/nsfw", user_id))
+        except FloodWait as e:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                f.write(str(e.value))
+            try:
+                callback_query.answer("⏳ Flood limit. Try later.", show_alert=False)
+            except Exception:
+                pass
+            return
+        try:
+            callback_query.answer("Command executed.")
         except Exception:
             pass
         return
@@ -619,7 +692,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
     except Exception:
         pass
 
-@app.on_callback_query(filters.regex(r"^(img_hint|link_hint|search_hint)\|"))
+@app.on_callback_query(filters.regex(r"^(img_hint|link_hint|search_hint|search_msg)\|"))
 def hint_callback(app, callback_query: CallbackQuery):
     """Handle hint callback close buttons"""
     data = callback_query.data.split("|")[-1]

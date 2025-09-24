@@ -86,66 +86,49 @@ def cookies_from_browser(app, message):
         if exists:
             installed_browsers.append(browser)
 
-    # If there are no installed browsers, fallback: download from COOKIE_URL
-    if not installed_browsers:
-        fallback_url = getattr(Config, "COOKIE_URL", None)
-        if not fallback_url:
-            safe_send_message(
-                user_id,
-                "❌ No supported browsers found and no COOKIE_URL configured. Use /cookie or upload cookie.txt."
-            )
-            send_to_logger(message, "No installed browsers found. COOKIE_URL is not configured.")
-            return
+    # Always show menu, even if no browsers found
 
-        user_dir = os.path.join(".", "users", str(user_id))
-        create_directory(user_dir)
-        cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
-        cookie_file_path = os.path.join(user_dir, cookie_filename)
-
-        try:
-            ok, status, content, err = _download_content(fallback_url, timeout=30)
-            if ok:
-                # basic validation
-                if not fallback_url.lower().endswith('.txt'):
-                    safe_send_message(user_id, "❌ Fallback COOKIE_URL must point to a .txt file.")
-                    send_to_logger(message, "COOKIE_URL does not end with .txt (hidden)")
-                    return
-                if len(content or b"") > 100 * 1024:
-                    safe_send_message(user_id, "❌ Fallback cookie file is too large (>100KB).")
-                    send_to_logger(message, "Fallback cookie too large (source hidden)")
-                    return
-                with open(cookie_file_path, "wb") as f:
-                    f.write(content)
-                safe_send_message(user_id, "✅ YouTube cookie file downloaded via fallback and saved as cookie.txt")
-                send_to_logger(message, "Fallback COOKIE_URL used successfully (source hidden)")
-            else:
-                if status is not None:
-                    safe_send_message(user_id, f"❌ Fallback cookie source unavailable (status {status}). Try /cookie or upload cookie.txt.")
-                    send_to_logger(message, f"Fallback COOKIE_URL failed: status={status} (hidden)")
-                else:
-                    safe_send_message(user_id, "❌ Error downloading fallback cookie. Try /cookie or upload cookie.txt.")
-                    safe_err = _sanitize_error_detail(err or "", fallback_url)
-                    send_to_logger(message, f"Fallback COOKIE_URL error: {safe_err}")
-        except Exception as e:
-            safe_send_message(user_id, "❌ Unexpected error during fallback cookie download.")
-            send_to_logger(message, f"Fallback COOKIE_URL unexpected error: {type(e).__name__}: {e}")
-        return
-
-    # Create buttons only for installed browsers
+    # Create buttons for installed browsers
     buttons = []
     for browser in installed_browsers:
         display_name = browser.capitalize()
         button = InlineKeyboardButton(f"✅ {display_name}", callback_data=f"browser_choice|{browser}")
         buttons.append([button])
 
+    # Add a button to download from remote URL (always available)
+    from CONFIG.messages import MessagesConfig as Messages
+    fallback_url = getattr(Config, "COOKIE_URL", None)
+    if fallback_url:
+        buttons.append([InlineKeyboardButton(getattr(Messages, 'DOWNLOAD_FROM_URL_BUTTON_MSG', '📥 Download from Remote URL'), callback_data="browser_choice|download_from_url")])
+
+    # Add a button to open browser monitoring page
+    miniapp_url = getattr(Config, 'MINIAPP_URL', None)
+    # Use the URL as a regular link instead of WebApp
+    if miniapp_url and miniapp_url.startswith('https://t.me/'):
+        logger.info(f"Adding browser monitoring button with URL: {miniapp_url}")
+        buttons.append([InlineKeyboardButton(getattr(Messages, 'BROWSER_OPEN_BUTTON_MSG', '🌐 Open Browser'), url=miniapp_url)])
+    else:
+        logger.warning(f"Browser monitoring URL not configured: {miniapp_url}")
+    
     # Add a close button
-    buttons.append([InlineKeyboardButton("🔚Close", callback_data="browser_choice|close")])
+    buttons.append([InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="browser_choice|close")])
     keyboard = InlineKeyboardMarkup(buttons)
 
+    from CONFIG.messages import MessagesConfig as Messages
+    # Choose message based on whether browsers are found
+    if installed_browsers:
+        message_text = getattr(Messages, 'SELECT_BROWSER_MSG', "Select a browser to download cookies from:")
+    else:
+        message_text = getattr(Messages, 'SELECT_BROWSER_NO_BROWSERS_MSG', "No browsers found on this system. You can download cookies from remote URL or monitor browser status:")
+    
+    if miniapp_url and miniapp_url.startswith('https://t.me/'):
+        message_text += f"\n\n{getattr(Messages, 'BROWSER_MONITOR_HINT_MSG', '🌐 <b>Open Browser</b> - to monitor browser status in mini-app')}"
+    
     safe_send_message(
         user_id,
-        "Select a browser to download cookies from:",
-        reply_markup=keyboard
+        message_text,
+        reply_markup=keyboard,
+        message=message
     )
     send_to_logger(message, "Browser selection keyboard sent with installed browsers only.")
 
@@ -179,8 +162,53 @@ def browser_choice_callback(app, callback_query):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        callback_query.answer("✅ Browser choice updated.")
+        from CONFIG.messages import MessagesConfig as Messages
+        callback_query.answer(Messages.BROWSER_CHOICE_UPDATED_MSG)
         send_to_logger(callback_query.message, "Browser selection closed.")
+        return
+
+    if data == "download_from_url":
+        # Handle download from remote URL
+        fallback_url = getattr(Config, "COOKIE_URL", None)
+        if not fallback_url:
+            from CONFIG.messages import MessagesConfig as Messages
+            safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'COOKIES_NO_BROWSERS_NO_URL_MSG', "❌ No COOKIE_URL configured. Use /cookie or upload cookie.txt."))
+            callback_query.answer("❌ No remote URL configured")
+            return
+
+        # Update message to show downloading
+        from CONFIG.messages import MessagesConfig as Messages
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "📥 Downloading cookies from remote URL...")
+        
+        try:
+            ok, status, content, err = _download_content(fallback_url, timeout=30)
+            if ok:
+                # basic validation
+                if not fallback_url.lower().endswith('.txt'):
+                    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'COOKIE_FALLBACK_URL_NOT_TXT_MSG', "❌ Fallback COOKIE_URL must point to a .txt file."))
+                    callback_query.answer("❌ Invalid file format")
+                    return
+                if len(content or b"") > 100 * 1024:
+                    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'COOKIE_FALLBACK_TOO_LARGE_MSG', "❌ Fallback cookie file is too large (>100KB)."))
+                    callback_query.answer("❌ File too large")
+                    return
+                with open(cookie_file, "wb") as f:
+                    f.write(content)
+                safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'COOKIE_YT_FALLBACK_SAVED_MSG', "✅ YouTube cookie file downloaded via fallback and saved as cookie.txt"))
+                callback_query.answer("✅ Cookies downloaded successfully")
+                send_to_logger(callback_query.message, "Fallback COOKIE_URL used successfully (source hidden)")
+            else:
+                if status is not None:
+                    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'COOKIE_FALLBACK_UNAVAILABLE_MSG', "❌ Fallback cookie source unavailable (status {status}). Try /cookie or upload cookie.txt.").format(status=status))
+                    callback_query.answer(f"❌ Server error {status}")
+                else:
+                    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'COOKIE_FALLBACK_ERROR_MSG', "❌ Error downloading fallback cookie. Try /cookie or upload cookie.txt."))
+                    callback_query.answer("❌ Download failed")
+                send_to_logger(callback_query.message, f"Fallback COOKIE_URL failed: status={status} (hidden)")
+        except Exception as e:
+            safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'COOKIE_FALLBACK_UNEXPECTED_MSG', "❌ Unexpected error during fallback cookie download."))
+            callback_query.answer("❌ Unexpected error")
+            send_to_logger(callback_query.message, f"Fallback COOKIE_URL unexpected error: {type(e).__name__}: {e}")
         return
 
     browser_option = data
@@ -210,9 +238,10 @@ def browser_choice_callback(app, callback_query):
         send_to_logger(callback_query.message, f"Browser {browser_option} not installed.")
         return
 
-    # Build the command for cookie extraction: yt-dlp --cookies "cookie.txt" --cookies-from-browser <browser_option>
-    cmd = f'yt-dlp --cookies "{cookie_file}" --cookies-from-browser {browser_option}'
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
+    # Build the command for cookie extraction using the same yt-dlp as Python API
+    import sys
+    cmd = [sys.executable, '-m', 'yt_dlp', '--cookies', str(cookie_file), '--cookies-from-browser', str(browser_option)]
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
 
     if result.returncode != 0:
         if "You must provide at least one URL" in result.stderr:
@@ -517,7 +546,7 @@ def download_cookie(app, message):
                 f"📺 YouTube (1-{max(1, len(get_youtube_cookie_urls()))})",
                 callback_data="download_cookie|youtube"
             ),
-            InlineKeyboardButton("🌐 From Browser (YouTube)", callback_data="download_cookie|from_browser"),            
+            InlineKeyboardButton("🌐 From Browser", callback_data="download_cookie|from_browser"),            
         ],
         [
             InlineKeyboardButton("🐦 Twitter/X", callback_data="download_cookie|twitter"),
@@ -719,6 +748,62 @@ def save_as_cookie_file(app, message):
         send_to_user(message, "<b>❌ Not a valid cookie.</b>")
         send_to_logger(message, f"Invalid cookie content provided by user {user_id}.")
 
+def test_youtube_cookies_on_url(cookie_file_path: str, url: str) -> bool:
+    """
+    Проверяет работоспособность YouTube куки на конкретном URL пользователя.
+    
+    Args:
+        cookie_file_path (str): Путь к файлу куки
+        url (str): URL для проверки
+        
+    Returns:
+        bool: True если куки работают на этом URL, False если нет
+    """
+    try:
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'skip_download': True,
+            'noplaylist': True,
+            'format': 'best',
+            'ignore_no_formats_error': False,
+            'cookiefile': cookie_file_path,
+            'extractor_args': {
+                'youtube': {'player_client': ['tv']}
+            },
+            'retries': 2,
+            'extractor_retries': 1,
+        }
+        
+        # Add PO token provider for YouTube domains
+        ydl_opts = add_pot_to_ytdl_opts(ydl_opts, url)
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            
+        # Проверяем, что получили информацию о видео
+        if not info:
+            logger.warning(f"YouTube cookies test failed on user URL - no info returned for {cookie_file_path}")
+            return False
+            
+        # Проверяем наличие основных полей
+        if not info.get('title') or not info.get('duration'):
+            logger.warning(f"YouTube cookies test failed on user URL - missing basic info for {cookie_file_path}")
+            return False
+            
+        # Проверяем наличие форматов
+        formats = info.get('formats', [])
+        if len(formats) < 2:
+            logger.warning(f"YouTube cookies test failed on user URL - insufficient formats ({len(formats)}) for {cookie_file_path}")
+            return False
+            
+        logger.info(f"YouTube cookies work on user URL for {cookie_file_path}")
+        return True
+        
+    except Exception as e:
+        logger.warning(f"YouTube cookies test failed on user URL for {cookie_file_path}: {e}")
+        return False
+
 def test_youtube_cookies(cookie_file_path: str) -> bool:
     """
     Тщательно проверяет работоспособность YouTube куки.
@@ -810,12 +895,18 @@ def test_youtube_cookies(cookie_file_path: str) -> bool:
             
     except yt_dlp.utils.DownloadError as e:
         error_text = str(e).lower()
-        logger.warning(f"YouTube cookies test failed with DownloadError: {e}")
-        # Check for specific YouTube errors
+        
+        # Check for specific YouTube errors that are not cookie-related
         if any(keyword in error_text for keyword in [
-            'sign in', 'login required', 'private video', 'age restricted',
-            'video unavailable', 'cookies', 'authentication', 'format not found',
-            'no formats found', 'unable to extract'
+            'video unavailable', 'this content isn\'t available', 'content not available',
+            'video is private', 'private video', 'members only', 'premium content'
+        ]):
+            # These are content availability issues, not cookie issues
+            logger.info(f"YouTube test video is unavailable (not a cookie issue): {e}")
+            return False
+        elif any(keyword in error_text for keyword in [
+            'sign in', 'login required', 'age restricted', 'cookies', 
+            'authentication', 'format not found', 'no formats found', 'unable to extract'
         ]):
             logger.warning(f"YouTube cookies test failed - authentication/format error: {e}")
             return False
@@ -1204,14 +1295,22 @@ def is_youtube_cookie_error(error_message: str) -> bool:
     """
     error_lower = error_message.lower()
     
+    # Сначала проверяем на ошибки недоступности контента (НЕ связанные с куками)
+    content_unavailable_keywords = [
+        'video unavailable', 'this content isn\'t available', 'content not available',
+        'video is private', 'private video', 'members only', 'premium content',
+        'this video is not available', 'copyright', 'dmca'
+    ]
+    
+    if any(keyword in error_lower for keyword in content_unavailable_keywords):
+        return False  # Это не ошибка куков
+    
     # Ключевые слова, указывающие на проблемы с куками/авторизацией
     cookie_related_keywords = [
-        'sign in', 'login required', 'private video', 'age restricted',
-        'video unavailable', 'cookies', 'authentication', 'format not found',
-        'no formats found', 'unable to extract', 'http error 403',
-        'http error 401', 'forbidden', 'unauthorized', 'access denied',
-        'this video is not available', 'video is private', 'members only',
-        'premium content', 'subscription required', 'copyright', 'dmca'
+        'sign in', 'login required', 'age restricted', 'cookies', 
+        'authentication', 'format not found', 'no formats found', 'unable to extract', 
+        'http error 403', 'http error 401', 'forbidden', 'unauthorized', 'access denied',
+        'subscription required'
     ]
     
     return any(keyword in error_lower for keyword in cookie_related_keywords)

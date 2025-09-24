@@ -140,24 +140,63 @@ def set_format(app, message):
             # Set to Always Ask mode
             with open(os.path.join(user_dir, "format.txt"), "w", encoding="utf-8") as f:
                 f.write("ALWAYS_ASK")
-            safe_send_message(user_id, "✅ Format set to: Always Ask. You will be prompted for quality each time you send a URL.")
+            safe_send_message(user_id, "✅ Format set to: Always Ask. You will be prompted for quality each time you send a URL.", message=message)
             send_to_logger(message, "Format set to ALWAYS_ASK.")
             return
         elif arg.lower() == "best":
-            # Set to bv+ba/best format
-            custom_format = "bv+ba/best"
-            safe_send_message(user_id, f"✅ Format updated to best quality:\n{custom_format}")
+            # Set to best format with AVC codec and MP4 container priority
+            # with fallback to bv+ba/best if no AVC+MP4 available
+            custom_format = "bv*[vcodec*=avc1][ext=mp4]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bv*[ext=mp4]+ba/bv+ba/best"
+            safe_send_message(user_id, f"✅ Format updated to best quality (AVC+MP4 priority):\n{custom_format}", message=message)
             send_to_logger(message, f"Format updated to best: {custom_format}")
+        # Check if it's a format ID (e.g., "id 401", "id401")
+        elif re.match(r'^id\s*\d+$', arg, re.IGNORECASE):
+            # Extract the ID number
+            format_id = re.search(r'\d+', arg).group()
+            
+            # Check if this is an audio-only format by analyzing the URL
+            # We need to get the last URL from user's history or ask them to provide URL
+            try:
+                # Try to get URL from user's last message or session
+                from DOWN_AND_UP.always_ask_menu import get_video_formats, analyze_format_type
+                
+                # Use format ID with fallback for both audio and video
+                # This works for audio-only, video-only, and full formats
+                custom_format = f"{format_id}+bestaudio/bv+ba/best"
+                
+                # Check if we can determine if it's audio-only by looking at recent URL
+                # This is a simplified approach - in a real scenario, you might want to store the last URL
+                safe_send_message(user_id, f"✅ Format updated to ID {format_id}:\n{custom_format}\n\n"
+                                         f"💡 <b>Note:</b> If this is an audio-only format, it will be downloaded as MP3 audio file.", message=message)
+                send_to_logger(message, f"Format updated to ID {format_id}: {custom_format}")
+                
+            except Exception as e:
+                # Fallback to original behavior
+                custom_format = f"{format_id}+bestaudio/bv+ba/best"
+                safe_send_message(user_id, f"✅ Format updated to ID {format_id}:\n{custom_format}", message=message)
+                send_to_logger(message, f"Format updated to ID {format_id}: {custom_format}")
+        
+        # Check if it's a format ID with audio flag (e.g., "id 140 audio", "id140 audio")
+        elif re.match(r'^id\s*\d+\s+audio$', arg, re.IGNORECASE):
+            # Extract the ID number
+            format_id = re.search(r'\d+', arg).group()
+            
+            # Use format ID with bestaudio fallback for audio-only formats
+            custom_format = f"{format_id}/bestaudio"
+            
+            safe_send_message(user_id, f"✅ Format updated to ID {format_id} (audio-only):\n{custom_format}\n\n💡 This will be downloaded as MP3 audio file.", message=message)
+            send_to_logger(message, f"Format updated to ID {format_id} (audio-only): {custom_format}")
+        
         # Check if it's a quality argument (number, number+p, 4k, 8k)
         elif re.match(r'^(\d+p?|4k|8k|4K|8K)$', arg, re.IGNORECASE):
             # It's a quality argument, convert to format
             custom_format = parse_quality_argument(arg)
-            safe_send_message(user_id, f"✅ Format updated to quality {arg}:\n{custom_format}")
+            safe_send_message(user_id, f"✅ Format updated to quality {arg}:\n{custom_format}", message=message)
             send_to_logger(message, f"Format updated to quality {arg}: {custom_format}")
         else:
             # It's a custom format string
             custom_format = arg
-            safe_send_message(user_id, f"✅ Format updated to:\n{custom_format}")
+            safe_send_message(user_id, f"✅ Format updated to:\n{custom_format}", message=message)
             send_to_logger(message, f"Format updated to: {custom_format}")
         
         with open(os.path.join(user_dir, "format.txt"), "w", encoding="utf-8") as f:
@@ -181,9 +220,11 @@ def set_format(app, message):
             "• <code>/format 720</code> - 720p quality\n"
             "• <code>/format 4k</code> - 4K quality\n"
             "• <code>/format 8k</code> - 8K quality\n"
+            "• <code>/format id 401</code> - specific format ID\n"
             "• <code>/format ask</code> - always show menu\n"
             "• <code>/format best</code> - bv+ba/best quality",
-            reply_markup=main_keyboard
+            reply_markup=main_keyboard,
+            message=message
         )
         send_to_logger(message, "Format menu sent.")
 
@@ -365,11 +406,11 @@ def format_option_callback(app, callback_query):
             chosen_format = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bv*[vcodec*=avc1]+ba/bv+ba/best"
     elif data == "best":
         if user_codec == "av01":
-            chosen_format = "bestvideo[vcodec*=av01]+bestaudio/bv*[vcodec*=av01]+ba"
+            chosen_format = "bv*[vcodec*=av01][ext=mp4]+ba[acodec*=mp4a]/bv*[vcodec*=av01]+ba[acodec*=opus]/bv*[vcodec*=av01]+ba/bv+ba/best"
         elif user_codec == "vp9":
-            chosen_format = "bestvideo[vcodec*=vp9]+bestaudio/bv*[vcodec*=vp9]+ba"
+            chosen_format = "bv*[vcodec*=vp9][ext=mp4]+ba[acodec*=mp4a]/bv*[vcodec*=vp9]+ba[acodec*=opus]/bv*[vcodec*=vp9]+ba/bv+ba/best"
         else:  # avc1
-            chosen_format = "bestvideo[vcodec*=avc1]+bestaudio/bv*[vcodec*=avc1]+ba"
+            chosen_format = "bv*[vcodec*=avc1][ext=mp4]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bv*[vcodec*=avc1]+ba/bv+ba/best"
     else:
         chosen_format = data
 

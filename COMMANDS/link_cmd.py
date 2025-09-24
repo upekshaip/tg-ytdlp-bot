@@ -9,7 +9,7 @@ from pyrogram.types import ReplyParameters
 from pyrogram import enums
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all
-from HELPERS.limitter import check_user
+from HELPERS.limitter import check_user, is_user_in_channel
 from HELPERS.filesystem_hlp import create_directory
 from CONFIG.config import Config
 from URL_PARSERS.nocookie import is_no_cookie_domain
@@ -95,6 +95,15 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
             'check_certificate': False,
             'live_from_start': True
         }
+        
+        # Add user's custom yt-dlp arguments
+        from COMMANDS.args_cmd import get_user_ytdlp_args, log_ytdlp_options
+        user_args = get_user_ytdlp_args(user_id, url)
+        if user_args:
+            ytdl_opts.update(user_args)
+        
+        # Log final yt-dlp options for debugging
+        log_ytdlp_options(user_id, ytdl_opts, "get_direct_link")
         
         # Cookie setup
         user_dir = os.path.join("users", str(user_id))
@@ -293,8 +302,14 @@ def link_command(app, message):
     try:
         user_id = message.chat.id
         
-        # Check user
-        check_user(message)
+        # Subscription check for non-admins
+        if int(user_id) not in is_user_in_channel(app, message):
+            return  # is_user_in_channel already sends subscription message
+        
+        # Create user directory after subscription check
+        user_dir = os.path.join("users", str(user_id))
+        if not os.path.exists(user_dir):
+            os.makedirs(user_dir, exist_ok=True)
         
         # Get message text
         text = message.text or message.caption or ""
@@ -334,7 +349,8 @@ def link_command(app, message):
             return
         
         # Send processing start message
-        status_msg = app.send_message(user_id, "🔗 Getting direct link...", reply_to_message_id=message.id)
+        from HELPERS.safe_messeger import safe_send_message
+        status_msg = safe_send_message(user_id, "🔗 Getting direct link...", reply_to_message_id=message.id, message=message)
         
         # Get direct link - use proxy only if user has proxy enabled and domain requires it
         result = get_direct_link(url, user_id, quality_arg, use_proxy=False)
@@ -385,5 +401,6 @@ def link_command(app, message):
             
     except Exception as e:
         logger.error(f"Error in link command: {e}")
-        send_to_user(message, f"❌ An error occurred: {str(e)}")
+        from HELPERS.logger import send_error_to_user
+        send_error_to_user(message, f"❌ An error occurred: {str(e)}")
         send_to_logger(message, f"Error in link command for user {message.chat.id}: {e}")

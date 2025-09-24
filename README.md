@@ -1,47 +1,158 @@
-# tg-ytdlp-bot (supports your own cookies)
+# 🤖 tg-ytdlp-bot
 
-Support me on [BuyMeACoffee](https://buymeacoffee.com/upekshaip) \
-Thanks to Contributor - [@IIlIlIlIIIlllIIlIIlIllIIllIlIIIl](https://t.me/IIlIlIlIIIlllIIlIIlIllIIllIlIIIl) - [chelaxian](https://github.com/chelaxian/tg-ytdlp-bot)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
+[![PyroTGFork](https://img.shields.io/badge/PyroTGFork-Latest-green.svg)](https://github.com/pyrogram/pyrogram)
+[![yt-dlp](https://img.shields.io/badge/yt--dlp-Latest-red.svg)](https://github.com/yt-dlp/yt-dlp)
+[![gallery-dl](https://img.shields.io/badge/gallery--dl-Latest-orange.svg)](https://github.com/mikf/gallery-dl)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Telegram](https://img.shields.io/badge/Telegram-Bot-blue.svg)](https://t.me/tgytdlp)
 
-Download private YouTube/videos using a cookie file with advanced format selection, codec support (H.264/AVC, AV1, VP9), intelligent subtitle handling, proxy support, and direct stream links.
+> 🎥 **Advanced Telegram bot for downloading videos and media from 1500+ platforms**
 
-Test free Telegram bots - https://t.me/tg_ytdlp \
+
+A powerful Telegram bot that downloads videos, audio, and images from YouTube, TikTok, Instagram, and 1500+ other platforms using yt-dlp and gallery-dl. Features advanced format selection, codec support, intelligent subtitle handling, proxy support, and direct stream links.
+
+## Quick start:
+- Just send a link to the bot — it auto-detects the content and downloads it
+  - Videos are handled via yt-dlp
+  - If no downloadable video formats are found, the bot automatically tries images via gallery-dl
+
+## Test free Telegram bots: 
+Channel: \
+https://t.me/tg_ytdlp \
+Bots: \
 https://t.me/tgytdlp_uae_bot \
 https://t.me/tgytdlp_uk_bot \
 https://t.me/tgytdlp_fr_bot \
 https://t.me/tgytdlp_bot
 
-## Full Documentation
-[https://upekshaip.com/projects/-O0t36gRpfJR1p8KB7vU](https://upekshaip.com/projects/-O0t36gRpfJR1p8KB7vU)
 
----
+## ✨ Features
 
-## Deploy on a VM 
+- 🎬 **1500+ Platforms**: YouTube, TikTok, Instagram, Twitter, Facebook, and many more
+- 🍪 **Cookie Support**: Download private/age-restricted content with your own cookies
+- 🎯 **Smart Format Selection**: Advanced codec support (H.264/AVC, AV1, VP9) with container preferences
+- 📱 **Interactive Menus**: Always Ask quality selection with real-time filtering
+- 🔗 **Direct Links**: Get direct stream URLs for media players (VLC, MX Player, etc.)
+- 🌐 **Proxy Support**: Global proxy control for all downloads
+- 💬 **Subtitle Integration**: Intelligent subtitle handling with language detection
+- 🏷️ **Tag System**: Organize your downloads with custom tags
+- 📊 **Usage Statistics**: Track your download history and usage
+- 🔒 **Privacy Focused**: User-specific settings and secure cookie handling
+- 🚀 **PO Token Provider**: Bypass YouTube restrictions automatically
+- 🖼️ **Image Support**: Download images from various platforms using gallery-dl
 
-- First, add your bot to the **logging channel** and **subscription channel**. Both are required.
-- Star and fork this repository. Then rename the file **_config.py** to **config.py**.
-- Add your configuration to the **config.py** file.
+## 🚀 Quick Start
+
+
+### Try the Bot
+
+- First, add your bot to the **logging channel** and **subscription channel** with admin rights. Both are required.
+- Star and clone this repository to your server. Then rename the file **_config.py** to **config.py**.
+- Add your configuration to the **config.py** file. Guide is below.
 - Install required dependencies and start the bot.
 
----
-##  local deployment on a VM 
-For local deployment you should use this commands:
 
-#### Install `git` and `python3` (example for Ubuntu/Debian)
-```sh
-sudo apt update
-sudo apt install mediainfo rsync
-sudo apt install git python3.10 python3-pip python3.10-venv
+**Live Demo Bots:**
+- 🇺🇸 [@tgytdlp_bot](https://t.me/tgytdlp_bot) - Main bot
+- 🇦🇪 [@tgytdlp_uae_bot](https://t.me/tgytdlp_uae_bot) - UAE server
+- 🇬🇧 [@tgytdlp_uk_bot](https://t.me/tgytdlp_uk_bot) - UK server
+- 🇫🇷 [@tgytdlp_fr_bot](https://t.me/tgytdlp_fr_bot) - France server
+
+**Community Channel:** [@tg_ytdlp](https://t.me/tg_ytdlp)
+
+### Basic Usage
+
+1. **Send a video URL** to the bot
+2. **Choose quality** from the interactive menu
+3. **Download** your video with custom settings
+
 ```
-#### Setting up `config.py`
-```sh
-git clone https://github.com/upekshaip/tg-ytdlp-bot.git
-cd tg-ytdlp-bot/CONFIG
-sudo mv _config.py config.py
+https://youtube.com/watch?v=dQw4w9WgXcQ
+```
+
+## 📋 Table of Contents
+
+- [Installation](#-installation)
+- [Configuration](#-configuration)
+- [User Commands](#-user-commands)
+- [Advanced Features](#-advanced-features)
+- [Admin Commands](#-admin-commands)
+- [Troubleshooting](#-troubleshooting)
+- [Contributing](#-contributing)
+- [Support](#-support)
+
+## 🛠️ Installation
+
+### Prerequisites
+
+- **Python 3.10+**
+- **Ubuntu/Debian** (recommended) or other Linux distribution
+- **Chromium** (recommended) or other Browser (optional, for `/cookies_from_browser` command)
+- **Docker** (optional, for PO Token Provider)
+- **Telegram Bot Token** from [@BotFather](https://t.me/BotFather)
+- **Telegram API Credentials** from [my.telegram.org](https://my.telegram.org)
+
+### Step 1: Clone Repository
+
+```bash
+git clone https://github.com/chelaxian/tg-ytdlp-bot.git
+cd tg-ytdlp-bot
+```
+
+### Step 2: Install Dependencies
+
+```bash
+# Update system packages
+sudo apt update
+sudo apt install -y git python3.10 python3-pip python3.10-venv mediainfo rsync
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install Python packages
+pip install --no-cache-dir -r requirements.txt
+```
+
+### Step 3: Install FFmpeg
+
+```bash
+# Install FFmpeg (required for video processing)
+sudo apt-get install -y ffmpeg
+
+# Verify installation
+ffmpeg -version
+```
+
+### Step 4: Setup Configuration
+
+```bash
+# Navigate to config directory
+cd CONFIG
+
+# Copy template configuration
+cp _config.py config.py
+
+# Edit configuration
 nano config.py
 ```
 
-**Required Configuration Fields:**
+### Step 5: Start the Bot
+
+```bash
+# Activate virtual environment
+source venv/bin/activate
+
+# Start the bot
+python3 magic.py
+```
+
+## ⚙️ Configuration
+
+### Required Configuration
+
+Edit `CONFIG/config.py` with your settings:
 
 ```python
 # Bot Configuration
@@ -52,9 +163,14 @@ API_ID = 12345678                            # Your Telegram API ID
 API_HASH = "your_api_hash_here"              # Your Telegram API Hash
 BOT_TOKEN = "1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"  # Your bot token
 
-# Channel Configuration
-LOGS_ID = -1001234567890                     # Logging channel ID
-SUBSCRIBE_CHANNEL = -1001234567890           # Subscription channel ID
+# Channel Configuration (Multiple Log Channels)
+LOGS_ID = -1001234567890                     # Main logging channel
+LOGS_VIDEO_ID = -1001234567891               # Video download logs
+LOGS_NSFW_ID = -1001234567892                # NSFW content logs
+LOGS_IMG_ID = -1001234567893                 # Image download logs
+LOGS_PAID_ID = -1001234567894                # Paid media logs
+LOG_EXCEPTION = -1001234567895               # Error logs
+SUBSCRIBE_CHANNEL = -1001234567890           # Subscription channel
 SUBSCRIBE_CHANNEL_URL = "https://t.me/your_channel"  # Channel invite link
 
 # Cookie Configuration
@@ -64,12 +180,7 @@ COOKIE_URL = "https://your-domain.com/cookies/cookie.txt"  # Fallback cookie URL
 YOUTUBE_COOKIE_URL = "https://your-domain.com/cookies/youtube/cookie1.txt"
 YOUTUBE_COOKIE_URL_1 = "https://your-domain.com/cookies/youtube/cookie2.txt"
 YOUTUBE_COOKIE_URL_2 = "https://your-domain.com/cookies/youtube/cookie3.txt"
-YOUTUBE_COOKIE_URL_3 = "https://your-domain.com/cookies/youtube/cookie4.txt"
-YOUTUBE_COOKIE_URL_4 = "https://your-domain.com/cookies/youtube/cookie5.txt"
-
-# Other Service Cookies
-TIKTOK_COOKIE_URL = "https://your-domain.com/cookies/tiktok_cookie.txt"
-TWITTER_COOKIE_URL = "https://your-domain.com/cookies/twitter_cookie.txt"
+# ... up to YOUTUBE_COOKIE_URL_9
 
 # Firebase Configuration
 FIREBASE_USER = "your-email@gmail.com"
@@ -85,67 +196,100 @@ FIREBASE_CONF = {
 }
 ```
 
-**Important Notes:**
-- **Admin IDs**: Add your Telegram user ID to the `ADMIN` list to access admin commands
-- **Channel IDs**: Both logging and subscription channels are required
-- **Cookie URLs**: Must point to `.txt` files with Netscape cookie format
-- **Firebase**: Required for caching and user data management
-- **API Credentials**: Get from [@BotFather](https://t.me/BotFather) and [my.telegram.org](https://my.telegram.org)
+### Optional Configuration
 
-**Getting API Credentials:**
-1. **Bot Token**: Message [@BotFather](https://t.me/BotFather) and create a new bot
-2. **API ID & Hash**: Visit [my.telegram.org](https://my.telegram.org), log in, and go to "API development tools"
-3. **Channel IDs**: Add your bot to the channels and get the channel IDs (they start with -100)
+**Proxy Configuration Fields (Optional):**
 
-**Getting Your User ID:**
-- Message [@UserInfoToBot](https://t.me/UserInfoToBot) to get your Telegram user ID
-- Add this ID to the `ADMIN` list in config.py
+Fill in this configuration (up to 2 proxies) if you want to be able using `/proxy` command to use **yt-dlp** and **gallery-dl** via proxy servers
 
-**Setting Up Firebase:**
-1. Go to [Firebase Console](https://console.firebase.google.com/) and create a new project
-2. Enable Realtime Database and Authentication
-3. Create a user with email/password authentication
-4. Get your Firebase configuration from Project Settings
-5. Update the `FIREBASE_CONF` section in config.py with your project details
-
-**Cookie File Setup:**
-1. Create cookie files in Netscape format for each service. You can use this browser extension https://cookie-editor.com/  
-2. Upload them to a web server accessible via HTTPS. You can use your own Github repo for that.
-3. Update the cookie URLs in config.py to point to your files. For Github repo ensure you use RAW URLs to your text cookie files.
-4. Ensure files are under 100KB and accessible without authentication
-
-**Setting Up Channels:**
-1. **Logging Channel**: Create a private channel for bot logs
-   - Add your bot as admin with "Send Messages" permission
-   - Get the channel ID (starts with -100)
-   - Update `LOGS_ID` in config.py
-
-2. **Subscription Channel**: Create a public/private channel for user subscription
-   - Add your bot as admin
-   - Get the channel ID and invite link
-   - Update `SUBSCRIBE_CHANNEL` and `SUBSCRIBE_CHANNEL_URL` in config.py
-
-**Channel ID Format:**
-- Public channels: `-100` + channel ID
-- Private channels: `-100` + channel ID
-- Example: If your channel ID is `1234567890`, use `-1001234567890`
-
-**Getting Channel IDs:**
-1. **Method 1**: Forward a message from your channel to [@userinfobot](https://t.me/userinfobot)
-2. **Method 2**: Use [@getidsbot](https://t.me/getidsbot) - send it a link to your channel
-3. **Method 3**: Add [@RawDataBot](https://t.me/RawDataBot) to your channel and check the forwarded message
-
-**Important**: Both channels are required for the bot to function properly.
-
-Edit your configuration before deployment.
-
-#### Install `python` modules
-
-```sh
-python3 -m venv venv
-source venv/bin/activate
-pip install --no-cache-dir -r requirements.txt
+```python
+    # Proxy configuration
+    PROXY_TYPE="http" # http, https, socks4, socks5, socks5h
+    PROXY_IP="X.X.X.X"
+    PROXY_PORT=3128
+    PROXY_USER="XXXXXXXX"
+    PROXY_PASSWORD="XXXXXXXXX"
+    # Additional Proxy configuration  
+    PROXY_2_TYPE="socks5" # http, https, socks4, socks5, socks5h
+    PROXY_2_IP="X.X.X.X"
+    PROXY_2_PORT=3128
+    PROXY_2_USER="XXXXXXXX"
+    PROXY_2_PASSWORD="XXXXXXXXX"
+    # Proxy selection method for /proxy on command
+    PROXY_SELECT = "round_robin" # random, round_robin
 ```
+
+
+#### Proxy Support
+
+```python
+# Proxy configuration (up to 2 proxies)
+PROXY_TYPE = "http"  # http, https, socks4, socks5, socks5h
+PROXY_IP = "X.X.X.X"
+PROXY_PORT = 3128
+PROXY_USER = "username"
+PROXY_PASSWORD = "password"
+
+# Additional Proxy
+PROXY_2_TYPE = "socks5"
+PROXY_2_IP = "X.X.X.X"
+PROXY_2_PORT = 3128
+PROXY_2_USER = "username"
+PROXY_2_PASSWORD = "password"
+
+# Proxy selection method
+PROXY_SELECT = "round_robin"  # random, round_robin
+```
+
+#### PO Token Provider (YouTube Bypass)
+
+```python
+# PO Token Provider configuration
+YOUTUBE_POT_ENABLED = True
+YOUTUBE_POT_BASE_URL = "http://127.0.0.1:4416"
+YOUTUBE_POT_DISABLE_INNERTUBE = False
+```
+
+### Getting API Credentials
+
+#### 1. Bot Token
+1. Message [@BotFather](https://t.me/BotFather)
+2. Create a new bot with `/newbot`
+3. Copy the bot token
+
+#### 2. API ID & Hash
+1. Visit [my.telegram.org](https://my.telegram.org)
+2. Log in with your phone number
+3. Go to "API development tools"
+4. Create a new application
+5. Copy API ID and API Hash
+
+#### 3. Channel IDs
+1. Create channels and add your bot as admin
+2. Get channel IDs using [@userinfobot](https://t.me/userinfobot)
+3. Channel IDs start with `-100`
+
+#### 4. User ID
+1. Message [@UserInfoToBot](https://t.me/UserInfoToBot)
+2. Copy your user ID
+3. Add to `ADMIN` list in config.py
+
+### Firebase Setup
+
+1. Go to [Firebase Console](https://console.firebase.google.com/)
+2. Create a new project
+3. Enable Realtime Database and Authentication
+4. Create a user with email/password
+5. Get configuration from Project Settings
+6. Update `FIREBASE_CONF` in config.py
+
+### Cookie Setup
+
+1. Use [Cookie-Editor](https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm) browser extension
+2. Export cookies in Netscape format
+3. Upload to web server (HTTPS required)
+4. Update cookie URLs in config.py
+5. Files must be under 100KB and accessible without authentication
 ---
 ### Installing ffmpeg (example for Ubuntu/Debian)
       
@@ -284,153 +428,267 @@ Also you may fill in `porn_domains.txt` `porn_keywords.txt` files in `TXT` folde
 
 ---
 
-## PO Token Provider Setup (YouTube Bypass)
 
-The bot now supports **PO Token Provider** for bypassing YouTube's "Sign in to confirm you're not a bot" restrictions and other blocking mechanisms.
+## 👤 User Commands
 
-### What is PO Token Provider?
+### Basic Commands
 
-PO (Proof-of-Origin) Token Provider is a service that generates tokens to make your yt-dlp requests appear more legitimate to YouTube, helping bypass various blocking mechanisms including:
-- "Sign in to confirm you're not a bot" messages
-- IP-based restrictions
-- Rate limiting
-- Other anti-bot measures
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/start` | Start the bot | `/start` |
+| `/help` | Show help message | `/help` |
+| `/settings` | Open settings menu | `/settings` |
+| `/usage` | Show usage statistics | `/usage` |
+| `/tags` | Get all your tags | `/tags` |
 
-### Docker Installation (Recommended)
+### Download Commands
 
-#### 1. Install Docker (if not already installed)
+| Command | Description | Example |
+|---------|-------------|---------|
+| **Video URL** | Download video (auto-detect) | `https://youtube.com/watch?v=...` |
+| `/vid` | Download video | `/vid https://youtube.com/watch?v=...` |
+| `/audio` | Download audio only | `/audio https://youtube.com/watch?v=...` |
+| `/link` | Get direct video links | `/link 720 https://youtube.com/watch?v=...` |
+| `/img` | Download images | `/img https://instagram.com/p/...` |
 
-**Ubuntu/Debian:**
+### Format & Quality Commands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/format` | Choose video format/codec | `/format 720` |
+| `/split` | Set video split size | `/split 500mb` |
+| `/mediainfo` | Toggle mediainfo display | `/mediainfo on` |
+
+### Subtitle Commands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/subs` | Configure subtitles | `/subs en auto` |
+
+### Cookie Commands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/cookie` | Download cookies | `/cookie youtube` |
+| `/check_cookie` | Validate cookies | `/check_cookie` |
+| `/save_as_cookie` | Upload cookie file | `/save_as_cookie` |
+| `/cookies_from_browser` | Extract from browser | `/cookies_from_browser` |
+
+### Advanced Commands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/args` | Configure yt-dlp arguments (grouped menu) | `/args` |
+| `/list` | Show available formats for URL | `/list https://youtube.com/watch?v=...` |
+| `/proxy` | Enable/disable proxy | `/proxy on` |
+| `/keyboard` | Manage reply keyboard | `/keyboard full` |
+| `/search` | Inline search helper | `/search` |
+| `/clean` | Clean user files | `/clean args` |
+| `/nsfw` | NSFW content settings | `/nsfw` |
+| `/flood_wait` | Flood wait settings | `/flood_wait` |
+
+### Command Arguments
+
+Many commands support direct arguments for quick configuration:
+
 ```bash
-sudo apt update
-sudo apt install -y docker.io
-sudo systemctl enable --now docker
+# Format with quality
+/format 720    # Set to 720p or lower
+/format 4k     # Set to 4K or lower
+/format best   # Set to best quality
+
+# Keyboard layouts
+/keyboard off   # Hide keyboard
+/keyboard 1x3   # Single row
+/keyboard 2x3   # Double row (default)
+/keyboard full  # Emoji keyboard
+
+# Split sizes
+/split 100mb   # 100MB (minimum)
+/split 500mb   # 500MB
+/split 1gb     # 1GB
+/split 2gb     # 2GB (maximum)
+
+# Subtitle languages
+/subs off       # Disable subtitles
+/subs ru        # Russian subtitles
+/subs en auto   # English with auto-translate
+
+# Cookie services
+/cookie youtube  # YouTube cookies
+/cookie tiktok   # TikTok cookies
+/cookie x        # Twitter/X cookies
+
+# Clean specific settings
+/clean args      # Clear yt-dlp arguments
+/clean nsfw      # Clear NSFW settings
+/clean proxy     # Clear proxy settings
+/clean flood_wait # Clear flood wait settings
+
+# Format with ID selection
+/format id 134   # Download specific format ID (with audio)
+/format id 401   # Download specific format ID (with audio)
+
+# List available formats
+/list https://youtube.com/watch?v=...  # Show all available formats
 ```
 
-#### 2. Run PO Token Provider Container
+---
 
-```bash
-docker run -d \
-  --name bgutil-provider \
-  -p 4416:4416 \
-  --init \
-  --restart unless-stopped \
-  brainicism/bgutil-ytdlp-pot-provider
-```
+## 🎯 Advanced Features
 
-**Parameters:**
-- `-d`: Run in background (detached mode)
-- `--name bgutil-provider`: Container name
-- `-p 4416:4416`: Map port 4416 (container) to 4416 (host)
-- `--init`: Proper process handling
-- `--restart unless-stopped`: Auto-restart on reboot or crash
+### 🎬 Always Ask Menu
 
-#### 3. Verify Installation
+Interactive quality selection with advanced filtering:
 
-Check if container is running:
-```bash
-docker ps
-```
+- **📼 CODEC Button**: Choose between H.264/AVC, AV1, VP9 codecs
+- **📹 DUBS Button**: Select audio language with flag indicators
+- **💬 SUBS Button**: Choose subtitle language with smart detection
+- **☑️ LINK Button**: Toggle direct link mode for media players
+- **Dynamic Filtering**: Real-time quality filtering based on selections
 
-Test the provider:
-```bash
-curl http://127.0.0.1:4416
-```
+### 🍪 Advanced Cookie Management
 
-#### 4. Install yt-dlp Plugin
+- **Multiple Sources**: Configure up to 10 YouTube cookie sources
+- **Automatic Validation**: Each cookie is tested for functionality
+- **Fallback System**: Automatic switching between sources
+- **Browser Integration**: Extract cookies from installed browsers
+- **Real-time Progress**: Live updates during download and validation
 
-Install the PO token provider plugin for yt-dlp:
-```bash
-python3 -m pip install -U bgutil-ytdlp-pot-provider
-```
-
-#### 5. Configure Bot
-
-The bot is already configured to use PO token provider. Settings in `CONFIG/config.py`:
-
+**Configuration Example:**
 ```python
-# PO Token Provider configuration for YouTube
-YOUTUBE_POT_ENABLED = True
-YOUTUBE_POT_BASE_URL = "http://127.0.0.1:4416"
-YOUTUBE_POT_DISABLE_INNERTUBE = False
+# In CONFIG/config.py
+YOUTUBE_COOKIE_URL = "https://your-domain.com/cookies/youtube/cookie1.txt"
+YOUTUBE_COOKIE_URL_1 = "https://your-domain.com/cookies/youtube/cookie2.txt"
+YOUTUBE_COOKIE_URL_2 = "https://your-domain.com/cookies/youtube/cookie3.txt"
+# ... up to YOUTUBE_COOKIE_URL_9
 ```
 
-### How It Works
+**User Commands:**
+- `/cookie` → YouTube: Downloads and validates cookies from multiple sources
+- `/check_cookie`: Validates existing cookies and checks YouTube functionality
+- `/cookies_from_browser`: Extracts cookies from installed browsers
+- `/save_as_cookie`: Upload custom cookie file
 
-1. **Automatic Detection**: Bot automatically detects YouTube URLs
-2. **Token Generation**: PO token provider generates legitimate tokens
-3. **Request Enhancement**: yt-dlp uses these tokens to bypass restrictions
-4. **Transparent Operation**: Works seamlessly with existing proxy and cookie systems
+**Cookie Validation Process:**
+1. **Download**: Fetches cookie file from configured source
+2. **Format Check**: Validates Netscape cookie format
+3. **Size Validation**: Ensures file size is under 100KB
+4. **YouTube Test**: Tests cookies with a short YouTube video
+5. **Error Analysis**: Distinguishes between authentication and network errors
+6. **Fallback**: Tries next source if current one fails
 
-### Benefits
+**Cookie File Requirements:**
+- **Format**: Must be in Netscape cookie format
+- **Size Limit**: Maximum 100KB per cookie file
+- **Access**: Cookie files must be accessible via HTTP/HTTPS URLs
 
-- ✅ Bypasses "Sign in to confirm you're not a bot" messages
-- ✅ Reduces IP-based blocking
-- ✅ Improves download success rates
-- ✅ Works with existing proxy and cookie configurations
-- ✅ Automatic integration - no user action required
+**Security Features:**
+- **URL Hiding**: Source URLs are hidden from users in error messages
+- **Error Sanitization**: Sensitive information is removed from logs
+- **Temporary Files**: Cookie files are cleaned up after validation
+- **Access Control**: Cookie management commands are properly restricted
 
----
+### 🌐 Proxy Support
 
-## Running Telegram bot
-Now you can start the bot via commands:
-```sh
-source venv/bin/activate
-python3 magic.py
+- **Global Control**: Enable/disable proxy for all operations
+- **User-Specific**: Each user controls their own proxy usage
+- **Multiple Proxies**: Support for up to 2 proxy servers
+- **Selection Methods**: Round-robin or random proxy selection
+- **Automatic Integration**: Works with all download operations
+
+### 🔗 Direct Link Extraction
+
+- **Quality Selection**: Specify desired quality (720, 1080, 4k, 8k)
+- **Player Integration**: Direct links for VLC, MX Player, Infuse, IINA, nPlayer, MPV
+- **Smart Fallback**: Automatic fallback to best available quality
+- **Dual Stream Support**: Separate video and audio stream URLs
+
+### 🏷️ Tag System
+
+Add tags to any link for organization:
+
+```
+https://youtube.com/watch?v=... #music #favorite #2024
 ```
 
----
+Tags are automatically added to video captions and saved in your `tags.txt` file.
 
-## User Commands
+### 🖼️ Image Download Support
 
-- **/start** - Start the bot.
-- **/help** - Display help message.
-- **/settings** - Open settings menu with categories and quick actions.
-- **/clean** - Clean your working directory or specific files (see /help).
-- **/usage** - Show your usage statistics and logs.
-- **/tags** - Get all your #tags.
-- **/audio** - Download audio from a video URL.
-- **/link** - Get direct video links with quality selection (e.g., `/link 720 URL`, `/link 4k URL`). Also provides direct links for media players (VLC, MX Player, Infuse, IINA, nPlayer, MPV).
-- **/proxy** - Enable/disable proxy for all yt-dlp downloads (`/proxy on`, `/proxy off`). When enabled, all downloads use the configured proxy server.
-- **PO Token Provider** - Automatically bypasses YouTube restrictions including "Sign in to confirm you're not a bot" messages. Works transparently with all YouTube operations.
-- **/format** - Choose media format options with advanced codec selection (H.264/AVC, AV1, VP9) and container preferences (MP4, MKV).
-  - **With arguments**: `/format 720`, `/format 4k`, `/format 8k` - Set quality directly
-- **/split** - Change splitted video part size (100MB-2GB).
-  - **With arguments**: `/split 100mb`, `/split 500mb`, `/split 1.5gb`, `/split 2gb` - Set size directly
-  - **Range**: Any value from 100MB to 2GB (e.g., `/split 300mb`, `/split 1.2gb`, `/split 1500mb`)
-- **/mediainfo** - Turn ON/OFF sending mediainfo (`/mediainfo on|off`).
-- **/check_cookie** - Check the cookie file.
-- **/cookie** - Download the cookie file with additional "From Browser" option.
-  - **With arguments**: `/cookie youtube`, `/cookie instagram`, `/cookie tiktok`, `/cookie x`, `/cookie twitter`, `/cookie facebook`, `/cookie custom` - Direct service selection
-- **/save_as_cookie** - Save text as cookie (or upload TXT-doc).
-- **/cookies_from_browser** - Get cookies from browser (if supported) with fallback to Config.COOKIE_URL.
-- **/subs** - Enable/disable subtitle embedding for videos with enhanced language selection and "Always Ask" mode.
-  - **With arguments**: `/subs off`, `/subs ru`, `/subs en auto` - Set language and mode directly
-- **/keyboard** - Manage reply keyboard settings (OFF/1x3/2x3/full).
-  - **With arguments**: `/keyboard off`, `/keyboard 1x3`, `/keyboard 2x3`, `/keyboard full` - Set layout directly
-- **/search** - Open inline search helper for quick `@vid` usage (see below).
-- **/img** - Download images from various platforms using gallery-dl.
+Download images from various platforms:
 
----
+- **Direct URLs**: Any image link with common extensions
+- **Platforms**: Imgur, Flickr, DeviantArt, Pinterest, Instagram, Twitter/X, Reddit
+- **Cloud Storage**: Google Drive, Dropbox, Mega.nz
+- **Ranges**: Download specific ranges from albums/feeds
 
-## Advanced Features
+### ⚙️ Custom yt-dlp Arguments (`/args`)
 
-### PO Token Provider (YouTube Bypass)
+Configure advanced yt-dlp parameters with grouped interface:
 
-The bot automatically uses PO Token Provider for all YouTube operations to bypass various restrictions:
+- **Boolean Options**: Enable/disable features (extract_flat, write_automatic_sub, etc.)
+- **Text Parameters**: Custom referer, user agent, output template
+- **Numeric Settings**: Retries, timeout, fragment retries
+- **JSON Headers**: Custom HTTP headers for specific sites
+- **Selection Options**: Audio quality, video quality, format selection
+
+**Grouped Menu Interface:**
+- ✅/❌ **Boolean** - True/False switches
+- 📋 **Select** - Choose from options
+- 🔢 **Numeric** - Number input
+- 📝🔧 **Text** - Text/JSON input
+
+**Example Configuration:**
+```
+Referer: https://example.com
+User Agent: Custom Bot 1.0
+Custom HTTP Headers: {"X-API-Key": "your-key"}
+Retries: 5
+Timeout: 30
+```
+
+### 📋 Format List Command (`/list`)
+
+View all available formats for any video URL:
+
+- **Complete Format List**: Shows all available video/audio formats
+- **Format Details**: Resolution, codec, file size, quality information
+- **Download Hints**: Instructions on how to use `/format` command
+- **File Export**: Sends complete format list as downloadable text file
+
+**Usage:**
+```bash
+/list https://youtube.com/watch?v=dQw4w9WgXcQ
+```
 
 **Features:**
-- **Automatic Detection**: Works transparently with all YouTube URLs
-- **Restriction Bypass**: Handles "Sign in to confirm you're not a bot" messages
-- **IP Protection**: Reduces IP-based blocking and rate limiting
-- **Seamless Integration**: Works with existing proxy and cookie systems
-- **No User Action**: Completely automatic - no commands needed
+- Shows format ID, resolution, codec, file size
+- Includes download instructions for `/format` command
+- Exports complete list as text file
+- Works with all supported platforms
 
-**How it works:**
-1. Bot detects YouTube URLs automatically
-2. PO token provider generates legitimate tokens
-3. yt-dlp uses these tokens to bypass restrictions
-4. Downloads proceed normally with enhanced success rates
+### 🚀 PO Token Provider (YouTube Bypass)
+
+Automatically bypass YouTube restrictions:
+
+- **"Sign in to confirm"** message bypass
+- **IP-based blocking** protection
+- **Rate limiting** mitigation
+- **Transparent Operation**: Works with existing proxy and cookie systems
+- **Automatic Fallback**: Falls back to standard extraction if provider unavailable
+
+**Setup:**
+```bash
+# Install Docker
+sudo apt install -y docker.io
+
+# Run PO Token Provider
+docker run -d --name bgutil-provider -p 4416:4416 --init --restart unless-stopped brainicism/bgutil-ytdlp-pot-provider
+
+# Install yt-dlp plugin
+python3 -m pip install -U bgutil-ytdlp-pot-provider
+```
 
 **Configuration:**
 ```python
@@ -508,6 +766,8 @@ YOUTUBE_POT_DISABLE_INNERTUBE = False
 - **Smart Quality Selection**: Prioritizes exact height matches before falling back to "less than or equal to"
 - **Persistent Preferences**: Your codec and container choices are saved per-user
 - **Quick Quality Setting**: Use arguments to set quality directly (e.g., `/format 720`, `/format 4k`)
+- **Format ID Support**: Download specific format IDs with automatic audio addition
+- **Smart Audio Handling**: Video-only formats automatically get best audio added
 
 ### Advanced Command Arguments
 The bot now supports command arguments for quick configuration without opening menus:
@@ -518,6 +778,9 @@ The bot now supports command arguments for quick configuration without opening m
 /format 4k     # Set quality to 4K or lower  
 /format 8k     # Set quality to 8K or lower
 /format best   # Set to best quality
+/format ask    # Always ask for quality selection
+/format id 134 # Download specific format ID (with audio)
+/format id 401 # Download specific format ID (with audio)
 ```
 
 #### `/keyboard` with Layout Arguments
@@ -570,6 +833,20 @@ You can select a specific YouTube cookie source by index and then verify it:
 /cookie youtube 3     # use source #3
 /check_cookie         # validate current YouTube cookies (tests on RickRoll)
 ```
+
+#### Format List Command
+
+View all available formats for any video URL:
+
+```bash
+/list https://youtube.com/watch?v=dQw4w9WgXcQ  # Show all formats
+```
+
+**Features:**
+- Complete format list with ID, resolution, codec, file size
+- Download instructions for `/format` command
+- Exports as downloadable text file
+- Works with all supported platforms
 
 ### Always Ask Menu
 - **📼CODEC Button**: Access advanced codec and container filters
@@ -629,93 +906,72 @@ You can select a specific YouTube cookie source by index and then verify it:
 
 ---
 
+## Paid posts (Telegram Stars) and Group Mode
+
+
+
+- **Paid posts (Stars)**: The bot can send paid posts via Telegram Stars for NSFW content in private chats.
+  - The cover is prepared automatically (320×320 with padding) to meet Telegram requirements.
+  - Price is configured in `CONFIG/limits.py` via `NSFW_STAR_COST`.
+  - For channels/groups, relay is supported (when the bot is added as an admin); paid media is cached properly.
+
+- **Adding the bot to a group**: Add the bot as an admin to your group/supergroup to use commands inside the chat.
+  - In group mode, extended limits apply: **limits are doubled** (sizes/queues), reducing fallbacks to document mode for large files.
+  - All other features (formats, proxy, cookies, direct links) work the same as in private chats.
+  - NSFW content has no Telegram Stars cost in groups
+
+Note: You can tune exact limit values and behavior in `CONFIG/limits.py` and `CONFIG/config.py` according to your hosting and needs.
+
+
 ## Cookie Management System
 
-The bot features a comprehensive cookie management system that supports multiple services and automatic validation.
 
-### YouTube Cookie Management
+- **Paid posts (Stars)**: The bot can send paid posts via Telegram Stars for NSFW content in private chats.
+  - The cover is prepared automatically (320×320 with padding) to meet Telegram requirements.
+  - Price is configured in `CONFIG/limits.py` via `NSFW_STAR_COST`.
+  - For channels/groups, relay is supported (when the bot is added as an admin); paid media is cached properly.
 
-**Automatic Download and Validation:**
-- **Multiple Sources**: Configure up to 10 different cookie sources in `config.py`
-- **Sequential Testing**: Bot tests each source in order until working cookies are found
-- **Real-time Validation**: Each downloaded cookie is tested with a YouTube video
-- **Automatic Fallback**: If one source fails, automatically tries the next
+- **Adding the bot to a group**: Add the bot as an admin to your group/supergroup to use commands inside the chat.
+  - In group mode, extended limits apply: **limits are doubled** (sizes/queues), reducing fallbacks to document mode for large files.
+  - All other features (formats, proxy, cookies, direct links) work the same as in private chats.
+  - NSFW content has no Telegram Stars cost in groups
 
-**Configuration Example:**
-```python
-# In CONFIG/config.py
-YOUTUBE_COOKIE_URL = "https://your-domain.com/cookies/youtube/cookie1.txt"
-YOUTUBE_COOKIE_URL_1 = "https://your-domain.com/cookies/youtube/cookie2.txt"
-YOUTUBE_COOKIE_URL_2 = "https://your-domain.com/cookies/youtube/cookie3.txt"
-# ... up to YOUTUBE_COOKIE_URL_9
-```
+Note: You can tune exact limit values and behavior in `CONFIG/limits.py` and `CONFIG/config.py` according to your hosting and needs.
 
-**User Commands:**
-- `/cookie` → YouTube: Downloads and validates cookies from multiple sources
-- `/check_cookie`: Validates existing cookies and checks YouTube functionality
-- `/cookies_from_browser`: Extracts cookies from installed browsers
-- `/save_as_cookie`: Upload custom cookie file
 
-**Cookie Validation Process:**
-1. **Download**: Fetches cookie file from configured source
-2. **Format Check**: Validates Netscape cookie format
-3. **Size Validation**: Ensures file size is under 100KB
-4. **YouTube Test**: Tests cookies with a short YouTube video
-5. **Error Analysis**: Distinguishes between authentication and network errors
-6. **Fallback**: Tries next source if current one fails
-
-### Other Service Cookies
-
-The bot also supports cookies for other platforms:
-- **TikTok**: `TIKTOK_COOKIE_URL`
-- **Twitter**: `TWITTER_COOKIE_URL`
-
-### Cookie File Requirements
-
-**Format**: Must be in Netscape cookie format:
-```
-# Netscape HTTP Cookie File
-.youtube.com	TRUE	/	TRUE	1735689600	VISITOR_INFO1_LIVE	abc123
-.youtube.com	TRUE	/	TRUE	1735689600	LOGIN_INFO	abc123
-```
-
-**Size Limit**: Maximum 100KB per cookie file
-
-**Access**: Cookie files must be accessible via HTTP/HTTPS URLs
-
-### Security Features
-
-- **URL Hiding**: Source URLs are hidden from users in error messages
-- **Error Sanitization**: Sensitive information is removed from logs
-- **Temporary Files**: Cookie files are cleaned up after validation
-- **Access Control**: Cookie management commands are properly restricted
 
 ---
 
-## Commands
+## 👨‍💼 Admin Commands
 
-- **/start** - Start the bot.
-- **/help** - Send help text.
-- **/run_time** - Show bot runtime.
-- **/log** - Get user logs (e.g., `/log 10101010`).
-- **/broadcast** - Broadcast a message to all users (reply to any message with this command).
-- **/clean** - Clean the working directory.
-- **/usage** - Get all logs.
-- **/check_cookie** - Check the cookie file.
-- **/save_as_cookie** - Save text as cookie.
-- **/cookie** - Download the cookie file.
-- **/cookies_from_browser** - Get cookies from your browser.
-- **/format** - Choose media format options.
-- **/block_user** - Block a user (e.g., `/block_user 10101010`).
-- **/unblock_user** - Unblock a user (e.g., `/unblock_user 10101010`).
-- **/all_users** - Get all users.
-- **/all_blocked** - Get all blocked users.
-- **/all_unblocked** - Get all unblocked users.
-- **/uncache** - Clear cached subtitle language data.
-- **/reload_cache** - Reload cache from firebase to local json file
-- **/auto_cache** - Control auto cache reload: `/auto_cache on` | `/auto_cache off` | `/auto_cache N` (N = 1..168 hours, persisted to `CONFIG/config.py`).
-- **/update_porn** - Run script to update porn domains and keywords from external sources.
-- **/reload_porn** - Reload porn detection cache (domains, keywords, supported sites) without restarting the bot.
+### User Management
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/block_user` | Block a user | `/block_user 123456789` |
+| `/unblock_user` | Unblock a user | `/unblock_user 123456789` |
+| `/all_users` | Get all users | `/all_users` |
+| `/all_blocked` | Get blocked users | `/all_blocked` |
+| `/all_unblocked` | Get unblocked users | `/all_unblocked` |
+
+### System Management
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/run_time` | Show bot runtime | `/run_time` |
+| `/log` | Get user logs | `/log 123456789` |
+| `/broadcast` | Broadcast message | `/broadcast` (reply to message) |
+| `/reload_cache` | Reload Firebase cache | `/reload_cache` |
+| `/auto_cache` | Control auto cache | `/auto_cache 24` |
+
+### Content Management
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/update_porn` | Update porn detection lists | `/update_porn` |
+| `/reload_porn` | Reload porn detection cache | `/reload_porn` |
+| `/check_porn` | Check URL for NSFW content with detailed explanation | `/check_porn https://example.com/video` |
+| `/uncache` | Clear subtitle cache | `/uncache` |
 ---
 
 ## Auto cache – how it works (on/off/N)
@@ -1024,89 +1280,11 @@ journalctl -u tg-ytdlp-bot -f
 
 ---
 
-## Troubleshooting
-
-### Common Issues and Solutions
-
-**Bot doesn't start:**
-- Check that all required fields in `config.py` are filled
-- Verify API credentials are correct
-- Ensure both channels are set up and bot has admin permissions
-- Check Firebase configuration and credentials
-
-**Cookie download fails:**
-- Verify cookie URLs are accessible via HTTPS
-- Check file size is under 100KB
-- Ensure files are in Netscape cookie format
-- Test URLs in browser to confirm they work
-
-**YouTube videos fail to download:**
-- Run `/check_cookie` to verify YouTube cookies are working
-- Use `/cookie` to get fresh cookies
-- Check if video is age-restricted or private
-- Verify yt-dlp is properly installed and up to date
-
-**Firebase connection errors:**
-- Verify Firebase project is set up correctly
-- Check authentication credentials
-- Ensure Realtime Database rules allow read/write access
-- Verify database URL is correct
-
-**Channel subscription issues:**
-- Ensure bot is admin in subscription channel
-- Check channel invite link is valid
-- Verify channel ID format (should start with -100)
-- Test channel access manually
-
-### Getting Help
-
-If you encounter issues:
-1. Check the bot logs for error messages
-2. Verify all configuration fields are correct
-3. Test individual components (cookies, Firebase, channels)
-4. Check the [GitHub Issues](https://github.com/upekshaip/tg-ytdlp-bot/issues) for similar problems
-5. Create a new issue with detailed error information and logs
+### /vid range shortcut
+- Use range before URL and it will be transformed to playlist indices:
+  - `/vid 3-7 https://youtube.com/playlist?list=...` → `/vid https://youtube.com/playlist?list=...*3*7`
 
 ---
-
-### Image Download Support (`/img`)
-
-The bot now supports downloading images from various platforms using gallery-dl:
-
-**Features:**
-- **Multiple Platforms**: Supports direct image URLs and popular image hosting services
-- **Smart Detection**: Automatically detects image URLs and formats
-- **Proxy Support**: Works with configured proxy settings for restricted domains
-- **Cookie Integration**: Uses user's cookie settings for private content access
-- **Format Support**: JPG, PNG, GIF, WebP, BMP, TIFF, SVG and more
-
-**Supported Platforms:**
-- **Direct URLs**: Any direct image link with common extensions
-- **Image Hosting**: Imgur, Flickr, DeviantArt, Pinterest, Instagram, Twitter/X, Reddit
-- **Cloud Storage**: Google Drive, Dropbox, Mega.nz
-- **And many more** via gallery-dl's extensive extractor support
-
-**Usage Examples:**
-```bash
-/img https://example.com/image.jpg          # Direct image URL
-/img https://imgur.com/abc123              # Imgur link
-/img https://flickr.com/photos/user/123456 # Flickr photo
-/img https://instagram.com/p/abc123        # Instagram post
-# Ranges (albums/feeds supported):
-/img 11-20 https://example.com/album       # Download items 11..20
-/img 11- https://example.com/album         # Download from item 11 up to limit
-```
-
-Notes:
-- You can specify a numeric range as N-M (inclusive) or N- (from N to the end or until bot limit).
-- If no range is provided, the bot autodetects total count and downloads up to the configured limit.
-
-**How it works:**
-1. User runs `/img URL` to download an image
-2. Bot analyzes the URL using gallery-dl
-3. Downloads the image to user's directory
-4. Sends the image back to the user
-5. Cleans up temporary files automatically
 
 ## Inline search helper (/search)
 
@@ -1119,3 +1297,148 @@ Use this command to quickly activate inline search via `@vid`.
 Notes:
 - Desktop Telegram does not always send `/start` payloads from links repeatedly; avoid relying on `https://t.me/<bot>?start=...` for inline prefill.
 - The bot's `/search` shows only working options and a concise manual hint.
+
+---
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+#### Bot Doesn't Start
+
+**Symptoms:** Bot fails to start or crashes immediately
+
+**Solutions:**
+1. Check all required fields in `config.py`
+2. Verify API credentials are correct
+3. Ensure channels are set up and bot has admin permissions
+4. Check Firebase configuration and credentials
+5. Verify Python version (3.10+ required)
+
+#### Cookie Download Fails
+
+**Symptoms:** Cookie download fails or validation errors
+
+**Solutions:**
+1. Verify cookie URLs are accessible via HTTPS
+2. Check file size is under 100KB
+3. Ensure files are in Netscape cookie format
+4. Test URLs in browser to confirm they work
+5. Check proxy settings if using proxy
+
+#### YouTube Videos Fail to Download
+
+**Symptoms:** YouTube videos fail with authentication errors
+
+**Solutions:**
+1. Run `/check_cookie` to verify YouTube cookies
+2. Use `/cookie youtube` to get fresh cookies
+3. Check if video is age-restricted or private
+4. Verify yt-dlp is properly installed and up to date
+5. Try PO Token Provider setup for bypass
+
+#### Firebase Connection Errors
+
+**Symptoms:** Firebase authentication or database errors
+
+**Solutions:**
+1. Verify Firebase project is set up correctly
+2. Check authentication credentials
+3. Ensure Realtime Database rules allow read/write access
+4. Verify database URL is correct
+5. Check network connectivity
+
+#### Channel Subscription Issues
+
+**Symptoms:** Users can't access bot features
+
+**Solutions:**
+1. Ensure bot is admin in subscription channel
+2. Check channel invite link is valid
+3. Verify channel ID format (should start with -100)
+4. Test channel access manually
+5. Check bot permissions in channels
+
+### Getting Help
+
+If you encounter issues:
+
+1. **Check Logs**: Review bot logs for error messages
+2. **Verify Configuration**: Ensure all config fields are correct
+3. **Test Components**: Test individual components (cookies, Firebase, channels)
+4. **GitHub Issues**: Check [GitHub Issues](https://github.com/chelaxian/tg-ytdlp-bot/issues) for similar problems
+5. **Create Issue**: Create a new issue with detailed error information and logs
+
+---
+
+
+## 🤝 Contributing
+
+### /vid range shortcut
+- Use range before URL and it will be transformed to playlist indices:
+  - `/vid 3-7 https://youtube.com/playlist?list=...` → `/vid https://youtube.com/playlist?list=...*3*7`
+
+---
+
+### Image Download Support (`/img`)
+
+
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+
+### Development Setup
+
+```bash
+# Fork and clone the repository
+git clone https://github.com/your-username/tg-ytdlp-bot.git
+cd tg-ytdlp-bot
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Make your changes and test
+python3 magic.py
+```
+
+### Pull Request Process
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- **Original Author**: [upekshaip](https://github.com/upekshaip)
+- **Main Developer and Contrubutor**: [chelaxian](https://github.com/chelaxian)
+- **Telegram Bot's Admin**: [@IIlIlIlIIIlllIIlIIlIllIIllIlIIIl](https://t.me/IIlIlIlIIIlllIIlIIlIllIIllIlIIIl)
+- **yt-dlp**: [yt-dlp](https://github.com/yt-dlp/yt-dlp) for video extraction
+- **gallery-dl**: [gallery-dl](https://github.com/mikf/gallery-dl) for image extraction
+- **PyroTGFork**: [PyroTGFork](https://telegramplayground.github.io/pyrogram/) for Telegram API
+
+---
+
+## 💖 Support
+
+If you find this project helpful, please consider:
+
+- ⭐ **Starring** the repository
+- 🍕 **Buying a coffee** for original author on [BuyMeACoffee](https://buymeacoffee.com/upekshaip)
+- 🐛 **Reporting bugs** and suggesting features
+- 📢 **Sharing** with others who might find it useful
+
+---
+
+**Made with ❤️ by the tg-ytdlp-bot community** 

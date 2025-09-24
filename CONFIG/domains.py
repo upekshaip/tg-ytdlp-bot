@@ -1,3 +1,4 @@
+from CONFIG.messages import MessagesConfig as Messages
 # Domains Configuration
 
 class DomainsConfig(object):
@@ -15,16 +16,26 @@ class DomainsConfig(object):
     # Script for updating porn lists
     UPDATE_PORN_SCRIPT_PATH = "./script.sh"
     
+    # --- Whitelist of keywords that are not considered porn ---
+    WHITE_KEYWORDS = [
+        'assasinate', 'assasinated', 'assassinate', 'assassinated', 'assassination'
+    ]
+    
     # --- Whitelist of domains that are not considered porn ---
     WHITELIST = [
+        'a-tushar-82q-fef07c6bf20a.herokuapp.com', 'file-to-link-632f24ac9728.herokuapp.com',
         'bilibili.com', 'dailymotion.com', 'sky.com', 'xbox.com', 'youtube.com', 'youtu.be', '1tv.ru', 'x.ai',
-        'twitch.tv', 'vimeo.com', 'facebook.com', 'tiktok.com', 'instagram.com', 'fb.com', 'ig.me'
+        'twitch.tv', 'vimeo.com', 'facebook.com', 'tiktok.com', 'instagram.com', 'fb.com', 'ig.me',
+        'ahm7tech.vercel.app', 'vz-db5b8c20-711.b-cdn.net', 'b-cdn.net'
         # Other secure domains can be added
     ]
+
     
     # --- Greylist of domains excluded only from domain list check but still checked for keywords ---
     GREYLIST = [
-        'vkvideo.ru', 'vkontakte.ru', 'vk.com'
+        'vkvideo.ru', 'vkontakte.ru', 'vk.com',
+        'twitter.com', 'x.com', 't.co'
+        #'twimg.com', 'video.twimg.com'
         # Add domains here that should be excluded from porn_domains.txt check
         # but still checked against porn_keywords.txt
     ]
@@ -40,7 +51,17 @@ class DomainsConfig(object):
     PROXY_2_DOMAINS = [
         'instagram.com', 'ig.me'
         # Other secure domains can be added
-    ]      
+    ]
+    
+    # Domains that don't work well with match_filter (Messages.STREAM_Messages.STREAM_DURATION_MSG.format(duration=duration)_MSG.format(Messages.STREAM_DURATION_MSG.format(duration=duration)=Messages.STREAM_DURATION_MSG.format(duration=duration))/live detection issues)
+    NO_FILTER_DOMAINS = [
+        'bashlinker.alenwalak.workers.dev',
+        'cdn.indexer.eu.org',
+        'a-tushar-82q-fef07c6bf20a.herokuapp.com',
+        'file-to-link-632f24ac9728.herokuapp.com'
+        # Add other domains that have issues with Messages.STREAM_Messages.STREAM_DURATION_MSG.format(duration=duration)_MSG.format(Messages.STREAM_DURATION_MSG.format(duration=duration)=Messages.STREAM_DURATION_MSG.format(duration=duration))/live detection
+    ]
+      
     # TikTok Domain List
     TIKTOK_DOMAINS = [
         'tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com',
@@ -70,3 +91,4 @@ class DomainsConfig(object):
     
     # Piped frontend domain for opening YouTube links as a WebApp
     PIPED_DOMAIN = "poketube.fun"
+    #######################################################

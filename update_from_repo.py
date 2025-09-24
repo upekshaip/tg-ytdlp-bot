@@ -15,7 +15,7 @@ from datetime import datetime
 # Configuration
 REPO_URL = "https://github.com/chelaxian/tg-ytdlp-bot.git"
 # Use explicit branch
-# BRANCH = "newdesign"
+# BRANCH = "newdesign2"
 BRANCH = "main"
 
 # Files and directories that MUST NOT be updated

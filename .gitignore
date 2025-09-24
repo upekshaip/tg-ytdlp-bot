@@ -22,6 +22,10 @@ benv/
 # Bot runtime / sessions / logs
 magic.session
 magic.session-journal
+magic.session-shm
+magic.session-wal
+unknown_errors.txt
+magic.session-lock
 .bot_pid
 bot.log
 runtime.log
@@ -38,6 +42,9 @@ _arabic_fonts_amiri/
 *.backup_*
 dump.json
 firebase_cache.json
+blocked_users.txt
+unblocked_users.txt
+unknown_errors.txt
 
 # yt-dlp binaries / temp downloads
 yt-dlp
@@ -47,11 +54,15 @@ yt-dlp
 *.tmp
 
 # Sample / experimental scripts
+gallery-dl/
 test.py
 torrent.py
 bot_sample.py
 users.txt
 TOOLS/script.sh
+scripts/delete_video_cache.py
+scripts/create_video_cache_folders.py
+scripts/
 _cursor/TOOLS/script.sh
 script.sh
 log.txt
@@ -63,6 +74,11 @@ porn_req.txt
 git_update.bat
 git_update.ps1
 git_update.sh
+test_count_var.py
+reverse_test_count_var.py
+replace_log.txt
+test_search_var.py
+.cursor/
 
 # Configs with secrets (do not commit)
 CONFIG/config.py

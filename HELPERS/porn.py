@@ -37,6 +37,9 @@ def unwrap_redirect_url(url: str) -> str:
     except Exception:
         return url
 from CONFIG.config import Config
+from CONFIG.domains import DomainsConfig
+import importlib
+import types
 from HELPERS.logger import logger
 
 # --- global lists of domains and keywords ---
@@ -123,6 +126,7 @@ def is_porn(url, title, description, caption=None):
     """
     Checks content for pornography by domain and keywords (word-boundary regex search)
     in title, description and caption. Domain whitelist has highest priority.
+    White keywords list can override porn detection for false positive correction.
     """
     # 1. Checking the domain (with redirect unwrapping)
     clean_url = unwrap_redirect_url(url).lower()
@@ -148,7 +152,17 @@ def is_porn(url, title, description, caption=None):
     logger.debug(f"is_porn combined text: '{combined}'")
     logger.debug(f"is_porn keywords: {PORN_KEYWORDS}")
 
-    # 4. Preparing a regex pattern with a list of keywords
+    # 4. Check for white keywords first (override porn detection)
+    white_keywords = getattr(DomainsConfig, 'WHITE_KEYWORDS', [])
+    if white_keywords:
+        white_kws = [re.escape(kw.lower()) for kw in white_keywords if kw.strip()]
+        if white_kws:
+            white_pattern = re.compile(r"\b(" + "|".join(white_kws) + r")\b", flags=re.IGNORECASE)
+            if white_pattern.search(combined):
+                logger.info(f"is_porn: white keyword match found, content considered clean: {white_pattern.pattern}")
+                return False
+
+    # 5. Preparing a regex pattern with a list of keywords
     kws = [re.escape(kw.lower()) for kw in PORN_KEYWORDS if kw.strip()]
     if not kws:
         # There is not a single valid key
@@ -157,7 +171,7 @@ def is_porn(url, title, description, caption=None):
     # The boundaries of words (\ b) + flag ignorecase
     pattern = re.compile(r"\b(" + "|".join(kws) + r")\b", flags=re.IGNORECASE)
 
-    # 5. We are looking for a coincidence
+    # 6. We are looking for a coincidence
     if pattern.search(combined):
         logger.info(f"is_porn: keyword match (regex): {pattern.pattern}")
         return True
@@ -165,3 +179,121 @@ def is_porn(url, title, description, caption=None):
     logger.info("is_porn: no keyword matches found")
     return False
 
+
+def check_porn_detailed(url, title, description, caption=None):
+    """
+    Detailed porn check that returns both result and explanation.
+    Returns: (is_porn: bool, explanation: str)
+    """
+    explanation_parts = []
+    
+    # 1. Checking the domain (with redirect unwrapping)
+    clean_url = unwrap_redirect_url(url).lower()
+    domain_parts, _ = extract_domain_parts(clean_url)
+    
+    # Check whitelist first
+    for dom in Config.WHITELIST:
+        if dom in domain_parts:
+            explanation_parts.append(f"✅ Domain in whitelist: {dom}")
+            return False, " | ".join(explanation_parts)
+    
+    # Check if domain is in porn domains
+    if is_porn_domain(domain_parts):
+        explanation_parts.append(f"❌ Domain in porn blacklist: {domain_parts}")
+        return True, " | ".join(explanation_parts)
+
+    # 2. Preparation of the text
+    title_lower       = title.lower()       if title       else ""
+    description_lower = description.lower() if description else ""
+    caption_lower     = caption.lower()     if caption     else ""
+    
+    if not (title_lower or description_lower or caption_lower):
+        explanation_parts.append("ℹ️ All text fields are empty")
+        return False, " | ".join(explanation_parts)
+
+    # 3. We collect a single text for search
+    combined = " ".join([title_lower, description_lower, caption_lower])
+    
+    # 4. Check for white keywords first (override porn detection)
+    white_keywords = getattr(DomainsConfig, 'WHITE_KEYWORDS', [])
+    if white_keywords:
+        white_kws = [re.escape(kw.lower()) for kw in white_keywords if kw.strip()]
+        if white_kws:
+            white_pattern = re.compile(r"\b(" + "|".join(white_kws) + r")\b", flags=re.IGNORECASE)
+            white_matches = white_pattern.findall(combined)
+            if white_matches:
+                explanation_parts.append(f"✅ Found whitelist keywords: {', '.join(set(white_matches))}")
+                return False, " | ".join(explanation_parts)
+
+    # 5. Check for porn keywords
+    kws = [re.escape(kw.lower()) for kw in PORN_KEYWORDS if kw.strip()]
+    if not kws:
+        explanation_parts.append("ℹ️ No porn keywords loaded")
+        return False, " | ".join(explanation_parts)
+
+    # The boundaries of words (\ b) + flag ignorecase
+    pattern = re.compile(r"\b(" + "|".join(kws) + r")\b", flags=re.IGNORECASE)
+    porn_matches = pattern.findall(combined)
+    
+    if porn_matches:
+        explanation_parts.append(f"❌ Found porn keywords: {', '.join(set(porn_matches))}")
+        return True, " | ".join(explanation_parts)
+
+    explanation_parts.append("✅ No porn keywords found")
+    return False, " | ".join(explanation_parts)
+
+
+# --- runtime reload of config-driven lists and file caches ---
+def reload_all_porn_caches():
+    """
+    Reloads:
+    - Text-based caches: PORN_DOMAINS, PORN_KEYWORDS, SUPPORTED_SITES
+    - Config-based arrays from CONFIG/domains.py: WHITE_KEYWORDS, WHITELIST,
+      GREYLIST, PROXY_DOMAINS, PROXY_2_DOMAINS, CLEAN_QUERY, NO_COOKIE_DOMAINS,
+      BLACK_LIST, TIKTOK_DOMAINS, PIPED_DOMAIN.
+
+    Returns a dict with basic counts for confirmation output.
+    """
+    # 1) Reload CONFIG.domains module to pick up changes without bot restart
+    try:
+        import CONFIG.domains as domains_module  # type: ignore
+        domains_module = importlib.reload(domains_module)  # type: ignore
+    except Exception as e:
+        logger.error(f"Failed to reload CONFIG.domains: {e}")
+        # Proceed anyway to reload file-based lists
+        domains_module = None  # type: ignore
+
+    # 2) Apply new DomainsConfig values onto runtime Config so other helpers see updates
+    try:
+        DomainsCfg = domains_module.DomainsConfig if isinstance(domains_module, types.ModuleType) else DomainsConfig  # type: ignore
+        attrs_to_copy = [
+            'WHITE_KEYWORDS', 'WHITELIST', 'GREYLIST', 'PROXY_DOMAINS', 'PROXY_2_DOMAINS',
+            'CLEAN_QUERY', 'NO_COOKIE_DOMAINS', 'BLACK_LIST', 'TIKTOK_DOMAINS', 'PIPED_DOMAIN'
+        ]
+        for name in attrs_to_copy:
+            if hasattr(DomainsCfg, name):
+                try:
+                    setattr(Config, name, getattr(DomainsCfg, name))
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.error(f"Failed to apply DomainsConfig to Config: {e}")
+
+    # 3) Reload file-based caches
+    load_domain_lists()
+
+    # 4) Build counts snapshot
+    counts = {
+        'porn_domains': len(PORN_DOMAINS),
+        'porn_keywords': len(PORN_KEYWORDS),
+        'supported_sites': len(SUPPORTED_SITES),
+        'whitelist': len(getattr(Config, 'WHITELIST', []) or []),
+        'greylist': len(getattr(Config, 'GREYLIST', []) or []),
+        'black_list': len(getattr(Config, 'BLACK_LIST', []) or []),
+        'white_keywords': len(getattr(Config, 'WHITE_KEYWORDS', []) or []),
+        'proxy_domains': len(getattr(Config, 'PROXY_DOMAINS', []) or []),
+        'proxy_2_domains': len(getattr(Config, 'PROXY_2_DOMAINS', []) or []),
+        'clean_query': len(getattr(Config, 'CLEAN_QUERY', []) or []),
+        'no_cookie_domains': len(getattr(Config, 'NO_COOKIE_DOMAINS', []) or []),
+    }
+    return counts
