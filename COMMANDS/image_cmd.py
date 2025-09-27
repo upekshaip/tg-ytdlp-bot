@@ -734,6 +734,9 @@ def image_command(app, message):
         # We'll not start full download thread; we'll pull ranges to enforce batching
 
         batch_size = 10
+        # If total is small (<=10), download all at once without batching
+        if detected_total and detected_total <= 10:
+            batch_size = detected_total
         sent_message_ids = []
         seen_files = set()
         photos_videos_buffer = []  # store (converted_path, type, original_path)
@@ -777,29 +780,46 @@ def image_command(app, message):
             if manual_range[1] is not None:
                 manual_end_cap = manual_range[1] if is_admin else min(manual_range[1], total_limit)
                 total_expected = manual_end_cap  # show as expected
+        
+        # For small totals, set end cap to avoid range issues
+        if detected_total and detected_total <= 10 and manual_range is None:
+            manual_end_cap = detected_total
+            total_expected = detected_total
+            logger.info(f"[IMG BATCH] Small total detected: {detected_total}, setting end cap to {manual_end_cap}")
         # helper to run one range and wait for files to appear
         def run_and_collect(next_end: int):
-            range_expr = f"{current_start}-{next_end}"
-            # Prefer CLI to enforce strict range behavior across gallery-dl versions
-            logger.info(f"Prepared range: {range_expr}")
-            ok = download_image_range_cli(url, range_expr, user_id, use_proxy, output_dir=run_dir)
-            if not ok:
-                logger.warning(f"CLI range download failed or rejected for {range_expr}, trying Python API.")
-                return download_image_range(url, range_expr, user_id, use_proxy, run_dir)
+            # For single item or when total is small, use range 1-1 to avoid API issues
+            if (current_start == next_end and next_end == 1) or (detected_total and detected_total <= 10):
+                logger.info(f"Downloading with range 1-1 (total={detected_total}, start={current_start}, end={next_end})")
+                ok = download_image_range_cli(url, "1-1", user_id, use_proxy, output_dir=run_dir)
+                if not ok:
+                    logger.warning(f"CLI download failed, trying Python API.")
+                    return download_image_range(url, "1-1", user_id, use_proxy, run_dir)
+            else:
+                range_expr = f"{current_start}-{next_end}"
+                # Prefer CLI to enforce strict range behavior across gallery-dl versions
+                logger.info(f"Prepared range: {range_expr}")
+                ok = download_image_range_cli(url, range_expr, user_id, use_proxy, output_dir=run_dir)
+                if not ok:
+                    logger.warning(f"CLI range download failed or rejected for {range_expr}, trying Python API.")
+                    return download_image_range(url, range_expr, user_id, use_proxy, run_dir)
             return True
 
         while True:
-            # If buffer has room for a new batch, trigger next range
-            if len(photos_videos_buffer) < batch_size:
+            # Only download next range if buffer is empty (strict batching)
+            if len(photos_videos_buffer) == 0:
                 upper_cap = manual_end_cap or total_expected
                 if upper_cap and current_start > upper_cap:
-                    pass
+                    break
                 else:
                     next_end = current_start + batch_size - 1
                     if upper_cap:
                         next_end = min(next_end, upper_cap)
+                    logger.info(f"[IMG BATCH] Starting download range {current_start}-{next_end}")
                     run_and_collect(next_end)
                     current_start = next_end + 1
+                    # Wait for download to complete before processing files
+                    time.sleep(2)
             # Find new files
             if os.path.exists(gallery_dl_dir):
                 for root, _, files in os.walk(gallery_dl_dir):
@@ -864,7 +884,7 @@ def image_command(app, message):
                             update_status()
                             last_status_update = now
 
-                        # If we have 10 media for album, send
+                        # If we have 10 media for album, send immediately (strict batching)
                         if len(photos_videos_buffer) >= batch_size:
                             media_group = []
                             group_items = photos_videos_buffer[:batch_size]
@@ -1342,17 +1362,17 @@ def image_command(app, message):
                                         logger.error("[IMG CACHE] No log IDs collected; skipping cache save for this album")
                                 except Exception as e_copy:
                                     logger.error(f"[IMG CACHE] Unexpected error while copying album to logs: {e_copy}")
-                                # Zero out files to keep placeholders for re-run skipping
-                                def zero_file(path):
+                                # Delete files immediately after sending (strict batching)
+                                def delete_file(path):
                                     try:
                                         if os.path.exists(path):
-                                            with open(path, 'wb') as zf:
-                                                pass
-                                    except Exception:
-                                        pass
+                                            os.remove(path)
+                                            logger.info(f"[IMG BATCH] Deleted file: {path}")
+                                    except Exception as e:
+                                        logger.warning(f"[IMG BATCH] Failed to delete {path}: {e}")
                                 for p, _t, orig in group_items:
-                                    zero_file(p)
-                                    zero_file(orig)
+                                    delete_file(p)
+                                    delete_file(orig)
                                 photos_videos_buffer = photos_videos_buffer[batch_size:]
                                 update_status()
                                 # Delete generated special thumbs/covers
@@ -1908,18 +1928,19 @@ def image_command(app, message):
                                 sent_message_ids.append(sent_msg.id)
                                 total_sent += 1
                                 update_status()
-                                # zero out placeholders
+                                # Delete files immediately after sending (strict batching others)
                                 try:
-                                    with open(p, 'wb') as zf:
-                                        pass
-                                except Exception:
-                                    pass
+                                    if os.path.exists(p):
+                                        os.remove(p)
+                                        logger.info(f"[IMG BATCH OTHERS] Deleted file: {p}")
+                                except Exception as e:
+                                    logger.warning(f"[IMG BATCH OTHERS] Failed to delete {p}: {e}")
                                 try:
                                     if os.path.exists(orig):
-                                        with open(orig, 'wb') as zf2:
-                                            pass
-                                except Exception:
-                                    pass
+                                        os.remove(orig)
+                                        logger.info(f"[IMG BATCH OTHERS] Deleted original: {orig}")
+                                except Exception as e:
+                                    logger.warning(f"[IMG BATCH OTHERS] Failed to delete original {orig}: {e}")
                             except Exception as e:
                                 logger.error(f"Failed to send document: {e}")
 
@@ -2320,19 +2341,20 @@ def image_command(app, message):
                                 logger.error("[IMG CACHE] No log IDs collected in tail; skipping cache save for this album")
                         except Exception as e_tail:
                             logger.error(f"[IMG CACHE] Unexpected error while copying tail album to logs: {e_tail}")
-                        # zero out
+                        # Delete files immediately after sending (strict batching fallback)
                         for p, _t, orig in group:
                             try:
-                                with open(p, 'wb') as zf:
-                                    pass
-                            except Exception:
-                                pass
+                                if os.path.exists(p):
+                                    os.remove(p)
+                                    logger.info(f"[IMG BATCH FALLBACK] Deleted file: {p}")
+                            except Exception as e:
+                                logger.warning(f"[IMG BATCH FALLBACK] Failed to delete {p}: {e}")
                             try:
                                 if os.path.exists(orig):
-                                    with open(orig, 'wb') as zf2:
-                                        pass
-                            except Exception:
-                                pass
+                                    os.remove(orig)
+                                    logger.info(f"[IMG BATCH FALLBACK] Deleted original: {orig}")
+                            except Exception as e:
+                                logger.warning(f"[IMG BATCH FALLBACK] Failed to delete original {orig}: {e}")
                     except Exception:
                         tmp_ids2 = []
                         for p, t, orig in group:
@@ -2419,18 +2441,19 @@ def image_command(app, message):
                                     sent_message_ids.append(sent_msg.id)
                                     tmp_ids2.append(sent_msg.id)
                                     total_sent += 1
-                                # zero out
+                                # Delete files immediately after sending (strict batching individual)
                                 try:
-                                    with open(p, 'wb') as zf:
-                                        pass
-                                except Exception:
-                                    pass
+                                    if os.path.exists(p):
+                                        os.remove(p)
+                                        logger.info(f"[IMG BATCH INDIVIDUAL] Deleted file: {p}")
+                                except Exception as e:
+                                    logger.warning(f"[IMG BATCH INDIVIDUAL] Failed to delete {p}: {e}")
                                 try:
                                     if os.path.exists(orig):
-                                        with open(orig, 'wb') as zf2:
-                                            pass
-                                except Exception:
-                                    pass
+                                        os.remove(orig)
+                                        logger.info(f"[IMG BATCH INDIVIDUAL] Deleted original: {orig}")
+                                except Exception as e:
+                                    logger.warning(f"[IMG BATCH INDIVIDUAL] Failed to delete original {orig}: {e}")
                             except Exception:
                                 pass
                         # Forward tail fallback album and save forwarded IDs
@@ -2594,18 +2617,19 @@ def image_command(app, message):
                             )
                         sent_message_ids.append(sent_msg.id)
                         total_sent += 1
-                        # zero out
+                        # Delete files immediately after sending (strict batching others)
                         try:
-                            with open(p, 'wb') as zf:
-                                pass
-                        except Exception:
-                            pass
+                            if os.path.exists(p):
+                                os.remove(p)
+                                logger.info(f"[IMG BATCH OTHERS] Deleted file: {p}")
+                        except Exception as e:
+                            logger.warning(f"[IMG BATCH OTHERS] Failed to delete {p}: {e}")
                         try:
                             if os.path.exists(orig):
-                                with open(orig, 'wb') as zf2:
-                                    pass
-                        except Exception:
-                            pass
+                                os.remove(orig)
+                                logger.info(f"[IMG BATCH OTHERS] Deleted original: {orig}")
+                        except Exception as e:
+                            logger.warning(f"[IMG BATCH OTHERS] Failed to delete original {orig}: {e}")
                     except Exception:
                         pass
                 # Final update and replace header to 'Download complete'
@@ -2723,17 +2747,17 @@ def image_command(app, message):
                     except Exception as e_copy:
                         logger.error(f"[IMG CACHE] Unexpected error while copying final album to logs: {e_copy}")
                     
-                    # Clean up files
+                    # Delete files immediately after sending (strict batching final)
                     for p, _t, orig in photos_videos_buffer:
                         try:
                             if os.path.exists(p):
-                                with open(p, 'wb') as zf:
-                                    pass
+                                os.remove(p)
+                                logger.info(f"[IMG BATCH FINAL] Deleted file: {p}")
                             if os.path.exists(orig):
-                                with open(orig, 'wb') as zf:
-                                    pass
-                        except Exception:
-                            pass
+                                os.remove(orig)
+                                logger.info(f"[IMG BATCH FINAL] Deleted original: {orig}")
+                        except Exception as e:
+                            logger.warning(f"[IMG BATCH FINAL] Failed to delete files: {e}")
                     
                     photos_videos_buffer = []
                 except Exception as e:
