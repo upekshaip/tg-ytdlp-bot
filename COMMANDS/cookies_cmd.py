@@ -331,8 +331,8 @@ def download_cookie_callback(app, callback_query):
             Messages.COOKIES_YOUTUBE_TEST_START_MSG
         )
         download_and_validate_youtube_cookies(app, callback_query)
-    #elif data == "instagram":
-        #download_and_save_cookie(app, callback_query, Config.INSTAGRAM_COOKIE_URL, "instagram")
+    elif data == "instagram":
+        download_and_save_cookie(app, callback_query, Config.INSTAGRAM_COOKIE_URL, "instagram")
     elif data == "twitter":
         download_and_save_cookie(app, callback_query, Config.TWITTER_COOKIE_URL, "twitter")
     elif data == "tiktok":
@@ -552,12 +552,11 @@ def download_cookie(app, message):
             InlineKeyboardButton("📘 Vkontakte", callback_data="download_cookie|vk"),
             InlineKeyboardButton("✅ Check Cookie", callback_data="download_cookie|check_cookie"),
         ],
-        #[
-            #InlineKeyboardButton("📘 Facebook", callback_data="download_cookie|facebook"),
-            #InlineKeyboardButton("📷 Instagram", callback_data="download_cookie|instagram"),
-        #],
         [
-            InlineKeyboardButton("📝 Your Own", callback_data="download_cookie|own"),            
+            InlineKeyboardButton("📷 Instagram", callback_data="download_cookie|instagram"),
+            InlineKeyboardButton("📝 Your Own", callback_data="download_cookie|own"),   
+        ],
+        [         
             InlineKeyboardButton("🔚Close", callback_data="download_cookie|close")
         ],
     ]
