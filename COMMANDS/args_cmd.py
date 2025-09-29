@@ -18,6 +18,7 @@ from HELPERS.limitter import check_user, is_user_in_channel
 from HELPERS.safe_messeger import safe_send_message
 from CONFIG.config import Config
 from CONFIG.messages import Messages as Messages
+from CONFIG.logger_msg import LoggerMsg
 
 # Get app instance
 app = get_app()
@@ -115,88 +116,88 @@ def start_input_state_timer(user_id: int, thread_id: int = None):
 YTDLP_PARAMS = {
     "impersonate": {
         "type": "select",
-        "description": "Browser impersonation",
+        "description": Messages.ARGS_IMPERSONATE_DESC_MSG,
         "options": ["chrome", "firefox", "safari", "edge", "opera"],
         "default": "chrome"
     },
     "referer": {
         "type": "text",
-        "description": "Referer header",
+        "description": Messages.ARGS_REFERER_DESC_MSG,
         "placeholder": "https://example.com",
         "default": "",
         "validation": "url"
     },
     "user_agent": {
         "type": "text", 
-        "description": "User-Agent header",
+        "description": Messages.ARGS_USER_AGENT_DESC_MSG,
         "placeholder": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "default": "",
         "validation": "text"
     },
     "geo_bypass": {
         "type": "boolean",
-        "description": "Bypass geographic restrictions",
+        "description": Messages.ARGS_GEO_BYPASS_DESC_MSG,
         "default": True
     },
     "check_certificate": {
         "type": "boolean", 
-        "description": "Check SSL certificate",
+        "description": Messages.ARGS_CHECK_CERTIFICATE_DESC_MSG,
         "default": False
     },
     "live_from_start": {
         "type": "boolean",
-        "description": "Download live streams from start",
+        "description": Messages.ARGS_LIVE_FROM_START_DESC_MSG,
         "default": True
     },
     "no_live_from_start": {
         "type": "boolean",
-        "description": "Do not download live streams from start",
+        "description": Messages.ARGS_NO_LIVE_FROM_START_DESC_MSG,
         "default": False
     },
     "hls_use_mpegts": {
         "type": "boolean",
-        "description": "Use MPEG-TS container for HLS videos",
+        "description": Messages.ARGS_HLS_USE_MPEGTS_DESC_MSG,
         "default": True
     },
     "no_playlist": {
         "type": "boolean",
-        "description": "Download only single video, not playlist",
+        "description": Messages.ARGS_NO_PLAYLIST_DESC_MSG,
         "default": False
     },
     "no_part": {
         "type": "boolean",
-        "description": "Do not use .part files",
+        "description": Messages.ARGS_NO_PART_DESC_MSG,
         "default": False
     },
     "no_continue": {
         "type": "boolean",
-        "description": "Do not resume partial downloads",
+        "description": Messages.ARGS_NO_CONTINUE_DESC_MSG,
         "default": False
     },
     "audio_format": {
         "type": "select",
-        "description": "Audio format for extraction",
+        "description": Messages.ARGS_AUDIO_FORMAT_DESC_MSG,
         "options": ["best", "aac", "flac", "mp3", "m4a", "opus", "vorbis", "wav", "alac", "ac3"],
         "default": "best"
     },
     "embed_metadata": {
         "type": "boolean",
-        "description": "Embed metadata in video file",
+        "description": Messages.ARGS_EMBED_METADATA_DESC_MSG,
         "default": False
     },
     "embed_thumbnail": {
         "type": "boolean",
-        "description": "Embed thumbnail in video file",
+        "description": Messages.ARGS_EMBED_THUMBNAIL_DESC_MSG,
         "default": False
     },
     "write_thumbnail": {
         "type": "boolean",
-        "description": "Write thumbnail to file",
+        "description": Messages.ARGS_WRITE_THUMBNAIL_DESC_MSG,
         "default": False
     },
     "concurrent_fragments": {
         "type": "number",
-        "description": "Number of concurrent fragments to download",
+        "description": Messages.ARGS_CONCURRENT_FRAGMENTS_DESC_MSG,
         "placeholder": "1",
         "default": 1,
         "min": 1,
@@ -204,24 +205,24 @@ YTDLP_PARAMS = {
     },
     "force_ipv4": {
         "type": "boolean",
-        "description": "Force IPv4 connections",
+        "description": Messages.ARGS_FORCE_IPV4_DESC_MSG,
         "default": False
     },
     "force_ipv6": {
         "type": "boolean",
-        "description": "Force IPv6 connections",
+        "description": Messages.ARGS_FORCE_IPV6_DESC_MSG,
         "default": False
     },
     "xff": {
         "type": "text",
-        "description": "X-Forwarded-For header strategy",
+        "description": Messages.ARGS_XFF_DESC_MSG,
         "placeholder": "default, never, US, GB, DE, 192.168.1.0/24",
         "default": "default",
         "validation": "xff"
     },
     "http_chunk_size": {
         "type": "number",
-        "description": "HTTP chunk size (bytes)",
+        "description": Messages.ARGS_HTTP_CHUNK_SIZE_DESC_MSG,
         "placeholder": "10485760",
         "default": 0,
         "min": 0,
@@ -229,7 +230,7 @@ YTDLP_PARAMS = {
     },
     "sleep_subtitles": {
         "type": "number",
-        "description": "Sleep before subtitle download (seconds)",
+        "description": Messages.ARGS_SLEEP_SUBTITLES_DESC_MSG,
         "placeholder": "0",
         "default": 0,
         "min": 0,
@@ -237,43 +238,43 @@ YTDLP_PARAMS = {
     },
     "legacy_server_connect": {
         "type": "boolean",
-        "description": "Allow legacy server connections",
+        "description": Messages.ARGS_LEGACY_SERVER_CONNECT_DESC_MSG,
         "default": False
     },
     "no_check_certificates": {
         "type": "boolean",
-        "description": "Suppress HTTPS certificate validation",
+        "description": Messages.ARGS_NO_CHECK_CERTIFICATES_DESC_MSG,
         "default": False
     },
     "username": {
         "type": "text",
-        "description": "Account username",
+        "description": Messages.ARGS_USERNAME_DESC_MSG,
         "placeholder": "your_username",
         "default": "",
         "validation": "text"
     },
     "password": {
         "type": "text",
-        "description": "Account password",
+        "description": Messages.ARGS_PASSWORD_DESC_MSG,
         "placeholder": "your_password",
         "default": "",
         "validation": "text"
     },
     "twofactor": {
         "type": "text",
-        "description": "Two-factor authentication code",
+        "description": Messages.ARGS_TWOFACTOR_DESC_MSG,
         "placeholder": "123456",
         "default": "",
         "validation": "text"
     },
     "ignore_errors": {
         "type": "boolean",
-        "description": "Ignore download errors and continue",
+        "description": Messages.ARGS_IGNORE_ERRORS_DESC_MSG,
         "default": False
     },
     "min_filesize": {
         "type": "number",
-        "description": "Minimum file size (MB)",
+        "description": Messages.ARGS_MIN_FILESIZE_DESC_MSG,
         "placeholder": "0",
         "default": 0,
         "min": 0,
@@ -281,7 +282,7 @@ YTDLP_PARAMS = {
     },
     "max_filesize": {
         "type": "number",
-        "description": "Maximum file size (MB)",
+        "description": Messages.ARGS_MAX_FILESIZE_DESC_MSG,
         "placeholder": "0",
         "default": 0,
         "min": 0,
@@ -289,42 +290,42 @@ YTDLP_PARAMS = {
     },
     "playlist_items": {
         "type": "text",
-        "description": "Playlist items to download (e.g., 1,3,5 or 1-5)",
+        "description": Messages.ARGS_PLAYLIST_ITEMS_DESC_MSG,
         "placeholder": "1,3,5",
         "default": "",
         "validation": "text"
     },
     "date": {
         "type": "text",
-        "description": "Download videos uploaded on this date (YYYYMMDD)",
+        "description": Messages.ARGS_DATE_DESC_MSG,
         "placeholder": "20230930",
         "default": "",
         "validation": "date"
     },
     "datebefore": {
         "type": "text",
-        "description": "Download videos uploaded before this date (YYYYMMDD)",
+        "description": Messages.ARGS_DATEBEFORE_DESC_MSG,
         "placeholder": "20230930",
         "default": "",
         "validation": "date"
     },
     "dateafter": {
         "type": "text",
-        "description": "Download videos uploaded after this date (YYYYMMDD)",
+        "description": Messages.ARGS_DATEAFTER_DESC_MSG,
         "placeholder": "20230930",
         "default": "",
         "validation": "date"
     },
     "http_headers": {
         "type": "json",
-        "description": "Custom HTTP headers (JSON)",
+        "description": Messages.ARGS_HTTP_HEADERS_DESC_MSG,
         "placeholder": '{"Authorization": "Bearer token", "X-API-Key": "key123"}',
         "default": "{}",
         "validation": "json"
     },
     "sleep_interval": {
         "type": "number",
-        "description": "Sleep interval between requests (seconds)",
+        "description": Messages.ARGS_SLEEP_INTERVAL_DESC_MSG,
         "placeholder": "1",
         "default": 1,
         "min": 0,
@@ -332,7 +333,7 @@ YTDLP_PARAMS = {
     },
     "max_sleep_interval": {
         "type": "number", 
-        "description": "Maximum sleep interval (seconds)",
+        "description": Messages.ARGS_MAX_SLEEP_INTERVAL_DESC_MSG,
         "placeholder": "5",
         "default": 5,
         "min": 0,
@@ -340,7 +341,7 @@ YTDLP_PARAMS = {
     },
     "retries": {
         "type": "number",
-        "description": "Number of retries",
+        "description": Messages.ARGS_RETRIES_DESC_MSG,
         "placeholder": "10",
         "default": 10,
         "min": 0,
@@ -348,19 +349,19 @@ YTDLP_PARAMS = {
     },
     "video_format": {
         "type": "select",
-        "description": "Video container format",
+        "description": Messages.ARGS_VIDEO_FORMAT_DESC_MSG,
         "options": ["mp4", "webm", "mkv", "avi", "mov", "flv", "3gp", "ogv", "m4v", "wmv", "asf"],
         "default": "mp4"
     },
     "merge_output_format": {
         "type": "select",
-        "description": "Output container format for merging",
+        "description": Messages.ARGS_MERGE_OUTPUT_FORMAT_DESC_MSG,
         "options": ["mp4", "webm", "mkv", "avi", "mov", "flv", "3gp", "ogv", "m4v", "wmv", "asf"],
         "default": "mp4"
     },
     "send_as_file": {
         "type": "boolean",
-        "description": "Send all media as document instead of media",
+        "description": Messages.ARGS_SEND_AS_FILE_DESC_MSG,
         "default": False
     }
 }
@@ -503,45 +504,45 @@ def get_args_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     
     # Short descriptions for better UI
     short_descriptions = {
-        "impersonate": "Impersonate",
-        "referer": "Referer",
-        "geo_bypass": "Geo Bypass",
-        "check_certificate": "Check Cert",
-        "live_from_start": "Live Start",
-        "no_live_from_start": "No Live Start",
-        "user_agent": "User Agent",
-        "hls_use_mpegts": "HLS MPEG-TS",
-        "no_playlist": "No Playlist",
-        "no_part": "No Part",
-        "no_continue": "No Continue",
-        "audio_format": "Audio Format",
-        "embed_metadata": "Embed Meta",
-        "embed_thumbnail": "Embed Thumb",
-        "write_thumbnail": "Write Thumb",
-        "concurrent_fragments": "Concurrent",
-        "force_ipv4": "Force IPv4",
-        "force_ipv6": "Force IPv6",
-        "xff": "XFF Header",
-        "http_chunk_size": "Chunk Size",
-        "sleep_subtitles": "Sleep Subs",
-        "legacy_server_connect": "Legacy Connect",
-        "no_check_certificates": "No Check Cert",
-        "username": "Username",
-        "password": "Password",
-        "twofactor": "2FA",
-        "ignore_errors": "Ignore Errors",
-        "min_filesize": "Min Size",
-        "max_filesize": "Max Size",
-        "playlist_items": "Playlist Items",
-        "date": "Date",
-        "datebefore": "Date Before",
-        "dateafter": "Date After",
-        "http_headers": "HTTP Headers",
-        "sleep_interval": "Sleep Interval",
-        "max_sleep_interval": "Max Sleep",
-        "video_format": "Video Format",
-        "merge_output_format": "Merge Format",
-        "send_as_file": "Send As File"
+        "impersonate": Messages.ARGS_IMPERSONATE_SHORT_MSG,
+        "referer": Messages.ARGS_REFERER_SHORT_MSG,
+        "geo_bypass": Messages.ARGS_GEO_BYPASS_SHORT_MSG,
+        "check_certificate": Messages.ARGS_CHECK_CERTIFICATE_SHORT_MSG,
+        "live_from_start": Messages.ARGS_LIVE_FROM_START_SHORT_MSG,
+        "no_live_from_start": Messages.ARGS_NO_LIVE_FROM_START_SHORT_MSG,
+        "user_agent": Messages.ARGS_USER_AGENT_SHORT_MSG,
+        "hls_use_mpegts": Messages.ARGS_HLS_USE_MPEGTS_SHORT_MSG,
+        "no_playlist": Messages.ARGS_NO_PLAYLIST_SHORT_MSG,
+        "no_part": Messages.ARGS_NO_PART_SHORT_MSG,
+        "no_continue": Messages.ARGS_NO_CONTINUE_SHORT_MSG,
+        "audio_format": Messages.ARGS_AUDIO_FORMAT_SHORT_MSG,
+        "embed_metadata": Messages.ARGS_EMBED_METADATA_SHORT_MSG,
+        "embed_thumbnail": Messages.ARGS_EMBED_THUMBNAIL_SHORT_MSG,
+        "write_thumbnail": Messages.ARGS_WRITE_THUMBNAIL_SHORT_MSG,
+        "concurrent_fragments": Messages.ARGS_CONCURRENT_FRAGMENTS_SHORT_MSG,
+        "force_ipv4": Messages.ARGS_FORCE_IPV4_SHORT_MSG,
+        "force_ipv6": Messages.ARGS_FORCE_IPV6_SHORT_MSG,
+        "xff": Messages.ARGS_XFF_SHORT_MSG,
+        "http_chunk_size": Messages.ARGS_HTTP_CHUNK_SIZE_SHORT_MSG,
+        "sleep_subtitles": Messages.ARGS_SLEEP_SUBTITLES_SHORT_MSG,
+        "legacy_server_connect": Messages.ARGS_LEGACY_SERVER_CONNECT_SHORT_MSG,
+        "no_check_certificates": Messages.ARGS_NO_CHECK_CERTIFICATES_SHORT_MSG,
+        "username": Messages.ARGS_USERNAME_SHORT_MSG,
+        "password": Messages.ARGS_PASSWORD_SHORT_MSG,
+        "twofactor": Messages.ARGS_TWOFACTOR_SHORT_MSG,
+        "ignore_errors": Messages.ARGS_IGNORE_ERRORS_SHORT_MSG,
+        "min_filesize": Messages.ARGS_MIN_FILESIZE_SHORT_MSG,
+        "max_filesize": Messages.ARGS_MAX_FILESIZE_SHORT_MSG,
+        "playlist_items": Messages.ARGS_PLAYLIST_ITEMS_SHORT_MSG,
+        "date": Messages.ARGS_DATE_SHORT_MSG,
+        "datebefore": Messages.ARGS_DATEBEFORE_SHORT_MSG,
+        "dateafter": Messages.ARGS_DATEAFTER_SHORT_MSG,
+        "http_headers": Messages.ARGS_HTTP_HEADERS_SHORT_MSG,
+        "sleep_interval": Messages.ARGS_SLEEP_INTERVAL_SHORT_MSG,
+        "max_sleep_interval": Messages.ARGS_MAX_SLEEP_INTERVAL_SHORT_MSG,
+        "video_format": Messages.ARGS_VIDEO_FORMAT_SHORT_MSG,
+        "merge_output_format": Messages.ARGS_MERGE_OUTPUT_FORMAT_SHORT_MSG,
+        "send_as_file": Messages.ARGS_SEND_AS_FILE_SHORT_MSG
     }
     
     buttons = []
@@ -1369,4 +1370,4 @@ def log_ytdlp_options(user_id: int, ytdlp_opts: dict, operation: str = "download
         logger.info(f"User {user_id} - Final yt-dlp options for {operation}:\n{opts_str}")
         
     except Exception as e:
-        logger.error(f"Error logging yt-dlp options: {e}")
+        logger.error(LoggerMsg.COOKIES_ERROR_LOGGING_LOG_MSG.format(e=e))

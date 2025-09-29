@@ -457,6 +457,13 @@ def download_image_range(url: str, range_expr: str, user_id=None, use_proxy: boo
             "range": range_expr,
         },
     }
+    # Set output directory if provided
+    if output_dir:
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+        except Exception:
+            pass
+        config["output"] = {"directory": output_dir}
     config = _prepare_user_cookies_and_proxy(url, user_id, use_proxy, config)
     try:
         _apply_config(config)
@@ -674,8 +681,9 @@ def download_image_range_cli(url: str, range_expr: str, user_id=None, use_proxy:
             os.makedirs(output_dir, exist_ok=True)
         except Exception:
             pass
+        # Use correct gallery-dl configuration keys
+        cfg["output"] = {"directory": output_dir}
         cfg["extractor"]["base-directory"] = output_dir
-        cfg["extractor"]["directory"] = []  # flatten into base-directory
     cfg = _prepare_user_cookies_and_proxy(url, user_id, use_proxy, cfg)
     try:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:

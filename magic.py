@@ -241,13 +241,13 @@ def _vid_handler(app, message):
             from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
             kb = InlineKeyboardMarkup([[InlineKeyboardButton(Messages.URL_EXTRACTOR_VID_HELP_CLOSE_BUTTON_MSG, callback_data="vid_help|close")]])
             help_text = (
-                "<b>🎬 Video Download Command</b>\n\n"
-                "Usage: <code>/vid URL</code>\n\n"
-                "<b>Examples:</b>\n"
-                "• <code>/vid https://youtube.com/watch?v=123abc</code>\n"
-                "• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n"
-                "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code>\n\n"
-                "Also see: /audio, /img, /help, /playlist, /settings"
+                Messages.MAGIC_VID_HELP_TITLE_MSG +
+                Messages.MAGIC_VID_HELP_USAGE_MSG +
+                Messages.MAGIC_VID_HELP_EXAMPLES_MSG +
+                Messages.MAGIC_VID_HELP_EXAMPLE_1_MSG +
+                Messages.MAGIC_VID_HELP_EXAMPLE_2_MSG +
+                Messages.MAGIC_VID_HELP_EXAMPLE_3_MSG +
+                Messages.MAGIC_VID_HELP_ALSO_SEE_MSG
             )
             safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
     except Exception:
@@ -256,13 +256,13 @@ def _vid_handler(app, message):
         from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
         kb = InlineKeyboardMarkup([[InlineKeyboardButton(Messages.URL_EXTRACTOR_VID_HELP_CLOSE_BUTTON_MSG, callback_data="vid_help|close")]])
         help_text = (
-            "<b>🎬 Video Download Command</b>\n\n"
-            "Usage: <code>/vid URL</code>\n\n"
-            "<b>Examples:</b>\n"
-            "• <code>/vid https://youtube.com/watch?v=123abc</code>\n"
-            "• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n"
-            "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code>\n\n"
-            "Also see: /audio, /img, /help, /playlist, /settings"
+            Messages.MAGIC_VID_HELP_TITLE_MSG +
+            Messages.MAGIC_VID_HELP_USAGE_MSG +
+            Messages.MAGIC_VID_HELP_EXAMPLES_MSG +
+            Messages.MAGIC_VID_HELP_EXAMPLE_1_MSG +
+            Messages.MAGIC_VID_HELP_EXAMPLE_2_MSG +
+            Messages.MAGIC_VID_HELP_EXAMPLE_3_MSG +
+            Messages.MAGIC_VID_HELP_ALSO_SEE_MSG
         )
         safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
 

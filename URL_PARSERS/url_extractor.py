@@ -105,42 +105,42 @@ def url_distractor(app, message):
     if not is_admin:
         # /uncache
         if text.startswith(Config.UNCACHE_COMMAND):
-            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
+            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
             return
         # /auto_cache
         if text.startswith(Config.AUTO_CACHE_COMMAND):
-            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
+            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
             return
         # /all_* (user details)
         if Config.GET_USER_DETAILS_COMMAND in text:
-            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
+            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
             return
         # /unblock_user
         if Config.UNBLOCK_USER_COMMAND in text:
-            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
+            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
             return
         # /block_user
         if Config.BLOCK_USER_COMMAND in text:
-            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
+            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
             return
         # /broadcast
         if text.startswith(Config.BROADCAST_MESSAGE):
-            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
+            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
             return
         # /log (user logs)
         if Config.GET_USER_LOGS_COMMAND in text:
-            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
+            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
             return
         # /reload_cache
         if text.startswith(Config.RELOAD_CACHE_COMMAND):
-            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
+            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
             return
 
     # ----- Basic Commands -----
     # /Start Command
     if text == "/start":
         if is_admin:
-            send_to_user(message, LoggerMsg.WELCOME_MASTER)
+            send_to_user(message, Messages.WELCOME_MASTER)
         else:
             # For non-admins, check subscription first
             if not is_user_in_channel(app, message):

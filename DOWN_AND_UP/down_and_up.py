@@ -617,7 +617,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 Config.ERROR_FILE_SIZE_LIMIT_MSG.format(limit=max_size_gb),
                 reply_parameters=ReplyParameters(message_id=message.id)
             )
-            send_to_logger(message, LoggerMsg.SIZE_LIMIT_EXCEEDED.format(max_size_gb=max_size_gb))
+            send_to_logger(message, Messages.SIZE_LIMIT_EXCEEDED.format(max_size_gb=max_size_gb))
             logger.warning(f"[SIZE CHECK] Download for quality_key={quality_key} was blocked due to size limit.")
             return
         else:
@@ -692,7 +692,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     logger.error(f"Error updating progress: {e}")
             elif d.get("status") == "error":
                 logger.error("Error occurred during download.")
-                send_error_to_user(message, LoggerMsg.DOWNLOAD_ERROR_GENERIC)
+                send_error_to_user(message, Messages.DOWNLOAD_ERROR_GENERIC)
             last_update = current_time
 
         successful_uploads = 0
