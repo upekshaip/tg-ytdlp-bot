@@ -198,7 +198,7 @@ class LoggerMsg(object):
     IMG_CACHE_FALLBACK_REPOSTING_LOG_MSG = "[IMG CACHE] Fallback reposting album {album_idx} from channel {from_chat_id} to user {user_id}, message_ids={ids}"
     IMG_CACHE_FAILED_FORWARD_ALBUM_LOG_MSG = "Failed to forward cached album {album_idx}: {_e}"
     IMG_CACHE_FORWARD_EARLY_FAILED_LOG_MSG = "Image cache forward (early) failed: {_e}"
-    IMG_USER_ADMIN_LIMIT_LOG_MSG = "[IMG] User {user_id} is admin: {is_admin}, limit: {'unlimited' if is_admin else total_limit}"
+    IMG_USER_ADMIN_LIMIT_LOG_MSG = "[IMG] User {user_id} is admin: {is_admin}, limit: {limit_text}"
     IMG_PRE_CLEANUP_START_LOG_MSG = "[IMG PRE-CLEANUP] Starting pre-cleanup of user directory: users/{user_id}"
     IMG_PRE_CLEANUP_REMOVED_FILE_LOG_MSG = "[IMG PRE-CLEANUP] Removed file: {file_path}"
     IMG_PRE_CLEANUP_FAILED_REMOVE_FILE_LOG_MSG = "[IMG PRE-CLEANUP] Failed to remove {file_path}: {e}"

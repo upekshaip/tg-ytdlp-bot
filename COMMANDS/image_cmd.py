@@ -712,7 +712,8 @@ def image_command(app, message):
         except Exception:
             pass
             
-        logger.info(LoggerMsg.IMG_USER_ADMIN_LIMIT_LOG_MSG.format(user_id=user_id, is_admin=is_admin, total_limit=total_limit))
+        limit_text = 'unlimited' if is_admin else total_limit
+        logger.info(LoggerMsg.IMG_USER_ADMIN_LIMIT_LOG_MSG.format(user_id=user_id, is_admin=is_admin, limit_text=limit_text))
         
         # Determine expected total via --get-urls analog
         detected_total = None
