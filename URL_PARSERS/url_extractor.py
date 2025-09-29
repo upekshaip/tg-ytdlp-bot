@@ -673,7 +673,33 @@ def url_distractor(app, message):
             except Exception as e:
                 logger.error(LoggerMsg.URL_EXTRACTOR_VIDEO_EXTRACTOR_FAILED_LOG_MSG.format(e=e))
                 try:
-                    image_command(app, message)
+                    # Create proper /img command from URL
+                    from URL_PARSERS.tags import extract_url_range_tags
+                    from HELPERS.safe_messeger import fake_message
+                    
+                    # Extract URL and range from original message
+                    url, video_start_with, video_end_with, playlist_name, tags, tags_text, tag_error = extract_url_range_tags(message.text)
+                    
+                    if url:
+                        # Create fallback command with range if available
+                        if video_start_with and video_end_with and (video_start_with != 1 or video_end_with != 1):
+                            fallback_text = f"/img {video_start_with}-{video_end_with} {url}"
+                        else:
+                            fallback_text = f"/img {url}"
+                        
+                        # Add tags if available
+                        if tags_text:
+                            fallback_text += f" {tags_text}"
+                        
+                        # Create fake message for gallery-dl command
+                        fake_msg = fake_message(fallback_text, message.chat.id, original_chat_id=message.chat.id)
+                        
+                        # Execute gallery-dl command
+                        image_command(app, fake_msg)
+                        logger.info(f"Gallery-dl fallback executed: {fallback_text}")
+                    else:
+                        logger.error("No URL found for gallery-dl fallback")
+                        
                 except Exception as e2:
                     logger.error(LoggerMsg.URL_EXTRACTOR_GALLERY_DL_FALLBACK_FAILED_LOG_MSG.format(e2=e2))
         return

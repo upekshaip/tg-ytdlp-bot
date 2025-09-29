@@ -25,6 +25,7 @@ from URL_PARSERS.youtube import is_youtube_url, download_thumbnail
 from URL_PARSERS.thumbnail_downloader import download_thumbnail as download_universal_thumbnail
 from HELPERS.pot_helper import add_pot_to_ytdl_opts
 from CONFIG.limits import LimitsConfig
+from HELPERS.fallback_helper import should_fallback_to_gallery_dl
 import subprocess
 from PIL import Image
 import io
@@ -887,15 +888,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     logger.error(f"Postprocessing error (Invalid argument): {error_text}")
                     return "POSTPROCESSING_ERROR"
                 
-                # Auto-fallback to gallery-dl (/img) for non-video posts (albums/images)
-                if (
-                    "No videos found in playlist" in error_text
-                    or "Unsupported URL" in error_text
-                    or "No video could be found" in error_text
-                    or "No video found" in error_text
-                    or "No media found" in error_text
-                    or "This tweet does not contain" in error_text
-                ):
+                # Auto-fallback to gallery-dl (/img) for all supported errors
+                if should_fallback_to_gallery_dl(error_text, url):
                     try:
                         from COMMANDS.image_cmd import image_command
                         from HELPERS.safe_messeger import fake_message
@@ -904,7 +898,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     else:
                         try:
                             safe_edit_message_text(user_id, proc_msg_id,
-                                f"{current_total_process}\n❔ No audio formats found. Trying image downloader…")
+                                f"{current_total_process}\n🔄 yt-dlp failed, trying gallery-dl…")
                         except Exception:
                             pass
                         try:

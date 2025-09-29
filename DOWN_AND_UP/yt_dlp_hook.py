@@ -11,6 +11,7 @@ from URL_PARSERS.filter_check import is_no_filter_domain
 from URL_PARSERS.filter_utils import create_smart_match_filter, create_legacy_match_filter
 from HELPERS.pot_helper import add_pot_to_ytdl_opts
 from CONFIG.limits import LimitsConfig
+from HELPERS.fallback_helper import should_fallback_to_gallery_dl
 
 def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already_checked=False, use_proxy=False):
     ytdl_opts = {
@@ -277,6 +278,11 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                         return retry_result
                     else:
                         logger.warning(f"All cookie retry attempts failed in get_video_formats for user {user_id}")
+            
+            # Check if we should fallback to gallery-dl
+            if should_fallback_to_gallery_dl(error_text, url):
+                logger.info(f"Fallback to gallery-dl recommended for {url} due to error: {error_text[:200]}...")
+                return {'error': 'FALLBACK_TO_GALLERY_DL', 'original_error': error_text}
             
             # Re-raise other DownloadErrors
             raise e

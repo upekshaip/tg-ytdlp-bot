@@ -45,6 +45,7 @@ from pyrogram import enums
 from pyrogram.types import ReplyParameters
 from HELPERS.safe_messeger import safe_send_message
 from URL_PARSERS.tags import extract_url_range_tags
+from HELPERS.fallback_helper import should_fallback_to_gallery_dl
 
 # Get app instance for decorators
 app = get_app()
@@ -1197,15 +1198,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 
                 
                 
-                # Auto-fallback to gallery-dl (/img) for non-video posts (albums/images)
-                if (
-                    "No videos found in playlist" in error_message
-                    or "Unsupported URL" in error_message
-                    or "No video could be found" in error_message
-                    or "No video found" in error_message
-                    or "No media found" in error_message
-                    or "This tweet does not contain" in error_message
-                ):
+                # Auto-fallback to gallery-dl (/img) for all supported errors
+                if should_fallback_to_gallery_dl(error_message, url):
                     try:
                         from COMMANDS.image_cmd import image_command
                         from HELPERS.safe_messeger import fake_message
@@ -1214,7 +1208,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     else:
                         try:
                             safe_edit_message_text(user_id, proc_msg_id,
-                                f"{current_total_process}\n❔ No video formats found. Trying image downloader…")
+                                f"{current_total_process}\n🔄 yt-dlp failed, trying gallery-dl…")
                         except Exception:
                             pass
                         try:
@@ -1311,7 +1305,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     else:
                         try:
                             safe_edit_message_text(user_id, proc_msg_id,
-                                f"{current_total_process}\n❔ No video formats found. Trying image downloader…")
+                                f"{current_total_process}\n🔄 yt-dlp failed, trying gallery-dl…")
                         except Exception:
                             pass
                         try:
