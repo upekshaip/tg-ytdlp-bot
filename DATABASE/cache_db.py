@@ -326,7 +326,7 @@ def auto_cache_command(app, message):
     """
     try:
         if int(message.chat.id) not in Config.ADMIN:
-            send_to_user(message, "❌ Access denied. Admin only.")
+            send_to_user(message, Messages.DB_AUTO_CACHE_ACCESS_DENIED_MSG)
             return
 
         text = (message.text or "").strip()
@@ -343,20 +343,17 @@ def auto_cache_command(app, message):
                 delta_min = int((next_exec - datetime.now()).total_seconds() // 60)
                 send_to_user(
                     message,
-                    "🔄 Auto Firebase cache reloading updated!\n\n"
-                    f"📊 Status: {status}\n"
-                    f"⏰ Schedule: every {interval} hours from 00:00\n"
-                    f"🕒 Next reload: {next_exec.strftime('%H:%M')} (in {delta_min} minutes)"
+                    Messages.DB_AUTO_CACHE_RELOADING_UPDATED_MSG.format(
+                        status=status,
+                        interval=interval,
+                        next_exec=next_exec.strftime('%H:%M'),
+                        delta_min=delta_min
+                    )
                 )
-                send_to_logger(message, f"Auto reload ENABLED; next at {next_exec}")
+                send_to_logger(message, Messages.DB_AUTO_CACHE_RELOAD_ENABLED_LOG_MSG.format(next_exec=next_exec))
             else:
-                send_to_user(
-                    message,
-                    "🛑 Auto Firebase cache reloading stopped!\n\n"
-                    "📊 Status: ❌ DISABLED\n"
-                    "💡 Use /auto_cache on to re-enable"
-                )
-                send_to_logger(message, "Auto reload DISABLED by admin.")
+                send_to_user(message, Messages.DB_AUTO_CACHE_RELOADING_STOPPED_MSG)
+                send_to_logger(message, Messages.DB_AUTO_CACHE_RELOAD_DISABLED_LOG_MSG)
             return
 
         # Try numeric interval
@@ -364,26 +361,28 @@ def auto_cache_command(app, message):
             try:
                 n = int(arg)
             except Exception:
-                send_to_user(message, "❌ Invalid argument. Use /auto_cache on | off | N (1..168)")
+                send_to_user(message, Messages.DB_AUTO_CACHE_INVALID_ARGUMENT_MSG)
                 return
             if n < 1 or n > 168:
-                send_to_user(message, "❌ Interval must be between 1 and 168 hours")
+                send_to_user(message, Messages.DB_AUTO_CACHE_INTERVAL_RANGE_MSG)
                 return
             ok = set_reload_interval_hours(n)
             if not ok:
-                send_to_user(message, "❌ Failed to set interval")
+                send_to_user(message, Messages.DB_AUTO_CACHE_FAILED_SET_INTERVAL_MSG)
                 return
             interval = max(1, int(reload_interval_hours))
             next_exec = get_next_reload_time(interval)
             delta_min = int((next_exec - datetime.now()).total_seconds() // 60)
             send_to_user(
                 message,
-                "⏱️ Auto Firebase cache interval updated!\n\n"
-                f"📊 Status: {'✅ ENABLED' if auto_cache_enabled else '❌ DISABLED'}\n"
-                f"⏰ Schedule: every {interval} hours from 00:00\n"
-                f"🕒 Next reload: {next_exec.strftime('%H:%M')} (in {delta_min} minutes)"
+                Messages.DB_AUTO_CACHE_INTERVAL_UPDATED_MSG.format(
+                    status='✅ ENABLED' if auto_cache_enabled else '❌ DISABLED',
+                    interval=interval,
+                    next_exec=next_exec.strftime('%H:%M'),
+                    delta_min=delta_min
+                )
             )
-            send_to_logger(message, f"Auto reload interval set to {interval}h; next at {next_exec}")
+            send_to_logger(message, Messages.DB_AUTO_CACHE_INTERVAL_SET_LOG_MSG.format(interval=interval, next_exec=next_exec))
             return
 
         # No args: toggle legacy behavior
@@ -394,20 +393,16 @@ def auto_cache_command(app, message):
             delta_min = int((next_exec - datetime.now()).total_seconds() // 60)
             send_to_user(
                 message,
-                "🔄 Auto Firebase cache reloading started!\n\n"
-                f"📊 Status: ✅ ENABLED\n"
-                f"⏰ Schedule: every {interval} hours from 00:00\n"
-                f"🕒 Next reload: {next_exec.strftime('%H:%M')} (in {delta_min} minutes)"
+                Messages.DB_AUTO_CACHE_RELOADING_STARTED_MSG.format(
+                    interval=interval,
+                    next_exec=next_exec.strftime('%H:%M'),
+                    delta_min=delta_min
+                )
             )
-            send_to_logger(message, f"Auto reload started; next at {next_exec}")
+            send_to_logger(message, Messages.DB_AUTO_CACHE_RELOAD_STARTED_LOG_MSG.format(next_exec=next_exec))
         else:
-            send_to_user(
-                message,
-                "🛑 Auto Firebase cache reloading stopped!\n\n"
-                "📊 Status: ❌ DISABLED\n"
-                "💡 Use /auto_cache on to re-enable"
-            )
-            send_to_logger(message, "Auto reload stopped by admin.")
+            send_to_user(message, Messages.DB_AUTO_CACHE_RELOADING_STOPPED_BY_ADMIN_MSG)
+            send_to_logger(message, Messages.DB_AUTO_CACHE_RELOAD_STOPPED_LOG_MSG)
     except Exception as e:
         logger.error(f"/auto_cache handler error: {e}")
 

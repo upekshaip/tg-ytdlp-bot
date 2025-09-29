@@ -62,7 +62,7 @@ def video_url_extractor(app, message):
             del playlist_errors[key]
             
     if get_active_download(user_id):
-        app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_parameters=ReplyParameters(message_id=message.id))
+        app.send_message(user_id, Messages.VIDEO_EXTRACTOR_WAIT_DOWNLOAD_MSG, reply_parameters=ReplyParameters(message_id=message.id))
         return
         
     full_string = message.text

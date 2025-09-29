@@ -94,7 +94,7 @@ def url_distractor(app, message):
             from HELPERS.safe_messeger import safe_send_message
             safe_send_message(
                 message.chat.id,
-                "Download only audio from video source.\n\nUsage: /audio + URL \n\n(ex. /audio https://youtu.be/abc123)\n(ex. /audio https://youtu.be/playlist?list=abc123*1*10)",
+                Messages.URL_EXTRACTOR_AUDIO_HINT_MSG,
                 message=message
             )
             return
@@ -149,7 +149,7 @@ def url_distractor(app, message):
             from HELPERS.safe_messeger import safe_send_message
             safe_send_message(
                 message.chat.id,
-                f"Hello {message.chat.first_name},\n \n<i>This bot🤖 can download any videos into telegram directly.😊 For more information press <b>/help</b></i> 👈\n \n {Config.CREDITS_MSG}",
+                Messages.URL_EXTRACTOR_WELCOME_MSG.format(first_name=message.chat.first_name, credits=Config.CREDITS_MSG),
                 parse_mode=enums.ParseMode.HTML,
                 message=message)
             send_to_logger(message, LoggerMsg.USER_STARTED_BOT.format(chat_id=message.chat.id))
@@ -552,7 +552,7 @@ def url_distractor(app, message):
             # Delete all files and display the list of deleted ones
             user_dir = f'./users/{str(message.chat.id)}'
             if not os.path.exists(user_dir):
-                send_to_all(message, "🗑 No files to remove.")
+                send_to_all(message, Messages.URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
                 clear_subs_check_cache()
                 return
 
@@ -579,14 +579,14 @@ def url_distractor(app, message):
             
             if removed_files:
                 files_list = "\n".join([f"• {file}" for file in removed_files])
-                send_to_all(message, f"🗑 All files removed successfully!\n\nRemoved files:\n{files_list}")
+                send_to_all(message, Messages.URL_EXTRACTOR_ALL_FILES_REMOVED_MSG.format(files_list=files_list))
             else:
-                send_to_all(message, "🗑 No files to remove.")
+                send_to_all(message, Messages.URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
             return
         else:
             # Regular command /clean - delete only media files with filtering
             remove_media(message)
-            send_to_all(message, "🗑 All media files are removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_ALL_MEDIA_FILES_REMOVED_MSG)
             try:
                 from COMMANDS.cookies_cmd import clear_youtube_cookie_cache
                 clear_youtube_cookie_cache(message.chat.id)

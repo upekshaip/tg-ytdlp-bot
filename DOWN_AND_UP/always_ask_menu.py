@@ -4426,7 +4426,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 else:
                     try:
                         safe_edit_message_text(user_id, proc_msg.id if proc_msg else None,
-                            "❔ No video formats found. Trying image downloader…")
+                            Messages.AA_NO_VIDEO_FORMATS_FOUND_MSG)
                     except Exception:
                         pass
                     try:

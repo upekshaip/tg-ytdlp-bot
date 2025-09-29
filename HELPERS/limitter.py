@@ -119,7 +119,7 @@ def ensure_group_admin(app, message):
                     # Ask to grant admin. Reply in the same topic/thread when possible
                     safe_send_message(
                         chat_id,
-                        "❗️ Для работы в группе боту нужны права администратора. Пожалуйста, сделайте бота админом этой группы.",
+                        Messages.HELPER_ADMIN_RIGHTS_REQUIRED_MSG,
                         message=message
                     )
                     return False
@@ -127,7 +127,7 @@ def ensure_group_admin(app, message):
                 # If check failed for any reason, be safe and request admin
                 safe_send_message(
                     chat_id,
-                    "❗️ Для работы в группе боту нужны права администратора. Пожалуйста, сделайте бота админом этой группы.",
+                    Messages.HELPER_ADMIN_RIGHTS_REQUIRED_MSG,
                     message=message
                 )
                 return False

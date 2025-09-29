@@ -370,7 +370,7 @@ def is_user_blocked(message):
     blocked = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("blocked_users").get().each()
     blocked_users = [int(b_user.key()) for b_user in blocked] if blocked else []
     if int(message.chat.id) in blocked_users:
-        send_to_all(message, "🚫 You are banned from the bot!")
+        send_to_all(message, Messages.DB_USER_BANNED_MSG)
         return True
     else:
         return False
