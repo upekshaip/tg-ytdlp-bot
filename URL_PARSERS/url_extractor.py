@@ -100,6 +100,7 @@ def url_distractor(app, message):
             )
             return
         # Emulate a user command for the mapped emoji
+        from HELPERS.safe_messeger import fake_message
         return url_distractor(app, fake_message(mapped, user_id))
 
     # ----- Admin-only denial for non-admins -----
