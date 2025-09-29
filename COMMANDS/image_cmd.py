@@ -876,6 +876,10 @@ def image_command(app, message):
                     # Wait for download to complete before processing files
                     time.sleep(2)
                     
+                    # Give additional time for file processing if this is the first range
+                    if current_start == 1:
+                        time.sleep(3)  # Extra wait for first range
+                    
                     # Count files after download
                     files_after = len(seen_files)
                     files_downloaded_in_range = files_after - files_before
@@ -885,9 +889,23 @@ def image_command(app, message):
                     logger.info(f"[IMG BATCH] Downloaded {files_downloaded_in_range} files in range {current_start}-{next_end} (expected {expected_files}) in {elapsed_time:.1f}s")
                     
                     # Check if we got no files at all (gallery-dl found nothing)
+                    # Only break if we're sure there are no files AND this is not the first range
                     if files_downloaded_in_range == 0:
-                        logger.info(f"[IMG BATCH] No files downloaded in range {current_start}-{next_end}, media appears to have ended")
-                        break
+                        if current_start > 1:
+                            logger.info(f"[IMG BATCH] No files downloaded in range {current_start}-{next_end}, media appears to have ended")
+                            break
+                        else:
+                            # For first range, wait a bit more and check again
+                            logger.info(f"[IMG BATCH] No files found in first range, waiting for file processing...")
+                            time.sleep(5)
+                            files_after_retry = len(seen_files)
+                            files_downloaded_retry = files_after_retry - files_before
+                            if files_downloaded_retry == 0:
+                                logger.info(f"[IMG BATCH] Still no files after retry, media appears to have ended")
+                                break
+                            else:
+                                logger.info(f"[IMG BATCH] Found {files_downloaded_retry} files after retry")
+                                files_downloaded_in_range = files_downloaded_retry
                     
                     # Check if we got significantly fewer files than expected (less than 50% of expected)
                     # This indicates the media has ended
