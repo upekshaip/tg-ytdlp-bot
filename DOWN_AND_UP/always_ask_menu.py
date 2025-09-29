@@ -727,6 +727,7 @@ def set_link_mode(user_id, enabled):
         return False
 
 def build_filter_rows(user_id, url=None, is_private_chat=False):
+    from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     f = get_filters(user_id)
     codec = f.get("codec", "avc1")
     ext = f.get("ext", "mp4")
