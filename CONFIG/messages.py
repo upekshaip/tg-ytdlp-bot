@@ -1852,6 +1852,7 @@ Use:
     URL_EXTRACTOR_ADD_GROUP_CLOSE_BUTTON_MSG = "🔚Close"
     URL_EXTRACTOR_COOKIE_ARGS_YOUTUBE_MSG = "youtube"
     URL_EXTRACTOR_COOKIE_ARGS_TIKTOK_MSG = "tiktok"
+    URL_EXTRACTOR_COOKIE_ARGS_INSTAGRAM_MSG = "instagram"
     URL_EXTRACTOR_COOKIE_ARGS_TWITTER_MSG = "twitter"
     URL_EXTRACTOR_COOKIE_ARGS_CUSTOM_MSG = "custom"
     URL_EXTRACTOR_SAVE_AS_COOKIE_HINT_CLOSE_BUTTON_MSG = "🔚Close"
@@ -1920,6 +1921,25 @@ Use:
     MAGIC_VID_HELP_EXAMPLE_2_MSG = "• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n"
     MAGIC_VID_HELP_EXAMPLE_3_MSG = "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code>\n\n"
     MAGIC_VID_HELP_ALSO_SEE_MSG = "Also see: /audio, /img, /help, /playlist, /settings"
+    
+    # Flood limit messages
+    FLOOD_LIMIT_TRY_LATER_FALLBACK_MSG = "⏳ Flood limit. Try later."
+    
+    # Cookie command usage messages
+    COOKIE_COMMAND_USAGE_MSG = """<b>🍪 Cookie Command Usage</b>
+
+<code>/cookie</code> - Show cookie menu
+<code>/cookie youtube</code> - Download YouTube cookies
+<code>/cookie instagram</code> - Download Instagram cookies
+<code>/cookie tiktok</code> - Download TikTok cookies
+<code>/cookie x</code> or <code>/cookie twitter</code> - Download Twitter/X cookies
+<code>/cookie facebook</code> - Download Facebook cookies
+<code>/cookie custom</code> - Show custom cookie instructions
+
+<i>Available services depend on bot configuration.</i>"""
+    
+    # Cookie cache messages
+    COOKIE_FILE_REMOVED_CACHE_CLEARED_MSG = "🗑 Cookie file removed and cache cleared."
     
     
     #######################################################

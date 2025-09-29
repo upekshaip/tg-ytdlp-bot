@@ -12,6 +12,7 @@ from HELPERS.download_status import playlist_errors, playlist_errors_lock
 from pyrogram import filters
 from CONFIG.config import Config
 from CONFIG.messages import Messages
+from CONFIG.logger_msg import LoggerMsg
 import os
 from pyrogram import enums
 from pyrogram.types import ReplyParameters
@@ -149,7 +150,7 @@ def video_url_extractor(app, message):
                 # For custom formats, we use the format hash as quality_key
                 quality_key = f"custom_{hashlib.md5(saved_format.encode()).hexdigest()[:8]}"
         
-        logger.info(f"video_url_extractor: using saved format '{saved_format}', quality_key='{quality_key}'")
+        logger.info(LoggerMsg.VIDEO_EXTRACTOR_SAVED_FORMAT_LOG_MSG.format(saved_format=saved_format, quality_key=quality_key))
         
         # --- Pass title='' for TikTok, otherwise as usual ---
         if is_tiktok:

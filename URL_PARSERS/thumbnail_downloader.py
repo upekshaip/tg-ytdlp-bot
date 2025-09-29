@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 from typing import Optional, Tuple
 from CONFIG.config import Config
 from CONFIG.messages import Messages
+from CONFIG.logger_msg import LoggerMsg
 from HELPERS.logger import logger
 
 
@@ -328,7 +329,7 @@ def download_vk_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download VK thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_VK_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -339,7 +340,7 @@ def download_tiktok_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download TikTok thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_TIKTOK_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -350,7 +351,7 @@ def download_twitter_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Twitter thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_TWITTER_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -361,7 +362,7 @@ def download_facebook_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Facebook thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_FACEBOOK_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -372,20 +373,20 @@ def download_pornhub_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Pornhub thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_PORNHUB_FAILED_LOG_MSG.format(e=e))
         return False
 
 
 def download_instagram_thumbnail(video_id: str, dest: str) -> bool:
     """Download Instagram video thumbnail"""
     try:
-        logger.info(f"Attempting to download Instagram thumbnail for video_id: {video_id}")
+        logger.info(LoggerMsg.THUMBNAIL_DOWNLOADER_INSTAGRAM_ATTEMPT_LOG_MSG.format(video_id=video_id))
         # Instagram thumbnails are usually in video metadata, not direct URLs
         # For now, return False to use fallback
-        logger.info("Instagram thumbnail download not implemented")
+        logger.info(LoggerMsg.THUMBNAIL_DOWNLOADER_INSTAGRAM_NOT_IMPLEMENTED_LOG_MSG)
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Instagram thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_INSTAGRAM_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -408,7 +409,7 @@ def download_vimeo_thumbnail(video_id: str, dest: str) -> bool:
                         return True
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Vimeo thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_VIMEO_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -429,7 +430,7 @@ def download_dailymotion_thumbnail(video_id: str, dest: str) -> bool:
                     return True
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Dailymotion thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_DAILYMOTION_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -440,7 +441,7 @@ def download_rutube_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Rutube thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_RUTUBE_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -451,7 +452,7 @@ def download_twitch_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Twitch thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_TWITCH_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -462,7 +463,7 @@ def download_boosty_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Boosty thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_BOOSTY_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -473,7 +474,7 @@ def download_okru_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Odnoklassniki thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_ODNOKLASSNIKI_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -484,7 +485,7 @@ def download_reddit_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Reddit thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_REDDIT_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -495,7 +496,7 @@ def download_pikabu_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Pikabu thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_PIKABU_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -506,7 +507,7 @@ def download_yandex_zen_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Yandex.Dzen thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_YANDEX_DZEN_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -517,7 +518,7 @@ def download_google_drive_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Google Drive thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_GOOGLE_DRIVE_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -528,7 +529,7 @@ def download_redtube_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Redtube thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_REDTUBE_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -556,7 +557,7 @@ def download_youtube_thumbnail(video_id: str, dest: str) -> bool:
         
         return False
     except Exception as e:
-        logger.warning(f"Failed to download YouTube thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_YOUTUBE_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -567,7 +568,7 @@ def download_bilibili_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Bilibili thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_BILIBILI_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -578,7 +579,7 @@ def download_niconico_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Niconico thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_NICONICO_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -589,7 +590,7 @@ def download_xvideos_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download XVideos thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_XVIDEOS_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -600,7 +601,7 @@ def download_xnxx_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download XNXX thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_XNXX_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -611,7 +612,7 @@ def download_youporn_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download YouPorn thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_YOUPORN_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -622,7 +623,7 @@ def download_xhamster_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download XHamster thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_XHAMSTER_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -633,7 +634,7 @@ def download_porntube_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download PornTube thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_PORNTUBE_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -644,7 +645,7 @@ def download_spankbang_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download SpankBang thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_SPANKBANG_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -655,7 +656,7 @@ def download_onlyfans_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download OnlyFans thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_ONLYFANS_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -666,7 +667,7 @@ def download_patreon_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Patreon thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_PATREON_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -677,7 +678,7 @@ def download_soundcloud_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download SoundCloud thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_SOUNDCLOUD_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -688,7 +689,7 @@ def download_bandcamp_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Bandcamp thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_BANDCAMP_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -699,7 +700,7 @@ def download_mixcloud_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Mixcloud thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_MIXCLOUD_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -710,7 +711,7 @@ def download_deezer_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Deezer thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_DEEZER_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -721,7 +722,7 @@ def download_spotify_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Spotify thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_SPOTIFY_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -732,7 +733,7 @@ def download_apple_music_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Apple Music thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_APPLE_MUSIC_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -743,7 +744,7 @@ def download_tidal_thumbnail(video_id: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to download Tidal thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_TIDAL_FAILED_LOG_MSG.format(e=e))
         return False
 
 
@@ -755,11 +756,11 @@ def download_thumbnail(url: str, dest: str) -> bool:
     try:
         service, video_id = extract_service_info(url)
         
-        logger.info(f"Universal thumbnail downloader called for URL: {url}")
-        logger.info(f"Detected service: {service}, video_id: {video_id}")
+        logger.info(LoggerMsg.THUMBNAIL_DOWNLOADER_UNIVERSAL_CALLED_LOG_MSG.format(url=url))
+        logger.info(LoggerMsg.THUMBNAIL_DOWNLOADER_SERVICE_DETECTED_LOG_MSG.format(service=service, video_id=video_id))
         
         if not video_id:
-            logger.warning(f"Could not extract video ID from URL: {url}")
+            logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_NO_VIDEO_ID_LOG_MSG.format(url=url))
             return False
         
         # Create destination directory if it doesn't exist
@@ -839,15 +840,15 @@ def download_thumbnail(url: str, dest: str) -> bool:
             success = download_tidal_thumbnail(video_id, dest)
         
         if success:
-            logger.info(f"Successfully downloaded {service} thumbnail to {dest}")
+            logger.info(LoggerMsg.THUMBNAIL_DOWNLOADER_SUCCESS_LOG_MSG.format(service=service, dest=dest))
             return True
         
         # If service-specific download failed, return False to use fallback
-        logger.info(f"Service-specific thumbnail download failed for {service}, will use fallback")
+        logger.info(LoggerMsg.THUMBNAIL_DOWNLOADER_SERVICE_FAILED_LOG_MSG.format(service=service))
         return False
         
     except Exception as e:
-        logger.error(f"Error in universal thumbnail downloader: {e}")
+        logger.error(LoggerMsg.THUMBNAIL_DOWNLOADER_ERROR_LOG_MSG.format(e=e))
         return False
 
 
@@ -866,5 +867,5 @@ def get_thumbnail_from_telegram_embed(url: str, dest: str) -> bool:
         # For now, return False to use fallback
         return False
     except Exception as e:
-        logger.warning(f"Failed to get Telegram embed thumbnail: {e}")
+        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_TELEGRAM_EMBED_FAILED_LOG_MSG.format(e=e))
         return False

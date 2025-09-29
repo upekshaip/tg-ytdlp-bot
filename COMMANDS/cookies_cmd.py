@@ -1475,7 +1475,12 @@ def retry_download_with_different_cookies(user_id: int, url: str, download_func,
                 logger.info(LoggerMsg.COOKIES_YOUTUBE_RETRY_ATTEMPT_LOG_MSG.format(attempt=attempt, total_attempts=len(indices), source_index=idx + 1, user_id=user_id))
                 
                 # Скачиваем куки
-                ok, status, content, err = _download_content(cookie_urls[idx], timeout=30)
+                try:
+                    ok, status, content, err = _download_content(cookie_urls[idx], timeout=30)
+                except Exception as download_e:
+                    logger.error(f"Error processing cookie source {idx + 1} for user {user_id}: {download_e}")
+                    continue
+                    
                 if not ok:
                     logger.warning(LoggerMsg.COOKIES_YOUTUBE_RETRY_DOWNLOAD_FAILED_LOG_MSG.format(source_index=idx + 1, status=status, error=err))
                     continue

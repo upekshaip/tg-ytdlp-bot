@@ -82,15 +82,15 @@ def url_distractor(app, message):
         "🌎": Config.PROXY_COMMAND,
         "✅": Config.CHECK_COOKIE_COMMAND,
         "🖼": Config.IMG_COMMAND,
-        "🧰": "/args",
-        "🔞": "/nsfw",
-        "🧾": "/list",
+        "🧰": Config.ARGS_COMMAND,
+        "🔞": Config.NSFW_COMMAND,
+        "🧾": Config.LIST_COMMAND,
     }
 
     if text in emoji_to_command:
         mapped = emoji_to_command[text]
         # Special case: headphones emoji should show audio usage hint
-        if mapped == "/audio":
+        if mapped == Config.AUDIO_COMMAND:
             from HELPERS.safe_messeger import safe_send_message
             safe_send_message(
                 message.chat.id,
@@ -318,24 +318,24 @@ def url_distractor(app, message):
             download_and_validate_youtube_cookies(app, fake_callback, selected_index=selected_index)
             return
             
-        #elif cookie_args == "instagram":
+        elif cookie_args == Messages.URL_EXTRACTOR_COOKIE_ARGS_INSTAGRAM_MSG:
             # Simulate Instagram button click
-            #from pyrogram.types import CallbackQuery
-            #from collections import namedtuple
+            from pyrogram.types import CallbackQuery
+            from collections import namedtuple
             
-            #FakeCallbackQuery = namedtuple('FakeCallbackQuery', ['from_user', 'message', 'data', 'id'])
-            #FakeUser = namedtuple('FakeUser', ['id'])
+            FakeCallbackQuery = namedtuple('FakeCallbackQuery', ['from_user', 'message', 'data', 'id'])
+            FakeUser = namedtuple('FakeUser', ['id'])
             
-            #fake_callback = FakeCallbackQuery(
-                #from_user=FakeUser(id=user_id),
-                #message=message,
-                #data="download_cookie|instagram",
-                #id="fake_callback_id"
-            #)
+            fake_callback = FakeCallbackQuery(
+                from_user=FakeUser(id=user_id),
+                message=message,
+                data="download_cookie|instagram",
+                id="fake_callback_id"
+            )
             
-            #from COMMANDS.cookies_cmd import download_and_save_cookie
-            #download_and_save_cookie(app, fake_callback, Config.INSTAGRAM_COOKIE_URL, "instagram")
-            #return
+            from COMMANDS.cookies_cmd import download_and_save_cookie
+            download_and_save_cookie(app, fake_callback, Config.INSTAGRAM_COOKIE_URL, "instagram")
+            return
             
         elif cookie_args == Messages.URL_EXTRACTOR_COOKIE_ARGS_TIKTOK_MSG:
             # Simulate TikTok button click
@@ -421,7 +421,7 @@ def url_distractor(app, message):
                 reply_parameters=ReplyParameters(message_id=fake_callback.message.id if hasattr(fake_callback.message, 'id') else None),
                 reply_markup=keyboard,
                 _callback_query=fake_callback,
-                _fallback_notice="⏳ Flood limit. Try later."
+                _fallback_notice=Messages.FLOOD_LIMIT_TRY_LATER_FALLBACK_MSG
             )
             return
             
@@ -432,19 +432,7 @@ def url_distractor(app, message):
         else:
             # Invalid argument - show usage message
             from pyrogram.types import ReplyParameters
-            usage_text = """
-<b>🍪 Cookie Command Usage</b>
-
-<code>/cookie</code> - Show cookie menu
-<code>/cookie youtube</code> - Download YouTube cookies
-<code>/cookie instagram</code> - Download Instagram cookies
-<code>/cookie tiktok</code> - Download TikTok cookies
-<code>/cookie x</code> or <code>/cookie twitter</code> - Download Twitter/X cookies
-<code>/cookie facebook</code> - Download Facebook cookies
-<code>/cookie custom</code> - Show custom cookie instructions
-
-<i>Available services depend on bot configuration.</i>
-"""
+            usage_text = Messages.COOKIE_COMMAND_USAGE_MSG
             app.send_message(
                 message.chat.id,
                 usage_text,
@@ -500,8 +488,8 @@ def url_distractor(app, message):
                 from COMMANDS.cookies_cmd import clear_youtube_cookie_cache
                 clear_youtube_cookie_cache(message.chat.id)
             except Exception as e:
-                logger.error(f"Failed to clear YouTube cookie cache: {e}")
-            send_to_all(message, "🗑 Cookie file removed and cache cleared.")
+                logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_CLEAR_YOUTUBE_CACHE_LOG_MSG.format(e=e))
+            send_to_all(message, Messages.COOKIE_FILE_REMOVED_CACHE_CLEARED_MSG)
             return
         elif clean_args in ["log", "logs"]:
             remove_media(message, only=["logs.txt"])
@@ -566,16 +554,16 @@ def url_distractor(app, message):
                     if os.path.isfile(file_path):
                         os.remove(file_path)
                         removed_files.append(file)
-                        logger.info(f"Removed file: {file_path}")
+                        logger.info(LoggerMsg.URL_EXTRACTOR_REMOVED_FILE_LOG_MSG.format(file_path=file_path))
                 except Exception as e:
-                    logger.error(f"Failed to remove file {file_path}: {e}")
+                    logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_REMOVE_FILE_LOG_MSG.format(file_path=file_path, e=e))
 
             # Clear YouTube cookie validation cache for this user
             try:
                 from COMMANDS.cookies_cmd import clear_youtube_cookie_cache
                 clear_youtube_cookie_cache(message.chat.id)
             except Exception as e:
-                logger.error(f"Failed to clear YouTube cookie cache: {e}")
+                logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_CLEAR_YOUTUBE_CACHE_LOG_MSG.format(e=e))
             
             if removed_files:
                 files_list = "\n".join([f"• {file}" for file in removed_files])
@@ -591,7 +579,7 @@ def url_distractor(app, message):
                 from COMMANDS.cookies_cmd import clear_youtube_cookie_cache
                 clear_youtube_cookie_cache(message.chat.id)
             except Exception as e:
-                logger.error(f"Failed to clear YouTube cookie cache: {e}")
+                logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_CLEAR_YOUTUBE_CACHE_LOG_MSG.format(e=e))
             clear_subs_check_cache()
             return
 
@@ -683,11 +671,11 @@ def url_distractor(app, message):
             try:
                 video_url_extractor(app, message)
             except Exception as e:
-                logger.error(f"video_url_extractor failed, fallback to gallery-dl: {e}")
+                logger.error(LoggerMsg.URL_EXTRACTOR_VIDEO_EXTRACTOR_FAILED_LOG_MSG.format(e=e))
                 try:
                     image_command(app, message)
                 except Exception as e2:
-                    logger.error(f"gallery-dl fallback also failed: {e2}")
+                    logger.error(LoggerMsg.URL_EXTRACTOR_GALLERY_DL_FALLBACK_FAILED_LOG_MSG.format(e2=e2))
         return
 
     # ----- Admin Commands -----
@@ -756,7 +744,7 @@ def url_distractor(app, message):
                     caption_editor(app, message)
         return
 
-    logger.info(f"{user_id} No matching command processed.")
+    logger.info(LoggerMsg.URL_EXTRACTOR_NO_MATCHING_COMMAND_LOG_MSG.format(user_id=user_id))
     clear_subs_check_cache()
 
 @app.on_callback_query(filters.regex("^keyboard\\|"))
@@ -786,7 +774,7 @@ def add_group_msg_callback(app, callback_query):
                 app.edit_message_text(
                     callback_query.message.chat.id,
                     callback_query.message.id,
-                    "🤖 Add bot to group helper closed"
+                    LoggerMsg.URL_EXTRACTOR_ADD_GROUP_HELPER_CLOSED_LOG_MSG
                 )
             
             # Answer callback query
@@ -797,7 +785,7 @@ def add_group_msg_callback(app, callback_query):
             
     except Exception as e:
         # Log error and answer callback
-        send_to_logger(callback_query.message, f"Error in add_group_msg callback handler: {e}")
+        send_to_logger(callback_query.message, LoggerMsg.URL_EXTRACTOR_ADD_GROUP_CALLBACK_ERROR_LOG_MSG.format(e=e))
         callback_query.answer(Messages.URL_EXTRACTOR_ERROR_OCCURRED_MSG, show_alert=True)
 
 ######################################################  
