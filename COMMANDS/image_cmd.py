@@ -300,6 +300,45 @@ def extract_profile_name(url):
         pass
     return None
 
+def extract_site_name(url):
+    """Extract site name from URL for hashtag generation"""
+    try:
+        if 'instagram.com/' in url:
+            return 'instagram'
+        elif 'twitter.com/' in url or 'x.com/' in url:
+            return 'twitter'
+        elif 'tiktok.com/' in url:
+            return 'tiktok'
+        elif 'youtube.com/' in url or 'youtu.be/' in url:
+            return 'youtube'
+        elif 'reddit.com/' in url:
+            return 'reddit'
+        elif 'pinterest.com/' in url:
+            return 'pinterest'
+        elif 'flickr.com/' in url:
+            return 'flickr'
+        elif 'deviantart.com/' in url:
+            return 'deviantart'
+        elif 'imgur.com/' in url:
+            return 'imgur'
+        elif 'tumblr.com/' in url:
+            return 'tumblr'
+        else:
+            # Extract domain name for other sites
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            domain = parsed.netloc.lower()
+            if domain.startswith('www.'):
+                domain = domain[4:]
+            # Remove common TLDs
+            domain_parts = domain.split('.')
+            if len(domain_parts) > 1:
+                return domain_parts[0]
+            return domain
+    except Exception:
+        pass
+    return None
+
 def is_image_url(url):
     """Check if URL is likely an image URL"""
     image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.svg']
@@ -1351,15 +1390,26 @@ def image_command(app, message):
                                                     _first = media_group[0]
                                                     _exist = getattr(_first, 'caption', None) or ''
                                                     
-                                                    # Create user caption with URL
+                                                    # Create user caption with hashtags first, then URL
                                                     user_caption_lines = []
+                                                    
+                                                    # Add profile and site hashtags first
+                                                    profile_name = extract_profile_name(url)
+                                                    site_name = extract_site_name(url)
+                                                    hashtags = []
+                                                    if profile_name:
+                                                        hashtags.append(f"#{profile_name}")
+                                                    if site_name:
+                                                        hashtags.append(f"#{site_name}")
+                                                    if hashtags:
+                                                        user_caption_lines.append(" ".join(hashtags))
+                                                    
+                                                    # Add user tags if any
                                                     if tags_text_norm:
                                                         user_caption_lines.append(tags_text_norm)
-                                                    user_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
-                                                    # Add profile hashtag
-                                                    profile_name = extract_profile_name(url)
-                                                    if profile_name:
-                                                        user_caption_lines.append(f"#{profile_name}")
+                                                    
+                                                    # Add URL with paperclip emoji
+                                                    user_caption_lines.append(f"🔗[Images URL]({url}) @{Config.BOT_NAME}")
                                                     user_caption = "\n".join(user_caption_lines)
                                                     
                                                     _sep = (' ' if _exist and not _exist.endswith('\n') else '')
@@ -1492,11 +1542,19 @@ def image_command(app, message):
                                             log_caption_lines = []
                                             if tags_text_norm:
                                                 log_caption_lines.append(tags_text_norm)
-                                            log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
-                                            # Add profile hashtag
+                                            # Add profile and site hashtags first
                                             profile_name = extract_profile_name(url)
+                                            site_name = extract_site_name(url)
+                                            hashtags = []
                                             if profile_name:
-                                                log_caption_lines.append(f"#{profile_name}")
+                                                hashtags.append(f"#{profile_name}")
+                                            if site_name:
+                                                hashtags.append(f"#{site_name}")
+                                            if hashtags:
+                                                log_caption_lines.append(" ".join(hashtags))
+                                            
+                                            # Add URL with paperclip emoji
+                                            log_caption_lines.append(f"🔗[Images URL]({url}) @{Config.BOT_NAME}")
                                             log_caption = "\n".join(log_caption_lines)
                                             
                                             for _idx, _media_obj in enumerate(media_group):
@@ -2343,11 +2401,19 @@ def image_command(app, message):
                                             user_caption_lines = []
                                             if tags_text_norm:
                                                 user_caption_lines.append(tags_text_norm)
-                                            user_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
-                                            # Add profile hashtag
+                                            # Add profile and site hashtags first
                                             profile_name = extract_profile_name(url)
+                                            site_name = extract_site_name(url)
+                                            hashtags = []
                                             if profile_name:
-                                                user_caption_lines.append(f"#{profile_name}")
+                                                hashtags.append(f"#{profile_name}")
+                                            if site_name:
+                                                hashtags.append(f"#{site_name}")
+                                            if hashtags:
+                                                user_caption_lines.append(" ".join(hashtags))
+                                            
+                                            # Add URL with paperclip emoji
+                                            user_caption_lines.append(f"🔗[Images URL]({url}) @{Config.BOT_NAME}")
                                             user_caption = "\n".join(user_caption_lines)
                                             
                                             _sep = (' ' if _exist and not _exist.endswith('\n') else '')
