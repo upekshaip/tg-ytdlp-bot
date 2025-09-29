@@ -2323,6 +2323,7 @@ def show_manual_quality_menu(app, callback_query):
 
 def show_other_qualities_menu(app, callback_query, page=0):
     """Show all available qualities from yt-dlp -F output with pagination"""
+    from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     user_id = callback_query.from_user.id
     
     # Local safe wrapper to avoid noisy QueryIdInvalid when answering twice/late
