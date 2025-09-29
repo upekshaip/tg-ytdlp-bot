@@ -2147,6 +2147,7 @@ def fallback_gallery_dl_callback(app, callback_query):
 # @reply_with_keyboard
 def show_manual_quality_menu(app, callback_query):
     """Show manual quality selection menu when automatic detection fails"""
+    from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     user_id = callback_query.from_user.id
     subs_available = ""
     found_type = None
