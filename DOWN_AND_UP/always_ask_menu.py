@@ -384,6 +384,7 @@ def _dub_flag(lang_code: str) -> str:
 
 @app.on_callback_query(filters.regex(r"^askf\|"))
 def ask_filter_callback(app, callback_query):
+    from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     logger.info(f"[ASKF] callback received: {callback_query.data}")
     user_id = callback_query.from_user.id
     parts = callback_query.data.split("|")
@@ -899,6 +900,7 @@ def build_filter_rows(user_id, url=None, is_private_chat=False):
 @app.on_callback_query(filters.regex(r"^askq\|"))
 # @reply_with_keyboard
 def askq_callback(app, callback_query):
+    from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     logger.info(f"[ASKQ] callback: {callback_query.data}")
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]
@@ -2097,6 +2099,7 @@ def askq_callback(app, callback_query):
 @app.on_callback_query(filters.regex(r"^fallback_gallery_dl\|"))
 def fallback_gallery_dl_callback(app, callback_query):
     """Handle fallback to gallery-dl when yt-dlp fails"""
+    from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     try:
         user_id = callback_query.from_user.id
         data_parts = callback_query.data.split("|")
@@ -2717,6 +2720,7 @@ def show_other_qualities_menu(app, callback_query, page=0):
 
 def show_formats_from_cache(app, callback_query, format_lines, page, url):
     """Show formats from cached data for fast navigation"""
+    from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     user_id = callback_query.from_user.id
     logger.info(f"Showing formats from cache for user {user_id}, page {page}, {len(format_lines)} formats")
     
@@ -3064,6 +3068,7 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
 # @reply_with_keyboard
 def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
     """Show quality selection menu for video"""
+    from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     user_id = message.chat.id
     proc_msg = None
     # Defensive init to avoid UnboundLocalError in rare branches
