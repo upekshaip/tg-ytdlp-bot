@@ -29,6 +29,7 @@ from DATABASE.firebase_init import is_user_blocked
 import os
 from URL_PARSERS.video_extractor import video_url_extractor
 from URL_PARSERS.playlist_utils import is_playlist_with_range
+from URL_PARSERS.tags import extract_url_range_tags
 from pyrogram import filters
 import re
 from CONFIG.config import Config
@@ -674,7 +675,6 @@ def url_distractor(app, message):
                 logger.error(LoggerMsg.URL_EXTRACTOR_VIDEO_EXTRACTOR_FAILED_LOG_MSG.format(e=e))
                 try:
                     # Create proper /img command from URL
-                    from URL_PARSERS.tags import extract_url_range_tags
                     from HELPERS.safe_messeger import fake_message
                     
                     # Extract URL and range from original message

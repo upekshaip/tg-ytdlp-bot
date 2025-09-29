@@ -887,7 +887,8 @@ def image_command(app, message):
             # Upper cap: if user provided end, respect it (but not above limit for non-admins)
             if manual_range[1] is not None:
                 manual_end_cap = manual_range[1] if is_admin else min(manual_range[1], total_limit)
-                total_expected = manual_end_cap  # show as expected
+                # Calculate correct expected count for range (end - start + 1)
+                total_expected = manual_end_cap - current_start + 1
         
         # For small totals, set end cap to avoid range issues
         if detected_total and detected_total <= 10 and manual_range is None:

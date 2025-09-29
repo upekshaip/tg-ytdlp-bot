@@ -2098,10 +2098,18 @@ def fallback_gallery_dl_callback(app, callback_query):
     """Handle fallback to gallery-dl when yt-dlp fails"""
     try:
         user_id = callback_query.from_user.id
-        data = callback_query.data.split("|")[1]  # Extract URL from callback data
-        url = data
+        data_parts = callback_query.data.split("|")
+        url = data_parts[1]  # Extract URL from callback data
         
-        logger.info(f"Fallback to gallery-dl requested for user {user_id}: {url}")
+        # Extract range from callback data if available
+        if len(data_parts) >= 4:
+            video_start_with = int(data_parts[2])
+            video_end_with = int(data_parts[3])
+        else:
+            video_start_with = 1
+            video_end_with = 1
+        
+        logger.info(f"Fallback to gallery-dl requested for user {user_id}: {url} (range: {video_start_with}-{video_end_with})")
         
         # Answer callback query
         callback_query.answer("🔄 Switching to gallery-dl...")
@@ -2109,24 +2117,14 @@ def fallback_gallery_dl_callback(app, callback_query):
         # Import gallery-dl command
         from COMMANDS.image_cmd import image_command
         from HELPERS.safe_messeger import fake_message
-        from URL_PARSERS.tags import extract_url_range_tags
-        
-        # Extract range from the original message text
-        original_text = callback_query.message.reply_to_message.text if callback_query.message.reply_to_message else ""
-        if not original_text:
-            # Try to get from message text if no reply
-            original_text = callback_query.message.text or ""
-        
-        # Parse URL and range from original text
-        parsed_url, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(original_text)
         
         # Create fallback command with range if available
         if video_start_with and video_end_with and (video_start_with != 1 or video_end_with != 1):
             # Convert *1*20 format to 1-20 format for gallery-dl
-            fallback_text = f"/img {video_start_with}-{video_end_with} {parsed_url}"
+            fallback_text = f"/img {video_start_with}-{video_end_with} {url}"
             logger.info(f"Fallback with range: {video_start_with}-{video_end_with}")
         else:
-            fallback_text = f"/img {parsed_url}"
+            fallback_text = f"/img {url}"
             logger.info(f"Fallback without range")
         
         fake_msg = fake_message(fallback_text, user_id, original_chat_id=user_id)
@@ -3187,7 +3185,6 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 original_error = info.get('original_error', 'Unknown error')
                 
                 # Extract range info for better messaging
-                from URL_PARSERS.tags import extract_url_range_tags
                 _, video_start_with, video_end_with, _, _, _, _ = extract_url_range_tags(message.text or "")
                 
                 # Create fallback message with gallery-dl option
@@ -3211,8 +3208,13 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 
                 # Create inline keyboard with gallery-dl option
                 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+                # Include range info in callback data
+                if video_start_with and video_end_with and (video_start_with != 1 or video_end_with != 1):
+                    callback_data = f"fallback_gallery_dl|{url}|{video_start_with}|{video_end_with}"
+                else:
+                    callback_data = f"fallback_gallery_dl|{url}|1|1"
                 keyboard = [
-                    [InlineKeyboardButton("🖼 Try Gallery-dl", callback_data=f"fallback_gallery_dl|{url}")]
+                    [InlineKeyboardButton("🖼 Try Gallery-dl", callback_data=callback_data)]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 

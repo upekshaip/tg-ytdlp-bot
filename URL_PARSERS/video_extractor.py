@@ -44,7 +44,8 @@ def video_url_extractor(app, message):
             saved_format = fmt
 
     if should_ask:
-        url, video_start_with, _, _, tags, _, tag_error = extract_url_range_tags(message.text)
+        full_string = message.text
+        url, video_start_with, _, _, tags, _, tag_error = extract_url_range_tags(full_string)
         # Add tag error check
         if tag_error:
             wrong, example = tag_error
