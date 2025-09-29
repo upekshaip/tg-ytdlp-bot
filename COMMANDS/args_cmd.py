@@ -93,7 +93,7 @@ def start_input_state_timer(user_id: int, thread_id: int = None):
                 getattr(Messages, 'ARGS_INPUT_TIMEOUT_MSG', "⏰ Input mode automatically closed due to inactivity (5 minutes).")
             )
         except Exception as e:
-            logger.error(f"Error sending timeout message: {e}")
+            logger.error(Messages.ARGS_ERROR_SENDING_TIMEOUT_MSG.format(error=e))
     
     # Cancel existing timer if any
     if thread_id:
@@ -553,7 +553,7 @@ def get_args_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
         if not pconfig or pconfig.get("type") != "boolean":
             return
         current_value = user_args.get(pname, pconfig.get("default", False))
-        status = "✅" if current_value else "❌"
+        status = Messages.ARGS_STATUS_TRUE_MSG if current_value else Messages.ARGS_STATUS_FALSE_MSG
         short_desc = short_descriptions.get(pname, pconfig['description'][:15])
         btn_text = f"{status} {short_desc}"
         if len(btn_text) > 30:
@@ -619,7 +619,7 @@ def get_args_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
                     display_value = "True" if current_value else "False"
                 else:
                     display_value = str(current_value)
-                status = "✅" if current_value else "❌"
+                status = Messages.ARGS_STATUS_TRUE_MSG if current_value else Messages.ARGS_STATUS_FALSE_MSG
             else:
                 status = f"🔢 {current_value}"
                 display_value = str(current_value)
@@ -687,14 +687,14 @@ def get_boolean_menu_keyboard(param_name: str, current_value: bool) -> InlineKey
     """Generate boolean parameter menu keyboard"""
     buttons = [
         [InlineKeyboardButton(
-            "✅ True",
+            Messages.ARGS_TRUE_BUTTON_MSG,
             callback_data=f"args_bool_{param_name}_true"
         )],
         [InlineKeyboardButton(
-            "❌ False", 
+            Messages.ARGS_FALSE_BUTTON_MSG, 
             callback_data=f"args_bool_{param_name}_false"
         )],
-        [InlineKeyboardButton("🔙 Back", callback_data="args_back")]
+        [InlineKeyboardButton(Messages.ARGS_BACK_BUTTON_MSG, callback_data="args_back")]
     ]
     return InlineKeyboardMarkup(buttons)
 
@@ -705,7 +705,7 @@ def get_select_menu_keyboard(param_name: str, current_value: str) -> InlineKeybo
     
     buttons = []
     for option in options:
-        status = "✅" if option == current_value else "⚪"
+        status = Messages.ARGS_STATUS_SELECTED_MSG if option == current_value else Messages.ARGS_STATUS_UNSELECTED_MSG
         buttons.append([InlineKeyboardButton(
             f"{status} {option}",
             callback_data=f"args_select_{param_name}_{option}"
@@ -788,7 +788,7 @@ def format_current_args(user_args: Dict[str, Any]) -> str:
         description = param_config.get("description", param_name)
         
         if isinstance(value, bool):
-            display_value = "✅ True" if value else "❌ False"
+            display_value = Messages.ARGS_STATUS_TRUE_DISPLAY_MSG if value else Messages.ARGS_STATUS_FALSE_DISPLAY_MSG
         elif isinstance(value, (int, float)):
             display_value = str(value)
         else:
@@ -901,7 +901,7 @@ def args_callback_handler(app, callback_query):
                 keyboard = get_boolean_menu_keyboard(param_name, current_value)
                 callback_query.edit_message_text(
                     f"<b>⚙️ {param_config['description']}</b>\n\n"
-                    f"Current value: {'✅ True' if current_value else '❌ False'}",
+                    f"Current value: {Messages.ARGS_STATUS_TRUE_DISPLAY_MSG if current_value else Messages.ARGS_STATUS_FALSE_DISPLAY_MSG}",
                     reply_markup=keyboard
                 )
             
@@ -1092,7 +1092,7 @@ def handle_args_text_input(app, message):
             clear_input_state_timer(user_id, thread_id)
             safe_send_message(
                 user_id,
-                f"✅ {YTDLP_PARAMS[param_name]['description']} set to: <code>{text}</code>",
+                    Messages.ARGS_PARAM_SET_TO_MSG.format(description=YTDLP_PARAMS[param_name]['description'], value=text),
                 parse_mode=enums.ParseMode.HTML,
                 message=message
             )
@@ -1103,7 +1103,7 @@ def handle_args_text_input(app, message):
                 import json
                 parsed_json = json.loads(text)
                 if not isinstance(parsed_json, dict):
-                    error_msg = "❌ JSON must be an object (dictionary)."
+                    error_msg = Messages.ARGS_JSON_MUST_BE_OBJECT_MSG
                     safe_send_message(user_id, error_msg, message=message)
                     from HELPERS.logger import log_error_to_channel
                     log_error_to_channel(message, error_msg)
@@ -1118,13 +1118,13 @@ def handle_args_text_input(app, message):
                 clear_input_state_timer(user_id, thread_id)
                 safe_send_message(
                     user_id,
-                    f"✅ {YTDLP_PARAMS[param_name]['description']} set to: <code>{text}</code>",
+                    Messages.ARGS_PARAM_SET_TO_MSG.format(description=YTDLP_PARAMS[param_name]['description'], value=text),
                     parse_mode=enums.ParseMode.HTML,
                     message=message
                 )
                 
             except json.JSONDecodeError:
-                error_msg = "❌ Invalid JSON format. Please provide valid JSON."
+                error_msg = Messages.ARGS_INVALID_JSON_FORMAT_MSG
                 safe_send_message(user_id, error_msg, message=message)
                 from HELPERS.logger import log_error_to_channel
                 log_error_to_channel(message, error_msg)
@@ -1155,7 +1155,7 @@ def handle_args_text_input(app, message):
                 clear_input_state_timer(user_id, thread_id)
                 safe_send_message(
                     user_id,
-                    f"✅ {YTDLP_PARAMS[param_name]['description']} set to: <code>{'True' if value else 'False'}</code>",
+                    Messages.ARGS_PARAM_SET_TO_MSG.format(description=YTDLP_PARAMS[param_name]['description'], value='True' if value else 'False'),
                     parse_mode=enums.ParseMode.HTML,
                     message=message
                 )
@@ -1170,7 +1170,7 @@ def handle_args_text_input(app, message):
                     if value < min_val or value > max_val:
                         safe_send_message(
                             user_id,
-                            f"❌ Value must be between {min_val} and {max_val}.",
+                            Messages.ARGS_VALUE_MUST_BE_BETWEEN_MSG.format(min_val=min_val, max_val=max_val),
                             message=message
                         )
                         return
@@ -1184,7 +1184,7 @@ def handle_args_text_input(app, message):
                     clear_input_state_timer(user_id, thread_id)
                     safe_send_message(
                         user_id,
-                        f"✅ {YTDLP_PARAMS[param_name]['description']} set to: <code>{value}</code>",
+                        Messages.ARGS_PARAM_SET_TO_MSG.format(description=YTDLP_PARAMS[param_name]['description'], value=value),
                         parse_mode=enums.ParseMode.HTML,
                         message=message
                     )

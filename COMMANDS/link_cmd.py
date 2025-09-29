@@ -115,17 +115,17 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
             has_working_cookies = ensure_working_youtube_cookies(user_id)
             if has_working_cookies and os.path.exists(user_cookie_path):
                 ytdl_opts['cookiefile'] = user_cookie_path
-                logger.info(f"Using working YouTube cookies for link extraction for user {user_id}")
+                logger.info(Messages.LINK_USING_WORKING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
             else:
                 ytdl_opts['cookiefile'] = None
-                logger.info(f"No working YouTube cookies available for link extraction for user {user_id}")
+                logger.info(Messages.LINK_NO_WORKING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
         elif is_youtube_url(url) and cookies_already_checked:
             if os.path.exists(user_cookie_path):
                 ytdl_opts['cookiefile'] = user_cookie_path
-                logger.info(f"Using existing YouTube cookies for link extraction for user {user_id}")
+                logger.info(Messages.LINK_USING_EXISTING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
             else:
                 ytdl_opts['cookiefile'] = None
-                logger.info(f"No YouTube cookies found for link extraction for user {user_id}")
+                logger.info(Messages.LINK_NO_YOUTUBE_COOKIES_FOUND_MSG.format(user_id=user_id))
         else:
             # For non-YouTube URL use existing logic
             if os.path.exists(user_cookie_path):
@@ -138,7 +138,7 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
                         import shutil
                         shutil.copy2(global_cookie_path, user_cookie_path)
                         ytdl_opts['cookiefile'] = user_cookie_path
-                        logger.info(f"Copied global cookie file to user {user_id} folder for link extraction")
+                        logger.info(Messages.LINK_COPIED_GLOBAL_COOKIE_FILE_MSG.format(user_id=user_id))
                     except Exception as e:
                         logger.error(f"Failed to copy global cookie file for user {user_id}: {e}")
                         ytdl_opts['cookiefile'] = None

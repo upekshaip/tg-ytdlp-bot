@@ -94,7 +94,7 @@ def list_command(app, message):
 Messages.LIST_HELP_MSG
             )
             keyboard = InlineKeyboardMarkup([[
-                InlineKeyboardButton("🔚 Close", callback_data="list_help|close")
+                InlineKeyboardButton(Messages.LIST_CLOSE_BUTTON_MSG, callback_data="list_help|close")
             ]])
             safe_send_message(
                 user_id,
@@ -135,7 +135,7 @@ Messages.LIST_PROCESSING_MSG,
             
             # Create temporary file with output
             with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as temp_file:
-                temp_file.write(f"Available formats for: {url}\n")
+                temp_file.write(Messages.LIST_AVAILABLE_FORMATS_HEADER_MSG.format(url=url) + "\n")
                 temp_file.write("=" * 50 + "\n\n")
                 temp_file.write(output)
                 temp_file.write("\n\n" + "=" * 50 + "\n")
@@ -166,7 +166,7 @@ Messages.LIST_PROCESSING_MSG,
                 app.send_document(
                     user_id,
                     document=temp_file_path,
-                    file_name=f"formats_{user_id}.txt",
+                    file_name=Messages.LIST_FORMATS_FILE_NAME_MSG.format(user_id=user_id),
                     caption=caption,
                     reply_to_message_id=message.id
                 )

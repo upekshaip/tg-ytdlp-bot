@@ -36,9 +36,9 @@ def parse_size_argument(arg):
     unit = match.group(2)
     
     # Convert to bytes
-    if unit == "mb":
+    if unit == "MB":
         size_bytes = int(number * 1024 * 1024)
-    elif unit == "gb":
+    elif unit == "GB":
         size_bytes = int(number * 1024 * 1024 * 1024)
     else:
         return None
@@ -105,7 +105,7 @@ def split_command(app, message):
                 text, size = sizes[i + j]
                 row.append(InlineKeyboardButton(text, callback_data=f"split_size|{size}"))
         buttons.append(row)
-    buttons.append([InlineKeyboardButton("🔚Close", callback_data="split_size|close")])
+    buttons.append([InlineKeyboardButton(Messages.SPLIT_CLOSE_BUTTON_MSG, callback_data="split_size|close")])
     keyboard = InlineKeyboardMarkup(buttons)
     safe_send_message(user_id, 
 Messages.SPLIT_MENU_TITLE_MSG, 

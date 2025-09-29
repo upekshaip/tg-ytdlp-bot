@@ -2,6 +2,7 @@
 # This module provides a way to register handlers that will be applied when app is initialized
 
 from HELPERS.app_instance import get_app_lazy
+from CONFIG.messages import Messages
 
 class HandlerRegistry:
     def __init__(self):
@@ -10,7 +11,8 @@ class HandlerRegistry:
     def register(self, handler_type, filters=None):
         """Register a handler to be applied when app is ready"""
         def decorator(func):
-            print(f"🔍 Registering handler: {handler_type} - {func.__name__}")
+            from CONFIG.messages import Messages
+            print(Messages.HANDLER_REGISTERING_MSG.format(handler_type=handler_type, func_name=func.__name__))
             self.handlers.append((handler_type, filters, func))
             return func
         return decorator

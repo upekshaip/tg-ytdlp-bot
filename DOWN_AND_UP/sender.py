@@ -36,7 +36,7 @@ def get_user_args(user_id: int):
         with open(args_file, 'r', encoding='utf-8') as f:
             return json.load(f)
     except Exception as e:
-        logger.error(f"Error reading user args for {user_id}: {e}")
+        logger.error(Messages.SENDER_ERROR_READING_USER_ARGS_MSG.format(user_id=user_id, error=e))
         return {}
 
 def send_videos(
@@ -76,7 +76,7 @@ def send_videos(
         try:
             width, height, _ = get_video_info_ffprobe(video_abs_path)
         except Exception as e:
-            logger.error(f"[FFPROBE BYPASS] Error while processing video{video_abs_path}: {e}")
+            logger.error(Messages.SENDER_FFPROBE_BYPASS_ERROR_MSG.format(video_path=video_abs_path, error=e))
             import traceback
             logger.error(traceback.format_exc())
             width, height = 0, 0
@@ -445,7 +445,7 @@ def send_videos(
         try:
             # Check if user wants to send as file
             if send_as_file:
-                logger.info(f"User {user_id} has send_as_file enabled, sending as document")
+                logger.info(Messages.SENDER_USER_SEND_AS_FILE_ENABLED_MSG.format(user_id=user_id))
                 video_msg = _fallback_send_document(cap)
             else:
                 # Первая попытка с полным описанием, с ограничением на количество ретраев по таймауту
@@ -458,7 +458,7 @@ def send_videos(
                         if "Request timed out" in str(e) or isinstance(e, TimeoutError):
                             attempts_left -= 1
                             if attempts_left <= 0:
-                                logger.warning("send_video timed out repeatedly; falling back to send_document")
+                                logger.warning(Messages.SENDER_SEND_VIDEO_TIMED_OUT_MSG)
                                 video_msg = _fallback_send_document(cap)
                                 break
                             time.sleep(2)
@@ -466,7 +466,7 @@ def send_videos(
                         raise
         except Exception as e:
             if "MEDIA_CAPTION_TOO_LONG" in str(e):
-                logger.info("Caption too long, trying with minimal caption")
+                logger.info(Messages.SENDER_CAPTION_TOO_LONG_MSG)
                 # If the caption is too long, try sending only with the main information
                 minimal_cap = ''
                 if title_html:
@@ -488,14 +488,14 @@ def send_videos(
                                 if "Request timed out" in str(e2) or isinstance(e2, TimeoutError):
                                     attempts_left -= 1
                                     if attempts_left <= 0:
-                                        logger.warning("send_video (minimal caption) timed out; fallback to send_document")
+                                        logger.warning(Messages.SENDER_SEND_VIDEO_MINIMAL_CAPTION_TIMED_OUT_MSG)
                                         video_msg = _fallback_send_document(minimal_cap)
                                         break
                                     time.sleep(2)
                                     continue
                                 raise
                 except Exception as e:
-                    logger.error(f"Error sending video with minimal caption: {e}")
+                    logger.error(Messages.SENDER_ERROR_SENDING_VIDEO_MINIMAL_CAPTION_MSG.format(error=e))
                     # Последний фолбэк — без описания, с документом при таймауте
                     try:
                         if send_as_file:
@@ -529,7 +529,7 @@ def send_videos(
                 )
                 # Note: Description file forwarding is handled in down_and_up.py
             except Exception as e:
-                logger.error(f"Error sending full description file: {e}")
+                logger.error(Messages.SENDER_ERROR_SENDING_FULL_DESCRIPTION_FILE_MSG.format(error=e))
                 from HELPERS.logger import send_error_to_user
                 send_error_to_user(message, Messages.ERROR_SENDING_DESCRIPTION_FILE_MSG.format(error=str(e)))
         return video_msg
@@ -538,7 +538,7 @@ def send_videos(
             try:
                 os.remove(temp_desc_path)
             except Exception as e:
-                logger.error(f"Error removing temporary description file: {e}")
+                logger.error(Messages.SENDER_ERROR_REMOVING_TEMP_DESCRIPTION_FILE_MSG.format(error=e))
                 # This is not critical enough to log to LOG_EXCEPTION channel
 
 #####################################################################################

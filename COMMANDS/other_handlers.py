@@ -85,7 +85,7 @@ def audio_command_handler(app, message):
         return
     if not url:
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚Close", callback_data="audio_hint|close")]
+            [InlineKeyboardButton(Messages.OTHER_AUDIO_HINT_CLOSE_BUTTON_MSG, callback_data="audio_hint|close")]
         ])
         safe_send_message(
             user_id,
@@ -136,7 +136,7 @@ def playlist_command(app, message):
         return
 
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔚Close", callback_data="playlist_help|close")]
+        [InlineKeyboardButton(Messages.OTHER_PLAYLIST_HELP_CLOSE_BUTTON_MSG, callback_data="playlist_help|close")]
     ])
     safe_send_message(user_id, Messages.PLAYLIST_HELP_MSG, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, message=message)
     send_to_logger(message, Messages.PLAYLIST_HELP_REQUESTED_LOG_MSG)

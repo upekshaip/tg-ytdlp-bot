@@ -55,6 +55,7 @@ import chardet
 ###########################################################
 # CONFIG
 from CONFIG.config import Config
+from CONFIG.messages import Messages
 # from test_config import Config
 
 # HELPERS (только те, что не содержат обработчики)
@@ -127,7 +128,7 @@ from COMMANDS.cookies_cmd import download_cookie
 # DOWN_AND_UP (с обработчиками - импортируем после установки app)
 from DOWN_AND_UP.always_ask_menu import *
 
-print("✅ All modules are loaded")
+print(Messages.MAGIC_ALL_MODULES_LOADED_MSG)
 
 ###########################################################
 #        BOT KEYBOARD
@@ -238,7 +239,7 @@ def _vid_handler(app, message):
             from HELPERS.safe_messeger import safe_send_message
             from pyrogram import enums
             from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-            kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔚Close", callback_data="vid_help|close")]])
+            kb = InlineKeyboardMarkup([[InlineKeyboardButton(Messages.URL_EXTRACTOR_VID_HELP_CLOSE_BUTTON_MSG, callback_data="vid_help|close")]])
             help_text = (
                 "<b>🎬 Video Download Command</b>\n\n"
                 "Usage: <code>/vid URL</code>\n\n"
@@ -253,7 +254,7 @@ def _vid_handler(app, message):
         from HELPERS.safe_messeger import safe_send_message
         from pyrogram import enums
         from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔚Close", callback_data="vid_help|close")]])
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton(Messages.URL_EXTRACTOR_VID_HELP_CLOSE_BUTTON_MSG, callback_data="vid_help|close")]])
         help_text = (
             "<b>🎬 Video Download Command</b>\n\n"
             "Usage: <code>/vid URL</code>\n\n"
@@ -283,7 +284,7 @@ def vid_help_callback(app, callback_query):
             except Exception:
                 pass
         try:
-            callback_query.answer("Help closed.")
+            callback_query.answer(Messages.MAGIC_HELP_CLOSED_MSG)
         except Exception:
             pass
         return
@@ -311,11 +312,11 @@ def cleanup_on_exit():
             from HELPERS.logger import close_logger
             close_logger()
         except Exception as e:
-            print(f"❌ Error closing logger: {e}")
+            print(Messages.MAGIC_ERROR_CLOSING_LOGGER_MSG.format(error=e))
         
-        print("✅ Cleanup completed on exit")
+        print(Messages.MAGIC_CLEANUP_COMPLETED_MSG)
     except Exception as e:
-        print(f"❌ Error during cleanup: {e}")
+        print(Messages.MAGIC_ERROR_DURING_CLEANUP_MSG.format(error=e))
 
 # Register cleanup function
 atexit.register(cleanup_on_exit)

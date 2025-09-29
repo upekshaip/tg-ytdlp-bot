@@ -75,13 +75,13 @@ def clean_option_callback(app, callback_query):
     elif data == "back":
         # Back to the cookies menu
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📥 /cookie - Download my 5 cookies",
+            [InlineKeyboardButton(Messages.CLEAN_COOKIE_DOWNLOAD_BUTTON_MSG,
                                   callback_data="settings__cmd__download_cookie")],
-            [InlineKeyboardButton("🌐 /cookies_from_browser - Get browser's YT-cookie",
+            [InlineKeyboardButton(Messages.CLEAN_COOKIES_FROM_BROWSER_BUTTON_MSG,
                                   callback_data="settings__cmd__cookies_from_browser")],
-            [InlineKeyboardButton("🔎 /check_cookie - Validate your cookie file",
+            [InlineKeyboardButton(Messages.CLEAN_CHECK_COOKIE_BUTTON_MSG,
                                   callback_data="settings__cmd__check_cookie")],
-            [InlineKeyboardButton("🔖 /save_as_cookie - Upload custom cookie",
+            [InlineKeyboardButton(Messages.CLEAN_SAVE_AS_COOKIE_BUTTON_MSG,
                                   callback_data="settings__cmd__save_as_cookie")],
             [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
         ])

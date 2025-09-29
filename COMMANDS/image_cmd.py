@@ -11,6 +11,7 @@ from pyrogram import enums
 from pyrogram.errors import FloodWait
 from HELPERS.logger import send_to_logger, logger, get_log_channel
 from CONFIG.logger_msg import LoggerMsg
+from CONFIG.messages import Messages
 from HELPERS.app_instance import get_app
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
 import HELPERS.safe_messeger as sm
@@ -423,7 +424,7 @@ def image_command(app, message):
     if len(text.split()) < 2:
         # Show help if no URL provided
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚Close", callback_data="img_help|close")]
+            [InlineKeyboardButton(Messages.COMMAND_IMAGE_HELP_CLOSE_BUTTON_MSG, callback_data="img_help|close")]
         ])
         safe_send_message(
             user_id,
@@ -714,9 +715,7 @@ def image_command(app, message):
                 
                 safe_send_message(
                     user_id,
-                    f"❗️ Media limit exceeded: {detected_total} files found (maximum {max_img_files}).\n\n"
-                    f"Use one of these commands to download maximum available files:\n\n"
-                    f"<code>/img {start_range}-{end_range} {url}</code>\n\n"
+                    Messages.COMMAND_IMAGE_MEDIA_LIMIT_EXCEEDED_MSG.format(count=detected_total, max_count=max_img_files, start_range=start_range, end_range=end_range, url=url, suggested_command_url_format=f"/img {start_range}-{end_range} {url}") +
                     f"<code>{suggested_command_url_format}</code>",
                     parse_mode=enums.ParseMode.HTML,
                     reply_parameters=ReplyParameters(message_id=message.id)
@@ -727,7 +726,7 @@ def image_command(app, message):
         elif detected_total and detected_total > 0:
             total_expected = detected_total
         # Streaming download: run range-based batches (1-10, 11-20, ...) scoped to a unique per-run directory
-        run_dir = os.path.join("users", str(user_id), f"run_{int(time.time())}")
+        run_dir = os.path.join("users", str(user_id), Messages.COMMAND_IMAGE_RUN_DIRECTORY_MSG.format(timestamp=int(time.time())))
         create_directory(run_dir)
         files_to_cleanup = []
 
@@ -786,26 +785,56 @@ def image_command(app, message):
             manual_end_cap = detected_total
             total_expected = detected_total
             logger.info(f"[IMG BATCH] Small total detected: {detected_total}, setting end cap to {manual_end_cap}")
+        # Timeout tracking variables
+        range_start_time = time.time()
+        max_range_wait_time = LimitsConfig.MAX_IMG_RANGE_WAIT_TIME
+        max_total_wait_time = LimitsConfig.MAX_IMG_TOTAL_WAIT_TIME
+        total_start_time = time.time()
+        last_activity_time = time.time()  # Track last time we found new files
+        max_inactivity_time = LimitsConfig.MAX_IMG_INACTIVITY_TIME
+        
         # helper to run one range and wait for files to appear
         def run_and_collect(next_end: int):
             # For single item or when total is small, use range 1-1 to avoid API issues
             if (current_start == next_end and next_end == 1) or (detected_total and detected_total <= 10):
                 logger.info(f"Downloading with range 1-1 (total={detected_total}, start={current_start}, end={next_end})")
-                ok = download_image_range_cli(url, "1-1", user_id, use_proxy, output_dir=run_dir)
-                if not ok:
+                result = download_image_range_cli(url, "1-1", user_id, use_proxy, output_dir=run_dir)
+                if isinstance(result, str):  # 401 Unauthorized error message
+                    return result
+                if not result:
                     logger.warning(f"CLI download failed, trying Python API.")
-                    return download_image_range(url, "1-1", user_id, use_proxy, run_dir)
+                    result = download_image_range(url, "1-1", user_id, use_proxy, run_dir)
+                    if isinstance(result, str):  # 401 Unauthorized error message
+                        return result
+                    return result
             else:
                 range_expr = f"{current_start}-{next_end}"
                 # Prefer CLI to enforce strict range behavior across gallery-dl versions
                 logger.info(f"Prepared range: {range_expr}")
-                ok = download_image_range_cli(url, range_expr, user_id, use_proxy, output_dir=run_dir)
-                if not ok:
+                result = download_image_range_cli(url, range_expr, user_id, use_proxy, output_dir=run_dir)
+                if isinstance(result, str):  # 401 Unauthorized error message
+                    return result
+                if not result:
                     logger.warning(f"CLI range download failed or rejected for {range_expr}, trying Python API.")
-                    return download_image_range(url, range_expr, user_id, use_proxy, run_dir)
+                    result = download_image_range(url, range_expr, user_id, use_proxy, run_dir)
+                    if isinstance(result, str):  # 401 Unauthorized error message
+                        return result
+                    return result
             return True
 
         while True:
+            # Check total timeout
+            total_elapsed = time.time() - total_start_time
+            if total_elapsed > max_total_wait_time:
+                logger.warning(f"[IMG BATCH] Total timeout reached ({max_total_wait_time}s), stopping download after {total_elapsed:.1f}s")
+                break
+                
+            # Check inactivity timeout - if no new files found for too long
+            inactivity_elapsed = time.time() - last_activity_time
+            if inactivity_elapsed > max_inactivity_time:
+                logger.warning(f"[IMG BATCH] Inactivity timeout reached ({max_inactivity_time}s), no new files found for {inactivity_elapsed:.1f}s")
+                break
+                
             # Only download next range if buffer is empty (strict batching)
             if len(photos_videos_buffer) == 0:
                 upper_cap = manual_end_cap or total_expected
@@ -816,10 +845,58 @@ def image_command(app, message):
                     if upper_cap:
                         next_end = min(next_end, upper_cap)
                     logger.info(f"[IMG BATCH] Starting download range {current_start}-{next_end}")
-                    run_and_collect(next_end)
-                    current_start = next_end + 1
+                    
+                    # Reset range timer
+                    range_start_time = time.time()
+                    
+                    # Count files before download
+                    files_before = len(seen_files)
+                    result = run_and_collect(next_end)
+                    
+                    # Check for fatal errors
+                    if isinstance(result, str) and ":" in result and any(error_type in result for error_type in [
+                        "Authentication Error", "Account Not Found", "Account Unavailable", 
+                        "Rate Limit Exceeded", "Network Error", "Content Unavailable",
+                        "Geographic Restrictions", "Verification Required", "Policy Violation"
+                    ]):
+                        logger.error(f"Fatal error detected: {result}")
+                        # Send error message to user and stop downloading
+                        safe_edit_message_text(
+                            user_id, status_msg.id,
+                            Messages.IMG_INSTAGRAM_AUTH_ERROR_MSG.format(
+                                error_type=result.split(':')[0],
+                                url=url,
+                                error_details=result.split(':', 1)[1].strip()
+                            ),
+                            parse_mode=enums.ParseMode.HTML
+                        )
+                        send_to_logger(message, f"Fatal error in image download: {result}")
+                        return
+                    
                     # Wait for download to complete before processing files
                     time.sleep(2)
+                    
+                    # Count files after download
+                    files_after = len(seen_files)
+                    files_downloaded_in_range = files_after - files_before
+                    expected_files = next_end - current_start + 1
+                    
+                    elapsed_time = time.time() - range_start_time
+                    logger.info(f"[IMG BATCH] Downloaded {files_downloaded_in_range} files in range {current_start}-{next_end} (expected {expected_files}) in {elapsed_time:.1f}s")
+                    
+                    # Check if we got no files at all (gallery-dl found nothing)
+                    if files_downloaded_in_range == 0:
+                        logger.info(f"[IMG BATCH] No files downloaded in range {current_start}-{next_end}, media appears to have ended")
+                        break
+                    
+                    # Check if we got significantly fewer files than expected (less than 50% of expected)
+                    # This indicates the media has ended
+                    if files_downloaded_in_range < expected_files * 0.5 and files_downloaded_in_range > 0:
+                        logger.info(f"[IMG BATCH] Media appears to have ended - got {files_downloaded_in_range} files instead of expected {expected_files}")
+                        # Process remaining files and break
+                        break
+                    
+                    current_start = next_end + 1
             # Find new files
             if os.path.exists(gallery_dl_dir):
                 for root, _, files in os.walk(gallery_dl_dir):
@@ -850,6 +927,7 @@ def image_command(app, message):
                             continue
                         seen_files.add(file_path)
                         total_downloaded += 1
+                        last_activity_time = time.time()  # Update activity time when we find new files
 
                         # Enforce cap (but not for admins)
                         if not is_admin and total_downloaded > total_limit:
@@ -2650,7 +2728,27 @@ def image_command(app, message):
             if not is_admin and total_sent >= total_limit:
                 break
 
+            # Check if we've been waiting too long for files in current range
+            # Only apply this timeout if we haven't found any files in this range yet
+            if time.time() - range_start_time > max_range_wait_time:
+                logger.warning(f"[IMG BATCH] Range timeout reached ({max_range_wait_time}s), no new files found in current range")
+                break
+
             time.sleep(0.5)
+
+        # Update status to show completion
+        try:
+            final_expected = total_expected or min(total_downloaded, total_limit)
+            safe_edit_message_text(
+                user_id,
+                status_msg.id,
+                Config.DOWNLOAD_COMPLETE_MSG +
+                f"Downloaded: <b>{total_downloaded}</b> / <b>{final_expected}</b>\n"
+                f"Sent: <b>{total_sent}</b>",
+                parse_mode=enums.ParseMode.HTML,
+            )
+        except Exception:
+            pass
 
         # Send remaining files in buffer as final album
         if photos_videos_buffer:

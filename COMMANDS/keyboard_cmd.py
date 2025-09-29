@@ -77,8 +77,8 @@ def keyboard_command(app, message):
     
     # Create inline keyboard for options in 2 rows
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔴 OFF", callback_data=f"keyboard|OFF"), InlineKeyboardButton("🔣 FULL", callback_data=f"keyboard|FULL")],
-        [InlineKeyboardButton("📱 1x3", callback_data=f"keyboard|1x3"), InlineKeyboardButton("📱 2x3", callback_data=f"keyboard|2x3")]
+        [InlineKeyboardButton("🔴 OFF", callback_data="keyboard|OFF"), InlineKeyboardButton("🔣 FULL", callback_data="keyboard|FULL")],
+        [InlineKeyboardButton("📱 1x3", callback_data="keyboard|1x3"), InlineKeyboardButton("📱 2x3", callback_data="keyboard|2x3")]
     ])
     
     status_text = Messages.KEYBOARD_SETTINGS_MSG.format(current=current_setting)
@@ -130,7 +130,7 @@ def keyboard_callback_handler(app, callback_query):
                 f.write(setting)
 
         # Prepare status text
-        status_text = f"🎹 **Keyboard setting updated!**\n\nNew setting: **{setting}**"
+        status_text = Messages.KEYBOARD_SETTING_UPDATED_MSG.format(setting=setting)
 
         result = safe_edit_message_text(
             callback_query.message.chat.id,
@@ -161,7 +161,7 @@ Messages.KEYBOARD_HIDDEN_MSG,
                 )
             except Exception as e:
                 from HELPERS.logger import logger
-                logger.warning(f"Failed to hide keyboard: {e}")
+                logger.warning(Messages.KEYBOARD_FAILED_HIDE_MSG.format(error=e))
         elif setting == "1x3":
             one_by_three = [["/clean", "/cookie", "/settings"]]
             safe_send_message(

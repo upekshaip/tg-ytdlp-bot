@@ -1473,7 +1473,7 @@ def get_language_keyboard(page=0, user_id=None, langs_override=None, per_page_ro
         for j in range(LANGS_PER_ROW):
             if i + j < len(current_page_langs):
                 lang_code, lang_info = current_page_langs[i + j]
-                checkmark = "✅ " if lang_code == current_lang else ""
+                checkmark = Messages.SUBS_LANGUAGE_CHECKMARK_MSG if lang_code == current_lang else ""
                 button_text = f"{checkmark}{lang_info.get('flag', get_flag(lang_code))} {lang_info.get('name', lang_code)}"
                 row.append(InlineKeyboardButton(
                     button_text,
@@ -1491,7 +1491,7 @@ def get_language_keyboard(page=0, user_id=None, langs_override=None, per_page_ro
         keyboard.append(nav_row)
 
     # Specialist. Options
-    auto_emoji = "✅" if auto_mode else "☑️"
+    auto_emoji = Messages.SUBS_AUTO_EMOJI_MSG if auto_mode else Messages.SUBS_AUTO_EMOJI_INACTIVE_MSG
     keyboard.append([
         InlineKeyboardButton("🚫 OFF", callback_data="subs_lang|OFF"),
         InlineKeyboardButton(f"{auto_emoji} AUTO/TRANS", callback_data=f"subs_auto|toggle|{page}")
@@ -1499,14 +1499,14 @@ def get_language_keyboard(page=0, user_id=None, langs_override=None, per_page_ro
     ])
     # Always Ask option
     always_ask_enabled = is_subs_always_ask(user_id) if user_id else False
-    always_ask_emoji = "✅" if always_ask_enabled else "☑️"
+    always_ask_emoji = Messages.SUBS_ALWAYS_ASK_EMOJI_MSG if always_ask_enabled else Messages.SUBS_ALWAYS_ASK_EMOJI_INACTIVE_MSG
     keyboard.append([
         InlineKeyboardButton(f"{always_ask_emoji} Always Ask", callback_data=f"subs_always_ask|toggle|{page}")
 
     ])
     # Close button
     keyboard.append([
-        InlineKeyboardButton("🔚Close", callback_data="subs_lang_close|close")
+        InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="subs_lang_close|close")
     ])
 
     return InlineKeyboardMarkup(keyboard)
@@ -1571,7 +1571,7 @@ def get_language_keyboard_always_ask(page=0, user_id=None, langs_override=None, 
     # Back and Close buttons
     keyboard.append([
         InlineKeyboardButton("🔙Back", callback_data="askf|subs|back"),
-        InlineKeyboardButton("🔚Close", callback_data="askf|subs|close")
+        InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="askf|subs|close")
     ])
 
     return InlineKeyboardMarkup(keyboard)

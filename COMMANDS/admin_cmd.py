@@ -4,7 +4,7 @@ from pyrogram import filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from HELPERS.safe_messeger import safe_send_message, safe_send_message_with_auto_delete, safe_edit_message_text, safe_delete_messages
 from CONFIG.config import Config
-from CONFIG.messages import Messages as Messages
+from CONFIG.messages import Messages
 from datetime import datetime
 import subprocess
 import sys
@@ -204,13 +204,13 @@ def send_promo_message(app, message):
                             elif reply.animation:
                                 app.send_animation(user, reply.animation.file_id, caption=reply.caption)
                         except AttributeError as e:
-                            logger.error(f"Error processing reply message for user {user}: {e}")
+                            logger.error(Messages.ADMIN_ERROR_PROCESSING_REPLY_MSG.format(user=user, error=e))
                             continue
                     # If there is an additional text, we send it
                     if broadcast_text:
                         safe_send_message(user, broadcast_text)
             except Exception as e:
-                logger.error(f"Error sending broadcast to user {user}: {e}")
+                logger.error(Messages.ADMIN_ERROR_SENDING_BROADCAST_MSG.format(user=user, error=e))
         send_to_all(message, Messages.ADMIN_PROMO_SENT_MSG)
         send_to_logger(message, Messages.ADMIN_BROADCAST_SENT_LOG_MSG)
     except Exception as e:
@@ -246,7 +246,7 @@ def get_user_log(app, message):
     least_10 = sorted(data_tg[-10:], key=str.lower) if total > 10 else sorted(data_tg, key=str.lower)
     format_str = "\n\n".join(least_10)
     now = datetime.fromtimestamp(math.floor(time.time()))
-    txt_format = f"Logs of {Config.BOT_NAME_FOR_USERS}\nUser: {user_id}\nTotal logs: {total}\nCurrent time: {now}\n\n" + '\n'.join(sorted(data, key=str.lower))
+    txt_format = Messages.ADMIN_LOGS_FORMAT_MSG.format(bot_name=Config.BOT_NAME_FOR_USERS, user_id=user_id, total=total, now=now, logs='\n'.join(sorted(data, key=str.lower)))
 
     user_dir = os.path.join("users", str(message.chat.id))
     os.makedirs(user_dir, exist_ok=True)
@@ -254,7 +254,7 @@ def get_user_log(app, message):
     with open(log_path, 'w', encoding="utf-8") as f:
         f.write(txt_format)
 
-    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔚Close", callback_data="userlogs_close|close")]])
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="userlogs_close|close")]])
     from HELPERS.safe_messeger import safe_send_message
     safe_send_message(message.chat.id, Messages.ADMIN_USER_LOGS_TOTAL_MSG.format(total=total, user_id=user_id, format_str=format_str), parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
     app.send_document(message.chat.id, log_path, caption=Messages.ADMIN_USER_LOGS_CAPTION_MSG.format(user_id=user_id))
@@ -321,8 +321,8 @@ def get_user_details(app, message):
     display_list = modified_lst[-20:] if len(modified_lst) > 20 else modified_lst
 
     now = datetime.fromtimestamp(math.floor(time.time()))
-    txt_format = f"{Config.BOT_NAME_FOR_USERS} {path}\nTotal {path}: {len(modified_lst)}\nCurrent time: {now}\n\n" + '\n'.join(txt_lst)
-    mod = f"<i>Total Users: {len(modified_lst)}</i>\nLast 20 {path}:\n\n" + '\n'.join(display_list)
+    txt_format = Messages.ADMIN_BOT_DATA_FORMAT_MSG.format(bot_name=Config.BOT_NAME_FOR_USERS, path=path, count=len(modified_lst), now=now, data='\n'.join(txt_lst))
+    mod = Messages.ADMIN_TOTAL_USERS_MSG.format(count=len(modified_lst), path=path, display_list='\n'.join(display_list))
 
     file = f"{path}.txt"
     with open(file, 'w', encoding="utf-8") as f:
@@ -550,12 +550,19 @@ def reload_porn_command(app, message):
 
         send_to_logger(
             message,
-            (
-                f"Porn caches reloaded by admin {message.chat.id}. "
-                f"Domains: {counts.get('porn_domains', 0)}, Keywords: {counts.get('porn_keywords', 0)}, Sites: {counts.get('supported_sites', 0)}, "
-                f"WHITELIST: {counts.get('whitelist', 0)}, GREYLIST: {counts.get('greylist', 0)}, BLACK_LIST: {counts.get('black_list', 0)}, "
-                f"WHITE_KEYWORDS: {counts.get('white_keywords', 0)}, PROXY_DOMAINS: {counts.get('proxy_domains', 0)}, PROXY_2_DOMAINS: {counts.get('proxy_2_domains', 0)}, "
-                f"CLEAN_QUERY: {counts.get('clean_query', 0)}, NO_COOKIE_DOMAINS: {counts.get('no_cookie_domains', 0)}"
+            Messages.ADMIN_PORN_CACHE_RELOADED_MSG.format(
+                admin_id=message.chat.id,
+                domains=counts.get('porn_domains', 0),
+                keywords=counts.get('porn_keywords', 0),
+                sites=counts.get('supported_sites', 0),
+                whitelist=counts.get('whitelist', 0),
+                greylist=counts.get('greylist', 0),
+                black_list=counts.get('black_list', 0),
+                white_keywords=counts.get('white_keywords', 0),
+                proxy_domains=counts.get('proxy_domains', 0),
+                proxy_2_domains=counts.get('proxy_2_domains', 0),
+                clean_query=counts.get('clean_query', 0),
+                no_cookie_domains=counts.get('no_cookie_domains', 0)
             )
         )
         
@@ -600,8 +607,8 @@ def check_porn_command(app, message):
         is_nsfw, explanation = check_porn_detailed(url, "", "", None)
         
         # Format the result
-        status_icon = "🔞" if is_nsfw else "✅"
-        status_text = "NSFW" if is_nsfw else "Clean"
+        status_icon = Messages.ADMIN_STATUS_NSFW_MSG if is_nsfw else Messages.ADMIN_STATUS_CLEAN_MSG
+        status_text = Messages.ADMIN_STATUS_NSFW_TEXT_MSG if is_nsfw else Messages.ADMIN_STATUS_CLEAN_TEXT_MSG
         
         result_message = Messages.ADMIN_PORN_CHECK_RESULT_MSG.format(
             status_icon=status_icon,

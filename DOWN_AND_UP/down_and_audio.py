@@ -231,7 +231,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     response += Messages.AUDIO_STREAM_FIELD_MSG.format(audio_url=audio_url)
                 
                 if not video_url and not audio_url:
-                    response += "❌ Failed to get stream links"
+                    response += Messages.DOWN_UP_FAILED_STREAM_LINKS_MSG
                 
                 # Send response
                 app.send_message(
@@ -247,7 +247,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 error_msg = result.get('error', 'Unknown error')
                 app.send_message(
                     user_id,
-                    f"❌ <b>Error getting link:</b>\n{error_msg}",
+                    Messages.DOWN_UP_ERROR_GETTING_LINK_MSG.format(error_msg=error_msg),
                     reply_parameters=ReplyParameters(message_id=message.id),
                     parse_mode=enums.ParseMode.HTML
                 )
@@ -991,14 +991,14 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 
                 # Check if this is a "No videos found in playlist" error
                 if "No videos found in playlist" in error_text or "Story might have expired" in error_text:
-                    error_message = f"❌ No content found at index {current_index + video_start_with}"
+                    error_message = Messages.DOWN_UP_NO_CONTENT_FOUND_MSG.format(index=current_index + video_start_with)
                     send_error_to_user(message, error_message)
                     logger.info(f"Skipping item at index {current_index} (no content found)")
                     return "SKIP"
                 
                 # Check if this is a TikTok infinite loop error
                 if "TikTok API keeps sending the same page" in error_text and "infinite loop" in error_text:
-                    error_message = f"⚠️ TikTok API error at index {current_index + video_start_with}, skipping to next audio..."
+                    error_message = Messages.AUDIO_TIKTOK_API_ERROR_SKIP_MSG.format(index=current_index + video_start_with)
                     send_to_user(message, error_message)
                     logger.info(f"Skipping TikTok audio at index {current_index} due to API error")
                     return "SKIP"  # Skip this audio and continue with next

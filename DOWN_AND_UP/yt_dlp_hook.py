@@ -2,6 +2,7 @@
 import os
 import yt_dlp
 from CONFIG.config import Config
+from CONFIG.messages import Messages
 from HELPERS.logger import logger, send_error_to_user
 from HELPERS.filesystem_hlp import create_directory
 from URL_PARSERS.nocookie import is_no_cookie_domain
@@ -39,7 +40,7 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
         # Use smart filter that allows downloads when duration is unknown
         ytdl_opts['match_filter'] = create_smart_match_filter()
     else:
-        logger.info(f"Skipping match_filter for domain in NO_FILTER_DOMAINS: {url}")
+        logger.info(Messages.YTDLP_SKIPPING_MATCH_FILTER_MSG.format(url=url))
     
     # Add user's custom yt-dlp arguments (but exclude format to get all available formats)
     if user_id is not None:
@@ -65,39 +66,39 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
             
             # Always check existing cookies first on user's URL for maximum speed
             if os.path.exists(user_cookie_path):
-                logger.info(f"Checking existing YouTube cookies on user's URL for format detection for user {user_id}")
+                logger.info(Messages.YTDLP_CHECKING_EXISTING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
                 if test_youtube_cookies_on_url(user_cookie_path, url):
                     cookie_file = user_cookie_path
-                    logger.info(f"Existing YouTube cookies work on user's URL for format detection for user {user_id} - using them")
+                    logger.info(Messages.YTDLP_EXISTING_YOUTUBE_COOKIES_WORK_MSG.format(user_id=user_id))
                 else:
-                    logger.info(f"Existing YouTube cookies failed on user's URL, trying to get new ones for format detection for user {user_id}")
+                    logger.info(Messages.YTDLP_EXISTING_YOUTUBE_COOKIES_FAILED_MSG.format(user_id=user_id))
                     cookie_urls = get_youtube_cookie_urls()
                     if cookie_urls:
                         success = False
                         for i, cookie_url in enumerate(cookie_urls, 1):
-                            logger.info(f"Trying YouTube cookie source {i} for format detection for user {user_id}")
+                            logger.info(Messages.YTDLP_TRYING_YOUTUBE_COOKIE_SOURCE_MSG.format(i=i, user_id=user_id))
                             ok, status_code, content, error = _download_content(cookie_url)
                             if ok and content and len(content) <= 100 * 1024:
                                 with open(user_cookie_path, "wb") as cf:
                                     cf.write(content)
                                 if test_youtube_cookies_on_url(user_cookie_path, url):
                                     cookie_file = user_cookie_path
-                                    logger.info(f"YouTube cookies from source {i} work on user's URL for format detection for user {user_id} - saved to user folder")
+                                    logger.info(Messages.YTDLP_YOUTUBE_COOKIES_FROM_SOURCE_WORK_MSG.format(i=i, user_id=user_id))
                                     success = True
                                     break
                                 else:
-                                    logger.warning(f"YouTube cookies from source {i} don't work on user's URL for format detection for user {user_id}")
+                                    logger.warning(Messages.YTDLP_YOUTUBE_COOKIES_FROM_SOURCE_DONT_WORK_MSG.format(i=i, user_id=user_id))
                             else:
-                                logger.warning(f"Failed to download YouTube cookies from source {i} for format detection for user {user_id}")
+                                logger.warning(Messages.YTDLP_FAILED_DOWNLOAD_YOUTUBE_COOKIES_MSG.format(i=i, user_id=user_id))
                         
                         if not success:
-                            logger.warning(f"All YouTube cookie sources failed for format detection for user {user_id}, will try without cookies")
+                            logger.warning(Messages.YTDLP_ALL_YOUTUBE_COOKIE_SOURCES_FAILED_MSG.format(user_id=user_id))
                             cookie_file = None
                     else:
-                        logger.warning(f"No YouTube cookie sources configured for format detection for user {user_id}, will try without cookies")
+                        logger.warning(Messages.YTDLP_NO_YOUTUBE_COOKIE_SOURCES_CONFIGURED_MSG.format(user_id=user_id))
                         cookie_file = None
             else:
-                logger.info(f"No YouTube cookies found for format detection for user {user_id}, attempting to get new ones")
+                logger.info(Messages.YTDLP_NO_YOUTUBE_COOKIES_FOUND_MSG.format(user_id=user_id))
                 cookie_urls = get_youtube_cookie_urls()
                 if cookie_urls:
                     success = False
@@ -127,10 +128,10 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
             # Cookies already checked in Always Ask menu - use them directly without verification
             if os.path.exists(user_cookie_path):
                 cookie_file = user_cookie_path
-                logger.info(f"Using YouTube cookies for format detection for user {user_id} (already validated in Always Ask menu)")
+                logger.info(Messages.YTDLP_USING_YOUTUBE_COOKIES_ALREADY_VALIDATED_MSG.format(user_id=user_id))
             else:
                 # Cookies were deleted - try to restore them on user's URL
-                logger.info(f"No YouTube cookies found for format detection for user {user_id}, attempting to restore...")
+                logger.info(Messages.YTDLP_NO_YOUTUBE_COOKIES_FOUND_ATTEMPTING_RESTORE_MSG.format(user_id=user_id))
                 from COMMANDS.cookies_cmd import get_youtube_cookie_urls, test_youtube_cookies_on_url, _download_content
                 cookie_urls = get_youtube_cookie_urls()
                 if cookie_urls:
@@ -169,10 +170,10 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                         create_directory(user_dir)
                         import shutil
                         shutil.copy2(global_cookie_path, user_cookie_path)
-                        logger.info(f"Copied global cookie file to user {user_id} folder for format detection")
+                        logger.info(Messages.YTDLP_COPIED_GLOBAL_COOKIE_FILE_MSG.format(user_id=user_id))
                         cookie_file = user_cookie_path
                     except Exception as e:
-                        logger.error(f"Failed to copy global cookie file for user {user_id}: {e}")
+                        logger.error(Messages.YTDLP_FAILED_COPY_GLOBAL_COOKIE_FILE_MSG.format(user_id=user_id, error=e))
                         cookie_file = None
                 else:
                     cookie_file = None
@@ -180,7 +181,7 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
         # We check whether to use —no-Cookies for this domain
         if is_no_cookie_domain(url):
             ytdl_opts['cookiefile'] = None  # Equivalent-No-Cookies
-            logger.info(f"Using --no-cookies for domain in get_video_formats: {url}")
+            logger.info(Messages.YTDLP_USING_NO_COOKIES_FOR_DOMAIN_MSG.format(url=url))
         elif cookie_file:
             ytdl_opts['cookiefile'] = cookie_file
         

@@ -2,6 +2,7 @@
 import os
 from pyrogram import filters, enums
 from CONFIG.config import Config
+from CONFIG.messages import Messages
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from HELPERS.app_instance import get_app
@@ -63,12 +64,12 @@ def nsfw_command(app, message):
     # Show menu if no args provided
     # Check current setting to show proper status
     current_setting = is_nsfw_blur_enabled(storage_id)
-    on_text = "✅ ON (No Blur)" if not current_setting else "☑️ ON (No Blur)"
-    off_text = "✅ OFF (Blur)" if current_setting else "☑️ OFF (Blur)"
+    on_text = Messages.NSFW_ON_NO_BLUR_MSG if not current_setting else Messages.NSFW_ON_NO_BLUR_INACTIVE_MSG
+    off_text = Messages.NSFW_OFF_BLUR_MSG if current_setting else Messages.NSFW_OFF_BLUR_INACTIVE_MSG
     
     buttons = [
         [InlineKeyboardButton(on_text, callback_data="nsfw_option|on"), InlineKeyboardButton(off_text, callback_data="nsfw_option|off")],
-        [InlineKeyboardButton("🔚Close", callback_data="nsfw_option|close")],
+        [InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="nsfw_option|close")],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
     

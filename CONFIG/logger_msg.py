@@ -1,7 +1,9 @@
+from CONFIG.messages import Messages
+
 class LoggerMsg(object):
     # Generic user/admin/access
-    ACCESS_DENIED_ADMIN = "❌ Access denied. Admin only."
-    WELCOME_MASTER = "Welcome Master 🥷"
+    ACCESS_DENIED_ADMIN = Messages.LOGGER_ACCESS_DENIED_ADMIN_MSG
+    WELCOME_MASTER = Messages.LOGGER_WELCOME_MASTER_MSG
 
     # URL Extractor / start logs
     USER_STARTED_BOT = "{chat_id} - user started the bot"
@@ -35,7 +37,7 @@ class LoggerMsg(object):
     AUDIO_SENT_FROM_CACHE = "Audio sent from cache (quality={quality}) to user{user_id}"
 
     # Limits and errors
-    SIZE_LIMIT_EXCEEDED = "❌ The file size exceeds the {max_size_gb} GB limit. Please select a smaller file within the allowed size."
-    DOWNLOAD_ERROR_GENERIC = "❌ Sorry... Some error occurred during download."
+    SIZE_LIMIT_EXCEEDED = Messages.LOGGER_SIZE_LIMIT_EXCEEDED_MSG
+    DOWNLOAD_ERROR_GENERIC = Messages.LOGGER_DOWNLOAD_ERROR_GENERIC_MSG
     DOWNLOAD_TIMEOUT_LOG = "Download cancelled due to timeout"
 

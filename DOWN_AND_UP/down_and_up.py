@@ -30,6 +30,7 @@ from URL_PARSERS.filter_utils import create_smart_match_filter, create_legacy_ma
 from URL_PARSERS.thumbnail_downloader import download_thumbnail as download_universal_thumbnail
 from HELPERS.pot_helper import add_pot_to_ytdl_opts
 from CONFIG.config import Config
+from CONFIG.messages import Messages
 from CONFIG.limits import LimitsConfig
 from COMMANDS.subtitles_cmd import is_subs_enabled, check_subs_availability, get_user_subs_auto_mode, _subs_check_cache, download_subtitles_ytdlp, get_user_subs_language, clear_subs_check_cache, is_subs_always_ask
 from COMMANDS.split_sizer import get_user_split_size
@@ -1013,7 +1014,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 formats_text = "\n".join(available_formats_list) if available_formats_list else "• No video formats available"
                                 
                                 safe_edit_message_text(user_id, proc_msg_id, 
-                                    f"{current_total_process}\n❌ AV1 format is not available for this video.\n\nAvailable formats:\n{formats_text}")
+                                    f"{current_total_process}\n{Messages.DOWN_UP_AV1_NOT_AVAILABLE_MSG.format(formats_text=formats_text)}")
                             except Exception as e:
                                 logger.error(f"Failed to notify user about format unavailability: {e}")
                             
@@ -1289,7 +1290,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         "<blockquote>Check <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>here</a> if your site supported</blockquote>\n"
                         "<blockquote>You may need <code>cookie</code> for downloading this video. First, clean your workspace via <b>/clean</b> command</blockquote>\n"
                         "<blockquote>For Youtube - get <code>cookie</code> via <b>/cookie</b> command. For any other supported site - send your own cookie (<a href='https://t.me/c/2303231066/18'>guide1</a>) (<a href='https://t.me/c/2303231066/22'>guide2</a>) and after that send your video link again.</blockquote>\n"
-                        f"────────────────\n❌ Error downloading: {error_message}"
+                        f"────────────────\n{Messages.DOWN_UP_ERROR_DOWNLOADING_MSG.format(error_message=error_message)}"
                     )
                     error_message_sent = True
                 return None
@@ -1363,14 +1364,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 				
                 # Check if this is a "No videos found in playlist" error
                 if "No videos found in playlist" in str(e):
-                    error_message = f"❌ No videos found in playlist at index {current_index + 1}."
+                    error_message = Messages.DOWN_UP_NO_VIDEOS_PLAYLIST_MSG.format(index=current_index + 1)
                     send_error_to_user(message, error_message)
                     logger.info(f"Stopping download: playlist item at index {current_index} (no video found)")
                     return "STOP"  # New special value for full stop
                 
                 # Check if this is a TikTok infinite loop error
                 if "TikTok API keeps sending the same page" in str(e) and "infinite loop" in str(e):
-                    error_message = f"⚠️ TikTok API error at index {current_index + 1}, skipping to next video..."
+                    error_message = Messages.VIDEO_TIKTOK_API_ERROR_SKIP_MSG.format(index=current_index + 1)
                     send_to_user(message, error_message)
                     logger.info(f"Skipping TikTok video at index {current_index} due to API error")
                     return "SKIP"  # Skip this video and continue with next
@@ -1685,9 +1686,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     
                     # Check for specific FFmpeg errors
                     if "Invalid argument" in str(e.stderr):
-                        error_message = (
-                            "❌ **Video Conversion Failed**\n\n"
-                            "The video couldn't be converted to MP4 due to an invalid argument error.\n\n"
+                        error_message = Messages.DOWN_UP_VIDEO_CONVERSION_FAILED_INVALID_MSG
+                        error_message += (
                             "**Possible causes:**\n"
                             "• Unsupported video codec or format\n"
                             "• Corrupted source file\n"
@@ -1701,9 +1701,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             f"**Technical details:** {error_details}"
                         )
                     else:
-                        error_message = (
-                            "❌ **Video Conversion Failed**\n\n"
-                            "The video couldn't be converted to MP4.\n\n"
+                        error_message = Messages.DOWN_UP_VIDEO_CONVERSION_FAILED_MSG
+                        error_message += (
                             "**Solutions:**\n"
                             "• Try downloading with a different quality\n"
                             "• The original file will be sent without conversion\n"

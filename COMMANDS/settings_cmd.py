@@ -1,6 +1,7 @@
 # ===================== /settings =====================
 from pyrogram import filters
 from CONFIG.config import Config
+from CONFIG.messages import Messages
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ReplyParameters
 from pyrogram import enums
 from HELPERS.logger import send_to_logger
@@ -26,7 +27,7 @@ def command2(app, message):
     from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     from pyrogram import enums
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔚Close", callback_data="help_msg|close")]
+        [InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="help_msg|close")]
     ])
 
     result = safe_send_message(message.chat.id, (Messages.HELP_MSG),
@@ -58,7 +59,7 @@ def settings_command(app, message):
         ],
         [
             InlineKeyboardButton("⚙️ MORE", callback_data="settings__menu__more"),
-            InlineKeyboardButton("🔚Close", callback_data="settings__menu__close"),
+            InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="settings__menu__close"),
         ]
     ])
     safe_send_message(
@@ -228,7 +229,7 @@ Messages.SETTINGS_MORE_TITLE_MSG,
             ],
             [
                 InlineKeyboardButton("⚙️ MORE", callback_data="settings__menu__more"),
-                InlineKeyboardButton("🔚Close", callback_data="settings__menu__close"),
+                InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="settings__menu__close"),
             ]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
@@ -346,7 +347,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         return
     if data == "save_as_cookie":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚Close", callback_data="save_as_cookie_hint|close")]
+            [InlineKeyboardButton(Messages.URL_EXTRACTOR_SAVE_AS_COOKIE_HINT_CLOSE_BUTTON_MSG, callback_data="save_as_cookie_hint|close")]
         ])
         safe_send_message(user_id, Messages.SAVE_AS_COOKIE_HINT, reply_parameters=ReplyParameters(message_id=callback_query.message.id),
                           parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
@@ -426,7 +427,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         return
     if data == "audio":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚Close", callback_data="audio_hint|close")]
+            [InlineKeyboardButton(Messages.OTHER_AUDIO_HINT_CLOSE_BUTTON_MSG, callback_data="audio_hint|close")]
         ])
         safe_send_message(user_id,
                           Messages.AUDIO_HINT_MSG,
@@ -434,7 +435,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
 
                           reply_markup=keyboard,
                           _callback_query=callback_query,
-                          _fallback_notice="⏳ Flood limit. Try later.")
+                          _fallback_notice=Messages.FLOOD_LIMIT_TRY_LATER_MSG)
         try:
             callback_query.answer(Messages.SETTINGS_HINT_SENT_MSG)
         except Exception:
@@ -527,7 +528,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         return
     if data == "img":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚Close", callback_data="img_hint|close")]
+            [InlineKeyboardButton(Messages.COMMAND_IMAGE_HELP_CLOSE_BUTTON_MSG, callback_data="img_hint|close")]
         ])
         safe_send_message(
             user_id,
@@ -535,7 +536,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             reply_parameters=ReplyParameters(message_id=callback_query.message.id),
             reply_markup=keyboard,
             _callback_query=callback_query,
-            _fallback_notice="⏳ Flood limit. Try later.",
+            _fallback_notice=Messages.FLOOD_LIMIT_TRY_LATER_MSG,
             parse_mode=enums.ParseMode.HTML,
         )
         try:
@@ -545,14 +546,14 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         return
     if data == "link":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚Close", callback_data="link_hint|close")]
+            [InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="link_hint|close")]
         ])
         safe_send_message(user_id,
                           Messages.LINK_HINT_MSG,
                           reply_parameters=ReplyParameters(message_id=callback_query.message.id),
                           reply_markup=keyboard,
                           _callback_query=callback_query,
-                          _fallback_notice="⏳ Flood limit. Try later.")
+                          _fallback_notice=Messages.FLOOD_LIMIT_TRY_LATER_MSG)
         try:
             callback_query.answer(Messages.SETTINGS_HINT_SENT_MSG)
         except Exception:
@@ -608,7 +609,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             ],
             [
                 InlineKeyboardButton(
-                    "🔚Close",
+                    Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG,
                     callback_data="search_msg|close"
                 )
             ]
@@ -624,7 +625,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
             reply_markup=keyboard,
             reply_parameters=ReplyParameters(message_id=callback_query.message.id),
             _callback_query=callback_query,
-            _fallback_notice="⏳ Flood limit. Try later."
+            _fallback_notice=Messages.FLOOD_LIMIT_TRY_LATER_MSG
         )
         
         try:

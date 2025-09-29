@@ -2,6 +2,7 @@
 # Command /Format Handler
 from pyrogram import filters
 from CONFIG.config import Config
+from CONFIG.messages import Messages
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 
 from HELPERS.app_instance import get_app
@@ -211,7 +212,7 @@ def set_format(app, message):
             [InlineKeyboardButton("📈Bestvideo+Bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
             # [InlineKeyboardButton("📉best (no ffmpeg) (bad)", callback_data="format_option|best")],
             [InlineKeyboardButton("🎚 Custom (enter your own)", callback_data="format_option|custom")],
-            [InlineKeyboardButton("🔚Close", callback_data="format_option|close")]
+            [InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="format_option|close")]
         ])
         safe_send_message(
             user_id,
@@ -251,7 +252,7 @@ def format_option_callback(app, callback_query):
     if data == "custom":
         # Sending a message with the Close button
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚Close", callback_data="format_custom|close")]
+            [InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="format_custom|close")]
         ])
         safe_send_message(
             user_id,
@@ -270,10 +271,10 @@ Messages.FORMAT_CUSTOM_HINT_MSG,
         mkv_on = get_user_mkv_preference(user_id)
         
         # Create codec selection buttons with active state indicators
-        avc1_button = "✅ avc1 (H.264)" if current_codec == "avc1" else "☑️ avc1 (H.264)"
-        av01_button = "✅ av01 (AV1)" if current_codec == "av01" else "☑️ av01 (AV1)"
-        vp9_button = "✅ vp09 (VP9)" if current_codec == "vp9" else "☑️ vp09 (VP9)"
-        mkv_button = "✅ MKV: ON" if mkv_on else "☑️ MKV: OFF"
+        avc1_button = Messages.FORMAT_AVC1_BUTTON_MSG if current_codec == "avc1" else Messages.FORMAT_AVC1_BUTTON_INACTIVE_MSG
+        av01_button = Messages.FORMAT_AV01_BUTTON_MSG if current_codec == "av01" else Messages.FORMAT_AV01_BUTTON_INACTIVE_MSG
+        vp9_button = Messages.FORMAT_VP9_BUTTON_MSG if current_codec == "vp9" else Messages.FORMAT_VP9_BUTTON_INACTIVE_MSG
+        mkv_button = Messages.FORMAT_MKV_ON_BUTTON_MSG if mkv_on else Messages.FORMAT_MKV_OFF_BUTTON_MSG
         
         full_res_keyboard = InlineKeyboardMarkup([
             [
@@ -296,7 +297,7 @@ Messages.FORMAT_CUSTOM_HINT_MSG,
                 InlineKeyboardButton(av01_button, callback_data="format_codec|av01"),
                 InlineKeyboardButton(vp9_button, callback_data="format_codec|vp9"),
             ],
-            [InlineKeyboardButton("🔙Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton("🔚Close", callback_data="format_option|close")]
+            [InlineKeyboardButton("🔙Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="format_option|close")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.FORMAT_RESOLUTION_MENU_MSG, reply_markup=full_res_keyboard)
         try:
@@ -316,7 +317,7 @@ Messages.FORMAT_CUSTOM_HINT_MSG,
             [InlineKeyboardButton("📈Bestvideo+Bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
             # [InlineKeyboardButton("📉best (no ffmpeg) (bad)", callback_data="format_option|best")],
             [InlineKeyboardButton("🎚 Custom (enter your own)", callback_data="format_option|custom")],
-            [InlineKeyboardButton("🔚Close", callback_data="format_option|close")]
+            [InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="format_option|close")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.FORMAT_MENU_MSG + "\n" + Messages.FORMAT_MENU_ADDITIONAL_MSG + "\n" + Messages.FORMAT_8K_QUALITY_MSG, reply_markup=main_keyboard)
         try:
@@ -445,10 +446,10 @@ def format_codec_callback(app, callback_query):
         # Refresh the menu to show updated codec selection
         current_codec = get_user_codec_preference(user_id)
         mkv_on = get_user_mkv_preference(user_id)
-        avc1_button = "✅ avc1 (H.264)" if current_codec == "avc1" else "☑️ avc1 (H.264)"
-        av01_button = "✅ av01 (AV1)" if current_codec == "av01" else "☑️ av01 (AV1)"
-        vp9_button = "✅ vp09 (VP9)" if current_codec == "vp9" else "☑️ vp09 (VP9)"
-        mkv_button = "✅ MKV: ON" if mkv_on else "☑️ MKV: OFF"
+        avc1_button = Messages.FORMAT_AVC1_BUTTON_MSG if current_codec == "avc1" else Messages.FORMAT_AVC1_BUTTON_INACTIVE_MSG
+        av01_button = Messages.FORMAT_AV01_BUTTON_MSG if current_codec == "av01" else Messages.FORMAT_AV01_BUTTON_INACTIVE_MSG
+        vp9_button = Messages.FORMAT_VP9_BUTTON_MSG if current_codec == "vp9" else Messages.FORMAT_VP9_BUTTON_INACTIVE_MSG
+        mkv_button = Messages.FORMAT_MKV_ON_BUTTON_MSG if mkv_on else Messages.FORMAT_MKV_OFF_BUTTON_MSG
         
         full_res_keyboard = InlineKeyboardMarkup([
             [
@@ -471,7 +472,7 @@ def format_codec_callback(app, callback_query):
                 InlineKeyboardButton(av01_button, callback_data="format_codec|av01"),
                 InlineKeyboardButton(vp9_button, callback_data="format_codec|vp9")
             ],
-            [InlineKeyboardButton("🔙Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton("🔚Close", callback_data="format_option|close")]
+            [InlineKeyboardButton("🔙Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="format_option|close")]
         ])
         try:
             callback_query.edit_message_reply_markup(reply_markup=full_res_keyboard)
@@ -487,16 +488,16 @@ def format_container_callback(app, callback_query):
         mkv_on = toggle_user_mkv_preference(user_id)
         # Re-render Others menu
         current_codec = get_user_codec_preference(user_id)
-        avc1_button = "✅ avc1 (H.264)" if current_codec == "avc1" else "☑️ avc1 (H.264)"
-        av01_button = "✅ av01 (AV1)" if current_codec == "av01" else "☑️ av01 (AV1)"
-        vp9_button = "✅ vp09 (VP9)" if current_codec == "vp9" else "☑️ vp09 (VP9)"
-        mkv_button = "✅ MKV: ON" if mkv_on else "☑️ MKV: OFF"
+        avc1_button = Messages.FORMAT_AVC1_BUTTON_MSG if current_codec == "avc1" else Messages.FORMAT_AVC1_BUTTON_INACTIVE_MSG
+        av01_button = Messages.FORMAT_AV01_BUTTON_MSG if current_codec == "av01" else Messages.FORMAT_AV01_BUTTON_INACTIVE_MSG
+        vp9_button = Messages.FORMAT_VP9_BUTTON_MSG if current_codec == "vp9" else Messages.FORMAT_VP9_BUTTON_INACTIVE_MSG
+        mkv_button = Messages.FORMAT_MKV_ON_BUTTON_MSG if mkv_on else Messages.FORMAT_MKV_OFF_BUTTON_MSG
         full_res_keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("144p (256×144)", callback_data="format_option|bv144"), InlineKeyboardButton("240p (426×240)", callback_data="format_option|bv240"), InlineKeyboardButton("360p (640×360)", callback_data="format_option|bv360")],
             [InlineKeyboardButton("480p (854×480)", callback_data="format_option|bv480"), InlineKeyboardButton("720p (1280×720)", callback_data="format_option|bv720"), InlineKeyboardButton("1080p (1920×1080)", callback_data="format_option|bv1080")],
             [InlineKeyboardButton("1440p (2560×1440)", callback_data="format_option|bv1440"), InlineKeyboardButton("2160p (3840×2160)", callback_data="format_option|bv2160"), InlineKeyboardButton("4320p (7680×4320)", callback_data="format_option|bv4320")],
             [InlineKeyboardButton(avc1_button, callback_data="format_codec|avc1"), InlineKeyboardButton(av01_button, callback_data="format_codec|av01"), InlineKeyboardButton(vp9_button, callback_data="format_codec|vp9")],
-            [InlineKeyboardButton("🔙Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton("🔚Close", callback_data="format_option|close")]
+            [InlineKeyboardButton("🔙Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="format_option|close")]
         ])
         try:
             callback_query.edit_message_reply_markup(reply_markup=full_res_keyboard)

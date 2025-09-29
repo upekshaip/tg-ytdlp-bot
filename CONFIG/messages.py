@@ -896,6 +896,9 @@ Use:
     
     # Image command messages
     IMG_RANGE_LIMIT_EXCEEDED_MSG = "❗️ Range limit exceeded: {range_count} files requested (maximum {max_img_files}).\n\nUse one of these commands to download maximum available files:\n\n<code>/img {start_range}-{end_range} {url}</code>\n\n<code>/img {suggested_command_url_format}</code>"
+    COMMAND_IMAGE_HELP_CLOSE_BUTTON_MSG = "🔚Close"
+    COMMAND_IMAGE_MEDIA_LIMIT_EXCEEDED_MSG = "❗️ Media limit exceeded: {count} files requested (maximum {max_count}).\n\nUse one of these commands to download maximum available files:\n\n<code>/img {start_range}-{end_range} {url}</code>\n\n<code>/img {suggested_command_url_format}</code>"
+    COMMAND_IMAGE_RUN_DIRECTORY_MSG = "Run directory"
     
     # Additional cookies command messages
     COOKIES_FILE_TOO_LARGE_MSG = "❌ The file is too large. Maximum size is 100 KB."
@@ -1301,5 +1304,472 @@ Use:
     DOWNLOAD_CANCELLED_TIMEOUT_MSG = "⏰ Download cancelled due to timeout (2 hours)"
     FAILED_DOWNLOAD_VIDEO_MSG = "❌ Failed to download video: {error}"
     ERROR_SUBTITLES_NOT_FOUND_MSG = "❌ Error: {error}"
+    
+    # Args command error messages
+    ARGS_JSON_MUST_BE_OBJECT_MSG = "❌ JSON must be an object (dictionary)."
+    ARGS_INVALID_JSON_FORMAT_MSG = "❌ Invalid JSON format. Please provide valid JSON."
+    ARGS_VALUE_MUST_BE_BETWEEN_MSG = "❌ Value must be between {min_val} and {max_val}."
+    ARGS_PARAM_SET_TO_MSG = "✅ {description} set to: <code>{value}</code>"
+    
+    # Args command button texts
+    ARGS_TRUE_BUTTON_MSG = "✅ True"
+    ARGS_FALSE_BUTTON_MSG = "❌ False"
+    ARGS_BACK_BUTTON_MSG = "🔙 Back"
+    
+    # Args command status texts
+    ARGS_STATUS_TRUE_MSG = "✅"
+    ARGS_STATUS_FALSE_MSG = "❌"
+    ARGS_STATUS_TRUE_DISPLAY_MSG = "✅ True"
+    ARGS_STATUS_FALSE_DISPLAY_MSG = "❌ False"
+    
+    # Args command status indicators
+    ARGS_STATUS_SELECTED_MSG = "✅"
+    ARGS_STATUS_UNSELECTED_MSG = "⚪"
+    
+    # Down and Up error messages
+    DOWN_UP_AV1_NOT_AVAILABLE_MSG = "❌ AV1 format is not available for this video.\n\nAvailable formats:\n{formats_text}"
+    DOWN_UP_ERROR_DOWNLOADING_MSG = "❌ Error downloading: {error_message}"
+    DOWN_UP_NO_VIDEOS_PLAYLIST_MSG = "❌ No videos found in playlist at index {index}."
+    DOWN_UP_VIDEO_CONVERSION_FAILED_INVALID_MSG = "❌ **Video Conversion Failed**\n\nThe video couldn't be converted to MP4 due to an invalid argument error.\n\n"
+    DOWN_UP_VIDEO_CONVERSION_FAILED_MSG = "❌ **Video Conversion Failed**\n\nThe video couldn't be converted to MP4.\n\n"
+    DOWN_UP_FAILED_STREAM_LINKS_MSG = "❌ Failed to get stream links"
+    DOWN_UP_ERROR_GETTING_LINK_MSG = "❌ <b>Error getting link:</b>\n{error_msg}"
+    DOWN_UP_NO_CONTENT_FOUND_MSG = "❌ No content found at index {index}"
+    
+    
+    # Always Ask Menu error messages
+    AA_ERROR_ORIGINAL_NOT_FOUND_MSG = "❌ Error: Original message not found."
+    AA_ERROR_URL_NOT_FOUND_MSG = "❌ Error: URL not found."
+    AA_ERROR_URL_NOT_EMBEDDABLE_MSG = "❌ This URL cannot be embedded."
+    AA_ERROR_CODEC_NOT_AVAILABLE_MSG = "❌ {codec} codec not available for this video"
+    AA_ERROR_FORMAT_NOT_AVAILABLE_MSG = "❌ {format} format not available for this video"
+    
+    # Always Ask Menu button texts
+    AA_AVC_BUTTON_MSG = "✅ AVC"
+    AA_AVC_BUTTON_INACTIVE_MSG = "☑️ AVC"
+    AA_AVC_BUTTON_UNAVAILABLE_MSG = "❌ AVC"
+    AA_AV1_BUTTON_MSG = "✅ AV1"
+    AA_AV1_BUTTON_INACTIVE_MSG = "☑️ AV1"
+    AA_AV1_BUTTON_UNAVAILABLE_MSG = "❌ AV1"
+    AA_VP9_BUTTON_MSG = "✅ VP9"
+    AA_VP9_BUTTON_INACTIVE_MSG = "☑️ VP9"
+    AA_VP9_BUTTON_UNAVAILABLE_MSG = "❌ VP9"
+    AA_MP4_BUTTON_MSG = "✅ MP4"
+    AA_MP4_BUTTON_INACTIVE_MSG = "☑️ MP4"
+    AA_MP4_BUTTON_UNAVAILABLE_MSG = "❌ MP4"
+    AA_MKV_BUTTON_MSG = "✅ MKV"
+    AA_MKV_BUTTON_INACTIVE_MSG = "☑️ MKV"
+    AA_MKV_BUTTON_UNAVAILABLE_MSG = "❌ MKV"
+    
+    
+    # Flood limit messages
+    FLOOD_LIMIT_TRY_LATER_MSG = "⏳ Flood limit. Try later."
+    
+    # Cookies command button texts
+    COOKIES_BROWSER_BUTTON_MSG = "✅ {browser_name}"
+    COOKIES_CHECK_COOKIE_BUTTON_MSG = "✅ Check Cookie"
+    
+    # Proxy command button texts
+    PROXY_ON_BUTTON_MSG = "✅ ON"
+    PROXY_OFF_BUTTON_MSG = "❌ OFF"
+    PROXY_CLOSE_BUTTON_MSG = "🔚Close"
+    
+    # MediaInfo command button texts
+    MEDIAINFO_ON_BUTTON_MSG = "✅ ON"
+    MEDIAINFO_OFF_BUTTON_MSG = "❌ OFF"
+    MEDIAINFO_CLOSE_BUTTON_MSG = "🔚Close"
+    
+    # Format command button texts
+    FORMAT_AVC1_BUTTON_MSG = "✅ avc1 (H.264)"
+    FORMAT_AVC1_BUTTON_INACTIVE_MSG = "☑️ avc1 (H.264)"
+    FORMAT_AV01_BUTTON_MSG = "✅ av01 (AV1)"
+    FORMAT_AV01_BUTTON_INACTIVE_MSG = "☑️ av01 (AV1)"
+    FORMAT_VP9_BUTTON_MSG = "✅ vp09 (VP9)"
+    FORMAT_VP9_BUTTON_INACTIVE_MSG = "☑️ vp09 (VP9)"
+    FORMAT_MKV_ON_BUTTON_MSG = "✅ MKV: ON"
+    FORMAT_MKV_OFF_BUTTON_MSG = "☑️ MKV: OFF"
+    
+    # Subtitles command button texts
+    SUBS_LANGUAGE_CHECKMARK_MSG = "✅ "
+    SUBS_AUTO_EMOJI_MSG = "✅"
+    SUBS_AUTO_EMOJI_INACTIVE_MSG = "☑️"
+    SUBS_ALWAYS_ASK_EMOJI_MSG = "✅"
+    SUBS_ALWAYS_ASK_EMOJI_INACTIVE_MSG = "☑️"
+    
+    # NSFW command button texts
+    NSFW_ON_NO_BLUR_MSG = "✅ ON (No Blur)"
+    NSFW_ON_NO_BLUR_INACTIVE_MSG = "☑️ ON (No Blur)"
+    NSFW_OFF_BLUR_MSG = "✅ OFF (Blur)"
+    NSFW_OFF_BLUR_INACTIVE_MSG = "☑️ OFF (Blur)"
+    
+    # Admin command status texts
+    ADMIN_STATUS_NSFW_MSG = "🔞"
+    ADMIN_STATUS_CLEAN_MSG = "✅"
+    ADMIN_STATUS_NSFW_TEXT_MSG = "NSFW"
+    ADMIN_STATUS_CLEAN_TEXT_MSG = "Clean"
+    
+    # Admin command additional messages
+    ADMIN_ERROR_PROCESSING_REPLY_MSG = "Error processing reply message for user {user}: {error}"
+    ADMIN_ERROR_SENDING_BROADCAST_MSG = "Error sending broadcast to user {user}: {error}"
+    ADMIN_LOGS_FORMAT_MSG = "Logs of {bot_name}\nUser: {user_id}\nTotal logs: {total}\nCurrent time: {now}\n\n{logs}"
+    ADMIN_BOT_DATA_FORMAT_MSG = "{bot_name} {path}\nTotal {path}: {count}\nCurrent time: {now}\n\n{data}"
+    ADMIN_TOTAL_USERS_MSG = "<i>Total Users: {count}</i>\nLast 20 {path}:\n\n{display_list}"
+    ADMIN_PORN_CACHE_RELOADED_MSG = "Porn caches reloaded by admin {admin_id}. Domains: {domains}, Keywords: {keywords}, Sites: {sites}, WHITELIST: {whitelist}, GREYLIST: {greylist}, BLACK_LIST: {black_list}, WHITE_KEYWORDS: {white_keywords}, PROXY_DOMAINS: {proxy_domains}, PROXY_2_DOMAINS: {proxy_2_domains}, CLEAN_QUERY: {clean_query}, NO_COOKIE_DOMAINS: {no_cookie_domains}"
+    
+    # Args command additional messages
+    ARGS_ERROR_SENDING_TIMEOUT_MSG = "Error sending timeout message: {error}"
+    
+    # Clean command additional messages
+    
+    # Cookies command additional messages
+    COOKIES_BROWSER_CALLBACK_MSG = "[BROWSER] callback: {callback_data}"
+    COOKIES_ADDING_BROWSER_MONITORING_MSG = "Adding browser monitoring button with URL: {miniapp_url}"
+    COOKIES_BROWSER_MONITORING_URL_NOT_CONFIGURED_MSG = "Browser monitoring URL not configured: {miniapp_url}"
+    
+    # Format command additional messages
+    
+    # Keyboard command additional messages
+    KEYBOARD_SETTING_UPDATED_MSG = "🎹 **Keyboard setting updated!**\n\nNew setting: **{setting}**"
+    KEYBOARD_FAILED_HIDE_MSG = "Failed to hide keyboard: {error}"
+    
+    # Link command additional messages
+    LINK_USING_WORKING_YOUTUBE_COOKIES_MSG = "Using working YouTube cookies for link extraction for user {user_id}"
+    LINK_NO_WORKING_YOUTUBE_COOKIES_MSG = "No working YouTube cookies available for link extraction for user {user_id}"
+    LINK_USING_EXISTING_YOUTUBE_COOKIES_MSG = "Using existing YouTube cookies for link extraction for user {user_id}"
+    LINK_NO_YOUTUBE_COOKIES_FOUND_MSG = "No YouTube cookies found for link extraction for user {user_id}"
+    LINK_COPIED_GLOBAL_COOKIE_FILE_MSG = "Copied global cookie file to user {user_id} folder for link extraction"
+    
+    # MediaInfo command additional messages
+    MEDIAINFO_USER_REQUESTED_MSG = "[MEDIAINFO] User {user_id} requested mediainfo command"
+    MEDIAINFO_USER_IS_ADMIN_MSG = "[MEDIAINFO] User {user_id} is admin: {is_admin}"
+    MEDIAINFO_USER_IS_IN_CHANNEL_MSG = "[MEDIAINFO] User {user_id} is in channel: {is_in_channel}"
+    MEDIAINFO_ACCESS_DENIED_MSG = "[MEDIAINFO] User {user_id} access denied - not admin and not in channel"
+    MEDIAINFO_ACCESS_GRANTED_MSG = "[MEDIAINFO] User {user_id} access granted"
+    MEDIAINFO_CALLBACK_MSG = "[MEDIAINFO] callback: {callback_data}"
+    
+    # URL Parser error messages
+    URL_PARSER_ADMIN_ONLY_MSG = "❌ This command is only available for administrators."
+    
+    # Helper messages
+    HELPER_DOWNLOAD_FINISHED_PO_MSG = "✅ Download finished with PO token support"
+    HELPER_FLOOD_LIMIT_TRY_LATER_MSG = "⏳ Flood limit. Try later."
+    
+    # Database error messages
+    DB_REST_TOKEN_REFRESH_ERROR_MSG = "❌ REST token refresh error: {error}"
+    DB_ERROR_CLOSING_SESSION_MSG = "❌ Error closing Firebase session: {error}"
+    DB_ERROR_INITIALIZING_BASE_MSG = "❌ Error initializing base db structure: {error}"
+    DB_IMPORT_ERROR_CONFIG_MSG = "❌ Import error CONFIG/config.py: {error}"
+    DB_CONFIG_NOT_FOUND_MSG = "❌ CONFIG/config.py or Config class not found! All parameters must be in CONFIG/config.py."
+    DB_UNEXPECTED_ERROR_IMPORT_MSG = "❌ Unexpected error importing CONFIG/config.py: {error}"
+    DB_CHECK_SYNTAX_MSG = "❌ Check syntax and dependencies in CONFIG/config.py"
+    DB_NOT_ALL_PARAMETERS_SET_MSG = "❌ Not all parameters are set in config.py (FIREBASE_CONF, FIREBASE_USER, FIREBASE_PASSWORD)"
+    DB_DATABASE_URL_NOT_SET_MSG = "❌ FIREBASE_CONF.databaseURL is not set"
+    DB_API_KEY_NOT_SET_MSG = "❌ FIREBASE_CONF.apiKey is not set for getting idToken"
+    DB_ERROR_DOWNLOADING_DUMP_MSG = "❌ Error downloading Firebase dump: {error}"
+    DB_FAILED_DOWNLOAD_DUMP_REST_MSG = "❌ Failed to download Firebase dump via REST"
+    DB_ERROR_DOWNLOAD_RELOAD_CACHE_MSG = "❌ Error in _download_and_reload_cache: {error}"
+    DB_ERROR_RUNNING_AUTO_RELOAD_MSG = "❌ Error running auto reload_cache (attempt {attempt}/{max_retries}): {error}"
+    DB_ALL_RETRY_ATTEMPTS_FAILED_MSG = "❌ All retry attempts failed"
+    DB_STARTING_FIREBASE_DUMP_MSG = "🔄 Starting Firebase dump download at {datetime}"
+    DB_DEPENDENCY_NOT_AVAILABLE_MSG = "⚠️ Dependency not available: requests or Session"
+    DB_DATABASE_EMPTY_MSG = "⚠️ Database is empty"
+    
+    # Magic.py error messages
+    MAGIC_ERROR_CLOSING_LOGGER_MSG = "❌ Error closing logger: {error}"
+    MAGIC_ERROR_DURING_CLEANUP_MSG = "❌ Error during cleanup: {error}"
+    
+    # Update from repo error messages
+    UPDATE_CLONE_ERROR_MSG = "❌ Clone error: {error}"
+    UPDATE_CLONE_TIMEOUT_MSG = "❌ Clone timeout"
+    UPDATE_CLONE_EXCEPTION_MSG = "❌ Clone exception: {error}"
+    UPDATE_CANCELED_BY_USER_MSG = "❌ Update canceled by user"
+    
+    
+    # Update from repo success messages
+    UPDATE_REPOSITORY_CLONED_SUCCESS_MSG = "✅ Repository cloned successfully"
+    UPDATE_BACKUPS_MOVED_MSG = "✅ Backups moved to _backup/"
+    
+    # Magic.py success messages
+    MAGIC_ALL_MODULES_LOADED_MSG = "✅ All modules are loaded"
+    MAGIC_CLEANUP_COMPLETED_MSG = "✅ Cleanup completed on exit"
+    
+    # Logger messages
+    LOGGER_ACCESS_DENIED_ADMIN_MSG = "❌ Access denied. Admin only."
+    LOGGER_WELCOME_MASTER_MSG = "Welcome Master 🥷"
+    LOGGER_SIZE_LIMIT_EXCEEDED_MSG = "❌ The file size exceeds the {max_size_gb} GB limit. Please select a smaller file within the allowed size."
+    LOGGER_DOWNLOAD_ERROR_GENERIC_MSG = "❌ Sorry... Some error occurred during download."
+    
+    # Download status messages
+    DOWNLOAD_STATUS_PLEASE_WAIT_MSG = "Please wait..."
+    DOWNLOAD_STATUS_HOURGLASS_EMOJIS = ["⏳", "⌛"]
+    DOWNLOAD_STATUS_DOWNLOADING_HLS_MSG = "📥 Downloading HLS stream:"
+    DOWNLOAD_STATUS_WAITING_FRAGMENTS_MSG = "waiting for fragments"
+    
+    # Restore from backup messages
+    RESTORE_BACKUP_NOT_FOUND_MSG = "❌ Backup {ts} not found in _backup/"
+    RESTORE_FAILED_RESTORE_MSG = "❌ Failed to restore {src} -> {dest_path}: {e}"
+    RESTORE_SUCCESS_RESTORED_MSG = "✅ Restored: {dest_path}"
+    
+    # Image command messages
+    IMG_INSTAGRAM_AUTH_ERROR_MSG = "❌ <b>{error_type}</b>\n\n<b>URL:</b> <code>{url}</code>\n\n<b>Details:</b> {error_details}\n\nDownload stopped due to critical error."
+    
+    # Porn filter messages
+    PORN_DOMAIN_BLACKLIST_MSG = "❌ Domain in porn blacklist: {domain_parts}"
+    PORN_KEYWORDS_FOUND_MSG = "❌ Found porn keywords: {keywords}"
+    PORN_DOMAIN_WHITELIST_MSG = "✅ Domain in whitelist: {domain}"
+    PORN_WHITELIST_KEYWORDS_MSG = "✅ Found whitelist keywords: {keywords}"
+    PORN_NO_KEYWORDS_FOUND_MSG = "✅ No porn keywords found"
+    
+    # Audio download messages
+    AUDIO_TIKTOK_API_ERROR_SKIP_MSG = "⚠️ TikTok API error at index {index}, skipping to next audio..."
+    
+    # Video download messages  
+    VIDEO_TIKTOK_API_ERROR_SKIP_MSG = "⚠️ TikTok API error at index {index}, skipping to next video..."
+    
+    # URL Parser messages
+    URL_PARSER_USER_ENTERED_URL_LOG_MSG = "User entered a <b>url</b>\n <b>user's name:</b> {user_name}\nURL: {url}"
+    URL_PARSER_USER_ENTERED_INVALID_MSG = "<b>User entered like this:</b> {input}\n{error_msg}"
+    
+    # Channel subscription messages
+    CHANNEL_JOIN_BUTTON_MSG = "Join Channel"
+    
+    # Handler registry messages
+    HANDLER_REGISTERING_MSG = "🔍 Registering handler: {handler_type} - {func_name}"
+    
+    # Clean command button messages
+    CLEAN_COOKIE_DOWNLOAD_BUTTON_MSG = "📥 /cookie - Download my 5 cookies"
+    CLEAN_COOKIES_FROM_BROWSER_BUTTON_MSG = "🌐 /cookies_from_browser - Get browser's YT-cookie"
+    CLEAN_CHECK_COOKIE_BUTTON_MSG = "🔎 /check_cookie - Validate your cookie file"
+    CLEAN_SAVE_AS_COOKIE_BUTTON_MSG = "🔖 /save_as_cookie - Upload custom cookie"
+    
+    # List command messages
+    LIST_CLOSE_BUTTON_MSG = "🔚 Close"
+    LIST_AVAILABLE_FORMATS_HEADER_MSG = "Available formats for: {url}"
+    LIST_FORMATS_FILE_NAME_MSG = "formats_{user_id}.txt"
+    
+    # Other handlers button messages
+    OTHER_AUDIO_HINT_CLOSE_BUTTON_MSG = "🔚Close"
+    OTHER_PLAYLIST_HELP_CLOSE_BUTTON_MSG = "🔚Close"
+    
+    # Search command button messages
+    SEARCH_CLOSE_BUTTON_MSG = "🔚Close"
+    
+    # Tag command button messages
+    TAG_CLOSE_BUTTON_MSG = "🔚Close"
+    
+    # Magic.py callback messages
+    MAGIC_HELP_CLOSED_MSG = "Help closed."
+    
+    # URL extractor callback messages
+    URL_EXTRACTOR_CLOSED_MSG = "Closed"
+    URL_EXTRACTOR_ERROR_OCCURRED_MSG = "Error occurred"
+    
+    # FFmpeg messages
+    FFMPEG_NOT_FOUND_MSG = "ffmpeg not found in PATH or project directory. Please install FFmpeg."
+    YTDLP_NOT_FOUND_MSG = "yt-dlp binary not found in PATH or project directory. Please install yt-dlp."
+    FFMPEG_VIDEO_SPLIT_EXCESSIVE_MSG = "Video will be split into {rounds} parts, which may be excessive"
+    FFMPEG_SPLITTING_VIDEO_PART_MSG = "Splitting video part {current}/{total}: {start_time:.2f}s to {end_time:.2f}s"
+    FFMPEG_FAILED_CREATE_SPLIT_PART_MSG = "Failed to create split part {part}: {target_name}"
+    FFMPEG_SUCCESSFULLY_CREATED_SPLIT_PART_MSG = "Successfully created split part {part}: {target_name} ({size} bytes)"
+    FFMPEG_ERROR_SPLITTING_VIDEO_PART_MSG = "Error splitting video part {part}: {error}"
+    FFMPEG_VIDEO_SPLIT_SUCCESS_MSG = "Video split into {count} parts successfully"
+    FFMPEG_ERROR_VIDEO_SPLITTING_PROCESS_MSG = "Error in video splitting process: {error}"
+    FFMPEG_FFPROBE_BYPASS_ERROR_MSG = "[FFPROBE BYPASS] Error while processing video {video_path}: {error}"
+    FFMPEG_VIDEO_FILE_NOT_EXISTS_MSG = "Video file does not exist: {video_path}"
+    FFMPEG_ERROR_PARSING_DIMENSIONS_MSG = "Error parsing dimensions '{size_result}': {error}"
+    FFMPEG_COULD_NOT_DETERMINE_DIMENSIONS_MSG = "Could not determine video dimensions from '{size_result}', using default: {width}x{height}"
+    FFMPEG_ERROR_CREATING_THUMBNAIL_MSG = "Error creating thumbnail: {stderr}"
+    FFMPEG_ERROR_PARSING_DURATION_MSG = "Error parsing video duration: {error}, result was: {result}"
+    FFMPEG_THUMBNAIL_NOT_CREATED_MSG = "Thumbnail not created at {thumb_dir}, using default"
+    FFMPEG_COMMAND_EXECUTION_ERROR_MSG = "Command execution error: {error}"
+    FFMPEG_ERROR_CREATING_THUMBNAIL_WITH_FFMPEG_MSG = "Error creating thumbnail with FFmpeg: {error}"
+    
+    # Gallery-dl messages
+    GALLERY_DL_SKIPPING_NON_DICT_CONFIG_MSG = "Skipping non-dict config section: {section}={opts}"
+    GALLERY_DL_SETTING_CONFIG_MSG = "Setting {section}.{key} = {value}"
+    GALLERY_DL_USING_USER_COOKIES_MSG = "[gallery-dl] Using user cookies: {cookie_path}"
+    GALLERY_DL_USING_YOUTUBE_COOKIES_MSG = "Using YouTube cookies for user {user_id}"
+    GALLERY_DL_COPIED_GLOBAL_COOKIE_MSG = "Copied global cookie file to user {user_id} folder"
+    GALLERY_DL_USING_COPIED_GLOBAL_COOKIES_MSG = "[gallery-dl] Using copied global cookies as user cookies: {cookie_path}"
+    GALLERY_DL_FAILED_COPY_GLOBAL_COOKIE_MSG = "Failed to copy global cookie file for user {user_id}: {error}"
+    GALLERY_DL_USING_NO_COOKIES_MSG = "Using --no-cookies for domain: {url}"
+    GALLERY_DL_PROXY_REQUESTED_FAILED_MSG = "Proxy requested but failed to import/get config: {error}"
+    GALLERY_DL_FORCE_USING_PROXY_MSG = "Force using proxy for gallery-dl: {proxy_url}"
+    GALLERY_DL_PROXY_CONFIG_INCOMPLETE_MSG = "Proxy requested but proxy configuration is incomplete"
+    GALLERY_DL_PROXY_HELPER_FAILED_MSG = "Proxy helper failed: {error}"
+    GALLERY_DL_PARSING_EXTRACTOR_ITEMS_MSG = "Parsing extractor items..."
+    GALLERY_DL_ITEM_COUNT_MSG = "Item {count}: {item}"
+    GALLERY_DL_FOUND_METADATA_TAG2_MSG = "Found metadata (tag 2): {info}"
+    GALLERY_DL_FOUND_URL_TAG3_MSG = "Found URL (tag 3): {url}, metadata: {metadata}"
+    GALLERY_DL_FOUND_METADATA_LEGACY_MSG = "Found metadata (legacy): {info}"
+    GALLERY_DL_FOUND_URL_LEGACY_MSG = "Found URL (legacy): {url}"
+    GALLERY_DL_FOUND_FILENAME_MSG = "Found filename: {filename}"
+    GALLERY_DL_FOUND_DIRECTORY_MSG = "Found directory: {directory}"
+    GALLERY_DL_FOUND_EXTENSION_MSG = "Found extension: {extension}"
+    GALLERY_DL_PARSED_ITEMS_MSG = "Parsed {count} items, info: {info}, fallback: {fallback}"
+    GALLERY_DL_SETTING_CONFIG_MSG2 = "Setting gallery-dl config: {config}"
+    GALLERY_DL_TRYING_STRATEGY_A_MSG = "Trying Strategy A: extractor.find + items()"
+    GALLERY_DL_EXTRACTOR_MODULE_NOT_FOUND_MSG = "gallery_dl.extractor module not found"
+    GALLERY_DL_EXTRACTOR_FIND_NOT_AVAILABLE_MSG = "gallery_dl.extractor.find() not available in this build"
+    GALLERY_DL_CALLING_EXTRACTOR_FIND_MSG = "Calling extractor.find({url})"
+    GALLERY_DL_NO_EXTRACTOR_MATCHED_MSG = "No extractor matched the URL"
+    GALLERY_DL_SETTING_COOKIES_ON_EXTRACTOR_MSG = "Setting cookies on extractor: {cookie_path}"
+    GALLERY_DL_FAILED_SET_COOKIES_ON_EXTRACTOR_MSG = "Failed to set cookies on extractor: {error}"
+    GALLERY_DL_EXTRACTOR_FOUND_CALLING_ITEMS_MSG = "Extractor found, calling items()"
+    GALLERY_DL_STRATEGY_A_SUCCEEDED_MSG = "Strategy A succeeded, got info: {info}"
+    GALLERY_DL_STRATEGY_A_NO_VALID_INFO_MSG = "Strategy A: extractor.items() returned no valid info"
+    GALLERY_DL_STRATEGY_A_FAILED_MSG = "Strategy A (extractor.find) failed: {error}"
+    GALLERY_DL_FALLBACK_METADATA_MSG = "Fallback metadata from --get-urls: total={total}"
+    GALLERY_DL_ALL_STRATEGIES_FAILED_MSG = "All strategies failed to obtain metadata"
+    GALLERY_DL_FAILED_EXTRACT_IMAGE_INFO_MSG = "Failed to extract image info: {error}"
+    GALLERY_DL_JOB_MODULE_NOT_FOUND_MSG = "gallery_dl.job module not found (broken install?)"
+    GALLERY_DL_DOWNLOAD_JOB_NOT_AVAILABLE_MSG = "gallery_dl.job.DownloadJob not available in this build"
+    GALLERY_DL_SEARCHING_DOWNLOADED_FILES_MSG = "Searching for downloaded files in gallery-dl directory"
+    GALLERY_DL_TRYING_FIND_FILES_BY_NAMES_MSG = "Trying to find files by names from extractor"
+    
+    # Sender messages
+    SENDER_ERROR_READING_USER_ARGS_MSG = "Error reading user args for {user_id}: {error}"
+    SENDER_FFPROBE_BYPASS_ERROR_MSG = "[FFPROBE BYPASS] Error while processing video{video_path}: {error}"
+    SENDER_USER_SEND_AS_FILE_ENABLED_MSG = "User {user_id} has send_as_file enabled, sending as document"
+    SENDER_SEND_VIDEO_TIMED_OUT_MSG = "send_video timed out repeatedly; falling back to send_document"
+    SENDER_CAPTION_TOO_LONG_MSG = "Caption too long, trying with minimal caption"
+    SENDER_SEND_VIDEO_MINIMAL_CAPTION_TIMED_OUT_MSG = "send_video (minimal caption) timed out; fallback to send_document"
+    SENDER_ERROR_SENDING_VIDEO_MINIMAL_CAPTION_MSG = "Error sending video with minimal caption: {error}"
+    SENDER_ERROR_SENDING_FULL_DESCRIPTION_FILE_MSG = "Error sending full description file: {error}"
+    SENDER_ERROR_REMOVING_TEMP_DESCRIPTION_FILE_MSG = "Error removing temporary description file: {error}"
+    
+    # YT-DLP hook messages
+    YTDLP_SKIPPING_MATCH_FILTER_MSG = "Skipping match_filter for domain in NO_FILTER_DOMAINS: {url}"
+    YTDLP_CHECKING_EXISTING_YOUTUBE_COOKIES_MSG = "Checking existing YouTube cookies on user's URL for format detection for user {user_id}"
+    YTDLP_EXISTING_YOUTUBE_COOKIES_WORK_MSG = "Existing YouTube cookies work on user's URL for format detection for user {user_id} - using them"
+    YTDLP_EXISTING_YOUTUBE_COOKIES_FAILED_MSG = "Existing YouTube cookies failed on user's URL, trying to get new ones for format detection for user {user_id}"
+    YTDLP_TRYING_YOUTUBE_COOKIE_SOURCE_MSG = "Trying YouTube cookie source {i} for format detection for user {user_id}"
+    YTDLP_YOUTUBE_COOKIES_FROM_SOURCE_WORK_MSG = "YouTube cookies from source {i} work on user's URL for format detection for user {user_id} - saved to user folder"
+    YTDLP_YOUTUBE_COOKIES_FROM_SOURCE_DONT_WORK_MSG = "YouTube cookies from source {i} don't work on user's URL for format detection for user {user_id}"
+    YTDLP_FAILED_DOWNLOAD_YOUTUBE_COOKIES_MSG = "Failed to download YouTube cookies from source {i} for format detection for user {user_id}"
+    YTDLP_ALL_YOUTUBE_COOKIE_SOURCES_FAILED_MSG = "All YouTube cookie sources failed for format detection for user {user_id}, will try without cookies"
+    YTDLP_NO_YOUTUBE_COOKIE_SOURCES_CONFIGURED_MSG = "No YouTube cookie sources configured for format detection for user {user_id}, will try without cookies"
+    YTDLP_NO_YOUTUBE_COOKIES_FOUND_MSG = "No YouTube cookies found for format detection for user {user_id}, attempting to get new ones"
+    YTDLP_USING_YOUTUBE_COOKIES_ALREADY_VALIDATED_MSG = "Using YouTube cookies for format detection for user {user_id} (already validated in Always Ask menu)"
+    YTDLP_NO_YOUTUBE_COOKIES_FOUND_ATTEMPTING_RESTORE_MSG = "No YouTube cookies found for format detection for user {user_id}, attempting to restore..."
+    YTDLP_COPIED_GLOBAL_COOKIE_FILE_MSG = "Copied global cookie file to user {user_id} folder for format detection"
+    YTDLP_FAILED_COPY_GLOBAL_COOKIE_FILE_MSG = "Failed to copy global cookie file for user {user_id}: {error}"
+    YTDLP_USING_NO_COOKIES_FOR_DOMAIN_MSG = "Using --no-cookies for domain in get_video_formats: {url}"
+    
+    # App instance messages
+    APP_INSTANCE_NOT_INITIALIZED_MSG = "App not initialized yet. Cannot access {name}"
+    
+    # Caption messages
+    CAPTION_INFO_OF_VIDEO_MSG = "\n<b>Caption:</b> <code>{caption}</code>\n<b>User id:</b> <code>{user_id}</code>\n<b>User first name:</b> <code>{users_name}</code>\n<b>Video file id:</b> <code>{video_file_id}</code>"
+    CAPTION_ERROR_IN_CAPTION_EDITOR_MSG = "Error in caption_editor: {error}"
+    CAPTION_UNEXPECTED_ERROR_IN_CAPTION_EDITOR_MSG = "Unexpected error in caption_editor: {error}"
+    CAPTION_VIDEO_URL_LINK_MSG = '<a href="{url}">🔗 Video URL</a>{bot_mention}'
+    
+    # Database messages
+    DB_DATABASE_URL_MISSING_MSG = "FIREBASE_CONF.databaseURL отсутствует в Config"
+    DB_FIREBASE_ADMIN_INITIALIZED_MSG = "✅ firebase_admin initialized"
+    DB_REST_ID_TOKEN_REFRESHED_MSG = "🔁 REST idToken refreshed"
+    DB_LOG_FOR_USER_ADDED_MSG = "Log for user added"
+    DB_DATABASE_CREATED_MSG = "db created"
+    DB_BOT_STARTED_MSG = "Bot started"
+    DB_RELOAD_CACHE_EVERY_PERSISTED_MSG = "RELOAD_CACHE_EVERY persisted to config.py: {hours}h"
+    DB_PLAYLIST_PART_ALREADY_CACHED_MSG = "Playlist part already cached: {path_parts}, skipping"
+    DB_GET_CACHED_PLAYLIST_VIDEOS_NO_CACHE_MSG = "get_cached_playlist_videos: no cache found for any URL/quality variant, returning empty dict"
+    DB_GET_CACHED_PLAYLIST_COUNT_FAST_COUNT_MSG = "get_cached_playlist_count: fast count for large range: {cached_count} cached videos"
+    DB_GET_CACHED_MESSAGE_IDS_NO_CACHE_MSG = "get_cached_message_ids: no cache found for hash {url_hash}, quality {quality_key}"
+    DB_GET_CACHED_MESSAGE_IDS_NO_CACHE_ANY_VARIANT_MSG = "get_cached_message_ids: no cache found for any URL variant, returning None"
+    
+    # Helper messages
+    HELPER_APP_INSTANCE_NONE_MSG = "App instance is None in check_user"
+    HELPER_CHECK_FILE_SIZE_LIMIT_INFO_DICT_NONE_MSG = "check_file_size_limit: info_dict is None, allowing download"
+    HELPER_CHECK_SUBS_LIMITS_INFO_DICT_NONE_MSG = "check_subs_limits: info_dict is None, allowing subtitle embedding"
+    HELPER_CHECK_SUBS_LIMITS_CHECKING_LIMITS_MSG = "check_subs_limits: checking limits - max_quality={max_quality}p, max_duration={max_duration}s, max_size={max_size}MB"
+    HELPER_CHECK_SUBS_LIMITS_INFO_DICT_KEYS_MSG = "check_subs_limits: info_dict keys: {keys}"
+    HELPER_SUBTITLE_EMBEDDING_SKIPPED_DURATION_MSG = "Subtitle embedding skipped: duration {duration}s exceeds limit {max_duration}s"
+    HELPER_SUBTITLE_EMBEDDING_SKIPPED_SIZE_MSG = "Subtitle embedding skipped: size {size_mb:.2f}MB exceeds limit {max_size}MB"
+    HELPER_SUBTITLE_EMBEDDING_SKIPPED_QUALITY_MSG = "Subtitle embedding skipped: quality {width}x{height} (min side {min_side}p) exceeds limit {max_quality}p"
+    HELPER_COMMAND_TYPE_TIKTOK_MSG = "TikTok"
+    HELPER_COMMAND_TYPE_INSTAGRAM_MSG = "Instagram"
+    HELPER_COMMAND_TYPE_PLAYLIST_MSG = "playlist"
+    HELPER_RANGE_LIMIT_EXCEEDED_MSG = "❗️ Range limit exceeded for {service}: {count} (maximum {max_count}).\n\nUse one of these commands to download maximum available files:\n\n<code>{suggested_command_url_format}</code>\n\n"
+    HELPER_RANGE_LIMIT_EXCEEDED_LOG_MSG = "❗️ Range limit exceeded for {service}: {count} (maximum {max_count})\nUser ID: {user_id}"
+    
+    # Handler registry messages
+    
+    # Download status messages
+    
+    # POT helper messages
+    HELPER_POT_PROVIDER_DISABLED_MSG = "PO token provider disabled in config"
+    HELPER_POT_URL_NOT_YOUTUBE_MSG = "URL {url} is not a YouTube domain, skipping PO token"
+    HELPER_POT_PROVIDER_NOT_AVAILABLE_MSG = "PO token provider is not available at {base_url}, falling back to standard YouTube extraction"
+    HELPER_POT_PROVIDER_CACHE_CLEARED_MSG = "PO token provider cache cleared, will check availability on next request"
+    HELPER_POT_GENERIC_ARGS_MSG = "generic:impersonate=chrome,youtubetab:skip=authcheck"
+    
+    # Safe messenger messages
+    HELPER_APP_INSTANCE_NOT_AVAILABLE_MSG = "App instance not available yet"
+    HELPER_USER_NAME_MSG = "User"
+    HELPER_FLOOD_WAIT_DETECTED_SLEEPING_MSG = "Flood wait detected, sleeping for {wait_seconds} seconds"
+    HELPER_FLOOD_WAIT_DETECTED_COULDNT_EXTRACT_MSG = "Flood wait detected but couldn't extract time, sleeping for {retry_delay} seconds"
+    HELPER_MSG_SEQNO_ERROR_DETECTED_MSG = "msg_seqno error detected, sleeping for {retry_delay} seconds"
+    HELPER_MESSAGE_ID_INVALID_MSG = "MESSAGE_ID_INVALID"
+    HELPER_MESSAGE_DELETE_FORBIDDEN_MSG = "MESSAGE_DELETE_FORBIDDEN"
+    HELPER_MESSAGE_NOT_MODIFIED_MSG = "message is not modified"
+    HELPER_MESSAGE_NOT_MODIFIED_UPPER_MSG = "MESSAGE_NOT_MODIFIED"
+    
+    # Proxy helper messages
+    HELPER_PROXY_CONFIG_INCOMPLETE_MSG = "Proxy configuration incomplete, using direct connection"
+    HELPER_PROXY_COOKIE_PATH_MSG = "users/{user_id}/cookie.txt"
+    
+    # URL extractor messages
+    URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG = "🔚Close"
+    URL_EXTRACTOR_ADD_GROUP_CLOSE_BUTTON_MSG = "🔚Close"
+    URL_EXTRACTOR_COOKIE_ARGS_YOUTUBE_MSG = "youtube"
+    URL_EXTRACTOR_COOKIE_ARGS_TIKTOK_MSG = "tiktok"
+    URL_EXTRACTOR_COOKIE_ARGS_TWITTER_MSG = "twitter"
+    URL_EXTRACTOR_COOKIE_ARGS_CUSTOM_MSG = "custom"
+    URL_EXTRACTOR_SAVE_AS_COOKIE_HINT_CLOSE_BUTTON_MSG = "🔚Close"
+    URL_EXTRACTOR_CLEAN_LOGS_FILE_REMOVED_MSG = "🗑 Logs file removed."
+    URL_EXTRACTOR_CLEAN_TAGS_FILE_REMOVED_MSG = "🗑 Tags file removed."
+    URL_EXTRACTOR_CLEAN_FORMAT_FILE_REMOVED_MSG = "🗑 Format file removed."
+    URL_EXTRACTOR_CLEAN_SPLIT_FILE_REMOVED_MSG = "🗑 Split file removed."
+    URL_EXTRACTOR_CLEAN_MEDIAINFO_FILE_REMOVED_MSG = "🗑 Mediainfo file removed."
+    URL_EXTRACTOR_CLEAN_SUBS_SETTINGS_REMOVED_MSG = "🗑 Subtitle settings removed."
+    URL_EXTRACTOR_CLEAN_KEYBOARD_SETTINGS_REMOVED_MSG = "🗑 Keyboard settings removed."
+    URL_EXTRACTOR_CLEAN_ARGS_SETTINGS_REMOVED_MSG = "🗑 Args settings removed."
+    URL_EXTRACTOR_CLEAN_NSFW_SETTINGS_REMOVED_MSG = "🗑 NSFW settings removed."
+    URL_EXTRACTOR_CLEAN_PROXY_SETTINGS_REMOVED_MSG = "🗑 Proxy settings removed."
+    URL_EXTRACTOR_CLEAN_FLOOD_WAIT_SETTINGS_REMOVED_MSG = "🗑 Flood wait settings removed."
+    URL_EXTRACTOR_VID_HELP_CLOSE_BUTTON_MSG = "🔚Close"
+    URL_EXTRACTOR_VID_HELP_TITLE_MSG = "🎬 Video Download Command"
+    URL_EXTRACTOR_VID_HELP_USAGE_MSG = "Usage: <code>/vid URL</code>"
+    URL_EXTRACTOR_VID_HELP_EXAMPLES_MSG = "Examples:"
+    URL_EXTRACTOR_VID_HELP_EXAMPLE_1_MSG = "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code>"
+    URL_EXTRACTOR_VID_HELP_ALSO_SEE_MSG = "Also see: /audio, /img, /help, /playlist, /settings"
+    URL_EXTRACTOR_ADD_GROUP_USER_CLOSED_MSG = "User {user_id} closed add_bot_to_group command"
+    
+    
+    # YouTube messages
+    YOUTUBE_FAILED_EXTRACT_ID_MSG = "Failed to extract YouTube ID"
+    YOUTUBE_FAILED_DOWNLOAD_THUMBNAIL_MSG = "Failed to download thumbnail or it is too big"
+    
+    
+    # Thumbnail downloader messages
+    
+    # Commands messages
+    
+    
+    
+    
+    
+    
+    # Split command constants
+    SPLIT_CLOSE_BUTTON_MSG = "🔚Close"
+    
+    # Always ask menu constants
+    
+    # Search command constants
+    
+    # List command constants
+    
     
     #######################################################

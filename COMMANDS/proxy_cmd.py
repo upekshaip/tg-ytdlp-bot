@@ -3,6 +3,7 @@ import os
 import tempfile
 from pyrogram import filters
 from CONFIG.config import Config
+from CONFIG.messages import Messages
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 
 from HELPERS.app_instance import get_app
@@ -82,8 +83,8 @@ def proxy_command(app, message):
         pass
     
     buttons = [
-        [InlineKeyboardButton("✅ ON", callback_data="proxy_option|on"), InlineKeyboardButton("❌ OFF", callback_data="proxy_option|off")],
-        [InlineKeyboardButton("🔚Close", callback_data="proxy_option|close")],
+        [InlineKeyboardButton(Messages.PROXY_ON_BUTTON_MSG, callback_data="proxy_option|on"), InlineKeyboardButton(Messages.PROXY_OFF_BUTTON_MSG, callback_data="proxy_option|off")],
+        [InlineKeyboardButton(Messages.PROXY_CLOSE_BUTTON_MSG, callback_data="proxy_option|close")],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
     # Get available proxy count

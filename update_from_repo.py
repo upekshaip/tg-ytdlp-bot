@@ -8,6 +8,7 @@ import os
 import sys
 import shutil
 import tempfile
+from CONFIG.messages import Messages
 import subprocess
 from pathlib import Path
 from datetime import datetime
@@ -103,17 +104,17 @@ def clone_repository(temp_dir):
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
         
         if result.returncode == 0:
-            log("✅ Repository cloned successfully")
+            log(Messages.UPDATE_REPOSITORY_CLONED_SUCCESS_MSG)
             return True
         else:
-            log(f"❌ Clone error: {result.stderr}", "ERROR")
+            log(Messages.UPDATE_CLONE_ERROR_MSG.format(error=result.stderr), "ERROR")
             return False
             
     except subprocess.TimeoutExpired:
-        log("❌ Clone timeout", "ERROR")
+        log(Messages.UPDATE_CLONE_TIMEOUT_MSG, "ERROR")
         return False
     except Exception as e:
-        log(f"❌ Clone exception: {e}", "ERROR")
+        log(Messages.UPDATE_CLONE_EXCEPTION_MSG.format(error=e), "ERROR")
         return False
 
 def find_python_files(source_dir):
@@ -162,7 +163,7 @@ def move_backups_to_backup_dir():
         log("📦 Moving backups to _backup/...")
         cmd = "mkdir -p _backup && find . -path './_backup' -prune -o -type f -name \"*.backup*\" -print0 | sed -z 's#^\\./##' | rsync -a --relative --from0 --files-from=- --remove-source-files ./ _backup/"
         subprocess.run(["bash", "-lc", cmd], check=True)
-        log("✅ Backups moved to _backup/")
+        log(Messages.UPDATE_BACKUPS_MOVED_MSG)
     except Exception as e:
         log(f"⚠️ Failed to move backups: {e}", "WARNING")
 
@@ -209,7 +210,7 @@ def main():
         # Ask for confirmation
         response = input("\n🤔 Proceed with update? (y/N): ").strip().lower()
         if response not in ['y', 'yes']:
-            log("❌ Update canceled by user")
+            log(Messages.UPDATE_CANCELED_BY_USER_MSG)
             return False
         
         # Update files

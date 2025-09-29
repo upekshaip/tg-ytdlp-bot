@@ -3,6 +3,7 @@ import os
 import subprocess
 from pyrogram import filters
 from CONFIG.config import Config
+from CONFIG.messages import Messages
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 
 from HELPERS.app_instance import get_app
@@ -19,17 +20,17 @@ app = get_app()
 # @reply_with_keyboard
 def mediainfo_command(app, message):
     user_id = message.chat.id
-    logger.info(f"[MEDIAINFO] User {user_id} requested mediainfo command")
-    logger.info(f"[MEDIAINFO] User {user_id} is admin: {int(user_id) in Config.ADMIN}")
+    logger.info(Messages.MEDIAINFO_USER_REQUESTED_MSG.format(user_id=user_id))
+    logger.info(Messages.MEDIAINFO_USER_IS_ADMIN_MSG.format(user_id=user_id, is_admin=int(user_id) in Config.ADMIN))
     
     is_in_channel = is_user_in_channel(app, message)
-    logger.info(f"[MEDIAINFO] User {user_id} is in channel: {is_in_channel}")
+    logger.info(Messages.MEDIAINFO_USER_IS_IN_CHANNEL_MSG.format(user_id=user_id, is_in_channel=is_in_channel))
     
     if int(user_id) not in Config.ADMIN and not is_in_channel:
-        logger.info(f"[MEDIAINFO] User {user_id} access denied - not admin and not in channel")
+        logger.info(Messages.MEDIAINFO_ACCESS_DENIED_MSG.format(user_id=user_id))
         return
     
-    logger.info(f"[MEDIAINFO] User {user_id} access granted")
+    logger.info(Messages.MEDIAINFO_ACCESS_GRANTED_MSG.format(user_id=user_id))
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
     # Fast toggle via args: /mediainfo on|off
@@ -47,8 +48,8 @@ def mediainfo_command(app, message):
     except Exception:
         pass
     buttons = [
-        [InlineKeyboardButton("✅ ON", callback_data="mediainfo_option|on"), InlineKeyboardButton("❌ OFF", callback_data="mediainfo_option|off")],
-        [InlineKeyboardButton("🔚Close", callback_data="mediainfo_option|close")],
+        [InlineKeyboardButton(Messages.MEDIAINFO_ON_BUTTON_MSG, callback_data="mediainfo_option|on"), InlineKeyboardButton(Messages.MEDIAINFO_OFF_BUTTON_MSG, callback_data="mediainfo_option|off")],
+        [InlineKeyboardButton(Messages.MEDIAINFO_CLOSE_BUTTON_MSG, callback_data="mediainfo_option|close")],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
     safe_send_message(
@@ -63,7 +64,7 @@ Messages.MEDIAINFO_MENU_TITLE_MSG,
 @app.on_callback_query(filters.regex(r"^mediainfo_option\|"))
 # @reply_with_keyboard
 def mediainfo_option_callback(app, callback_query):
-    logger.info(f"[MEDIAINFO] callback: {callback_query.data}")
+    logger.info(Messages.MEDIAINFO_CALLBACK_MSG.format(callback_data=callback_query.data))
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]
     user_dir = os.path.join("users", str(user_id))

@@ -7,6 +7,7 @@ from HELPERS.decorators import reply_with_keyboard
 from HELPERS.limitter import is_user_in_channel, check_user
 from HELPERS.logger import send_to_all, send_to_logger, send_to_user
 from CONFIG.logger_msg import LoggerMsg
+from CONFIG.messages import Messages
 from HELPERS.caption import caption_editor
 from HELPERS.filesystem_hlp import remove_media
 from COMMANDS.cookies_cmd import save_as_cookie_file, download_cookie, checking_cookie_file, cookies_from_browser
@@ -31,6 +32,7 @@ from URL_PARSERS.playlist_utils import is_playlist_with_range
 from pyrogram import filters
 import re
 from CONFIG.config import Config
+from CONFIG.messages import Messages
 from HELPERS.logger import logger
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram import enums
@@ -160,7 +162,7 @@ def url_distractor(app, message):
             return  # is_user_in_channel already sends subscription message
         # User is subscribed or admin, send help message
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚Close", callback_data="help_msg|close")]
+            [InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="help_msg|close")]
         ])
         from HELPERS.safe_messeger import safe_send_message
         try:
@@ -180,7 +182,7 @@ def url_distractor(app, message):
         if not is_user_in_channel(app, message):
             return  # is_user_in_channel already sends subscription message
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚Close", callback_data="add_group_msg|close")]
+            [InlineKeyboardButton(Messages.URL_EXTRACTOR_ADD_GROUP_CLOSE_BUTTON_MSG, callback_data="add_group_msg|close")]
         ])
         from HELPERS.safe_messeger import safe_send_message
         try:
@@ -291,12 +293,12 @@ def url_distractor(app, message):
         cookie_args = raw_args.lower()
         
         # Handle direct arguments
-        if cookie_args.startswith("youtube"):
+        if cookie_args.startswith(Messages.URL_EXTRACTOR_COOKIE_ARGS_YOUTUBE_MSG):
             # Support optional index: /cookie youtube <n>
             selected_index = None
             try:
                 parts = raw_args.split()
-                if len(parts) >= 1 and parts[0].lower() == "youtube":
+                if len(parts) >= 1 and parts[0].lower() == Messages.URL_EXTRACTOR_COOKIE_ARGS_YOUTUBE_MSG:
                     if len(parts) >= 2 and parts[1].isdigit():
                         selected_index = int(parts[1])
             except Exception:
@@ -335,7 +337,7 @@ def url_distractor(app, message):
             #download_and_save_cookie(app, fake_callback, Config.INSTAGRAM_COOKIE_URL, "instagram")
             #return
             
-        elif cookie_args == "tiktok":
+        elif cookie_args == Messages.URL_EXTRACTOR_COOKIE_ARGS_TIKTOK_MSG:
             # Simulate TikTok button click
             from pyrogram.types import CallbackQuery
             from collections import namedtuple
@@ -353,7 +355,7 @@ def url_distractor(app, message):
             download_and_save_cookie(app, fake_callback, Config.TIKTOK_COOKIE_URL, "tiktok")
             return
             
-        elif cookie_args in ["x", "twitter"]:
+        elif cookie_args in ["x", Messages.URL_EXTRACTOR_COOKIE_ARGS_TWITTER_MSG]:
             # Simulate Twitter/X button click
             from pyrogram.types import CallbackQuery
             from collections import namedtuple
@@ -389,7 +391,7 @@ def url_distractor(app, message):
             #download_and_save_cookie(app, fake_callback, Config.FACEBOOK_COOKIE_URL, "facebook")
             #return
             
-        elif cookie_args == "custom":
+        elif cookie_args == Messages.URL_EXTRACTOR_COOKIE_ARGS_CUSTOM_MSG:
             # Simulate "Your Own" button click
             from pyrogram.types import CallbackQuery
             from collections import namedtuple
@@ -409,7 +411,7 @@ def url_distractor(app, message):
             except Exception:
                 pass
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔚Close", callback_data="save_as_cookie_hint|close")]
+                [InlineKeyboardButton(Messages.URL_EXTRACTOR_SAVE_AS_COOKIE_HINT_CLOSE_BUTTON_MSG, callback_data="save_as_cookie_hint|close")]
             ])
             from HELPERS.safe_messeger import safe_send_message
             from pyrogram.types import ReplyParameters
@@ -503,48 +505,48 @@ def url_distractor(app, message):
             return
         elif clean_args in ["log", "logs"]:
             remove_media(message, only=["logs.txt"])
-            send_to_all(message, "🗑 Logs file removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_LOGS_FILE_REMOVED_MSG)
             return
         elif clean_args in ["tag", "tags"]:
             remove_media(message, only=["tags.txt"])
-            send_to_all(message, "🗑 Tags file removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_TAGS_FILE_REMOVED_MSG)
             return
         elif clean_args == "format":
             remove_media(message, only=["format.txt"])
-            send_to_all(message, "🗑 Format file removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_FORMAT_FILE_REMOVED_MSG)
             return
         elif clean_args == "split":
             remove_media(message, only=["split.txt"])
-            send_to_all(message, "🗑 Split file removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_SPLIT_FILE_REMOVED_MSG)
             return
         elif clean_args == "mediainfo":
             remove_media(message, only=["mediainfo.txt"])
-            send_to_all(message, "🗑 Mediainfo file removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_MEDIAINFO_FILE_REMOVED_MSG)
             return
         elif clean_args == "subs":
             remove_media(message, only=["subs.txt"])
-            send_to_all(message, "🗑 Subtitle settings removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_SUBS_SETTINGS_REMOVED_MSG)
             clear_subs_check_cache()
             return
         elif clean_args == "keyboard":
             remove_media(message, only=["keyboard.txt"])
-            send_to_all(message, "🗑 Keyboard settings removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_KEYBOARD_SETTINGS_REMOVED_MSG)
             return
         elif clean_args == "args":
             remove_media(message, only=["args.txt"])
-            send_to_all(message, "🗑 Args settings removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_ARGS_SETTINGS_REMOVED_MSG)
             return
         elif clean_args == "nsfw":
             remove_media(message, only=["nsfw_blur.txt"])
-            send_to_all(message, "🗑 NSFW settings removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_NSFW_SETTINGS_REMOVED_MSG)
             return
         elif clean_args == "proxy":
             remove_media(message, only=["proxy.txt"])
-            send_to_all(message, "🗑 Proxy settings removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_PROXY_SETTINGS_REMOVED_MSG)
             return
         elif clean_args == "flood_wait":
             remove_media(message, only=["flood_wait.txt"])
-            send_to_all(message, "🗑 Flood wait settings removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_FLOOD_WAIT_SETTINGS_REMOVED_MSG)
             return
         elif clean_args == "all":
             # Delete all files and display the list of deleted ones
@@ -628,11 +630,11 @@ def url_distractor(app, message):
         if is_admin:
             uncache_command(app, message)
         else:
-            send_to_all(message, "❌ This command is only available for administrators.")
+            send_to_all(message, Messages.URL_PARSER_ADMIN_ONLY_MSG)
         return
 
     # /vid help & range transformation when handled by the text pipeline
-    if text.strip().lower().startswith('/vid'):
+    if text.strip().lower().startswith("/vid"):
         # Try to transform "/vid A-B URL" -> "URL*A*B" (B may be empty)
         parts_full = text.strip().split(maxsplit=2)
         if len(parts_full) >= 3 and re.match(r"^\d+-\d*$", parts_full[1]):
@@ -652,15 +654,13 @@ def url_distractor(app, message):
             try:
                 from HELPERS.safe_messeger import safe_send_message
                 # Use top-level imports to avoid shadowing names in function scope
-                kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔚Close", callback_data="vid_help|close")]])
+                kb = InlineKeyboardMarkup([[InlineKeyboardButton(Messages.URL_EXTRACTOR_VID_HELP_CLOSE_BUTTON_MSG, callback_data="vid_help|close")]])
                 help_text = (
-                    "<b>🎬 Video Download Command</b>\n\n"
-                    "Usage: <code>/vid URL</code>\n\n"
-                    "<b>Examples:</b>\n"
-                    "• <code>/vid https://youtube.com/watch?v=123abc</code>\n"
-                    "• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n"
-                    "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code>\n\n"
-                    "Also see: /audio, /img, /help, /playlist, /settings"
+                    f"<b>{Messages.URL_EXTRACTOR_VID_HELP_TITLE_MSG}</b>\n\n"
+                    f"{Messages.URL_EXTRACTOR_VID_HELP_USAGE_MSG}\n\n"
+                    f"<b>{Messages.URL_EXTRACTOR_VID_HELP_EXAMPLES_MSG}</b>\n"
+                    f"{Messages.URL_EXTRACTOR_VID_HELP_EXAMPLE_1_MSG}\n\n"
+                    f"{Messages.URL_EXTRACTOR_VID_HELP_ALSO_SEE_MSG}"
                 )
                 safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
             except Exception:
@@ -790,14 +790,14 @@ def add_group_msg_callback(app, callback_query):
                 )
             
             # Answer callback query
-            callback_query.answer("Closed")
+            callback_query.answer(Messages.URL_EXTRACTOR_CLOSED_MSG)
             
             # Log the action
-            send_to_logger(callback_query.message, f"User {user_id} closed add_bot_to_group command")
+            send_to_logger(callback_query.message, Messages.URL_EXTRACTOR_ADD_GROUP_USER_CLOSED_MSG.format(user_id=user_id))
             
     except Exception as e:
         # Log error and answer callback
         send_to_logger(callback_query.message, f"Error in add_group_msg callback handler: {e}")
-        callback_query.answer("Error occurred", show_alert=True)
+        callback_query.answer(Messages.URL_EXTRACTOR_ERROR_OCCURRED_MSG, show_alert=True)
 
 ######################################################  

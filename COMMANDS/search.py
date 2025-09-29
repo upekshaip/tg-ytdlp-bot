@@ -31,7 +31,7 @@ def search_command(app, message):
         ],
         [
             InlineKeyboardButton(
-                "🔚Close",
+                Messages.SEARCH_CLOSE_BUTTON_MSG,
                 callback_data="search_msg|close"
             )
         ]

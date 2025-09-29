@@ -820,9 +820,9 @@ def build_filter_rows(user_id, url=None, is_private_chat=False):
     av01_available = 'av01' in available_formats["codecs"] or not available_formats["codecs"]
     vp9_available = 'vp9' in available_formats["codecs"] or not available_formats["codecs"]
     
-    avc1_btn = ("✅ AVC" if codec == "avc1" else "☑️ AVC") if avc1_available else "❌ AVC"
-    av01_btn = ("✅ AV1" if codec == "av01" else "☑️ AV1") if av01_available else "❌ AV1"
-    vp9_btn = ("✅ VP9" if codec == "vp9" else "☑️ VP9") if vp9_available else "❌ VP9"
+    avc1_btn = (Messages.AA_AVC_BUTTON_MSG if codec == "avc1" else Messages.AA_AVC_BUTTON_INACTIVE_MSG) if avc1_available else Messages.AA_AVC_BUTTON_UNAVAILABLE_MSG
+    av01_btn = (Messages.AA_AV1_BUTTON_MSG if codec == "av01" else Messages.AA_AV1_BUTTON_INACTIVE_MSG) if av01_available else Messages.AA_AV1_BUTTON_UNAVAILABLE_MSG
+    vp9_btn = (Messages.AA_VP9_BUTTON_MSG if codec == "vp9" else Messages.AA_VP9_BUTTON_INACTIVE_MSG) if vp9_available else Messages.AA_VP9_BUTTON_UNAVAILABLE_MSG
     
     # Build format buttons with availability check
     # If user has fixed format via /args, don't show container buttons
@@ -835,8 +835,8 @@ def build_filter_rows(user_id, url=None, is_private_chat=False):
         mp4_available = 'mp4' in available_formats["formats"] or not available_formats["formats"]
         mkv_available = 'mkv' in available_formats["formats"] or not available_formats["formats"]
         
-        mp4_btn = ("✅ MP4" if ext == "mp4" else "☑️ MP4") if mp4_available else "❌ MP4"
-        mkv_btn = ("✅ MKV" if ext == "mkv" else "☑️ MKV") if mkv_available else "❌ MKV"
+        mp4_btn = (Messages.AA_MP4_BUTTON_MSG if ext == "mp4" else Messages.AA_MP4_BUTTON_INACTIVE_MSG) if mp4_available else Messages.AA_MP4_BUTTON_UNAVAILABLE_MSG
+        mkv_btn = (Messages.AA_MKV_BUTTON_MSG if ext == "mkv" else Messages.AA_MKV_BUTTON_INACTIVE_MSG) if mkv_available else Messages.AA_MKV_BUTTON_UNAVAILABLE_MSG
     
     # NSFW detection for expanded filters
     is_nsfw = False
@@ -935,7 +935,7 @@ def askq_callback(app, callback_query):
         # Get original URL from the reply message
         original_message = callback_query.message.reply_to_message
         if not original_message:
-            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            callback_query.answer(Messages.AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             return
             
         url_text = original_message.text or (original_message.caption or "")
@@ -1037,7 +1037,7 @@ def askq_callback(app, callback_query):
         # Get original URL from the reply message
         original_message = callback_query.message.reply_to_message
         if not original_message:
-            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            callback_query.answer(Messages.AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             return
             
         url_text = original_message.text or (original_message.caption or "")
@@ -1147,7 +1147,7 @@ def askq_callback(app, callback_query):
     if data == "image":
         original_message = callback_query.message.reply_to_message
         if not original_message:
-            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            callback_query.answer(Messages.AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             return
         # ЖЕСТКО: Получаем полный текст сообщения
         url_text = original_message.text or (original_message.caption or "")
@@ -1219,18 +1219,18 @@ def askq_callback(app, callback_query):
         # Get original URL from the reply message
         original_message = callback_query.message.reply_to_message
         if not original_message:
-            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            callback_query.answer(Messages.AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             return
             
         url = original_message.text
         if not url:
-            callback_query.answer("❌ Error: URL not found.", show_alert=True)
+            callback_query.answer(Messages.AA_ERROR_URL_NOT_FOUND_MSG, show_alert=True)
             return
             
         # Transform URL
         embed_url = transform_to_embed_url(url)
         if embed_url == url:
-            callback_query.answer("❌ This URL cannot be embedded.", show_alert=True)
+            callback_query.answer(Messages.AA_ERROR_URL_NOT_EMBEDDABLE_MSG, show_alert=True)
             return
             
         # Send transformed URL
@@ -1282,12 +1282,12 @@ def askq_callback(app, callback_query):
             if kind == "codec":
                 if value not in available_formats["codecs"] and available_formats["codecs"]:
                     # Codec is not available, show warning
-                    callback_query.answer(f"❌ {value.upper()} codec not available for this video", show_alert=True)
+                    callback_query.answer(Messages.AA_ERROR_CODEC_NOT_AVAILABLE_MSG.format(codec=value.upper()), show_alert=True)
                     return
             elif kind == "ext":
                 if value not in available_formats["formats"] and available_formats["formats"]:
                     # Format is not available, show warning
-                    callback_query.answer(f"❌ {value.upper()} format not available for this video", show_alert=True)
+                    callback_query.answer(Messages.AA_ERROR_FORMAT_NOT_AVAILABLE_MSG.format(format=value.upper()), show_alert=True)
                     return
             
             # Set filter and reopen menu
@@ -1321,7 +1321,7 @@ def askq_callback(app, callback_query):
                     row = []
             if row:
                 rows.append(row)
-            rows.append([InlineKeyboardButton("🔙Back", callback_data="askf|dubs|back"), InlineKeyboardButton("🔚Close", callback_data="askf|dubs|close")])
+            rows.append([InlineKeyboardButton("🔙Back", callback_data="askf|dubs|back"), InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="askf|dubs|close")])
             kb = InlineKeyboardMarkup(rows)
             try:
                 # Replace entire keyboard (keeping caption/text) to show dubs
@@ -1560,7 +1560,7 @@ def askq_callback(app, callback_query):
         # Extract URL and tags to regenerate the original menu
         original_message = callback_query.message.reply_to_message
         if not original_message:
-            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            callback_query.answer(Messages.AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             app.delete_messages(user_id, callback_query.message.id)
             return
         
@@ -1585,7 +1585,7 @@ def askq_callback(app, callback_query):
             app.delete_messages(user_id, callback_query.message.id)
             ask_quality_menu(app, original_message, url, tags)
         else:
-            callback_query.answer("❌ Error: URL not found.", show_alert=True)
+            callback_query.answer(Messages.AA_ERROR_URL_NOT_FOUND_MSG, show_alert=True)
             app.delete_messages(user_id, callback_query.message.id)
         return
     
@@ -1596,7 +1596,7 @@ def askq_callback(app, callback_query):
         
         original_message = callback_query.message.reply_to_message
         if not original_message:
-            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            callback_query.answer(Messages.AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             app.delete_messages(user_id, callback_query.message.id)
             return
         
@@ -1612,7 +1612,7 @@ def askq_callback(app, callback_query):
                 url = url_match.group(0)
         
         if not url:
-            callback_query.answer("❌ Error: URL not found.", show_alert=True)
+            callback_query.answer(Messages.AA_ERROR_URL_NOT_FOUND_MSG, show_alert=True)
             app.delete_messages(user_id, callback_query.message.id)
             return
         
@@ -1641,7 +1641,7 @@ def askq_callback(app, callback_query):
         
         original_message = callback_query.message.reply_to_message
         if not original_message:
-            callback_query.answer("❌ Error: Original message not found.", show_alert=True)
+            callback_query.answer(Messages.AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             app.delete_messages(user_id, callback_query.message.id)
             return
         
@@ -1657,7 +1657,7 @@ def askq_callback(app, callback_query):
                 url = url_match.group(0)
         
         if not url:
-            callback_query.answer("❌ Error: URL not found.", show_alert=True)
+            callback_query.answer(Messages.AA_ERROR_URL_NOT_FOUND_MSG, show_alert=True)
             app.delete_messages(user_id, callback_query.message.id)
             return
         
@@ -2752,7 +2752,7 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
     # Add back and close buttons
     keyboard_rows.append([
         InlineKeyboardButton("🔙Back", callback_data="askq|other_back"),
-        InlineKeyboardButton("🔚Close", callback_data="askq|close")
+        InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="askq|close")
     ])
     
     keyboard = InlineKeyboardMarkup(keyboard_rows)

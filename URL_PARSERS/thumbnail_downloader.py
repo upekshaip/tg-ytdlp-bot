@@ -9,6 +9,7 @@ import requests
 from urllib.parse import urlparse
 from typing import Optional, Tuple
 from CONFIG.config import Config
+from CONFIG.messages import Messages
 from HELPERS.logger import logger
 
 
@@ -381,7 +382,7 @@ def download_instagram_thumbnail(video_id: str, dest: str) -> bool:
         logger.info(f"Attempting to download Instagram thumbnail for video_id: {video_id}")
         # Instagram thumbnails are usually in video metadata, not direct URLs
         # For now, return False to use fallback
-        logger.info(f"Instagram thumbnail download not implemented yet, using fallback")
+        logger.info("Instagram thumbnail download not implemented")
         return False
     except Exception as e:
         logger.warning(f"Failed to download Instagram thumbnail: {e}")

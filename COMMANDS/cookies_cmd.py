@@ -2,6 +2,7 @@
 # Command to Set Browser Cookies and Auto-Update YouTube Cookies
 from pyrogram import filters, enums
 from CONFIG.config import Config
+from CONFIG.messages import Messages
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 
 from HELPERS.app_instance import get_app
@@ -93,7 +94,7 @@ def cookies_from_browser(app, message):
     buttons = []
     for browser in installed_browsers:
         display_name = browser.capitalize()
-        button = InlineKeyboardButton(f"✅ {display_name}", callback_data=f"browser_choice|{browser}")
+        button = InlineKeyboardButton(Messages.COOKIES_BROWSER_BUTTON_MSG.format(browser_name=display_name), callback_data=f"browser_choice|{browser}")
         buttons.append([button])
 
     # Add a button to download from remote URL (always available)
@@ -105,10 +106,10 @@ def cookies_from_browser(app, message):
     miniapp_url = getattr(Config, 'MINIAPP_URL', None)
     # Use the URL as a regular link instead of WebApp
     if miniapp_url and miniapp_url.startswith('https://t.me/'):
-        logger.info(f"Adding browser monitoring button with URL: {miniapp_url}")
+        logger.info(Messages.COOKIES_ADDING_BROWSER_MONITORING_MSG.format(miniapp_url=miniapp_url))
         buttons.append([InlineKeyboardButton(Messages.BROWSER_OPEN_BUTTON_MSG, url=miniapp_url)])
     else:
-        logger.warning(f"Browser monitoring URL not configured: {miniapp_url}")
+        logger.warning(Messages.COOKIES_BROWSER_MONITORING_URL_NOT_CONFIGURED_MSG.format(miniapp_url=miniapp_url))
     
     # Add a close button
     buttons.append([InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="browser_choice|close")])
@@ -147,7 +148,7 @@ def browser_choice_callback(app, callback_query):
         app: Экземпляр приложения
         callback_query: Callback запрос с выбором браузера
     """
-    logger.info(f"[BROWSER] callback: {callback_query.data}")
+    logger.info(Messages.COOKIES_BROWSER_CALLBACK_MSG.format(callback_data=callback_query.data))
 
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]  # E.G. "Chromium", "Firefox", or "Close"
@@ -361,7 +362,7 @@ def download_cookie_callback(app, callback_query):
         except Exception:
             pass
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚Close", callback_data="save_as_cookie_hint|close")]
+            [InlineKeyboardButton(Messages.URL_EXTRACTOR_SAVE_AS_COOKIE_HINT_CLOSE_BUTTON_MSG, callback_data="save_as_cookie_hint|close")]
         ])
         from HELPERS.safe_messeger import safe_send_message
         safe_send_message(
@@ -370,7 +371,7 @@ def download_cookie_callback(app, callback_query):
             reply_parameters=ReplyParameters(message_id=callback_query.message.id if hasattr(callback_query.message, 'id') else None),
             reply_markup=keyboard,
             _callback_query=callback_query,
-            _fallback_notice="⏳ Flood limit. Try later."
+            _fallback_notice=Messages.FLOOD_LIMIT_TRY_LATER_MSG
         )
     elif data == "from_browser":
         try:
@@ -550,14 +551,14 @@ def download_cookie(app, message):
         ],
         [
             InlineKeyboardButton("📘 Vkontakte", callback_data="download_cookie|vk"),
-            InlineKeyboardButton("✅ Check Cookie", callback_data="download_cookie|check_cookie"),
+            InlineKeyboardButton(Messages.COOKIES_CHECK_COOKIE_BUTTON_MSG, callback_data="download_cookie|check_cookie"),
         ],
         [
             InlineKeyboardButton("📷 Instagram", callback_data="download_cookie|instagram"),
             InlineKeyboardButton("📝 Your Own", callback_data="download_cookie|own"),   
         ],
         [         
-            InlineKeyboardButton("🔚Close", callback_data="download_cookie|close")
+            InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="download_cookie|close")
         ],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
