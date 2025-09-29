@@ -2859,6 +2859,7 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
     Returns:
         bool: True если меню создано успешно, False если нет кэшированных данных
     """
+    from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     try:
         logger.info(f"Attempting to create menu from cached qualities for user {user_id}")
         
