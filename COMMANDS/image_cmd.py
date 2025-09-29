@@ -2072,16 +2072,16 @@ def image_command(app, message):
                                     if os.path.exists(p):
                                         # Delete file to prevent re-processing
                                         os.remove(p)
-                                        logger.info(f"[IMG BATCH OTHERS] Deleted file: {p}")
+                                        logger.info(f"Messages.IMG_BATCH_OTHERS_DELETED_FILE_LOG_MSG")
                                 except Exception as e:
-                                    logger.warning(f"[IMG BATCH OTHERS] Failed to delete {p}: {e}")
+                                    logger.warning(f"Messages.IMG_BATCH_OTHERS_FAILED_DELETE_LOG_MSG")
                                 try:
                                     if os.path.exists(orig):
                                         # Delete file to prevent re-processing
                                         os.remove(orig)
                                         logger.info(f"[IMG BATCH OTHERS] Zeroed out original: {orig}")
                                 except Exception as e:
-                                    logger.warning(f"[IMG BATCH OTHERS] Failed to zero out original {orig}: {e}")
+                                    logger.warning(f"Messages.IMG_BATCH_OTHERS_FAILED_ZERO_LOG_MSG")
                             except Exception as e:
                                 logger.error(f"Failed to send document: {e}")
 
@@ -2767,16 +2767,16 @@ def image_command(app, message):
                             if os.path.exists(p):
                                 # Delete file to prevent re-processing
                                 os.remove(p)
-                                logger.info(f"[IMG BATCH OTHERS] Deleted file: {p}")
+                                logger.info(f"Messages.IMG_BATCH_OTHERS_DELETED_FILE_LOG_MSG")
                         except Exception as e:
-                            logger.warning(f"[IMG BATCH OTHERS] Failed to delete {p}: {e}")
+                            logger.warning(f"Messages.IMG_BATCH_OTHERS_FAILED_DELETE_LOG_MSG")
                         try:
                             if os.path.exists(orig):
                                 # Delete file to prevent re-processing
                                 os.remove(orig)
                                 logger.info(f"[IMG BATCH OTHERS] Zeroed out original: {orig}")
                         except Exception as e:
-                            logger.warning(f"[IMG BATCH OTHERS] Failed to zero out original {orig}: {e}")
+                            logger.warning(f"Messages.IMG_BATCH_OTHERS_FAILED_ZERO_LOG_MSG")
                     except Exception:
                         pass
                 # Final update and replace header to 'Download complete'
@@ -2951,7 +2951,7 @@ def image_command(app, message):
 
         # Final cleanup: remove all media files from user directory
         try:
-            logger.info(f"[IMG CLEANUP] Starting final cleanup of user directory: {run_dir}")
+            logger.info(f"Messages.IMG_CLEANUP_START_LOG_MSG")
             if os.path.exists(run_dir):
                 for root, dirs, files in os.walk(run_dir):
                     for file in files:
@@ -2965,9 +2965,9 @@ def image_command(app, message):
                                 '.pdf', '.doc', '.docx', '.txt', '.zip', '.rar', '.7z'
                             )):
                                 os.remove(file_path)
-                                logger.info(f"[IMG CLEANUP] Removed file: {file_path}")
+                                logger.info(f"Messages.IMG_CLEANUP_REMOVED_FILE_LOG_MSG")
                         except Exception as e:
-                            logger.warning(f"[IMG CLEANUP] Failed to remove {file_path}: {e}")
+                            logger.warning(f"Messages.IMG_CLEANUP_FAILED_REMOVE_LOG_MSG")
                     
                     # Remove empty directories
                     for dir_name in dirs:
@@ -2975,7 +2975,7 @@ def image_command(app, message):
                         try:
                             if os.path.exists(dir_path) and not os.listdir(dir_path):
                                 os.rmdir(dir_path)
-                                logger.info(f"[IMG CLEANUP] Removed empty directory: {dir_path}")
+                                logger.info(f"Messages.IMG_CLEANUP_REMOVED_DIR_LOG_MSG")
                         except Exception as e:
                             logger.warning(f"[IMG CLEANUP] Failed to remove directory {dir_path}: {e}")
             
