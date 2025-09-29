@@ -448,7 +448,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             app.edit_message_text(
                 chat_id=user_id,
                 message_id=proc_msg.id,
-                text="<b>▶️ Download started</b>",
+                text=Messages.DOWNLOAD_STARTED_MSG,
                 parse_mode=enums.ParseMode.HTML
             )
             if os.path.exists(flood_time_file):

@@ -992,7 +992,7 @@ def askq_callback(app, callback_query):
                 ])
                 app.send_message(
                     user_id,
-                    "🎬 <b><a href=\"https://itunes.apple.com/app/apple-store/id650377962\">VLC Player (iOS)</a></b>\n\n<i>Click button to copy stream URL, then paste it in VLC app</i>",
+                    Messages.AA_VLC_IOS_MSG,
                     reply_parameters=ReplyParameters(message_id=original_message.id),
                     reply_markup=vlc_ios_keyboard,
                     parse_mode=enums.ParseMode.HTML
@@ -1006,7 +1006,7 @@ def askq_callback(app, callback_query):
                 ])
                 app.send_message(
                     user_id,
-                    "🎬 <b><a href=\"https://play.google.com/store/apps/details?id=org.videolan.vlc\">VLC Player (Android)</a></b>\n\n<i>Click button to copy stream URL, then paste it in VLC app</i>",
+                    Messages.AA_VLC_ANDROID_MSG,
                     reply_parameters=ReplyParameters(message_id=original_message.id),
                     reply_markup=vlc_android_keyboard,
                     parse_mode=enums.ParseMode.HTML
@@ -1018,7 +1018,7 @@ def askq_callback(app, callback_query):
             error_msg = result.get('error', 'Unknown error')
             app.send_message(
                 user_id,
-                f"❌ <b>Error getting link:</b>\n{error_msg}",
+                Messages.AA_ERROR_GETTING_LINK_MSG.format(error_msg=error_msg),
                 reply_parameters=ReplyParameters(message_id=original_message.id),
                 parse_mode=enums.ParseMode.HTML
             )
@@ -1120,7 +1120,7 @@ def askq_callback(app, callback_query):
                 logger.error(f"Error sending formats file: {e}")
                 app.send_message(
                     user_id,
-                    f"❌ Error sending formats file: {str(e)}",
+                    Messages.AA_ERROR_SENDING_FORMATS_MSG.format(error=str(e)),
                     reply_parameters=ReplyParameters(message_id=original_message.id)
                 )
             finally:
@@ -1132,7 +1132,7 @@ def askq_callback(app, callback_query):
         else:
             app.send_message(
                 user_id,
-                f"❌ Failed to get formats:\n<code>{output}</code>",
+                Messages.AA_FAILED_GET_FORMATS_MSG.format(output=output),
                 reply_parameters=ReplyParameters(message_id=original_message.id)
             )
         
@@ -1328,7 +1328,7 @@ def askq_callback(app, callback_query):
                 callback_query.edit_message_reply_markup(reply_markup=kb)
             except Exception:
                 pass
-            callback_query.answer("Choose audio language")
+            callback_query.answer(Messages.AA_CHOOSE_AUDIO_LANGUAGE_MSG)
             return
         # LINK MENU HANDLER REMOVED - now using direct link approach
         if kind == "subs" and value == "open":
@@ -1361,7 +1361,7 @@ def askq_callback(app, callback_query):
             
             if not langs:
                 logger.warning(f"[ASKQ] No subtitles found for {url}")
-                callback_query.answer("No subtitles detected", show_alert=True)
+                callback_query.answer(Messages.AA_NO_SUBTITLES_DETECTED_MSG, show_alert=True)
                 return
                 
             logger.info(f"[ASKQ] Building keyboard with {len(langs)} languages")
@@ -1372,7 +1372,7 @@ def askq_callback(app, callback_query):
             except Exception as e:
                 logger.error(f"[ASKQ] Error updating message: {e}")
                 pass
-            callback_query.answer("Choose subtitle language")
+            callback_query.answer(Messages.AA_CHOOSE_SUBTITLE_LANGUAGE_MSG)
             return
         if kind == "subs_page":
             # Handle page navigation in Always Ask subtitle menu
@@ -3093,7 +3093,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
     try:
         # Check if subtitles are included
         subs_enabled = is_subs_enabled(user_id)
-        processing_text = "🔄 Processing... (wait 6 sec)" if subs_enabled else "🔄 Processing..."
+        processing_text = Messages.AA_PROCESSING_WAIT_MSG if subs_enabled else Messages.AA_PROCESSING_MSG
         proc_msg = app.send_message(user_id, processing_text, reply_parameters=ReplyParameters(message_id=message.id), reply_markup=get_main_reply_keyboard())
         original_text = message.text or message.caption or ""
         is_playlist = is_playlist_with_range(original_text)
@@ -4388,7 +4388,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         minutes = (wait_time % 3600) // 60
         seconds = wait_time % 60
         time_str = f"{hours}h {minutes}m {seconds}s"
-        flood_msg = f"⚠️ Telegram has limited message sending.\n⏳ Please wait: {time_str}\nTo update timer send URL again 2 times."
+        flood_msg = Messages.AA_FLOOD_WAIT_MSG.format(time_str=time_str)
         if proc_msg:
             try:
                 app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=flood_msg)
@@ -4584,7 +4584,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
             error_msg = result.get('error', 'Unknown error')
             app.send_message(
                 user_id,
-                f"❌ <b>Error getting link:</b>\n{error_msg}",
+                Messages.AA_ERROR_GETTING_LINK_MSG.format(error_msg=error_msg),
                 reply_parameters=ReplyParameters(message_id=original_message.id),
                 parse_mode=enums.ParseMode.HTML
             )
@@ -4810,7 +4810,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
     # This mistake should have already been caught earlier, but for safety
     if tag_error:
         wrong, example = tag_error
-        error_msg = f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}"
+        error_msg = Messages.AA_TAG_FORBIDDEN_CHARS_MSG.format(wrong=wrong, example=example)
         app.send_message(message.chat.id, error_msg, reply_parameters=ReplyParameters(message_id=message.id))
         from HELPERS.logger import log_error_to_channel
         log_error_to_channel(message, error_msg)

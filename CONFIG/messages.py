@@ -1196,7 +1196,6 @@ Use:
     PLAYLIST_AUDIO_SENT_LOG_MSG = "Playlist audio sent: {sent}/{total} files (quality={quality}) to user{user_id}"
     AUDIO_DOWNLOAD_FAILED_MSG = "❌ Failed to download audio: {error}"
     DOWNLOAD_TIMEOUT_MSG = "⏰ Download cancelled due to timeout (2 hours)"
-    DOWNLOAD_STARTED_MSG = "<b>▶️ Download started</b>"
     VIDEO_DOWNLOAD_COMPLETE_MSG = "{process}\n{bar}   100.0%"
     
     # FFmpeg messages
@@ -1700,6 +1699,15 @@ Use:
     
     # Always Ask Menu messages
     AA_NO_VIDEO_FORMATS_FOUND_MSG = "❔ No video formats found. Trying image downloader…"
+    AA_FLOOD_WAIT_MSG = "⚠️ Telegram has limited message sending.\n⏳ Please wait: {time_str}\nTo update timer send URL again 2 times."
+    AA_VLC_IOS_MSG = "🎬 <b><a href=\"https://itunes.apple.com/app/apple-store/id650377962\">VLC Player (iOS)</a></b>\n\n<i>Click button to copy stream URL, then paste it in VLC app</i>"
+    AA_VLC_ANDROID_MSG = "🎬 <b><a href=\"https://play.google.com/store/apps/details?id=org.videolan.vlc\">VLC Player (Android)</a></b>\n\n<i>Click button to copy stream URL, then paste it in VLC app</i>"
+    AA_ERROR_GETTING_LINK_MSG = "❌ <b>Error getting link:</b>\n{error_msg}"
+    AA_ERROR_SENDING_FORMATS_MSG = "❌ Error sending formats file: {error}"
+    AA_FAILED_GET_FORMATS_MSG = "❌ Failed to get formats:\n<code>{output}</code>"
+    AA_PROCESSING_WAIT_MSG = "🔄 Processing... (wait 6 sec)"
+    AA_PROCESSING_MSG = "🔄 Processing..."
+    AA_TAG_FORBIDDEN_CHARS_MSG = "❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}"
     
     # Helper limitter messages
     HELPER_ADMIN_RIGHTS_REQUIRED_MSG = "❗️ Для работы в группе боту нужны права администратора. Пожалуйста, сделайте бота админом этой группы."
@@ -1786,16 +1794,30 @@ Use:
     # YouTube messages
     YOUTUBE_FAILED_EXTRACT_ID_MSG = "Failed to extract YouTube ID"
     YOUTUBE_FAILED_DOWNLOAD_THUMBNAIL_MSG = "Failed to download thumbnail or it is too big"
-    
-    
+        
     # Thumbnail downloader messages
     
-    # Commands messages
+    # Commands messages   
     
+    # Always Ask menu callback messages
+    AA_CHOOSE_AUDIO_LANGUAGE_MSG = "Choose audio language"
+    AA_NO_SUBTITLES_DETECTED_MSG = "No subtitles detected"
+    AA_CHOOSE_SUBTITLE_LANGUAGE_MSG = "Choose subtitle language"
     
+    # Gallery-dl error type messages
+    GALLERY_DL_AUTH_ERROR_MSG = "Authentication Error"
+    GALLERY_DL_ACCOUNT_NOT_FOUND_MSG = "Account Not Found"
+    GALLERY_DL_ACCOUNT_UNAVAILABLE_MSG = "Account Unavailable"
+    GALLERY_DL_RATE_LIMIT_EXCEEDED_MSG = "Rate Limit Exceeded"
+    GALLERY_DL_NETWORK_ERROR_MSG = "Network Error"
+    GALLERY_DL_CONTENT_UNAVAILABLE_MSG = "Content Unavailable"
+    GALLERY_DL_GEOGRAPHIC_RESTRICTIONS_MSG = "Geographic Restrictions"
+    GALLERY_DL_VERIFICATION_REQUIRED_MSG = "Verification Required"
+    GALLERY_DL_POLICY_VIOLATION_MSG = "Policy Violation"
+    GALLERY_DL_UNKNOWN_ERROR_MSG = "Unknown Error"
     
-    
-    
+    # Download started message (used in both audio and video downloads)
+    DOWNLOAD_STARTED_MSG = "<b>▶️ Download started</b>"
     
     # Split command constants
     SPLIT_CLOSE_BUTTON_MSG = "🔚Close"

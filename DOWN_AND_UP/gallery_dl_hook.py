@@ -598,62 +598,62 @@ def _get_error_type(stderr_text: str) -> str:
     if any(error in stderr_lower for error in [
         "401 unauthorized", "authentication failed", "login required", "access denied"
     ]):
-        return "Authentication Error"
+        return Messages.GALLERY_DL_AUTH_ERROR_MSG
     
     # Account/Profile errors
     if any(error in stderr_lower for error in [
         "account not found", "profile not found", "user not found", "page not found"
     ]):
-        return "Account Not Found"
+        return Messages.GALLERY_DL_ACCOUNT_NOT_FOUND_MSG
     
     if any(error in stderr_lower for error in [
         "account suspended", "account banned", "account private", "profile private"
     ]):
-        return "Account Unavailable"
+        return Messages.GALLERY_DL_ACCOUNT_UNAVAILABLE_MSG
     
     # Rate limiting errors
     if any(error in stderr_lower for error in [
         "rate limit exceeded", "too many requests", "429 too many requests", "quota exceeded"
     ]):
-        return "Rate Limit Exceeded"
+        return Messages.GALLERY_DL_RATE_LIMIT_EXCEEDED_MSG
     
     # Network errors
     if any(error in stderr_lower for error in [
         "connection refused", "connection timeout", "network unreachable", "dns resolution failed"
     ]):
-        return "Network Error"
+        return Messages.GALLERY_DL_NETWORK_ERROR_MSG
     
     # Content not available
     if any(error in stderr_lower for error in [
         "no media found", "no content available", "empty profile", "no posts found"
     ]):
-        return "Content Unavailable"
+        return Messages.GALLERY_DL_CONTENT_UNAVAILABLE_MSG
     
     # Blocking/Geographic restrictions
     if any(error in stderr_lower for error in [
         "geoblocked", "region blocked", "country blocked", "ip blocked", "user agent blocked"
     ]):
-        return "Geographic Restrictions"
+        return Messages.GALLERY_DL_GEOGRAPHIC_RESTRICTIONS_MSG
     
     # Verification required
     if any(error in stderr_lower for error in [
         "captcha required", "verification required", "age verification required", "nsfw verification required"
     ]):
-        return "Verification Required"
+        return Messages.GALLERY_DL_VERIFICATION_REQUIRED_MSG
     
     # Legal/Policy violations
     if any(error in stderr_lower for error in [
         "terms of service violation", "copyright violation", "dmca takedown", "content removed"
     ]):
-        return "Policy Violation"
+        return Messages.GALLERY_DL_POLICY_VIOLATION_MSG
     
     # Account issues
     if any(error in stderr_lower for error in [
         "post deleted", "account deleted", "account terminated"
     ]):
-        return "Account Unavailable"
+        return Messages.GALLERY_DL_ACCOUNT_UNAVAILABLE_MSG
     
-    return "Unknown Error"
+    return Messages.GALLERY_DL_UNKNOWN_ERROR_MSG
 
 
 def download_image_range_cli(url: str, range_expr: str, user_id=None, use_proxy: bool = False, output_dir: str | None = None) -> bool | str:
