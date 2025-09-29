@@ -267,6 +267,39 @@ def _save_album_now(url: str, album_index: int, message_ids: list):
         logger.info(LoggerMsg.IMG_CACHE_SAVE_REQUESTED_LOG_MSG.format(album_index=album_index, channel_type=channel_type))
     except Exception as e:
         logger.error(LoggerMsg.IMG_CACHE_SAVE_FAILED_LOG_MSG.format(album_index=album_index, e=e))
+
+def extract_profile_name(url):
+    """Extract profile name from URL for hashtag generation"""
+    try:
+        # Parse URL to extract the last part after the domain
+        if 'instagram.com/' in url:
+            # For Instagram: https://www.instagram.com/username -> username
+            parts = url.split('instagram.com/')
+            if len(parts) > 1:
+                profile_name = parts[1].split('/')[0].split('?')[0]  # Remove path and query params
+                return profile_name
+        elif 'twitter.com/' in url or 'x.com/' in url:
+            # For Twitter/X: https://twitter.com/username -> username
+            parts = url.split('twitter.com/') if 'twitter.com/' in url else url.split('x.com/')
+            if len(parts) > 1:
+                profile_name = parts[1].split('/')[0].split('?')[0]
+                return profile_name
+        elif 'tiktok.com/@' in url:
+            # For TikTok: https://www.tiktok.com/@username -> username
+            parts = url.split('@')
+            if len(parts) > 1:
+                profile_name = parts[1].split('/')[0].split('?')[0]
+                return profile_name
+        # For other platforms, try to extract from the last part of the URL
+        url_parts = url.split('/')
+        if len(url_parts) > 1:
+            last_part = url_parts[-1].split('?')[0]  # Remove query params
+            if last_part and '.' not in last_part:  # Avoid file extensions
+                return last_part
+    except Exception:
+        pass
+    return None
+
 def is_image_url(url):
     """Check if URL is likely an image URL"""
     image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.svg']
@@ -1322,6 +1355,10 @@ def image_command(app, message):
                                                     if tags_text_norm:
                                                         user_caption_lines.append(tags_text_norm)
                                                     user_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
+                                                    # Add profile hashtag
+                                                    profile_name = extract_profile_name(url)
+                                                    if profile_name:
+                                                        user_caption_lines.append(f"#{profile_name}")
                                                     user_caption = "\n".join(user_caption_lines)
                                                     
                                                     _sep = (' ' if _exist and not _exist.endswith('\n') else '')
@@ -1455,6 +1492,10 @@ def image_command(app, message):
                                             if tags_text_norm:
                                                 log_caption_lines.append(tags_text_norm)
                                             log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
+                                            # Add profile hashtag
+                                            profile_name = extract_profile_name(url)
+                                            if profile_name:
+                                                log_caption_lines.append(f"#{profile_name}")
                                             log_caption = "\n".join(log_caption_lines)
                                             
                                             for _idx, _media_obj in enumerate(media_group):
@@ -1988,6 +2029,10 @@ def image_command(app, message):
                                                         if tags_text_norm:
                                                             log_caption_lines.append(tags_text_norm)
                                                         log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
+                                                        # Add profile hashtag
+                                                        profile_name = extract_profile_name(url)
+                                                        if profile_name:
+                                                            log_caption_lines.append(f"#{profile_name}")
                                                         log_caption = "\n".join(log_caption_lines)
                                                         
                                                         for _idx, _media_obj in enumerate(media_group):
@@ -2298,6 +2343,10 @@ def image_command(app, message):
                                             if tags_text_norm:
                                                 user_caption_lines.append(tags_text_norm)
                                             user_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
+                                            # Add profile hashtag
+                                            profile_name = extract_profile_name(url)
+                                            if profile_name:
+                                                user_caption_lines.append(f"#{profile_name}")
                                             user_caption = "\n".join(user_caption_lines)
                                             
                                             _sep = (' ' if _exist and not _exist.endswith('\n') else '')
