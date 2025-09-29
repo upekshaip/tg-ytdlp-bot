@@ -24,12 +24,12 @@ try:
     from CONFIG.config import Config
     from CONFIG.messages import Messages
 except ImportError as e:
-    print(Messages.DB_IMPORT_ERROR_CONFIG_MSG.format(error=e))
-    print(Messages.DB_CONFIG_NOT_FOUND_MSG)
+    print(f"Import error: {e}")
+    print("Config not found")
     sys.exit(1)
 except Exception as e:
-    print(Messages.DB_UNEXPECTED_ERROR_IMPORT_MSG.format(error=e))
-    print(Messages.DB_CHECK_SYNTAX_MSG)
+    print(f"Unexpected error during import: {e}")
+    print("Check syntax")
     sys.exit(1)
 
 try:

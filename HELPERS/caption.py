@@ -2,6 +2,7 @@
 import re
 from typing import Tuple
 from CONFIG.config import Config
+from CONFIG.messages import Messages
 from HELPERS.app_instance import get_app
 from HELPERS.logger import send_to_logger
 from pyrogram import filters
