@@ -706,10 +706,7 @@ def image_command(app, message):
     # Log the command execution
     logger.info(f"image_command called for user {user_id} in chat {chat_id} with text: {text}")
     
-    # For fake messages, use original_chat_id if available
-    if hasattr(message, '_original_chat_id') and message._original_chat_id:
-        chat_id = message._original_chat_id
-        logger.info(f"Using original_chat_id {chat_id} for fake message")
+    # For fake messages, chat_id is already set correctly in fake_message
     
     # Subscription check for non-admins
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):

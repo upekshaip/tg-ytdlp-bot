@@ -28,7 +28,8 @@ def get_app_safe():
 def fake_message(text, user_id, command=None, original_chat_id=None):
     m = SimpleNamespace()
     m.chat = SimpleNamespace()
-    m.chat.id = user_id
+    # Use original_chat_id if provided, otherwise use user_id
+    m.chat.id = original_chat_id if original_chat_id is not None else user_id
     m.chat.first_name = Messages.HELPER_USER_NAME_MSG
     m.text = text
     m.first_name = m.chat.first_name
