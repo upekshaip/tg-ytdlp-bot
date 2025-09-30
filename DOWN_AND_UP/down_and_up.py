@@ -12,7 +12,7 @@ import traceback
 import yt_dlp
 import re
 from HELPERS.app_instance import get_app
-from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, send_error_to_user, get_log_channel
+from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, send_error_to_user, get_log_channel, log_error_to_channel
 from CONFIG.logger_msg import LoggerMsg
 from CONFIG.messages import Messages
 from HELPERS.limitter import TimeFormatter, humanbytes, check_user, check_file_size_limit, check_subs_limits
@@ -199,7 +199,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                send_to_logger(message, Messages.DIRECT_LINK_FAILED_DOWN_UP_LOG_MSG.format(user_id=user_id, url=url, error=error_msg))
+                log_error_to_channel(message, Messages.DIRECT_LINK_FAILED_DOWN_UP_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
             
             return
     except Exception as e:
@@ -618,7 +618,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 Config.ERROR_FILE_SIZE_LIMIT_MSG.format(limit=max_size_gb),
                 reply_parameters=ReplyParameters(message_id=message.id)
             )
-            send_to_logger(message, Messages.SIZE_LIMIT_EXCEEDED.format(max_size_gb=max_size_gb))
+            log_error_to_channel(message, Messages.SIZE_LIMIT_EXCEEDED.format(max_size_gb=max_size_gb), url)
             logger.warning(f"[SIZE CHECK] Download for quality_key={quality_key} was blocked due to size limit.")
             return
         else:
@@ -2444,7 +2444,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     except Exception as e:
         if "Download timeout exceeded" in str(e):
             send_to_user(message, Messages.DOWNLOAD_CANCELLED_TIMEOUT_MSG)
-            send_to_logger(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG)
+            log_error_to_channel(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG, url)
         else:
             logger.error(f"Error in video download: {e}")
             send_to_user(message, Messages.FAILED_DOWNLOAD_VIDEO_MSG.format(error=e))

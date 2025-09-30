@@ -11,7 +11,7 @@ import time
 import yt_dlp
 from pyrogram.errors import FloodWait
 from HELPERS.app_instance import get_app
-from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, send_error_to_user
+from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, send_error_to_user, log_error_to_channel
 from HELPERS.limitter import TimeFormatter, humanbytes, check_user
 from HELPERS.download_status import set_active_download, clear_download_start_time, check_download_timeout, start_hourglass_animation, start_cycle_progress, playlist_errors, playlist_errors_lock
 from HELPERS.safe_messeger import safe_delete_messages, safe_edit_message_text, safe_forward_messages
@@ -253,7 +253,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                send_to_logger(message, Messages.DIRECT_LINK_FAILED_DOWN_AUDIO_LOG_MSG.format(user_id=user_id, url=url, error=error_msg))
+                log_error_to_channel(message, Messages.DIRECT_LINK_FAILED_DOWN_AUDIO_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
             
             return
     except Exception as e:
@@ -1550,7 +1550,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     except Exception as e:
         if "Download timeout exceeded" in str(e):
             send_to_user(message, Messages.DOWNLOAD_TIMEOUT_MSG)
-            send_to_logger(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG)
+            log_error_to_channel(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG, url)
         else:
             logger.error(f"Error in audio download: {e}")
             send_to_user(message, Messages.AUDIO_DOWNLOAD_FAILED_MSG.format(error=str(e)))

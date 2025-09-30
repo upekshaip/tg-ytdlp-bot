@@ -11,7 +11,7 @@ import requests
 
 from HELPERS.app_instance import get_app
 from HELPERS.decorators import get_main_reply_keyboard
-from HELPERS.logger import send_to_logger, logger, send_error_to_user
+from HELPERS.logger import send_to_logger, logger, send_error_to_user, log_error_to_channel
 from HELPERS.safe_messeger import safe_send_message
 from CONFIG.logger_msg import LoggerMsg
 from HELPERS.filesystem_hlp import create_directory
@@ -1066,7 +1066,7 @@ def askq_callback(app, callback_query):
                 parse_mode=enums.ParseMode.HTML
             )
             
-            send_to_logger(original_message, Messages.DIRECT_LINK_EXTRACTION_FAILED_LOG_MSG.format(user_id=user_id, url=url, error=error_msg))
+            log_error_to_channel(original_message, Messages.DIRECT_LINK_EXTRACTION_FAILED_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
         
         # Удаляем Always Ask меню после обработки
         try:
@@ -2178,9 +2178,12 @@ def fallback_gallery_dl_callback(app, callback_query):
             fallback_text = f"/img {url}"
             logger.info(f"Fallback without range")
         
-        fake_msg = fake_message(fallback_text, user_id, original_chat_id=user_id)
+        # Get the original chat_id from the callback query
+        original_chat_id = callback_query.message.chat.id
+        fake_msg = fake_message(fallback_text, user_id, original_chat_id=original_chat_id)
         
         # Execute gallery-dl command
+        logger.info(f"About to execute image_command for user {user_id} with fake_msg: {fallback_text}")
         image_command(app, fake_msg)
         
         logger.info(f"Gallery-dl fallback executed for user {user_id}: {fallback_text}")
@@ -3249,6 +3252,12 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 # Extract range info for better messaging
                 _, video_start_with, video_end_with, _, _, _, _ = extract_url_range_tags(message.text or "")
                 
+                # Get total media count for fallback
+                from DOWN_AND_UP.gallery_dl_hook import get_total_media_count
+                detected_total = get_total_media_count(url, user_id, use_proxy=False)
+                if detected_total and detected_total > 0:
+                    logger.info(f"Fallback detected {detected_total} media items for range selection")
+                
                 # Create fallback message with gallery-dl option
                 if video_start_with and video_end_with and (video_start_with != 1 or video_end_with != 1):
                     range_info = f" (range {video_start_with}-{video_end_with})"
@@ -3274,7 +3283,11 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 if video_start_with and video_end_with and (video_start_with != 1 or video_end_with != 1):
                     url_data = f"{url}|{video_start_with}|{video_end_with}"
                 else:
-                    url_data = f"{url}|1|1"
+                    # Use detected_total if available, otherwise default to 1-1
+                    if detected_total and detected_total > 0:
+                        url_data = f"{url}|1|{detected_total}"
+                    else:
+                        url_data = f"{url}|1|1"
                 
                 callback_data = create_safe_callback_data("fallback_gallery_dl", url_data)
                 keyboard = [
@@ -4671,9 +4684,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 result = app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=error_text, parse_mode=enums.ParseMode.HTML)
                 if result is not None:
                     # Successfully edited the processing message, now log to channel
-                    from HELPERS.logger import log_error_to_channel
-                    log_error_to_channel(message, error_text)
-                    send_to_logger(message, Messages.ALWAYS_ASK_MENU_ERROR_LOG_MSG.format(url=url, error=str(e)))
+                    log_error_to_channel(message, Messages.ALWAYS_ASK_MENU_ERROR_LOG_MSG.format(url=url, error=str(e)), url)
                     return
         except Exception as e2:
             logger.error(f"Error editing processing message: {e2}")
@@ -4682,9 +4693,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         logger.error(f"Always Ask menu error for user {user_id}: {e}")
         from HELPERS.safe_messeger import safe_send_message
         safe_send_message(user_id, error_text, parse_mode=enums.ParseMode.HTML, message=message)
-        from HELPERS.logger import log_error_to_channel
-        log_error_to_channel(message, error_text)
-        send_to_logger(message, Messages.ALWAYS_ASK_MENU_ERROR_LOG_MSG.format(url=url, error=str(e)))
+        log_error_to_channel(message, Messages.ALWAYS_ASK_MENU_ERROR_LOG_MSG.format(url=url, error=str(e)), url)
         return
 
 def askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs):
@@ -4752,7 +4761,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
                 parse_mode=enums.ParseMode.HTML
             )
             
-            send_to_logger(original_message, Messages.DIRECT_LINK_FAILED_ALWAYS_ASK_LOG_MSG.format(user_id=user_id, url=url, error=error_msg))
+            log_error_to_channel(original_message, Messages.DIRECT_LINK_FAILED_ALWAYS_ASK_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
         
         return
     # Read current filters to build correct format strings and container override
@@ -4975,8 +4984,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
         wrong, example = tag_error
         error_msg = Messages.AA_TAG_FORBIDDEN_CHARS_MSG.format(wrong=wrong, example=example)
         app.send_message(message.chat.id, error_msg, reply_parameters=ReplyParameters(message_id=message.id))
-        from HELPERS.logger import log_error_to_channel
-        log_error_to_channel(message, error_msg)
+        log_error_to_channel(message, error_msg, url)
         return
 
     video_count = video_end_with - video_start_with + 1
@@ -5043,7 +5051,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                send_to_logger(message, Messages.DIRECT_LINK_FAILED_DOWN_UP_LOG_MSG.format(user_id=user_id, url=url, error=error_msg))
+                log_error_to_channel(message, Messages.DIRECT_LINK_FAILED_DOWN_UP_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
             
             return
     except Exception as e:

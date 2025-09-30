@@ -699,10 +699,21 @@ def convert_file_to_telegram_format(file_path):
 @app.on_message(filters.command("img") & filters.private)
 def image_command(app, message):
     """Handle /img command for downloading images"""
-    user_id = message.chat.id
+    user_id = message.from_user.id
+    chat_id = message.chat.id
     text = message.text.strip()
+    
+    # Log the command execution
+    logger.info(f"image_command called for user {user_id} in chat {chat_id} with text: {text}")
+    
+    # For fake messages, use original_chat_id if available
+    if hasattr(message, '_original_chat_id') and message._original_chat_id:
+        chat_id = message._original_chat_id
+        logger.info(f"Using original_chat_id {chat_id} for fake message")
+    
     # Subscription check for non-admins
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+        logger.info(f"User {user_id} not authorized, returning")
         return
     
     # Extract URL from command
@@ -712,7 +723,7 @@ def image_command(app, message):
             [InlineKeyboardButton(Messages.COMMAND_IMAGE_HELP_CLOSE_BUTTON_MSG, callback_data="img_help|close")]
         ])
         safe_send_message(
-            user_id,
+            chat_id,
             Messages.IMG_HELP_MSG + " /audio, /vid, /help, /playlist, /settings",
             reply_markup=keyboard,
             parse_mode=enums.ParseMode.HTML,
@@ -789,13 +800,61 @@ def image_command(app, message):
     # Basic URL validation
     if not url.startswith(('http://', 'https://')):
         safe_send_message(
-            user_id,
+            chat_id,
             Messages.INVALID_URL_MSG,
             parse_mode=enums.ParseMode.HTML,
             reply_parameters=ReplyParameters(message_id=message.id)
         )
         log_error_to_channel(message, LoggerMsg.INVALID_URL_PROVIDED.format(url=url), url)
         return
+    
+    # Check if user is admin
+    is_admin = int(user_id) in Config.ADMIN
+    
+    # Check range limits if manual range is specified (BEFORE cache check)
+    if manual_range:
+        # Handle case where end range is None (e.g., "1-" means from 1 to end)
+        if manual_range[1] is None:
+            # For open-ended ranges, we can't check limits here - skip validation
+            range_count = None
+        else:
+            range_count = manual_range[1] - manual_range[0] + 1
+        
+        # Only check limits if we have a specific range count
+        if range_count is not None:
+            # Use TikTok limit if URL is TikTok, otherwise use general image limit
+            if 'tiktok.com' in url.lower():
+                max_img_files = LimitsConfig.MAX_TIKTOK_COUNT
+            else:
+                max_img_files = LimitsConfig.MAX_IMG_FILES
+            # Apply group multiplier for groups/channels
+            try:
+                if message and getattr(message.chat, 'type', None) != enums.ChatType.PRIVATE:
+                    mult = getattr(LimitsConfig, 'GROUP_MULTIPLIER', 1)
+                    max_img_files = int(max_img_files * mult)
+            except Exception:
+                pass
+            
+            if range_count > max_img_files:
+                # Create alternative commands preserving the original start range
+                start_range = manual_range[0]
+                end_range = start_range + max_img_files - 1
+                suggested_command_url_format = f"{url}*{start_range}*{end_range}"
+                
+                safe_send_message(
+                    chat_id,
+                    Messages.IMG_RANGE_LIMIT_EXCEEDED_MSG.format(
+                        range_count=range_count,
+                        max_img_files=max_img_files,
+                        start_range=start_range,
+                        end_range=end_range,
+                        url=url,
+                        suggested_command_url_format=suggested_command_url_format
+                    ),
+                    parse_mode=enums.ParseMode.HTML,
+                    reply_parameters=ReplyParameters(message_id=message.id)
+                )
+                return
     
     # Check if user has proxy enabled
     use_proxy = is_proxy_enabled(user_id)
@@ -839,6 +898,10 @@ def image_command(app, message):
             logger.error(LoggerMsg.IMG_ERROR_GET_CACHED_POSTS_LOG_MSG.format(e=e))
             cached_map = {}
     
+    # Process cached content and determine if we need to download more
+    cached_sent = 0
+    need_download = True
+    
     try:
         if cached_map:
             for album_idx in sorted(cached_map.keys()):
@@ -854,72 +917,72 @@ def image_command(app, message):
                     
                     logger.info(LoggerMsg.IMG_CACHE_REPOSTING_ALBUM_LOG_MSG.format(album_idx=album_idx, from_chat_id=from_chat_id, user_id=user_id, ids=ids))
                     sm.safe_forward_messages(user_id, from_chat_id, ids, **kwargs)
+                    cached_sent += len(ids)
                 except Exception:
                     logger.info(LoggerMsg.IMG_CACHE_FALLBACK_REPOSTING_LOG_MSG.format(album_idx=album_idx, from_chat_id=from_chat_id, user_id=user_id, ids=ids))
                     app.forward_messages(user_id, from_chat_id, ids, **kwargs)
+                    cached_sent += len(ids)
                 except Exception as _e:
                     logger.warning(LoggerMsg.IMG_CACHE_FAILED_FORWARD_ALBUM_LOG_MSG.format(album_idx=album_idx, _e=_e))
             
-            try:
-                safe_edit_message_text(
-                    user_id, status_msg.id,
-                    Messages.SENT_FROM_CACHE_MSG.format(count=len(cached_map)),
-                    parse_mode=enums.ParseMode.HTML,
-                )
-            except Exception:
-                pass
-            send_to_logger(message, LoggerMsg.REPOSTED_CACHED_ALBUMS.format(count=len(cached_map), url=url))
-            return
+            # Check if we have all requested content in cache
+            if manual_range is not None:
+                start_i, end_i = manual_range
+                if end_i is not None:
+                    requested_count = end_i - start_i + 1
+                    if cached_sent >= requested_count:
+                        # We have all requested content in cache
+                        need_download = False
+                        try:
+                            safe_edit_message_text(
+                                user_id, status_msg.id,
+                                Messages.SENT_FROM_CACHE_MSG.format(count=cached_sent),
+                                parse_mode=enums.ParseMode.HTML,
+                            )
+                        except Exception:
+                            pass
+                        send_to_logger(message, LoggerMsg.REPOSTED_CACHED_ALBUMS.format(count=cached_sent, url=url))
+                        return
+                    else:
+                        # We have partial content, need to download the rest
+                        logger.info(f"Cache has {cached_sent} items, need {requested_count}, downloading remaining {requested_count - cached_sent}")
+                        # Update manual_range to start from where cache ends
+                        remaining_start = start_i + cached_sent
+                        manual_range = (remaining_start, end_i)
+                        try:
+                            safe_edit_message_text(
+                                user_id, status_msg.id,
+                                f"✅ Sent from cache: {cached_sent}\n🔄 Downloading remaining...",
+                                parse_mode=enums.ParseMode.HTML,
+                            )
+                        except Exception:
+                            pass
+                else:
+                    # Open-ended range, continue downloading
+                    try:
+                        safe_edit_message_text(
+                            user_id, status_msg.id,
+                            f"✅ Sent from cache: {cached_sent}\n🔄 Downloading more...",
+                            parse_mode=enums.ParseMode.HTML,
+                        )
+                    except Exception:
+                        pass
+            else:
+                # No manual range, we have some cached content, continue downloading
+                try:
+                    safe_edit_message_text(
+                        user_id, status_msg.id,
+                        f"✅ Sent from cache: {cached_sent}\n🔄 Downloading more...",
+                        parse_mode=enums.ParseMode.HTML,
+                    )
+                except Exception:
+                    pass
     except Exception as _e:
         logger.warning(LoggerMsg.IMG_CACHE_FORWARD_EARLY_FAILED_LOG_MSG.format(_e=_e))
     
-    # Check if user is admin
-    is_admin = int(user_id) in Config.ADMIN
-    
-    # Check range limits if manual range is specified (before URL analysis)
-    if manual_range:
-        # Handle case where end range is None (e.g., "1-" means from 1 to end)
-        if manual_range[1] is None:
-            # For open-ended ranges, we can't check limits here - skip validation
-            range_count = None
-        else:
-            range_count = manual_range[1] - manual_range[0] + 1
-        
-        # Only check limits if we have a specific range count
-        if range_count is not None:
-            # Use TikTok limit if URL is TikTok, otherwise use general image limit
-            if 'tiktok.com' in url.lower():
-                max_img_files = LimitsConfig.MAX_TIKTOK_COUNT
-            else:
-                max_img_files = LimitsConfig.MAX_IMG_FILES
-            # Apply group multiplier for groups/channels
-            try:
-                if message and getattr(message.chat, 'type', None) != enums.ChatType.PRIVATE:
-                    mult = getattr(LimitsConfig, 'GROUP_MULTIPLIER', 1)
-                    max_img_files = int(max_img_files * mult)
-            except Exception:
-                pass
-            
-            if range_count > max_img_files:
-                # Create alternative commands preserving the original start range
-                start_range = manual_range[0]
-                end_range = start_range + max_img_files - 1
-                suggested_command_url_format = f"{url}*{start_range}*{end_range}"
-                
-                safe_send_message(
-                    user_id,
-                    Messages.IMG_RANGE_LIMIT_EXCEEDED_MSG.format(
-                        range_count=range_count,
-                        max_img_files=max_img_files,
-                        start_range=start_range,
-                        end_range=end_range,
-                        url=url,
-                        suggested_command_url_format=suggested_command_url_format
-                    ),
-                    parse_mode=enums.ParseMode.HTML,
-                    reply_parameters=ReplyParameters(message_id=message.id)
-                )
-                return
+    # If we don't need to download more, return
+    if not need_download:
+        return
     
     try:
         # Get image information first
@@ -938,15 +1001,27 @@ def image_command(app, message):
         # Respect explicit user tags overriding detection
         nsfw_flag = user_forced_nsfw or nsfw_detected
         
+        # Get detected_total value safely
+        detected_total_value = locals().get('detected_total', None)
+        
         if not image_info:
-            safe_edit_message_text(
-                user_id, status_msg.id,
-                Config.FAILED_ANALYZE_MSG.format(url=url) +
-                Messages.IMG_URL_NOT_ACCESSIBLE_MSG,
-                parse_mode=enums.ParseMode.HTML
-            )
-            log_error_to_channel(message, LoggerMsg.FAILED_ANALYZE_IMAGE.format(url=url), url)
-            return
+            # If we have detected_total but no image_info, create a minimal info object
+            if detected_total_value and detected_total_value > 0:
+                logger.info(f"Creating minimal image_info for {detected_total_value} media items")
+                image_info = {
+                    'title': f'Media Collection ({detected_total_value} items)',
+                    'description': f'Found {detected_total_value} media items',
+                    'url': url
+                }
+            else:
+                safe_edit_message_text(
+                    user_id, status_msg.id,
+                    Config.FAILED_ANALYZE_MSG.format(url=url) +
+                    Messages.IMG_URL_NOT_ACCESSIBLE_MSG,
+                    parse_mode=enums.ParseMode.HTML
+                )
+                log_error_to_channel(message, LoggerMsg.FAILED_ANALYZE_IMAGE.format(url=url), url)
+                return
         
         # Update status message
         title = image_info.get('title', 'Unknown')
@@ -954,7 +1029,8 @@ def image_command(app, message):
             user_id, status_msg.id,
             Config.DOWNLOADING_IMAGE_MSG +
             f"<b>Title:</b> {title}\n"
-            f"<b>URL:</b> <code>{url}</code>",
+            f"<b>URL:</b> <code>{url}</code>\n"
+            f"<b>Media count:</b> {detected_total_value if detected_total_value else 'Unknown'}",
             parse_mode=enums.ParseMode.HTML
         )
         
@@ -971,6 +1047,106 @@ def image_command(app, message):
                 total_limit = int(total_limit * mult)
         except Exception:
             pass
+        
+        # If no manual range specified, show range selection menu
+        if manual_range is None:
+            # Get total count from image_info
+            total_count = None
+            for key in ("count", "total", "num", "items", "files", "num_images", "images_count"):
+                if isinstance(image_info.get(key), int) and image_info.get(key) > 0:
+                    total_count = image_info.get(key)
+                    break
+            
+            if total_count is None or total_count <= 0:
+                # Try to get count via gallery-dl (already imported at top of file)
+                try:
+                    count_info = get_image_info(url, user_id, use_proxy)
+                    if count_info:
+                        for key in ("count", "total", "num", "items", "files", "num_images", "images_count"):
+                            if isinstance(count_info.get(key), int) and count_info.get(key) > 0:
+                                total_count = count_info.get(key)
+                                break
+                except Exception:
+                    pass
+            
+            if total_count is None or total_count <= 0:
+                # Fallback: try to get count via gallery-dl CLI
+                try:
+                    import subprocess
+                    import tempfile
+                    import json
+                    
+                    # Create temp config
+                    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                        config = {
+                            "extractor": {"timeout": 30, "retries": 3},
+                            "output": {"mode": "info"}
+                        }
+                        json.dump(config, f)
+                        config_path = f.name
+                    
+                    try:
+                        # Get count via --get-urls
+                        result = subprocess.run([
+                            '/mnt/c/Users/chelaxian/Desktop/tg-ytdlp-NEW/venv/bin/python', '-m', 'gallery_dl',
+                            '--config', config_path, '--get-urls', url
+                        ], capture_output=True, text=True, timeout=30)
+                        
+                        if result.returncode == 0:
+                            lines = result.stdout.strip().split('\n')
+                            total_count = len([line for line in lines if line.strip() and not line.startswith('#')])
+                    finally:
+                        os.unlink(config_path)
+                except Exception:
+                    pass
+            
+            if total_count is None or total_count <= 0:
+                # Still no count, show error
+                safe_edit_message_text(
+                    user_id, status_msg.id,
+                    "❌ Could not determine media count from the link.\n\n"
+                    "Try specifying range manually:\n"
+                    f"<code>/img 1-10 {url}</code>",
+                    parse_mode=enums.ParseMode.HTML
+                )
+                return
+            
+            # Create range selection menu
+            from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            
+            # Calculate ranges based on total_count and limits
+            ranges = []
+            current_start = 1
+            batch_size = total_limit
+            
+            while current_start <= total_count:
+                current_end = min(current_start + batch_size - 1, total_count)
+                ranges.append((current_start, current_end))
+                current_start = current_end + 1
+            
+            # Create keyboard
+            keyboard = []
+            for start, end in ranges:
+                if end == total_count and start == 1:
+                    # Single range covering all
+                    button_text = f"📥 Download all ({total_count})"
+                else:
+                    button_text = f"📥 {start}-{end} ({end - start + 1})"
+                
+                callback_data = f"img_range|{start}|{end}|{url}"
+                keyboard.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
+            
+            # Add cancel button
+            keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data="img_range|cancel")])
+            
+            safe_edit_message_text(
+                user_id, status_msg.id,
+                f"📊 Found <b>{total_count}</b> media items from the link\n\n"
+                f"Select download range:",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode=enums.ParseMode.HTML
+            )
+            return
             
         limit_text = 'unlimited' if is_admin else total_limit
         logger.info(LoggerMsg.IMG_USER_ADMIN_LIMIT_LOG_MSG.format(user_id=user_id, is_admin=is_admin, limit_text=limit_text))
@@ -3405,3 +3581,61 @@ def img_help_callback(app, callback_query: CallbackQuery):
         callback_query.answer()
     except Exception:
         pass
+
+@app.on_callback_query(filters.regex(r"^img_range\|"))
+def img_range_callback(app, callback_query: CallbackQuery):
+    """Handle img range selection callback"""
+    try:
+        data_parts = callback_query.data.split("|")
+        
+        if len(data_parts) < 2:
+            callback_query.answer("❌ Data error")
+            return
+        
+        if data_parts[1] == "cancel":
+            try:
+                callback_query.message.delete()
+            except Exception:
+                callback_query.edit_message_reply_markup(reply_markup=None)
+            try:
+                callback_query.answer("❌ Cancelled")
+            except Exception:
+                pass
+            return
+        
+        if len(data_parts) < 4:
+            callback_query.answer("❌ Invalid data format")
+            return
+        
+        start = int(data_parts[1])
+        end = int(data_parts[2])
+        url = data_parts[3]
+        
+        # Answer callback
+        callback_query.answer(f"📥 Downloading {start}-{end}")
+        
+        # Create new message with range command
+        range_command = f"/img {start}-{end} {url}"
+        
+        # Send the command as if user typed it
+        from pyrogram.types import Message
+        from pyrogram.types import Message as MessageType
+        
+        # Create a mock message object
+        mock_message = MessageType(
+            id=callback_query.message.id + 1,
+            from_user=callback_query.from_user,
+            chat=callback_query.message.chat,
+            text=range_command,
+            date=callback_query.message.date,
+            reply_to_message=None
+        )
+        
+        # Call the image command function
+        image_command(app, mock_message)
+        
+    except Exception as e:
+        try:
+            callback_query.answer(f"❌ Error: {str(e)}")
+        except Exception:
+            pass

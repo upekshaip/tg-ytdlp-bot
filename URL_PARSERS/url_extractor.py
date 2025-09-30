@@ -49,16 +49,31 @@ def url_distractor(app, message):
     is_admin = int(user_id) in Config.ADMIN
     text = message.text.strip()
     
+    # Debug logging
+    from HELPERS.logger import logger
+    logger.info(f"url_distractor called with text: {text[:100]}...")
+    
     # Check if user is in args input state
     from COMMANDS.args_cmd import user_input_states, handle_args_text_input, args_import_handler
     if user_id in user_input_states:
         handle_args_text_input(app, message)
         return
     
-    # Check for args import first (before other processing)
+    # Check for args import (flexible recognition for forwarded messages)
     if "📋 Current yt-dlp Arguments:" in text:
-        args_import_handler(app, message)
-        return
+        logger.info(f"Found potential args import template in message from user {user_id}")
+        # Additional checks to ensure it's a settings template
+        has_settings_line = any(":" in line and ("✅" in line or "❌" in line or "True" in line or "False" in line) 
+                               for line in text.split('\n'))
+        has_forward_instruction = ("Forward this message" in text or "apply these settings" in text)
+        has_separator = ("---" in text or "-" in text)
+        
+        logger.info(f"has_settings_line: {has_settings_line}, has_forward_instruction: {has_forward_instruction}, has_separator: {has_separator}")
+        
+        if has_settings_line and (has_forward_instruction or has_separator):
+            logger.info(f"Calling args_import_handler for user {user_id}")
+            args_import_handler(app, message)
+            return
     # Normalize commands like /cmd@bot to /cmd for group mentions
     try:
         bot_mention = f"@{getattr(Config, 'BOT_NAME', '').strip()}"
@@ -775,6 +790,21 @@ def url_distractor(app, message):
                 if message.reply_to_message and message.reply_to_message.video:
                     caption_editor(app, message)
         return
+
+    # Final check for args import (in case it wasn't caught earlier)
+    if "📋 Current yt-dlp Arguments:" in text:
+        logger.info(f"Final check: Found potential args import template in message from user {user_id}")
+        has_settings_line = any(":" in line and ("✅" in line or "❌" in line or "True" in line or "False" in line) 
+                               for line in text.split('\n'))
+        has_forward_instruction = ("Forward this message" in text or "apply these settings" in text)
+        has_separator = ("---" in text or "-" in text)
+        
+        logger.info(f"Final check: has_settings_line={has_settings_line}, has_forward_instruction={has_forward_instruction}, has_separator={has_separator}")
+        
+        if has_settings_line and (has_forward_instruction or has_separator):
+            logger.info(f"Final check: Calling args_import_handler for user {user_id}")
+            args_import_handler(app, message)
+            return
 
     logger.info(LoggerMsg.URL_EXTRACTOR_NO_MATCHING_COMMAND_LOG_MSG.format(user_id=user_id))
     clear_subs_check_cache()

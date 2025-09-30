@@ -865,7 +865,7 @@ def create_export_message(user_args: Dict[str, Any]) -> str:
         
         message += f"{display_name}: {status}\n"
     
-    message += "\n---\n\n<i>Forward this message to your favorites to save these settings as a template.</i>"
+    message += "\n---\n\n<i>Forward this message to your favorites to save these settings as a template.</i> \n\n<i>Forward this message back here to apply these settings.</i>"
     
     return message
 
@@ -923,7 +923,9 @@ def parse_import_message(text: str) -> Dict[str, Any]:
     
     for line in lines:
         line = line.strip()
-        if not line or line.startswith('📋') or line.startswith('---') or line.startswith('<i>'):
+        # Skip empty lines, headers, separators, and HTML tags
+        if (not line or line.startswith('📋') or line.startswith('---') or 
+            line.startswith('<i>') or line.startswith('Forward this message')):
             continue
             
         # Parse format: "Display Name: Value"
@@ -933,24 +935,36 @@ def parse_import_message(text: str) -> Dict[str, Any]:
                 display_name = parts[0].strip()
                 value_str = parts[1].strip()
                 
+                # Clean display name from potential HTML tags or extra characters
+                import re
+                display_name = re.sub(r'<[^>]+>', '', display_name).strip()
+                
                 param_name = display_to_param.get(display_name)
                 if param_name and param_name in YTDLP_PARAMS:
                     param_config = YTDLP_PARAMS[param_name]
                     param_type = param_config.get("type", "text")
                     
+                    # Clean value string from potential HTML tags
+                    value_str = re.sub(r'<[^>]+>', '', value_str).strip()
+                    
                     # Parse value based on type
                     if param_type == "boolean":
-                        if value_str in ["✅ True", "True", "true", "1", "yes", "on"]:
+                        if value_str in ["✅ True", "True", "true", "1", "yes", "on", "✅"]:
                             parsed_args[param_name] = True
-                        elif value_str in ["❌ False", "False", "false", "0", "no", "off"]:
+                        elif value_str in ["❌ False", "False", "false", "0", "no", "off", "❌"]:
                             parsed_args[param_name] = False
                     elif param_type == "number":
                         try:
-                            if param_name in ["min_filesize", "max_filesize"]:
-                                # These are in MB, convert to int
-                                parsed_args[param_name] = int(float(value_str))
-                            else:
-                                parsed_args[param_name] = int(value_str)
+                            # Extract number from string (handle cases like "16" or "Number: 16")
+                            import re
+                            numbers = re.findall(r'\d+', value_str)
+                            if numbers:
+                                num_value = int(numbers[0])
+                                if param_name in ["min_filesize", "max_filesize"]:
+                                    # These are in MB, convert to int
+                                    parsed_args[param_name] = num_value
+                                else:
+                                    parsed_args[param_name] = num_value
                         except ValueError:
                             continue
                     elif param_type in ["text", "json"]:
@@ -1403,13 +1417,15 @@ def args_text_handler(app, message):
     except Exception as e:
         logger.error(f"args_text_handler critical error: {e}")
 
-@app.on_message(filters.text & ~filters.regex(r'^/') & ~filters.create(_has_args_state))
 def args_import_handler(app, message):
     """Handle import of settings from forwarded message"""
     try:
         # Check if this is a forwarded message with settings template
         if not message.text or "📋 Current yt-dlp Arguments:" not in message.text:
             return
+        
+        # Log that we're attempting to import settings
+        logger.info(f"Attempting to import settings from user {message.chat.id}")
         
         user_id = message.chat.id
         invoker_id = getattr(message, 'from_user', None).id if getattr(message, 'from_user', None) else user_id
@@ -1420,6 +1436,7 @@ def args_import_handler(app, message):
         
         # Parse settings from message
         parsed_args = parse_import_message(message.text)
+        logger.info(f"Parsed {len(parsed_args)} settings from message: {list(parsed_args.keys())}")
         
         if not parsed_args:
             safe_send_message(

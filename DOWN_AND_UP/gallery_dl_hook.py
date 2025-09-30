@@ -408,7 +408,7 @@ def gallery_dl_hook(extractor, url, info):
 
 def get_total_media_count(url: str, user_id=None, use_proxy: bool = False) -> int | None:
     """
-    Estimate total media count using CLI equivalent of --get-urls and counting lines.
+    Estimate total media count using gallery-dl extractor to get all media (images + videos).
     Returns integer or None if failed.
     """
     cfg = {
@@ -423,18 +423,25 @@ def get_total_media_count(url: str, user_id=None, use_proxy: bool = False) -> in
             json.dump(cfg, f)
             cfg_path = f.name
         try:
-            # Use the same Python interpreter to invoke gallery-dl module (no PATH dependency)
-            logger.info(f"[gallery-dl] cookies for --get-urls: {cfg.get('extractor',{}).get('cookies')}")
-            cmd = [sys.executable, "-m", "gallery_dl", "--config", cfg_path, "--get-urls", url]
+            # Use gallery-dl extractor to get all media info (not just URLs)
+            logger.info(f"[gallery-dl] cookies for media count: {cfg.get('extractor',{}).get('cookies')}")
+            cmd = [sys.executable, "-m", "gallery_dl", "--config", cfg_path, "--simulate", url]
             logger.info(f"Counting total media via: {' '.join(cmd)}")
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
             if result.returncode == 0:
-                # each URL per line
-                lines = [ln for ln in result.stdout.splitlines() if ln.strip()]
-                return len(lines)
+                # Count lines that contain media info (not just URLs)
+                lines = [ln for ln in result.stdout.splitlines() if ln.strip() and ('"url"' in ln or '"filename"' in ln or '"extension"' in ln)]
+                media_count = len(lines)
+                if media_count > 0:
+                    logger.info(f"Detected {media_count} total media items (images + videos)")
+                    return media_count
+                else:
+                    logger.warning("--simulate returned 0 media items, trying --get-urls fallback")
+                    return _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
             else:
                 logger.warning(f"get_total_media_count failed: {result.stderr[:400]}")
-                return None
+                # Fallback to --get-urls for sites that don't work with --simulate
+                return _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
         finally:
             try:
                 os.unlink(cfg_path)
@@ -442,6 +449,65 @@ def get_total_media_count(url: str, user_id=None, use_proxy: bool = False) -> in
                 pass
     except Exception as e:
         logger.error(f"get_total_media_count error: {e}")
+        return None
+
+def _get_total_media_count_fallback(url: str, user_id, use_proxy: bool, cfg_path: str) -> int | None:
+    """Fallback method using --get-urls for sites that don't work with --simulate"""
+    try:
+        cmd = [sys.executable, "-m", "gallery_dl", "--config", cfg_path, "--get-urls", url]
+        logger.info(f"Fallback counting via --get-urls: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        if result.returncode == 0:
+            lines = [ln for ln in result.stdout.splitlines() if ln.strip()]
+            logger.info(f"Fallback detected {len(lines)} media items")
+            # Add warning for VK about video limitation
+            if 'vk.com' in url.lower():
+                logger.warning("Note: Gallery-dl only supports images from VK, not videos")
+            return len(lines)
+        else:
+            logger.warning(f"Fallback get_total_media_count failed: {result.stderr[:400]}")
+            # Try without cookies for problematic sites
+            if any(domain in url.lower() for domain in ['vk.com', 'instagram.com', 'tiktok.com']):
+                logger.info(f"Trying {url.split('/')[2]} without cookies...")
+                return _try_without_cookies(url, cfg_path)
+            return None
+    except Exception as e:
+        logger.error(f"Fallback get_total_media_count error: {e}")
+        return None
+
+def _try_without_cookies(url: str, cfg_path: str) -> int | None:
+    """Try without cookies as fallback for problematic sites"""
+    try:
+        # Create config without cookies
+        no_cookies_cfg = {
+            "extractor": {
+                "timeout": 30,
+                "retries": 3,
+            }
+        }
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(no_cookies_cfg, f)
+            no_cookies_cfg_path = f.name
+        
+        try:
+            cmd = [sys.executable, "-m", "gallery_dl", "--config", no_cookies_cfg_path, "--get-urls", url]
+            logger.info(f"Without cookies: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            if result.returncode == 0:
+                lines = [ln for ln in result.stdout.splitlines() if ln.strip()]
+                logger.info(f"Without cookies detected {len(lines)} media items")
+                return len(lines)
+            else:
+                logger.warning(f"Without cookies failed: {result.stderr[:400]}")
+                return None
+        finally:
+            try:
+                os.unlink(no_cookies_cfg_path)
+            except Exception:
+                pass
+    except Exception as e:
+        logger.error(f"Without cookies error: {e}")
         return None
 
 
