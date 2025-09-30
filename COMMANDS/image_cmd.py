@@ -913,11 +913,11 @@ def image_command(app, message):
                     channel_type = "regular"
                     
                     logger.info(LoggerMsg.IMG_CACHE_REPOSTING_ALBUM_LOG_MSG.format(album_idx=album_idx, from_chat_id=from_chat_id, user_id=user_id, ids=ids))
-                    sm.safe_forward_messages(user_id, from_chat_id, ids, **kwargs)
+                    sm.safe_forward_messages(chat_id, from_chat_id, ids, **kwargs)
                     cached_sent += len(ids)
                 except Exception:
                     logger.info(LoggerMsg.IMG_CACHE_FALLBACK_REPOSTING_LOG_MSG.format(album_idx=album_idx, from_chat_id=from_chat_id, user_id=user_id, ids=ids))
-                    app.forward_messages(user_id, from_chat_id, ids, **kwargs)
+                    app.forward_messages(chat_id, from_chat_id, ids, **kwargs)
                     cached_sent += len(ids)
                 except Exception as _e:
                     logger.warning(LoggerMsg.IMG_CACHE_FAILED_FORWARD_ALBUM_LOG_MSG.format(album_idx=album_idx, _e=_e))
