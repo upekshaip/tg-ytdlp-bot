@@ -339,6 +339,219 @@ def extract_site_name(url):
         pass
     return None
 
+def get_emoji_number(index):
+    """Get emoji number for given index (1-based)"""
+    emoji_numbers = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟']
+    if 1 <= index <= 10:
+        return emoji_numbers[index - 1]
+    else:
+        return f"{index}."
+
+def get_file_date(file_path):
+    """Get file creation date in DD.MM.YYYY format from EXIF data or filename"""
+    try:
+        from datetime import datetime
+        import re
+        
+        # First, try to extract date from filename (Instagram format: timestamp.jpg)
+        filename = os.path.basename(file_path)
+        # Instagram files often have timestamp as filename (e.g., 3732982640044472150.jpg)
+        # This is usually a Unix timestamp in microseconds
+        if filename and '.' in filename:
+            name_without_ext = filename.split('.')[0]
+            # Check if it's a numeric timestamp (Instagram format)
+            if name_without_ext.isdigit() and len(name_without_ext) > 10:
+                try:
+                    # Instagram timestamps are in microseconds, convert to seconds
+                    timestamp = int(name_without_ext) / 1000000
+                    dt = datetime.fromtimestamp(timestamp)
+                    # Check if date is reasonable (not in future, not too old)
+                    now = datetime.now()
+                    if 2020 <= dt.year <= now.year + 1:
+                        return dt.strftime("%d.%m.%Y")
+                except (ValueError, OSError):
+                    pass
+        
+        # Try to get date from EXIF data
+        try:
+            from PIL import Image
+            from PIL.ExifTags import TAGS
+            
+            with Image.open(file_path) as img:
+                exifdata = img.getexif()
+                if exifdata:
+                    # Try different EXIF date fields
+                    for tag_id, value in exifdata.items():
+                        tag = TAGS.get(tag_id, tag_id)
+                        if 'date' in str(tag).lower() and value:
+                            try:
+                                # Parse EXIF date format (YYYY:MM:DD HH:MM:SS)
+                                if ':' in str(value):
+                                    dt = datetime.strptime(str(value).split()[0], '%Y:%m:%d')
+                                    return dt.strftime("%d.%m.%Y")
+                            except ValueError:
+                                continue
+        except ImportError:
+            # PIL not available, skip EXIF
+            pass
+        except Exception:
+            # EXIF reading failed, continue to next method
+            pass
+        
+        # Try to get date from file metadata using ffprobe (for videos)
+        if file_path.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm')):
+            try:
+                result = subprocess.run([
+                    'ffprobe', '-v', 'error', '-select_streams', 'v:0',
+                    '-show_entries', 'format_tags=creation_time',
+                    '-of', 'json', file_path
+                ], capture_output=True, text=True, timeout=10)
+                
+                if result.returncode == 0:
+                    import json
+                    data = json.loads(result.stdout or '{}')
+                    creation_time = data.get('format', {}).get('tags', {}).get('creation_time')
+                    if creation_time:
+                        # Parse ISO format (2024-10-30T15:47:00.000000Z)
+                        try:
+                            dt = datetime.fromisoformat(creation_time.replace('Z', '+00:00'))
+                            return dt.strftime("%d.%m.%Y")
+                        except ValueError:
+                            pass
+            except Exception:
+                pass
+        
+        # If all else fails, try to use file modification time as fallback
+        try:
+            stat = os.stat(file_path)
+            mtime = stat.st_mtime
+            dt = datetime.fromtimestamp(mtime)
+            return dt.strftime("%d.%m.%Y")
+        except Exception:
+            pass
+        
+        # If all else fails, return None (will be grouped as 'unknown')
+        return None
+        
+    except Exception:
+        return None
+
+def create_unique_download_path(user_id, url):
+    """Create unique download path based on user ID and URL structure"""
+    try:
+        import time
+        import random
+        from urllib.parse import urlparse
+        
+        # Parse URL to extract domain and path
+        parsed = urlparse(url)
+        domain = parsed.netloc.lower()
+        
+        # Clean domain name (remove www, etc.)
+        if domain.startswith('www.'):
+            domain = domain[4:]
+        
+        # Extract path components
+        path_parts = [part for part in parsed.path.split('/') if part and part != '']
+        
+        # Create safe directory name
+        if path_parts:
+            # Use first path component as username/profile
+            profile_name = path_parts[0]
+            # Remove special characters that might cause issues
+            import re
+            profile_name = re.sub(r'[^\w\-_.]', '_', profile_name)
+        else:
+            profile_name = 'unknown'
+        
+        # Create unique timestamp-based directory with microsecond precision and random component
+        timestamp = int(time.time() * 1000000)  # Microsecond precision
+        random_suffix = random.randint(1000, 9999)  # Random 4-digit number
+        
+        # Structure: users/{user_id}/{domain}/{profile_name}_{timestamp}_{random}/
+        unique_dir = os.path.join("users", str(user_id), domain, f"{profile_name}_{timestamp}_{random_suffix}")
+        
+        return unique_dir
+    except Exception as e:
+        logger.error(f"Failed to create unique download path: {e}")
+        # Fallback to simple timestamp-based directory
+        return os.path.join("users", str(user_id), f"download_{int(time.time() * 1000000)}_{random.randint(1000, 9999)}")
+
+def create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name):
+    """Create album caption with emoji numbers and dates grouped by date"""
+    try:
+        # Group media by date
+        date_groups = {}
+        for i, media in enumerate(media_group, 1):
+            file_path = media.media
+            date = get_file_date(file_path)
+            if date:
+                if date not in date_groups:
+                    date_groups[date] = []
+                date_groups[date].append(i)
+            else:
+                # If no date, add to a special group
+                if 'unknown' not in date_groups:
+                    date_groups['unknown'] = []
+                date_groups['unknown'].append(i)
+        
+        # Create caption lines
+        caption_lines = []
+        
+        # Add emoji numbers with dates
+        # Sort dates chronologically (unknown dates go last)
+        sorted_dates = []
+        unknown_dates = []
+        for date in date_groups.keys():
+            if date == 'unknown':
+                unknown_dates.append(date)
+            else:
+                sorted_dates.append(date)
+        
+        # Sort dates chronologically
+        def parse_date(date_str):
+            try:
+                from datetime import datetime
+                return datetime.strptime(date_str, "%d.%m.%Y")
+            except:
+                return datetime.min
+        
+        sorted_dates.sort(key=parse_date)
+        
+        # Add unknown dates at the end
+        all_dates = sorted_dates + unknown_dates
+        
+        for date in all_dates:
+            if date == 'unknown':
+                # For files without date, just add emojis
+                emojis = [get_emoji_number(i) for i in date_groups[date]]
+                caption_lines.append(" ".join(emojis))
+            else:
+                emojis = [get_emoji_number(i) for i in date_groups[date]]
+                caption_lines.append(" ".join(emojis) + f" {date}")
+        
+        # Add profile and site hashtags
+        hashtags = []
+        if profile_name:
+            hashtags.append(f"#{profile_name}")
+        if site_name:
+            hashtags.append(f"#{site_name}")
+        if hashtags:
+            caption_lines.append(" ".join(hashtags))
+        
+        # Add user tags if any
+        if tags_text_norm:
+            caption_lines.append(tags_text_norm)
+        
+        # Add URL with paperclip emoji
+        caption_lines.append(f"🔗[Images URL]({url}) @{Config.BOT_NAME}")
+        
+        return "\n".join(caption_lines)
+    except Exception as e:
+        logger.error(f"Failed to create album caption with dates: {e}")
+        # Fallback to simple caption
+        return f"🔗[Images URL]({url}) @{Config.BOT_NAME}"
+
 def is_image_url(url):
     """Check if URL is likely an image URL"""
     image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.svg']
@@ -842,7 +1055,7 @@ def image_command(app, message):
             logger.warning(LoggerMsg.IMG_PRE_CLEANUP_FAILED_LOG_MSG.format(e=e))
 
         # Streaming download: run range-based batches (1-10, 11-20, ...) scoped to a unique per-run directory
-        run_dir = os.path.join("users", str(user_id), Messages.COMMAND_IMAGE_RUN_DIRECTORY_MSG.format(timestamp=int(time.time())))
+        run_dir = create_unique_download_path(user_id, url)
         create_directory(run_dir)
         files_to_cleanup = []
 
@@ -1399,27 +1612,10 @@ def image_command(app, message):
                                                     _first = media_group[0]
                                                     _exist = getattr(_first, 'caption', None) or ''
                                                     
-                                                    # Create user caption with hashtags first, then URL
-                                                    user_caption_lines = []
-                                                    
-                                                    # Add profile and site hashtags first
+                                                    # Create user caption with emoji numbers and dates
                                                     profile_name = extract_profile_name(url)
                                                     site_name = extract_site_name(url)
-                                                    hashtags = []
-                                                    if profile_name:
-                                                        hashtags.append(f"#{profile_name}")
-                                                    if site_name:
-                                                        hashtags.append(f"#{site_name}")
-                                                    if hashtags:
-                                                        user_caption_lines.append(" ".join(hashtags))
-                                                    
-                                                    # Add user tags if any
-                                                    if tags_text_norm:
-                                                        user_caption_lines.append(tags_text_norm)
-                                                    
-                                                    # Add URL with paperclip emoji
-                                                    user_caption_lines.append(f"🔗[Images URL]({url}) @{Config.BOT_NAME}")
-                                                    user_caption = "\n".join(user_caption_lines)
+                                                    user_caption = create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name)
                                                     
                                                     _sep = (' ' if _exist and not _exist.endswith('\n') else '')
                                                     # Если у первого уже стоит эта подпись, не дублируем
@@ -2406,24 +2602,10 @@ def image_command(app, message):
                                             _first = media_group[0]
                                             _exist = getattr(_first, 'caption', None) or ''
                                             
-                                            # Create user caption with URL
-                                            user_caption_lines = []
-                                            if tags_text_norm:
-                                                user_caption_lines.append(tags_text_norm)
-                                            # Add profile and site hashtags first
+                                            # Create user caption with emoji numbers and dates
                                             profile_name = extract_profile_name(url)
                                             site_name = extract_site_name(url)
-                                            hashtags = []
-                                            if profile_name:
-                                                hashtags.append(f"#{profile_name}")
-                                            if site_name:
-                                                hashtags.append(f"#{site_name}")
-                                            if hashtags:
-                                                user_caption_lines.append(" ".join(hashtags))
-                                            
-                                            # Add URL with paperclip emoji
-                                            user_caption_lines.append(f"🔗[Images URL]({url}) @{Config.BOT_NAME}")
-                                            user_caption = "\n".join(user_caption_lines)
+                                            user_caption = create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name)
                                             
                                             _sep = (' ' if _exist and not _exist.endswith('\n') else '')
                                             _first.caption = (_exist + _sep + user_caption).strip()
@@ -2981,12 +3163,10 @@ def image_command(app, message):
                     if media_group:
                         _first = media_group[0]
                         if hasattr(_first, 'caption'):
-                            # Create user caption with URL
-                            user_caption_lines = []
-                            if tags_text_norm:
-                                user_caption_lines.append(tags_text_norm)
-                            user_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
-                            user_caption = "\n".join(user_caption_lines)
+                            # Create user caption with emoji numbers and dates
+                            profile_name = extract_profile_name(url)
+                            site_name = extract_site_name(url)
+                            user_caption = create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name)
                             _first.caption = user_caption
                         # Clear captions from other items
                         for _itm in media_group[1:]:

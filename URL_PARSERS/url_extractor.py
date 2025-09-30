@@ -50,9 +50,14 @@ def url_distractor(app, message):
     text = message.text.strip()
     
     # Check if user is in args input state
-    from COMMANDS.args_cmd import user_input_states, handle_args_text_input
+    from COMMANDS.args_cmd import user_input_states, handle_args_text_input, args_import_handler
     if user_id in user_input_states:
         handle_args_text_input(app, message)
+        return
+    
+    # Check for args import first (before other processing)
+    if "📋 Current yt-dlp Arguments:" in text:
+        args_import_handler(app, message)
         return
     # Normalize commands like /cmd@bot to /cmd for group mentions
     try:

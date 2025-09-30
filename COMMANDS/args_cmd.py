@@ -799,6 +799,172 @@ def format_current_args(user_args: Dict[str, Any]) -> str:
     
     return message
 
+def create_export_message(user_args: Dict[str, Any]) -> str:
+    """Create export message for forwarding to favorites"""
+    if not user_args:
+        return "📋 Current yt-dlp Arguments:\n\nNo custom settings configured.\n\n---\n\n<i>Forward this message to your favorites to save these settings as a template.</i> \n\n<i>Forward this message back here to apply these settings.</i>"
+    
+    message = "📋 Current yt-dlp Arguments:\n\n"
+    
+    # Mapping of parameter names to their display names for export
+    display_names = {
+        "force_ipv6": "Force IPv6 connections",
+        "force_ipv4": "Force IPv4 connections", 
+        "no_live_from_start": "Do not download live streams from start",
+        "live_from_start": "Download live streams from start",
+        "no_check_certificates": "Suppress HTTPS certificate validation",
+        "check_certificate": "Check SSL certificate",
+        "no_playlist": "Download only single video, not playlist",
+        "embed_metadata": "Embed metadata in video file",
+        "embed_thumbnail": "Embed thumbnail in video file",
+        "write_thumbnail": "Write thumbnail to file",
+        "ignore_errors": "Ignore download errors and continue",
+        "legacy_server_connect": "Allow legacy server connections",
+        "concurrent_fragments": "Number of concurrent fragments to download",
+        "xff": "X-Forwarded-For header strategy",
+        "user_agent": "User-Agent header",
+        "impersonate": "Browser impersonation",
+        "referer": "Referer header",
+        "geo_bypass": "Bypass geographic restrictions",
+        "hls_use_mpegts": "Use MPEG-TS for HLS streams",
+        "no_part": "Do not use .part files",
+        "no_continue": "Do not resume partial downloads",
+        "audio_format": "Audio format preference",
+        "video_format": "Video format preference",
+        "merge_output_format": "Merge output format",
+        "send_as_file": "Send as file instead of video",
+        "username": "Username for authentication",
+        "password": "Password for authentication",
+        "twofactor": "Two-factor authentication code",
+        "min_filesize": "Minimum file size (MB)",
+        "max_filesize": "Maximum file size (MB)",
+        "playlist_items": "Playlist items to download",
+        "date": "Download videos on this date",
+        "datebefore": "Download videos before this date",
+        "dateafter": "Download videos after this date",
+        "http_headers": "Custom HTTP headers",
+        "sleep_interval": "Sleep interval between downloads",
+        "max_sleep_interval": "Maximum sleep interval",
+        "retries": "Number of retries",
+        "http_chunk_size": "HTTP chunk size",
+        "sleep_subtitles": "Sleep interval for subtitles"
+    }
+    
+    # Sort parameters for consistent display
+    sorted_params = sorted(user_args.items(), key=lambda x: display_names.get(x[0], x[0]))
+    
+    for param_name, value in sorted_params:
+        display_name = display_names.get(param_name, param_name)
+        
+        if isinstance(value, bool):
+            status = "✅ True" if value else "❌ False"
+        elif isinstance(value, (int, float)):
+            status = str(value)
+        else:
+            status = str(value) if value else "Not set"
+        
+        message += f"{display_name}: {status}\n"
+    
+    message += "\n---\n\n<i>Forward this message to your favorites to save these settings as a template.</i>"
+    
+    return message
+
+def parse_import_message(text: str) -> Dict[str, Any]:
+    """Parse settings from imported message text"""
+    if not text or "📋 Current yt-dlp Arguments:" not in text:
+        return {}
+    
+    # Reverse mapping of display names to parameter names
+    display_to_param = {
+        "Force IPv6 connections": "force_ipv6",
+        "Force IPv4 connections": "force_ipv4",
+        "Do not download live streams from start": "no_live_from_start",
+        "Download live streams from start": "live_from_start",
+        "Suppress HTTPS certificate validation": "no_check_certificates",
+        "Check SSL certificate": "check_certificate",
+        "Download only single video, not playlist": "no_playlist",
+        "Embed metadata in video file": "embed_metadata",
+        "Embed thumbnail in video file": "embed_thumbnail",
+        "Write thumbnail to file": "write_thumbnail",
+        "Ignore download errors and continue": "ignore_errors",
+        "Allow legacy server connections": "legacy_server_connect",
+        "Number of concurrent fragments to download": "concurrent_fragments",
+        "X-Forwarded-For header strategy": "xff",
+        "User-Agent header": "user_agent",
+        "Browser impersonation": "impersonate",
+        "Referer header": "referer",
+        "Bypass geographic restrictions": "geo_bypass",
+        "Use MPEG-TS for HLS streams": "hls_use_mpegts",
+        "Do not use .part files": "no_part",
+        "Do not resume partial downloads": "no_continue",
+        "Audio format preference": "audio_format",
+        "Video format preference": "video_format",
+        "Merge output format": "merge_output_format",
+        "Send as file instead of video": "send_as_file",
+        "Username for authentication": "username",
+        "Password for authentication": "password",
+        "Two-factor authentication code": "twofactor",
+        "Minimum file size (MB)": "min_filesize",
+        "Maximum file size (MB)": "max_filesize",
+        "Playlist items to download": "playlist_items",
+        "Download videos on this date": "date",
+        "Download videos before this date": "datebefore",
+        "Download videos after this date": "dateafter",
+        "Custom HTTP headers": "http_headers",
+        "Sleep interval between downloads": "sleep_interval",
+        "Maximum sleep interval": "max_sleep_interval",
+        "Number of retries": "retries",
+        "HTTP chunk size": "http_chunk_size",
+        "Sleep interval for subtitles": "sleep_subtitles"
+    }
+    
+    parsed_args = {}
+    lines = text.split('\n')
+    
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith('📋') or line.startswith('---') or line.startswith('<i>'):
+            continue
+            
+        # Parse format: "Display Name: Value"
+        if ':' in line:
+            parts = line.split(':', 1)
+            if len(parts) == 2:
+                display_name = parts[0].strip()
+                value_str = parts[1].strip()
+                
+                param_name = display_to_param.get(display_name)
+                if param_name and param_name in YTDLP_PARAMS:
+                    param_config = YTDLP_PARAMS[param_name]
+                    param_type = param_config.get("type", "text")
+                    
+                    # Parse value based on type
+                    if param_type == "boolean":
+                        if value_str in ["✅ True", "True", "true", "1", "yes", "on"]:
+                            parsed_args[param_name] = True
+                        elif value_str in ["❌ False", "False", "false", "0", "no", "off"]:
+                            parsed_args[param_name] = False
+                    elif param_type == "number":
+                        try:
+                            if param_name in ["min_filesize", "max_filesize"]:
+                                # These are in MB, convert to int
+                                parsed_args[param_name] = int(float(value_str))
+                            else:
+                                parsed_args[param_name] = int(value_str)
+                        except ValueError:
+                            continue
+                    elif param_type in ["text", "json"]:
+                        if value_str and value_str != "Not set":
+                            parsed_args[param_name] = value_str
+                    elif param_type == "select":
+                        if value_str and value_str != "Not set":
+                            # Validate that the value is in the allowed options
+                            options = param_config.get("options", [])
+                            if value_str in options:
+                                parsed_args[param_name] = value_str
+    
+    return parsed_args
+
 @app.on_message(filters.command("args"))
 def args_command(app, message):
     """Handle /args command"""
@@ -841,7 +1007,7 @@ def args_callback_handler(app, callback_query):
             return
         
         elif data == "args_back":
-            # Очищаем состояние и превращаем подменю обратно в главное меню (редактируем текущее сообщение)
+            # Clear state and convert submenu back to main menu (edit current message)
             try:
                 chat_id = callback_query.message.chat.id
                 thread_id = getattr(callback_query.message, 'message_thread_id', None) or 0
@@ -858,7 +1024,7 @@ def args_callback_handler(app, callback_query):
                     reply_markup=keyboard
                 )
             except Exception:
-                # Если не удалось отредактировать (удалено/невалидно) — просто игнор
+                # If editing failed (deleted/invalid) — just ignore
                 pass
             try:
                 callback_query.answer()
@@ -869,11 +1035,22 @@ def args_callback_handler(app, callback_query):
         elif data == "args_view_current":
             user_args = get_user_args(user_id)
             message = format_current_args(user_args)
-            keyboard = InlineKeyboardMarkup([[
-                InlineKeyboardButton("🔙 Back", callback_data="args_back")
-            ]])
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📤 Export Settings", callback_data="args_export")],
+                [InlineKeyboardButton("🔙 Back", callback_data="args_back")]
+            ])
             callback_query.edit_message_text(message, reply_markup=keyboard)
             callback_query.answer()
+            return
+        
+        elif data == "args_export":
+            user_args = get_user_args(user_id)
+            export_message = create_export_message(user_args)
+            keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 Back", callback_data="args_view_current")
+            ]])
+            callback_query.edit_message_text(export_message, reply_markup=keyboard)
+            callback_query.answer("Settings ready for export! Forward this message to favorites to save.")
             return
         
         elif data == "args_reset_all":
@@ -936,15 +1113,15 @@ def args_callback_handler(app, callback_query):
                 keyboard = InlineKeyboardMarkup([[
                     InlineKeyboardButton("🔙 Back", callback_data="args_back")
                 ]])
-                # Для текстовых/числовых/JSON параметров заменяем текущее сообщение на приглашение ввода,
-                # чтобы не плодить дубликаты главного меню.
+                # For text/numeric/JSON parameters, replace current message with input prompt,
+                # to avoid duplicating main menu.
                 try:
                     callback_query.edit_message_text(
                         message,
                         reply_markup=keyboard
                     )
                 except Exception:
-                    # Фоллбек: если редактирование не удалось — отправим как ответ в ту же тему
+                    # Fallback: if editing failed — send as reply in the same topic
                     safe_send_message(chat_id, message, reply_markup=keyboard, message=callback_query.message)
             
             return
@@ -1136,9 +1313,9 @@ def handle_args_text_input(app, message):
             if param_name == "send_as_file":
                 # Handle True/False input for send_as_file
                 text_lower = text.lower().strip()
-                if text_lower in ["true", "1", "yes", "on", "включено", "да"]:
+                if text_lower in ["true", "1", "yes", "on"]:
                     value = True
-                elif text_lower in ["false", "0", "no", "off", "выключено", "нет"]:
+                elif text_lower in ["false", "0", "no", "off"]:
                     value = False
                 else:
                     error_msg = Messages.ARGS_BOOL_INPUT_MSG
@@ -1225,6 +1402,90 @@ def args_text_handler(app, message):
         handle_args_text_input(app, message)
     except Exception as e:
         logger.error(f"args_text_handler critical error: {e}")
+
+@app.on_message(filters.text & ~filters.regex(r'^/') & ~filters.create(_has_args_state))
+def args_import_handler(app, message):
+    """Handle import of settings from forwarded message"""
+    try:
+        # Check if this is a forwarded message with settings template
+        if not message.text or "📋 Current yt-dlp Arguments:" not in message.text:
+            return
+        
+        user_id = message.chat.id
+        invoker_id = getattr(message, 'from_user', None).id if getattr(message, 'from_user', None) else user_id
+        
+        # Subscription check for non-admins
+        if int(invoker_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+            return  # is_user_in_channel already sends subscription message
+        
+        # Parse settings from message
+        parsed_args = parse_import_message(message.text)
+        
+        if not parsed_args:
+            safe_send_message(
+                user_id,
+                "❌ Failed to recognize settings in message. Make sure you sent a correct settings template.",
+                message=message
+            )
+            return
+        
+        # Apply mutual exclusivity for paired booleans
+        if "check_certificate" in parsed_args and parsed_args["check_certificate"]:
+            parsed_args["no_check_certificates"] = False
+        elif "no_check_certificates" in parsed_args and parsed_args["no_check_certificates"]:
+            parsed_args["check_certificate"] = False
+            
+        if "live_from_start" in parsed_args and parsed_args["live_from_start"]:
+            parsed_args["no_live_from_start"] = False
+        elif "no_live_from_start" in parsed_args and parsed_args["no_live_from_start"]:
+            parsed_args["live_from_start"] = False
+            
+        if "force_ipv4" in parsed_args and parsed_args["force_ipv4"]:
+            parsed_args["force_ipv6"] = False
+        elif "force_ipv6" in parsed_args and parsed_args["force_ipv6"]:
+            parsed_args["force_ipv4"] = False
+        
+        # Save imported settings
+        if save_user_args(invoker_id, parsed_args):
+            # Show success message with applied settings count
+            applied_count = len(parsed_args)
+            success_message = f"✅ Settings successfully imported!\n\nApplied parameters: {applied_count}\n\n"
+            
+            # Show some key settings that were applied
+            key_settings = []
+            for param_name, value in list(parsed_args.items())[:5]:  # Show first 5 settings
+                param_config = YTDLP_PARAMS.get(param_name, {})
+                description = param_config.get("description", param_name)
+                if isinstance(value, bool):
+                    display_value = "✅" if value else "❌"
+                else:
+                    display_value = str(value)
+                key_settings.append(f"• {description}: {display_value}")
+            
+            if key_settings:
+                success_message += "Key settings:\n" + "\n".join(key_settings)
+                if len(parsed_args) > 5:
+                    success_message += f"\n... and {len(parsed_args) - 5} more parameters"
+            
+            safe_send_message(
+                user_id,
+                success_message,
+                message=message
+            )
+        else:
+            safe_send_message(
+                user_id,
+                "❌ Error saving imported settings.",
+                message=message
+            )
+            
+    except Exception as e:
+        logger.error(f"Error in args_import_handler: {e}")
+        safe_send_message(
+            message.chat.id,
+            "❌ An error occurred while importing settings.",
+            message=message
+        )
 
 def get_user_ytdlp_args(user_id: int, url: str = None) -> Dict[str, Any]:
     """Get user's yt-dlp arguments for use in download functions"""
@@ -1339,7 +1600,7 @@ def log_ytdlp_options(user_id: int, ytdlp_opts: dict, operation: str = "download
         if 'cookiefile' in opts_copy:
             opts_copy['cookiefile'] = '[REDACTED]'
         
-        # Рекурсивная санитизация для JSON: функции/объекты -> строка
+        # Recursive sanitization for JSON: functions/objects -> string
         def _sanitize(value):
             try:
                 if isinstance(value, dict):
@@ -1348,12 +1609,12 @@ def log_ytdlp_options(user_id: int, ytdlp_opts: dict, operation: str = "download
                     return [ _sanitize(v) for v in value ]
                 if callable(value):
                     return str(value)
-                # Приводим match_filter и подобные объекты к строке
+                # Convert match_filter and similar objects to string
                 value_str = str(value)
-                # Простые типы оставляем как есть
+                # Keep simple types as is
                 if isinstance(value, (str, int, float, bool)) or value is None:
                     return value
-                # Неподдерживаемые типы заменяем строкой-представлением
+                # Replace unsupported types with string representation
                 return value_str
             except Exception:
                 try:
@@ -1361,7 +1622,7 @@ def log_ytdlp_options(user_id: int, ytdlp_opts: dict, operation: str = "download
                 except Exception:
                     return "<unserializable>"
 
-        # Санитизируем копию перед JSON
+        # Sanitize copy before JSON
         opts_sanitized = _sanitize(opts_copy)
 
         # Format the options nicely
