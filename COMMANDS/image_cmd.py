@@ -705,6 +705,7 @@ def image_command(app, message):
     
     # Log the command execution
     logger.info(f"image_command called for user {user_id} in chat {chat_id} with text: {text}")
+    logger.info(f"[IMG DEBUG] message.chat.id={message.chat.id}, message.message_thread_id={getattr(message, 'message_thread_id', None)}")
     
     # For fake messages, chat_id is already set correctly in fake_message
     
