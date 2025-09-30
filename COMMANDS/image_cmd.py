@@ -1803,7 +1803,7 @@ def image_command(app, message):
                                             except Exception as _e:
                                                 logger.debug(LoggerMsg.IMG_ALBUM_CAPTION_NORMALIZATION_SKIPPED_LOG_MSG.format(_e=_e))
                                             sent = app.send_media_group(
-                                                user_id,
+                                                chat_id,
                                                 media=media_group,
                                                 reply_parameters=ReplyParameters(message_id=message.id)
                                             )
