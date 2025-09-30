@@ -119,6 +119,45 @@ def format_filesize(size_str):
     else:
         return f"{bytes_size:.0f}b"
 
+def create_safe_callback_data(prefix, data, max_length=50):
+    """Create safe callback_data that doesn't exceed Telegram's 64-byte limit"""
+    import hashlib
+    
+    # Calculate total length including prefix and separators
+    full_data = f"{prefix}|{data}"
+    
+    if len(full_data) <= 64:
+        return full_data
+    
+    # If too long, use hash
+    data_hash = hashlib.md5(data.encode()).hexdigest()[:16]
+    safe_callback = f"{prefix}|{data_hash}"
+    
+    # Store mapping for later retrieval
+    mapping_attr = f"_{prefix.replace('|', '_')}_mapping"
+    if not hasattr(create_safe_callback_data, mapping_attr):
+        setattr(create_safe_callback_data, mapping_attr, {})
+    
+    mapping = getattr(create_safe_callback_data, mapping_attr)
+    mapping[data_hash] = data
+    setattr(create_safe_callback_data, mapping_attr, mapping)
+    
+    return safe_callback
+
+def get_original_data_from_callback(prefix, callback_data):
+    """Get original data from safe callback_data using mapping"""
+    try:
+        data_hash = callback_data.replace(f"{prefix}|", "")
+        mapping_attr = f"_{prefix.replace('|', '_')}_mapping"
+        
+        if hasattr(create_safe_callback_data, mapping_attr):
+            mapping = getattr(create_safe_callback_data, mapping_attr)
+            return mapping.get(data_hash, data_hash)  # Return original data or hash if not found
+    except Exception as e:
+        logger.warning(f"Error retrieving original data from callback: {e}")
+    
+    return callback_data.replace(f"{prefix}|", "")
+
 def extract_button_data(format_line):
     """Extract only needed data for button display from complete format line"""
     parts = format_line.split()
@@ -1595,7 +1634,10 @@ def askq_callback(app, callback_query):
     
     # Handle other quality selection by ID
     if data.startswith("other_id_"):
-        format_id = data.replace("other_id_", "")
+        format_id_hash = data.replace("other_id_", "")
+        
+        # Get original format_id from callback data
+        format_id = get_original_data_from_callback("askq|other_id", callback_query.data)
         callback_query.answer(f"📥 Downloading format {format_id}...")
         
         original_message = callback_query.message.reply_to_message
@@ -2103,12 +2145,17 @@ def fallback_gallery_dl_callback(app, callback_query):
     try:
         user_id = callback_query.from_user.id
         data_parts = callback_query.data.split("|")
-        url = data_parts[1]  # Extract URL from callback data
+        url_hash = data_parts[1]  # Extract URL or URL hash from callback data
         
-        # Extract range from callback data if available
-        if len(data_parts) >= 4:
-            video_start_with = int(data_parts[2])
-            video_end_with = int(data_parts[3])
+        # Get original URL data from callback
+        url_data = get_original_data_from_callback("fallback_gallery_dl", callback_query.data)
+        url_parts = url_data.split("|")
+        url = url_parts[0]
+        
+        # Extract range from URL data if available
+        if len(url_parts) >= 3:
+            video_start_with = int(url_parts[1])
+            video_end_with = int(url_parts[2])
         else:
             video_start_with = 1
             video_end_with = 1
@@ -2663,8 +2710,11 @@ def show_other_qualities_menu(app, callback_query, page=0):
                     if len(button_text) > 40:
                         button_text = button_text[:37] + "..."
                     
+                    # Create safe callback data
+                    callback_data = create_safe_callback_data("askq|other_id", format_id)
+                    
                     # Each button goes in its own row (1 column layout)
-                    keyboard_rows.append([InlineKeyboardButton(button_text, callback_data=f"askq|other_id_{format_id}")])
+                    keyboard_rows.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
         
         # Add navigation buttons
         nav_row = []
@@ -2791,8 +2841,11 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
                 if len(button_text) > 64:
                     button_text = button_text[:61] + "..."
                 
+                # Create safe callback data
+                callback_data = create_safe_callback_data("askq|other_id", format_id)
+                
                 # Each button goes in its own row (1 column layout)
-                keyboard_rows.append([InlineKeyboardButton(button_text, callback_data=f"askq|other_id_{format_id}")])
+                keyboard_rows.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
         else:
             logger.warning(f"Invalid format line structure: {format_line}")
     else:
@@ -3217,11 +3270,13 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 
                 # Create inline keyboard with gallery-dl option
                 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-                # Include range info in callback data
+                # Include range info in callback data - use safe callback data for long URLs
                 if video_start_with and video_end_with and (video_start_with != 1 or video_end_with != 1):
-                    callback_data = f"fallback_gallery_dl|{url}|{video_start_with}|{video_end_with}"
+                    url_data = f"{url}|{video_start_with}|{video_end_with}"
                 else:
-                    callback_data = f"fallback_gallery_dl|{url}|1|1"
+                    url_data = f"{url}|1|1"
+                
+                callback_data = create_safe_callback_data("fallback_gallery_dl", url_data)
                 keyboard = [
                     [InlineKeyboardButton("🖼 Try Gallery-dl", callback_data=callback_data)]
                 ]
