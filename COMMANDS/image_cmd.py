@@ -9,7 +9,7 @@ from pyrogram import filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ReplyParameters, InputMediaPhoto, InputMediaVideo, InputPaidMediaPhoto, InputPaidMediaVideo
 from pyrogram import enums
 from pyrogram.errors import FloodWait
-from HELPERS.logger import send_to_logger, logger, get_log_channel
+from HELPERS.logger import send_to_logger, logger, get_log_channel, log_error_to_channel
 from CONFIG.logger_msg import LoggerMsg
 from CONFIG.messages import Messages
 from HELPERS.app_instance import get_app
@@ -794,7 +794,7 @@ def image_command(app, message):
             parse_mode=enums.ParseMode.HTML,
             reply_parameters=ReplyParameters(message_id=message.id)
         )
-        send_to_logger(message, LoggerMsg.INVALID_URL_PROVIDED.format(url=url))
+        log_error_to_channel(message, LoggerMsg.INVALID_URL_PROVIDED.format(url=url), url)
         return
     
     # Check if user has proxy enabled
@@ -945,7 +945,7 @@ def image_command(app, message):
                 Messages.IMG_URL_NOT_ACCESSIBLE_MSG,
                 parse_mode=enums.ParseMode.HTML
             )
-            send_to_logger(message, LoggerMsg.FAILED_ANALYZE_IMAGE.format(url=url))
+            log_error_to_channel(message, LoggerMsg.FAILED_ANALYZE_IMAGE.format(url=url), url)
             return
         
         # Update status message
@@ -1201,7 +1201,7 @@ def image_command(app, message):
                             ),
                             parse_mode=enums.ParseMode.HTML
                         )
-                        send_to_logger(message, f"Fatal error in image download: {result}")
+                        log_error_to_channel(message, f"Fatal error in image download: {result}", url)
                         return
                     
                     # Wait for download to complete before processing files
@@ -3383,7 +3383,7 @@ def image_command(app, message):
         )
         from HELPERS.logger import send_error_to_user
         send_error_to_user(message, Config.ERROR_OCCURRED_MSG.format(url=url, error=str(e)))
-        send_to_logger(message, LoggerMsg.IMAGE_COMMAND_ERROR.format(url=url, error=e))
+        log_error_to_channel(message, LoggerMsg.IMAGE_COMMAND_ERROR.format(url=url, error=e), url)
 
 @app.on_callback_query(filters.regex(r"^img_help\|"))
 def img_help_callback(app, callback_query: CallbackQuery):
