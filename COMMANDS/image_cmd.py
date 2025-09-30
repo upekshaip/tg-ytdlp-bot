@@ -858,7 +858,7 @@ def image_command(app, message):
     
     # Send initial message
     status_msg = safe_send_message(
-        user_id,
+        chat_id,
         Messages.CHECKING_CACHE_MSG.format(url=url),
         parse_mode=enums.ParseMode.HTML,
         reply_parameters=ReplyParameters(message_id=message.id)
@@ -1181,7 +1181,7 @@ def image_command(app, message):
                 suggested_command_url_format = f"{url}*{start_range}*{end_range}"
                 
                 safe_send_message(
-                    user_id,
+                    chat_id,
                     Messages.COMMAND_IMAGE_MEDIA_LIMIT_EXCEEDED_MSG.format(count=detected_total, max_count=max_img_files, start_range=start_range, end_range=end_range, url=url, suggested_command_url_format=f"/img {start_range}-{end_range} {url}") +
                     f"<code>{suggested_command_url_format}</code>",
                     parse_mode=enums.ParseMode.HTML,
