@@ -1251,6 +1251,8 @@ def askq_callback(app, callback_query):
             # Сохраняем message_thread_id из оригинального сообщения
             fake_msg.message_thread_id = getattr(original_message, 'message_thread_id', None)
             logger.info(f"[ASKQ FALLBACK] fake_msg.chat.id={fake_msg.chat.id}, fake_msg.message_thread_id={fake_msg.message_thread_id}, original_message.chat.id={original_message.chat.id}, original_message.message_thread_id={getattr(original_message, 'message_thread_id', None)}")
+            logger.info(f"[ASKQ FALLBACK] original_message type: {type(original_message)}, original_message.chat type: {type(original_message.chat)}")
+            logger.info(f"[ASKQ FALLBACK] original_message attributes: {dir(original_message)}")
             image_command(app, fake_msg)
         except Exception as e:
             logger.error(f"[ASKQ] IMAGE fallback failed: {e}")
