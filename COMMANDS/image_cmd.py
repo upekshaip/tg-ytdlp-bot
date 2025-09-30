@@ -665,40 +665,48 @@ def image_command(app, message):
     
     # Check range limits if manual range is specified (before URL analysis)
     if manual_range:
-        range_count = manual_range[1] - manual_range[0] + 1
-        # Use TikTok limit if URL is TikTok, otherwise use general image limit
-        if 'tiktok.com' in url.lower():
-            max_img_files = LimitsConfig.MAX_TIKTOK_COUNT
+        # Handle case where end range is None (e.g., "1-" means from 1 to end)
+        if manual_range[1] is None:
+            # For open-ended ranges, we can't check limits here - skip validation
+            range_count = None
         else:
-            max_img_files = LimitsConfig.MAX_IMG_FILES
-        # Apply group multiplier for groups/channels
-        try:
-            if message and getattr(message.chat, 'type', None) != enums.ChatType.PRIVATE:
-                mult = getattr(LimitsConfig, 'GROUP_MULTIPLIER', 1)
-                max_img_files = int(max_img_files * mult)
-        except Exception:
-            pass
+            range_count = manual_range[1] - manual_range[0] + 1
         
-        if range_count > max_img_files:
-            # Create alternative commands preserving the original start range
-            start_range = manual_range[0]
-            end_range = start_range + max_img_files - 1
-            suggested_command_url_format = f"{url}*{start_range}*{end_range}"
+        # Only check limits if we have a specific range count
+        if range_count is not None:
+            # Use TikTok limit if URL is TikTok, otherwise use general image limit
+            if 'tiktok.com' in url.lower():
+                max_img_files = LimitsConfig.MAX_TIKTOK_COUNT
+            else:
+                max_img_files = LimitsConfig.MAX_IMG_FILES
+            # Apply group multiplier for groups/channels
+            try:
+                if message and getattr(message.chat, 'type', None) != enums.ChatType.PRIVATE:
+                    mult = getattr(LimitsConfig, 'GROUP_MULTIPLIER', 1)
+                    max_img_files = int(max_img_files * mult)
+            except Exception:
+                pass
             
-            safe_send_message(
-                user_id,
-                Messages.IMG_RANGE_LIMIT_EXCEEDED_MSG.format(
-                    range_count=range_count,
-                    max_img_files=max_img_files,
-                    start_range=start_range,
-                    end_range=end_range,
-                    url=url,
-                    suggested_command_url_format=suggested_command_url_format
-                ),
-                parse_mode=enums.ParseMode.HTML,
-                reply_parameters=ReplyParameters(message_id=message.id)
-            )
-            return
+            if range_count > max_img_files:
+                # Create alternative commands preserving the original start range
+                start_range = manual_range[0]
+                end_range = start_range + max_img_files - 1
+                suggested_command_url_format = f"{url}*{start_range}*{end_range}"
+                
+                safe_send_message(
+                    user_id,
+                    Messages.IMG_RANGE_LIMIT_EXCEEDED_MSG.format(
+                        range_count=range_count,
+                        max_img_files=max_img_files,
+                        start_range=start_range,
+                        end_range=end_range,
+                        url=url,
+                        suggested_command_url_format=suggested_command_url_format
+                    ),
+                    parse_mode=enums.ParseMode.HTML,
+                    reply_parameters=ReplyParameters(message_id=message.id)
+                )
+                return
     
     try:
         # Get image information first
