@@ -787,7 +787,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             try:
                 with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
                     info_dict = ydl.extract_info(url, download=False)
-                if "entries" in info_dict:
+                # Normalize info_dict to dict
+                if isinstance(info_dict, list):
+                    info_dict = (info_dict[0] if len(info_dict) > 0 else {})
+                if isinstance(info_dict, dict) and "entries" in info_dict:
                     entries = info_dict["entries"]
                     if len(entries) > 1:  # If the video in the playlist is more than one
                         actual_index = current_index + video_start_with - 1  # -1 because indexes in entries start from 0

@@ -544,12 +544,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 ydl_opts['cookiefile'] = user_cookie_path
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 pre_info = ydl.extract_info(url, download=False)
-            # Check that pre_info is not None
+            # Normalize to dict and check None
+            if isinstance(pre_info, list):
+                pre_info = (pre_info[0] if len(pre_info) > 0 else {})
+            elif isinstance(pre_info, dict) and 'entries' in pre_info and isinstance(pre_info['entries'], list) and pre_info['entries']:
+                pre_info = pre_info['entries'][0]
             if pre_info is None:
                 logger.warning("pre_info is None, skipping size check")
                 pre_info = {}
-            elif 'entries' in pre_info and isinstance(pre_info['entries'], list) and pre_info['entries']:
-                pre_info = pre_info['entries'][0]
         except Exception as e:
             logger.warning(f"Failed to extract info for size check: {e}")
             pre_info = {}
@@ -1050,7 +1052,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 info_dict = try_with_proxy_fallback(ytdl_opts, url, user_id, extract_info_operation)
                 if info_dict is None:
                     raise Exception("Failed to extract video information with all available proxies")
-                if "entries" in info_dict:
+                # Normalize info_dict to a dict
+                if isinstance(info_dict, list):
+                    info_dict = (info_dict[0] if len(info_dict) > 0 else {})
+                if isinstance(info_dict, dict) and "entries" in info_dict:
                     entries = info_dict["entries"]
                     if not entries:
                         raise Exception(f"No videos found in playlist at index {current_index}")
