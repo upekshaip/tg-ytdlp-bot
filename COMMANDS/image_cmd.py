@@ -1916,13 +1916,15 @@ def image_command(app, message):
                                         try:
                                             # Create media group for regular log channel
                                             regular_log_media_group = []
-                                            # Prefer original caption from the first item of the original album
+                                            # Prefer original caption from the first item (skip for fake messages)
+                                            is_fake_message = getattr(message, '_is_fake_message', False)
                                             original_first_caption = None
-                                            try:
-                                                if media_group:
-                                                    original_first_caption = (getattr(media_group[0], 'caption', None) or '').strip() or None
-                                            except Exception:
-                                                original_first_caption = None
+                                            if not is_fake_message:
+                                                try:
+                                                    if media_group:
+                                                        original_first_caption = (getattr(media_group[0], 'caption', None) or '').strip() or None
+                                                except Exception:
+                                                    original_first_caption = None
                                             # Fallback to previously used constructed caption
                                             if not original_first_caption:
                                                 bot_username = getattr(Config, "BOT_USERNAME", "bot")
@@ -2468,13 +2470,15 @@ def image_command(app, message):
                                                     try:
                                                         # Create media group for regular log channel (open copy)
                                                         regular_log_media_group = []
-                                                        # Prefer original caption from the first item
+                                                        # Prefer original caption from the first item (skip for fake messages)
+                                                        is_fake_message = getattr(message, '_is_fake_message', False)
                                                         original_first_caption = None
-                                                        try:
-                                                            if media_group:
-                                                                original_first_caption = (getattr(media_group[0], 'caption', None) or '').strip() or None
-                                                        except Exception:
-                                                            original_first_caption = None
+                                                        if not is_fake_message:
+                                                            try:
+                                                                if media_group:
+                                                                    original_first_caption = (getattr(media_group[0], 'caption', None) or '').strip() or None
+                                                            except Exception:
+                                                                original_first_caption = None
                                                         if not original_first_caption:
                                                             bot_username = getattr(Config, "BOT_USERNAME", "bot")
                                                             log_caption_lines = []
@@ -2926,13 +2930,15 @@ def image_command(app, message):
                                 try:
                                     # Create media group for regular log channel (open copy)
                                     regular_log_media_group = []
-                                    # Prefer original caption from the first item
+                                    # Prefer original caption from the first item (skip for fake messages)
+                                    is_fake_message = getattr(message, '_is_fake_message', False)
                                     original_first_caption = None
-                                    try:
-                                        if media_group:
-                                            original_first_caption = (getattr(media_group[0], 'caption', None) or '').strip() or None
-                                    except Exception:
-                                        original_first_caption = None
+                                    if not is_fake_message:
+                                        try:
+                                            if media_group:
+                                                original_first_caption = (getattr(media_group[0], 'caption', None) or '').strip() or None
+                                        except Exception:
+                                            original_first_caption = None
                                     if not original_first_caption:
                                         bot_username = getattr(Config, "BOT_USERNAME", "bot")
                                         log_caption_lines = []
@@ -3206,13 +3212,15 @@ def image_command(app, message):
                                     try:
                                         # Create media group for regular log channel (open copy)
                                         regular_log_media_group = []
-                                        # Prefer original caption from the first item
+                                        # Prefer original caption from the first item (skip for fake messages)
+                                        is_fake_message = getattr(message, '_is_fake_message', False)
                                         original_first_caption = None
-                                        try:
-                                            if media_group:
-                                                original_first_caption = (getattr(media_group[0], 'caption', None) or '').strip() or None
-                                        except Exception:
-                                            original_first_caption = None
+                                        if not is_fake_message:
+                                            try:
+                                                if media_group:
+                                                    original_first_caption = (getattr(media_group[0], 'caption', None) or '').strip() or None
+                                            except Exception:
+                                                original_first_caption = None
                                         if not original_first_caption:
                                             original_first_caption = (tags_text_norm or "") or None
                                         for _idx, _media_obj in enumerate(media_group):
