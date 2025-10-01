@@ -582,7 +582,8 @@ Then verify with <code>/check_cookie</code> (tests on RickRoll).
         chat_id=user_id,
         text=text,
         reply_markup=keyboard,
-        reply_parameters=ReplyParameters(message_id=message.id)
+        reply_parameters=ReplyParameters(message_id=message.id),
+        message=message
     )
 
 

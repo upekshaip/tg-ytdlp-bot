@@ -61,16 +61,23 @@ def fake_message(text, user_id, command=None, original_chat_id=None):
 def safe_send_message(chat_id, text, **kwargs):
     # Normalize reply parameters and preserve topic/thread info
     original_message = kwargs.get('message')
+    # Peek callback_query (will be popped later) to inherit thread context in topics
+    cb_peek = kwargs.get('_callback_query', None)
     if 'reply_parameters' not in kwargs:
         if 'reply_to_message_id' in kwargs and kwargs['reply_to_message_id'] is not None:
             kwargs['reply_parameters'] = ReplyParameters(message_id=kwargs['reply_to_message_id'])
             del kwargs['reply_to_message_id']
         elif original_message is not None and getattr(original_message, 'id', None) is not None:
             kwargs['reply_parameters'] = ReplyParameters(message_id=original_message.id)
+        elif cb_peek is not None and getattr(getattr(cb_peek, 'message', None), 'id', None) is not None:
+            kwargs['reply_parameters'] = ReplyParameters(message_id=cb_peek.message.id)
     # Ensure topic/thread routing for supergroups with topics
     try:
         if original_message is not None and getattr(original_message, 'message_thread_id', None):
             kwargs.setdefault('message_thread_id', original_message.message_thread_id)
+        # Inherit thread_id from callback context when message is not provided
+        elif cb_peek is not None and getattr(getattr(cb_peek, 'message', None), 'message_thread_id', None):
+            kwargs.setdefault('message_thread_id', cb_peek.message.message_thread_id)
     except Exception:
         pass
     # Remove helper-only key
@@ -90,8 +97,10 @@ def safe_send_message(chat_id, text, **kwargs):
     with _message_send_lock:
         last_sent = _last_message_sent.get(chat_id, 0)
         now = time.time()
-        if now - last_sent < 0.1:  # 100ms minimum delay between messages
-            time.sleep(0.1 - (now - last_sent))
+        # Increase minimum spacing to reduce RANDOM_ID_DUPLICATE in high-throughput chats
+        min_spacing = 0.25  # seconds
+        if now - last_sent < min_spacing:
+            time.sleep(min_spacing - (now - last_sent))
         _last_message_sent[chat_id] = time.time()
 
     for attempt in range(max_retries):
@@ -136,6 +145,15 @@ def safe_send_message(chat_id, text, **kwargs):
             elif "msg_seqno is too high" in str(e):
                 logger.warning(Messages.HELPER_MSG_SEQNO_ERROR_DETECTED_MSG.format(retry_delay=retry_delay))
                 time.sleep(retry_delay)
+                if attempt < max_retries - 1:
+                    continue
+            # Handle RANDOM_ID_DUPLICATE errors by brief backoff and retry
+            elif "RANDOM_ID_DUPLICATE" in str(e):
+                try:
+                    logger.warning("RANDOM_ID_DUPLICATE detected, backing off briefly and retrying")
+                except Exception:
+                    pass
+                time.sleep(0.5)
                 if attempt < max_retries - 1:
                     continue
             logger.error(f"Failed to send message after {max_retries} attempts: {e}")
