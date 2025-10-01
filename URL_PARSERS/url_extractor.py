@@ -690,24 +690,16 @@ def url_distractor(app, message):
     if ("https://" in text) or ("http://" in text):
         if not is_user_blocked(message):
             clear_subs_check_cache()
-            # Спец-обработка VK wall-: сразу уходим в /img, минуя yt-dlp
+            # Централизованный роутер на gallery-dl для некоторых ссылок
             try:
-                url_only, _, _, _, tags, tags_text, _ = extract_url_range_tags(text)
-            except Exception:
-                url_only, tags_text = None, ''
-            if url_only and ("vk.com/wall-" in url_only.lower()):
                 try:
-                    from HELPERS.safe_messeger import fake_message
-                    fallback_text = f"/img {url_only}"
-                    if tags_text:
-                        fallback_text += f" {tags_text}"
-                    fake_msg = fake_message(fallback_text, message.chat.id, original_chat_id=message.chat.id)
-                    image_command(app, fake_msg)
-                    logger.info(f"VK wall- detected, routed directly to gallery-dl: {fallback_text}")
+                    from .engine_router import route_if_gallerydl_only  # type: ignore
+                except Exception:
+                    from URL_PARSERS.engine_router import route_if_gallerydl_only  # type: ignore
+                if route_if_gallerydl_only(app, message):
                     return
-                except Exception as vk_route_e:
-                    logger.error(f"Failed to route VK wall- to /img: {vk_route_e}")
-                    # fallthrough to generic flow
+            except Exception as route_e:
+                logger.error(f"Engine router error: {route_e}")
             try:
                 video_url_extractor(app, message)
             except Exception as e:

@@ -21,6 +21,18 @@ class DomainsConfig(object):
         'assasinate', 'assasinated', 'assassinate', 'assassinated', 'assassination'
     ]
     
+    GALLERYDL_ONLY_DOMAINS = [
+        # Imageboards / archives / art communities largely covered by gallery-dl
+        '2ch.su', '35photo.pro', 'behoimi.org', '4archive.org', '8chan.moe',
+        'comics.8muses.com', 'agn.ph', 'arca.live', 'architizer.com', 'aryion.com',
+        'catbox.moe', 'civitai.com', 'danke-fuers-lesen.de', 'desktopography.net',
+        'e-hentai.org', 'exhentai.org', 'everia.club', 'fapello.com', 'furry34.com',
+        'gelbooru.com', 'girlswithmuscle.com', 'itaku.ee', 'kemono.cr', 'kemono.party',
+        'coomer.party', 'leakgallery.com', 'myportfolio.com', 'nekohouse.su',
+        'nhentai.net', 'photovogue.com', 'pixeltabel.com', 'weasyl.com', 'wikifeet.com',
+        'xasiat.com', 'wallhaven.cc'
+    ]  
+    
     # --- Whitelist of domains that are not considered porn ---
     WHITELIST = [
         'a-tushar-82q-fef07c6bf20a.herokuapp.com', 'file-to-link-632f24ac9728.herokuapp.com',
