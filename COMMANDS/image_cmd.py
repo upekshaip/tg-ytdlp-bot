@@ -33,6 +33,7 @@ from CONFIG.messages import Messages as Messages
 from DATABASE.cache_db import save_to_image_cache, get_cached_image_posts, get_cached_image_post_indices
 import json
 from URL_PARSERS.tags import save_user_tags, extract_url_range_tags
+from URL_PARSERS.service_api_info import get_service_account_info, build_tags
 
 # Unified helpers to create thumbnails/covers for videos
 def _get_file_mb(file_path):
@@ -269,72 +270,23 @@ def _save_album_now(url: str, album_index: int, message_ids: list):
         logger.error(LoggerMsg.IMG_CACHE_SAVE_FAILED_LOG_MSG.format(album_index=album_index, e=e))
 
 def extract_profile_name(url):
-    """Extract profile name from URL for hashtag generation"""
+    """Получить имя аккаунта по API/OG для генерации хэштега (без #)."""
     try:
-        # Parse URL to extract the last part after the domain
-        if 'instagram.com/' in url:
-            # For Instagram: https://www.instagram.com/username -> username
-            parts = url.split('instagram.com/')
-            if len(parts) > 1:
-                profile_name = parts[1].split('/')[0].split('?')[0]  # Remove path and query params
-                return profile_name
-        elif 'twitter.com/' in url or 'x.com/' in url:
-            # For Twitter/X: https://twitter.com/username -> username
-            parts = url.split('twitter.com/') if 'twitter.com/' in url else url.split('x.com/')
-            if len(parts) > 1:
-                profile_name = parts[1].split('/')[0].split('?')[0]
-                return profile_name
-        elif 'tiktok.com/@' in url:
-            # For TikTok: https://www.tiktok.com/@username -> username
-            parts = url.split('@')
-            if len(parts) > 1:
-                profile_name = parts[1].split('/')[0].split('?')[0]
-                return profile_name
-        # For other platforms, try to extract from the last part of the URL
-        url_parts = url.split('/')
-        if len(url_parts) > 1:
-            last_part = url_parts[-1].split('?')[0]  # Remove query params
-            if last_part and '.' not in last_part:  # Avoid file extensions
-                return last_part
+        info = get_service_account_info(url)
+        _service_tag, account_tag = build_tags(info)
+        if account_tag:
+            return account_tag.lstrip('#')
     except Exception:
         pass
     return None
 
 def extract_site_name(url):
-    """Extract site name from URL for hashtag generation"""
+    """Получить имя площадки (service) по API/OG для генерации хэштега (без #)."""
     try:
-        if 'instagram.com/' in url:
-            return 'instagram'
-        elif 'twitter.com/' in url or 'x.com/' in url:
-            return 'twitter'
-        elif 'tiktok.com/' in url:
-            return 'tiktok'
-        elif 'youtube.com/' in url or 'youtu.be/' in url:
-            return 'youtube'
-        elif 'reddit.com/' in url:
-            return 'reddit'
-        elif 'pinterest.com/' in url:
-            return 'pinterest'
-        elif 'flickr.com/' in url:
-            return 'flickr'
-        elif 'deviantart.com/' in url:
-            return 'deviantart'
-        elif 'imgur.com/' in url:
-            return 'imgur'
-        elif 'tumblr.com/' in url:
-            return 'tumblr'
-        else:
-            # Extract domain name for other sites
-            from urllib.parse import urlparse
-            parsed = urlparse(url)
-            domain = parsed.netloc.lower()
-            if domain.startswith('www.'):
-                domain = domain[4:]
-            # Remove common TLDs
-            domain_parts = domain.split('.')
-            if len(domain_parts) > 1:
-                return domain_parts[0]
-            return domain
+        info = get_service_account_info(url)
+        service = info.get('service')
+        if service:
+            return service
     except Exception:
         pass
     return None
