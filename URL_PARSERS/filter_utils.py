@@ -24,6 +24,10 @@ def create_smart_match_filter():
             str or None: None если видео проходит фильтр, иначе сообщение об ошибке
         """
         try:
+            # На некоторых сайтах extractor может вернуть список на ранних стадиях
+            # match_filter должен молча пропускать такие случаи
+            if not isinstance(info_dict, dict):
+                return None
             # Проверяем, является ли видео живым
             is_live = info_dict.get('is_live', False)
             if is_live:
