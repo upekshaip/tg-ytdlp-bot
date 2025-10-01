@@ -2931,13 +2931,23 @@ def image_command(app, message):
                                 try:
                                     # Create media group for regular log channel (open copy)
                                     regular_log_media_group = []
-                                    # Create caption for log channel
-                                    bot_username = getattr(Config, "BOT_USERNAME", "bot")
-                                    log_caption_lines = []
-                                    if tags_text_norm:
-                                        log_caption_lines.append(tags_text_norm)
-                                    log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
-                                    log_caption = "\n".join(log_caption_lines)
+                                    # Prefer original first-item caption to preserve full formatting (dates/emojis/tags)
+                                    original_caption = None
+                                    try:
+                                        if media_group and getattr(media_group[0], 'caption', None):
+                                            original_caption = media_group[0].caption
+                                    except Exception:
+                                        original_caption = None
+                                    # Fallback: construct caption as before
+                                    if not original_caption:
+                                        bot_username = getattr(Config, "BOT_USERNAME", "bot")
+                                        log_caption_lines = []
+                                        if tags_text_norm:
+                                            log_caption_lines.append(tags_text_norm)
+                                        log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
+                                        log_caption = "\n".join(log_caption_lines)
+                                    else:
+                                        log_caption = original_caption
                                     
                                     for _idx, _media_obj in enumerate(media_group):
                                         caption = log_caption if _idx == 0 else None  # Only first item gets caption
