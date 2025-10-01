@@ -258,7 +258,8 @@ def browser_choice_callback(app, callback_query):
 #############################################################################################################################
 
 # SEND COOKIE VIA Document
-@app.on_message(filters.document & filters.private)
+# Принимаем cookie.txt не только в личке, но и в группах/топиках
+@app.on_message(filters.document)
 @reply_with_keyboard
 def save_my_cookie(app, message):
     """
