@@ -423,11 +423,21 @@ def get_total_media_count(url: str, user_id=None, use_proxy: bool = False) -> in
             json.dump(cfg, f)
             cfg_path = f.name
         try:
+            # For VK specifically, --simulate is notoriously slow; jump straight to --get-urls
+            if 'vk.com' in url.lower():
+                logger.info("VK domain detected, skipping --simulate and using --get-urls directly")
+                return _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
+
             # Use gallery-dl extractor to get all media info (not just URLs)
             logger.info(f"[gallery-dl] cookies for media count: {cfg.get('extractor',{}).get('cookies')}")
             cmd = [sys.executable, "-m", "gallery_dl", "--config", cfg_path, "--simulate", url]
             logger.info(f"Counting total media via: {' '.join(cmd)}")
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            except subprocess.TimeoutExpired:
+                logger.warning("--simulate timed out after 120s, falling back to --get-urls")
+                return _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
+
             if result.returncode == 0:
                 # Count lines that contain media info (not just URLs)
                 lines = [ln for ln in result.stdout.splitlines() if ln.strip() and ('"url"' in ln or '"filename"' in ln or '"extension"' in ln)]
@@ -456,7 +466,13 @@ def _get_total_media_count_fallback(url: str, user_id, use_proxy: bool, cfg_path
     try:
         cmd = [sys.executable, "-m", "gallery_dl", "--config", cfg_path, "--get-urls", url]
         logger.info(f"Fallback counting via --get-urls: {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        # VK альбомы могут быть большими – увеличим таймаут для VK
+        timeout_sec = 300 if 'vk.com' in url.lower() else 120
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
+        except subprocess.TimeoutExpired:
+            logger.warning(f"--get-urls timed out after {timeout_sec}s")
+            return None
         if result.returncode == 0:
             lines = [ln for ln in result.stdout.splitlines() if ln.strip()]
             logger.info(f"Fallback detected {len(lines)} media items")

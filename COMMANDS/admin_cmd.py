@@ -236,9 +236,17 @@ def get_user_log(app, message):
     data, data_tg = [], []
 
     for l in logs:
-        ts = datetime.fromtimestamp(int(l["timestamp"]))
-        row = f"{ts} | {l['ID']} | {l['name']} | {l['title']} | {l['urls']}"
-        row_2 = f"<b>{ts}</b> | <code>{l['ID']}</code> | <b>{l['name']}</b> | {l['title']} | {l['urls']}"
+        ts_raw = l.get("timestamp")
+        try:
+            ts = datetime.fromtimestamp(int(ts_raw)) if ts_raw is not None else datetime.fromtimestamp(0)
+        except Exception:
+            ts = datetime.fromtimestamp(0)
+        id_val = l.get('ID', '-')
+        name_val = l.get('name', '-')
+        title_val = l.get('title', '-')
+        urls_val = l.get('urls', '-')
+        row = f"{ts} | {id_val} | {name_val} | {title_val} | {urls_val}"
+        row_2 = f"<b>{ts}</b> | <code>{id_val}</code> | <b>{name_val}</b> | {title_val} | {urls_val}"
         data.append(row)
         data_tg.append(row_2)
 

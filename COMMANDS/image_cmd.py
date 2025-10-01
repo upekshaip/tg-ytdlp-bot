@@ -1062,7 +1062,6 @@ def image_command(app, message):
                 return
             
             # Create range selection menu
-            from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
             
             # Calculate ranges based on total_count and limits
             ranges = []
