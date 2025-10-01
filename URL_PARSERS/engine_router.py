@@ -25,20 +25,23 @@ def route_if_gallerydl_only(app, message) -> bool:
         if domain.startswith('www.'):
             domain = domain[4:]
 
-        # Правила маршрутизации напрямую в gallery-dl
-        # 1) VK wall- посты: картинки обрабатываются стабильнее через gallery-dl
-        if "vk.com/wall-" in url_l:
+        # 1) Абсолютное совпадение по части пути из массива GALLERYDL_ONLY_PATH
+        try:
+            path_list = getattr(DomainsConfig, 'GALLERYDL_ONLY_PATH', []) or []
+        except Exception:
+            path_list = []
+        for path_part in path_list:
             try:
-                fallback_text = f"/img {url}"
-                if tags_text:
-                    fallback_text += f" {tags_text}"
-                fake_msg = fake_message(fallback_text, message.chat.id, original_chat_id=message.chat.id)
-                image_command(app, fake_msg)
-                logger.info(f"[ENGINE_ROUTER] Routed to gallery-dl: {fallback_text}")
-                return True
+                if path_part and path_part.lower() in url_l:
+                    fallback_text = f"/img {url}"
+                    if tags_text:
+                        fallback_text += f" {tags_text}"
+                    fake_msg = fake_message(fallback_text, message.chat.id, original_chat_id=message.chat.id)
+                    image_command(app, fake_msg)
+                    logger.info(f"[ENGINE_ROUTER] Routed by path to gallery-dl: {path_part} -> {fallback_text}")
+                    return True
             except Exception as e:
-                logger.error(f"[ENGINE_ROUTER] Failed routing to gallery-dl for {url}: {e}")
-                return False
+                logger.error(f"[ENGINE_ROUTER] Error checking path {path_part}: {e}")
 
         # 2) Домены из списка GALLERYDL_ONLY_DOMAINS
         try:
@@ -61,7 +64,6 @@ def route_if_gallerydl_only(app, message) -> bool:
             except Exception as e:
                 logger.error(f"[ENGINE_ROUTER] Error checking domain {d}: {e}")
 
-        # По умолчанию — не перехватываем, пусть идёт через yt-dlp
         return False
     except Exception as e:
         logger.error(f"[ENGINE_ROUTER] route_if_gallerydl_only error: {e}")

@@ -32,6 +32,12 @@ class DomainsConfig(object):
         'nhentai.net', 'photovogue.com', 'pixeltabel.com', 'weasyl.com', 'wikifeet.com',
         'xasiat.com', 'wallhaven.cc'
     ]  
+
+    GALLERYDL_ONLY_PATH = [
+        # Imageboards / archives / art communities largely covered by gallery-dl
+        'vk.com/wall-',
+        'vk.com/album-',
+    ]
     
     # --- Whitelist of domains that are not considered porn ---
     WHITELIST = [
