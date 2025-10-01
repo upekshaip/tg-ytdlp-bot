@@ -1246,8 +1246,6 @@ def image_command(app, message):
         total_downloaded = 0
         total_sent = 0
         album_index = 0  # index of posts we send (albums only)
-        # Store the exact caption used for the first item of the user's album, to reuse in logs
-        current_album_caption = None
         # is_admin and total_limit already defined above
         # Using detected_total if present; else metadata-based fallback
         total_expected = locals().get('total_expected') or None
@@ -1799,8 +1797,6 @@ def image_command(app, message):
                                                         _first.caption = _exist.strip()
                                                     else:
                                                         _first.caption = (_exist + _sep + user_caption).strip()
-                                                    # Save exact caption used for log reuse
-                                                    current_album_caption = _first.caption
                                                     # Avoid duplicating tags on the rest of items
                                                     for _itm in media_group[1:]:
                                                         if getattr(_itm, 'caption', None) == tags_text_norm:
@@ -1920,31 +1916,28 @@ def image_command(app, message):
                                         try:
                                             # Create media group for regular log channel
                                             regular_log_media_group = []
-                                            # Prefer the exact caption used in user's album (skip for fake messages)
-                                            is_fake_message = getattr(message, '_is_fake_message', False)
-                                            original_first_caption = (current_album_caption or None) if not is_fake_message else None
-                                            # Fallback to previously used constructed caption
-                                            if not original_first_caption:
-                                                bot_username = getattr(Config, "BOT_USERNAME", "bot")
-                                                log_caption_lines = []
-                                                if tags_text_norm:
-                                                    log_caption_lines.append(tags_text_norm)
-                                                # Add profile and site hashtags first
-                                                profile_name = extract_profile_name(url)
-                                                site_name = extract_site_name(url)
-                                                hashtags = []
-                                                if profile_name:
-                                                    hashtags.append(f"#{profile_name}")
-                                                if site_name:
-                                                    hashtags.append(f"#{site_name}")
-                                                if hashtags:
-                                                    log_caption_lines.append(" ".join(hashtags))
-                                                # Add URL with paperclip emoji
-                                                log_caption_lines.append(f"🔗[Images URL]({url}) @{Config.BOT_NAME}")
-                                                original_first_caption = "\n".join(log_caption_lines)
+                                            # Create caption for log channel
+                                            bot_username = getattr(Config, "BOT_USERNAME", "bot")
+                                            log_caption_lines = []
+                                            if tags_text_norm:
+                                                log_caption_lines.append(tags_text_norm)
+                                            # Add profile and site hashtags first
+                                            profile_name = extract_profile_name(url)
+                                            site_name = extract_site_name(url)
+                                            hashtags = []
+                                            if profile_name:
+                                                hashtags.append(f"#{profile_name}")
+                                            if site_name:
+                                                hashtags.append(f"#{site_name}")
+                                            if hashtags:
+                                                log_caption_lines.append(" ".join(hashtags))
+                                            
+                                            # Add URL with paperclip emoji
+                                            log_caption_lines.append(f"🔗[Images URL]({url}) @{Config.BOT_NAME}")
+                                            log_caption = "\n".join(log_caption_lines)
                                             
                                             for _idx, _media_obj in enumerate(media_group):
-                                                caption = original_first_caption if _idx == 0 else None  # Only first item gets caption
+                                                caption = log_caption if _idx == 0 else None  # Only first item gets caption
                                                 if isinstance(_media_obj, InputMediaPhoto):
                                                     regular_log_media_group.append(InputMediaPhoto(
                                                         media=_media_obj.media,
@@ -2000,8 +1993,6 @@ def image_command(app, message):
                                     delete_file(orig)
                                 photos_videos_buffer = photos_videos_buffer[batch_size:]
                                 update_status()
-                                # Reset caption after finishing this album batch
-                                current_album_caption = None
                                 # Delete generated special thumbs/covers
                                 try:
                                     for m in media_group:
@@ -2470,29 +2461,20 @@ def image_command(app, message):
                                                     try:
                                                         # Create media group for regular log channel (open copy)
                                                         regular_log_media_group = []
-                                                        # Prefer original caption from the first item (skip for fake messages)
-                                                        is_fake_message = getattr(message, '_is_fake_message', False)
-                                                        original_first_caption = None
-                                                        if not is_fake_message:
-                                                            try:
-                                                                if media_group:
-                                                                    original_first_caption = (getattr(media_group[0], 'caption', None) or '').strip() or None
-                                                            except Exception:
-                                                                original_first_caption = None
-                                                        if not original_first_caption:
-                                                            bot_username = getattr(Config, "BOT_USERNAME", "bot")
-                                                            log_caption_lines = []
-                                                            if tags_text_norm:
-                                                                log_caption_lines.append(tags_text_norm)
-                                                            log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
-                                                            # Add profile hashtag
-                                                            profile_name = extract_profile_name(url)
-                                                            if profile_name:
-                                                                log_caption_lines.append(f"#{profile_name}")
-                                                            original_first_caption = "\n".join(log_caption_lines)
+                                                        # Create caption for log channel
+                                                        bot_username = getattr(Config, "BOT_USERNAME", "bot")
+                                                        log_caption_lines = []
+                                                        if tags_text_norm:
+                                                            log_caption_lines.append(tags_text_norm)
+                                                        log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
+                                                        # Add profile hashtag
+                                                        profile_name = extract_profile_name(url)
+                                                        if profile_name:
+                                                            log_caption_lines.append(f"#{profile_name}")
+                                                        log_caption = "\n".join(log_caption_lines)
                                                         
                                                         for _idx, _media_obj in enumerate(media_group):
-                                                            caption = original_first_caption if _idx == 0 else None  # Only first item gets caption
+                                                            caption = log_caption if _idx == 0 else None  # Only first item gets caption
                                                             if isinstance(_media_obj, InputMediaPhoto):
                                                                 regular_log_media_group.append(InputMediaPhoto(
                                                                     media=_media_obj.media,
@@ -2930,25 +2912,16 @@ def image_command(app, message):
                                 try:
                                     # Create media group for regular log channel (open copy)
                                     regular_log_media_group = []
-                                    # Prefer original caption from the first item (skip for fake messages)
-                                    is_fake_message = getattr(message, '_is_fake_message', False)
-                                    original_first_caption = None
-                                    if not is_fake_message:
-                                        try:
-                                            if media_group:
-                                                original_first_caption = (getattr(media_group[0], 'caption', None) or '').strip() or None
-                                        except Exception:
-                                            original_first_caption = None
-                                    if not original_first_caption:
-                                        bot_username = getattr(Config, "BOT_USERNAME", "bot")
-                                        log_caption_lines = []
-                                        if tags_text_norm:
-                                            log_caption_lines.append(tags_text_norm)
-                                        log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
-                                        original_first_caption = "\n".join(log_caption_lines)
+                                    # Create caption for log channel
+                                    bot_username = getattr(Config, "BOT_USERNAME", "bot")
+                                    log_caption_lines = []
+                                    if tags_text_norm:
+                                        log_caption_lines.append(tags_text_norm)
+                                    log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
+                                    log_caption = "\n".join(log_caption_lines)
                                     
                                     for _idx, _media_obj in enumerate(media_group):
-                                        caption = original_first_caption if _idx == 0 else None  # Only first item gets caption
+                                        caption = log_caption if _idx == 0 else None  # Only first item gets caption
                                         if isinstance(_media_obj, InputMediaPhoto):
                                             regular_log_media_group.append(InputMediaPhoto(
                                                 media=_media_obj.media,
@@ -3212,19 +3185,8 @@ def image_command(app, message):
                                     try:
                                         # Create media group for regular log channel (open copy)
                                         regular_log_media_group = []
-                                        # Prefer original caption from the first item (skip for fake messages)
-                                        is_fake_message = getattr(message, '_is_fake_message', False)
-                                        original_first_caption = None
-                                        if not is_fake_message:
-                                            try:
-                                                if media_group:
-                                                    original_first_caption = (getattr(media_group[0], 'caption', None) or '').strip() or None
-                                            except Exception:
-                                                original_first_caption = None
-                                        if not original_first_caption:
-                                            original_first_caption = (tags_text_norm or "") or None
                                         for _idx, _media_obj in enumerate(media_group):
-                                            caption = original_first_caption if _idx == 0 else None  # Only first item gets caption
+                                            caption = (tags_text_norm or "") if _idx == 0 else None  # Only first item gets caption
                                             if isinstance(_media_obj, InputMediaPhoto):
                                                 regular_log_media_group.append(InputMediaPhoto(
                                                     media=_media_obj.media,
