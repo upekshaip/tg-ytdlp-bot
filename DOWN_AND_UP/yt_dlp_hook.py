@@ -244,8 +244,13 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
-            if 'entries' in info and info.get('entries'):
-                info = info['entries'][0]
+            # Normalize info to a dict
+            if isinstance(info, list):
+                info = (info[0] if len(info) > 0 else {})
+            elif isinstance(info, dict) and 'entries' in info:
+                entries = info.get('entries')
+                if isinstance(entries, list) and len(entries) > 0:
+                    info = entries[0]
             
             # Check for live stream after extraction
             if info and info.get('is_live', False):

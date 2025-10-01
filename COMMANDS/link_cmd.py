@@ -219,6 +219,13 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
         # Get video information
         with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
+        # Normalize info to a dict
+        if isinstance(info, list):
+            info = (info[0] if len(info) > 0 else {})
+        elif isinstance(info, dict) and 'entries' in info:
+            entries = info.get('entries')
+            if isinstance(entries, list) and len(entries) > 0:
+                info = entries[0]
         
         if not info:
             return {'error': 'Failed to extract video information'}
