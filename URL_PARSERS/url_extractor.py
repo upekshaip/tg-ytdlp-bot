@@ -184,6 +184,10 @@ def url_distractor(app, message):
             return  # is_user_in_channel already sends subscription message
         # User is subscribed or admin, send help message
         keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🛠 Dev GitHub", url="https://github.com/upekshaip/tg-ytdlp-bot"),
+                InlineKeyboardButton("🛠 Contr GitHub", url="https://github.com/chelaxian/tg-ytdlp-bot")
+            ],
             [InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="help_msg|close")]
         ])
         from HELPERS.safe_messeger import safe_send_message
