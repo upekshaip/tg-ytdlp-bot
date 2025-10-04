@@ -1010,7 +1010,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                                 fallback_text += " #nsfw"
                                 logger.info(f"[FALLBACK] Added #nsfw tag for NSFW content: {url}")
                             
-                            image_command(app, fake_message(fallback_text, user_id, original_chat_id=user_id))
+                            # For groups, preserve original chat_id and message_thread_id
+                            original_chat_id = message.chat.id if hasattr(message, 'chat') else user_id
+                            message_thread_id = getattr(message, 'message_thread_id', None) if hasattr(message, 'message_thread_id') else None
+                            image_command(app, fake_message(fallback_text, user_id, original_chat_id=original_chat_id, message_thread_id=message_thread_id))
                             logger.info(f"Triggered gallery-dl fallback via /img from audio downloader, is_nsfw={is_nsfw}, range={start_range}-{end_range}")
                             return "IMG"
                         except Exception as call_e:

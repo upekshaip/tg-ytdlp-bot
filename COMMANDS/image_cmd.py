@@ -308,6 +308,8 @@ def get_file_date(file_path):
         
         # First, try to extract date from filename (Instagram format: timestamp.jpg)
         filename = os.path.basename(file_path)
+        logger.info(f"[FILE_DATE] Trying to extract date from filename: {filename}")
+        
         # Instagram files often have timestamp as filename (e.g., 3732982640044472150.jpg)
         # This is usually a Unix timestamp in microseconds
         if filename and '.' in filename:
@@ -321,9 +323,35 @@ def get_file_date(file_path):
                     # Check if date is reasonable (not in future, not too old)
                     now = datetime.now()
                     if 2020 <= dt.year <= now.year + 1:
+                        logger.info(f"[FILE_DATE] Found Instagram timestamp: {dt.strftime('%d.%m.%Y')}")
                         return dt.strftime("%d.%m.%Y")
                 except (ValueError, OSError):
                     pass
+            
+            # Try to extract date from gallery-dl filename patterns
+            # Gallery-dl often uses patterns like: 2024-10-30_15-47-00_filename.jpg
+            date_patterns = [
+                r'(\d{4}-\d{2}-\d{2})',  # YYYY-MM-DD
+                r'(\d{4}_\d{2}_\d{2})',  # YYYY_MM_DD
+                r'(\d{2}-\d{2}-\d{4})',  # DD-MM-YYYY
+                r'(\d{2}_\d{2}_\d{4})',  # DD_MM_YYYY
+            ]
+            
+            for pattern in date_patterns:
+                match = re.search(pattern, filename)
+                if match:
+                    try:
+                        date_str = match.group(1)
+                        # Try different date formats
+                        for fmt in ['%Y-%m-%d', '%Y_%m_%d', '%d-%m-%Y', '%d_%m_%Y']:
+                            try:
+                                dt = datetime.strptime(date_str, fmt)
+                                logger.info(f"[FILE_DATE] Found date in filename: {dt.strftime('%d.%m.%Y')}")
+                                return dt.strftime("%d.%m.%Y")
+                            except ValueError:
+                                continue
+                    except Exception:
+                        continue
         
         # Try to get date from EXIF data
         try:
@@ -375,15 +403,25 @@ def get_file_date(file_path):
                 pass
         
         # If all else fails, try to use file modification time as fallback
+        # But only if it's not a recently downloaded file (to avoid today's date for fake messages)
         try:
             stat = os.stat(file_path)
             mtime = stat.st_mtime
             dt = datetime.fromtimestamp(mtime)
+            
+            # Check if file was created today (likely a fake message fallback)
+            now = datetime.now()
+            if dt.date() == now.date():
+                logger.info(f"[FILE_DATE] File created today, likely fake message fallback - returning None")
+                return None
+            
+            logger.info(f"[FILE_DATE] Using file modification time: {dt.strftime('%d.%m.%Y')}")
             return dt.strftime("%d.%m.%Y")
         except Exception:
             pass
         
         # If all else fails, return None (will be grouped as 'unknown')
+        logger.info(f"[FILE_DATE] Could not extract date from file: {file_path}")
         return None
         
     except Exception:

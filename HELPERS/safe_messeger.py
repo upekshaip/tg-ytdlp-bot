@@ -25,7 +25,7 @@ def get_app_safe():
         raise RuntimeError(Messages.HELPER_APP_INSTANCE_NOT_AVAILABLE_MSG)
     return app
 
-def fake_message(text, user_id, command=None, original_chat_id=None):
+def fake_message(text, user_id, command=None, original_chat_id=None, message_thread_id=None):
     m = SimpleNamespace()
     m.chat = SimpleNamespace()
     # Use original_chat_id if provided, otherwise use user_id
@@ -42,6 +42,8 @@ def fake_message(text, user_id, command=None, original_chat_id=None):
     m._is_fake_message = True
     # ЖЕСТКО: Сохраняем оригинальный chat_id для правильного определения is_private_chat
     m._original_chat_id = original_chat_id if original_chat_id is not None else user_id
+    # ЖЕСТКО: Сохраняем message_thread_id для правильной работы с топиками в группах
+    m.message_thread_id = message_thread_id
     if command is not None:
         m.command = command
     else:

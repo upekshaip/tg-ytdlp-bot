@@ -2197,9 +2197,9 @@ def fallback_gallery_dl_callback(app, callback_query):
             fallback_text = f"/img {url}"
             logger.info(f"Fallback without range")
         
-        fake_msg = fake_message(fallback_text, user_id, original_chat_id=original_chat_id)
         # Сохраняем message_thread_id из оригинального сообщения
-        fake_msg.message_thread_id = getattr(callback_query.message, 'message_thread_id', None)
+        message_thread_id = getattr(callback_query.message, 'message_thread_id', None)
+        fake_msg = fake_message(fallback_text, user_id, original_chat_id=original_chat_id, message_thread_id=message_thread_id)
         logger.info(f"[FALLBACK] fake_msg.chat.id={fake_msg.chat.id}, fake_msg.message_thread_id={fake_msg.message_thread_id}, callback_query.message.chat.id={callback_query.message.chat.id}, callback_query.message.message_thread_id={getattr(callback_query.message, 'message_thread_id', None)}")
         
         # Execute gallery-dl command
