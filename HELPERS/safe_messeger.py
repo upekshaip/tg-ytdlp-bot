@@ -6,9 +6,11 @@ import threading
 import asyncio
 from types import SimpleNamespace
 from HELPERS.app_instance import get_app
+from CONFIG.messages import Messages
 from pyrogram.errors import FloodWait
 import os
 from pyrogram.types import ReplyParameters
+from pyrogram import enums
 
 # Configure local logger
 logger = logging.getLogger(__name__)
@@ -21,14 +23,17 @@ _message_send_lock = threading.Lock()
 def get_app_safe():
     app = get_app()
     if app is None:
-        raise RuntimeError("App instance not available yet")
+        raise RuntimeError(Messages.HELPER_APP_INSTANCE_NOT_AVAILABLE_MSG)
     return app
 
-def fake_message(text, user_id, command=None, original_chat_id=None):
+def fake_message(text, user_id, command=None, original_chat_id=None, message_thread_id=None, original_message=None):
     m = SimpleNamespace()
     m.chat = SimpleNamespace()
-    m.chat.id = user_id
-    m.chat.first_name = "User"
+    # Use original_chat_id if provided, otherwise use user_id
+    m.chat.id = original_chat_id if original_chat_id is not None else user_id
+    m.chat.first_name = Messages.HELPER_USER_NAME_MSG
+    # Set chat type based on chat_id (negative = group, positive = private)
+    m.chat.type = enums.ChatType.PRIVATE if (original_chat_id if original_chat_id is not None else user_id) > 0 else enums.ChatType.SUPERGROUP
     m.text = text
     m.first_name = m.chat.first_name
     m.reply_to_message = None
@@ -40,6 +45,10 @@ def fake_message(text, user_id, command=None, original_chat_id=None):
     m._is_fake_message = True
     # ЖЕСТКО: Сохраняем оригинальный chat_id для правильного определения is_private_chat
     m._original_chat_id = original_chat_id if original_chat_id is not None else user_id
+    # ЖЕСТКО: Сохраняем message_thread_id для правильной работы с топиками в группах
+    m.message_thread_id = message_thread_id
+    # ЖЕСТКО: Сохраняем оригинальное сообщение для реплаев
+    m._original_message = original_message
     if command is not None:
         m.command = command
     else:
@@ -59,21 +68,65 @@ def fake_message(text, user_id, command=None, original_chat_id=None):
 def safe_send_message(chat_id, text, **kwargs):
     # Normalize reply parameters and preserve topic/thread info
     original_message = kwargs.get('message')
+    # Peek callback_query (will be popped later) to inherit thread context in topics
+    cb_peek = kwargs.get('_callback_query', None)
+    
+    # DEBUG: Log all parameters
+    logger.info(f"[SAFE_SEND_DEBUG] chat_id={chat_id}, text_length={len(text) if text else 0}")
+    logger.info(f"[SAFE_SEND_DEBUG] original_message={original_message}")
+    logger.info(f"[SAFE_SEND_DEBUG] original_message.message_thread_id={getattr(original_message, 'message_thread_id', None) if original_message else None}")
+    logger.info(f"[SAFE_SEND_DEBUG] cb_peek={cb_peek}")
+    logger.info(f"[SAFE_SEND_DEBUG] kwargs keys: {list(kwargs.keys())}")
     if 'reply_parameters' not in kwargs:
         if 'reply_to_message_id' in kwargs and kwargs['reply_to_message_id'] is not None:
             kwargs['reply_parameters'] = ReplyParameters(message_id=kwargs['reply_to_message_id'])
             del kwargs['reply_to_message_id']
         elif original_message is not None and getattr(original_message, 'id', None) is not None:
-            kwargs['reply_parameters'] = ReplyParameters(message_id=original_message.id)
-    # Ensure topic/thread routing for supergroups with topics
+            # Check if this is a fake message with original message reference
+            if hasattr(original_message, '_is_fake_message') and hasattr(original_message, '_original_message'):
+                if original_message._original_message is not None and getattr(original_message._original_message, 'id', None) is not None:
+                    logger.info(f"[SAFE_SEND] Using original message for reply: {original_message._original_message.id}")
+                    kwargs['reply_parameters'] = ReplyParameters(message_id=original_message._original_message.id)
+                else:
+                    logger.info(f"[SAFE_SEND] Fake message but no original message available, using fake message id: {original_message.id}")
+                    kwargs['reply_parameters'] = ReplyParameters(message_id=original_message.id)
+            else:
+                kwargs['reply_parameters'] = ReplyParameters(message_id=original_message.id)
+        elif cb_peek is not None and getattr(getattr(cb_peek, 'message', None), 'id', None) is not None:
+            kwargs['reply_parameters'] = ReplyParameters(message_id=cb_peek.message.id)
+    # Ensure topic/thread routing for supergroups with topics (only for groups, not private chats)
     try:
-        if original_message is not None and getattr(original_message, 'message_thread_id', None):
-            kwargs.setdefault('message_thread_id', original_message.message_thread_id)
-    except Exception:
+        # Only apply topic routing for groups (negative chat_id)
+        if chat_id < 0:
+            # Check if message is provided in kwargs (for fake messages)
+            if original_message is not None:
+                # For fake messages, use the original message's thread_id
+                if hasattr(original_message, '_is_fake_message') and hasattr(original_message, '_original_message') and original_message._original_message is not None:
+                    message_thread_id = getattr(original_message._original_message, 'message_thread_id', None)
+                    logger.info(f"[SAFE_SEND] fake_message._original_message.message_thread_id={message_thread_id}, chat_id={chat_id}")
+                else:
+                    message_thread_id = getattr(original_message, 'message_thread_id', None)
+                    logger.info(f"[SAFE_SEND] original_message.message_thread_id={message_thread_id}, chat_id={chat_id}")
+                
+                if message_thread_id:
+                    kwargs.setdefault('message_thread_id', message_thread_id)
+                    logger.info(f"[SAFE_SEND] Set message_thread_id={message_thread_id} for chat_id={chat_id}")
+            # Inherit thread_id from callback context when message is not provided
+            elif cb_peek is not None and getattr(getattr(cb_peek, 'message', None), 'message_thread_id', None):
+                kwargs.setdefault('message_thread_id', cb_peek.message.message_thread_id)
+        else:
+            logger.info(f"[SAFE_SEND] Skipping topic routing for private chat_id={chat_id}")
+    except Exception as e:
+        logger.warning(f"[SAFE_SEND] Error in topic routing: {e}")
         pass
     # Remove helper-only key
     if 'message' in kwargs:
         del kwargs['message']
+    
+    # DEBUG: Log final parameters before sending
+    logger.info(f"[SAFE_SEND_FINAL] chat_id={chat_id}, message_thread_id={kwargs.get('message_thread_id', 'NOT_SET')}")
+    logger.info(f"[SAFE_SEND_FINAL] Final kwargs: {kwargs}")
+    
     max_retries = 3
     retry_delay = 5
     # Extract internal helper kwargs (not supported by pyrogram)
@@ -88,8 +141,10 @@ def safe_send_message(chat_id, text, **kwargs):
     with _message_send_lock:
         last_sent = _last_message_sent.get(chat_id, 0)
         now = time.time()
-        if now - last_sent < 0.1:  # 100ms minimum delay between messages
-            time.sleep(0.1 - (now - last_sent))
+        # Increase minimum spacing to reduce RANDOM_ID_DUPLICATE in high-throughput chats
+        min_spacing = 0.25  # seconds
+        if now - last_sent < min_spacing:
+            time.sleep(min_spacing - (now - last_sent))
         _last_message_sent[chat_id] = time.time()
 
     for attempt in range(max_retries):
@@ -110,7 +165,7 @@ def safe_send_message(chat_id, text, **kwargs):
             try:
                 if cb is not None:
                     try:
-                        cb.answer(notice or "⏳ Flood limit. Try later.", show_alert=False)
+                        cb.answer(notice or Messages.HELPER_FLOOD_LIMIT_TRY_LATER_MSG, show_alert=False)
                     except Exception:
                         pass
             except Exception:
@@ -122,18 +177,27 @@ def safe_send_message(chat_id, text, **kwargs):
                 wait_match = re.search(r'A wait of (\d+) seconds is required', str(e))
                 if wait_match:
                     wait_seconds = int(wait_match.group(1))
-                    logger.warning(f"Flood wait detected, sleeping for {wait_seconds} seconds")
+                    logger.warning(Messages.HELPER_FLOOD_WAIT_DETECTED_SLEEPING_MSG.format(wait_seconds=wait_seconds))
                     time.sleep(min(wait_seconds + 1, 5))  # short backoff
                 else:
-                    logger.warning(f"Flood wait detected but couldn't extract time, sleeping for {retry_delay} seconds")
+                    logger.warning(Messages.HELPER_FLOOD_WAIT_DETECTED_COULDNT_EXTRACT_MSG.format(retry_delay=retry_delay))
                     time.sleep(retry_delay)
                 if attempt < max_retries - 1:
                     continue
             
             # Handle msg_seqno errors
             elif "msg_seqno is too high" in str(e):
-                logger.warning(f"msg_seqno error detected, sleeping for {retry_delay} seconds")
+                logger.warning(Messages.HELPER_MSG_SEQNO_ERROR_DETECTED_MSG.format(retry_delay=retry_delay))
                 time.sleep(retry_delay)
+                if attempt < max_retries - 1:
+                    continue
+            # Handle RANDOM_ID_DUPLICATE errors by brief backoff and retry
+            elif "RANDOM_ID_DUPLICATE" in str(e):
+                try:
+                    logger.warning("RANDOM_ID_DUPLICATE detected, backing off briefly and retrying")
+                except Exception:
+                    pass
+                time.sleep(0.5)
                 if attempt < max_retries - 1:
                     continue
             logger.error(f"Failed to send message after {max_retries} attempts: {e}")
@@ -166,10 +230,10 @@ def safe_forward_messages(chat_id, from_chat_id, message_ids, **kwargs):
                 wait_match = re.search(r'A wait of (\d+) seconds is required', str(e))
                 if wait_match:
                     wait_seconds = int(wait_match.group(1))
-                    logger.warning(f"Flood wait detected, sleeping for {wait_seconds} seconds")
+                    logger.warning(Messages.HELPER_FLOOD_WAIT_DETECTED_SLEEPING_MSG.format(wait_seconds=wait_seconds))
                     time.sleep(min(wait_seconds + 1, 30))  # Wait the required time (max 30 sec)
                 else:
-                    logger.warning(f"Flood wait detected but couldn't extract time, sleeping for {retry_delay} seconds")
+                    logger.warning(Messages.HELPER_FLOOD_WAIT_DETECTED_COULDNT_EXTRACT_MSG.format(retry_delay=retry_delay))
                     time.sleep(retry_delay)
 
                 if attempt < max_retries - 1:
@@ -237,41 +301,71 @@ def safe_edit_message_text(chat_id, message_id, text, **kwargs):
         except Exception as e:
             # If message ID is invalid, it means the message was deleted
             # No need to retry, just return immediately
-            if "MESSAGE_ID_INVALID" in str(e):
+            if Messages.HELPER_MESSAGE_ID_INVALID_MSG in str(e):
                 # We only log this once, not for every retry
                 if attempt == 0:
                     logger.debug(f"Tried to edit message that was already deleted: {message_id}")
                 return None
 
-            # If message was not modified, also return immediately (not an error)
-            elif "message is not modified" in str(e).lower() or "MESSAGE_NOT_MODIFIED" in str(e):
-                return None
+# Helper function for safely clearing reply markup (inline keyboard)
+def safe_edit_reply_markup(chat_id, message_id, reply_markup=None, **kwargs):
+    """
+    Safely edit message reply markup (e.g., clear inline keyboard) with flood wait handling
 
-            # Handle flood wait errors
-            elif "FLOOD_WAIT" in str(e):
-                # Extract wait time
+    Inherits message_thread_id from provided message or _callback_query for topics.
+    """
+    max_retries = 3
+    retry_delay = 5
+
+    # Inherit thread context from helpers
+    original_message = kwargs.get('message')
+    cb_peek = kwargs.get('_callback_query', None)
+    try:
+        if 'message_thread_id' not in kwargs:
+            if original_message is not None and getattr(original_message, 'message_thread_id', None):
+                kwargs['message_thread_id'] = original_message.message_thread_id
+            elif cb_peek is not None and getattr(getattr(cb_peek, 'message', None), 'message_thread_id', None):
+                kwargs['message_thread_id'] = cb_peek.message.message_thread_id
+    except Exception:
+        pass
+    if 'message' in kwargs:
+        del kwargs['message']
+    if '_callback_query' in kwargs:
+        kwargs.pop('_callback_query', None)
+
+    for attempt in range(max_retries):
+        try:
+            app = get_app_safe()
+            return app.edit_message_reply_markup(chat_id, message_id, reply_markup=reply_markup, **kwargs)
+        except FloodWait as e:
+            try:
+                user_dir = os.path.join("users", str(chat_id))
+                os.makedirs(user_dir, exist_ok=True)
+                with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
+                    f.write(str(e.value))
+            except Exception:
+                pass
+            logger.warning(f"Flood wait detected ({e.value}s) while editing reply markup for {chat_id}")
+            return None
+        except Exception as e:
+            if "FLOOD_WAIT" in str(e):
                 wait_match = re.search(r'A wait of (\d+) seconds is required', str(e))
                 if wait_match:
                     wait_seconds = int(wait_match.group(1))
-                    logger.warning(f"Flood wait detected, sleeping for {wait_seconds} seconds")
+                    logger.warning(Messages.HELPER_FLOOD_WAIT_DETECTED_SLEEPING_MSG.format(wait_seconds=wait_seconds))
                     time.sleep(min(wait_seconds + 1, 5))
                 else:
-                    logger.warning(f"Flood wait detected but couldn't extract time, sleeping for {retry_delay} seconds")
+                    logger.warning(Messages.HELPER_FLOOD_WAIT_DETECTED_COULDNT_EXTRACT_MSG.format(retry_delay=retry_delay))
                     time.sleep(retry_delay)
-
                 if attempt < max_retries - 1:
                     continue
-            
-            # Handle msg_seqno errors
             elif "msg_seqno is too high" in str(e):
-                logger.warning(f"msg_seqno error detected, sleeping for {retry_delay} seconds")
+                logger.warning(Messages.HELPER_MSG_SEQNO_ERROR_DETECTED_MSG.format(retry_delay=retry_delay))
                 time.sleep(retry_delay)
                 if attempt < max_retries - 1:
                     continue
-
-            # Only log other errors as real errors
-            if attempt == max_retries - 1:  # Log only on last attempt
-                logger.error(f"Failed to edit message after {max_retries} attempts: {e}")
+            if attempt == max_retries - 1:
+                logger.error(f"Failed to edit reply markup after {max_retries} attempts: {e}")
             return None
 
 # Helper function for safely deleting messages with flood wait handling
@@ -300,7 +394,7 @@ def safe_delete_messages(chat_id, message_ids, **kwargs):
                 msg = str(e)
             except Exception:
                 msg = f"{type(e).__name__}"
-            if "MESSAGE_ID_INVALID" in msg or "MESSAGE_DELETE_FORBIDDEN" in msg:
+            if Messages.HELPER_MESSAGE_ID_INVALID_MSG in msg or Messages.HELPER_MESSAGE_DELETE_FORBIDDEN_MSG in msg:
                 if attempt == 0:
                     logger.debug(f"Tried to delete non-existent message(s): {message_ids}")
                 return None
@@ -309,10 +403,10 @@ def safe_delete_messages(chat_id, message_ids, **kwargs):
                 wait_match = re.search(r'A wait of (\d+) seconds is required', str(e))
                 if wait_match:
                     wait_seconds = int(wait_match.group(1))
-                    logger.warning(f"Flood wait detected, sleeping for {wait_seconds} seconds")
+                    logger.warning(Messages.HELPER_FLOOD_WAIT_DETECTED_SLEEPING_MSG.format(wait_seconds=wait_seconds))
                     time.sleep(min(wait_seconds + 1, 30))  # Wait the required time (max 30 sec)
                 else:
-                    logger.warning(f"Flood wait detected but couldn't extract time, sleeping for {retry_delay} seconds")
+                    logger.warning(Messages.HELPER_FLOOD_WAIT_DETECTED_COULDNT_EXTRACT_MSG.format(retry_delay=retry_delay))
                     time.sleep(retry_delay)
 
                 if attempt < max_retries - 1:

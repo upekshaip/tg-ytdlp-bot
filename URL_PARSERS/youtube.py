@@ -3,6 +3,7 @@ from urllib.parse import urlparse, parse_qs, urlencode
 import re
 import requests
 from CONFIG.config import Config
+from CONFIG.messages import Messages
 from HELPERS.logger import logger
 
 def youtube_to_short_url(url: str) -> str:
@@ -65,7 +66,7 @@ def extract_youtube_id(url: str) -> str:
         m = re.search(pat, url)
         if m:
             return m.group(1)
-    raise ValueError("Failed to extract YouTube ID")
+    raise ValueError(Messages.YOUTUBE_FAILED_EXTRACT_ID_MSG)
 
 
 def download_thumbnail(video_id: str, dest: str, url: str = None) -> None:
@@ -83,7 +84,7 @@ def download_thumbnail(video_id: str, dest: str, url: str = None) -> None:
             img_bytes = r.content
             break
     if not img_bytes:
-        raise RuntimeError("Failed to download thumbnail or it is too big")
+        raise RuntimeError(Messages.YOUTUBE_FAILED_DOWNLOAD_THUMBNAIL_MSG)
     # We do nothing else - we keep the original size!
 
 

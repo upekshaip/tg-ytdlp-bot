@@ -1,5 +1,6 @@
 from HELPERS.app_instance import get_app
 from CONFIG.config import Config
+from CONFIG.messages import Messages
 from HELPERS.logger import logger, get_log_channel
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from pyrogram.enums import ChatMemberStatus
@@ -58,7 +59,7 @@ def is_user_in_channel(app, message):
         logger.error(f"Error checking channel membership for user {message.chat.id}: {e}")
         text = f"{Config.TO_USE_MSG}\n \n{Config.CREDITS_MSG}"
         button = InlineKeyboardButton(
-            "Join Channel", url=Config.SUBSCRIBE_CHANNEL_URL)
+            Messages.CHANNEL_JOIN_BUTTON_MSG, url=Config.SUBSCRIBE_CHANNEL_URL)
         keyboard = InlineKeyboardMarkup([[button]])
         # Use safe send to avoid FloodWait on texts
         safe_send_message(
@@ -71,7 +72,7 @@ def is_user_in_channel(app, message):
     # If user is not a member, send subscription message
     text = f"{Config.TO_USE_MSG}\n \n{Config.CREDITS_MSG}"
     button = InlineKeyboardButton(
-        "Join Channel", url=Config.SUBSCRIBE_CHANNEL_URL)
+        Messages.CHANNEL_JOIN_BUTTON_MSG, url=Config.SUBSCRIBE_CHANNEL_URL)
     keyboard = InlineKeyboardMarkup([[button]])
     # Use safe send to avoid FloodWait on texts
     safe_send_message(
@@ -95,7 +96,7 @@ def check_user(message):
     if int(message.chat.id) not in Config.ADMIN and int(message.chat.id) not in getattr(Config, 'ALLOWED_GROUP', []):
         app = get_app()
         if app is None:
-            logger.error("App instance is None in check_user")
+            logger.error(Messages.HELPER_APP_INSTANCE_NONE_MSG)
             return False
         return is_user_in_channel(app, message)
     return True
@@ -118,7 +119,7 @@ def ensure_group_admin(app, message):
                     # Ask to grant admin. Reply in the same topic/thread when possible
                     safe_send_message(
                         chat_id,
-                        "❗️ Для работы в группе боту нужны права администратора. Пожалуйста, сделайте бота админом этой группы.",
+                        Messages.HELPER_ADMIN_RIGHTS_REQUIRED_MSG,
                         message=message
                     )
                     return False
@@ -126,7 +127,7 @@ def ensure_group_admin(app, message):
                 # If check failed for any reason, be safe and request admin
                 safe_send_message(
                     chat_id,
-                    "❗️ Для работы в группе боту нужны права администратора. Пожалуйста, сделайте бота админом этой группы.",
+                    Messages.HELPER_ADMIN_RIGHTS_REQUIRED_MSG,
                     message=message
                 )
                 return False
@@ -152,7 +153,7 @@ def check_file_size_limit(info_dict, max_size_bytes=None, message=None):
 
     # Check if info_dict is None
     if info_dict is None:
-        logger.warning("check_file_size_limit: info_dict is None, allowing download")
+        logger.warning(Messages.HELPER_CHECK_FILE_SIZE_LIMIT_INFO_DICT_NONE_MSG)
         return True
 
     filesize = info_dict.get('filesize') or info_dict.get('filesize_approx')
@@ -186,7 +187,7 @@ def check_subs_limits(info_dict, quality_key=None):
     try:
         # Check if info_dict is None
         if info_dict is None:
-            logger.warning("check_subs_limits: info_dict is None, allowing subtitle embedding")
+            logger.warning(Messages.HELPER_CHECK_SUBS_LIMITS_INFO_DICT_NONE_MSG)
             return True
             
         # We get the parameters from the config
@@ -204,13 +205,13 @@ def check_subs_limits(info_dict, quality_key=None):
         except Exception:
             pass
         
-        logger.info(f"check_subs_limits: checking limits - max_quality={max_quality}p, max_duration={max_duration}s, max_size={max_size}MB")
-        logger.info(f"check_subs_limits: info_dict keys: {list(info_dict.keys()) if info_dict else 'None'}")
+        logger.info(Messages.HELPER_CHECK_SUBS_LIMITS_CHECKING_LIMITS_MSG.format(max_quality=max_quality, max_duration=max_duration, max_size=max_size))
+        logger.info(Messages.HELPER_CHECK_SUBS_LIMITS_INFO_DICT_KEYS_MSG.format(keys=list(info_dict.keys()) if info_dict else 'None'))
         
         # Check the duration
         duration = info_dict.get('duration')
         if duration and duration > max_duration:
-            logger.info(f"Subtitle embedding skipped: duration {duration}s exceeds limit {max_duration}s")
+            logger.info(Messages.HELPER_SUBTITLE_EMBEDDING_SKIPPED_DURATION_MSG.format(duration=duration, max_duration=max_duration))
             return False
         
         # Check the file size (only if it is accurately known)
@@ -218,7 +219,7 @@ def check_subs_limits(info_dict, quality_key=None):
         if filesize and filesize > 0:  # Check that the size is larger than 0
             size_mb = filesize / (1024 * 1024)  # Fixed: use division instead of integer division
             if size_mb > max_size:
-                logger.info(f"Subtitle embedding skipped: size {size_mb:.2f}MB exceeds limit {max_size}MB")
+                logger.info(Messages.HELPER_SUBTITLE_EMBEDDING_SKIPPED_SIZE_MSG.format(size_mb=size_mb, max_size=max_size))
                 return False
         
         # Check quality (only if width and height are available)
@@ -227,7 +228,7 @@ def check_subs_limits(info_dict, quality_key=None):
         if width and height:
             min_side = min(width, height)
             if min_side > max_quality:
-                logger.info(f"Subtitle embedding skipped: quality {width}x{height} (min side {min_side}p) exceeds limit {max_quality}p")
+                logger.info(Messages.HELPER_SUBTITLE_EMBEDDING_SKIPPED_QUALITY_MSG.format(width=width, height=height, min_side=min_side, max_quality=max_quality))
                 return False
         
         logger.info(f"Subtitle limits check passed: duration={duration}s, size={filesize} bytes, quality={width}x{height}")
@@ -269,11 +270,11 @@ def check_playlist_range_limits(url, video_start_with, video_end_with, app, mess
     if count > max_count:
         # Determine command type based on URL
         if 'tiktok.com' in url_l:
-            command_type = "TikTok"
+            command_type = Messages.HELPER_COMMAND_TYPE_TIKTOK_MSG
         elif 'instagram.com' in url_l:
-            command_type = "Instagram" 
+            command_type = Messages.HELPER_COMMAND_TYPE_INSTAGRAM_MSG
         else:
-            command_type = "playlist"
+            command_type = Messages.HELPER_COMMAND_TYPE_PLAYLIST_MSG
         
         # Create suggested commands with maximum available range
         suggested_command_url_format = f"{url}*{video_start_with}*{video_start_with + max_count - 1}"
@@ -282,9 +283,7 @@ def check_playlist_range_limits(url, video_start_with, video_end_with, app, mess
         
         safe_send_message(
             message.chat.id,
-            f"❗️ Range limit exceeded for {service}: {count} (maximum {max_count}).\n\n"
-            f"Use one of these commands to download maximum available files:\n\n"
-            f"<code>{suggested_command_url_format}</code>\n\n"
+            Messages.HELPER_RANGE_LIMIT_EXCEEDED_MSG.format(service=service, count=count, max_count=max_count, suggested_command_url_format=suggested_command_url_format) +
             f"<code>{suggested_command_vid_format}</code>\n\n"
             f"<code>{suggested_command_audio_format}</code>",
             parse_mode=enums.ParseMode.HTML,
@@ -293,7 +292,7 @@ def check_playlist_range_limits(url, video_start_with, video_end_with, app, mess
         # We send a notification to the log channel
         safe_send_message(
             get_log_channel("general"),
-            f"❗️ Range limit exceeded for {service}: {count} (maximum {max_count})\nUser ID: {message.chat.id}",
+            Messages.HELPER_RANGE_LIMIT_EXCEEDED_LOG_MSG.format(service=service, count=count, max_count=max_count, user_id=message.chat.id),
         )
         return False
     return True

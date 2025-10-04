@@ -3,6 +3,7 @@ import os
 import subprocess
 from pyrogram import filters
 from CONFIG.config import Config
+from CONFIG.messages import Messages
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 
 from HELPERS.app_instance import get_app
@@ -10,6 +11,7 @@ from HELPERS.filesystem_hlp import create_directory
 from HELPERS.logger import send_to_logger, logger, send_to_all, send_error_to_user
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
 from HELPERS.limitter import is_user_in_channel
+from CONFIG.messages import Messages as Messages
 
 # Get app instance for decorators
 app = get_app()
@@ -18,17 +20,17 @@ app = get_app()
 # @reply_with_keyboard
 def mediainfo_command(app, message):
     user_id = message.chat.id
-    logger.info(f"[MEDIAINFO] User {user_id} requested mediainfo command")
-    logger.info(f"[MEDIAINFO] User {user_id} is admin: {int(user_id) in Config.ADMIN}")
+    logger.info(Messages.MEDIAINFO_USER_REQUESTED_MSG.format(user_id=user_id))
+    logger.info(Messages.MEDIAINFO_USER_IS_ADMIN_MSG.format(user_id=user_id, is_admin=int(user_id) in Config.ADMIN))
     
     is_in_channel = is_user_in_channel(app, message)
-    logger.info(f"[MEDIAINFO] User {user_id} is in channel: {is_in_channel}")
+    logger.info(Messages.MEDIAINFO_USER_IS_IN_CHANNEL_MSG.format(user_id=user_id, is_in_channel=is_in_channel))
     
     if int(user_id) not in Config.ADMIN and not is_in_channel:
-        logger.info(f"[MEDIAINFO] User {user_id} access denied - not admin and not in channel")
+        logger.info(Messages.MEDIAINFO_ACCESS_DENIED_MSG.format(user_id=user_id))
         return
     
-    logger.info(f"[MEDIAINFO] User {user_id} access granted")
+    logger.info(Messages.MEDIAINFO_ACCESS_GRANTED_MSG.format(user_id=user_id))
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
     # Fast toggle via args: /mediainfo on|off
@@ -40,29 +42,29 @@ def mediainfo_command(app, message):
             if arg in ("on", "off"):
                 with open(mediainfo_file, "w", encoding="utf-8") as f:
                     f.write("ON" if arg == "on" else "OFF")
-                safe_send_message(user_id, f"✅ MediaInfo {'enabled' if arg=='on' else 'disabled' }.", message=message)
-                send_to_logger(message, f"MediaInfo set via command: {arg}")
+                safe_send_message(user_id, Messages.MEDIAINFO_ENABLED_MSG.format(status='enabled' if arg=='on' else 'disabled'), message=message)
+                send_to_logger(message, Messages.MEDIAINFO_SET_COMMAND_LOG_MSG.format(arg=arg))
                 return
     except Exception:
         pass
     buttons = [
-        [InlineKeyboardButton("✅ ON", callback_data="mediainfo_option|on"), InlineKeyboardButton("❌ OFF", callback_data="mediainfo_option|off")],
-        [InlineKeyboardButton("🔚Close", callback_data="mediainfo_option|close")],
+        [InlineKeyboardButton(Messages.MEDIAINFO_ON_BUTTON_MSG, callback_data="mediainfo_option|on"), InlineKeyboardButton(Messages.MEDIAINFO_OFF_BUTTON_MSG, callback_data="mediainfo_option|off")],
+        [InlineKeyboardButton(Messages.MEDIAINFO_CLOSE_BUTTON_MSG, callback_data="mediainfo_option|close")],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
     safe_send_message(
         user_id,
-        "Enable or disable sending MediaInfo for downloaded files?",
+Messages.MEDIAINFO_MENU_TITLE_MSG,
         reply_markup=keyboard,
         message=message
     )
-    send_to_logger(message, "User opened /mediainfo menu.")
+    send_to_logger(message, Messages.MEDIAINFO_MENU_OPENED_LOG_MSG)
 
 
 @app.on_callback_query(filters.regex(r"^mediainfo_option\|"))
 # @reply_with_keyboard
 def mediainfo_option_callback(app, callback_query):
-    logger.info(f"[MEDIAINFO] callback: {callback_query.data}")
+    logger.info(Messages.MEDIAINFO_CALLBACK_MSG.format(callback_data=callback_query.data))
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]
     user_dir = os.path.join("users", str(user_id))
@@ -74,28 +76,28 @@ def mediainfo_option_callback(app, callback_query):
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
         try:
-            callback_query.answer("Menu closed.")
+            callback_query.answer(Messages.MEDIAINFO_MENU_CLOSED_MSG)
         except Exception:
             pass
-        send_to_logger(callback_query.message, "MediaInfo: closed.")
+        send_to_logger(callback_query.message, Messages.MEDIAINFO_MENU_CLOSED_LOG_MSG)
         return
     if data == "on":
         with open(mediainfo_file, "w", encoding="utf-8") as f:
             f.write("ON")
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "✅ MediaInfo enabled. After downloading, file info will be sent.")
-        send_to_logger(callback_query.message, "MediaInfo enabled.")
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.MEDIAINFO_ENABLED_CONFIRM_MSG)
+        send_to_logger(callback_query.message, Messages.MEDIAINFO_ENABLED_LOG_MSG)
         try:
-            callback_query.answer("MediaInfo enabled.")
+            callback_query.answer(Messages.MEDIAINFO_ENABLED_CALLBACK_MSG)
         except Exception:
             pass
         return
     if data == "off":
         with open(mediainfo_file, "w", encoding="utf-8") as f:
             f.write("OFF")
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "❌ MediaInfo disabled.")
-        send_to_logger(callback_query.message, "MediaInfo disabled.")
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.MEDIAINFO_DISABLED_MSG)
+        send_to_logger(callback_query.message, Messages.MEDIAINFO_DISABLED_LOG_MSG)
         try:
-            callback_query.answer("MediaInfo disabled.")
+            callback_query.answer(Messages.MEDIAINFO_DISABLED_CALLBACK_MSG)
         except Exception:
             pass
         return
@@ -142,7 +144,7 @@ def send_mediainfo_if_enabled(user_id, file_path, message):
             with open(mediainfo_path, "w", encoding="utf-8") as f:
                 f.write(mediainfo_text)
 
-            app.send_document(user_id, mediainfo_path, caption="<blockquote>📊 MediaInfo</blockquote>",
+            app.send_document(user_id, mediainfo_path, caption=Messages.MEDIAINFO_DOCUMENT_CAPTION_MSG,
                               reply_parameters=ReplyParameters(message_id=msg_id))
             from HELPERS.logger import get_log_channel
             app.send_document(get_log_channel("video"), mediainfo_path,
@@ -153,4 +155,4 @@ def send_mediainfo_if_enabled(user_id, file_path, message):
 
         except Exception as e:
             logger.error(f"Error MediaInfo: {e}")
-            send_error_to_user(message, f"❌ Error sending MediaInfo: {e}")
+            send_error_to_user(message, Messages.MEDIAINFO_ERROR_SENDING_MSG.format(error=e))

@@ -2,9 +2,12 @@
 # Command to Set Browser Cookies and Auto-Update YouTube Cookies
 from pyrogram import filters, enums
 from CONFIG.config import Config
+from CONFIG.messages import Messages
+from CONFIG.logger_msg import LoggerMsg
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 
 from HELPERS.app_instance import get_app
+from CONFIG.messages import Messages
 
 from HELPERS.decorators import reply_with_keyboard
 from HELPERS.limitter import is_user_in_channel
@@ -55,7 +58,7 @@ def cookies_from_browser(app, message):
         return
 
     # Logging a request for cookies from browser
-    send_to_logger(message, "User requested cookies from browser.")
+    send_to_logger(message, Messages.COOKIES_BROWSER_REQUESTED_LOG_MSG)
 
     # Path to the User's Directory, E.G. "./users/1234567"
     user_dir = os.path.join(".", "users", str(user_id))
@@ -92,45 +95,43 @@ def cookies_from_browser(app, message):
     buttons = []
     for browser in installed_browsers:
         display_name = browser.capitalize()
-        button = InlineKeyboardButton(f"✅ {display_name}", callback_data=f"browser_choice|{browser}")
+        button = InlineKeyboardButton(Messages.COOKIES_BROWSER_BUTTON_MSG.format(browser_name=display_name), callback_data=f"browser_choice|{browser}")
         buttons.append([button])
 
     # Add a button to download from remote URL (always available)
-    from CONFIG.messages import MessagesConfig as Messages
     fallback_url = getattr(Config, "COOKIE_URL", None)
     if fallback_url:
-        buttons.append([InlineKeyboardButton(getattr(Messages, 'DOWNLOAD_FROM_URL_BUTTON_MSG', '📥 Download from Remote URL'), callback_data="browser_choice|download_from_url")])
+        buttons.append([InlineKeyboardButton(Messages.DOWNLOAD_FROM_URL_BUTTON_MSG, callback_data="browser_choice|download_from_url")])
 
     # Add a button to open browser monitoring page
     miniapp_url = getattr(Config, 'MINIAPP_URL', None)
     # Use the URL as a regular link instead of WebApp
     if miniapp_url and miniapp_url.startswith('https://t.me/'):
-        logger.info(f"Adding browser monitoring button with URL: {miniapp_url}")
-        buttons.append([InlineKeyboardButton(getattr(Messages, 'BROWSER_OPEN_BUTTON_MSG', '🌐 Open Browser'), url=miniapp_url)])
+        logger.info(Messages.COOKIES_ADDING_BROWSER_MONITORING_MSG.format(miniapp_url=miniapp_url))
+        buttons.append([InlineKeyboardButton(Messages.BROWSER_OPEN_BUTTON_MSG, url=miniapp_url)])
     else:
-        logger.warning(f"Browser monitoring URL not configured: {miniapp_url}")
-    
+        logger.warning(Messages.COOKIES_BROWSER_MONITORING_URL_NOT_CONFIGURED_MSG.format(miniapp_url=miniapp_url))
+
     # Add a close button
     buttons.append([InlineKeyboardButton(Messages.BTN_CLOSE, callback_data="browser_choice|close")])
     keyboard = InlineKeyboardMarkup(buttons)
 
-    from CONFIG.messages import MessagesConfig as Messages
     # Choose message based on whether browsers are found
     if installed_browsers:
-        message_text = getattr(Messages, 'SELECT_BROWSER_MSG', "Select a browser to download cookies from:")
+        message_text = Messages.SELECT_BROWSER_MSG
     else:
-        message_text = getattr(Messages, 'SELECT_BROWSER_NO_BROWSERS_MSG', "No browsers found on this system. You can download cookies from remote URL or monitor browser status:")
+        message_text = Messages.SELECT_BROWSER_NO_BROWSERS_MSG
     
     if miniapp_url and miniapp_url.startswith('https://t.me/'):
-        message_text += f"\n\n{getattr(Messages, 'BROWSER_MONITOR_HINT_MSG', '🌐 <b>Open Browser</b> - to monitor browser status in mini-app')}"
-    
+        message_text += f"\n\n{Messages.BROWSER_MONITOR_HINT_MSG}"
+
     safe_send_message(
         user_id,
         message_text,
         reply_markup=keyboard,
         message=message
     )
-    send_to_logger(message, "Browser selection keyboard sent with installed browsers only.")
+    send_to_logger(message, Messages.COOKIES_BROWSER_SELECTION_SENT_LOG_MSG)
 
 # Callback Handler for Browser Selection
 @app.on_callback_query(filters.regex(r"^browser_choice\|"))
@@ -148,7 +149,7 @@ def browser_choice_callback(app, callback_query):
         app: Экземпляр приложения
         callback_query: Callback запрос с выбором браузера
     """
-    logger.info(f"[BROWSER] callback: {callback_query.data}")
+    logger.info(Messages.COOKIES_BROWSER_CALLBACK_MSG.format(callback_data=callback_query.data))
 
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]  # E.G. "Chromium", "Firefox", or "Close"
@@ -162,53 +163,50 @@ def browser_choice_callback(app, callback_query):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        from CONFIG.messages import MessagesConfig as Messages
-        callback_query.answer(Messages.BROWSER_CHOICE_UPDATED_MSG)
-        send_to_logger(callback_query.message, "Browser selection closed.")
+        callback_query.answer(Messages.COOKIES_MENU_CLOSED_MSG)
+        send_to_logger(callback_query.message, Messages.COOKIES_BROWSER_SELECTION_CLOSED_LOG_MSG)
         return
 
     if data == "download_from_url":
         # Handle download from remote URL
         fallback_url = getattr(Config, "COOKIE_URL", None)
         if not fallback_url:
-            from CONFIG.messages import MessagesConfig as Messages
-            safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'COOKIES_NO_BROWSERS_NO_URL_MSG', "❌ No COOKIE_URL configured. Use /cookie or upload cookie.txt."))
-            callback_query.answer("❌ No remote URL configured")
+            safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.COOKIES_NO_BROWSERS_NO_URL_MSG)
+            callback_query.answer(Messages.COOKIES_NO_REMOTE_URL_MSG)
             return
 
         # Update message to show downloading
-        from CONFIG.messages import MessagesConfig as Messages
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "📥 Downloading cookies from remote URL...")
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.COOKIES_DOWNLOADING_FROM_URL_MSG)
         
         try:
             ok, status, content, err = _download_content(fallback_url, timeout=30)
             if ok:
                 # basic validation
                 if not fallback_url.lower().endswith('.txt'):
-                    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'COOKIE_FALLBACK_URL_NOT_TXT_MSG', "❌ Fallback COOKIE_URL must point to a .txt file."))
-                    callback_query.answer("❌ Invalid file format")
+                    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.COOKIE_FALLBACK_URL_NOT_TXT_MSG)
+                    callback_query.answer(Messages.COOKIES_INVALID_FILE_FORMAT_MSG)
                     return
                 if len(content or b"") > 100 * 1024:
-                    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'COOKIE_FALLBACK_TOO_LARGE_MSG', "❌ Fallback cookie file is too large (>100KB)."))
-                    callback_query.answer("❌ File too large")
+                    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.COOKIE_FALLBACK_TOO_LARGE_MSG)
+                    callback_query.answer(Messages.COOKIES_FILE_TOO_LARGE_CALLBACK_MSG)
                     return
                 with open(cookie_file, "wb") as f:
                     f.write(content)
-                safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'COOKIE_YT_FALLBACK_SAVED_MSG', "✅ YouTube cookie file downloaded via fallback and saved as cookie.txt"))
-                callback_query.answer("✅ Cookies downloaded successfully")
-                send_to_logger(callback_query.message, "Fallback COOKIE_URL used successfully (source hidden)")
+                safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.COOKIE_YT_FALLBACK_SAVED_MSG)
+                callback_query.answer(Messages.COOKIES_DOWNLOADED_SUCCESSFULLY_MSG)
+                send_to_logger(callback_query.message, Messages.COOKIES_FALLBACK_SUCCESS_LOG_MSG)
             else:
                 if status is not None:
-                    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'COOKIE_FALLBACK_UNAVAILABLE_MSG', "❌ Fallback cookie source unavailable (status {status}). Try /cookie or upload cookie.txt.").format(status=status))
-                    callback_query.answer(f"❌ Server error {status}")
+                    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.COOKIE_FALLBACK_UNAVAILABLE_MSG.format(status=status))
+                    callback_query.answer(Messages.COOKIES_SERVER_ERROR_MSG.format(status=status))
                 else:
-                    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'COOKIE_FALLBACK_ERROR_MSG', "❌ Error downloading fallback cookie. Try /cookie or upload cookie.txt."))
-                    callback_query.answer("❌ Download failed")
-                send_to_logger(callback_query.message, f"Fallback COOKIE_URL failed: status={status} (hidden)")
+                    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.COOKIE_FALLBACK_ERROR_MSG)
+                    callback_query.answer(Messages.COOKIES_DOWNLOAD_FAILED_MSG)
+                send_to_logger(callback_query.message, Messages.COOKIES_FALLBACK_FAILED_LOG_MSG.format(status=status))
         except Exception as e:
-            safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, getattr(Messages, 'COOKIE_FALLBACK_UNEXPECTED_MSG', "❌ Unexpected error during fallback cookie download."))
-            callback_query.answer("❌ Unexpected error")
-            send_to_logger(callback_query.message, f"Fallback COOKIE_URL unexpected error: {type(e).__name__}: {e}")
+            safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.COOKIE_FALLBACK_UNEXPECTED_MSG)
+            callback_query.answer(Messages.COOKIES_UNEXPECTED_ERROR_MSG)
+            send_to_logger(callback_query.message, Messages.COOKIES_FALLBACK_UNEXPECTED_ERROR_LOG_MSG.format(error_type=type(e).__name__, error=str(e)))
         return
 
     browser_option = data
@@ -230,12 +228,12 @@ def browser_choice_callback(app, callback_query):
     if (browser_option == "safari") or (
             isinstance(path, list) and not any(os.path.exists(os.path.expanduser(p)) for p in path)
     ) or (isinstance(path, str) and not os.path.exists(os.path.expanduser(path))):
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, f"⚠️ {browser_option.capitalize()} browser not installed.")
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.COOKIES_BROWSER_NOT_INSTALLED_MSG.format(browser=browser_option.capitalize()))
         try:
-            callback_query.answer("⚠️ Browser not installed.")
+            callback_query.answer(Messages.COOKIES_BROWSER_NOT_INSTALLED_CALLBACK_MSG)
         except Exception:
             pass
-        send_to_logger(callback_query.message, f"Browser {browser_option} not installed.")
+        send_to_logger(callback_query.message, Messages.COOKIES_BROWSER_NOT_INSTALLED_LOG_MSG.format(browser=browser_option))
         return
 
     # Build the command for cookie extraction using the same yt-dlp as Python API
@@ -245,22 +243,23 @@ def browser_choice_callback(app, callback_query):
 
     if result.returncode != 0:
         if "You must provide at least one URL" in result.stderr:
-            safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, f"✅ Cookies saved using browser: {browser_option}")
-            send_to_logger(callback_query.message, f"Cookies saved using browser: {browser_option}")
+            safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.COOKIES_SAVED_USING_BROWSER_MSG.format(browser=browser_option))
+            send_to_logger(callback_query.message, Messages.COOKIES_SAVED_BROWSER_LOG_MSG.format(browser=browser_option))
         else:
-            safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, f"❌ Failed to save cookies: {result.stderr}")
+            safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.COOKIES_FAILED_TO_SAVE_MSG.format(error=result.stderr))
             send_to_logger(callback_query.message,
                            f"Failed to save cookies using browser {browser_option}: {result.stderr}")
     else:
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, f"✅ Cookies saved using browser: {browser_option}")
-        send_to_logger(callback_query.message, f"Cookies saved using browser: {browser_option}")
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.COOKIES_SAVED_USING_BROWSER_MSG.format(browser=browser_option))
+        send_to_logger(callback_query.message, Messages.COOKIES_SAVED_BROWSER_LOG_MSG.format(browser=browser_option))
 
-    callback_query.answer("✅ Browser choice updated.")
+    callback_query.answer(Messages.COOKIES_BROWSER_CHOICE_UPDATED_MSG)
 
 #############################################################################################################################
 
 # SEND COOKIE VIA Document
-@app.on_message(filters.document & filters.private)
+# Принимаем cookie.txt не только в личке, но и в группах/топиках
+@app.on_message(filters.document)
 @reply_with_keyboard
 def save_my_cookie(app, message):
     """
@@ -278,11 +277,11 @@ def save_my_cookie(app, message):
     user_id = str(message.chat.id)
     # Check file size
     if message.document.file_size > 100 * 1024:
-        send_to_all(message, "❌ The file is too large. Maximum size is 100 KB.")
+        send_to_all(message, Messages.COOKIES_FILE_TOO_LARGE_MSG)
         return
     # Check extension
     if not message.document.file_name.lower().endswith('.txt'):
-        send_to_all(message, "❌ Only files of the following format are allowed .txt.")
+        send_to_all(message, Messages.COOKIES_INVALID_FORMAT_MSG)
         return
     # Download the file to a temporary folder to check the contents
     import tempfile
@@ -293,10 +292,10 @@ def save_my_cookie(app, message):
             with open(tmp_path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read(4096)  # read only the first 4 KB
                 if '# Netscape HTTP Cookie File' not in content:
-                    send_to_all(message, "❌ The file does not look like cookie.txt (there is no line '# Netscape HTTP Cookie File').")
+                    send_to_all(message, Messages.COOKIES_INVALID_COOKIE_MSG)
                     return
         except Exception as e:
-            send_to_all(message, f"❌ Error reading file: {e}")
+            send_to_all(message, Messages.COOKIES_ERROR_READING_MSG.format(error=e))
             return
         # If all checks are passed - save the file to the user's folder
         user_folder = f"./users/{user_id}"
@@ -305,8 +304,8 @@ def save_my_cookie(app, message):
         cookie_file_path = os.path.join(user_folder, cookie_filename)
         import shutil
         shutil.copyfile(tmp_path, cookie_file_path)
-    send_to_user(message, "✅ Cookie file saved")
-    send_to_logger(message, f"Cookie file saved for user {user_id}.")
+    send_to_user(message, Messages.COOKIES_FILE_SAVED_MSG)
+    send_to_logger(message, Messages.COOKIES_FILE_SAVED_USER_LOG_MSG.format(user_id=user_id))
 
 @app.on_callback_query(filters.regex(r"^download_cookie\|"))
 # @reply_with_keyboard
@@ -332,11 +331,11 @@ def download_cookie_callback(app, callback_query):
         safe_edit_message_text(
             callback_query.message.chat.id, 
             callback_query.message.id, 
-            "🔄 Starting YouTube cookies test...\n\nPlease wait while I check and validate your cookies."
+            Messages.COOKIES_YOUTUBE_TEST_START_MSG
         )
         download_and_validate_youtube_cookies(app, callback_query)
-    #elif data == "instagram":
-        #download_and_save_cookie(app, callback_query, Config.INSTAGRAM_COOKIE_URL, "instagram")
+    elif data == "instagram":
+        download_and_save_cookie(app, callback_query, Config.INSTAGRAM_COOKIE_URL, "instagram")
     elif data == "twitter":
         download_and_save_cookie(app, callback_query, Config.TWITTER_COOKIE_URL, "twitter")
     elif data == "tiktok":
@@ -352,9 +351,9 @@ def download_cookie_callback(app, callback_query):
             except Exception:
                 pass
         except Exception as e:
-            logger.error(f"Failed to trigger check_cookie from cookie menu: {e}")
+            logger.error(LoggerMsg.COOKIES_FAILED_START_BROWSER_LOG_MSG.format(e=e))
             try:
-                app.answer_callback_query(callback_query.id, "❌ Failed to run /check_cookie", show_alert=False)
+                app.answer_callback_query(callback_query.id, Messages.COOKIES_FAILED_RUN_CHECK_MSG, show_alert=False)
             except Exception:
                 pass
     #elif data == "facebook":
@@ -365,7 +364,7 @@ def download_cookie_callback(app, callback_query):
         except Exception:
             pass
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚Close", callback_data="save_as_cookie_hint|close")]
+            [InlineKeyboardButton(Messages.URL_EXTRACTOR_SAVE_AS_COOKIE_HINT_CLOSE_BUTTON_MSG, callback_data="save_as_cookie_hint|close")]
         ])
         from HELPERS.safe_messeger import safe_send_message
         safe_send_message(
@@ -374,7 +373,7 @@ def download_cookie_callback(app, callback_query):
             reply_parameters=ReplyParameters(message_id=callback_query.message.id if hasattr(callback_query.message, 'id') else None),
             reply_markup=keyboard,
             _callback_query=callback_query,
-            _fallback_notice="⏳ Flood limit. Try later."
+            _fallback_notice=Messages.FLOOD_LIMIT_TRY_LATER_MSG
         )
     elif data == "from_browser":
         try:
@@ -385,13 +384,13 @@ def download_cookie_callback(app, callback_query):
             with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
                 f.write(str(e.value))
             try:
-                app.answer_callback_query(callback_query.id, "⏳ Flood limit. Try later.", show_alert=False)
+                app.answer_callback_query(callback_query.id, Messages.COOKIES_FLOOD_LIMIT_MSG, show_alert=False)
             except Exception:
                 pass
         except Exception as e:
-            logger.error(f"Failed to start cookies_from_browser: {e}")
+            logger.error(LoggerMsg.COOKIES_FAILED_START_BROWSER_LOG_MSG.format(e=e))
             try:
-                app.answer_callback_query(callback_query.id, "❌ Failed to open browser cookie menu", show_alert=True)
+                app.answer_callback_query(callback_query.id, Messages.COOKIES_FAILED_OPEN_BROWSER_MSG, show_alert=True)
             except Exception:
                 pass
     elif data == "close":
@@ -399,7 +398,7 @@ def download_cookie_callback(app, callback_query):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        callback_query.answer("Menu closed.")
+        callback_query.answer(Messages.COOKIES_MENU_CLOSED_MSG)
         return
 
 @app.on_callback_query(filters.regex(r"^save_as_cookie_hint\|"))
@@ -417,8 +416,8 @@ def save_as_cookie_hint_callback(app, callback_query):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        callback_query.answer("Cookie hint closed.")
-        send_to_logger(callback_query.message, "Save as cookie hint closed.")
+        callback_query.answer(Messages.COOKIES_HINT_CLOSED_MSG)
+        send_to_logger(callback_query.message, Messages.COOKIES_SAVE_AS_HINT_CLOSED_MSG)
         return
 
 # Called from url_distractor - no decorator needed
@@ -442,7 +441,7 @@ def checking_cookie_file(app, message):
         if cookie_content.startswith("# Netscape HTTP Cookie File"):
             # Check the functionality of YouTube cookies
             from HELPERS.safe_messeger import safe_send_message
-            initial_msg = safe_send_message(message.chat.id, "✅ Cookie file exists and has correct format", parse_mode=enums.ParseMode.HTML)
+            initial_msg = safe_send_message(message.chat.id, Messages.COOKIES_FILE_EXISTS_MSG, parse_mode=enums.ParseMode.HTML)
             
             # Check if the file contains YouTube cookies (by domain column)
             def _has_youtube_domain(text: str) -> bool:
@@ -461,21 +460,21 @@ def checking_cookie_file(app, message):
             if _has_youtube_domain(cookie_content):
                 if test_youtube_cookies(file_path):
                     if initial_msg is not None and hasattr(initial_msg, 'id'):
-                        safe_edit_message_text(message.chat.id, initial_msg.id, "✅ YouTube cookies are working properly")
-                    send_to_logger(message, "Cookie file exists, has correct format, and YouTube cookies are working.")
+                        safe_edit_message_text(message.chat.id, initial_msg.id, Messages.COOKIES_YOUTUBE_WORKING_PROPERLY_MSG)
+                    send_to_logger(message, Messages.COOKIES_FILE_WORKING_LOG_MSG)
                 else:
                     if initial_msg is not None and hasattr(initial_msg, 'id'):
-                        safe_edit_message_text(message.chat.id, initial_msg.id, "❌ YouTube cookies are expired or invalid\n\nUse /cookie to get new cookies")
-                    send_to_logger(message, "Cookie file exists and has correct format, but YouTube cookies are expired.")
+                        safe_edit_message_text(message.chat.id, initial_msg.id, Messages.COOKIES_YOUTUBE_EXPIRED_INVALID_MSG)
+                    send_to_logger(message, Messages.COOKIES_FILE_EXPIRED_LOG_MSG)
             else:
-                send_to_user(message, "✅ Skipped validation for non-YouTube cookies")
-                send_to_logger(message, "Cookie file exists and has correct format.")
+                send_to_user(message, Messages.COOKIES_SKIPPED_VALIDATION_MSG)
+                send_to_logger(message, Messages.COOKIES_FILE_CORRECT_FORMAT_LOG_MSG)
         else:
-            send_to_user(message, "⚠️ Cookie file exists but has incorrect format")
-            send_to_logger(message, "Cookie file exists but has incorrect format.")
+            send_to_user(message, Messages.COOKIES_INCORRECT_FORMAT_MSG)
+            send_to_logger(message, Messages.COOKIES_FILE_INCORRECT_FORMAT_LOG_MSG)
     else:
-        send_to_user(message, "❌ Cookie file is not found.")
-        send_to_logger(message, "Cookie file not found.")
+        send_to_user(message, Messages.COOKIES_FILE_NOT_FOUND_MSG)
+        send_to_logger(message, Messages.COOKIES_FILE_NOT_FOUND_LOG_MSG)
 
 
 # @reply_with_keyboard
@@ -508,15 +507,15 @@ def download_cookie(app, message):
                 cookie_file_path = os.path.join(user_dir, cookie_filename)
                 
                 # Send initial message
-                send_to_user(message, "🔄 Starting YouTube cookies test...\n\nPlease wait while I check and validate your cookies.")
+                send_to_user(message, Messages.COOKIES_YOUTUBE_TEST_START_MSG)
                 
                 # Check existing cookies first
                 if os.path.exists(cookie_file_path):
                     if test_youtube_cookies(cookie_file_path):
-                        send_to_user(message, "✅ Your existing YouTube cookies are working properly!\n\nNo need to download new ones.")
+                        send_to_user(message, Messages.COOKIES_YOUTUBE_WORKING_MSG)
                         return
                     else:
-                        send_to_user(message, "❌ Your existing YouTube cookies are expired or invalid.\n\n🔄 Downloading new cookies...")
+                        send_to_user(message, Messages.COOKIES_YOUTUBE_EXPIRED_MSG)
                 # Optional specific index: /cookie youtube <n>
                 selected_index = None
                 if len(parts) >= 3 and parts[2].isdigit():
@@ -536,7 +535,7 @@ def download_cookie(app, message):
                 download_cookie_callback(app, fake_callback)
                 return
     except Exception as e:
-        logger.error(f"Error in fast command handling: {e}")
+        logger.error(LoggerMsg.COOKIES_ERROR_FAST_COMMAND_LOG_MSG.format(e=e))
         pass
     
     # Buttons for services
@@ -554,15 +553,14 @@ def download_cookie(app, message):
         ],
         [
             InlineKeyboardButton("📘 Vkontakte", callback_data="download_cookie|vk"),
-            InlineKeyboardButton("✅ Check Cookie", callback_data="download_cookie|check_cookie"),
+            InlineKeyboardButton(Messages.COOKIES_CHECK_COOKIE_BUTTON_MSG, callback_data="download_cookie|check_cookie"),
         ],
-        #[
-            #InlineKeyboardButton("📘 Facebook", callback_data="download_cookie|facebook"),
-            #InlineKeyboardButton("📷 Instagram", callback_data="download_cookie|instagram"),
-        #],
         [
+            InlineKeyboardButton("📷 Instagram", callback_data="download_cookie|instagram"),
             InlineKeyboardButton("📝 Your Own", callback_data="download_cookie|own"),            
-            InlineKeyboardButton("🔚Close", callback_data="download_cookie|close")
+        ],
+        [         
+            InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="download_cookie|close")
         ],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
@@ -584,7 +582,8 @@ Then verify with <code>/check_cookie</code> (tests on RickRoll).
         chat_id=user_id,
         text=text,
         reply_markup=keyboard,
-        reply_parameters=ReplyParameters(message_id=message.id)
+        reply_parameters=ReplyParameters(message_id=message.id),
+        message=message
     )
 
 
@@ -655,8 +654,8 @@ def download_and_save_cookie(app, callback_query, url, service):
 
     # Validate config
     if not url:
-        send_to_user(callback_query.message, f"❌ {service.capitalize()} cookie source is not configured!")
-        send_to_logger(callback_query.message, f"{service.capitalize()} cookie URL is empty for user {user_id}.")
+        send_to_user(callback_query.message, Messages.COOKIES_SOURCE_NOT_CONFIGURED_MSG.format(service=service.capitalize()))
+        send_to_logger(callback_query.message, Messages.COOKIES_SERVICE_URL_EMPTY_LOG_MSG.format(service=service.capitalize(), user_id=user_id))
         return
 
     try:
@@ -664,14 +663,14 @@ def download_and_save_cookie(app, callback_query, url, service):
         if ok:
             # Optional: validate extension (do not expose URL); keep internal check
             if not url.lower().endswith('.txt'):
-                send_to_user(callback_query.message, f"❌ {service.capitalize()} cookie source must be a .txt file!")
-                send_to_logger(callback_query.message, f"{service.capitalize()} cookie URL is not .txt (hidden)")
+                send_to_user(callback_query.message, Messages.COOKIES_SOURCE_MUST_BE_TXT_MSG.format(service=service.capitalize()))
+                send_to_logger(callback_query.message, Messages.COOKIES_SERVICE_URL_NOT_TXT_LOG_MSG.format(service=service.capitalize()))
                 return
             # size check (max 100KB)
             content_size = len(content or b"")
             if content_size > 100 * 1024:
-                send_to_user(callback_query.message, f"❌ {service.capitalize()} cookie file is too large! Max 100KB, got {content_size // 1024}KB.")
-                send_to_logger(callback_query.message, f"{service.capitalize()} cookie file too large: {content_size} bytes (source hidden)")
+                send_to_user(callback_query.message, Messages.COOKIES_FILE_TOO_LARGE_DOWNLOAD_MSG.format(service=service.capitalize(), size=content_size // 1024))
+                send_to_logger(callback_query.message, Messages.COOKIES_SERVICE_FILE_TOO_LARGE_LOG_MSG.format(service=service.capitalize(), size=content_size))
                 return
             # Save to user folder
             user_dir = os.path.join("users", user_id)
@@ -680,20 +679,20 @@ def download_and_save_cookie(app, callback_query, url, service):
             file_path = os.path.join(user_dir, cookie_filename)
             with open(file_path, "wb") as cf:
                 cf.write(content)
-            send_to_user(callback_query.message, f"<b>✅ {service.capitalize()} cookie file downloaded and saved as cookie.txt in your folder.</b>")
-            send_to_logger(callback_query.message, f"{service.capitalize()} cookie file downloaded for user {user_id} (source hidden).")
+            send_to_user(callback_query.message, Messages.COOKIES_FILE_DOWNLOADED_MSG.format(service=service.capitalize()))
+            send_to_logger(callback_query.message, Messages.COOKIES_SERVICE_FILE_DOWNLOADED_LOG_MSG.format(service=service.capitalize(), user_id=user_id))
         else:
             # Do not leak URL in user-facing errors
             if status is not None:
-                send_to_user(callback_query.message, f"❌ {service.capitalize()} cookie source is unavailable (status {status}). Please try again later.")
-                send_to_logger(callback_query.message, f"Failed to download {service.capitalize()} cookie: status={status} (url hidden)")
+                send_to_user(callback_query.message, Messages.COOKIES_SOURCE_UNAVAILABLE_MSG.format(service=service.capitalize(), status=status))
+                send_to_logger(callback_query.message, Messages.COOKIES_DOWNLOAD_FAILED_LOG_MSG.format(service=service.capitalize(), status=status))
             else:
-                send_to_user(callback_query.message, f"❌ Error downloading {service.capitalize()} cookie file. Please try again later.")
+                send_to_user(callback_query.message, Messages.COOKIES_ERROR_DOWNLOADING_MSG.format(service=service.capitalize()))
                 safe_err = _sanitize_error_detail(err or "", url)
-                send_to_logger(callback_query.message, f"Error downloading {service.capitalize()} cookie: {safe_err} (url hidden)")
+                send_to_logger(callback_query.message, Messages.COOKIES_DOWNLOAD_ERROR_LOG_MSG.format(service=service.capitalize(), error=safe_err))
     except Exception as e:
-        send_to_user(callback_query.message, f"❌ Error downloading {service.capitalize()} cookie file. Please try again later.")
-        send_to_logger(callback_query.message, f"Unexpected error while downloading {service.capitalize()} cookie (url hidden): {type(e).__name__}: {e}")
+        send_to_user(callback_query.message, Messages.COOKIES_ERROR_DOWNLOADING_MSG.format(service=service.capitalize()))
+        send_to_logger(callback_query.message, Messages.COOKIES_DOWNLOAD_UNEXPECTED_ERROR_LOG_MSG.format(service=service.capitalize(), error_type=type(e).__name__, error=e))
 
 # Updating The Cookie File.
 # @reply_with_keyboard
@@ -735,18 +734,18 @@ def save_as_cookie_file(app, message):
     final_cookie = "\n".join(processed_lines)
 
     if final_cookie:
-        send_to_all(message, "<b>✅ User provided a new cookie file.</b>")
+        send_to_all(message, Messages.COOKIES_USER_PROVIDED_MSG)
         user_dir = os.path.join("users", user_id)
         create_directory(user_dir)
         cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
         file_path = os.path.join(user_dir, cookie_filename)
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(final_cookie)
-        send_to_user(message, f"<b>✅ Cookie successfully updated:</b>\n<code>{final_cookie}</code>")
-        send_to_logger(message, f"Cookie file updated for user {user_id}.")
+        send_to_user(message, Messages.COOKIES_SUCCESSFULLY_UPDATED_MSG.format(final_cookie=final_cookie))
+        send_to_logger(message, Messages.COOKIES_FILE_UPDATED_LOG_MSG.format(user_id=user_id))
     else:
-        send_to_user(message, "<b>❌ Not a valid cookie.</b>")
-        send_to_logger(message, f"Invalid cookie content provided by user {user_id}.")
+        send_to_user(message, Messages.COOKIES_NOT_VALID_MSG)
+        send_to_logger(message, Messages.COOKIES_INVALID_CONTENT_LOG_MSG.format(user_id=user_id))
 
 def test_youtube_cookies_on_url(cookie_file_path: str, url: str) -> bool:
     """
@@ -783,25 +782,25 @@ def test_youtube_cookies_on_url(cookie_file_path: str, url: str) -> bool:
             
         # Проверяем, что получили информацию о видео
         if not info:
-            logger.warning(f"YouTube cookies test failed on user URL - no info returned for {cookie_file_path}")
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_NO_INFO_LOG_MSG.format(cookie_file_path=cookie_file_path))
             return False
             
         # Проверяем наличие основных полей
         if not info.get('title') or not info.get('duration'):
-            logger.warning(f"YouTube cookies test failed on user URL - missing basic info for {cookie_file_path}")
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_MISSING_INFO_LOG_MSG.format(cookie_file_path=cookie_file_path))
             return False
             
         # Проверяем наличие форматов
         formats = info.get('formats', [])
         if len(formats) < 2:
-            logger.warning(f"YouTube cookies test failed on user URL - insufficient formats ({len(formats)}) for {cookie_file_path}")
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_INSUFFICIENT_FORMATS_LOG_MSG.format(formats_count=len(formats), cookie_file_path=cookie_file_path))
             return False
             
-        logger.info(f"YouTube cookies work on user URL for {cookie_file_path}")
+        logger.info(LoggerMsg.COOKIES_YOUTUBE_COOKIES_WORK_LOG_MSG.format(cookie_file_path=cookie_file_path))
         return True
         
     except Exception as e:
-        logger.warning(f"YouTube cookies test failed on user URL for {cookie_file_path}: {e}")
+        logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_USER_URL_LOG_MSG.format(cookie_file_path=cookie_file_path, e=e))
         return False
 
 def test_youtube_cookies(cookie_file_path: str) -> bool:
@@ -845,52 +844,52 @@ def test_youtube_cookies(cookie_file_path: str) -> bool:
         # Проверяем, что получили полную информацию о видео
         required_fields = ['title', 'duration', 'uploader', 'view_count', 'like_count', 'upload_date']
         if not info:
-            logger.warning(f"YouTube cookies test failed - no info returned for {cookie_file_path}")
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_NO_INFO_RETURNED_LOG_MSG.format(cookie_file_path=cookie_file_path))
             return False
             
         # Проверяем наличие обязательных полей
         missing_fields = [field for field in required_fields if field not in info or not info[field]]
         if missing_fields:
-            logger.warning(f"YouTube cookies test failed - missing fields: {missing_fields} for {cookie_file_path}")
-            logger.warning(f"Available fields: {list(info.keys())}")
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_MISSING_FIELDS_LOG_MSG.format(missing_fields=missing_fields, cookie_file_path=cookie_file_path))
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_AVAILABLE_FIELDS_LOG_MSG.format(available_fields=list(info.keys())))
             return False
             
         # Проверяем, что есть доступные форматы для скачивания
         if 'formats' not in info or not info['formats']:
-            logger.warning(f"YouTube cookies test failed - no formats available for {cookie_file_path}")
-            logger.warning(f"Info keys: {list(info.keys())}")
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_NO_FORMATS_LOG_MSG.format(cookie_file_path=cookie_file_path))
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_INFO_KEYS_LOG_MSG.format(info_keys=list(info.keys())))
             return False
             
         # Проверяем качество полученной информации
         title = info.get('title', '')
         if len(title) < 5:  # Заголовок должен быть достаточно длинным
-            logger.warning(f"YouTube cookies test failed - title too short: '{title}' for {cookie_file_path}")
-            logger.warning(f"Title length: {len(title)}")
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_TITLE_TOO_SHORT_LOG_MSG.format(title=title, cookie_file_path=cookie_file_path))
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_TITLE_LENGTH_LOG_MSG.format(title_length=len(title)))
             return False
             
         # Проверяем, что duration разумная (не 0 и не слишком большая)
         duration = info.get('duration', 0)
         if duration <= 0 or duration > 86400:  # Больше 24 часов
-            logger.warning(f"YouTube cookies test failed - invalid duration: {duration} for {cookie_file_path}")
-            logger.warning(f"Duration in seconds: {duration}")
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_INVALID_DURATION_LOG_MSG.format(duration=duration, cookie_file_path=cookie_file_path))
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_DURATION_SECONDS_LOG_MSG.format(duration=duration))
             return False
             
         # Проверяем количество форматов (должно быть достаточно для выбора)
         formats_count = len(info['formats'])
         if formats_count < 3:  # Минимум 3 формата для выбора
-            logger.warning(f"YouTube cookies test failed - too few formats: {formats_count} for {cookie_file_path}")
-            logger.warning(f"Available formats: {[f.get('format_id', 'unknown') for f in info['formats'][:5]]}")
-            logger.warning(f"All format IDs: {[f.get('format_id', 'unknown') for f in info['formats']]}")
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_TOO_FEW_FORMATS_LOG_MSG.format(formats_count=formats_count, cookie_file_path=cookie_file_path))
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_AVAILABLE_FORMATS_LOG_MSG.format(available_formats=[f.get('format_id', 'unknown') for f in info['formats'][:5]]))
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_ALL_FORMAT_IDS_LOG_MSG.format(all_format_ids=[f.get('format_id', 'unknown') for f in info['formats']]))
             return False
             
-        logger.info(f"YouTube cookies test passed for {cookie_file_path} - {formats_count} formats available")
-        logger.info(f"Title: '{title}'")
-        logger.info(f"Duration: {duration}s")
-        logger.info(f"Uploader: {info.get('uploader', 'N/A')}")
-        logger.info(f"View count: {info.get('view_count', 'N/A')}")
-        logger.info(f"Upload date: {info.get('upload_date', 'N/A')}")
-        logger.info(f"Like count: {info.get('like_count', 'N/A')}")
-        logger.info(f"Format IDs: {[f.get('format_id', 'unknown') for f in info['formats'][:10]]}")
+        logger.info(LoggerMsg.COOKIES_YOUTUBE_TEST_PASSED_LOG_MSG.format(cookie_file_path=cookie_file_path, formats_count=formats_count))
+        logger.info(LoggerMsg.COOKIES_YOUTUBE_TEST_TITLE_LOG_MSG.format(title=title))
+        logger.info(LoggerMsg.COOKIES_YOUTUBE_TEST_DURATION_LOG_MSG.format(duration=duration))
+        logger.info(LoggerMsg.COOKIES_YOUTUBE_TEST_UPLOADER_LOG_MSG.format(uploader=info.get('uploader', 'N/A')))
+        logger.info(LoggerMsg.COOKIES_YOUTUBE_TEST_VIEW_COUNT_LOG_MSG.format(view_count=info.get('view_count', 'N/A')))
+        logger.info(LoggerMsg.COOKIES_YOUTUBE_TEST_UPLOAD_DATE_LOG_MSG.format(upload_date=info.get('upload_date', 'N/A')))
+        logger.info(LoggerMsg.COOKIES_YOUTUBE_TEST_LIKE_COUNT_LOG_MSG.format(like_count=info.get('like_count', 'N/A')))
+        logger.info(LoggerMsg.COOKIES_YOUTUBE_TEST_FORMAT_IDS_LOG_MSG.format(format_ids=[f.get('format_id', 'unknown') for f in info['formats'][:10]]))
         return True
             
     except yt_dlp.utils.DownloadError as e:
@@ -898,26 +897,25 @@ def test_youtube_cookies(cookie_file_path: str) -> bool:
         
         # Check for specific YouTube errors that are not cookie-related
         if any(keyword in error_text for keyword in [
-            'video unavailable', 'this content isn\'t available', 'content not available',
             'video is private', 'private video', 'members only', 'premium content'
         ]):
             # These are content availability issues, not cookie issues
-            logger.info(f"YouTube test video is unavailable (not a cookie issue): {e}")
+            logger.info(LoggerMsg.COOKIES_YOUTUBE_TEST_UNAVAILABLE_LOG_MSG.format(e=e))
             return False
         elif any(keyword in error_text for keyword in [
             'sign in', 'login required', 'age restricted', 'cookies', 
             'authentication', 'format not found', 'no formats found', 'unable to extract'
         ]):
-            logger.warning(f"YouTube cookies test failed - authentication/format error: {e}")
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_AUTH_ERROR_LOG_MSG.format(e=e))
             return False
         else:
             # Other errors may not be related to cookies
-            logger.warning(f"YouTube cookies test - other error (may not be cookie-related): {e}")
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_OTHER_ERROR_LOG_MSG.format(e=e))
             return False
             
     except Exception as e:
-        logger.error(f"YouTube cookies test failed with exception: {e}")
-        logger.error(f"Exception type: {type(e).__name__}")
+        logger.error(LoggerMsg.COOKIES_YOUTUBE_TEST_EXCEPTION_LOG_MSG.format(e=e))
+        logger.error(LoggerMsg.COOKIES_YOUTUBE_TEST_EXCEPTION_TYPE_LOG_MSG.format(exception_type=type(e).__name__))
         return False
 
 def get_youtube_cookie_urls() -> list:
@@ -970,7 +968,7 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
     elif hasattr(message, 'from_user') and hasattr(message.from_user, 'id'):
         user_id = str(message.from_user.id)
     else:
-        logger.error("Cannot determine user_id from message object")
+        logger.error(LoggerMsg.COOKIES_CANNOT_DETERMINE_USER_ID_LOG_MSG)
         return False
     
     # Create a helper function to send messages safely
@@ -991,27 +989,27 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
                 from pyrogram import enums
                 safe_send_message(user_id, msg, parse_mode=enums.ParseMode.HTML)
         except Exception as e:
-            logger.error(f"Error sending message to user: {e}")
+            logger.error(LoggerMsg.COOKIES_ERROR_SENDING_MESSAGE_LOG_MSG.format(e=e))
             # Try direct send as last resort
             try:
                 from HELPERS.safe_messeger import safe_send_message
                 from pyrogram import enums
                 safe_send_message(user_id, msg, parse_mode=enums.ParseMode.HTML)
             except Exception as e2:
-                logger.error(f"Final fallback send failed: {e2}")
+                logger.error(LoggerMsg.COOKIES_FINAL_FALLBACK_SEND_FAILED_LOG_MSG.format(e2=e2))
     
     cookie_urls = get_youtube_cookie_urls()
     
     if not cookie_urls:
-        safe_send_to_user("❌ YouTube cookie sources are not configured!")
+        safe_send_to_user(Messages.COOKIES_YOUTUBE_SOURCES_NOT_CONFIGURED_MSG)
         # Safe logging
         try:
             if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
-                send_to_logger(message, f"YouTube cookie URLs are empty for user {user_id}.")
+                send_to_logger(message, Messages.COOKIES_YOUTUBE_URLS_EMPTY_LOG_MSG.format(user_id=user_id))
             else:
-                logger.error(f"YouTube cookie URLs are empty for user {user_id}")
+                logger.error(LoggerMsg.COOKIES_YOUTUBE_URLS_EMPTY_LOG_MSG.format(user_id=user_id))
         except Exception as e:
-            logger.error(f"Error logging: {e}")
+            logger.error(LoggerMsg.COOKIES_ERROR_LOGGING_LOG_MSG.format(e=e))
         return False
     
     # Create user folder
@@ -1026,19 +1024,19 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
         if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
             # It's a Message object - send initial message
             from HELPERS.logger import send_to_user
-            initial_msg = send_to_user(message, f"🔄 Downloading and checking YouTube cookies...\n\nAttempt 1 of {len(cookie_urls)}")
+            initial_msg = send_to_user(message, Messages.COOKIES_DOWNLOADING_YOUTUBE_MSG.format(attempt=1, total=len(cookie_urls)))
         elif hasattr(message, 'from_user') and hasattr(message.from_user, 'id'):
             # It's a CallbackQuery object - send initial message
             from HELPERS.safe_messeger import safe_send_message
             from pyrogram import enums
-            initial_msg = safe_send_message(message.from_user.id, f"🔄 Downloading and checking YouTube cookies...\n\nAttempt 1 of {len(cookie_urls)}", parse_mode=enums.ParseMode.HTML)
+            initial_msg = safe_send_message(message.from_user.id, Messages.COOKIES_DOWNLOADING_YOUTUBE_MSG.format(attempt=1, total=len(cookie_urls)), parse_mode=enums.ParseMode.HTML)
         else:
             # Fallback - send directly
             from HELPERS.safe_messeger import safe_send_message
             from pyrogram import enums
-            initial_msg = safe_send_message(user_id, f"🔄 Downloading and checking YouTube cookies...\n\nAttempt 1 of {len(cookie_urls)}", parse_mode=enums.ParseMode.HTML)
+            initial_msg = safe_send_message(user_id, Messages.COOKIES_DOWNLOADING_YOUTUBE_MSG.format(attempt=1, total=len(cookie_urls)), parse_mode=enums.ParseMode.HTML)
     except Exception as e:
-        logger.error(f"Error sending initial message: {e}")
+        logger.error(LoggerMsg.COOKIES_ERROR_SENDING_INITIAL_MESSAGE_LOG_MSG.format(e=e))
     
     # Helper function to update the message (avoid MESSAGE_NOT_MODIFIED)
     _last_update_text = { 'text': None }
@@ -1057,7 +1055,7 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
         except Exception as e:
             if "MESSAGE_NOT_MODIFIED" in str(e):
                 return
-            logger.error(f"Error updating message: {e}")
+            logger.error(LoggerMsg.COOKIES_ERROR_UPDATING_MESSAGE_LOG_MSG.format(e=e))
     
     # Determine the order of attempts
     indices = list(range(len(cookie_urls)))
@@ -1067,13 +1065,13 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
         if 1 <= selected_index <= len(cookie_urls):
             indices = [selected_index - 1]
         else:
-            update_message(f"❌ Invalid YouTube cookie index: {selected_index}. Available range is 1-{len(cookie_urls)}")
+            update_message(Messages.COOKIES_INVALID_YOUTUBE_INDEX_MSG.format(selected_index=selected_index, total_urls=len(cookie_urls)))
             return False
     else:
         order = getattr(Config, 'YOUTUBE_COOKIE_ORDER', 'round_robin')
         if not order:
             order = 'round_robin'
-        logger.info(f"YouTube cookie order mode: {order}")
+        logger.info(LoggerMsg.COOKIES_YOUTUBE_COOKIE_ORDER_MODE_LOG_MSG.format(order=order))
         if order == 'random':
             random.shuffle(indices)
         else:
@@ -1083,29 +1081,29 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
                 indices = indices[start:] + indices[:start]
                 # advance pointer for next call
                 _yt_round_robin_index = (start + 1) % len(indices)
-        logger.info(f"YouTube cookie indices order: {[i+1 for i in indices]}")
+        logger.info(LoggerMsg.COOKIES_YOUTUBE_COOKIE_INDICES_ORDER_LOG_MSG.format(indices=[i+1 for i in indices]))
 
     # Iterate over chosen order
     for attempt_number, idx in enumerate(indices, 1):
         url = cookie_urls[idx]
         try:
             # Update message about the current attempt
-            update_message(f"🔄 Downloading and checking YouTube cookies...\n\nAttempt {attempt_number} of {len(indices)}")
+            update_message(Messages.COOKIES_DOWNLOADING_CHECKING_MSG.format(attempt=attempt_number, total=len(indices)))
             
             # Download cookies
             ok, status, content, err = _download_content(url, timeout=30)
             if not ok:
-                logger.warning(f"Failed to download YouTube cookie from URL {idx + 1}: status={status}, error={err}")
+                logger.warning(LoggerMsg.COOKIES_YOUTUBE_DOWNLOAD_FAILED_LOG_MSG.format(url_index=idx + 1, status=status, error=err))
                 continue
             
             # Check the format and size
             if not url.lower().endswith('.txt'):
-                logger.warning(f"YouTube cookie URL {idx + 1} is not .txt file")
+                logger.warning(LoggerMsg.COOKIES_YOUTUBE_URL_NOT_TXT_LOG_MSG.format(url_index=idx + 1))
                 continue
                 
             content_size = len(content or b"")
             if content_size > 100 * 1024:
-                logger.warning(f"YouTube cookie file {idx + 1} is too large: {content_size} bytes")
+                logger.warning(LoggerMsg.COOKIES_YOUTUBE_FILE_TOO_LARGE_LOG_MSG.format(url_index=idx + 1, file_size=content_size))
                 continue
             
             # Save cookies to a temporary file
@@ -1113,43 +1111,43 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
                 cf.write(content)
             
             # Update message about testing
-            update_message(f"🔄 Downloading and checking YouTube cookies...\n\nAttempt {attempt_number} of {len(indices)}\n🔍 Testing cookies...")
+            update_message(Messages.COOKIES_DOWNLOADING_TESTING_MSG.format(attempt=attempt_number, total=len(indices)))
             
             # Check the functionality of cookies
             if test_youtube_cookies(cookie_file_path):
-                update_message(f"✅ YouTube cookies successfully downloaded and validated!\n\nUsed source {idx + 1} of {len(cookie_urls)}")
+                update_message(Messages.COOKIES_SUCCESS_VALIDATED_MSG.format(source=idx + 1, total=len(cookie_urls)))
                 # Safe logging
                 try:
                     if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
-                        send_to_logger(message, f"YouTube cookies downloaded and validated for user {user_id} from source {idx + 1}.")
+                        send_to_logger(message, Messages.COOKIES_YOUTUBE_DOWNLOADED_VALIDATED_LOG_MSG.format(user_id=user_id, source=idx + 1))
                     else:
-                        logger.info(f"YouTube cookies downloaded and validated for user {user_id} from source {idx + 1}")
+                        logger.info(LoggerMsg.COOKIES_YOUTUBE_DOWNLOADED_VALIDATED_LOG_MSG.format(user_id=user_id, source_index=idx + 1))
                 except Exception as e:
-                    logger.error(f"Error logging: {e}")
+                    logger.error(LoggerMsg.COOKIES_ERROR_LOGGING_LOG_MSG.format(e=e))
                 return True
             else:
-                logger.warning(f"YouTube cookies from source {idx + 1} failed validation")
+                logger.warning(LoggerMsg.COOKIES_YOUTUBE_FROM_SOURCE_FAILED_VALIDATION_LOG_MSG.format(source_index=idx + 1))
                 # Remove non-working cookies
                 if os.path.exists(cookie_file_path):
                     os.remove(cookie_file_path)
                     
         except Exception as e:
-            logger.error(f"Error processing YouTube cookie URL {idx + 1}: {e}")
+            logger.error(LoggerMsg.COOKIES_YOUTUBE_DOWNLOAD_EXCEPTION_LOG_MSG.format(e=e))
             # Remove the file in case of an error
             if os.path.exists(cookie_file_path):
                 os.remove(cookie_file_path)
             continue
     
     # If no source worked
-    update_message("❌ All YouTube cookies are expired or unavailable!\n\nContact the bot administrator to replace them.")
+    update_message(Messages.COOKIES_ALL_EXPIRED_MSG)
     # Safe logging
     try:
         if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
-            send_to_logger(message, f"All YouTube cookie sources failed for user {user_id}.")
+            send_to_logger(message, Messages.COOKIES_YOUTUBE_ALL_FAILED_LOG_MSG.format(user_id=user_id))
         else:
-            logger.error(f"All YouTube cookie sources failed for user {user_id}")
+            logger.error(LoggerMsg.COOKIES_YOUTUBE_ALL_SOURCES_FAILED_LOG_MSG.format(user_id=user_id))
     except Exception as e:
-        logger.error(f"Error logging: {e}")
+        logger.error(LoggerMsg.COOKIES_YOUTUBE_ALL_SOURCES_FAILED_ERROR_LOG_MSG.format(e=e))
     return False
 
 def ensure_working_youtube_cookies(user_id: int) -> bool:
@@ -1177,13 +1175,13 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
         if current_time - cache_entry['timestamp'] < _CACHE_DURATION:
             # Check if cookie file still exists and hasn't changed
             if os.path.exists(cache_entry['cookie_path']):
-                logger.info(f"Using cached YouTube cookie validation result for user {user_id} (cache valid for {_CACHE_DURATION}s)")
+                logger.info(LoggerMsg.COOKIES_YOUTUBE_CACHE_VALID_LOG_MSG.format(user_id=user_id, cache_duration=_CACHE_DURATION))
                 return cache_entry['result']
             else:
                 # Cookie file was deleted, remove from cache
                 del _youtube_cookie_cache[user_id]
     
-    logger.info(f"Starting ensure_working_youtube_cookies for user {user_id}")
+    logger.info(LoggerMsg.COOKIES_YOUTUBE_STARTING_ENSURE_LOG_MSG.format(user_id=user_id))
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
     cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
@@ -1191,10 +1189,10 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
     
     # Проверяем существующие куки
     if os.path.exists(cookie_file_path):
-        logger.info(f"Checking existing YouTube cookies for user {user_id}")
+        logger.info(LoggerMsg.COOKIES_YOUTUBE_CHECKING_EXISTING_LOG_MSG.format(user_id=user_id))
         if test_youtube_cookies(cookie_file_path):
-            logger.info(f"Existing YouTube cookies are working for user {user_id}")
-            logger.info(f"Finished ensure_working_youtube_cookies for user {user_id} - existing cookies are working")
+            logger.info(LoggerMsg.COOKIES_YOUTUBE_EXISTING_WORKING_LOG_MSG.format(user_id=user_id))
+            logger.info(LoggerMsg.COOKIES_YOUTUBE_FINISHED_EXISTING_WORKING_LOG_MSG.format(user_id=user_id))
             # Cache the successful result
             _youtube_cookie_cache[user_id] = {
                 'result': True,
@@ -1203,12 +1201,12 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
             }
             return True
         else:
-            logger.warning(f"Existing YouTube cookies failed test for user {user_id}, will try to update")
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_EXISTING_FAILED_LOG_MSG.format(user_id=user_id))
     
     # Если куки нет или не работают, пробуем скачать новые
     cookie_urls = get_youtube_cookie_urls()
     if not cookie_urls:
-        logger.warning(f"No YouTube cookie sources configured for user {user_id}")
+        logger.warning(LoggerMsg.COOKIES_YOUTUBE_NO_SOURCES_CONFIGURED_LOG_MSG.format(user_id=user_id))
         # Удаляем нерабочие куки
         if os.path.exists(cookie_file_path):
             os.remove(cookie_file_path)
@@ -1220,26 +1218,26 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
         }
         return False
     
-    logger.info(f"Attempting to download working YouTube cookies for user {user_id} from {len(cookie_urls)} sources")
+    logger.info(LoggerMsg.COOKIES_YOUTUBE_ATTEMPTING_DOWNLOAD_LOG_MSG.format(user_id=user_id, sources_count=len(cookie_urls)))
     
     for i, url in enumerate(cookie_urls, 1):
         try:
-            logger.info(f"Trying YouTube cookie source {i}/{len(cookie_urls)} for user {user_id}")
+            logger.info(LoggerMsg.COOKIES_YOUTUBE_TRYING_SOURCE_LOG_MSG.format(source_index=i, total_sources=len(cookie_urls), user_id=user_id))
             
             # Скачиваем куки
             ok, status, content, err = _download_content(url, timeout=30)
             if not ok:
-                logger.warning(f"Failed to download YouTube cookie from URL {i}: status={status}, error={err}")
+                logger.warning(LoggerMsg.COOKIES_YOUTUBE_DOWNLOAD_FAILED_LOG_MSG.format(url_index=i, status=status, error=err))
                 continue
             
             # Проверяем формат и размер
             if not url.lower().endswith('.txt'):
-                logger.warning(f"YouTube cookie URL {i} is not .txt file")
+                logger.warning(LoggerMsg.COOKIES_YOUTUBE_URL_NOT_TXT_LOG_MSG.format(url_index=i))
                 continue
                 
             content_size = len(content or b"")
             if content_size > 100 * 1024:
-                logger.warning(f"YouTube cookie file {i} is too large: {content_size} bytes")
+                logger.warning(LoggerMsg.COOKIES_YOUTUBE_FILE_TOO_LARGE_LOG_MSG.format(url_index=i, file_size=content_size))
                 continue
             
             # Сохраняем куки
@@ -1248,8 +1246,8 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
             
             # Проверяем работоспособность
             if test_youtube_cookies(cookie_file_path):
-                logger.info(f"YouTube cookies from source {i} are working for user {user_id}")
-                logger.info(f"Finished ensure_working_youtube_cookies for user {user_id} - working cookies found from source {i}")
+                logger.info(LoggerMsg.COOKIES_YOUTUBE_SOURCE_WORKING_LOG_MSG.format(source_index=i, user_id=user_id))
+                logger.info(LoggerMsg.COOKIES_YOUTUBE_FINISHED_WORKING_FOUND_LOG_MSG.format(user_id=user_id, source_index=i))
                 # Cache the successful result
                 _youtube_cookie_cache[user_id] = {
                     'result': True,
@@ -1258,23 +1256,23 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
                 }
                 return True
             else:
-                logger.warning(f"YouTube cookies from source {i} failed validation for user {user_id}")
+                logger.warning(LoggerMsg.COOKIES_YOUTUBE_SOURCE_FAILED_VALIDATION_LOG_MSG.format(source_index=i, user_id=user_id))
                 # Удаляем нерабочие куки
                 if os.path.exists(cookie_file_path):
                     os.remove(cookie_file_path)
                     
         except Exception as e:
-            logger.error(f"Error processing YouTube cookie URL {i} for user {user_id}: {e}")
+            logger.error(LoggerMsg.COOKIES_YOUTUBE_PROCESSING_ERROR_LOG_MSG.format(source_index=i, user_id=user_id, e=e))
             # Удаляем файл в случае ошибки
             if os.path.exists(cookie_file_path):
                 os.remove(cookie_file_path)
             continue
     
     # Если ни один источник не сработал
-    logger.warning(f"All YouTube cookie sources failed for user {user_id}, removing cookie file")
+    logger.warning(LoggerMsg.COOKIES_YOUTUBE_ALL_SOURCES_FAILED_REMOVING_LOG_MSG.format(user_id=user_id))
     if os.path.exists(cookie_file_path):
         os.remove(cookie_file_path)
-    logger.info(f"Finished ensure_working_youtube_cookies for user {user_id} - no working cookies found")
+    logger.info(LoggerMsg.COOKIES_YOUTUBE_FINISHED_NO_WORKING_LOG_MSG.format(user_id=user_id))
     # Cache the failed result
     _youtube_cookie_cache[user_id] = {
         'result': False,
@@ -1295,15 +1293,18 @@ def is_youtube_cookie_error(error_message: str) -> bool:
     """
     error_lower = error_message.lower()
     
-    # Сначала проверяем на ошибки недоступности контента (НЕ связанные с куками)
+    # Проверяем на ошибки недоступности контента, которые МОГУТ быть связаны с куками
+    # "Video unavailable" может быть из-за невалидных cookies, поэтому пробуем перебор
     content_unavailable_keywords = [
-        'video unavailable', 'this content isn\'t available', 'content not available',
         'video is private', 'private video', 'members only', 'premium content',
         'this video is not available', 'copyright', 'dmca'
     ]
     
     if any(keyword in error_lower for keyword in content_unavailable_keywords):
-        return False  # Это не ошибка куков
+        return False  # Это точно не ошибка куков
+    
+    # "Video unavailable" и "content isn't available" МОГУТ быть из-за невалидных cookies
+    # Поэтому НЕ исключаем их из перебора cookies
     
     # Ключевые слова, указывающие на проблемы с куками/авторизацией
     cookie_related_keywords = [
@@ -1356,7 +1357,7 @@ def retry_download_with_proxy(user_id: int, url: str, download_func, *args, **kw
     if not is_youtube_url(url):
         return None
     
-    logger.info(f"Attempting to retry download with proxy for user {user_id}")
+    logger.info(LoggerMsg.COOKIES_YOUTUBE_RETRY_PROXY_LOG_MSG.format(user_id=user_id))
     
     # Получаем конфигурацию прокси
     try:
@@ -1364,7 +1365,7 @@ def retry_download_with_proxy(user_id: int, url: str, download_func, *args, **kw
         proxy_config = get_proxy_config()
         
         if not proxy_config or 'type' not in proxy_config or 'ip' not in proxy_config or 'port' not in proxy_config:
-            logger.warning(f"No proxy configuration available for retry for user {user_id}")
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_NO_PROXY_CONFIG_LOG_MSG.format(user_id=user_id))
             return None
         
         # Строим URL прокси
@@ -1389,7 +1390,7 @@ def retry_download_with_proxy(user_id: int, url: str, download_func, *args, **kw
             else:
                 proxy_url = f"http://{proxy_config['ip']}:{proxy_config['port']}"
         
-        logger.info(f"Retrying download with proxy: {proxy_url}")
+        logger.info(LoggerMsg.COOKIES_YOUTUBE_RETRY_PROXY_URL_LOG_MSG.format(proxy_url=proxy_url))
         
         # Повторяем скачивание с прокси
         try:
@@ -1397,17 +1398,17 @@ def retry_download_with_proxy(user_id: int, url: str, download_func, *args, **kw
             kwargs['use_proxy'] = True
             result = download_func(*args, **kwargs)
             if result is not None:
-                logger.info(f"Download retry with proxy successful for user {user_id}")
+                logger.info(LoggerMsg.COOKIES_YOUTUBE_RETRY_PROXY_SUCCESS_LOG_MSG.format(user_id=user_id))
                 return result
             else:
-                logger.warning(f"Download retry with proxy failed for user {user_id}")
+                logger.warning(LoggerMsg.COOKIES_YOUTUBE_RETRY_PROXY_FAILED_LOG_MSG.format(user_id=user_id))
                 return None
         except Exception as e:
-            logger.warning(f"Download retry with proxy failed for user {user_id}: {e}")
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_RETRY_PROXY_FAILED_ERROR_LOG_MSG.format(user_id=user_id, e=e))
             return None
             
     except Exception as e:
-        logger.error(f"Error setting up proxy retry for user {user_id}: {e}")
+        logger.error(LoggerMsg.COOKIES_YOUTUBE_RETRY_PROXY_SETUP_ERROR_LOG_MSG.format(user_id=user_id, e=e))
         return None
 
 def retry_download_with_different_cookies(user_id: int, url: str, download_func, *args, **kwargs):
@@ -1429,116 +1430,137 @@ def retry_download_with_different_cookies(user_id: int, url: str, download_func,
     if not is_youtube_url(url):
         return None
     
-    logger.info(f"Attempting to retry download with different cookies for user {user_id}")
-    
-    # Получаем список источников куков
-    cookie_urls = get_youtube_cookie_urls()
-    if not cookie_urls:
-        logger.warning(f"No YouTube cookie sources available for retry for user {user_id}")
+    # Защита от рекурсивных вызовов - проверяем, не вызывается ли уже retry
+    retry_key = f"{user_id}_{url}_retry"
+    if retry_key in globals().get('_active_retries', set()):
+        logger.warning(LoggerMsg.COOKIES_YOUTUBE_RETRY_ALREADY_IN_PROGRESS_LOG_MSG.format(user_id=user_id))
         return None
     
-    user_dir = os.path.join("users", str(user_id))
-    create_directory(user_dir)
-    cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
-    cookie_file_path = os.path.join(user_dir, cookie_filename)
+    # Добавляем ключ в активные retry
+    if '_active_retries' not in globals():
+        globals()['_active_retries'] = set()
+    globals()['_active_retries'].add(retry_key)
     
-    # Определяем порядок попыток
-    indices = list(range(len(cookie_urls)))
-    global _yt_round_robin_index
-    order = getattr(Config, 'YOUTUBE_COOKIE_ORDER', 'round_robin')
-    if order == 'random':
-        import random
-        random.shuffle(indices)
-    else:
-        # round_robin: начинаем со следующего источника
-        if len(indices) > 0:
-            start = _yt_round_robin_index % len(indices)
-            indices = indices[start:] + indices[:start]
-            _yt_round_robin_index = (start + 1) % len(indices)
-    
-    logger.info(f"Retrying download with cookie sources in order: {[i+1 for i in indices]}")
-    
-    # Пробуем каждый источник куков
-    for attempt, idx in enumerate(indices, 1):
-        try:
-            logger.info(f"Retry attempt {attempt}/{len(indices)} with cookie source {idx + 1} for user {user_id}")
-            
-            # Скачиваем куки
-            ok, status, content, err = _download_content(cookie_urls[idx], timeout=30)
-            if not ok:
-                logger.warning(f"Failed to download cookie from source {idx + 1}: status={status}, error={err}")
-                continue
-            
-            # Проверяем формат и размер
-            if not cookie_urls[idx].lower().endswith('.txt'):
-                logger.warning(f"Cookie URL {idx + 1} is not .txt file")
-                continue
+    try:
+        logger.info(LoggerMsg.COOKIES_YOUTUBE_RETRY_DIFFERENT_COOKIES_LOG_MSG.format(user_id=user_id))
+        
+        # Получаем список источников куков
+        cookie_urls = get_youtube_cookie_urls()
+        if not cookie_urls:
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_RETRY_NO_SOURCES_LOG_MSG.format(user_id=user_id))
+            return None
+        
+        user_dir = os.path.join("users", str(user_id))
+        create_directory(user_dir)
+        cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
+        cookie_file_path = os.path.join(user_dir, cookie_filename)
+        
+        # Определяем порядок попыток
+        indices = list(range(len(cookie_urls)))
+        global _yt_round_robin_index
+        order = getattr(Config, 'YOUTUBE_COOKIE_ORDER', 'round_robin')
+        if order == 'random':
+            import random
+            random.shuffle(indices)
+        else:
+            # round_robin: начинаем со следующего источника
+            if len(indices) > 0:
+                start = _yt_round_robin_index % len(indices)
+                indices = indices[start:] + indices[:start]
+                _yt_round_robin_index = (start + 1) % len(indices)
+        
+        logger.info(LoggerMsg.COOKIES_YOUTUBE_RETRY_SOURCES_ORDER_LOG_MSG.format(indices=[i+1 for i in indices]))
+        
+        # Пробуем каждый источник куков
+        for attempt, idx in enumerate(indices, 1):
+            try:
+                logger.info(LoggerMsg.COOKIES_YOUTUBE_RETRY_ATTEMPT_LOG_MSG.format(attempt=attempt, total_attempts=len(indices), source_index=idx + 1, user_id=user_id))
                 
-            content_size = len(content or b"")
-            if content_size > 100 * 1024:
-                logger.warning(f"Cookie file {idx + 1} is too large: {content_size} bytes")
-                continue
-            
-            # Сохраняем куки
-            with open(cookie_file_path, "wb") as cf:
-                cf.write(content)
-            
-            # Проверяем работоспособность
-            if test_youtube_cookies(cookie_file_path):
-                logger.info(f"Cookie source {idx + 1} is working, retrying download for user {user_id}")
-                
-                # Обновляем кеш
-                current_time = time.time()
-                _youtube_cookie_cache[user_id] = {
-                    'result': True,
-                    'timestamp': current_time,
-                    'cookie_path': cookie_file_path
-                }
-                
-                # Повторяем скачивание
+                # Скачиваем куки
                 try:
-                    result = download_func(*args, **kwargs)
-                    if result is not None:
-                        logger.info(f"Download retry successful with cookie source {idx + 1} for user {user_id}")
-                        return result
-                    else:
-                        logger.warning(f"Download retry failed with cookie source {idx + 1} for user {user_id}")
-                except Exception as e:
-                    logger.warning(f"Download retry failed with cookie source {idx + 1} for user {user_id}: {e}")
-                    # Проверяем, связана ли ошибка с куками
-                    if is_youtube_cookie_error(str(e)):
-                        logger.info(f"Error is cookie-related, trying next source for user {user_id}")
-                        continue
-                    else:
-                        logger.info(f"Error is not cookie-related, stopping retry for user {user_id}")
-                        return None
-            else:
-                logger.warning(f"Cookie source {idx + 1} failed validation for user {user_id}")
-                # Удаляем нерабочие куки
+                    ok, status, content, err = _download_content(cookie_urls[idx], timeout=30)
+                except Exception as download_e:
+                    logger.error(f"Error processing cookie source {idx + 1} for user {user_id}: {download_e}")
+                    continue
+                    
+                if not ok:
+                    logger.warning(LoggerMsg.COOKIES_YOUTUBE_RETRY_DOWNLOAD_FAILED_LOG_MSG.format(source_index=idx + 1, status=status, error=err))
+                    continue
+                
+                # Проверяем формат и размер
+                if not cookie_urls[idx].lower().endswith('.txt'):
+                    logger.warning(LoggerMsg.COOKIES_YOUTUBE_RETRY_URL_NOT_TXT_LOG_MSG.format(source_index=idx + 1))
+                    continue
+                    
+                content_size = len(content or b"")
+                if content_size > 100 * 1024:
+                    logger.warning(LoggerMsg.COOKIES_YOUTUBE_RETRY_FILE_TOO_LARGE_LOG_MSG.format(source_index=idx + 1, file_size=content_size))
+                    continue
+                
+                # Сохраняем куки
+                with open(cookie_file_path, "wb") as cf:
+                    cf.write(content)
+                
+                # Проверяем работоспособность
+                if test_youtube_cookies(cookie_file_path):
+                    logger.info(LoggerMsg.COOKIES_YOUTUBE_RETRY_SOURCE_WORKING_LOG_MSG.format(source_index=idx + 1, user_id=user_id))
+                    
+                    # Обновляем кеш
+                    current_time = time.time()
+                    _youtube_cookie_cache[user_id] = {
+                        'result': True,
+                        'timestamp': current_time,
+                        'cookie_path': cookie_file_path
+                    }
+                    
+                    # Повторяем скачивание
+                    try:
+                        result = download_func(*args, **kwargs)
+                        if result is not None:
+                            logger.info(LoggerMsg.COOKIES_YOUTUBE_RETRY_SUCCESS_LOG_MSG.format(source_index=idx + 1, user_id=user_id))
+                            return result
+                        else:
+                            logger.warning(LoggerMsg.COOKIES_YOUTUBE_RETRY_FAILED_LOG_MSG.format(source_index=idx + 1, user_id=user_id))
+                    except Exception as e:
+                        logger.warning(LoggerMsg.COOKIES_YOUTUBE_RETRY_FAILED_ERROR_LOG_MSG.format(source_index=idx + 1, user_id=user_id, e=e))
+                        # Проверяем, связана ли ошибка с куками
+                        if is_youtube_cookie_error(str(e)):
+                            logger.info(LoggerMsg.COOKIES_YOUTUBE_RETRY_ERROR_COOKIE_RELATED_LOG_MSG.format(user_id=user_id))
+                            continue
+                        else:
+                            logger.info(LoggerMsg.COOKIES_YOUTUBE_RETRY_ERROR_NOT_COOKIE_RELATED_LOG_MSG.format(user_id=user_id))
+                            return None
+                else:
+                    logger.warning(LoggerMsg.COOKIES_YOUTUBE_RETRY_SOURCE_FAILED_VALIDATION_LOG_MSG.format(source_index=idx + 1, user_id=user_id))
+                    # Удаляем нерабочие куки
+                    if os.path.exists(cookie_file_path):
+                        os.remove(cookie_file_path)
+                        
+            except Exception as e:
+                logger.error(LoggerMsg.COOKIES_YOUTUBE_RETRY_PROCESSING_ERROR_LOG_MSG.format(source_index=idx + 1, user_id=user_id, e=e))
+                # Удаляем файл в случае ошибки
                 if os.path.exists(cookie_file_path):
                     os.remove(cookie_file_path)
-                    
-        except Exception as e:
-            logger.error(f"Error processing cookie source {idx + 1} for user {user_id}: {e}")
-            # Удаляем файл в случае ошибки
-            if os.path.exists(cookie_file_path):
-                os.remove(cookie_file_path)
-            continue
-    
-    # Если все источники не сработали
-    logger.warning(f"All cookie sources failed for retry download for user {user_id}")
-    if os.path.exists(cookie_file_path):
-        os.remove(cookie_file_path)
-    
-    # Обновляем кеш
-    current_time = time.time()
-    _youtube_cookie_cache[user_id] = {
-        'result': False,
-        'timestamp': current_time,
-        'cookie_path': cookie_file_path
-    }
-    
-    return None
+                continue
+        
+        # Если все источники не сработали
+        logger.warning(LoggerMsg.COOKIES_YOUTUBE_RETRY_ALL_SOURCES_FAILED_LOG_MSG.format(user_id=user_id))
+        if os.path.exists(cookie_file_path):
+            os.remove(cookie_file_path)
+        
+        # Обновляем кеш
+        current_time = time.time()
+        _youtube_cookie_cache[user_id] = {
+            'result': False,
+            'timestamp': current_time,
+            'cookie_path': cookie_file_path
+        }
+        
+        return None
+    finally:
+        # Удаляем ключ из активных retry
+        if '_active_retries' in globals():
+            globals()['_active_retries'].discard(retry_key)
 
 def clear_youtube_cookie_cache(user_id: int = None):
     """
@@ -1554,6 +1576,6 @@ def clear_youtube_cookie_cache(user_id: int = None):
     else:
         if user_id in _youtube_cookie_cache:
             del _youtube_cookie_cache[user_id]
-            logger.info(f"Cleared YouTube cookie validation cache for user {user_id}")
+            logger.info(LoggerMsg.COOKIES_YOUTUBE_CACHE_CLEARED_LOG_MSG.format(user_id=user_id))
         else:
-            logger.info(f"No cache entry found for user {user_id}")
+            logger.info(LoggerMsg.COOKIES_YOUTUBE_CACHE_NO_ENTRY_LOG_MSG.format(user_id=user_id))

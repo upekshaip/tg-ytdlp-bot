@@ -7,6 +7,7 @@ from HELPERS.decorators import reply_with_keyboard
 from HELPERS.limitter import is_user_in_channel, check_user
 from HELPERS.logger import send_to_all, send_to_logger, send_to_user
 from CONFIG.logger_msg import LoggerMsg
+from CONFIG.messages import Messages
 from HELPERS.caption import caption_editor
 from HELPERS.filesystem_hlp import remove_media
 from COMMANDS.cookies_cmd import save_as_cookie_file, download_cookie, checking_cookie_file, cookies_from_browser
@@ -28,9 +29,11 @@ from DATABASE.firebase_init import is_user_blocked
 import os
 from URL_PARSERS.video_extractor import video_url_extractor
 from URL_PARSERS.playlist_utils import is_playlist_with_range
+from URL_PARSERS.tags import extract_url_range_tags
 from pyrogram import filters
 import re
 from CONFIG.config import Config
+from CONFIG.messages import Messages
 from HELPERS.logger import logger
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram import enums
@@ -46,11 +49,31 @@ def url_distractor(app, message):
     is_admin = int(user_id) in Config.ADMIN
     text = message.text.strip()
     
+    # Debug logging
+    from HELPERS.logger import logger
+    logger.info(f"url_distractor called with text: {text[:100]}...")
+    
     # Check if user is in args input state
-    from COMMANDS.args_cmd import user_input_states, handle_args_text_input
+    from COMMANDS.args_cmd import user_input_states, handle_args_text_input, args_import_handler
     if user_id in user_input_states:
         handle_args_text_input(app, message)
         return
+    
+    # Check for args import (flexible recognition for forwarded messages)
+    if "📋 Current yt-dlp Arguments:" in text:
+        logger.info(f"Found potential args import template in message from user {user_id}")
+        # Additional checks to ensure it's a settings template
+        has_settings_line = any(":" in line and ("✅" in line or "❌" in line or "True" in line or "False" in line) 
+                               for line in text.split('\n'))
+        has_forward_instruction = ("Forward this message" in text or "apply these settings" in text)
+        has_separator = ("---" in text or "-" in text)
+        
+        logger.info(f"has_settings_line: {has_settings_line}, has_forward_instruction: {has_forward_instruction}, has_separator: {has_separator}")
+        
+        if has_settings_line and (has_forward_instruction or has_separator):
+            logger.info(f"Calling args_import_handler for user {user_id}")
+            args_import_handler(app, message)
+            return
     # Normalize commands like /cmd@bot to /cmd for group mentions
     try:
         bot_mention = f"@{getattr(Config, 'BOT_NAME', '').strip()}"
@@ -80,62 +103,66 @@ def url_distractor(app, message):
         "🌎": Config.PROXY_COMMAND,
         "✅": Config.CHECK_COOKIE_COMMAND,
         "🖼": Config.IMG_COMMAND,
+        "🧰": Config.ARGS_COMMAND,
+        "🔞": Config.NSFW_COMMAND,
+        "🧾": Config.LIST_COMMAND,
     }
 
     if text in emoji_to_command:
         mapped = emoji_to_command[text]
         # Special case: headphones emoji should show audio usage hint
-        if mapped == "/audio":
+        if mapped == Config.AUDIO_COMMAND:
             from HELPERS.safe_messeger import safe_send_message
             safe_send_message(
                 message.chat.id,
-                "Download only audio from video source.\n\nUsage: /audio + URL \n\n(ex. /audio https://youtu.be/abc123)\n(ex. /audio https://youtu.be/playlist?list=abc123*1*10)",
+                Messages.URL_EXTRACTOR_AUDIO_HINT_MSG,
                 message=message
             )
             return
         # Emulate a user command for the mapped emoji
+        from HELPERS.safe_messeger import fake_message
         return url_distractor(app, fake_message(mapped, user_id))
 
     # ----- Admin-only denial for non-admins -----
     if not is_admin:
         # /uncache
         if text.startswith(Config.UNCACHE_COMMAND):
-            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
+            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
             return
         # /auto_cache
         if text.startswith(Config.AUTO_CACHE_COMMAND):
-            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
+            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
             return
         # /all_* (user details)
         if Config.GET_USER_DETAILS_COMMAND in text:
-            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
+            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
             return
         # /unblock_user
         if Config.UNBLOCK_USER_COMMAND in text:
-            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
+            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
             return
         # /block_user
         if Config.BLOCK_USER_COMMAND in text:
-            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
+            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
             return
         # /broadcast
         if text.startswith(Config.BROADCAST_MESSAGE):
-            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
+            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
             return
         # /log (user logs)
         if Config.GET_USER_LOGS_COMMAND in text:
-            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
+            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
             return
         # /reload_cache
         if text.startswith(Config.RELOAD_CACHE_COMMAND):
-            send_to_user(message, LoggerMsg.ACCESS_DENIED_ADMIN)
+            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
             return
 
     # ----- Basic Commands -----
     # /Start Command
     if text == "/start":
         if is_admin:
-            send_to_user(message, LoggerMsg.WELCOME_MASTER)
+            send_to_user(message, Messages.WELCOME_MASTER)
         else:
             # For non-admins, check subscription first
             if not is_user_in_channel(app, message):
@@ -144,7 +171,7 @@ def url_distractor(app, message):
             from HELPERS.safe_messeger import safe_send_message
             safe_send_message(
                 message.chat.id,
-                f"Hello {message.chat.first_name},\n \n<i>This bot🤖 can download any videos into telegram directly.😊 For more information press <b>/help</b></i> 👈\n \n {Config.CREDITS_MSG}",
+                Messages.URL_EXTRACTOR_WELCOME_MSG.format(first_name=message.chat.first_name, credits=Config.CREDITS_MSG),
                 parse_mode=enums.ParseMode.HTML,
                 message=message)
             send_to_logger(message, LoggerMsg.USER_STARTED_BOT.format(chat_id=message.chat.id))
@@ -157,7 +184,11 @@ def url_distractor(app, message):
             return  # is_user_in_channel already sends subscription message
         # User is subscribed or admin, send help message
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚Close", callback_data="help_msg|close")]
+            [
+                InlineKeyboardButton("🛠 Dev GitHub", url="https://github.com/upekshaip/tg-ytdlp-bot"),
+                InlineKeyboardButton("🛠 Contr GitHub", url="https://github.com/chelaxian/tg-ytdlp-bot")
+            ],
+            [InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="help_msg|close")]
         ])
         from HELPERS.safe_messeger import safe_send_message
         try:
@@ -177,7 +208,7 @@ def url_distractor(app, message):
         if not is_user_in_channel(app, message):
             return  # is_user_in_channel already sends subscription message
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚Close", callback_data="add_group_msg|close")]
+            [InlineKeyboardButton(Messages.URL_EXTRACTOR_ADD_GROUP_CLOSE_BUTTON_MSG, callback_data="add_group_msg|close")]
         ])
         from HELPERS.safe_messeger import safe_send_message
         try:
@@ -276,6 +307,11 @@ def url_distractor(app, message):
         list_command(app, message)
         return
 
+    # /NSFW Command
+    if text.startswith(Config.NSFW_COMMAND):
+        from COMMANDS.nsfw_cmd import nsfw_command
+        nsfw_command(app, message)
+        return
 
     # /cookie Command (exact or with arguments only). Avoid matching '/cookies_from_browser'.
     if text == Config.DOWNLOAD_COOKIE_COMMAND or text.startswith(Config.DOWNLOAD_COOKIE_COMMAND + " "):
@@ -283,12 +319,12 @@ def url_distractor(app, message):
         cookie_args = raw_args.lower()
         
         # Handle direct arguments
-        if cookie_args.startswith("youtube"):
+        if cookie_args.startswith(Messages.URL_EXTRACTOR_COOKIE_ARGS_YOUTUBE_MSG):
             # Support optional index: /cookie youtube <n>
             selected_index = None
             try:
                 parts = raw_args.split()
-                if len(parts) >= 1 and parts[0].lower() == "youtube":
+                if len(parts) >= 1 and parts[0].lower() == Messages.URL_EXTRACTOR_COOKIE_ARGS_YOUTUBE_MSG:
                     if len(parts) >= 2 and parts[1].isdigit():
                         selected_index = int(parts[1])
             except Exception:
@@ -308,26 +344,26 @@ def url_distractor(app, message):
             download_and_validate_youtube_cookies(app, fake_callback, selected_index=selected_index)
             return
             
-        #elif cookie_args == "instagram":
+        elif cookie_args == Messages.URL_EXTRACTOR_COOKIE_ARGS_INSTAGRAM_MSG:
             # Simulate Instagram button click
-            #from pyrogram.types import CallbackQuery
-            #from collections import namedtuple
+            from pyrogram.types import CallbackQuery
+            from collections import namedtuple
             
-            #FakeCallbackQuery = namedtuple('FakeCallbackQuery', ['from_user', 'message', 'data', 'id'])
-            #FakeUser = namedtuple('FakeUser', ['id'])
+            FakeCallbackQuery = namedtuple('FakeCallbackQuery', ['from_user', 'message', 'data', 'id'])
+            FakeUser = namedtuple('FakeUser', ['id'])
             
-            #fake_callback = FakeCallbackQuery(
-                #from_user=FakeUser(id=user_id),
-                #message=message,
-                #data="download_cookie|instagram",
-                #id="fake_callback_id"
-            #)
+            fake_callback = FakeCallbackQuery(
+                from_user=FakeUser(id=user_id),
+                message=message,
+                data="download_cookie|instagram",
+                id="fake_callback_id"
+            )
             
-            #from COMMANDS.cookies_cmd import download_and_save_cookie
-            #download_and_save_cookie(app, fake_callback, Config.INSTAGRAM_COOKIE_URL, "instagram")
-            #return
+            from COMMANDS.cookies_cmd import download_and_save_cookie
+            download_and_save_cookie(app, fake_callback, Config.INSTAGRAM_COOKIE_URL, "instagram")
+            return
             
-        elif cookie_args == "tiktok":
+        elif cookie_args == Messages.URL_EXTRACTOR_COOKIE_ARGS_TIKTOK_MSG:
             # Simulate TikTok button click
             from pyrogram.types import CallbackQuery
             from collections import namedtuple
@@ -345,7 +381,7 @@ def url_distractor(app, message):
             download_and_save_cookie(app, fake_callback, Config.TIKTOK_COOKIE_URL, "tiktok")
             return
             
-        elif cookie_args in ["x", "twitter"]:
+        elif cookie_args in ["x", Messages.URL_EXTRACTOR_COOKIE_ARGS_TWITTER_MSG]:
             # Simulate Twitter/X button click
             from pyrogram.types import CallbackQuery
             from collections import namedtuple
@@ -381,7 +417,7 @@ def url_distractor(app, message):
             #download_and_save_cookie(app, fake_callback, Config.FACEBOOK_COOKIE_URL, "facebook")
             #return
             
-        elif cookie_args == "custom":
+        elif cookie_args == Messages.URL_EXTRACTOR_COOKIE_ARGS_CUSTOM_MSG:
             # Simulate "Your Own" button click
             from pyrogram.types import CallbackQuery
             from collections import namedtuple
@@ -401,7 +437,7 @@ def url_distractor(app, message):
             except Exception:
                 pass
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔚Close", callback_data="save_as_cookie_hint|close")]
+                [InlineKeyboardButton(Messages.URL_EXTRACTOR_SAVE_AS_COOKIE_HINT_CLOSE_BUTTON_MSG, callback_data="save_as_cookie_hint|close")]
             ])
             from HELPERS.safe_messeger import safe_send_message
             from pyrogram.types import ReplyParameters
@@ -411,7 +447,7 @@ def url_distractor(app, message):
                 reply_parameters=ReplyParameters(message_id=fake_callback.message.id if hasattr(fake_callback.message, 'id') else None),
                 reply_markup=keyboard,
                 _callback_query=fake_callback,
-                _fallback_notice="⏳ Flood limit. Try later."
+                _fallback_notice=Messages.FLOOD_LIMIT_TRY_LATER_FALLBACK_MSG
             )
             return
             
@@ -422,19 +458,7 @@ def url_distractor(app, message):
         else:
             # Invalid argument - show usage message
             from pyrogram.types import ReplyParameters
-            usage_text = """
-<b>🍪 Cookie Command Usage</b>
-
-<code>/cookie</code> - Show cookie menu
-<code>/cookie youtube</code> - Download YouTube cookies
-<code>/cookie instagram</code> - Download Instagram cookies
-<code>/cookie tiktok</code> - Download TikTok cookies
-<code>/cookie x</code> or <code>/cookie twitter</code> - Download Twitter/X cookies
-<code>/cookie facebook</code> - Download Facebook cookies
-<code>/cookie custom</code> - Show custom cookie instructions
-
-<i>Available services depend on bot configuration.</i>
-"""
+            usage_text = Messages.COOKIE_COMMAND_USAGE_MSG
             app.send_message(
                 message.chat.id,
                 usage_text,
@@ -490,59 +514,59 @@ def url_distractor(app, message):
                 from COMMANDS.cookies_cmd import clear_youtube_cookie_cache
                 clear_youtube_cookie_cache(message.chat.id)
             except Exception as e:
-                logger.error(f"Failed to clear YouTube cookie cache: {e}")
-            send_to_all(message, "🗑 Cookie file removed and cache cleared.")
+                logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_CLEAR_YOUTUBE_CACHE_LOG_MSG.format(e=e))
+            send_to_all(message, Messages.COOKIE_FILE_REMOVED_CACHE_CLEARED_MSG)
             return
         elif clean_args in ["log", "logs"]:
             remove_media(message, only=["logs.txt"])
-            send_to_all(message, "🗑 Logs file removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_LOGS_FILE_REMOVED_MSG)
             return
         elif clean_args in ["tag", "tags"]:
             remove_media(message, only=["tags.txt"])
-            send_to_all(message, "🗑 Tags file removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_TAGS_FILE_REMOVED_MSG)
             return
         elif clean_args == "format":
             remove_media(message, only=["format.txt"])
-            send_to_all(message, "🗑 Format file removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_FORMAT_FILE_REMOVED_MSG)
             return
         elif clean_args == "split":
             remove_media(message, only=["split.txt"])
-            send_to_all(message, "🗑 Split file removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_SPLIT_FILE_REMOVED_MSG)
             return
         elif clean_args == "mediainfo":
             remove_media(message, only=["mediainfo.txt"])
-            send_to_all(message, "🗑 Mediainfo file removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_MEDIAINFO_FILE_REMOVED_MSG)
             return
         elif clean_args == "subs":
             remove_media(message, only=["subs.txt"])
-            send_to_all(message, "🗑 Subtitle settings removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_SUBS_SETTINGS_REMOVED_MSG)
             clear_subs_check_cache()
             return
         elif clean_args == "keyboard":
             remove_media(message, only=["keyboard.txt"])
-            send_to_all(message, "🗑 Keyboard settings removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_KEYBOARD_SETTINGS_REMOVED_MSG)
             return
         elif clean_args == "args":
             remove_media(message, only=["args.txt"])
-            send_to_all(message, "🗑 Args settings removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_ARGS_SETTINGS_REMOVED_MSG)
             return
         elif clean_args == "nsfw":
             remove_media(message, only=["nsfw_blur.txt"])
-            send_to_all(message, "🗑 NSFW settings removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_NSFW_SETTINGS_REMOVED_MSG)
             return
         elif clean_args == "proxy":
             remove_media(message, only=["proxy.txt"])
-            send_to_all(message, "🗑 Proxy settings removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_PROXY_SETTINGS_REMOVED_MSG)
             return
         elif clean_args == "flood_wait":
             remove_media(message, only=["flood_wait.txt"])
-            send_to_all(message, "🗑 Flood wait settings removed.")
+            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_FLOOD_WAIT_SETTINGS_REMOVED_MSG)
             return
         elif clean_args == "all":
             # Delete all files and display the list of deleted ones
             user_dir = f'./users/{str(message.chat.id)}'
             if not os.path.exists(user_dir):
-                send_to_all(message, "🗑 No files to remove.")
+                send_to_all(message, Messages.URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
                 clear_subs_check_cache()
                 return
 
@@ -556,32 +580,32 @@ def url_distractor(app, message):
                     if os.path.isfile(file_path):
                         os.remove(file_path)
                         removed_files.append(file)
-                        logger.info(f"Removed file: {file_path}")
+                        logger.info(LoggerMsg.URL_EXTRACTOR_REMOVED_FILE_LOG_MSG.format(file_path=file_path))
                 except Exception as e:
-                    logger.error(f"Failed to remove file {file_path}: {e}")
+                    logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_REMOVE_FILE_LOG_MSG.format(file_path=file_path, e=e))
 
             # Clear YouTube cookie validation cache for this user
             try:
                 from COMMANDS.cookies_cmd import clear_youtube_cookie_cache
                 clear_youtube_cookie_cache(message.chat.id)
             except Exception as e:
-                logger.error(f"Failed to clear YouTube cookie cache: {e}")
+                logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_CLEAR_YOUTUBE_CACHE_LOG_MSG.format(e=e))
             
             if removed_files:
                 files_list = "\n".join([f"• {file}" for file in removed_files])
-                send_to_all(message, f"🗑 All files removed successfully!\n\nRemoved files:\n{files_list}")
+                send_to_all(message, Messages.URL_EXTRACTOR_ALL_FILES_REMOVED_MSG.format(files_list=files_list))
             else:
-                send_to_all(message, "🗑 No files to remove.")
+                send_to_all(message, Messages.URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
             return
         else:
             # Regular command /clean - delete only media files with filtering
-            remove_media(message)
-            send_to_all(message, "🗑 All media files are removed.")
+            remove_media(message, force_clean=True)
+            send_to_all(message, Messages.URL_EXTRACTOR_ALL_MEDIA_FILES_REMOVED_MSG)
             try:
                 from COMMANDS.cookies_cmd import clear_youtube_cookie_cache
                 clear_youtube_cookie_cache(message.chat.id)
             except Exception as e:
-                logger.error(f"Failed to clear YouTube cookie cache: {e}")
+                logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_CLEAR_YOUTUBE_CACHE_LOG_MSG.format(e=e))
             clear_subs_check_cache()
             return
 
@@ -620,11 +644,11 @@ def url_distractor(app, message):
         if is_admin:
             uncache_command(app, message)
         else:
-            send_to_all(message, "❌ This command is only available for administrators.")
+            send_to_all(message, Messages.URL_PARSER_ADMIN_ONLY_MSG)
         return
 
     # /vid help & range transformation when handled by the text pipeline
-    if text.strip().lower().startswith('/vid'):
+    if text.strip().lower().startswith("/vid"):
         # Try to transform "/vid A-B URL" -> "URL*A*B" (B may be empty)
         parts_full = text.strip().split(maxsplit=2)
         if len(parts_full) >= 3 and re.match(r"^\d+-\d*$", parts_full[1]):
@@ -644,15 +668,13 @@ def url_distractor(app, message):
             try:
                 from HELPERS.safe_messeger import safe_send_message
                 # Use top-level imports to avoid shadowing names in function scope
-                kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔚Close", callback_data="vid_help|close")]])
+                kb = InlineKeyboardMarkup([[InlineKeyboardButton(Messages.URL_EXTRACTOR_VID_HELP_CLOSE_BUTTON_MSG, callback_data="vid_help|close")]])
                 help_text = (
-                    "<b>🎬 Video Download Command</b>\n\n"
-                    "Usage: <code>/vid URL</code>\n\n"
-                    "<b>Examples:</b>\n"
-                    "• <code>/vid https://youtube.com/watch?v=123abc</code>\n"
-                    "• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n"
-                    "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code>\n\n"
-                    "Also see: /audio, /img, /help, /playlist, /settings"
+                    f"<b>{Messages.URL_EXTRACTOR_VID_HELP_TITLE_MSG}</b>\n\n"
+                    f"{Messages.URL_EXTRACTOR_VID_HELP_USAGE_MSG}\n\n"
+                    f"<b>{Messages.URL_EXTRACTOR_VID_HELP_EXAMPLES_MSG}</b>\n"
+                    f"{Messages.URL_EXTRACTOR_VID_HELP_EXAMPLE_1_MSG}\n\n"
+                    f"{Messages.URL_EXTRACTOR_VID_HELP_ALSO_SEE_MSG}"
                 )
                 safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
             except Exception:
@@ -672,14 +694,49 @@ def url_distractor(app, message):
     if ("https://" in text) or ("http://" in text):
         if not is_user_blocked(message):
             clear_subs_check_cache()
+            # Централизованный роутер на gallery-dl для некоторых ссылок
+            try:
+                try:
+                    from .engine_router import route_if_gallerydl_only  # type: ignore
+                except Exception:
+                    from URL_PARSERS.engine_router import route_if_gallerydl_only  # type: ignore
+                if route_if_gallerydl_only(app, message):
+                    return
+            except Exception as route_e:
+                logger.error(f"Engine router error: {route_e}")
             try:
                 video_url_extractor(app, message)
             except Exception as e:
-                logger.error(f"video_url_extractor failed, fallback to gallery-dl: {e}")
+                logger.error(LoggerMsg.URL_EXTRACTOR_VIDEO_EXTRACTOR_FAILED_LOG_MSG.format(e=e))
                 try:
-                    image_command(app, message)
+                    # Create proper /img command from URL
+                    from HELPERS.safe_messeger import fake_message
+                    
+                    # Extract URL and range from original message
+                    url, video_start_with, video_end_with, playlist_name, tags, tags_text, tag_error = extract_url_range_tags(message.text)
+                    
+                    if url:
+                        # Create fallback command with range if available
+                        if video_start_with and video_end_with and (video_start_with != 1 or video_end_with != 1):
+                            fallback_text = f"/img {video_start_with}-{video_end_with} {url}"
+                        else:
+                            fallback_text = f"/img {url}"
+                        
+                        # Add tags if available
+                        if tags_text:
+                            fallback_text += f" {tags_text}"
+                        
+                        # Create fake message for gallery-dl command
+                        fake_msg = fake_message(fallback_text, message.chat.id, original_chat_id=message.chat.id)
+                        
+                        # Execute gallery-dl command
+                        image_command(app, fake_msg)
+                        logger.info(f"Gallery-dl fallback executed: {fallback_text}")
+                    else:
+                        logger.error("No URL found for gallery-dl fallback")
+                        
                 except Exception as e2:
-                    logger.error(f"gallery-dl fallback also failed: {e2}")
+                    logger.error(LoggerMsg.URL_EXTRACTOR_GALLERY_DL_FALLBACK_FAILED_LOG_MSG.format(e2=e2))
         return
 
     # ----- Admin Commands -----
@@ -748,7 +805,22 @@ def url_distractor(app, message):
                     caption_editor(app, message)
         return
 
-    logger.info(f"{user_id} No matching command processed.")
+    # Final check for args import (in case it wasn't caught earlier)
+    if "📋 Current yt-dlp Arguments:" in text:
+        logger.info(f"Final check: Found potential args import template in message from user {user_id}")
+        has_settings_line = any(":" in line and ("✅" in line or "❌" in line or "True" in line or "False" in line) 
+                               for line in text.split('\n'))
+        has_forward_instruction = ("Forward this message" in text or "apply these settings" in text)
+        has_separator = ("---" in text or "-" in text)
+        
+        logger.info(f"Final check: has_settings_line={has_settings_line}, has_forward_instruction={has_forward_instruction}, has_separator={has_separator}")
+        
+        if has_settings_line and (has_forward_instruction or has_separator):
+            logger.info(f"Final check: Calling args_import_handler for user {user_id}")
+            args_import_handler(app, message)
+            return
+
+    logger.info(LoggerMsg.URL_EXTRACTOR_NO_MATCHING_COMMAND_LOG_MSG.format(user_id=user_id))
     clear_subs_check_cache()
 
 @app.on_callback_query(filters.regex("^keyboard\\|"))
@@ -778,18 +850,18 @@ def add_group_msg_callback(app, callback_query):
                 app.edit_message_text(
                     callback_query.message.chat.id,
                     callback_query.message.id,
-                    "🤖 Add bot to group helper closed"
+                    LoggerMsg.URL_EXTRACTOR_ADD_GROUP_HELPER_CLOSED_LOG_MSG
                 )
             
             # Answer callback query
-            callback_query.answer("Closed")
+            callback_query.answer(Messages.URL_EXTRACTOR_CLOSED_MSG)
             
             # Log the action
-            send_to_logger(callback_query.message, f"User {user_id} closed add_bot_to_group command")
+            send_to_logger(callback_query.message, Messages.URL_EXTRACTOR_ADD_GROUP_USER_CLOSED_MSG.format(user_id=user_id))
             
     except Exception as e:
         # Log error and answer callback
-        send_to_logger(callback_query.message, f"Error in add_group_msg callback handler: {e}")
-        callback_query.answer("Error occurred", show_alert=True)
+        send_to_logger(callback_query.message, LoggerMsg.URL_EXTRACTOR_ADD_GROUP_CALLBACK_ERROR_LOG_MSG.format(e=e))
+        callback_query.answer(Messages.URL_EXTRACTOR_ERROR_OCCURRED_MSG, show_alert=True)
 
 ######################################################  

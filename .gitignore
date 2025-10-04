@@ -78,6 +78,10 @@ test_count_var.py
 reverse_test_count_var.py
 replace_log.txt
 test_search_var.py
+auto_replace_unused.py
+replace_logger.py
+update_bgutil_provider.sh
+update-yt-dlp.sh
 .cursor/
 
 # Configs with secrets (do not commit)

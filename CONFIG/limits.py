@@ -17,6 +17,24 @@ class LimitsConfig(object):
     # Max single video duration in seconds for yt-dlp downloads (default 12 hours)
     MAX_VIDEO_DURATION = 43200
     #######################################################
+    # Image download timeouts (in seconds)
+    # Maximum wait time for one range (30 minutes) - for large videos
+    # Increase this if you have very large video files that take longer to download
+    MAX_IMG_RANGE_WAIT_TIME = 1800  # 30 minutes
+    
+    # Maximum total wait time (4 hours) - for very large collections
+    # Increase this if you download very large Instagram accounts with thousands of posts
+    MAX_IMG_TOTAL_WAIT_TIME = 14400  # 4 hours
+    
+    # Maximum inactivity time (5 minutes) - if no new files found
+    # If no new files are found for this time, download stops (prevents infinite waiting)
+    MAX_IMG_INACTIVITY_TIME = 300  # 5 minutes
+    
+    # Example configurations for different scenarios:
+    # For fast internet and small files: MAX_IMG_RANGE_WAIT_TIME = 600 (10 min), MAX_IMG_TOTAL_WAIT_TIME = 3600 (1 hour)
+    # For slow internet and large files: MAX_IMG_RANGE_WAIT_TIME = 3600 (1 hour), MAX_IMG_TOTAL_WAIT_TIME = 28800 (8 hours)
+    # For very large accounts: MAX_IMG_TOTAL_WAIT_TIME = 43200 (12 hours)
+    #######################################################
     # Group multipliers (applied in groups/channels) - except quality
     GROUP_MULTIPLIER = 2
     #######################################################

@@ -1,4 +1,4 @@
-from CONFIG.messages import MessagesConfig as Messages
+from CONFIG.messages import Messages as Messages
 # Domains Configuration
 
 class DomainsConfig(object):
@@ -20,6 +20,29 @@ class DomainsConfig(object):
     WHITE_KEYWORDS = [
         'assasinate', 'assasinated', 'assassinate', 'assassinated', 'assassination'
     ]
+    
+    GALLERYDL_ONLY_DOMAINS = [
+        # Imageboards / archives / art communities largely covered by gallery-dl
+        '2ch.su', '35photo.pro', 'behoimi.org', '4archive.org', '8chan.moe',
+        'comics.8muses.com', 'agn.ph', 'arca.live', 'architizer.com', 'aryion.com',
+        'catbox.moe', 'civitai.com', 'danke-fuers-lesen.de', 'desktopography.net',
+        'e-hentai.org', 'exhentai.org', 'everia.club', 'fapello.com', 'furry34.com',
+        'gelbooru.com', 'girlswithmuscle.com', 'itaku.ee', 'kemono.cr', 'kemono.party',
+        'coomer.party', 'leakgallery.com', 'myportfolio.com', 'nekohouse.su',
+        'nhentai.net', 'photovogue.com', 'pixeltabel.com', 'weasyl.com', 'wikifeet.com',
+        'xasiat.com', 'wallhaven.cc'
+    ]  
+
+    GALLERYDL_ONLY_PATH = [
+        # Imageboards / archives / art communities largely covered by gallery-dl
+        'vk.com/wall-',
+        'vk.com/album-',
+    ]
+    
+    GALLERYDL_FALLBACK_DOMAINS = [
+        # Social media platforms largely covered by gallery-dl
+        'instagram.com',
+    ]    
     
     # --- Whitelist of domains that are not considered porn ---
     WHITELIST = [
@@ -49,7 +72,7 @@ class DomainsConfig(object):
         # Other secure domains can be added
     ]
     PROXY_2_DOMAINS = [
-        'instagram.com', 'ig.me'
+        #'instagram.com', 'ig.me'
         # Other secure domains can be added
     ]
     

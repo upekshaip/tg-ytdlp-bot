@@ -9,8 +9,10 @@ from pyrogram import filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ReplyParameters, InputMediaPhoto, InputMediaVideo, InputPaidMediaPhoto, InputPaidMediaVideo
 from pyrogram import enums
 from pyrogram.errors import FloodWait
-from HELPERS.logger import send_to_logger, logger, get_log_channel
+from HELPERS.logger import send_to_logger, logger, get_log_channel, log_error_to_channel
 from CONFIG.logger_msg import LoggerMsg
+from CONFIG.messages import Messages
+from CONFIG.domains import DomainsConfig
 from HELPERS.app_instance import get_app
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
 import HELPERS.safe_messeger as sm
@@ -28,9 +30,11 @@ from CONFIG.config import Config
 from HELPERS.limitter import is_user_in_channel
 from HELPERS.porn import is_porn
 from COMMANDS.nsfw_cmd import should_apply_spoiler
+from CONFIG.messages import Messages as Messages
 from DATABASE.cache_db import save_to_image_cache, get_cached_image_posts, get_cached_image_post_indices
 import json
 from URL_PARSERS.tags import save_user_tags, extract_url_range_tags
+from URL_PARSERS.service_api_info import get_service_account_info, build_tags
 
 # Unified helpers to create thumbnails/covers for videos
 def _get_file_mb(file_path):
@@ -178,9 +182,9 @@ def ensure_paid_cover_embedded(video_path, existing_thumb=None):
                 if os.path.exists(embedded_path) and os.path.getsize(embedded_path) > 0:
                     # Replace original with embedded version
                     os.replace(embedded_path, video_path)
-                    logger.info(f"[IMG PAID] Embedded cover into video: {video_path}")
+                    logger.info(LoggerMsg.IMG_PAID_EMBEDDED_COVER_LOG_MSG.format(video_path=video_path))
         except Exception as e:
-            logger.warning(f"[IMG PAID] Failed to embed cover into video {video_path}: {e}")
+            logger.warning(LoggerMsg.IMG_PAID_FAILED_EMBED_COVER_LOG_MSG.format(video_path=video_path, e=e))
             # Continue with just the cover file
         
         return cover_path
@@ -240,10 +244,10 @@ def _send_open_copy_to_nsfw_channel(file_path: str, caption: str, user_id: int, 
                 reply_parameters=ReplyParameters(message_id=message_id)
             )
         
-        logger.info(f"[IMG LOG] Open copy sent to NSFW channel for history: {file_path}")
+        logger.info(LoggerMsg.IMG_LOG_OPEN_COPY_SENT_LOG_MSG.format(file_path=file_path))
         return open_msg
     except Exception as e:
-        logger.error(f"[IMG LOG] Failed to send open copy to NSFW channel: {e}")
+        logger.error(LoggerMsg.IMG_LOG_FAILED_SEND_OPEN_COPY_LOG_MSG.format(e=e))
         return None
 
 def _save_album_now(url: str, album_index: int, message_ids: list):
@@ -257,14 +261,350 @@ def _save_album_now(url: str, album_index: int, message_ids: list):
         
         # Don't cache NSFW content
         if is_nsfw:
-            logger.info(f"[IMG CACHE] Skipping cache save for NSFW content: index={album_index}, channel_type={channel_type}")
+            logger.info(LoggerMsg.IMG_CACHE_SKIP_NSFW_LOG_MSG.format(album_index=album_index, channel_type=channel_type))
             return
         
-        logger.info(f"[IMG CACHE] About to save album: index={album_index}, ids={message_ids}, channel_type={channel_type}")
+        logger.info(LoggerMsg.IMG_CACHE_SAVE_ALBUM_LOG_MSG.format(album_index=album_index, message_ids=message_ids, channel_type=channel_type))
         save_to_image_cache(url, album_index, message_ids)
-        logger.info(f"[IMG CACHE] Save requested for index={album_index}, channel_type={channel_type}")
+        logger.info(LoggerMsg.IMG_CACHE_SAVE_REQUESTED_LOG_MSG.format(album_index=album_index, channel_type=channel_type))
     except Exception as e:
-        logger.error(f"[IMG CACHE] Save failed for index={album_index}: {e}")
+        logger.error(LoggerMsg.IMG_CACHE_SAVE_FAILED_LOG_MSG.format(album_index=album_index, e=e))
+
+def extract_profile_name(url):
+    """Получить имя аккаунта по API/OG для генерации хэштега (без #)."""
+    try:
+        info = get_service_account_info(url)
+        _service_tag, account_tag = build_tags(info)
+        if account_tag:
+            return account_tag.lstrip('#')
+    except Exception:
+        pass
+    return None
+
+def extract_site_name(url):
+    """Получить имя площадки (service) по API/OG для генерации хэштега (без #)."""
+    try:
+        info = get_service_account_info(url)
+        service = info.get('service')
+        if service:
+            return service
+    except Exception:
+        pass
+    return None
+
+def get_emoji_number(index):
+    """Get emoji number for given index (1-based)"""
+    emoji_numbers = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟']
+    if 1 <= index <= 10:
+        return emoji_numbers[index - 1]
+    else:
+        return f"{index}."
+
+def get_file_date(file_path, original_url=None):
+    """Get file creation date in DD.MM.YYYY format from EXIF data or filename"""
+    try:
+        from datetime import datetime
+        import re
+        
+        # Получаем текущую дату для проверки
+        now = datetime.now()
+        today_str = now.strftime("%d.%m.%Y")
+        invalid_date_str = "01.01.1970"
+        
+        def is_valid_date(date_str, source_context=""):
+            """Проверяет, что дата валидна (не сегодняшняя и не 01.01.1970)"""
+            if not date_str:
+                return False
+            if date_str == invalid_date_str:
+                logger.info(f"[FILE_DATE] Date {date_str} is Unix epoch - invalid")
+                return False
+            if date_str == today_str:
+                # Сегодняшняя дата валидна только если она извлечена из надежных источников
+                # (EXIF, метаданные видео, API) и НЕ из времени модификации файла
+                if source_context in ["exif", "video_metadata", "api"]:
+                    logger.info(f"[FILE_DATE] Date {date_str} is today's date from {source_context} - valid")
+                    return True
+                else:
+                    logger.info(f"[FILE_DATE] Date {date_str} is today's date from {source_context} - likely invalid (file modification time)")
+                    return False
+            return True
+        
+        # First, try to extract date from filename (Instagram format: timestamp.jpg)
+        filename = os.path.basename(file_path)
+        logger.info(f"[FILE_DATE] Trying to extract date from filename: {filename}")
+        
+        # Instagram files often have timestamp as filename (e.g., 3732982640044472150.jpg)
+        # This is usually a Unix timestamp in microseconds
+        if filename and '.' in filename:
+            name_without_ext = filename.split('.')[0]
+            
+            # Try to extract timestamp from filename patterns like "3608469449724736561._fast.mp4"
+            # Remove ._fast suffix if present
+            clean_name = name_without_ext.replace('._fast', '')
+            logger.info(f"[FILE_DATE] Cleaned name: {clean_name}, isdigit: {clean_name.isdigit()}, len: {len(clean_name)}")
+            if clean_name.isdigit() and len(clean_name) > 10:
+                # Instagram IDs don't contain reliable timestamp information
+                # Instagram uses Snowflake-like IDs but they don't encode upload dates
+                # Return None to group as 'unknown' date
+                logger.info(f"[FILE_DATE] Instagram ID detected: {clean_name} - returning None (no reliable date)")
+                return None
+            
+            # Check if it's a numeric timestamp (Instagram format) - original name
+            logger.info(f"[FILE_DATE] Original name: {name_without_ext}, isdigit: {name_without_ext.isdigit()}, len: {len(name_without_ext)}")
+            if name_without_ext.isdigit() and len(name_without_ext) > 10:
+                # Instagram IDs don't contain reliable timestamp information
+                # Instagram uses Snowflake-like IDs but they don't encode upload dates
+                # Return None to group as 'unknown' date
+                logger.info(f"[FILE_DATE] Original Instagram ID detected: {name_without_ext} - returning None (no reliable date)")
+                return None
+            
+            # Try to extract date from gallery-dl filename patterns
+            # Gallery-dl often uses patterns like: 2024-10-30_15-47-00_filename.jpg
+            date_patterns = [
+                r'(\d{4}-\d{2}-\d{2})',  # YYYY-MM-DD
+                r'(\d{4}_\d{2}_\d{2})',  # YYYY_MM_DD
+                r'(\d{2}-\d{2}-\d{4})',  # DD-MM-YYYY
+                r'(\d{2}_\d{2}_\d{4})',  # DD_MM_YYYY
+            ]
+            
+            for pattern in date_patterns:
+                match = re.search(pattern, filename)
+                if match:
+                    try:
+                        date_str = match.group(1)
+                        # Try different date formats
+                        for fmt in ['%Y-%m-%d', '%Y_%m_%d', '%d-%m-%Y', '%d_%m_%Y']:
+                            try:
+                                dt = datetime.strptime(date_str, fmt)
+                                date_str = dt.strftime("%d.%m.%Y")
+                                logger.info(f"[FILE_DATE] Found date in filename: {date_str}")
+                                if is_valid_date(date_str, "filename"):
+                                    return date_str
+                                else:
+                                    logger.info(f"[FILE_DATE] Date {date_str} is invalid, continuing search")
+                            except ValueError:
+                                continue
+                    except Exception:
+                        continue
+        
+        # Try to get date from EXIF data
+        try:
+            from PIL import Image
+            from PIL.ExifTags import TAGS
+            
+            with Image.open(file_path) as img:
+                exifdata = img.getexif()
+                if exifdata:
+                    # Try different EXIF date fields
+                    for tag_id, value in exifdata.items():
+                        tag = TAGS.get(tag_id, tag_id)
+                        if 'date' in str(tag).lower() and value:
+                                        try:
+                                            # Parse EXIF date format (YYYY:MM:DD HH:MM:SS)
+                                            if ':' in str(value):
+                                                dt = datetime.strptime(str(value).split()[0], '%Y:%m:%d')
+                                                date_str = dt.strftime("%d.%m.%Y")
+                                                if is_valid_date(date_str, "exif"):
+                                                    return date_str
+                                        except ValueError:
+                                            continue
+        except ImportError:
+            # PIL not available, skip EXIF
+            pass
+        except Exception:
+            # EXIF reading failed, continue to next method
+            pass
+        
+        # Try to get date from file metadata using ffprobe (for videos)
+        if file_path.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm')):
+            try:
+                result = subprocess.run([
+                    'ffprobe', '-v', 'error', '-select_streams', 'v:0',
+                    '-show_entries', 'format_tags=creation_time',
+                    '-of', 'json', file_path
+                ], capture_output=True, text=True, timeout=10)
+                
+                if result.returncode == 0:
+                    import json
+                    data = json.loads(result.stdout or '{}')
+                    creation_time = data.get('format', {}).get('tags', {}).get('creation_time')
+                    if creation_time:
+                        # Parse ISO format (2024-10-30T15:47:00.000000Z)
+                                try:
+                                    dt = datetime.fromisoformat(creation_time.replace('Z', '+00:00'))
+                                    date_str = dt.strftime("%d.%m.%Y")
+                                    if is_valid_date(date_str, "video_metadata"):
+                                        return date_str
+                                except ValueError:
+                                    pass
+            except Exception:
+                pass
+        
+        # If all else fails, try to use file modification time as fallback
+        # But only if it's not a recently downloaded file (to avoid today's date for fake messages)
+        try:
+            stat = os.stat(file_path)
+            mtime = stat.st_mtime
+            dt = datetime.fromtimestamp(mtime)
+            
+            # Check if file was created today (likely a fake message fallback)
+            # Only reject today's date if we couldn't extract date from metadata
+            now = datetime.now()
+            if dt.date() == now.date():
+                logger.info(f"[FILE_DATE] File created today, likely fake message fallback - returning None")
+                return None
+            
+            date_str = dt.strftime("%d.%m.%Y")
+            logger.info(f"[FILE_DATE] Using file modification time: {date_str}")
+            if is_valid_date(date_str, "file_modification"):
+                return date_str
+            else:
+                logger.info(f"[FILE_DATE] File modification date {date_str} is invalid")
+        except Exception:
+            pass
+        
+        # Try to get date from service API (Instagram, etc.)
+        if original_url:
+            try:
+                from URL_PARSERS.service_api_info import get_service_date
+                logger.info(f"[FILE_DATE] Trying to get date from service API for URL: {original_url}")
+                api_date = get_service_date(original_url)
+                if api_date:
+                    logger.info(f"[FILE_DATE] Got date from service API: {api_date}")
+                    if is_valid_date(api_date, "api"):
+                        return api_date
+                    else:
+                        logger.info(f"[FILE_DATE] API date {api_date} is invalid")
+                else:
+                    logger.info(f"[FILE_DATE] No date found in service API")
+            except Exception as e:
+                logger.info(f"[FILE_DATE] Error in service API date extraction: {e}")
+        else:
+            logger.info(f"[FILE_DATE] No original URL provided for API date extraction")
+        
+        # If all else fails, return None (will be grouped as 'unknown')
+        logger.info(f"[FILE_DATE] Could not extract date from file: {file_path}")
+        return None
+        
+    except Exception:
+        return None
+
+def create_unique_download_path(user_id, url):
+    """Create unique download path based on user ID and URL structure"""
+    try:
+        import time
+        import random
+        from urllib.parse import urlparse
+        
+        # Parse URL to extract domain and path
+        parsed = urlparse(url)
+        domain = parsed.netloc.lower()
+        
+        # Clean domain name (remove www, etc.)
+        if domain.startswith('www.'):
+            domain = domain[4:]
+        
+        # Extract path components
+        path_parts = [part for part in parsed.path.split('/') if part and part != '']
+        
+        # Create safe directory name
+        if path_parts:
+            # Use first path component as username/profile
+            profile_name = path_parts[0]
+            # Remove special characters that might cause issues
+            import re
+            profile_name = re.sub(r'[^\w\-_.]', '_', profile_name)
+        else:
+            profile_name = 'unknown'
+        
+        # Create unique timestamp-based directory with microsecond precision and random component
+        timestamp = int(time.time() * 1000000)  # Microsecond precision
+        random_suffix = random.randint(1000, 9999)  # Random 4-digit number
+        
+        # Structure: users/{user_id}/{domain}/{profile_name}_{timestamp}_{random}/
+        unique_dir = os.path.join("users", str(user_id), domain, f"{profile_name}_{timestamp}_{random_suffix}")
+        
+        return unique_dir
+    except Exception as e:
+        logger.error(f"Failed to create unique download path: {e}")
+        # Fallback to simple timestamp-based directory
+        return os.path.join("users", str(user_id), f"download_{int(time.time() * 1000000)}_{random.randint(1000, 9999)}")
+
+def create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name):
+    """Create album caption with emoji numbers and dates grouped by date"""
+    try:
+        # Group media by date
+        date_groups = {}
+        for i, media in enumerate(media_group, 1):
+            file_path = media.media
+            date = get_file_date(file_path, url)
+            if date:
+                if date not in date_groups:
+                    date_groups[date] = []
+                date_groups[date].append(i)
+            else:
+                # If no date, add to a special group
+                if 'unknown' not in date_groups:
+                    date_groups['unknown'] = []
+                date_groups['unknown'].append(i)
+        
+        # Create caption lines
+        caption_lines = []
+        
+        # Add emoji numbers with dates
+        # Sort dates chronologically (unknown dates go last)
+        sorted_dates = []
+        unknown_dates = []
+        for date in date_groups.keys():
+            if date == 'unknown':
+                unknown_dates.append(date)
+            else:
+                sorted_dates.append(date)
+        
+        # Sort dates chronologically
+        def parse_date(date_str):
+            try:
+                from datetime import datetime
+                return datetime.strptime(date_str, "%d.%m.%Y")
+            except:
+                return datetime.min
+        
+        sorted_dates.sort(key=parse_date)
+        
+        # Add unknown dates at the end
+        all_dates = sorted_dates + unknown_dates
+        
+        for date in all_dates:
+            if date == 'unknown':
+                # For files without date, just add emojis
+                emojis = [get_emoji_number(i) for i in date_groups[date]]
+                caption_lines.append(" ".join(emojis))
+            else:
+                emojis = [get_emoji_number(i) for i in date_groups[date]]
+                caption_lines.append(" ".join(emojis) + f" {date}")
+        
+        # Add profile and site hashtags
+        hashtags = []
+        if profile_name:
+            hashtags.append(f"#{profile_name}")
+        if site_name:
+            hashtags.append(f"#{site_name}")
+        if hashtags:
+            caption_lines.append(" ".join(hashtags))
+        
+        # Add user tags if any
+        if tags_text_norm:
+            caption_lines.append(tags_text_norm)
+        
+        # Add URL with paperclip emoji
+        caption_lines.append(f"🔗[Images URL]({url}) @{Config.BOT_NAME}")
+        
+        return "\n".join(caption_lines)
+    except Exception as e:
+        logger.error(f"Failed to create album caption with dates: {e}")
+        # Fallback to simple caption
+        return f"🔗[Images URL]({url}) @{Config.BOT_NAME}"
+
 def is_image_url(url):
     """Check if URL is likely an image URL"""
     image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.svg']
@@ -313,10 +653,10 @@ def convert_file_to_telegram_format(file_path):
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             if result.returncode == 0 and os.path.exists(output_path):
-                logger.info(f"Converted WebP to JPEG: {file_path} -> {output_path}")
+                logger.info(LoggerMsg.IMG_CONVERTED_WEBP_JPEG_LOG_MSG.format(file_path=file_path, output_path=output_path))
                 return output_path
             else:
-                logger.warning(f"Failed to convert WebP: {result.stderr}")
+                logger.warning(LoggerMsg.IMG_FAILED_CONVERT_WEBP_LOG_MSG.format(result_stderr=result.stderr))
                 return file_path
         
         # Convert WebM videos to MP4 (add thumbnail to avoid black preview)
@@ -331,10 +671,10 @@ def convert_file_to_telegram_format(file_path):
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
             if result.returncode == 0 and os.path.exists(output_path):
-                logger.info(f"Converted WebM to MP4: {file_path} -> {output_path}")
+                logger.info(LoggerMsg.IMG_CONVERTED_WEBM_MP4_LOG_MSG.format(file_path=file_path, output_path=output_path))
                 return output_path
             else:
-                logger.warning(f"Failed to convert WebM: {result.stderr}")
+                logger.warning(LoggerMsg.IMG_FAILED_CONVERT_WEBM_LOG_MSG.format(result_stderr=result.stderr))
                 return file_path
         
         # Faststart remux for MP4 to improve metadata parsing
@@ -348,10 +688,10 @@ def convert_file_to_telegram_format(file_path):
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
             if result.returncode == 0 and os.path.exists(output_path):
-                logger.info(f"Remuxed MP4 with faststart: {file_path} -> {output_path}")
+                logger.info(LoggerMsg.IMG_REMUXED_MP4_FASTSTART_LOG_MSG.format(file_path=file_path, output_path=output_path))
                 return output_path
             else:
-                logger.warning(f"Failed to remux MP4 faststart: {result.stderr}")
+                logger.warning(LoggerMsg.IMG_FAILED_REMUX_MP4_LOG_MSG.format(result_stderr=result.stderr))
                 return file_path
 
         # Convert/Remux other video formats to MP4
@@ -375,10 +715,10 @@ def convert_file_to_telegram_format(file_path):
                 ]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
             if result.returncode == 0 and os.path.exists(output_path):
-                logger.info(f"Converted {file_ext} to MP4: {file_path} -> {output_path}")
+                logger.info(LoggerMsg.IMG_CONVERTED_TO_MP4_LOG_MSG.format(file_ext=file_ext, file_path=file_path, output_path=output_path))
                 return output_path
             else:
-                logger.warning(f"Failed to convert {file_ext}: {result.stderr}")
+                logger.warning(LoggerMsg.IMG_FAILED_CONVERT_TO_MP4_LOG_MSG.format(file_ext=file_ext, result_stderr=result.stderr))
                 return file_path
         
         # Convert other unsupported image formats to JPEG
@@ -392,10 +732,10 @@ def convert_file_to_telegram_format(file_path):
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             if result.returncode == 0 and os.path.exists(output_path):
-                logger.info(f"Converted {file_ext} to JPEG: {file_path} -> {output_path}")
+                logger.info(LoggerMsg.IMG_CONVERTED_TO_JPEG_LOG_MSG.format(file_ext=file_ext, file_path=file_path, output_path=output_path))
                 return output_path
             else:
-                logger.warning(f"Failed to convert {file_ext}: {result.stderr}")
+                logger.warning(LoggerMsg.IMG_FAILED_CONVERT_TO_JPEG_LOG_MSG.format(file_ext=file_ext, result_stderr=result.stderr))
                 return file_path
         
         # No conversion needed
@@ -403,33 +743,58 @@ def convert_file_to_telegram_format(file_path):
             return file_path
             
     except subprocess.TimeoutExpired:
-        logger.error(f"Conversion timeout for {file_path}")
+        logger.error(LoggerMsg.IMG_CONVERSION_TIMEOUT_LOG_MSG.format(file_path=file_path))
         return file_path
     except Exception as e:
-        logger.error(f"Conversion error for {file_path}: {e}")
+        logger.error(LoggerMsg.IMG_CONVERSION_ERROR_LOG_MSG.format(file_path=file_path, e=e))
         return file_path
 
-@app.on_message(filters.command("img") & filters.private)
+def get_message_thread_id(message):
+    """Extract message_thread_id from message, handling fake messages with original message reference"""
+    if hasattr(message, '_is_fake_message') and hasattr(message, '_original_message') and message._original_message is not None:
+        return getattr(message._original_message, 'message_thread_id', None)
+    else:
+        return getattr(message, 'message_thread_id', None)
+
+def get_reply_message_id(message):
+    """Get the correct message ID for replies, handling fake messages with original message reference"""
+    if hasattr(message, '_is_fake_message') and hasattr(message, '_original_message') and message._original_message is not None:
+        return message._original_message.id
+    else:
+        return message.id
+
 def image_command(app, message):
     """Handle /img command for downloading images"""
-    user_id = message.chat.id
+    user_id = message.from_user.id
+    chat_id = message.chat.id
     text = message.text.strip()
+    
+    # Log the command execution
+    logger.info(f"image_command called for user {user_id} in chat {chat_id} with text: {text}")
+    # Get message_thread_id (handles fake messages)
+    message_thread_id = get_message_thread_id(message)
+    logger.info(f"[IMG DEBUG] message.chat.id={message.chat.id}, message_thread_id={message_thread_id}")
+    
+    # For fake messages, chat_id is already set correctly in fake_message
+    
     # Subscription check for non-admins
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+        logger.info(f"User {user_id} not authorized, returning")
         return
     
     # Extract URL from command
     if len(text.split()) < 2:
         # Show help if no URL provided
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔚Close", callback_data="img_help|close")]
+            [InlineKeyboardButton(Messages.COMMAND_IMAGE_HELP_CLOSE_BUTTON_MSG, callback_data="img_help|close")]
         ])
         safe_send_message(
-            user_id,
-            Config.IMG_HELP_MSG + "Also see: /audio, /vid, /help, /playlist, /settings",
+            chat_id,
+            Messages.IMG_HELP_MSG + " /audio, /vid, /help, /playlist, /settings",
             reply_markup=keyboard,
             parse_mode=enums.ParseMode.HTML,
-            reply_parameters=ReplyParameters(message_id=message.id)
+            reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
+            message=message
         )
         send_to_logger(message, LoggerMsg.IMG_HELP_SHOWN)
         return
@@ -461,15 +826,15 @@ def image_command(app, message):
     # Use common tag/url extractor to get clean URL and tags from the whole message
     try:
         parsed_url, _s, _e, _plist, user_tags, user_tags_text, _err = extract_url_range_tags(text)
-        logger.info(f"[IMG DEBUG] extract_url_range_tags result: parsed_url={parsed_url}, _s={_s}, _e={_e}, text={text}")
+        logger.info(LoggerMsg.IMG_DEBUG_EXTRACT_URL_RANGE_LOG_MSG.format(parsed_url=parsed_url, _s=_s, _e=_e, text=text))
         if parsed_url:
             url = parsed_url
             # Check if range was specified in URL*start*end format
             if _s != 1 or _e != 1:
                 manual_range = (_s, _e)
-                logger.info(f"[IMG DEBUG] Range detected: {_s}-{_e}")
+                logger.info(LoggerMsg.IMG_DEBUG_RANGE_DETECTED_LOG_MSG.format(_s=_s, _e=_e))
             else:
-                logger.info(f"[IMG DEBUG] No range detected in URL*start*end format")
+                logger.info(LoggerMsg.IMG_DEBUG_NO_RANGE_LOG_MSG)
     except Exception:
         user_tags = []
         user_tags_text = ''
@@ -502,24 +867,77 @@ def image_command(app, message):
     # Basic URL validation
     if not url.startswith(('http://', 'https://')):
         safe_send_message(
-            user_id,
-            Config.INVALID_URL_MSG,
+            chat_id,
+            Messages.INVALID_URL_MSG,
             parse_mode=enums.ParseMode.HTML,
-            reply_parameters=ReplyParameters(message_id=message.id)
+            reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
+            message=message
         )
-        send_to_logger(message, LoggerMsg.INVALID_URL_PROVIDED.format(url=url))
+        log_error_to_channel(message, LoggerMsg.INVALID_URL_PROVIDED.format(url=url), url)
         return
+    
+    # Check if user is admin
+    is_admin = int(user_id) in Config.ADMIN
+    
+    # Check range limits if manual range is specified (BEFORE cache check)
+    if manual_range:
+        # Handle case where end range is None (e.g., "1-" means from 1 to end)
+        if manual_range[1] is None:
+            # For open-ended ranges, we can't check limits here - skip validation
+            range_count = None
+        else:
+            range_count = manual_range[1] - manual_range[0] + 1
+        
+        # Only check limits if we have a specific range count
+        if range_count is not None:
+            # Use TikTok limit if URL is TikTok, otherwise use general image limit
+            if 'tiktok.com' in url.lower():
+                max_img_files = LimitsConfig.MAX_TIKTOK_COUNT
+            else:
+                max_img_files = LimitsConfig.MAX_IMG_FILES
+            # Apply group multiplier for groups/channels
+            try:
+                if message and getattr(message.chat, 'type', None) != enums.ChatType.PRIVATE:
+                    mult = getattr(LimitsConfig, 'GROUP_MULTIPLIER', 1)
+                    max_img_files = int(max_img_files * mult)
+            except Exception:
+                pass
+            
+            if range_count > max_img_files:
+                # Create alternative commands preserving the original start range
+                start_range = manual_range[0]
+                end_range = start_range + max_img_files - 1
+                suggested_command_url_format = f"{url}*{start_range}*{end_range}"
+                
+                safe_send_message(
+                    chat_id,
+                    Messages.IMG_RANGE_LIMIT_EXCEEDED_MSG.format(
+                        range_count=range_count,
+                        max_img_files=max_img_files,
+                        start_range=start_range,
+                        end_range=end_range,
+                        url=url,
+                        suggested_command_url_format=suggested_command_url_format
+                    ),
+                    parse_mode=enums.ParseMode.HTML,
+                    reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
+                    message=message
+                )
+                return
     
     # Check if user has proxy enabled
     use_proxy = is_proxy_enabled(user_id)
     
     # Send initial message
+    logger.info(f"[IMG STATUS] About to send status message to chat_id={chat_id}, message_thread_id={message_thread_id}")
     status_msg = safe_send_message(
-        user_id,
-        Config.CHECKING_CACHE_MSG.format(url=url),
+        chat_id,
+        Messages.CHECKING_CACHE_MSG.format(url=url),
         parse_mode=enums.ParseMode.HTML,
-        reply_parameters=ReplyParameters(message_id=message.id)
+        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
+        message=message
     )
+    logger.info(f"[IMG STATUS] Status message sent, ID={status_msg.id if status_msg else 'None'}")
     # Pin the status message for visibility
     try:
         app.pin_chat_message(user_id, status_msg.id, disable_notification=True)
@@ -549,8 +967,12 @@ def image_command(app, message):
                     requested_indices = [i for i in cached_all if i >= int(start_i)]
             cached_map = get_cached_image_posts(url, requested_indices)
         except Exception as e:
-            logger.error(f"Error getting cached image posts: {e}")
+            logger.error(LoggerMsg.IMG_ERROR_GET_CACHED_POSTS_LOG_MSG.format(e=e))
             cached_map = {}
+    
+    # Process cached content and determine if we need to download more
+    cached_sent = 0
+    need_download = True
     
     try:
         if cached_map:
@@ -558,69 +980,81 @@ def image_command(app, message):
                 ids = cached_map[album_idx]
                 try:
                     kwargs = {}
-                    thread_id = getattr(message, 'message_thread_id', None)
+                    thread_id = message_thread_id
                     if thread_id:
                         kwargs['message_thread_id'] = thread_id
                     # For cached content, always use regular channel (no NSFW/PAID in cache)
                     from_chat_id = get_log_channel("image")
                     channel_type = "regular"
                     
-                    logger.info(f"[IMG CACHE] Reposting album {album_idx} from channel {from_chat_id} to user {user_id}, message_ids={ids}")
-                    sm.safe_forward_messages(user_id, from_chat_id, ids, **kwargs)
+                    logger.info(LoggerMsg.IMG_CACHE_REPOSTING_ALBUM_LOG_MSG.format(album_idx=album_idx, from_chat_id=from_chat_id, user_id=user_id, ids=ids))
+                    sm.safe_forward_messages(chat_id, from_chat_id, ids, **kwargs)
+                    cached_sent += len(ids)
                 except Exception:
-                    logger.info(f"[IMG CACHE] Fallback reposting album {album_idx} from channel {from_chat_id} to user {user_id}, message_ids={ids}")
-                    app.forward_messages(user_id, from_chat_id, ids, **kwargs)
+                    logger.info(LoggerMsg.IMG_CACHE_FALLBACK_REPOSTING_LOG_MSG.format(album_idx=album_idx, from_chat_id=from_chat_id, user_id=user_id, ids=ids))
+                    app.forward_messages(chat_id, from_chat_id, ids, **kwargs)
+                    cached_sent += len(ids)
                 except Exception as _e:
-                    logger.warning(f"Failed to forward cached album {album_idx}: {_e}")
+                    logger.warning(LoggerMsg.IMG_CACHE_FAILED_FORWARD_ALBUM_LOG_MSG.format(album_idx=album_idx, _e=_e))
             
-            try:
-                safe_edit_message_text(
-                    user_id, status_msg.id,
-                    Config.SENT_FROM_CACHE_MSG.format(count=len(cached_map)),
-                    parse_mode=enums.ParseMode.HTML,
-                )
-            except Exception:
-                pass
-            send_to_logger(message, LoggerMsg.REPOSTED_CACHED_ALBUMS.format(count=len(cached_map), url=url))
-            return
+            # Check if we have all requested content in cache
+            if manual_range is not None:
+                start_i, end_i = manual_range
+                if end_i is not None:
+                    requested_count = end_i - start_i + 1
+                    if cached_sent >= requested_count:
+                        # We have all requested content in cache
+                        need_download = False
+                        try:
+                            safe_edit_message_text(
+                                user_id, status_msg.id,
+                                Messages.SENT_FROM_CACHE_MSG.format(count=cached_sent),
+                                parse_mode=enums.ParseMode.HTML,
+                            )
+                        except Exception:
+                            pass
+                        send_to_logger(message, LoggerMsg.REPOSTED_CACHED_ALBUMS.format(count=cached_sent, url=url))
+                        return
+                    else:
+                        # We have partial content, need to download the rest
+                        logger.info(f"Cache has {cached_sent} items, need {requested_count}, downloading remaining {requested_count - cached_sent}")
+                        # Update manual_range to start from where cache ends
+                        remaining_start = start_i + cached_sent
+                        manual_range = (remaining_start, end_i)
+                        try:
+                            safe_edit_message_text(
+                                user_id, status_msg.id,
+                                f"✅ Sent from cache: {cached_sent}\n🔄 Downloading remaining...",
+                                parse_mode=enums.ParseMode.HTML,
+                            )
+                        except Exception:
+                            pass
+                else:
+                    # Open-ended range, continue downloading
+                    try:
+                        safe_edit_message_text(
+                            user_id, status_msg.id,
+                            f"✅ Sent from cache: {cached_sent}\n🔄 Downloading more...",
+                            parse_mode=enums.ParseMode.HTML,
+                        )
+                    except Exception:
+                        pass
+            else:
+                # No manual range, we have some cached content, continue downloading
+                try:
+                    safe_edit_message_text(
+                        user_id, status_msg.id,
+                        f"✅ Sent from cache: {cached_sent}\n🔄 Downloading more...",
+                        parse_mode=enums.ParseMode.HTML,
+                    )
+                except Exception:
+                    pass
     except Exception as _e:
-        logger.warning(f"Image cache forward (early) failed: {_e}")
+        logger.warning(LoggerMsg.IMG_CACHE_FORWARD_EARLY_FAILED_LOG_MSG.format(_e=_e))
     
-    # Check if user is admin
-    is_admin = int(user_id) in Config.ADMIN
-    
-    # Check range limits if manual range is specified (before URL analysis)
-    if manual_range:
-        range_count = manual_range[1] - manual_range[0] + 1
-        # Use TikTok limit if URL is TikTok, otherwise use general image limit
-        if 'tiktok.com' in url.lower():
-            max_img_files = LimitsConfig.MAX_TIKTOK_COUNT
-        else:
-            max_img_files = LimitsConfig.MAX_IMG_FILES
-        # Apply group multiplier for groups/channels
-        try:
-            if message and getattr(message.chat, 'type', None) != enums.ChatType.PRIVATE:
-                mult = getattr(LimitsConfig, 'GROUP_MULTIPLIER', 1)
-                max_img_files = int(max_img_files * mult)
-        except Exception:
-            pass
-        
-        if range_count > max_img_files:
-            # Create alternative commands preserving the original start range
-            start_range = manual_range[0]
-            end_range = start_range + max_img_files - 1
-            suggested_command_url_format = f"{url}*{start_range}*{end_range}"
-            
-            safe_send_message(
-                user_id,
-                f"❗️ Range limit exceeded: {range_count} files requested (maximum {max_img_files}).\n\n"
-                f"Use one of these commands to download maximum available files:\n\n"
-                f"<code>/img {start_range}-{end_range} {url}</code>\n\n"
-                f"<code>/img {suggested_command_url_format}</code>",
-                parse_mode=enums.ParseMode.HTML,
-                reply_parameters=ReplyParameters(message_id=message.id)
-            )
-            return
+    # If we don't need to download more, return
+    if not need_download:
+        return
     
     try:
         # Get image information first
@@ -639,15 +1073,59 @@ def image_command(app, message):
         # Respect explicit user tags overriding detection
         nsfw_flag = user_forced_nsfw or nsfw_detected
         
+        # Get detected_total value safely
+        detected_total_value = locals().get('detected_total', None)
+        
         if not image_info:
-            safe_edit_message_text(
-                user_id, status_msg.id,
-                Config.FAILED_ANALYZE_MSG.format(url=url) +
-                "The URL might not be accessible or not contain a valid image.",
-                parse_mode=enums.ParseMode.HTML
-            )
-            send_to_logger(message, LoggerMsg.FAILED_ANALYZE_IMAGE.format(url=url))
-            return
+            # If we have detected_total but no image_info, create a minimal info object
+            if detected_total_value and detected_total_value > 0:
+                logger.info(f"Creating minimal image_info for {detected_total_value} media items")
+                image_info = {
+                    'title': f'Media Collection ({detected_total_value} items)',
+                    'description': f'Found {detected_total_value} media items',
+                    'url': url
+                }
+            else:
+                # Fallback: if no image_info and no detected_total, use max allowed range
+                # BUT ONLY if manual_range is not already set by user
+                if manual_range is None:
+                    # Calculate total_limit for fallback
+                    fallback_limit = LimitsConfig.MAX_IMG_FILES
+                    try:
+                        if message and getattr(message.chat, 'type', None) != enums.ChatType.PRIVATE:
+                            mult = getattr(LimitsConfig, 'GROUP_MULTIPLIER', 1)
+                            fallback_limit = int(fallback_limit * mult)
+                    except Exception:
+                        pass
+                    
+                    logger.info(f"[IMG FALLBACK] No image_info and no detected_total, using fallback with max range: {fallback_limit}")
+                    
+                    # Update status message to show we're proceeding with fallback
+                    safe_edit_message_text(
+                        user_id, status_msg.id,
+                        f"🔄 Could not analyze media, proceeding with maximum allowed range (1-{fallback_limit})...",
+                        parse_mode=enums.ParseMode.HTML
+                    )
+                    
+                    # Set manual range to max allowed range for fallback
+                    manual_range = (1, fallback_limit)
+                    logger.info(f"[IMG FALLBACK] Using manual range for fallback: {manual_range}")
+                    
+                    # Create minimal image_info for fallback
+                    image_info = {
+                        'title': f'Media Collection (up to {fallback_limit} items)',
+                        'description': f'Fallback mode - downloading up to {fallback_limit} items',
+                        'url': url
+                    }
+                else:
+                    # User already specified a range, don't override it
+                    logger.info(f"[IMG FALLBACK] User specified range {manual_range}, not overriding with fallback")
+                    # Create minimal image_info for user-specified range
+                    image_info = {
+                        'title': f'Media Collection (range {manual_range[0]}-{manual_range[1] if manual_range[1] else "end"})',
+                        'description': f'User-specified range: {manual_range[0]}-{manual_range[1] if manual_range[1] else "end"}',
+                        'url': url
+                    }
         
         # Update status message
         title = image_info.get('title', 'Unknown')
@@ -655,7 +1133,8 @@ def image_command(app, message):
             user_id, status_msg.id,
             Config.DOWNLOADING_IMAGE_MSG +
             f"<b>Title:</b> {title}\n"
-            f"<b>URL:</b> <code>{url}</code>",
+            f"<b>URL:</b> <code>{url}</code>\n"
+            f"<b>Media count:</b> {detected_total_value if detected_total_value else 'Unknown'}",
             parse_mode=enums.ParseMode.HTML
         )
         
@@ -672,13 +1151,162 @@ def image_command(app, message):
                 total_limit = int(total_limit * mult)
         except Exception:
             pass
-            
-        logger.info(f"[IMG] User {user_id} is admin: {is_admin}, limit: {'unlimited' if is_admin else total_limit}")
         
-        # Determine expected total via --get-urls analog
-        detected_total = None
-        if manual_range is None or manual_range[1] is None:
-            detected_total = get_total_media_count(url, user_id, use_proxy)
+        # Check if domain should skip simulation and go to fallback (before any other logic)
+        should_skip_simulation = any(domain in url.lower() for domain in DomainsConfig.GALLERYDL_FALLBACK_DOMAINS)
+        
+        # If manual range specified, skip simulation and counting - work directly with range
+        if manual_range is not None:
+            logger.info(f"[IMG MANUAL RANGE] User specified range {manual_range}, skipping simulation and counting")
+            # Skip all simulation and counting logic, go directly to download
+        else:
+            # If no manual range specified, show range selection menu
+            logger.info(f"[IMG RANGE DEBUG] manual_range={manual_range}, will show range menu: {manual_range is None}")
+            # Get total count from image_info
+            total_count = None
+            for key in ("count", "total", "num", "items", "files", "num_images", "images_count"):
+                if isinstance(image_info.get(key), int) and image_info.get(key) > 0:
+                    total_count = image_info.get(key)
+                    break
+            
+            if total_count is None or total_count <= 0:
+                # Try to get count via gallery-dl (already imported at top of file)
+                try:
+                    count_info = get_image_info(url, user_id, use_proxy)
+                    if count_info:
+                        for key in ("count", "total", "num", "items", "files", "num_images", "images_count"):
+                            if isinstance(count_info.get(key), int) and count_info.get(key) > 0:
+                                total_count = count_info.get(key)
+                                break
+                except Exception:
+                    pass
+            
+            if total_count is None or total_count <= 0:
+                # Fallback: try to get count via gallery-dl CLI
+                try:
+                    import subprocess
+                    import tempfile
+                    import json
+                    
+                    # Create temp config
+                    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                        config = {
+                            "extractor": {"timeout": 30, "retries": 3},
+                            "output": {"mode": "info"}
+                        }
+                        json.dump(config, f)
+                        config_path = f.name
+                    
+                    try:
+                        # Get count via --get-urls
+                        result = subprocess.run([
+                            '/mnt/c/Users/chelaxian/Desktop/tg-ytdlp-NEW/venv/bin/python', '-m', 'gallery_dl',
+                            '--config', config_path, '--get-urls', url
+                        ], capture_output=True, text=True, timeout=30)
+                        
+                        if result.returncode == 0:
+                            lines = result.stdout.strip().split('\n')
+                            total_count = len([line for line in lines if line.strip() and not line.startswith('#')])
+                    finally:
+                        os.unlink(config_path)
+                except Exception:
+                    pass
+            
+            if total_count is None or total_count <= 0:
+                # Still no count, use fallback - start downloading with max allowed range
+                logger.info(f"[IMG RANGE DEBUG] Could not determine media count, using fallback with max range: {total_limit}")
+                
+                # Update status message to show we're proceeding with fallback
+                safe_edit_message_text(
+                    user_id, status_msg.id,
+                    f"🔄 Could not determine media count, proceeding with maximum allowed range (1-{total_limit})...",
+                    parse_mode=enums.ParseMode.HTML
+                )
+                
+                # Set manual range to max allowed range for fallback
+                manual_range = (1, total_limit)
+                logger.info(f"[IMG FALLBACK] Using manual range for fallback: {manual_range}")
+            
+            # Create range selection menu only if we have a valid count
+            if total_count and total_count > 0:
+                logger.info(f"[IMG RANGE DEBUG] Creating range buttons: total_count={total_count}, total_limit={total_limit}")
+                
+                # Calculate ranges based on total_count and limits
+            ranges = []
+            current_start = 1
+            batch_size = total_limit
+            
+            while current_start <= total_count:
+                current_end = min(current_start + batch_size - 1, total_count)
+                ranges.append((current_start, current_end))
+                current_start = current_end + 1
+            
+            logger.info(f"[IMG RANGE DEBUG] Created {len(ranges)} range buttons: {ranges}")
+            
+            # Create keyboard
+            keyboard = []
+            for start, end in ranges:
+                if end == total_count and start == 1:
+                    # Single range covering all
+                    button_text = f"📥 Download all ({total_count})"
+                else:
+                    button_text = f"📥 {start}-{end} ({end - start + 1})"
+                
+                callback_data = f"img_range|{start}|{end}|{url}"
+                keyboard.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
+            
+                # Add cancel button
+                keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data="img_range|cancel")])
+                
+                safe_edit_message_text(
+                    user_id, status_msg.id,
+                    f"📊 Found <b>{total_count}</b> media items from the link\n\n"
+                    f"Select download range:",
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    parse_mode=enums.ParseMode.HTML
+                )
+                return
+            else:
+                # Fallback case - we already set manual_range above
+                logger.info(f"[IMG FALLBACK] Skipping range menu creation, using manual_range: {manual_range}")
+            
+        limit_text = 'unlimited' if is_admin else total_limit
+        logger.info(LoggerMsg.IMG_USER_ADMIN_LIMIT_LOG_MSG.format(user_id=user_id, is_admin=is_admin, limit_text=limit_text))
+        
+        # Check if domain should skip simulation and go to fallback (BEFORE any other logic)
+        if should_skip_simulation and manual_range is None:
+            logger.info(f"[IMG FALLBACK DOMAIN] Domain in GALLERYDL_FALLBACK_DOMAINS, skipping simulation, using fallback")
+            # Use fallback immediately for these domains
+            fallback_limit = LimitsConfig.MAX_IMG_FILES
+            try:
+                if message and getattr(message.chat, 'type', None) != enums.ChatType.PRIVATE:
+                    mult = getattr(LimitsConfig, 'GROUP_MULTIPLIER', 1)
+                    fallback_limit = int(fallback_limit * mult)
+            except Exception:
+                pass
+            
+            # Set manual range to max allowed range for fallback
+            manual_range = (1, fallback_limit)
+            logger.info(f"[IMG FALLBACK DOMAIN] Using manual range for fallback: {manual_range}")
+            
+            # Create minimal image_info for fallback
+            image_info = {
+                'title': f'Media Collection (up to {fallback_limit} items)',
+                'description': f'Fallback mode - downloading up to {fallback_limit} items',
+                'url': url
+            }
+            
+            # Skip total detection for fallback domains
+            detected_total = None
+        else:
+            # Determine expected total via --get-urls analog
+            detected_total = None
+            if manual_range is None:
+                detected_total = get_total_media_count(url, user_id, use_proxy)
+            else:
+                # If manual range is specified, skip total detection and proceed with download
+                logger.info(f"[IMG MANUAL RANGE] Skipping total detection, using manual range: {manual_range}")
+                detected_total = None  # Will be handled by fallback logic later
         
         # Check limits after detecting total media count
         if detected_total and detected_total > 0:
@@ -708,27 +1336,44 @@ def image_command(app, message):
                 suggested_command_url_format = f"{url}*{start_range}*{end_range}"
                 
                 safe_send_message(
-                    user_id,
-                    f"❗️ Media limit exceeded: {detected_total} files found (maximum {max_img_files}).\n\n"
-                    f"Use one of these commands to download maximum available files:\n\n"
-                    f"<code>/img {start_range}-{end_range} {url}</code>\n\n"
+                    chat_id,
+                    Messages.COMMAND_IMAGE_MEDIA_LIMIT_EXCEEDED_MSG.format(count=detected_total, max_count=max_img_files, start_range=start_range, end_range=end_range, url=url, suggested_command_url_format=f"/img {start_range}-{end_range} {url}") +
                     f"<code>{suggested_command_url_format}</code>",
                     parse_mode=enums.ParseMode.HTML,
-                    reply_parameters=ReplyParameters(message_id=message.id)
+                    reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
+                    message=message
                 )
                 return
             
             total_expected = min(detected_total, max_img_files)
         elif detected_total and detected_total > 0:
             total_expected = detected_total
+        # Pre-cleanup: remove all media files from user directory before starting
+        try:
+            logger.info(LoggerMsg.IMG_PRE_CLEANUP_START_LOG_MSG.format(user_id=user_id))
+            from HELPERS.filesystem_hlp import remove_media
+            remove_media(message)  # This will respect protection files for parallel downloads
+            logger.info(LoggerMsg.IMG_PRE_CLEANUP_COMPLETED_LOG_MSG)
+        except Exception as e:
+            logger.warning(LoggerMsg.IMG_PRE_CLEANUP_FAILED_LOG_MSG.format(e=e))
+
         # Streaming download: run range-based batches (1-10, 11-20, ...) scoped to a unique per-run directory
-        run_dir = os.path.join("users", str(user_id), f"run_{int(time.time())}")
+        run_dir = create_unique_download_path(user_id, url)
         create_directory(run_dir)
+        
+        # Create protection file for parallel downloads
+        from HELPERS.filesystem_hlp import is_parallel_download_allowed, create_protection_file
+        if is_parallel_download_allowed(message):
+            create_protection_file(run_dir)
+        
         files_to_cleanup = []
 
         # We'll not start full download thread; we'll pull ranges to enforce batching
 
         batch_size = 10
+        # If total is small (<=10), download all at once without batching
+        if detected_total and detected_total <= 10:
+            batch_size = detected_total
         sent_message_ids = []
         seen_files = set()
         photos_videos_buffer = []  # store (converted_path, type, original_path)
@@ -766,38 +1411,181 @@ def image_command(app, message):
         # Seed current_start and upper bound from manual range if provided
         current_start = 1
         manual_end_cap = None
+        # Removed failed_attempts logic - using only timeout-based stopping
         if manual_range is not None:
             current_start = manual_range[0]
             # Upper cap: if user provided end, respect it (but not above limit for non-admins)
             if manual_range[1] is not None:
                 manual_end_cap = manual_range[1] if is_admin else min(manual_range[1], total_limit)
-                total_expected = manual_end_cap  # show as expected
+                # Calculate correct expected count for range (end - start + 1)
+                total_expected = manual_end_cap - current_start + 1
+        
+        # For small totals, set end cap to avoid range issues
+        if detected_total and detected_total <= 10 and manual_range is None:
+            manual_end_cap = detected_total
+            total_expected = detected_total
+            logger.info(LoggerMsg.IMG_BATCH_SMALL_TOTAL_LOG_MSG.format(detected_total=detected_total, manual_end_cap=manual_end_cap))
+        
+        # Fallback: if no total detected but manual range specified, use the range
+        if manual_range is not None and total_expected is None:
+            if manual_range[1] is not None:
+                total_expected = manual_range[1] - manual_range[0] + 1
+            else:
+                # Open-ended range, use a reasonable default
+                total_expected = total_limit
+            logger.info(f"[IMG FALLBACK] Using manual range for total_expected: {total_expected}")
+            
+            # Update status message to show we're proceeding with manual range
+            try:
+                safe_edit_message_text(
+                    user_id, status_msg.id,
+                    f"🔄 Could not determine total media count, proceeding with specified range {manual_range[0]}-{manual_range[1] if manual_range[1] else 'end'}...",
+                    parse_mode=enums.ParseMode.HTML
+                )
+            except Exception as e:
+                logger.warning(f"Failed to update status message: {e}")
+        # Timeout tracking variables
+        range_start_time = time.time()
+        max_range_wait_time = LimitsConfig.MAX_IMG_RANGE_WAIT_TIME
+        max_total_wait_time = LimitsConfig.MAX_IMG_TOTAL_WAIT_TIME
+        total_start_time = time.time()
+        last_activity_time = time.time()  # Track last time we found new files
+        max_inactivity_time = LimitsConfig.MAX_IMG_INACTIVITY_TIME
+        
         # helper to run one range and wait for files to appear
         def run_and_collect(next_end: int):
-            range_expr = f"{current_start}-{next_end}"
-            # Prefer CLI to enforce strict range behavior across gallery-dl versions
-            logger.info(f"Prepared range: {range_expr}")
-            ok = download_image_range_cli(url, range_expr, user_id, use_proxy, output_dir=run_dir)
-            if not ok:
-                logger.warning(f"CLI range download failed or rejected for {range_expr}, trying Python API.")
-                return download_image_range(url, range_expr, user_id, use_proxy, run_dir)
+            # For single item or when total is small, use range 1-1 to avoid API issues
+            # Only use 1-1 when we're actually starting from 1 and it's a single item
+            if (current_start == next_end and current_start == 1) or (detected_total and detected_total <= 10 and current_start == 1):
+                logger.info(LoggerMsg.IMG_DOWNLOADING_RANGE_1_1_LOG_MSG.format(detected_total=detected_total, current_start=current_start, next_end=next_end))
+                result = download_image_range_cli(url, "1-1", user_id, use_proxy, output_dir=run_dir)
+                if isinstance(result, str):  # 401 Unauthorized error message
+                    return result
+                if not result:
+                    logger.warning(LoggerMsg.IMG_CLI_DOWNLOAD_FAILED_LOG_MSG)
+                    result = download_image_range(url, "1-1", user_id, use_proxy, run_dir)
+                    if isinstance(result, str):  # 401 Unauthorized error message
+                        return result
+                    return result
+            else:
+                range_expr = f"{current_start}-{next_end}"
+                # Prefer CLI to enforce strict range behavior across gallery-dl versions
+                logger.info(LoggerMsg.IMG_PREPARED_RANGE_LOG_MSG.format(range_expr=range_expr))
+                result = download_image_range_cli(url, range_expr, user_id, use_proxy, output_dir=run_dir)
+                if isinstance(result, str):  # 401 Unauthorized error message
+                    return result
+                if not result:
+                    logger.warning(LoggerMsg.IMG_CLI_RANGE_FAILED_LOG_MSG.format(range_expr=range_expr))
+                    result = download_image_range(url, range_expr, user_id, use_proxy, run_dir)
+                    if isinstance(result, str):  # 401 Unauthorized error message
+                        return result
+                    return result
             return True
 
+        consecutive_empty_searches = 0  # Counter for consecutive searches with no new files
+        max_consecutive_empty_searches = 3  # Exit after 3 consecutive searches with no new files
+        
         while True:
-            # If buffer has room for a new batch, trigger next range
-            if len(photos_videos_buffer) < batch_size:
+            # Check total timeout
+            total_elapsed = time.time() - total_start_time
+            if total_elapsed > max_total_wait_time:
+                logger.warning(LoggerMsg.IMG_BATCH_TOTAL_TIMEOUT_LOG_MSG.format(max_total_wait_time=max_total_wait_time, total_elapsed=total_elapsed))
+                break
+                
+            # Check inactivity timeout - if no new files found for too long
+            inactivity_elapsed = time.time() - last_activity_time
+            if inactivity_elapsed > max_inactivity_time:
+                logger.warning(LoggerMsg.IMG_BATCH_INACTIVITY_TIMEOUT_LOG_MSG.format(max_inactivity_time=max_inactivity_time, inactivity_elapsed=inactivity_elapsed))
+                break
+                
+            # Only download next range if buffer is empty (strict batching)
+            if len(photos_videos_buffer) == 0:
                 upper_cap = manual_end_cap or total_expected
                 if upper_cap and current_start > upper_cap:
-                    pass
+                    break
                 else:
                     next_end = current_start + batch_size - 1
                     if upper_cap:
                         next_end = min(next_end, upper_cap)
-                    run_and_collect(next_end)
+                    logger.info(LoggerMsg.IMG_BATCH_STARTING_DOWNLOAD_RANGE_LOG_MSG.format(current_start=current_start, next_end=next_end))
+                    
+                    # Reset range timer
+                    range_start_time = time.time()
+                    
+                    # Count files before download
+                    files_before = len(seen_files)
+                    result = run_and_collect(next_end)
+                    
+                    # Check for fatal errors
+                    if isinstance(result, str) and ":" in result and any(error_type in result for error_type in [
+                        "Authentication Error", "Account Not Found", "Account Unavailable", 
+                        "Rate Limit Exceeded", "Network Error", "Content Unavailable",
+                        "Geographic Restrictions", "Verification Required", "Policy Violation"
+                    ]):
+                        logger.error(LoggerMsg.IMG_FATAL_ERROR_DETECTED_LOG_MSG.format(result=result))
+                        # Send error message to user and stop downloading
+                        safe_edit_message_text(
+                            user_id, status_msg.id,
+                            Messages.IMG_INSTAGRAM_AUTH_ERROR_MSG.format(
+                                error_type=result.split(':')[0],
+                                url=url,
+                                error_details=result.split(':', 1)[1].strip()
+                            ),
+                            parse_mode=enums.ParseMode.HTML
+                        )
+                        log_error_to_channel(message, f"Fatal error in image download: {result}", url)
+                        return
+                    
+                    # Wait for download to complete before processing files
+                    time.sleep(2)
+                    
+                    # Give additional time for file processing if this is the first range
+                    if current_start == 1:
+                        time.sleep(3)  # Extra wait for first range
+                    
+                    # Count files after download
+                    files_after = len(seen_files)
+                    files_downloaded_in_range = files_after - files_before
+                    expected_files = next_end - current_start + 1
+                    
+                    elapsed_time = time.time() - range_start_time
+                    logger.info(LoggerMsg.IMG_BATCH_DOWNLOADED_FILES_LOG_MSG.format(files_downloaded_in_range=files_downloaded_in_range, current_start=current_start, next_end=next_end, expected_files=expected_files, elapsed_time=elapsed_time))
+                    
+                    # Check if we got no files at all (gallery-dl found nothing)
+                    # Always proceed to file search - don't break early
+                    if files_downloaded_in_range == 0:
+                        logger.info(LoggerMsg.IMG_BATCH_NO_FILES_DOWNLOADED_LOG_MSG.format(current_start=current_start, next_end=next_end))
+                        # Move to next range to continue downloading
+                        current_start = next_end + 1
+                    else:
+                        logger.info(LoggerMsg.IMG_BATCH_FOUND_FILES_LOG_MSG.format(files_downloaded_in_range=files_downloaded_in_range))
+                        # Move to next range to continue downloading
+                        current_start = next_end + 1
+                    
+                    # Check if we got significantly fewer files than expected (less than 50% of expected)
+                    # This indicates the media has ended
+                    if files_downloaded_in_range < expected_files * 0.5 and files_downloaded_in_range > 0:
+                        logger.info(LoggerMsg.IMG_BATCH_MEDIA_ENDED_LOG_MSG.format(files_downloaded_in_range=files_downloaded_in_range, expected_files=expected_files))
+                        # Move to next range to continue downloading
+                        current_start = next_end + 1
+                    
                     current_start = next_end + 1
-            # Find new files
-            if os.path.exists(gallery_dl_dir):
-                for root, _, files in os.walk(gallery_dl_dir):
+            
+            # Find new files - search in the actual download directory structure
+            # gallery-dl creates subdirectories like instagram/username/ so we need to search deeper
+            search_dir = gallery_dl_dir
+            logger.info(LoggerMsg.IMG_BATCH_SEARCHING_FILES_LOG_MSG.format(search_dir=search_dir))
+            
+            files_found_in_this_search = 0  # Count files found in this search iteration
+            
+            if os.path.exists(search_dir):
+                # Debug: list all subdirectories
+                for root, dirs, files in os.walk(search_dir):
+                    if files:
+                        logger.info(LoggerMsg.IMG_BATCH_FOUND_FILES_IN_DIR_LOG_MSG.format(file_count=len(files), root=root))
+                    if dirs:
+                        logger.info(LoggerMsg.IMG_BATCH_FOUND_SUBDIRS_LOG_MSG.format(dirs=dirs))
+                for root, _, files in os.walk(search_dir):
                     for file in files:
                         file_path = os.path.join(root, file)
                         # Skip special thumbs/covers generated for Telegram
@@ -820,11 +1608,14 @@ def image_command(app, message):
                         # Skip incomplete/zero-byte files
                         try:
                             if os.path.getsize(file_path) == 0:
+                                logger.info(LoggerMsg.IMG_BATCH_SKIPPING_ZERO_FILE_LOG_MSG.format(file_path=file_path))
                                 continue
                         except Exception:
                             continue
                         seen_files.add(file_path)
                         total_downloaded += 1
+                        files_found_in_this_search += 1  # Count files found in this search
+                        last_activity_time = time.time()  # Update activity time when we find new files
 
                         # Enforce cap (but not for admins)
                         if not is_admin and total_downloaded > total_limit:
@@ -852,6 +1643,9 @@ def image_command(app, message):
                                 photos_videos_buffer.append((converted, 'video', original_path))
                         else:
                             others_buffer.append((converted, original_path))
+                        
+                        # Don't delete files immediately - wait until after sending
+                        # This prevents Telegram from not finding files to send
 
                         # Send status occasionally
                         now = time.time()
@@ -859,7 +1653,7 @@ def image_command(app, message):
                             update_status()
                             last_status_update = now
 
-                        # If we have 10 media for album, send
+                        # If we have 10 media for album, send immediately (strict batching)
                         if len(photos_videos_buffer) >= batch_size:
                             media_group = []
                             group_items = photos_videos_buffer[:batch_size]
@@ -904,13 +1698,13 @@ def image_command(app, message):
                                 original_chat_id = getattr(message, '_original_chat_id', user_id)
                                 # Если chat_id начинается с -100, это группа/канал (не приватный чат)
                                 is_private_chat = not (str(original_chat_id).startswith('-100') or str(original_chat_id).startswith('-'))
-                                logger.info(f"[IMG MAIN] FAKE MESSAGE DETECTED - original_chat_id={original_chat_id}, is_private_chat={is_private_chat}")
-                            logger.info(f"[IMG MAIN] nsfw_flag={nsfw_flag}, is_private_chat={is_private_chat}, media_group_len={len(media_group)}")
+                                logger.info(LoggerMsg.IMG_MAIN_FAKE_MESSAGE_LOG_MSG.format(original_chat_id=original_chat_id, is_private_chat=is_private_chat))
+                            logger.info(LoggerMsg.IMG_MAIN_NSFW_FLAG_LOG_MSG.format(nsfw_flag=nsfw_flag, is_private_chat=is_private_chat, media_group_len=len(media_group)))
                             
                             # MAIN SENDING LOGIC - separate try-catch to prevent logging errors from triggering fallback
                             try:
                                 if nsfw_flag and is_private_chat:
-                                    logger.info(f"[IMG MAIN] Entering paid media logic for {len(media_group)} items")
+                                    logger.info(LoggerMsg.IMG_MAIN_PAID_LOGIC_LOG_MSG.format(item_count=len(media_group)))
                                     # Send as paid media album (up to 10 media files)
                                     try:
                                         # Convert media group to paid media format
@@ -936,19 +1730,19 @@ def image_command(app, message):
                                                     paid_media_list.append(InputPaidMediaVideo(media=media_path))
                                         
                                         # Send as single paid media album
-                                        logger.info(f"[IMG PAID] Sending paid media album with {len(paid_media_list)} items")
-                                        logger.info(f"[IMG PAID] Media types: {[type(item).__name__ for item in paid_media_list]}")
+                                        logger.info(LoggerMsg.IMG_PAID_SENDING_ALBUM_LOG_MSG.format(item_count=len(paid_media_list)))
+                                        logger.info(LoggerMsg.IMG_PAID_MEDIA_TYPES_LOG_MSG.format(media_types=[type(item).__name__ for item in paid_media_list]))
                                         # Try to send as album first, if that fails, send individually
                                         try:
-                                            logger.info(f"[IMG PAID] Attempting to send album with {len(paid_media_list)} items to user {user_id}")
-                                            logger.info(f"[IMG PAID] Album details: star_count={LimitsConfig.NSFW_STAR_COST}, payload={Config.STAR_RECEIVER}")
+                                            logger.info(LoggerMsg.IMG_PAID_ATTEMPTING_ALBUM_LOG_MSG.format(item_count=len(paid_media_list), user_id=user_id))
+                                            logger.info(LoggerMsg.IMG_PAID_ALBUM_DETAILS_LOG_MSG.format(star_count=LimitsConfig.NSFW_STAR_COST, payload=Config.STAR_RECEIVER))
                                             
                                             paid_msg = app.send_paid_media(
                                                 user_id,
                                                 media=paid_media_list,
                                                 star_count=LimitsConfig.NSFW_STAR_COST,
                                                 payload=str(Config.STAR_RECEIVER),
-                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                             )
                                             
                                             logger.info(f"[IMG PAID] SUCCESS: send_paid_media returned: {type(paid_msg)}")
@@ -976,7 +1770,7 @@ def image_command(app, message):
                                                         media=[paid_media],
                                                         star_count=LimitsConfig.NSFW_STAR_COST,
                                                         payload=str(Config.STAR_RECEIVER),
-                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                     )
                                                     if isinstance(individual_msg, list):
                                                         sent.extend(individual_msg)
@@ -1026,14 +1820,14 @@ def image_command(app, message):
                                                 open_sent = app.send_media_group(
                                                     chat_id=log_channel_nsfw,
                                                     media=open_media_group,
-                                                    reply_parameters=ReplyParameters(message_id=message.id)
+                                                    reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                 )
                                                 logger.info(f"[IMG LOG] Open copy album sent to LOGS_NSFW_ID for history: {len(open_media_group)} items")
                                         except Exception as e:
                                             logger.error(f"[IMG LOG] Failed to send open copy album to LOGS_NSFW_ID: {e}")
                                             
                                     except Exception as e:
-                                        logger.error(f"Failed to send paid media album: {e}")
+                                        logger.error(LoggerMsg.IMG_FAILED_SEND_PAID_MEDIA_ALBUM_LOG_MSG.format(e=e))
                                         # Send as paid media album with fallback to individual with grouping
                                         sent = []
                                         logger.info(f"[IMG MAIN FALLBACK] Attempting to send {len(media_group)} media as paid album")
@@ -1070,7 +1864,7 @@ def image_command(app, message):
                                                 media=paid_media_list,
                                                 star_count=LimitsConfig.NSFW_STAR_COST,
                                                 payload=str(Config.STAR_RECEIVER),
-                                                    reply_parameters=ReplyParameters(message_id=message.id)
+                                                    reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                 )
                                             
                                             logger.info(f"[IMG MAIN FALLBACK] SUCCESS: send_paid_media returned: {type(paid_msg)}")
@@ -1098,7 +1892,7 @@ def image_command(app, message):
                                                         media=[paid_media],
                                                         star_count=LimitsConfig.NSFW_STAR_COST,
                                                         payload=str(Config.STAR_RECEIVER),
-                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                     )
                                                     if isinstance(individual_msg, list):
                                                         sent.extend(individual_msg)
@@ -1137,7 +1931,7 @@ def image_command(app, message):
                                             open_sent = app.send_media_group(
                                                 chat_id=log_channel_nsfw,
                                                 media=open_media_group,
-                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                             )
                                             logger.info(f"[IMG LOG] Open copy album sent to NSFW channel for history: {len(open_media_group)} items")
                                         except Exception as e:
@@ -1154,12 +1948,10 @@ def image_command(app, message):
                                                     _first = media_group[0]
                                                     _exist = getattr(_first, 'caption', None) or ''
                                                     
-                                                    # Create user caption with URL
-                                                    user_caption_lines = []
-                                                    if tags_text_norm:
-                                                        user_caption_lines.append(tags_text_norm)
-                                                    user_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
-                                                    user_caption = "\n".join(user_caption_lines)
+                                                    # Create user caption with emoji numbers and dates
+                                                    profile_name = extract_profile_name(url)
+                                                    site_name = extract_site_name(url)
+                                                    user_caption = create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name)
                                                     
                                                     _sep = (' ' if _exist and not _exist.endswith('\n') else '')
                                                     # Если у первого уже стоит эта подпись, не дублируем
@@ -1172,16 +1964,22 @@ def image_command(app, message):
                                                         if getattr(_itm, 'caption', None) == tags_text_norm:
                                                             _itm.caption = None
                                             except Exception as _e:
-                                                logger.debug(f"[IMG] Album caption normalization skipped: { _e }")
+                                                logger.debug(LoggerMsg.IMG_ALBUM_CAPTION_NORMALIZATION_SKIPPED_LOG_MSG.format(_e=_e))
+                                            # DEBUG: Log media group sending
+                                            # message_thread_id already extracted above
+                                            logger.info(f"[IMG MEDIA_GROUP] About to send media group to chat_id={chat_id}, message_thread_id={message_thread_id}")
+                                            
                                             sent = app.send_media_group(
-                                                user_id,
+                                                chat_id,
                                                 media=media_group,
-                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
+                                                message_thread_id=message_thread_id
                                             )
+                                            logger.info(f"[IMG MEDIA_GROUP] Media group sent successfully")
                                             break
                                         except FloodWait as fw:
                                             wait_s = int(getattr(fw, 'value', 0) or 0)
-                                            logger.warning(f"FloodWait while send_media_group: waiting {wait_s}s and retrying (attempt {attempts+1}/5)")
+                                            logger.warning(LoggerMsg.IMG_FLOODWAIT_SEND_MEDIA_GROUP_LOG_MSG.format(wait_s=wait_s, attempts=attempts))
                                             time.sleep(wait_s + 1)
                                             attempts += 1
                                             last_exc = fw
@@ -1195,7 +1993,7 @@ def image_command(app, message):
                                 # Forward album to logs and save forwarded IDs to cache
                                 try:
                                     orig_ids = [m.id for m in sent]
-                                    logger.info(f"[IMG CACHE] Copying album to logs, orig_ids={orig_ids}")
+                                    logger.info(LoggerMsg.IMG_CACHE_COPYING_ALBUM_LOG_MSG.format(orig_ids=orig_ids))
                                     f_ids = []
                                     
                                     # Determine correct log channel based on media type and chat type
@@ -1205,7 +2003,7 @@ def image_command(app, message):
                                         original_chat_id = getattr(message, '_original_chat_id', user_id)
                                         # Если chat_id начинается с -100, это группа/канал (не приватный чат)
                                         is_private_chat = not (str(original_chat_id).startswith('-100') or str(original_chat_id).startswith('-'))
-                                        logger.info(f"[IMG LOG] FAKE MESSAGE DETECTED - original_chat_id={original_chat_id}, is_private_chat={is_private_chat}")
+                                        logger.info(LoggerMsg.IMG_LOG_FAKE_MESSAGE_DETECTED_LOG_MSG.format(original_chat_id=original_chat_id, is_private_chat=is_private_chat))
                                     is_paid_media = nsfw_flag and is_private_chat
                                     
                                     # ЖЕСТКО: Отправка в лог-каналы должна быть ВНЕ цикла, только один раз для всего альбома
@@ -1271,7 +2069,7 @@ def image_command(app, message):
                                                 nsfw_log_sent = app.send_media_group(
                                                     chat_id=log_channel_nsfw,
                                                     media=nsfw_log_media_group,
-                                                    reply_parameters=ReplyParameters(message_id=message.id)
+                                                    reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                 )
                                                 logger.info(f"[IMG LOG] NSFW media album sent to LOGS_NSFW_ID: {len(nsfw_log_media_group)} items")
                                             except Exception as fe:
@@ -1286,13 +2084,34 @@ def image_command(app, message):
                                         try:
                                             # Create media group for regular log channel
                                             regular_log_media_group = []
-                                            # Create caption for log channel
-                                            bot_username = getattr(Config, "BOT_USERNAME", "bot")
-                                            log_caption_lines = []
-                                            if tags_text_norm:
-                                                log_caption_lines.append(tags_text_norm)
-                                            log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
-                                            log_caption = "\n".join(log_caption_lines)
+                                            # Prefer original first-item caption (from user album) to preserve full formatting
+                                            original_caption = None
+                                            try:
+                                                if media_group and getattr(media_group[0], 'caption', None):
+                                                    original_caption = media_group[0].caption
+                                            except Exception:
+                                                original_caption = None
+                                            # Fallback: build caption as before if original caption is missing
+                                            if not original_caption:
+                                                bot_username = getattr(Config, "BOT_USERNAME", "bot")
+                                                log_caption_lines = []
+                                                if tags_text_norm:
+                                                    log_caption_lines.append(tags_text_norm)
+                                                # Add profile and site hashtags first
+                                                profile_name = extract_profile_name(url)
+                                                site_name = extract_site_name(url)
+                                                hashtags = []
+                                                if profile_name:
+                                                    hashtags.append(f"#{profile_name}")
+                                                if site_name:
+                                                    hashtags.append(f"#{site_name}")
+                                                if hashtags:
+                                                    log_caption_lines.append(" ".join(hashtags))
+                                                # Add URL with paperclip emoji
+                                                log_caption_lines.append(f"🔗[Images URL]({url}) @{Config.BOT_NAME}")
+                                                log_caption = "\n".join(log_caption_lines)
+                                            else:
+                                                log_caption = original_caption
                                             
                                             for _idx, _media_obj in enumerate(media_group):
                                                 caption = log_caption if _idx == 0 else None  # Only first item gets caption
@@ -1315,7 +2134,7 @@ def image_command(app, message):
                                             regular_log_sent = app.send_media_group(
                                                 chat_id=log_channel,
                                                 media=regular_log_media_group,
-                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                             )
                                             logger.info(f"[IMG LOG] Regular media album sent to IMG channel: {len(regular_log_media_group)} items")
                                             
@@ -1337,17 +2156,18 @@ def image_command(app, message):
                                         logger.error("[IMG CACHE] No log IDs collected; skipping cache save for this album")
                                 except Exception as e_copy:
                                     logger.error(f"[IMG CACHE] Unexpected error while copying album to logs: {e_copy}")
-                                # Zero out files to keep placeholders for re-run skipping
-                                def zero_file(path):
+                                # Delete files immediately after sending (strict batching)
+                                def delete_file(path):
                                     try:
                                         if os.path.exists(path):
-                                            with open(path, 'wb') as zf:
-                                                pass
-                                    except Exception:
-                                        pass
+                                            # Delete file to prevent re-processing
+                                            os.remove(path)
+                                            logger.info(f"[IMG BATCH] Deleted file: {path}")
+                                    except Exception as e:
+                                        logger.warning(f"[IMG BATCH] Failed to delete {path}: {e}")
                                 for p, _t, orig in group_items:
-                                    zero_file(p)
-                                    zero_file(orig)
+                                    delete_file(p)
+                                    delete_file(orig)
                                 photos_videos_buffer = photos_videos_buffer[batch_size:]
                                 update_status()
                                 # Delete generated special thumbs/covers
@@ -1415,7 +2235,7 @@ def image_command(app, message):
                                                 media=paid_media_list,
                                                 star_count=LimitsConfig.NSFW_STAR_COST,
                                                 payload=str(Config.STAR_RECEIVER),
-                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                             )
                                             
                                             logger.info(f"[IMG FALLBACK PAID] SUCCESS: send_paid_media returned: {type(paid_msg)}")
@@ -1443,7 +2263,7 @@ def image_command(app, message):
                                                         media=[paid_media],
                                                         star_count=LimitsConfig.NSFW_STAR_COST,
                                                         payload=str(Config.STAR_RECEIVER),
-                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                     )
                                                     if isinstance(individual_msg, list):
                                                         sent.extend(individual_msg)
@@ -1484,7 +2304,7 @@ def image_command(app, message):
                                             open_sent = app.send_media_group(
                                                 chat_id=log_channel_nsfw,
                                                 media=open_media_group,
-                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                             )
                                             logger.info(f"[IMG LOG] Open copy album sent to NSFW channel for history: {len(open_media_group)} items")
                                         except Exception as e:
@@ -1538,7 +2358,7 @@ def image_command(app, message):
                                                 media=paid_media_list,
                                                 star_count=LimitsConfig.NSFW_STAR_COST,
                                                 payload=str(Config.STAR_RECEIVER),
-                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                             )
                                             
                                             logger.info(f"[IMG FALLBACK PAID] SUCCESS: send_paid_media returned: {type(paid_msg)}")
@@ -1566,7 +2386,7 @@ def image_command(app, message):
                                                         media=[paid_media],
                                                         star_count=LimitsConfig.NSFW_STAR_COST,
                                                         payload=str(Config.STAR_RECEIVER),
-                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                     )
                                                     if isinstance(individual_msg, list):
                                                         sent.extend(individual_msg)
@@ -1618,7 +2438,7 @@ def image_command(app, message):
                                                 open_sent = app.send_media_group(
                                                     chat_id=log_channel_nsfw,
                                                     media=open_media_group,
-                                                    reply_parameters=ReplyParameters(message_id=message.id)
+                                                    reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                 )
                                                 logger.info(f"[IMG LOG] Open copy album sent to LOGS_NSFW_ID for history: {len(open_media_group)} items")
                                         except Exception as e:
@@ -1660,7 +2480,7 @@ def image_command(app, message):
                                                 media=paid_media_list,
                                                 star_count=LimitsConfig.NSFW_STAR_COST,
                                                 payload=str(Config.STAR_RECEIVER),
-                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                             )
                                             if isinstance(sent_msg, list):
                                                 sent.extend(sent_msg)
@@ -1693,8 +2513,8 @@ def image_command(app, message):
                                             sent_msg = app.send_media_group(
                                                 user_id,
                                                 media=media_group,
-                                                reply_parameters=ReplyParameters(message_id=message.id),
-                                                message_thread_id=getattr(message, 'message_thread_id', None)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
+                                                message_thread_id=message_thread_id
                                             )
                                             if isinstance(sent_msg, list):
                                                 sent.extend(sent_msg)
@@ -1764,7 +2584,7 @@ def image_command(app, message):
                                                         nsfw_log_sent = app.send_media_group(
                                                             chat_id=log_channel_nsfw,
                                                             media=nsfw_log_media_group,
-                                                            reply_parameters=ReplyParameters(message_id=message.id)
+                                                            reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                         )
                                                         logger.info(f"[IMG LOG] Open copy album sent to NSFW channel: {len(nsfw_log_media_group)} items")
                                                     except Exception as fe:
@@ -1818,13 +2638,27 @@ def image_command(app, message):
                                                     try:
                                                         # Create media group for regular log channel (open copy)
                                                         regular_log_media_group = []
-                                                        # Create caption for log channel
-                                                        bot_username = getattr(Config, "BOT_USERNAME", "bot")
-                                                        log_caption_lines = []
-                                                        if tags_text_norm:
-                                                            log_caption_lines.append(tags_text_norm)
-                                                        log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
-                                                        log_caption = "\n".join(log_caption_lines)
+                                                        # Prefer original first-item caption to preserve full formatting
+                                                        original_caption = None
+                                                        try:
+                                                            if media_group and getattr(media_group[0], 'caption', None):
+                                                                original_caption = media_group[0].caption
+                                                        except Exception:
+                                                            original_caption = None
+                                                        # Fallback: previous constructed caption
+                                                        if not original_caption:
+                                                            bot_username = getattr(Config, "BOT_USERNAME", "bot")
+                                                            log_caption_lines = []
+                                                            if tags_text_norm:
+                                                                log_caption_lines.append(tags_text_norm)
+                                                            log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
+                                                            # Add profile hashtag
+                                                            profile_name = extract_profile_name(url)
+                                                            if profile_name:
+                                                                log_caption_lines.append(f"#{profile_name}")
+                                                            log_caption = "\n".join(log_caption_lines)
+                                                        else:
+                                                            log_caption = original_caption
                                                         
                                                         for _idx, _media_obj in enumerate(media_group):
                                                             caption = log_caption if _idx == 0 else None  # Only first item gets caption
@@ -1847,7 +2681,7 @@ def image_command(app, message):
                                                         regular_log_sent = app.send_media_group(
                                                             chat_id=log_channel,
                                                             media=regular_log_media_group,
-                                                            reply_parameters=ReplyParameters(message_id=message.id)
+                                                            reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                         )
                                                         logger.info(f"[IMG LOG] Regular media album sent to IMG channel (fallback): {len(regular_log_media_group)} items")
                                                         
@@ -1885,8 +2719,8 @@ def image_command(app, message):
                                             sent_msg = app.send_document(
                                                 user_id,
                                                 document=f,
-                                                reply_parameters=ReplyParameters(message_id=message.id),
-                                                message_thread_id=getattr(message, 'message_thread_id', None)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
+                                                message_thread_id=message_thread_id
                                             )
                                             break
                                         except FloodWait as fw:
@@ -1903,18 +2737,21 @@ def image_command(app, message):
                                 sent_message_ids.append(sent_msg.id)
                                 total_sent += 1
                                 update_status()
-                                # zero out placeholders
+                                # Delete files immediately after sending (strict batching others)
                                 try:
-                                    with open(p, 'wb') as zf:
-                                        pass
-                                except Exception:
-                                    pass
+                                    if os.path.exists(p):
+                                        # Delete file to prevent re-processing
+                                        os.remove(p)
+                                        logger.info(f"Messages.IMG_BATCH_OTHERS_DELETED_FILE_LOG_MSG")
+                                except Exception as e:
+                                    logger.warning(f"Messages.IMG_BATCH_OTHERS_FAILED_DELETE_LOG_MSG")
                                 try:
                                     if os.path.exists(orig):
-                                        with open(orig, 'wb') as zf2:
-                                            pass
-                                except Exception:
-                                    pass
+                                        # Delete file to prevent re-processing
+                                        os.remove(orig)
+                                        logger.info(f"[IMG BATCH OTHERS] Zeroed out original: {orig}")
+                                except Exception as e:
+                                    logger.warning(f"Messages.IMG_BATCH_OTHERS_FAILED_ZERO_LOG_MSG")
                             except Exception as e:
                                 logger.error(f"Failed to send document: {e}")
 
@@ -2003,7 +2840,7 @@ def image_command(app, message):
                                         media=paid_media_list,
                                         star_count=LimitsConfig.NSFW_STAR_COST,
                                         payload=str(Config.STAR_RECEIVER),
-                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                     )
                                     
                                     if isinstance(paid_msg, list):
@@ -2021,7 +2858,7 @@ def image_command(app, message):
                                                 media=[paid_media],
                                                 star_count=LimitsConfig.NSFW_STAR_COST,
                                                 payload=str(Config.STAR_RECEIVER),
-                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                             )
                                             if isinstance(individual_msg, list):
                                                 sent.extend(individual_msg)
@@ -2068,7 +2905,7 @@ def image_command(app, message):
                                         open_sent = app.send_media_group(
                                             chat_id=log_channel_nsfw,
                                             media=open_media_group,
-                                            reply_parameters=ReplyParameters(message_id=message.id)
+                                            reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                         )
                                         logger.info(f"[IMG LOG] Open copy album sent to LOGS_NSFW_ID for history: {len(open_media_group)} items")
                                 except Exception as e:
@@ -2086,7 +2923,7 @@ def image_command(app, message):
                                                 media=[InputPaidMediaPhoto(media=m.media)],
                                                 star_count=LimitsConfig.NSFW_STAR_COST,
                                                 payload=str(Config.STAR_RECEIVER),
-                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                             )
                                         else:
                                             # Ensure cover for video
@@ -2098,7 +2935,7 @@ def image_command(app, message):
                                                     media=[InputPaidMediaVideo(media=m.media, cover=_cover)],
                                                     star_count=LimitsConfig.NSFW_STAR_COST,
                                                     payload=str(Config.STAR_RECEIVER),
-                                                    reply_parameters=ReplyParameters(message_id=message.id)
+                                                    reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                 )
                                             except TypeError:
                                                 paid_msg = app.send_paid_media(
@@ -2106,7 +2943,7 @@ def image_command(app, message):
                                                     media=[InputPaidMediaVideo(media=m.media)],
                                                     star_count=LimitsConfig.NSFW_STAR_COST,
                                                     payload=str(Config.STAR_RECEIVER),
-                                                    reply_parameters=ReplyParameters(message_id=message.id)
+                                                    reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                 )
                                         if isinstance(paid_msg, list):
                                             sent.extend(paid_msg)
@@ -2126,12 +2963,10 @@ def image_command(app, message):
                                             _first = media_group[0]
                                             _exist = getattr(_first, 'caption', None) or ''
                                             
-                                            # Create user caption with URL
-                                            user_caption_lines = []
-                                            if tags_text_norm:
-                                                user_caption_lines.append(tags_text_norm)
-                                            user_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
-                                            user_caption = "\n".join(user_caption_lines)
+                                            # Create user caption with emoji numbers and dates
+                                            profile_name = extract_profile_name(url)
+                                            site_name = extract_site_name(url)
+                                            user_caption = create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name)
                                             
                                             _sep = (' ' if _exist and not _exist.endswith('\n') else '')
                                             _first.caption = (_exist + _sep + user_caption).strip()
@@ -2144,8 +2979,8 @@ def image_command(app, message):
                                     sent = app.send_media_group(
                                         user_id,
                                         media=media_group,
-                                        reply_parameters=ReplyParameters(message_id=message.id),
-                                        message_thread_id=getattr(message, 'message_thread_id', None)
+                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
+                                        message_thread_id=message_thread_id
                                     )
                                     break
                                 except FloodWait as fw:
@@ -2211,7 +3046,7 @@ def image_command(app, message):
                                     nsfw_log_sent = app.send_media_group(
                                         chat_id=log_channel_nsfw,
                                         media=nsfw_log_media_group,
-                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                     )
                                     logger.info(f"[IMG LOG] Open copy album sent to NSFW channel: {len(nsfw_log_media_group)} items")
                                 except Exception as fe:
@@ -2264,13 +3099,23 @@ def image_command(app, message):
                                 try:
                                     # Create media group for regular log channel (open copy)
                                     regular_log_media_group = []
-                                    # Create caption for log channel
-                                    bot_username = getattr(Config, "BOT_USERNAME", "bot")
-                                    log_caption_lines = []
-                                    if tags_text_norm:
-                                        log_caption_lines.append(tags_text_norm)
-                                    log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
-                                    log_caption = "\n".join(log_caption_lines)
+                                    # Prefer original first-item caption to preserve full formatting (dates/emojis/tags)
+                                    original_caption = None
+                                    try:
+                                        if media_group and getattr(media_group[0], 'caption', None):
+                                            original_caption = media_group[0].caption
+                                    except Exception:
+                                        original_caption = None
+                                    # Fallback: construct caption as before
+                                    if not original_caption:
+                                        bot_username = getattr(Config, "BOT_USERNAME", "bot")
+                                        log_caption_lines = []
+                                        if tags_text_norm:
+                                            log_caption_lines.append(tags_text_norm)
+                                        log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
+                                        log_caption = "\n".join(log_caption_lines)
+                                    else:
+                                        log_caption = original_caption
                                     
                                     for _idx, _media_obj in enumerate(media_group):
                                         caption = log_caption if _idx == 0 else None  # Only first item gets caption
@@ -2293,7 +3138,7 @@ def image_command(app, message):
                                     regular_log_sent = app.send_media_group(
                                         chat_id=log_channel,
                                         media=regular_log_media_group,
-                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                     )
                                     logger.info(f"[IMG LOG] Regular media album sent to IMG channel (tail): {len(regular_log_media_group)} items")
                                     
@@ -2315,19 +3160,22 @@ def image_command(app, message):
                                 logger.error("[IMG CACHE] No log IDs collected in tail; skipping cache save for this album")
                         except Exception as e_tail:
                             logger.error(f"[IMG CACHE] Unexpected error while copying tail album to logs: {e_tail}")
-                        # zero out
+                        # Delete files immediately after sending (strict batching fallback)
                         for p, _t, orig in group:
                             try:
-                                with open(p, 'wb') as zf:
-                                    pass
-                            except Exception:
-                                pass
+                                if os.path.exists(p):
+                                    # Delete file to prevent re-processing
+                                    os.remove(p)
+                                    logger.info(f"[IMG BATCH FALLBACK] Deleted file: {p}")
+                            except Exception as e:
+                                logger.warning(f"[IMG BATCH FALLBACK] Failed to delete {p}: {e}")
                             try:
                                 if os.path.exists(orig):
-                                    with open(orig, 'wb') as zf2:
-                                        pass
-                            except Exception:
-                                pass
+                                    # Delete file to prevent re-processing
+                                    os.remove(orig)
+                                    logger.info(f"[IMG BATCH FALLBACK] Deleted original: {orig}")
+                            except Exception as e:
+                                logger.warning(f"[IMG BATCH FALLBACK] Failed to delete original {orig}: {e}")
                     except Exception:
                         tmp_ids2 = []
                         for p, t, orig in group:
@@ -2345,7 +3193,7 @@ def image_command(app, message):
                                                         media=[InputPaidMediaPhoto(media=f)],
                                                         star_count=LimitsConfig.NSFW_STAR_COST,
                                                         payload=str(Config.STAR_RECEIVER),
-                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                     )
                                                 else:
                                                     sent_msg = app.send_photo(
@@ -2353,8 +3201,8 @@ def image_command(app, message):
                                                         photo=f,
                                                         caption=(tags_text_norm or ''),
                                                         has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
-                                                        reply_parameters=ReplyParameters(message_id=message.id),
-                                                        message_thread_id=getattr(message, 'message_thread_id', None)
+                                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
+                                                        message_thread_id=message_thread_id
                                                     )
                                                 break
                                             except FloodWait as fw:
@@ -2387,7 +3235,7 @@ def image_command(app, message):
                                                         media=[media_item],
                                                         star_count=LimitsConfig.NSFW_STAR_COST,
                                                         payload=str(Config.STAR_RECEIVER),
-                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                     )
                                                 else:
                                                     sent_msg = app.send_video(
@@ -2396,8 +3244,8 @@ def image_command(app, message):
                                                         thumb=thumb if thumb and os.path.exists(thumb) else None,
                                                         caption=(tags_text_norm or ''),
                                                         has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
-                                                        reply_parameters=ReplyParameters(message_id=message.id),
-                                                        message_thread_id=getattr(message, 'message_thread_id', None)
+                                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
+                                                        message_thread_id=message_thread_id
                                                     )
                                                 break
                                             except FloodWait as fw:
@@ -2414,18 +3262,21 @@ def image_command(app, message):
                                     sent_message_ids.append(sent_msg.id)
                                     tmp_ids2.append(sent_msg.id)
                                     total_sent += 1
-                                # zero out
+                                # Delete files immediately after sending (strict batching individual)
                                 try:
-                                    with open(p, 'wb') as zf:
-                                        pass
-                                except Exception:
-                                    pass
+                                    if os.path.exists(p):
+                                        # Delete file to prevent re-processing
+                                        os.remove(p)
+                                        logger.info(f"[IMG BATCH INDIVIDUAL] Deleted file: {p}")
+                                except Exception as e:
+                                    logger.warning(f"[IMG BATCH INDIVIDUAL] Failed to delete {p}: {e}")
                                 try:
                                     if os.path.exists(orig):
-                                        with open(orig, 'wb') as zf2:
-                                            pass
-                                except Exception:
-                                    pass
+                                        # Delete file to prevent re-processing
+                                        os.remove(orig)
+                                        logger.info(f"[IMG BATCH INDIVIDUAL] Deleted original: {orig}")
+                                except Exception as e:
+                                    logger.warning(f"[IMG BATCH INDIVIDUAL] Failed to delete original {orig}: {e}")
                             except Exception:
                                 pass
                         # Forward tail fallback album and save forwarded IDs
@@ -2478,7 +3329,7 @@ def image_command(app, message):
                                         nsfw_log_sent = app.send_media_group(
                                             chat_id=log_channel_nsfw,
                                             media=nsfw_log_media_group,
-                                            reply_parameters=ReplyParameters(message_id=message.id)
+                                            reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                         )
                                         logger.info(f"[IMG LOG] Open copy album sent to NSFW channel: {len(nsfw_log_media_group)} items")
                                     except Exception as fe:
@@ -2552,7 +3403,7 @@ def image_command(app, message):
                                         regular_log_sent = app.send_media_group(
                                             chat_id=log_channel,
                                             media=regular_log_media_group,
-                                            reply_parameters=ReplyParameters(message_id=message.id)
+                                            reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                         )
                                         logger.info(f"[IMG LOG] Regular media album sent to IMG channel (tail-fallback): {len(regular_log_media_group)} items")
                                         
@@ -2584,23 +3435,26 @@ def image_command(app, message):
                             sent_msg = app.send_document(
                                 user_id,
                                 document=f,
-                                reply_parameters=ReplyParameters(message_id=message.id),
-                                message_thread_id=getattr(message, 'message_thread_id', None)
+                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
+                                message_thread_id=message_thread_id
                             )
                         sent_message_ids.append(sent_msg.id)
                         total_sent += 1
-                        # zero out
+                        # Delete files immediately after sending (strict batching others)
                         try:
-                            with open(p, 'wb') as zf:
-                                pass
-                        except Exception:
-                            pass
+                            if os.path.exists(p):
+                                # Delete file to prevent re-processing
+                                os.remove(p)
+                                logger.info(f"Messages.IMG_BATCH_OTHERS_DELETED_FILE_LOG_MSG")
+                        except Exception as e:
+                            logger.warning(f"Messages.IMG_BATCH_OTHERS_FAILED_DELETE_LOG_MSG")
                         try:
                             if os.path.exists(orig):
-                                with open(orig, 'wb') as zf2:
-                                    pass
-                        except Exception:
-                            pass
+                                # Delete file to prevent re-processing
+                                os.remove(orig)
+                                logger.info(f"[IMG BATCH OTHERS] Zeroed out original: {orig}")
+                        except Exception as e:
+                            logger.warning(f"Messages.IMG_BATCH_OTHERS_FAILED_ZERO_LOG_MSG")
                     except Exception:
                         pass
                 # Final update and replace header to 'Download complete'
@@ -2621,7 +3475,38 @@ def image_command(app, message):
             if not is_admin and total_sent >= total_limit:
                 break
 
+            # Check if we've been waiting too long for files in current range
+            # Only apply this timeout if we haven't found any files in this range yet
+            if time.time() - range_start_time > max_range_wait_time:
+                logger.warning(f"[IMG BATCH] Range timeout reached ({max_range_wait_time}s), no new files found in current range")
+                break
+
+            # Check if we found any new files in this search iteration
+            if files_found_in_this_search == 0:
+                consecutive_empty_searches += 1
+                logger.info(f"[IMG BATCH] No new files found in search iteration {consecutive_empty_searches}/{max_consecutive_empty_searches}")
+                if consecutive_empty_searches >= max_consecutive_empty_searches:
+                    logger.info(f"[IMG BATCH] Exiting loop after {consecutive_empty_searches} consecutive empty searches")
+                    break
+            else:
+                consecutive_empty_searches = 0  # Reset counter when we find files
+                logger.info(f"[IMG BATCH] Found {files_found_in_this_search} new files, resetting empty search counter")
+
             time.sleep(0.5)
+
+        # Update status to show completion
+        try:
+            final_expected = total_expected or min(total_downloaded, total_limit)
+            safe_edit_message_text(
+                user_id,
+                status_msg.id,
+                Config.DOWNLOAD_COMPLETE_MSG +
+                f"Downloaded: <b>{total_downloaded}</b> / <b>{final_expected}</b>\n"
+                f"Sent: <b>{total_sent}</b>",
+                parse_mode=enums.ParseMode.HTML,
+            )
+        except Exception:
+            pass
 
         # Send remaining files in buffer as final album
         if photos_videos_buffer:
@@ -2660,12 +3545,10 @@ def image_command(app, message):
                     if media_group:
                         _first = media_group[0]
                         if hasattr(_first, 'caption'):
-                            # Create user caption with URL
-                            user_caption_lines = []
-                            if tags_text_norm:
-                                user_caption_lines.append(tags_text_norm)
-                            user_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
-                            user_caption = "\n".join(user_caption_lines)
+                            # Create user caption with emoji numbers and dates
+                            profile_name = extract_profile_name(url)
+                            site_name = extract_site_name(url)
+                            user_caption = create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name)
                             _first.caption = user_caption
                         # Clear captions from other items
                         for _itm in media_group[1:]:
@@ -2675,7 +3558,7 @@ def image_command(app, message):
                     sent = app.send_media_group(
                         user_id,
                         media=media_group,
-                        reply_parameters=ReplyParameters(message_id=message.id)
+                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                     )
                     sent_message_ids.extend([m.id for m in sent])
                     total_sent += len(media_group)
@@ -2718,17 +3601,19 @@ def image_command(app, message):
                     except Exception as e_copy:
                         logger.error(f"[IMG CACHE] Unexpected error while copying final album to logs: {e_copy}")
                     
-                    # Clean up files
+                    # Delete files immediately after sending (strict batching final)
                     for p, _t, orig in photos_videos_buffer:
                         try:
                             if os.path.exists(p):
-                                with open(p, 'wb') as zf:
-                                    pass
+                                # Delete file to prevent re-processing
+                                os.remove(p)
+                                logger.info(f"[IMG BATCH FINAL] Deleted file: {p}")
                             if os.path.exists(orig):
-                                with open(orig, 'wb') as zf:
-                                    pass
-                        except Exception:
-                            pass
+                                # Delete file to prevent re-processing
+                                os.remove(orig)
+                                logger.info(f"[IMG BATCH FINAL] Deleted original: {orig}")
+                        except Exception as e:
+                            logger.warning(f"[IMG BATCH FINAL] Failed to delete files: {e}")
                     
                     photos_videos_buffer = []
                 except Exception as e:
@@ -2751,6 +3636,52 @@ def image_command(app, message):
         except Exception:
             pass
 
+        # Final cleanup: remove all media files from user directory
+        try:
+            logger.info(f"Messages.IMG_CLEANUP_START_LOG_MSG")
+            if os.path.exists(run_dir):
+                for root, dirs, files in os.walk(run_dir):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        try:
+                            # Remove all media files (including zero-size placeholders)
+                            if file.lower().endswith((
+                                '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff',
+                                '.mp4', '.m4v', '.avi', '.mov', '.mkv', '.webm', '.flv',
+                                '.mp3', '.wav', '.ogg', '.m4a',
+                                '.pdf', '.doc', '.docx', '.txt', '.zip', '.rar', '.7z'
+                            )):
+                                os.remove(file_path)
+                                logger.info(f"Messages.IMG_CLEANUP_REMOVED_FILE_LOG_MSG")
+                        except Exception as e:
+                            logger.warning(f"Messages.IMG_CLEANUP_FAILED_REMOVE_LOG_MSG")
+                    
+                    # Remove empty directories
+                    for dir_name in dirs:
+                        dir_path = os.path.join(root, dir_name)
+                        try:
+                            if os.path.exists(dir_path) and not os.listdir(dir_path):
+                                os.rmdir(dir_path)
+                                logger.info(f"Messages.IMG_CLEANUP_REMOVED_DIR_LOG_MSG")
+                        except Exception as e:
+                            logger.warning(f"[IMG CLEANUP] Failed to remove directory {dir_path}: {e}")
+            
+            # Remove the entire run directory if empty
+            try:
+                if os.path.exists(run_dir) and not os.listdir(run_dir):
+                    os.rmdir(run_dir)
+                    logger.info(f"[IMG CLEANUP] Removed empty run directory: {run_dir}")
+            except Exception as e:
+                logger.warning(f"[IMG CLEANUP] Failed to remove run directory {run_dir}: {e}")
+                
+            logger.info(f"[IMG CLEANUP] Final cleanup completed")
+        except Exception as e:
+            logger.warning(f"[IMG CLEANUP] Failed to perform final cleanup: {e}")
+
+        # Remove protection file after successful download
+        from HELPERS.filesystem_hlp import remove_protection_file
+        remove_protection_file(run_dir)
+        
         send_to_logger(message, LoggerMsg.STREAMED_AND_SENT_MEDIA.format(total_sent=total_sent, url=url))
             
     except Exception as e:
@@ -2789,6 +3720,48 @@ def image_command(app, message):
         except Exception as cleanup_e:
             logger.warning(f"Failed to clean up downloaded files after general error: {cleanup_e}")
         
+        # Final cleanup on error: remove all media files from user directory
+        try:
+            logger.info(f"[IMG CLEANUP ERROR] Starting final cleanup of user directory: {run_dir}")
+            if os.path.exists(run_dir):
+                for root, dirs, files in os.walk(run_dir):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        try:
+                            # Remove all media files (including zero-size placeholders)
+                            if file.lower().endswith((
+                                '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff',
+                                '.mp4', '.m4v', '.avi', '.mov', '.mkv', '.webm', '.flv',
+                                '.mp3', '.wav', '.ogg', '.m4a',
+                                '.pdf', '.doc', '.docx', '.txt', '.zip', '.rar', '.7z'
+                            )):
+                                os.remove(file_path)
+                                logger.info(f"[IMG CLEANUP ERROR] Removed file: {file_path}")
+                        except Exception as e:
+                            logger.warning(f"[IMG CLEANUP ERROR] Failed to remove {file_path}: {e}")
+                    
+                    # Remove empty directories
+                    for dir_name in dirs:
+                        dir_path = os.path.join(root, dir_name)
+                        try:
+                            if os.path.exists(dir_path) and not os.listdir(dir_path):
+                                os.rmdir(dir_path)
+                                logger.info(f"[IMG CLEANUP ERROR] Removed empty directory: {dir_path}")
+                        except Exception as e:
+                            logger.warning(f"[IMG CLEANUP ERROR] Failed to remove directory {dir_path}: {e}")
+            
+            # Remove the entire run directory if empty
+            try:
+                if os.path.exists(run_dir) and not os.listdir(run_dir):
+                    os.rmdir(run_dir)
+                    logger.info(f"[IMG CLEANUP ERROR] Removed empty run directory: {run_dir}")
+            except Exception as e:
+                logger.warning(f"[IMG CLEANUP ERROR] Failed to remove run directory {run_dir}: {e}")
+                
+            logger.info(f"[IMG CLEANUP ERROR] Final cleanup completed")
+        except Exception as cleanup_final_e:
+            logger.warning(f"[IMG CLEANUP ERROR] Failed to perform final cleanup: {cleanup_final_e}")
+        
         safe_edit_message_text(
             user_id, status_msg.id,
             Config.ERROR_OCCURRED_MSG.format(url=url, error=str(e)),
@@ -2796,7 +3769,7 @@ def image_command(app, message):
         )
         from HELPERS.logger import send_error_to_user
         send_error_to_user(message, Config.ERROR_OCCURRED_MSG.format(url=url, error=str(e)))
-        send_to_logger(message, LoggerMsg.IMAGE_COMMAND_ERROR.format(url=url, error=e))
+        log_error_to_channel(message, LoggerMsg.IMAGE_COMMAND_ERROR.format(url=url, error=e), url)
 
 @app.on_callback_query(filters.regex(r"^img_help\|"))
 def img_help_callback(app, callback_query: CallbackQuery):
@@ -2809,7 +3782,7 @@ def img_help_callback(app, callback_query: CallbackQuery):
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
         try:
-            callback_query.answer("Help closed.")
+            callback_query.answer(Messages.IMG_HELP_CLOSED_MSG)
         except Exception:
             pass
         return
@@ -2818,3 +3791,61 @@ def img_help_callback(app, callback_query: CallbackQuery):
         callback_query.answer()
     except Exception:
         pass
+
+@app.on_callback_query(filters.regex(r"^img_range\|"))
+def img_range_callback(app, callback_query: CallbackQuery):
+    """Handle img range selection callback"""
+    try:
+        data_parts = callback_query.data.split("|")
+        
+        if len(data_parts) < 2:
+            callback_query.answer("❌ Data error")
+            return
+        
+        if data_parts[1] == "cancel":
+            try:
+                callback_query.message.delete()
+            except Exception:
+                callback_query.edit_message_reply_markup(reply_markup=None)
+            try:
+                callback_query.answer("❌ Cancelled")
+            except Exception:
+                pass
+            return
+        
+        if len(data_parts) < 4:
+            callback_query.answer("❌ Invalid data format")
+            return
+        
+        start = int(data_parts[1])
+        end = int(data_parts[2])
+        url = data_parts[3]
+        
+        # Answer callback
+        callback_query.answer(f"📥 Downloading {start}-{end}")
+        
+        # Create new message with range command
+        range_command = f"/img {start}-{end} {url}"
+        
+        # Send the command as if user typed it
+        from pyrogram.types import Message
+        from pyrogram.types import Message as MessageType
+        
+        # Create a mock message object
+        mock_message = MessageType(
+            id=callback_query.message.id + 1,
+            from_user=callback_query.from_user,
+            chat=callback_query.message.chat,
+            text=range_command,
+            date=callback_query.message.date,
+            reply_to_message=None
+        )
+        
+        # Call the image command function
+        image_command(app, mock_message)
+        
+    except Exception as e:
+        try:
+            callback_query.answer(f"❌ Error: {str(e)}")
+        except Exception:
+            pass

@@ -12,8 +12,9 @@ import traceback
 import yt_dlp
 import re
 from HELPERS.app_instance import get_app
-from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, send_error_to_user, get_log_channel
+from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, send_error_to_user, get_log_channel, log_error_to_channel
 from CONFIG.logger_msg import LoggerMsg
+from CONFIG.messages import Messages
 from HELPERS.limitter import TimeFormatter, humanbytes, check_user, check_file_size_limit, check_subs_limits
 from HELPERS.download_status import set_active_download, clear_download_start_time, check_download_timeout, start_hourglass_animation, start_cycle_progress, playlist_errors_lock, playlist_errors
 from HELPERS.safe_messeger import safe_delete_messages, safe_edit_message_text, safe_forward_messages
@@ -29,6 +30,7 @@ from URL_PARSERS.filter_utils import create_smart_match_filter, create_legacy_ma
 from URL_PARSERS.thumbnail_downloader import download_thumbnail as download_universal_thumbnail
 from HELPERS.pot_helper import add_pot_to_ytdl_opts
 from CONFIG.config import Config
+from CONFIG.messages import Messages
 from CONFIG.limits import LimitsConfig
 from COMMANDS.subtitles_cmd import is_subs_enabled, check_subs_availability, get_user_subs_auto_mode, _subs_check_cache, download_subtitles_ytdlp, get_user_subs_language, clear_subs_check_cache, is_subs_always_ask
 from COMMANDS.split_sizer import get_user_split_size
@@ -43,6 +45,7 @@ from pyrogram import enums
 from pyrogram.types import ReplyParameters
 from HELPERS.safe_messeger import safe_send_message
 from URL_PARSERS.tags import extract_url_range_tags
+from HELPERS.fallback_helper import should_fallback_to_gallery_dl
 
 # Get app instance for decorators
 app = get_app()
@@ -121,6 +124,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     did_proxy_retry = False
     did_cookie_retry = False
     is_hls = False
+    error_message_sent = False  # Flag to prevent duplicate error messages
     
     # Determine forced NSFW via user tags
     try:
@@ -161,17 +165,17 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 format_spec = result.get('format', 'best')
                 
                 # Form response
-                response = f"🔗 <b>Direct link obtained</b>\n\n"
-                response += f"📹 <b>Title:</b> {title}\n"
+                response = Messages.DIRECT_LINK_OBTAINED_MSG
+                response += Messages.TITLE_FIELD_MSG.format(title=title)
                 if duration > 0:
-                    response += f"⏱ <b>Duration:</b> {duration} sec\n"
-                response += f"🎛 <b>Format:</b> <code>{format_spec}</code>\n\n"
+                    response += Messages.DURATION_FIELD_MSG.format(duration=duration)
+                response += Messages.FORMAT_FIELD_MSG.format(format_spec=format_spec)
                 
                 if video_url:
-                    response += f"🎬 <b>Video stream:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
+                    response += Messages.VIDEO_STREAM_FIELD_MSG.format(video_url=video_url)
                 
                 if audio_url:
-                    response += f"🎵 <b>Audio stream:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
+                    response += Messages.AUDIO_STREAM_FIELD_MSG.format(audio_url=audio_url)
                 
                 if not video_url and not audio_url:
                     response += Config.FAILED_STREAM_LINKS_MSG
@@ -184,7 +188,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                send_to_logger(message, LoggerMsg.DIRECT_LINK_EXTRACTED.format(source="down_and_up", user_id=user_id, url=url))
+                send_to_logger(message, Messages.DIRECT_LINK_EXTRACTED_DOWN_UP_LOG_MSG.format(user_id=user_id, url=url))
                 
             else:
                 error_msg = result.get('error', 'Unknown error')
@@ -195,7 +199,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                send_to_logger(message, LoggerMsg.DIRECT_LINK_FAILED.format(source="down_and_up", user_id=user_id, url=url, error=error_msg))
+                log_error_to_channel(message, Messages.DIRECT_LINK_FAILED_DOWN_UP_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
             
             return
     except Exception as e:
@@ -382,7 +386,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             app.edit_message_text(
                 chat_id=user_id,
                 message_id=proc_msg.id,
-                text="<b>▶️ Download started</b>",
+                text=Messages.DOWNLOAD_STARTED_MSG,
                 parse_mode=enums.ParseMode.HTML
             )
             try:
@@ -464,6 +468,74 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         if not os.path.exists(user_dir):
             os.makedirs(user_dir, exist_ok=True)
 
+        # Create unique download directory for this session to avoid conflicts with parallel downloads
+        import time
+        import random
+        from urllib.parse import urlparse
+        
+        try:
+            # Parse URL to extract domain for better organization
+            parsed = urlparse(url)
+            domain = parsed.netloc.lower()
+            if domain.startswith('www.'):
+                domain = domain[4:]
+            
+            # Create unique timestamp-based directory
+            timestamp = int(time.time() * 1000000)  # Microsecond precision
+            random_suffix = random.randint(1000, 9999)  # Random 4-digit number
+            
+            # Structure: users/{user_id}/downloads/{domain}_{timestamp}_{random}/
+            unique_download_dir = os.path.join(user_dir, "downloads", f"{domain}_{timestamp}_{random_suffix}")
+            os.makedirs(unique_download_dir, exist_ok=True)
+            
+            # Update user_dir_name to use the unique directory
+            user_dir_name = unique_download_dir
+            
+            logger.info(f"Created unique download directory: {unique_download_dir}")
+        except Exception as e:
+            logger.warning(f"Failed to create unique download directory, using default: {e}")
+            # Fallback to original behavior
+            user_dir_name = os.path.abspath(os.path.join("users", str(user_id)))
+
+        # Pre-cleanup: remove all media files from unique download directory before starting
+        try:
+            logger.info(f"Pre-cleanup: removing old media files from unique directory {user_dir_name}")
+            if os.path.exists(user_dir_name):
+                for root, dirs, files in os.walk(user_dir_name):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        try:
+                            # Remove all media files (keep .txt and .json files)
+                            if file.lower().endswith((
+                                '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff',
+                                '.mp4', '.m4v', '.avi', '.mov', '.mkv', '.webm', '.flv',
+                                '.mp3', '.wav', '.ogg', '.m4a',
+                                '.pdf', '.doc', '.docx', '.zip', '.rar', '.7z'
+                            )):
+                                os.remove(file_path)
+                                logger.info(f"Pre-cleanup: removed file {file_path}")
+                        except Exception as e:
+                            logger.warning(f"Pre-cleanup: failed to remove file {file_path}: {e}")
+                    
+                    # Remove empty directories (except unique download root)
+                    for dir_name in dirs:
+                        dir_path = os.path.join(root, dir_name)
+                        try:
+                            if os.path.exists(dir_path) and not os.listdir(dir_path) and dir_path != user_dir_name:
+                                os.rmdir(dir_path)
+                                logger.info(f"Pre-cleanup: removed empty directory {dir_path}")
+                        except Exception as e:
+                            logger.warning(f"Pre-cleanup: failed to remove directory {dir_path}: {e}")
+            
+            # Create protection file for parallel downloads
+            from HELPERS.filesystem_hlp import is_parallel_download_allowed, create_protection_file
+            if is_parallel_download_allowed(message):
+                create_protection_file(user_dir_name)
+            
+            logger.info(f"Pre-cleanup completed for unique directory {user_dir_name}")
+        except Exception as e:
+            logger.warning(f"Pre-cleanup failed for unique directory {user_dir_name}: {e}")
+
         # Reset of the flag of errors for the new launch of the playlist
         if playlist_name:
             with playlist_errors_lock:
@@ -514,7 +586,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     ]
 
         status_msg = safe_send_message(user_id, Config.VIDEO_PROCESSING_MSG, message=message)
-        from CONFIG.messages import MessagesConfig as Messages
         hourglass_msg = safe_send_message(user_id, Messages.PLEASE_WAIT_MSG, message=message)
         try:
             from HELPERS.safe_messeger import schedule_delete_message
@@ -541,12 +612,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 ydl_opts['cookiefile'] = user_cookie_path
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 pre_info = ydl.extract_info(url, download=False)
-            # Check that pre_info is not None
+            # Normalize to dict and check None
+            if isinstance(pre_info, list):
+                pre_info = (pre_info[0] if len(pre_info) > 0 else {})
+            elif isinstance(pre_info, dict) and 'entries' in pre_info and isinstance(pre_info['entries'], list) and pre_info['entries']:
+                pre_info = pre_info['entries'][0]
             if pre_info is None:
                 logger.warning("pre_info is None, skipping size check")
                 pre_info = {}
-            elif 'entries' in pre_info and isinstance(pre_info['entries'], list) and pre_info['entries']:
-                pre_info = pre_info['entries'][0]
         except Exception as e:
             logger.warning(f"Failed to extract info for size check: {e}")
             pre_info = {}
@@ -615,7 +688,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 Config.ERROR_FILE_SIZE_LIMIT_MSG.format(limit=max_size_gb),
                 reply_parameters=ReplyParameters(message_id=message.id)
             )
-            send_to_logger(message, LoggerMsg.SIZE_LIMIT_EXCEEDED.format(max_size_gb=max_size_gb))
+            log_error_to_channel(message, Messages.SIZE_LIMIT_EXCEEDED.format(max_size_gb=max_size_gb), url)
             logger.warning(f"[SIZE CHECK] Download for quality_key={quality_key} was blocked due to size limit.")
             return
         else:
@@ -685,18 +758,18 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     logger.error(f"Error updating progress: {e}")
             elif d.get("status") == "finished":
                 try:
-                    safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{full_bar}   100.0%")
+                    safe_edit_message_text(user_id, proc_msg_id, Messages.VIDEO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
             elif d.get("status") == "error":
                 logger.error("Error occurred during download.")
-                send_error_to_user(message, LoggerMsg.DOWNLOAD_ERROR_GENERIC)
+                send_error_to_user(message, Messages.DOWNLOAD_ERROR_GENERIC)
             last_update = current_time
 
         successful_uploads = 0
 
         def try_download(url, attempt_opts):
-            nonlocal current_total_process, error_message, did_cookie_retry, did_proxy_retry, is_hls
+            nonlocal current_total_process, error_message, did_cookie_retry, did_proxy_retry, is_hls, error_message_sent
             
             # Use original filename for first attempt
             original_outtmpl = os.path.join(user_dir_name, "%(title)s.%(ext)s")
@@ -975,8 +1048,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 logger.info(f"Available format IDs: {available_ids}")
                                 send_error_to_user(
                                     message,
-                                    f"❌ Format ID {requested_id} not found for this video.\n\n"
-                                    f"Available format IDs: {', '.join(available_ids[:10])}\n"
+                                    Messages.FORMAT_ID_NOT_FOUND_MSG.format(format_id=requested_id, available_ids=', '.join(available_ids[:10])) +
                                     f"Use /list command to see all available formats."
                                 )
                                 return None
@@ -1013,7 +1085,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 formats_text = "\n".join(available_formats_list) if available_formats_list else "• No video formats available"
                                 
                                 safe_edit_message_text(user_id, proc_msg_id, 
-                                    f"{current_total_process}\n❌ AV1 format is not available for this video.\n\nAvailable formats:\n{formats_text}")
+                                    f"{current_total_process}\n{Messages.DOWN_UP_AV1_NOT_AVAILABLE_MSG.format(formats_text=formats_text)}")
                             except Exception as e:
                                 logger.error(f"Failed to notify user about format unavailability: {e}")
                             
@@ -1031,9 +1103,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             formats_text = "\n".join(available_formats_list) if available_formats_list else "• No video formats available"
                             
                             send_to_user(message, 
-                                f"❌ **AV1 format is not available for this video.**\n\n"
-                                f"**Available formats:**\n{formats_text}\n\n"
-                                f"Please select a different format using `/format` command.")
+                                Messages.AV1_FORMAT_NOT_AVAILABLE_MSG.format(formats_text=formats_text) +
+                                Messages.AV1_NOT_AVAILABLE_FORMAT_SELECT_MSG)
                             
                             return None
                 
@@ -1049,7 +1120,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 info_dict = try_with_proxy_fallback(ytdl_opts, url, user_id, extract_info_operation)
                 if info_dict is None:
                     raise Exception("Failed to extract video information with all available proxies")
-                if "entries" in info_dict:
+                # Normalize info_dict to a dict
+                if isinstance(info_dict, list):
+                    info_dict = (info_dict[0] if len(info_dict) > 0 else {})
+                if isinstance(info_dict, dict) and "entries" in info_dict:
                     entries = info_dict["entries"]
                     if not entries:
                         raise Exception(f"No videos found in playlist at index {current_index}")
@@ -1121,11 +1195,16 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 if result is None:
                     raise Exception("Failed to download video with all available proxies")
                 try:
-                    safe_edit_message_text(user_id, proc_msg_id, f"{current_total_process}\n{full_bar}   100.0%")
+                    safe_edit_message_text(user_id, proc_msg_id, Messages.VIDEO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
                 except Exception as e:
                     logger.error(f"Final progress update error: {e}")
                 
                 logger.info("Download completed successfully")
+                
+                # Remove protection file after successful download
+                from HELPERS.filesystem_hlp import remove_protection_file
+                remove_protection_file(user_dir_name)
+                
                 return info_dict
             except yt_dlp.utils.DownloadError as e:
                 nonlocal error_message
@@ -1135,11 +1214,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Check for live stream detection
                 if "LIVE_STREAM_DETECTED" in error_message:
                     live_stream_message = (
-                        "🚫 **Live Stream Detected**\n\n"
-                        "Downloading of ongoing or infinite live streams is not allowed.\n\n"
-                        "Please wait for the stream to end and try downloading again when:\n"
-                        "• The stream duration is known\n"
-                        "• The stream has finished\n"
+                        Messages.LIVE_STREAM_DETECTED_MSG +
                         "• You can see the final video length\n\n"
                         "Once the stream is completed, you'll be able to download it as a regular video."
                     )
@@ -1149,8 +1224,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Check for postprocessing errors
                 if "Postprocessing" in error_message and "Error opening output files" in error_message:
                     postprocessing_message = (
-                        "❌ **File Processing Error**\n\n"
-                        "The video was downloaded but couldn't be processed due to invalid characters in the filename.\n\n"
+                        Messages.FILE_PROCESSING_ERROR_INVALID_CHARS_MSG +
                         "**Solutions:**\n"
                         "• Try downloading again - the system will use a safer filename\n"
                         "• If the problem persists, the video title may contain unsupported characters\n"
@@ -1164,8 +1238,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Check for postprocessing errors with Invalid argument
                 if "Postprocessing" in error_message and "Invalid argument" in error_message:
                     postprocessing_message = (
-                        "❌ **File Processing Error**\n\n"
-                        "The video was downloaded but couldn't be processed due to an invalid argument error.\n\n"
+                        Messages.FILE_PROCESSING_ERROR_INVALID_ARG_MSG +
                         "**Possible causes:**\n"
                         "• Corrupted or incomplete download\n"
                         "• Unsupported file format or codec\n"
@@ -1185,8 +1258,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Check for format not available error
                 if "Requested format is not available" in error_message:
                     format_error_message = (
-                        "❌ **Format Not Available**\n\n"
-                        "The requested video format is not available for this video.\n\n"
+                        Messages.FORMAT_NOT_AVAILABLE_MSG +
                         "**Possible causes:**\n"
                         "• The video doesn't have the requested format (e.g., webm, mp4)\n"
                         "• The video quality is not available in the requested format\n"
@@ -1204,15 +1276,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 
                 
                 
-                # Auto-fallback to gallery-dl (/img) for non-video posts (albums/images)
-                if (
-                    "No videos found in playlist" in error_message
-                    or "Unsupported URL" in error_message
-                    or "No video could be found" in error_message
-                    or "No video found" in error_message
-                    or "No media found" in error_message
-                    or "This tweet does not contain" in error_message
-                ):
+                # Auto-fallback to gallery-dl (/img) for all supported errors
+                if should_fallback_to_gallery_dl(error_message, url):
                     try:
                         from COMMANDS.image_cmd import image_command
                         from HELPERS.safe_messeger import fake_message
@@ -1221,7 +1286,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     else:
                         try:
                             safe_edit_message_text(user_id, proc_msg_id,
-                                f"{current_total_process}\n❔ No video formats found. Trying image downloader…")
+                                f"{current_total_process}\n🔄 yt-dlp failed, trying gallery-dl…")
                         except Exception:
                             pass
                         try:
@@ -1266,7 +1331,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 fallback_text += " #nsfw"
                                 logger.info(f"[FALLBACK] Added #nsfw tag for NSFW content: {url}")
                             
-                            image_command(app, fake_message(fallback_text, user_id, original_chat_id=user_id))
+                            # For groups, preserve original chat_id and message_thread_id
+                            original_chat_id = message.chat.id if hasattr(message, 'chat') else user_id
+                            message_thread_id = getattr(message, 'message_thread_id', None) if hasattr(message, 'message_thread_id') else None
+                            image_command(app, fake_message(fallback_text, user_id, original_chat_id=original_chat_id, message_thread_id=message_thread_id, original_message=message))
                             logger.info(f"Triggered gallery-dl fallback via /img, is_nsfw={is_nsfw}, range={start_range}-{end_range}")
                             return "IMG"
                         except Exception as call_e:
@@ -1290,14 +1358,16 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             logger.warning(f"Download retry with proxy failed for user {user_id}")
                             did_proxy_retry = True
                 
-                # Send full error message with instructions immediately
-                send_error_to_user(
-                    message,                   
-                    "<blockquote>Check <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>here</a> if your site supported</blockquote>\n"
-                    "<blockquote>You may need <code>cookie</code> for downloading this video. First, clean your workspace via <b>/clean</b> command</blockquote>\n"
-                    "<blockquote>For Youtube - get <code>cookie</code> via <b>/cookie</b> command. For any other supported site - send your own cookie (<a href='https://t.me/c/2303231066/18'>guide1</a>) (<a href='https://t.me/c/2303231066/22'>guide2</a>) and after that send your video link again.</blockquote>\n"
-                    f"────────────────\n❌ Error downloading: {error_message}"
-                )
+                # Send full error message with instructions immediately (only once)
+                if not error_message_sent:
+                    send_error_to_user(
+                        message,                   
+                        "<blockquote>Check <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>here</a> if your site supported</blockquote>\n"
+                        "<blockquote>You may need <code>cookie</code> for downloading this video. First, clean your workspace via <b>/clean</b> command</blockquote>\n"
+                        "<blockquote>For Youtube - get <code>cookie</code> via <b>/cookie</b> command. For any other supported site - send your own cookie (<a href='https://t.me/c/2303231066/18'>guide1</a>) (<a href='https://t.me/c/2303231066/22'>guide2</a>) and after that send your video link again.</blockquote>\n"
+                        f"────────────────\n{Messages.DOWN_UP_ERROR_DOWNLOADING_MSG.format(error_message=error_message)}"
+                    )
+                    error_message_sent = True
                 return None
             except Exception as e:
                 error_message = str(e)
@@ -1316,7 +1386,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     else:
                         try:
                             safe_edit_message_text(user_id, proc_msg_id,
-                                f"{current_total_process}\n❔ No video formats found. Trying image downloader…")
+                                f"{current_total_process}\n🔄 yt-dlp failed, trying gallery-dl…")
                         except Exception:
                             pass
                         try:
@@ -1361,7 +1431,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 fallback_text += " #nsfw"
                                 logger.info(f"[FALLBACK] Added #nsfw tag for NSFW content: {url}")
                             
-                            image_command(app, fake_message(fallback_text, user_id, original_chat_id=user_id))
+                            # For groups, preserve original chat_id and message_thread_id
+                            original_chat_id = message.chat.id if hasattr(message, 'chat') else user_id
+                            message_thread_id = getattr(message, 'message_thread_id', None) if hasattr(message, 'message_thread_id') else None
+                            image_command(app, fake_message(fallback_text, user_id, original_chat_id=original_chat_id, message_thread_id=message_thread_id, original_message=message))
                             logger.info(f"Triggered gallery-dl fallback via /img (generic), is_nsfw={is_nsfw}, range={start_range}-{end_range}")
                             return "IMG"
                         except Exception as call_e:
@@ -1369,19 +1442,19 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 				
                 # Check if this is a "No videos found in playlist" error
                 if "No videos found in playlist" in str(e):
-                    error_message = f"❌ No videos found in playlist at index {current_index + 1}."
+                    error_message = Messages.DOWN_UP_NO_VIDEOS_PLAYLIST_MSG.format(index=current_index + 1)
                     send_error_to_user(message, error_message)
                     logger.info(f"Stopping download: playlist item at index {current_index} (no video found)")
                     return "STOP"  # New special value for full stop
                 
                 # Check if this is a TikTok infinite loop error
                 if "TikTok API keeps sending the same page" in str(e) and "infinite loop" in str(e):
-                    error_message = f"⚠️ TikTok API error at index {current_index + 1}, skipping to next video..."
+                    error_message = Messages.VIDEO_TIKTOK_API_ERROR_SKIP_MSG.format(index=current_index + 1)
                     send_to_user(message, error_message)
                     logger.info(f"Skipping TikTok video at index {current_index} due to API error")
                     return "SKIP"  # Skip this video and continue with next
 
-                send_to_user(message, f"❌ Unknown error: {e}")
+                send_to_user(message, Messages.UNKNOWN_ERROR_MSG.format(error=e))
                 return None
 
         if is_playlist and quality_key:
@@ -1407,6 +1480,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             # Reset retry flags for each new item in playlist
             did_cookie_retry = False
             did_proxy_retry = False
+            error_message_sent = False  # Reset error message flag for each playlist item
 
             info_dict = None
             skip_item = False
@@ -1504,7 +1578,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             if rename_name is None:
                 rename_name = video_title
 
-            dir_path = os.path.join("users", str(user_id))
+            dir_path = user_dir_name
 
             # Save the full name to a file
             full_title_path = os.path.join(dir_path, "full_title.txt")
@@ -1528,7 +1602,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             except Exception as e:
                 logger.error(f"Status update error after download: {e}")
 
-            dir_path = os.path.join("users", str(user_id))
+            dir_path = user_dir_name
             allfiles = os.listdir(dir_path)
             
             # Get user's preferred video format to determine file extensions
@@ -1581,7 +1655,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 logger.info(f"Found video files with fallback search: {files}")
             
             if not files:
-                send_error_to_user(message, f"Skipping unsupported file type in playlist at index {idx + video_start_with}")
+                send_error_to_user(message, Messages.SKIPPING_UNSUPPORTED_FILE_TYPE_MSG.format(index=idx + video_start_with))
                 continue
 
             downloaded_file = files[0]
@@ -1662,7 +1736,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 from DOWN_AND_UP.ffmpeg import get_ffmpeg_path
                 ffmpeg_path = get_ffmpeg_path()
                 if not ffmpeg_path:
-                    send_error_to_user(message, "❌ FFmpeg not found. Please install FFmpeg.")
+                    send_error_to_user(message, Messages.FFMPEG_NOT_FOUND_MSG)
                     break
                 
                 ffmpeg_cmd = [
@@ -1690,9 +1764,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     
                     # Check for specific FFmpeg errors
                     if "Invalid argument" in str(e.stderr):
-                        error_message = (
-                            "❌ **Video Conversion Failed**\n\n"
-                            "The video couldn't be converted to MP4 due to an invalid argument error.\n\n"
+                        error_message = Messages.DOWN_UP_VIDEO_CONVERSION_FAILED_INVALID_MSG
+                        error_message += (
                             "**Possible causes:**\n"
                             "• Unsupported video codec or format\n"
                             "• Corrupted source file\n"
@@ -1706,9 +1779,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             f"**Technical details:** {error_details}"
                         )
                     else:
-                        error_message = (
-                            "❌ **Video Conversion Failed**\n\n"
-                            "The video couldn't be converted to MP4.\n\n"
+                        error_message = Messages.DOWN_UP_VIDEO_CONVERSION_FAILED_MSG
+                        error_message += (
                             "**Solutions:**\n"
                             "• Try downloading with a different quality\n"
                             "• The original file will be sent without conversion\n"
@@ -1720,7 +1792,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     logger.error(f"FFmpeg conversion failed: {error_details}")
                     break
                 except Exception as e:
-                    send_error_to_user(message, f"❌ Conversion to MP4 failed: {e}")
+                    send_error_to_user(message, Messages.CONVERSION_TO_MP4_FAILED_MSG.format(error=e))
                     break
 
             after_rename_abs_path = os.path.abspath(user_vid_path)
@@ -1999,7 +2071,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     os.remove(user_vid_path)
                 success_msg = f"<b>✅ Upload complete</b> - {video_count} files uploaded.\n{Config.CREDITS_MSG}"
                 safe_edit_message_text(user_id, proc_msg_id, success_msg)
-                send_to_logger(message, "Video upload completed with file splitting.")
+                send_to_logger(message, Messages.VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
                 break
             else:
                 if final_name:
@@ -2063,7 +2135,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     }
                                     
                                     if check_subs_limits(real_info, quality_key):
-                                        status_msg = app.send_message(user_id, "⚠️ Embedding subtitles may take a long time (up to 1 min per 1 min of video)!\n🔥 Starting to burn subtitles...")
+                                        status_msg = app.send_message(user_id, Messages.EMBEDDING_SUBTITLES_WARNING_MSG)
                                         def tg_update_callback(progress, eta):
                                             blocks = int(progress * 10)
                                             bar = '🟩' * blocks + '⬜️' * (10 - blocks)
@@ -2110,9 +2182,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         except Exception as e:
                                             logger.error(f"Failed to update subtitle progress (final): {e}")
                                     else:
-                                        app.send_message(user_id, "ℹ️ Subtitles cannot be embedded due to limits (quality/duration/size)", reply_parameters=ReplyParameters(message_id=message.id))
+                                        app.send_message(user_id, Messages.SUBTITLES_CANNOT_EMBED_LIMITS_MSG, reply_parameters=ReplyParameters(message_id=message.id))
                                 else:
-                                    app.send_message(user_id, "ℹ️ Subtitles are not available for the selected language", reply_parameters=ReplyParameters(message_id=message.id))
+                                    app.send_message(user_id, Messages.SUBTITLES_NOT_AVAILABLE_LANGUAGE_MSG, reply_parameters=ReplyParameters(message_id=message.id))
                             
                             # Clean up subtitle files after embedding attempt
                             try:
@@ -2441,7 +2513,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     except Exception as e:
                         logger.error(f"Error sending video: {e}")
                         logger.error(traceback.format_exc())
-                        send_error_to_user(message, f"❌ Error sending video: {str(e)}")
+                        send_error_to_user(message, Messages.ERROR_SENDING_VIDEO_MSG.format(error=str(e)))
                         continue
         if successful_uploads == len(indices_to_download):
             success_msg = f"<b>✅ Upload complete</b> - {video_count} files uploaded.\n{Config.CREDITS_MSG}"
@@ -2450,16 +2522,16 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
         if is_playlist and quality_key:
             total_sent = len(cached_videos) + successful_uploads
-            app.send_message(user_id, f"✅ Playlist videos sent: {total_sent}/{len(requested_indices)} files.", reply_parameters=ReplyParameters(message_id=message.id))
-            send_to_logger(message, f"Playlist videos sent: {total_sent}/{len(requested_indices)} files (quality={quality_key}) to user {user_id}")
+            app.send_message(user_id, Messages.PLAYLIST_VIDEOS_SENT_MSG.format(sent=total_sent, total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+            send_to_logger(message, Messages.PLAYLIST_VIDEOS_SENT_LOG_MSG.format(sent=total_sent, total=len(requested_indices), quality=quality_key, user_id=user_id))
 
     except Exception as e:
         if "Download timeout exceeded" in str(e):
-            send_to_user(message, "⏰ Download cancelled due to timeout (2 hours)")
-            send_to_logger(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG)
+            send_to_user(message, Messages.DOWNLOAD_CANCELLED_TIMEOUT_MSG)
+            log_error_to_channel(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG, url)
         else:
             logger.error(f"Error in video download: {e}")
-            send_to_user(message, f"❌ Failed to download video: {e}")
+            send_to_user(message, Messages.FAILED_DOWNLOAD_VIDEO_MSG.format(error=e))
         
         # Immediate cleanup of temporary status messages on error
         try:

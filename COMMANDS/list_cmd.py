@@ -15,6 +15,7 @@ from HELPERS.logger import logger, send_to_user, send_error_to_user
 from HELPERS.limitter import is_user_in_channel
 from HELPERS.safe_messeger import safe_send_message
 from CONFIG.config import Config
+from CONFIG.messages import Messages as Messages
 from HELPERS.pot_helper import build_cli_extractor_args
 
 # Get app instance
@@ -90,21 +91,10 @@ def list_command(app, message):
         if len(parts) < 2:
             # Show help message
             help_text = (
-                "<b>📃 List Available Formats</b>\n\n"
-                "Get available video/audio formats for a URL.\n\n"
-                "<b>Usage:</b>\n"
-                "<code>/list URL</code>\n\n"
-                "<b>Examples:</b>\n"
-                "• <code>/list https://youtube.com/watch?v=123abc</code>\n"
-                "• <code>/list https://youtube.com/playlist?list=123abc</code>\n\n"
-                "<b>💡 How to use format IDs:</b>\n"
-                "After getting the list, use specific format ID:\n"
-                "• <code>/format id 401</code> - download format 401\n"
-                "• <code>/format id401</code> - same as above\n\n"
-                "This command will show all available formats that can be downloaded."
+Messages.LIST_HELP_MSG
             )
             keyboard = InlineKeyboardMarkup([[
-                InlineKeyboardButton("🔚 Close", callback_data="list_help|close")
+                InlineKeyboardButton(Messages.LIST_CLOSE_BUTTON_MSG, callback_data="list_help|close")
             ]])
             safe_send_message(
                 user_id,
@@ -118,13 +108,13 @@ def list_command(app, message):
         
         # Basic URL validation
         if not (url.startswith("http://") or url.startswith("https://")):
-            send_error_to_user(message, "❌ Please provide a valid URL starting with http:// or https://")
+            send_error_to_user(message, Messages.LIST_INVALID_URL_MSG)
             return
         
         # Send processing message
         processing_msg = safe_send_message(
             user_id,
-            "🔄 Getting available formats...",
+Messages.LIST_PROCESSING_MSG,
             message=message
         )
         
@@ -145,46 +135,38 @@ def list_command(app, message):
             
             # Create temporary file with output
             with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as temp_file:
-                temp_file.write(f"Available formats for: {url}\n")
+                temp_file.write(Messages.LIST_AVAILABLE_FORMATS_HEADER_MSG.format(url=url) + "\n")
                 temp_file.write("=" * 50 + "\n\n")
                 temp_file.write(output)
                 temp_file.write("\n\n" + "=" * 50 + "\n")
-                temp_file.write("💡 How to use format IDs:\n")
-                temp_file.write("After getting the list, use specific format ID:\n")
-                temp_file.write("• /format id 401 - download format 401\n")
-                temp_file.write("• /format id401 - same as above\n")
-                temp_file.write("• /format id 140 audio - download format 140 as MP3 audio\n")
-                temp_file.write("• /format id140 audio - same as above\n")
+                temp_file.write(Messages.LIST_HOW_TO_USE_FORMAT_IDS_TITLE)
+                temp_file.write(Messages.LIST_FORMAT_USAGE_INSTRUCTIONS)
+                temp_file.write(Messages.LIST_FORMAT_EXAMPLE_401)
+                temp_file.write(Messages.LIST_FORMAT_EXAMPLE_401_SHORT)
+                temp_file.write(Messages.LIST_FORMAT_EXAMPLE_140_AUDIO)
+                temp_file.write(Messages.LIST_FORMAT_EXAMPLE_140_AUDIO_SHORT)
                 
                 # Add special note for audio-only formats
                 if audio_only_formats:
-                    temp_file.write(f"\n🎵 Audio-only formats detected: {', '.join(audio_only_formats)}\n")
-                    temp_file.write("These formats will be downloaded as MP3 audio files.\n")
+                    temp_file.write(f"\n{Messages.LIST_AUDIO_FORMATS_DETECTED.format(formats=', '.join(audio_only_formats))}")
+                    temp_file.write(Messages.LIST_AUDIO_FORMATS_NOTE)
                 
                 temp_file_path = temp_file.name
             
             try:
                 # Send the file
-                caption = f"📃 Available formats for:\n<code>{url}</code>\n\n"
-                caption += f"💡 <b>How to set format:</b>\n"
-                caption += f"• <code>/format id 134</code> - Download specific format ID\n"
-                caption += f"• <code>/format 720p</code> - Download by quality\n"
-                caption += f"• <code>/format best</code> - Download best quality\n"
-                caption += f"• <code>/format ask</code> - Always ask for quality\n\n"
+                caption = Messages.LIST_CAPTION_MSG.format(url=url, audio_note="")
                 
                 # Add special note for audio-only formats
                 if audio_only_formats:
-                    caption += f"🎵 <b>Audio-only formats:</b> {', '.join(audio_only_formats)}\n"
-                    caption += f"• <code>/format id 140 audio</code> - Download format 140 as MP3 audio\n"
-                    caption += f"• <code>/format id140 audio</code> - same as above\n"
-                    caption += f"These will be downloaded as MP3 audio files.\n\n"
+                    caption += Messages.LIST_AUDIO_FORMATS_MSG.format(formats=', '.join(audio_only_formats))
                 
                 caption += f"📋 Use format ID from the list above"
                 
                 app.send_document(
                     user_id,
                     document=temp_file_path,
-                    file_name=f"formats_{user_id}.txt",
+                    file_name=Messages.LIST_FORMATS_FILE_NAME_MSG.format(user_id=user_id),
                     caption=caption,
                     reply_to_message_id=message.id
                 )
@@ -197,7 +179,7 @@ def list_command(app, message):
                     
             except Exception as e:
                 logger.error(f"Error sending formats file: {e}")
-                send_error_to_user(message, f"❌ Error sending formats file: {str(e)}")
+                send_error_to_user(message, Messages.LIST_ERROR_SENDING_MSG.format(error=str(e)))
             finally:
                 # Clean up temporary file
                 try:
@@ -211,11 +193,11 @@ def list_command(app, message):
             except Exception:
                 pass
                 
-            send_error_to_user(message, f"❌ Failed to get formats:\n<code>{output}</code>")
+            send_error_to_user(message, Messages.LIST_ERROR_GETTING_MSG.format(error=output))
             
     except Exception as e:
         logger.error(f"Error in list command: {e}")
-        send_error_to_user(message, "❌ An error occurred while processing the command")
+        send_error_to_user(message, Messages.LIST_ERROR_OCCURRED_MSG)
 
 @app.on_callback_query(filters.regex("^list_help\\|"))
 def list_help_callback(app, callback_query):
@@ -224,7 +206,7 @@ def list_help_callback(app, callback_query):
         data = callback_query.data.split("|")[1]
         if data == "close":
             callback_query.message.delete()
-            callback_query.answer("Help closed")
+            callback_query.answer(Messages.HELP_CLOSED_MSG)
     except Exception as e:
         logger.error(f"Error in list help callback: {e}")
-        callback_query.answer("Error occurred", show_alert=True)
+        callback_query.answer(Messages.LIST_ERROR_CALLBACK_MSG, show_alert=True)
