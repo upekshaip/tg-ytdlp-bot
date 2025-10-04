@@ -2177,6 +2177,13 @@ def fallback_gallery_dl_callback(app, callback_query):
         # Answer callback query
         callback_query.answer("🔄 Switching to gallery-dl...")
         
+        # Delete the fallback message after clicking the button
+        try:
+            callback_query.message.delete()
+            logger.info(f"Deleted fallback gallery-dl message for user {user_id}")
+        except Exception as e:
+            logger.warning(f"Failed to delete fallback gallery-dl message: {e}")
+        
         # Import gallery-dl command
         from COMMANDS.image_cmd import image_command
         from HELPERS.safe_messeger import fake_message

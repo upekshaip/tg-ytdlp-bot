@@ -677,7 +677,8 @@ def image_command(app, message):
             Messages.IMG_HELP_MSG + " /audio, /vid, /help, /playlist, /settings",
             reply_markup=keyboard,
             parse_mode=enums.ParseMode.HTML,
-            reply_parameters=ReplyParameters(message_id=message.id)
+            reply_parameters=ReplyParameters(message_id=message.id),
+            message=message
         )
         send_to_logger(message, LoggerMsg.IMG_HELP_SHOWN)
         return
@@ -753,7 +754,8 @@ def image_command(app, message):
             chat_id,
             Messages.INVALID_URL_MSG,
             parse_mode=enums.ParseMode.HTML,
-            reply_parameters=ReplyParameters(message_id=message.id)
+            reply_parameters=ReplyParameters(message_id=message.id),
+            message=message
         )
         log_error_to_channel(message, LoggerMsg.INVALID_URL_PROVIDED.format(url=url), url)
         return
@@ -802,7 +804,8 @@ def image_command(app, message):
                         suggested_command_url_format=suggested_command_url_format
                     ),
                     parse_mode=enums.ParseMode.HTML,
-                    reply_parameters=ReplyParameters(message_id=message.id)
+                    reply_parameters=ReplyParameters(message_id=message.id),
+                    message=message
                 )
                 return
     
@@ -814,7 +817,8 @@ def image_command(app, message):
         chat_id,
         Messages.CHECKING_CACHE_MSG.format(url=url),
         parse_mode=enums.ParseMode.HTML,
-        reply_parameters=ReplyParameters(message_id=message.id)
+        reply_parameters=ReplyParameters(message_id=message.id),
+        message=message
     )
     # Pin the status message for visibility
     try:
@@ -999,6 +1003,7 @@ def image_command(app, message):
             pass
         
         # If no manual range specified, show range selection menu
+        logger.info(f"[IMG RANGE DEBUG] manual_range={manual_range}, will show range menu: {manual_range is None}")
         if manual_range is None:
             # Get total count from image_info
             total_count = None
@@ -1052,6 +1057,7 @@ def image_command(app, message):
             
             if total_count is None or total_count <= 0:
                 # Still no count, show error
+                logger.info(f"[IMG RANGE DEBUG] Could not determine media count, total_count={total_count}")
                 safe_edit_message_text(
                     user_id, status_msg.id,
                     "❌ Could not determine media count from the link.\n\n"
@@ -1062,6 +1068,7 @@ def image_command(app, message):
                 return
             
             # Create range selection menu
+            logger.info(f"[IMG RANGE DEBUG] Creating range buttons: total_count={total_count}, total_limit={total_limit}")
             
             # Calculate ranges based on total_count and limits
             ranges = []
@@ -1072,6 +1079,8 @@ def image_command(app, message):
                 current_end = min(current_start + batch_size - 1, total_count)
                 ranges.append((current_start, current_end))
                 current_start = current_end + 1
+            
+            logger.info(f"[IMG RANGE DEBUG] Created {len(ranges)} range buttons: {ranges}")
             
             # Create keyboard
             keyboard = []
@@ -1137,7 +1146,8 @@ def image_command(app, message):
                     Messages.COMMAND_IMAGE_MEDIA_LIMIT_EXCEEDED_MSG.format(count=detected_total, max_count=max_img_files, start_range=start_range, end_range=end_range, url=url, suggested_command_url_format=f"/img {start_range}-{end_range} {url}") +
                     f"<code>{suggested_command_url_format}</code>",
                     parse_mode=enums.ParseMode.HTML,
-                    reply_parameters=ReplyParameters(message_id=message.id)
+                    reply_parameters=ReplyParameters(message_id=message.id),
+                    message=message
                 )
                 return
             
@@ -1252,7 +1262,8 @@ def image_command(app, message):
         # helper to run one range and wait for files to appear
         def run_and_collect(next_end: int):
             # For single item or when total is small, use range 1-1 to avoid API issues
-            if (current_start == next_end and next_end == 1) or (detected_total and detected_total <= 10):
+            # Only use 1-1 when we're actually starting from 1 and it's a single item
+            if (current_start == next_end and current_start == 1) or (detected_total and detected_total <= 10 and current_start == 1):
                 logger.info(LoggerMsg.IMG_DOWNLOADING_RANGE_1_1_LOG_MSG.format(detected_total=detected_total, current_start=current_start, next_end=next_end))
                 result = download_image_range_cli(url, "1-1", user_id, use_proxy, output_dir=run_dir)
                 if isinstance(result, str):  # 401 Unauthorized error message

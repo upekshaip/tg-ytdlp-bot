@@ -468,6 +468,69 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         if not os.path.exists(user_dir):
             os.makedirs(user_dir, exist_ok=True)
 
+        # Create unique download directory for this session to avoid conflicts with parallel downloads
+        import time
+        import random
+        from urllib.parse import urlparse
+        
+        try:
+            # Parse URL to extract domain for better organization
+            parsed = urlparse(url)
+            domain = parsed.netloc.lower()
+            if domain.startswith('www.'):
+                domain = domain[4:]
+            
+            # Create unique timestamp-based directory
+            timestamp = int(time.time() * 1000000)  # Microsecond precision
+            random_suffix = random.randint(1000, 9999)  # Random 4-digit number
+            
+            # Structure: users/{user_id}/downloads/{domain}_{timestamp}_{random}/
+            unique_download_dir = os.path.join(user_dir, "downloads", f"{domain}_{timestamp}_{random_suffix}")
+            os.makedirs(unique_download_dir, exist_ok=True)
+            
+            # Update user_dir_name to use the unique directory
+            user_dir_name = unique_download_dir
+            
+            logger.info(f"Created unique download directory: {unique_download_dir}")
+        except Exception as e:
+            logger.warning(f"Failed to create unique download directory, using default: {e}")
+            # Fallback to original behavior
+            user_dir_name = os.path.abspath(os.path.join("users", str(user_id)))
+
+        # Pre-cleanup: remove all media files from unique download directory before starting
+        try:
+            logger.info(f"Pre-cleanup: removing old media files from unique directory {user_dir_name}")
+            if os.path.exists(user_dir_name):
+                for root, dirs, files in os.walk(user_dir_name):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        try:
+                            # Remove all media files (keep .txt and .json files)
+                            if file.lower().endswith((
+                                '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff',
+                                '.mp4', '.m4v', '.avi', '.mov', '.mkv', '.webm', '.flv',
+                                '.mp3', '.wav', '.ogg', '.m4a',
+                                '.pdf', '.doc', '.docx', '.zip', '.rar', '.7z'
+                            )):
+                                os.remove(file_path)
+                                logger.info(f"Pre-cleanup: removed file {file_path}")
+                        except Exception as e:
+                            logger.warning(f"Pre-cleanup: failed to remove file {file_path}: {e}")
+                    
+                    # Remove empty directories (except unique download root)
+                    for dir_name in dirs:
+                        dir_path = os.path.join(root, dir_name)
+                        try:
+                            if os.path.exists(dir_path) and not os.listdir(dir_path) and dir_path != user_dir_name:
+                                os.rmdir(dir_path)
+                                logger.info(f"Pre-cleanup: removed empty directory {dir_path}")
+                        except Exception as e:
+                            logger.warning(f"Pre-cleanup: failed to remove directory {dir_path}: {e}")
+            
+            logger.info(f"Pre-cleanup completed for unique directory {user_dir_name}")
+        except Exception as e:
+            logger.warning(f"Pre-cleanup failed for unique directory {user_dir_name}: {e}")
+
         # Reset of the flag of errors for the new launch of the playlist
         if playlist_name:
             with playlist_errors_lock:
