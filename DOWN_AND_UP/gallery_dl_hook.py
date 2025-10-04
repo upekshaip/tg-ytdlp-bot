@@ -427,15 +427,20 @@ def get_total_media_count(url: str, user_id=None, use_proxy: bool = False) -> in
             if 'vk.com' in url.lower():
                 logger.info("VK domain detected, skipping --simulate and using --get-urls directly")
                 return _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
+            
+            # For Instagram, use special method with Instagram-specific config
+            if 'instagram.com' in url.lower():
+                logger.info("Instagram domain detected, using Instagram-specific method")
+                return _get_instagram_media_count(url, user_id, use_proxy, cfg_path)
 
             # Use gallery-dl extractor to get all media info (not just URLs)
             logger.info(f"[gallery-dl] cookies for media count: {cfg.get('extractor',{}).get('cookies')}")
             cmd = [sys.executable, "-m", "gallery_dl", "--config", cfg_path, "--simulate", url]
             logger.info(f"Counting total media via: {' '.join(cmd)}")
             try:
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
             except subprocess.TimeoutExpired:
-                logger.warning("--simulate timed out after 120s, falling back to --get-urls")
+                logger.warning("--simulate timed out after 15s, falling back to --get-urls")
                 return _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
 
             if result.returncode == 0:
@@ -464,10 +469,14 @@ def get_total_media_count(url: str, user_id=None, use_proxy: bool = False) -> in
 def _get_total_media_count_fallback(url: str, user_id, use_proxy: bool, cfg_path: str) -> int | None:
     """Fallback method using --get-urls for sites that don't work with --simulate"""
     try:
+        # Special handling for Instagram - use different approach
+        if 'instagram.com' in url.lower():
+            return _get_instagram_media_count(url, user_id, use_proxy, cfg_path)
+        
         cmd = [sys.executable, "-m", "gallery_dl", "--config", cfg_path, "--get-urls", url]
         logger.info(f"Fallback counting via --get-urls: {' '.join(cmd)}")
         # VK альбомы могут быть большими – увеличим таймаут для VK
-        timeout_sec = 300 if 'vk.com' in url.lower() else 120
+        timeout_sec = 30 if 'vk.com' in url.lower() else 15
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
         except subprocess.TimeoutExpired:
@@ -491,6 +500,82 @@ def _get_total_media_count_fallback(url: str, user_id, use_proxy: bool, cfg_path
         logger.error(f"Fallback get_total_media_count error: {e}")
         return None
 
+def _get_instagram_media_count(url: str, user_id, use_proxy: bool, cfg_path: str) -> int | None:
+    """Special method for Instagram media count using --simulate with Instagram-specific config"""
+    try:
+        # Create Instagram-specific config with higher limits
+        instagram_config = {
+            "extractor": {
+                "timeout": 60,
+                "retries": 3,
+                "instagram": {
+                    "posts": True,
+                    "stories": False,
+                    "highlights": False,
+                    "igtv": False,
+                    "reels": True,
+                    "count": 1000  # Increase limit for Instagram
+                }
+            }
+        }
+        
+        # Add user cookies if available
+        user_cookie_path = os.path.join("users", str(user_id), "cookie.txt")
+        if os.path.exists(user_cookie_path):
+            instagram_config["extractor"]["cookies"] = user_cookie_path
+        
+        # Add proxy if enabled
+        if use_proxy:
+            from HELPERS.proxy_helper import get_proxy_for_url
+            proxy = get_proxy_for_url(url)
+            if proxy:
+                instagram_config["extractor"]["proxy"] = proxy
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(instagram_config, f)
+            instagram_cfg_path = f.name
+        
+        try:
+            # Use --simulate with Instagram-specific config
+            cmd = [sys.executable, "-m", "gallery_dl", "--config", instagram_cfg_path, "--simulate", url]
+            logger.info(f"Instagram media count via --simulate: {' '.join(cmd)}")
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            
+            if result.returncode == 0:
+                # Count lines that contain media info
+                lines = [ln for ln in result.stdout.splitlines() if ln.strip() and ('"url"' in ln or '"filename"' in ln or '"extension"' in ln)]
+                media_count = len(lines)
+                logger.info(f"Instagram detected {media_count} media items via --simulate")
+                return media_count
+            else:
+                logger.warning(f"Instagram --simulate failed: {result.stderr[:400]}")
+                # Fallback to --get-urls with Instagram config
+                cmd = [sys.executable, "-m", "gallery_dl", "--config", instagram_cfg_path, "--get-urls", url]
+                logger.info(f"Instagram fallback via --get-urls: {' '.join(cmd)}")
+                
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+                if result.returncode == 0:
+                    lines = [ln for ln in result.stdout.splitlines() if ln.strip()]
+                    media_count = len(lines)
+                    logger.info(f"Instagram detected {media_count} media items via --get-urls")
+                    # If still very few items, likely Instagram is blocking - return None to trigger manual input
+                    if media_count < 5:
+                        logger.warning(f"Instagram returned only {media_count} items, likely blocked - suggesting manual input")
+                        return None
+                    return media_count
+                else:
+                    logger.warning(f"Instagram --get-urls also failed: {result.stderr[:400]}")
+                    return None
+        finally:
+            try:
+                os.unlink(instagram_cfg_path)
+            except Exception:
+                pass
+    except Exception as e:
+        logger.error(f"Instagram media count error: {e}")
+        return None
+
 def _try_without_cookies(url: str, cfg_path: str) -> int | None:
     """Try without cookies as fallback for problematic sites"""
     try:
@@ -509,7 +594,7 @@ def _try_without_cookies(url: str, cfg_path: str) -> int | None:
         try:
             cmd = [sys.executable, "-m", "gallery_dl", "--config", no_cookies_cfg_path, "--get-urls", url]
             logger.info(f"Without cookies: {' '.join(cmd)}")
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
             if result.returncode == 0:
                 lines = [ln for ln in result.stdout.splitlines() if ln.strip()]
                 logger.info(f"Without cookies detected {len(lines)} media items")

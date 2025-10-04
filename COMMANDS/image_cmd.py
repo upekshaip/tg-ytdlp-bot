@@ -12,6 +12,7 @@ from pyrogram.errors import FloodWait
 from HELPERS.logger import send_to_logger, logger, get_log_channel, log_error_to_channel
 from CONFIG.logger_msg import LoggerMsg
 from CONFIG.messages import Messages
+from CONFIG.domains import DomainsConfig
 from HELPERS.app_instance import get_app
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
 import HELPERS.safe_messeger as sm
@@ -968,14 +969,46 @@ def image_command(app, message):
                     'url': url
                 }
             else:
-                safe_edit_message_text(
-                    user_id, status_msg.id,
-                    Config.FAILED_ANALYZE_MSG.format(url=url) +
-                    Messages.IMG_URL_NOT_ACCESSIBLE_MSG,
-                    parse_mode=enums.ParseMode.HTML
-                )
-                log_error_to_channel(message, LoggerMsg.FAILED_ANALYZE_IMAGE.format(url=url), url)
-                return
+                # Fallback: if no image_info and no detected_total, use max allowed range
+                # BUT ONLY if manual_range is not already set by user
+                if manual_range is None:
+                    # Calculate total_limit for fallback
+                    fallback_limit = LimitsConfig.MAX_IMG_FILES
+                    try:
+                        if message and getattr(message.chat, 'type', None) != enums.ChatType.PRIVATE:
+                            mult = getattr(LimitsConfig, 'GROUP_MULTIPLIER', 1)
+                            fallback_limit = int(fallback_limit * mult)
+                    except Exception:
+                        pass
+                    
+                    logger.info(f"[IMG FALLBACK] No image_info and no detected_total, using fallback with max range: {fallback_limit}")
+                    
+                    # Update status message to show we're proceeding with fallback
+                    safe_edit_message_text(
+                        user_id, status_msg.id,
+                        f"🔄 Could not analyze media, proceeding with maximum allowed range (1-{fallback_limit})...",
+                        parse_mode=enums.ParseMode.HTML
+                    )
+                    
+                    # Set manual range to max allowed range for fallback
+                    manual_range = (1, fallback_limit)
+                    logger.info(f"[IMG FALLBACK] Using manual range for fallback: {manual_range}")
+                    
+                    # Create minimal image_info for fallback
+                    image_info = {
+                        'title': f'Media Collection (up to {fallback_limit} items)',
+                        'description': f'Fallback mode - downloading up to {fallback_limit} items',
+                        'url': url
+                    }
+                else:
+                    # User already specified a range, don't override it
+                    logger.info(f"[IMG FALLBACK] User specified range {manual_range}, not overriding with fallback")
+                    # Create minimal image_info for user-specified range
+                    image_info = {
+                        'title': f'Media Collection (range {manual_range[0]}-{manual_range[1] if manual_range[1] else "end"})',
+                        'description': f'User-specified range: {manual_range[0]}-{manual_range[1] if manual_range[1] else "end"}',
+                        'url': url
+                    }
         
         # Update status message
         title = image_info.get('title', 'Unknown')
@@ -1002,9 +1035,16 @@ def image_command(app, message):
         except Exception:
             pass
         
-        # If no manual range specified, show range selection menu
-        logger.info(f"[IMG RANGE DEBUG] manual_range={manual_range}, will show range menu: {manual_range is None}")
-        if manual_range is None:
+        # Check if domain should skip simulation and go to fallback (before any other logic)
+        should_skip_simulation = any(domain in url.lower() for domain in DomainsConfig.GALLERYDL_FALLBACK_DOMAINS)
+        
+        # If manual range specified, skip simulation and counting - work directly with range
+        if manual_range is not None:
+            logger.info(f"[IMG MANUAL RANGE] User specified range {manual_range}, skipping simulation and counting")
+            # Skip all simulation and counting logic, go directly to download
+        else:
+            # If no manual range specified, show range selection menu
+            logger.info(f"[IMG RANGE DEBUG] manual_range={manual_range}, will show range menu: {manual_range is None}")
             # Get total count from image_info
             total_count = None
             for key in ("count", "total", "num", "items", "files", "num_images", "images_count"):
@@ -1056,21 +1096,25 @@ def image_command(app, message):
                     pass
             
             if total_count is None or total_count <= 0:
-                # Still no count, show error
-                logger.info(f"[IMG RANGE DEBUG] Could not determine media count, total_count={total_count}")
+                # Still no count, use fallback - start downloading with max allowed range
+                logger.info(f"[IMG RANGE DEBUG] Could not determine media count, using fallback with max range: {total_limit}")
+                
+                # Update status message to show we're proceeding with fallback
                 safe_edit_message_text(
                     user_id, status_msg.id,
-                    "❌ Could not determine media count from the link.\n\n"
-                    "Try specifying range manually:\n"
-                    f"<code>/img 1-10 {url}</code>",
+                    f"🔄 Could not determine media count, proceeding with maximum allowed range (1-{total_limit})...",
                     parse_mode=enums.ParseMode.HTML
                 )
-                return
+                
+                # Set manual range to max allowed range for fallback
+                manual_range = (1, total_limit)
+                logger.info(f"[IMG FALLBACK] Using manual range for fallback: {manual_range}")
             
-            # Create range selection menu
-            logger.info(f"[IMG RANGE DEBUG] Creating range buttons: total_count={total_count}, total_limit={total_limit}")
-            
-            # Calculate ranges based on total_count and limits
+            # Create range selection menu only if we have a valid count
+            if total_count and total_count > 0:
+                logger.info(f"[IMG RANGE DEBUG] Creating range buttons: total_count={total_count}, total_limit={total_limit}")
+                
+                # Calculate ranges based on total_count and limits
             ranges = []
             current_start = 1
             batch_size = total_limit
@@ -1094,25 +1138,58 @@ def image_command(app, message):
                 callback_data = f"img_range|{start}|{end}|{url}"
                 keyboard.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
             
-            # Add cancel button
-            keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data="img_range|cancel")])
-            
-            safe_edit_message_text(
-                user_id, status_msg.id,
-                f"📊 Found <b>{total_count}</b> media items from the link\n\n"
-                f"Select download range:",
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode=enums.ParseMode.HTML
-            )
-            return
+                # Add cancel button
+                keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data="img_range|cancel")])
+                
+                safe_edit_message_text(
+                    user_id, status_msg.id,
+                    f"📊 Found <b>{total_count}</b> media items from the link\n\n"
+                    f"Select download range:",
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    parse_mode=enums.ParseMode.HTML
+                )
+                return
+            else:
+                # Fallback case - we already set manual_range above
+                logger.info(f"[IMG FALLBACK] Skipping range menu creation, using manual_range: {manual_range}")
             
         limit_text = 'unlimited' if is_admin else total_limit
         logger.info(LoggerMsg.IMG_USER_ADMIN_LIMIT_LOG_MSG.format(user_id=user_id, is_admin=is_admin, limit_text=limit_text))
         
-        # Determine expected total via --get-urls analog
-        detected_total = None
-        if manual_range is None or manual_range[1] is None:
-            detected_total = get_total_media_count(url, user_id, use_proxy)
+        # Check if domain should skip simulation and go to fallback (BEFORE any other logic)
+        if should_skip_simulation and manual_range is None:
+            logger.info(f"[IMG FALLBACK DOMAIN] Domain in GALLERYDL_FALLBACK_DOMAINS, skipping simulation, using fallback")
+            # Use fallback immediately for these domains
+            fallback_limit = LimitsConfig.MAX_IMG_FILES
+            try:
+                if message and getattr(message.chat, 'type', None) != enums.ChatType.PRIVATE:
+                    mult = getattr(LimitsConfig, 'GROUP_MULTIPLIER', 1)
+                    fallback_limit = int(fallback_limit * mult)
+            except Exception:
+                pass
+            
+            # Set manual range to max allowed range for fallback
+            manual_range = (1, fallback_limit)
+            logger.info(f"[IMG FALLBACK DOMAIN] Using manual range for fallback: {manual_range}")
+            
+            # Create minimal image_info for fallback
+            image_info = {
+                'title': f'Media Collection (up to {fallback_limit} items)',
+                'description': f'Fallback mode - downloading up to {fallback_limit} items',
+                'url': url
+            }
+            
+            # Skip total detection for fallback domains
+            detected_total = None
+        else:
+            # Determine expected total via --get-urls analog
+            detected_total = None
+            if manual_range is None:
+                detected_total = get_total_media_count(url, user_id, use_proxy)
+            else:
+                # If manual range is specified, skip total detection and proceed with download
+                logger.info(f"[IMG MANUAL RANGE] Skipping total detection, using manual range: {manual_range}")
+                detected_total = None  # Will be handled by fallback logic later
         
         # Check limits after detecting total media count
         if detected_total and detected_total > 0:
@@ -1251,6 +1328,25 @@ def image_command(app, message):
             manual_end_cap = detected_total
             total_expected = detected_total
             logger.info(LoggerMsg.IMG_BATCH_SMALL_TOTAL_LOG_MSG.format(detected_total=detected_total, manual_end_cap=manual_end_cap))
+        
+        # Fallback: if no total detected but manual range specified, use the range
+        if manual_range is not None and total_expected is None:
+            if manual_range[1] is not None:
+                total_expected = manual_range[1] - manual_range[0] + 1
+            else:
+                # Open-ended range, use a reasonable default
+                total_expected = total_limit
+            logger.info(f"[IMG FALLBACK] Using manual range for total_expected: {total_expected}")
+            
+            # Update status message to show we're proceeding with manual range
+            try:
+                safe_edit_message_text(
+                    user_id, status_msg.id,
+                    f"🔄 Could not determine total media count, proceeding with specified range {manual_range[0]}-{manual_range[1] if manual_range[1] else 'end'}...",
+                    parse_mode=enums.ParseMode.HTML
+                )
+            except Exception as e:
+                logger.warning(f"Failed to update status message: {e}")
         # Timeout tracking variables
         range_start_time = time.time()
         max_range_wait_time = LimitsConfig.MAX_IMG_RANGE_WAIT_TIME
@@ -1289,6 +1385,9 @@ def image_command(app, message):
                     return result
             return True
 
+        consecutive_empty_searches = 0  # Counter for consecutive searches with no new files
+        max_consecutive_empty_searches = 3  # Exit after 3 consecutive searches with no new files
+        
         while True:
             # Check total timeout
             total_elapsed = time.time() - total_start_time
@@ -1379,6 +1478,9 @@ def image_command(app, message):
             # gallery-dl creates subdirectories like instagram/username/ so we need to search deeper
             search_dir = gallery_dl_dir
             logger.info(LoggerMsg.IMG_BATCH_SEARCHING_FILES_LOG_MSG.format(search_dir=search_dir))
+            
+            files_found_in_this_search = 0  # Count files found in this search iteration
+            
             if os.path.exists(search_dir):
                 # Debug: list all subdirectories
                 for root, dirs, files in os.walk(search_dir):
@@ -1415,6 +1517,7 @@ def image_command(app, message):
                             continue
                         seen_files.add(file_path)
                         total_downloaded += 1
+                        files_found_in_this_search += 1  # Count files found in this search
                         last_activity_time = time.time()  # Update activity time when we find new files
 
                         # Enforce cap (but not for admins)
@@ -3274,6 +3377,17 @@ def image_command(app, message):
             if time.time() - range_start_time > max_range_wait_time:
                 logger.warning(f"[IMG BATCH] Range timeout reached ({max_range_wait_time}s), no new files found in current range")
                 break
+
+            # Check if we found any new files in this search iteration
+            if files_found_in_this_search == 0:
+                consecutive_empty_searches += 1
+                logger.info(f"[IMG BATCH] No new files found in search iteration {consecutive_empty_searches}/{max_consecutive_empty_searches}")
+                if consecutive_empty_searches >= max_consecutive_empty_searches:
+                    logger.info(f"[IMG BATCH] Exiting loop after {consecutive_empty_searches} consecutive empty searches")
+                    break
+            else:
+                consecutive_empty_searches = 0  # Reset counter when we find files
+                logger.info(f"[IMG BATCH] Found {files_found_in_this_search} new files, resetting empty search counter")
 
             time.sleep(0.5)
 

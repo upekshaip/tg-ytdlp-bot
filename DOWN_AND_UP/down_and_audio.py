@@ -1282,6 +1282,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             if rename_name is None:
                 rename_name = audio_title
 
+            dir_path = user_folder
+
             # Find the downloaded audio file
             allfiles = os.listdir(user_folder)
             logger.info(f"All files in user folder: {allfiles}")
@@ -1655,7 +1657,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         
         # Clean up any downloaded thumbnails
         try:
-            user_folder = os.path.join("users", str(user_id))
+            # Use the unique download directory for cleanup
             if os.path.exists(user_folder):
                 # Clean up YouTube thumbnails
                 for thumb_file in os.listdir(user_folder):

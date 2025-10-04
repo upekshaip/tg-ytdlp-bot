@@ -1562,7 +1562,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             if rename_name is None:
                 rename_name = video_title
 
-            dir_path = os.path.join("users", str(user_id))
+            dir_path = user_dir_name
 
             # Save the full name to a file
             full_title_path = os.path.join(dir_path, "full_title.txt")
@@ -1586,7 +1586,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             except Exception as e:
                 logger.error(f"Status update error after download: {e}")
 
-            dir_path = os.path.join("users", str(user_id))
+            dir_path = user_dir_name
             allfiles = os.listdir(dir_path)
             
             # Get user's preferred video format to determine file extensions

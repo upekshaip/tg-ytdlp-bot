@@ -85,7 +85,7 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 
 📥 <b>Basic Usage:</b>
 • Send any link → bot downloads it
-  <blockquote>the bot automatically tries to download videos via yt-dlp and images via gallery-dl.</blockquote>
+  <i>the bot automatically tries to download videos via yt-dlp and images via gallery-dl.</i>
 • <code>/audio URL</code> → extract audio
 • <code>/link [quality] URL</code> → get direct links
 • <code>/proxy</code> → enable/disable proxy for all downloads
@@ -150,7 +150,7 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 
 📥 <b>Основное:</b>
 • Отправьте любую ссылку → бот скачает её
-  <blockquote>бот автоматически попробует скачать видео через yt-dlp и изображения через gallery-dl.</blockquote>
+  <i>бот автоматически попробует скачать видео через yt-dlp и изображения через gallery-dl.</i>
 • <code>/audio URL</code> → аудио
 • <code>/link [качество] URL</code> → прямые ссылки
 • <code>/proxy</code> → включить/выключить прокси для всех загрузок
@@ -213,9 +213,9 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 </blockquote>
 
 👨‍💻 <i>Developer:</i> @upekshaip
-<a href="https://github.com/upekshaip/tg-ytdlp-bot">[🛠 github]</a>
+🛠 <a href=\"https://github.com/upekshaip/tg-ytdlp-bot\">GitHub</a>
 🤝 <i>Contributor:</i> @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl 
-<a href="https://github.com/chelaxian/tg-ytdlp-bot">[🛠 github]</a>
+🛠 <a href=\"https://github.com/chelaxian/tg-ytdlp-bot\">GitHub</a>
     """
     
     # Version 1.0.0 - Добавлен SAVE_AS_COOKIE_HINT для подсказки по /save_as_cookie

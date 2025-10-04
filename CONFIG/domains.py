@@ -39,6 +39,11 @@ class DomainsConfig(object):
         'vk.com/album-',
     ]
     
+    GALLERYDL_FALLBACK_DOMAINS = [
+        # Social media platforms largely covered by gallery-dl
+        'instagram.com',
+    ]    
+    
     # --- Whitelist of domains that are not considered porn ---
     WHITELIST = [
         'a-tushar-82q-fef07c6bf20a.herokuapp.com', 'file-to-link-632f24ac9728.herokuapp.com',
