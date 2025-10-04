@@ -10,6 +10,7 @@ from CONFIG.messages import Messages
 from pyrogram.errors import FloodWait
 import os
 from pyrogram.types import ReplyParameters
+from pyrogram import enums
 
 # Configure local logger
 logger = logging.getLogger(__name__)
@@ -25,12 +26,14 @@ def get_app_safe():
         raise RuntimeError(Messages.HELPER_APP_INSTANCE_NOT_AVAILABLE_MSG)
     return app
 
-def fake_message(text, user_id, command=None, original_chat_id=None, message_thread_id=None):
+def fake_message(text, user_id, command=None, original_chat_id=None, message_thread_id=None, original_message=None):
     m = SimpleNamespace()
     m.chat = SimpleNamespace()
     # Use original_chat_id if provided, otherwise use user_id
     m.chat.id = original_chat_id if original_chat_id is not None else user_id
     m.chat.first_name = Messages.HELPER_USER_NAME_MSG
+    # Set chat type based on chat_id (negative = group, positive = private)
+    m.chat.type = enums.ChatType.PRIVATE if (original_chat_id if original_chat_id is not None else user_id) > 0 else enums.ChatType.SUPERGROUP
     m.text = text
     m.first_name = m.chat.first_name
     m.reply_to_message = None
@@ -44,6 +47,8 @@ def fake_message(text, user_id, command=None, original_chat_id=None, message_thr
     m._original_chat_id = original_chat_id if original_chat_id is not None else user_id
     # ЖЕСТКО: Сохраняем message_thread_id для правильной работы с топиками в группах
     m.message_thread_id = message_thread_id
+    # ЖЕСТКО: Сохраняем оригинальное сообщение для реплаев
+    m._original_message = original_message
     if command is not None:
         m.command = command
     else:
@@ -65,26 +70,63 @@ def safe_send_message(chat_id, text, **kwargs):
     original_message = kwargs.get('message')
     # Peek callback_query (will be popped later) to inherit thread context in topics
     cb_peek = kwargs.get('_callback_query', None)
+    
+    # DEBUG: Log all parameters
+    logger.info(f"[SAFE_SEND_DEBUG] chat_id={chat_id}, text_length={len(text) if text else 0}")
+    logger.info(f"[SAFE_SEND_DEBUG] original_message={original_message}")
+    logger.info(f"[SAFE_SEND_DEBUG] original_message.message_thread_id={getattr(original_message, 'message_thread_id', None) if original_message else None}")
+    logger.info(f"[SAFE_SEND_DEBUG] cb_peek={cb_peek}")
+    logger.info(f"[SAFE_SEND_DEBUG] kwargs keys: {list(kwargs.keys())}")
     if 'reply_parameters' not in kwargs:
         if 'reply_to_message_id' in kwargs and kwargs['reply_to_message_id'] is not None:
             kwargs['reply_parameters'] = ReplyParameters(message_id=kwargs['reply_to_message_id'])
             del kwargs['reply_to_message_id']
         elif original_message is not None and getattr(original_message, 'id', None) is not None:
-            kwargs['reply_parameters'] = ReplyParameters(message_id=original_message.id)
+            # Check if this is a fake message with original message reference
+            if hasattr(original_message, '_is_fake_message') and hasattr(original_message, '_original_message'):
+                if original_message._original_message is not None and getattr(original_message._original_message, 'id', None) is not None:
+                    logger.info(f"[SAFE_SEND] Using original message for reply: {original_message._original_message.id}")
+                    kwargs['reply_parameters'] = ReplyParameters(message_id=original_message._original_message.id)
+                else:
+                    logger.info(f"[SAFE_SEND] Fake message but no original message available, using fake message id: {original_message.id}")
+                    kwargs['reply_parameters'] = ReplyParameters(message_id=original_message.id)
+            else:
+                kwargs['reply_parameters'] = ReplyParameters(message_id=original_message.id)
         elif cb_peek is not None and getattr(getattr(cb_peek, 'message', None), 'id', None) is not None:
             kwargs['reply_parameters'] = ReplyParameters(message_id=cb_peek.message.id)
-    # Ensure topic/thread routing for supergroups with topics
+    # Ensure topic/thread routing for supergroups with topics (only for groups, not private chats)
     try:
-        if original_message is not None and getattr(original_message, 'message_thread_id', None):
-            kwargs.setdefault('message_thread_id', original_message.message_thread_id)
-        # Inherit thread_id from callback context when message is not provided
-        elif cb_peek is not None and getattr(getattr(cb_peek, 'message', None), 'message_thread_id', None):
-            kwargs.setdefault('message_thread_id', cb_peek.message.message_thread_id)
-    except Exception:
+        # Only apply topic routing for groups (negative chat_id)
+        if chat_id < 0:
+            # Check if message is provided in kwargs (for fake messages)
+            if original_message is not None:
+                # For fake messages, use the original message's thread_id
+                if hasattr(original_message, '_is_fake_message') and hasattr(original_message, '_original_message') and original_message._original_message is not None:
+                    message_thread_id = getattr(original_message._original_message, 'message_thread_id', None)
+                    logger.info(f"[SAFE_SEND] fake_message._original_message.message_thread_id={message_thread_id}, chat_id={chat_id}")
+                else:
+                    message_thread_id = getattr(original_message, 'message_thread_id', None)
+                    logger.info(f"[SAFE_SEND] original_message.message_thread_id={message_thread_id}, chat_id={chat_id}")
+                
+                if message_thread_id:
+                    kwargs.setdefault('message_thread_id', message_thread_id)
+                    logger.info(f"[SAFE_SEND] Set message_thread_id={message_thread_id} for chat_id={chat_id}")
+            # Inherit thread_id from callback context when message is not provided
+            elif cb_peek is not None and getattr(getattr(cb_peek, 'message', None), 'message_thread_id', None):
+                kwargs.setdefault('message_thread_id', cb_peek.message.message_thread_id)
+        else:
+            logger.info(f"[SAFE_SEND] Skipping topic routing for private chat_id={chat_id}")
+    except Exception as e:
+        logger.warning(f"[SAFE_SEND] Error in topic routing: {e}")
         pass
     # Remove helper-only key
     if 'message' in kwargs:
         del kwargs['message']
+    
+    # DEBUG: Log final parameters before sending
+    logger.info(f"[SAFE_SEND_FINAL] chat_id={chat_id}, message_thread_id={kwargs.get('message_thread_id', 'NOT_SET')}")
+    logger.info(f"[SAFE_SEND_FINAL] Final kwargs: {kwargs}")
+    
     max_retries = 3
     retry_delay = 5
     # Extract internal helper kwargs (not supported by pyrogram)

@@ -300,11 +300,34 @@ def get_emoji_number(index):
     else:
         return f"{index}."
 
-def get_file_date(file_path):
+def get_file_date(file_path, original_url=None):
     """Get file creation date in DD.MM.YYYY format from EXIF data or filename"""
     try:
         from datetime import datetime
         import re
+        
+        # Получаем текущую дату для проверки
+        now = datetime.now()
+        today_str = now.strftime("%d.%m.%Y")
+        invalid_date_str = "01.01.1970"
+        
+        def is_valid_date(date_str, source_context=""):
+            """Проверяет, что дата валидна (не сегодняшняя и не 01.01.1970)"""
+            if not date_str:
+                return False
+            if date_str == invalid_date_str:
+                logger.info(f"[FILE_DATE] Date {date_str} is Unix epoch - invalid")
+                return False
+            if date_str == today_str:
+                # Сегодняшняя дата валидна только если она извлечена из надежных источников
+                # (EXIF, метаданные видео, API) и НЕ из времени модификации файла
+                if source_context in ["exif", "video_metadata", "api"]:
+                    logger.info(f"[FILE_DATE] Date {date_str} is today's date from {source_context} - valid")
+                    return True
+                else:
+                    logger.info(f"[FILE_DATE] Date {date_str} is today's date from {source_context} - likely invalid (file modification time)")
+                    return False
+            return True
         
         # First, try to extract date from filename (Instagram format: timestamp.jpg)
         filename = os.path.basename(file_path)
@@ -314,19 +337,26 @@ def get_file_date(file_path):
         # This is usually a Unix timestamp in microseconds
         if filename and '.' in filename:
             name_without_ext = filename.split('.')[0]
-            # Check if it's a numeric timestamp (Instagram format)
+            
+            # Try to extract timestamp from filename patterns like "3608469449724736561._fast.mp4"
+            # Remove ._fast suffix if present
+            clean_name = name_without_ext.replace('._fast', '')
+            logger.info(f"[FILE_DATE] Cleaned name: {clean_name}, isdigit: {clean_name.isdigit()}, len: {len(clean_name)}")
+            if clean_name.isdigit() and len(clean_name) > 10:
+                # Instagram IDs don't contain reliable timestamp information
+                # Instagram uses Snowflake-like IDs but they don't encode upload dates
+                # Return None to group as 'unknown' date
+                logger.info(f"[FILE_DATE] Instagram ID detected: {clean_name} - returning None (no reliable date)")
+                return None
+            
+            # Check if it's a numeric timestamp (Instagram format) - original name
+            logger.info(f"[FILE_DATE] Original name: {name_without_ext}, isdigit: {name_without_ext.isdigit()}, len: {len(name_without_ext)}")
             if name_without_ext.isdigit() and len(name_without_ext) > 10:
-                try:
-                    # Instagram timestamps are in microseconds, convert to seconds
-                    timestamp = int(name_without_ext) / 1000000
-                    dt = datetime.fromtimestamp(timestamp)
-                    # Check if date is reasonable (not in future, not too old)
-                    now = datetime.now()
-                    if 2020 <= dt.year <= now.year + 1:
-                        logger.info(f"[FILE_DATE] Found Instagram timestamp: {dt.strftime('%d.%m.%Y')}")
-                        return dt.strftime("%d.%m.%Y")
-                except (ValueError, OSError):
-                    pass
+                # Instagram IDs don't contain reliable timestamp information
+                # Instagram uses Snowflake-like IDs but they don't encode upload dates
+                # Return None to group as 'unknown' date
+                logger.info(f"[FILE_DATE] Original Instagram ID detected: {name_without_ext} - returning None (no reliable date)")
+                return None
             
             # Try to extract date from gallery-dl filename patterns
             # Gallery-dl often uses patterns like: 2024-10-30_15-47-00_filename.jpg
@@ -346,8 +376,12 @@ def get_file_date(file_path):
                         for fmt in ['%Y-%m-%d', '%Y_%m_%d', '%d-%m-%Y', '%d_%m_%Y']:
                             try:
                                 dt = datetime.strptime(date_str, fmt)
-                                logger.info(f"[FILE_DATE] Found date in filename: {dt.strftime('%d.%m.%Y')}")
-                                return dt.strftime("%d.%m.%Y")
+                                date_str = dt.strftime("%d.%m.%Y")
+                                logger.info(f"[FILE_DATE] Found date in filename: {date_str}")
+                                if is_valid_date(date_str, "filename"):
+                                    return date_str
+                                else:
+                                    logger.info(f"[FILE_DATE] Date {date_str} is invalid, continuing search")
                             except ValueError:
                                 continue
                     except Exception:
@@ -365,13 +399,15 @@ def get_file_date(file_path):
                     for tag_id, value in exifdata.items():
                         tag = TAGS.get(tag_id, tag_id)
                         if 'date' in str(tag).lower() and value:
-                            try:
-                                # Parse EXIF date format (YYYY:MM:DD HH:MM:SS)
-                                if ':' in str(value):
-                                    dt = datetime.strptime(str(value).split()[0], '%Y:%m:%d')
-                                    return dt.strftime("%d.%m.%Y")
-                            except ValueError:
-                                continue
+                                        try:
+                                            # Parse EXIF date format (YYYY:MM:DD HH:MM:SS)
+                                            if ':' in str(value):
+                                                dt = datetime.strptime(str(value).split()[0], '%Y:%m:%d')
+                                                date_str = dt.strftime("%d.%m.%Y")
+                                                if is_valid_date(date_str, "exif"):
+                                                    return date_str
+                                        except ValueError:
+                                            continue
         except ImportError:
             # PIL not available, skip EXIF
             pass
@@ -394,11 +430,13 @@ def get_file_date(file_path):
                     creation_time = data.get('format', {}).get('tags', {}).get('creation_time')
                     if creation_time:
                         # Parse ISO format (2024-10-30T15:47:00.000000Z)
-                        try:
-                            dt = datetime.fromisoformat(creation_time.replace('Z', '+00:00'))
-                            return dt.strftime("%d.%m.%Y")
-                        except ValueError:
-                            pass
+                                try:
+                                    dt = datetime.fromisoformat(creation_time.replace('Z', '+00:00'))
+                                    date_str = dt.strftime("%d.%m.%Y")
+                                    if is_valid_date(date_str, "video_metadata"):
+                                        return date_str
+                                except ValueError:
+                                    pass
             except Exception:
                 pass
         
@@ -410,15 +448,39 @@ def get_file_date(file_path):
             dt = datetime.fromtimestamp(mtime)
             
             # Check if file was created today (likely a fake message fallback)
+            # Only reject today's date if we couldn't extract date from metadata
             now = datetime.now()
             if dt.date() == now.date():
                 logger.info(f"[FILE_DATE] File created today, likely fake message fallback - returning None")
                 return None
             
-            logger.info(f"[FILE_DATE] Using file modification time: {dt.strftime('%d.%m.%Y')}")
-            return dt.strftime("%d.%m.%Y")
+            date_str = dt.strftime("%d.%m.%Y")
+            logger.info(f"[FILE_DATE] Using file modification time: {date_str}")
+            if is_valid_date(date_str, "file_modification"):
+                return date_str
+            else:
+                logger.info(f"[FILE_DATE] File modification date {date_str} is invalid")
         except Exception:
             pass
+        
+        # Try to get date from service API (Instagram, etc.)
+        if original_url:
+            try:
+                from URL_PARSERS.service_api_info import get_service_date
+                logger.info(f"[FILE_DATE] Trying to get date from service API for URL: {original_url}")
+                api_date = get_service_date(original_url)
+                if api_date:
+                    logger.info(f"[FILE_DATE] Got date from service API: {api_date}")
+                    if is_valid_date(api_date, "api"):
+                        return api_date
+                    else:
+                        logger.info(f"[FILE_DATE] API date {api_date} is invalid")
+                else:
+                    logger.info(f"[FILE_DATE] No date found in service API")
+            except Exception as e:
+                logger.info(f"[FILE_DATE] Error in service API date extraction: {e}")
+        else:
+            logger.info(f"[FILE_DATE] No original URL provided for API date extraction")
         
         # If all else fails, return None (will be grouped as 'unknown')
         logger.info(f"[FILE_DATE] Could not extract date from file: {file_path}")
@@ -475,7 +537,7 @@ def create_album_caption_with_dates(media_group, url, tags_text_norm, profile_na
         date_groups = {}
         for i, media in enumerate(media_group, 1):
             file_path = media.media
-            date = get_file_date(file_path)
+            date = get_file_date(file_path, url)
             if date:
                 if date not in date_groups:
                     date_groups[date] = []
@@ -687,7 +749,20 @@ def convert_file_to_telegram_format(file_path):
         logger.error(LoggerMsg.IMG_CONVERSION_ERROR_LOG_MSG.format(file_path=file_path, e=e))
         return file_path
 
-@app.on_message(filters.command("img") & filters.private)
+def get_message_thread_id(message):
+    """Extract message_thread_id from message, handling fake messages with original message reference"""
+    if hasattr(message, '_is_fake_message') and hasattr(message, '_original_message') and message._original_message is not None:
+        return getattr(message._original_message, 'message_thread_id', None)
+    else:
+        return getattr(message, 'message_thread_id', None)
+
+def get_reply_message_id(message):
+    """Get the correct message ID for replies, handling fake messages with original message reference"""
+    if hasattr(message, '_is_fake_message') and hasattr(message, '_original_message') and message._original_message is not None:
+        return message._original_message.id
+    else:
+        return message.id
+
 def image_command(app, message):
     """Handle /img command for downloading images"""
     user_id = message.from_user.id
@@ -696,7 +771,9 @@ def image_command(app, message):
     
     # Log the command execution
     logger.info(f"image_command called for user {user_id} in chat {chat_id} with text: {text}")
-    logger.info(f"[IMG DEBUG] message.chat.id={message.chat.id}, message.message_thread_id={getattr(message, 'message_thread_id', None)}")
+    # Get message_thread_id (handles fake messages)
+    message_thread_id = get_message_thread_id(message)
+    logger.info(f"[IMG DEBUG] message.chat.id={message.chat.id}, message_thread_id={message_thread_id}")
     
     # For fake messages, chat_id is already set correctly in fake_message
     
@@ -716,7 +793,7 @@ def image_command(app, message):
             Messages.IMG_HELP_MSG + " /audio, /vid, /help, /playlist, /settings",
             reply_markup=keyboard,
             parse_mode=enums.ParseMode.HTML,
-            reply_parameters=ReplyParameters(message_id=message.id),
+            reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
             message=message
         )
         send_to_logger(message, LoggerMsg.IMG_HELP_SHOWN)
@@ -793,7 +870,7 @@ def image_command(app, message):
             chat_id,
             Messages.INVALID_URL_MSG,
             parse_mode=enums.ParseMode.HTML,
-            reply_parameters=ReplyParameters(message_id=message.id),
+            reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
             message=message
         )
         log_error_to_channel(message, LoggerMsg.INVALID_URL_PROVIDED.format(url=url), url)
@@ -843,7 +920,7 @@ def image_command(app, message):
                         suggested_command_url_format=suggested_command_url_format
                     ),
                     parse_mode=enums.ParseMode.HTML,
-                    reply_parameters=ReplyParameters(message_id=message.id),
+                    reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
                     message=message
                 )
                 return
@@ -852,13 +929,15 @@ def image_command(app, message):
     use_proxy = is_proxy_enabled(user_id)
     
     # Send initial message
+    logger.info(f"[IMG STATUS] About to send status message to chat_id={chat_id}, message_thread_id={message_thread_id}")
     status_msg = safe_send_message(
         chat_id,
         Messages.CHECKING_CACHE_MSG.format(url=url),
         parse_mode=enums.ParseMode.HTML,
-        reply_parameters=ReplyParameters(message_id=message.id),
+        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
         message=message
     )
+    logger.info(f"[IMG STATUS] Status message sent, ID={status_msg.id if status_msg else 'None'}")
     # Pin the status message for visibility
     try:
         app.pin_chat_message(user_id, status_msg.id, disable_notification=True)
@@ -901,7 +980,7 @@ def image_command(app, message):
                 ids = cached_map[album_idx]
                 try:
                     kwargs = {}
-                    thread_id = getattr(message, 'message_thread_id', None)
+                    thread_id = message_thread_id
                     if thread_id:
                         kwargs['message_thread_id'] = thread_id
                     # For cached content, always use regular channel (no NSFW/PAID in cache)
@@ -1261,7 +1340,7 @@ def image_command(app, message):
                     Messages.COMMAND_IMAGE_MEDIA_LIMIT_EXCEEDED_MSG.format(count=detected_total, max_count=max_img_files, start_range=start_range, end_range=end_range, url=url, suggested_command_url_format=f"/img {start_range}-{end_range} {url}") +
                     f"<code>{suggested_command_url_format}</code>",
                     parse_mode=enums.ParseMode.HTML,
-                    reply_parameters=ReplyParameters(message_id=message.id),
+                    reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
                     message=message
                 )
                 return
@@ -1683,7 +1762,7 @@ def image_command(app, message):
                                                 media=paid_media_list,
                                                 star_count=LimitsConfig.NSFW_STAR_COST,
                                                 payload=str(Config.STAR_RECEIVER),
-                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                             )
                                             
                                             logger.info(f"[IMG PAID] SUCCESS: send_paid_media returned: {type(paid_msg)}")
@@ -1711,7 +1790,7 @@ def image_command(app, message):
                                                         media=[paid_media],
                                                         star_count=LimitsConfig.NSFW_STAR_COST,
                                                         payload=str(Config.STAR_RECEIVER),
-                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                     )
                                                     if isinstance(individual_msg, list):
                                                         sent.extend(individual_msg)
@@ -1761,7 +1840,7 @@ def image_command(app, message):
                                                 open_sent = app.send_media_group(
                                                     chat_id=log_channel_nsfw,
                                                     media=open_media_group,
-                                                    reply_parameters=ReplyParameters(message_id=message.id)
+                                                    reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                 )
                                                 logger.info(f"[IMG LOG] Open copy album sent to LOGS_NSFW_ID for history: {len(open_media_group)} items")
                                         except Exception as e:
@@ -1805,7 +1884,7 @@ def image_command(app, message):
                                                 media=paid_media_list,
                                                 star_count=LimitsConfig.NSFW_STAR_COST,
                                                 payload=str(Config.STAR_RECEIVER),
-                                                    reply_parameters=ReplyParameters(message_id=message.id)
+                                                    reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                 )
                                             
                                             logger.info(f"[IMG MAIN FALLBACK] SUCCESS: send_paid_media returned: {type(paid_msg)}")
@@ -1833,7 +1912,7 @@ def image_command(app, message):
                                                         media=[paid_media],
                                                         star_count=LimitsConfig.NSFW_STAR_COST,
                                                         payload=str(Config.STAR_RECEIVER),
-                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                     )
                                                     if isinstance(individual_msg, list):
                                                         sent.extend(individual_msg)
@@ -1872,7 +1951,7 @@ def image_command(app, message):
                                             open_sent = app.send_media_group(
                                                 chat_id=log_channel_nsfw,
                                                 media=open_media_group,
-                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                             )
                                             logger.info(f"[IMG LOG] Open copy album sent to NSFW channel for history: {len(open_media_group)} items")
                                         except Exception as e:
@@ -1906,11 +1985,17 @@ def image_command(app, message):
                                                             _itm.caption = None
                                             except Exception as _e:
                                                 logger.debug(LoggerMsg.IMG_ALBUM_CAPTION_NORMALIZATION_SKIPPED_LOG_MSG.format(_e=_e))
+                                            # DEBUG: Log media group sending
+                                            # message_thread_id already extracted above
+                                            logger.info(f"[IMG MEDIA_GROUP] About to send media group to chat_id={chat_id}, message_thread_id={message_thread_id}")
+                                            
                                             sent = app.send_media_group(
                                                 chat_id,
                                                 media=media_group,
-                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
+                                                message_thread_id=message_thread_id
                                             )
+                                            logger.info(f"[IMG MEDIA_GROUP] Media group sent successfully")
                                             break
                                         except FloodWait as fw:
                                             wait_s = int(getattr(fw, 'value', 0) or 0)
@@ -2004,7 +2089,7 @@ def image_command(app, message):
                                                 nsfw_log_sent = app.send_media_group(
                                                     chat_id=log_channel_nsfw,
                                                     media=nsfw_log_media_group,
-                                                    reply_parameters=ReplyParameters(message_id=message.id)
+                                                    reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                 )
                                                 logger.info(f"[IMG LOG] NSFW media album sent to LOGS_NSFW_ID: {len(nsfw_log_media_group)} items")
                                             except Exception as fe:
@@ -2069,7 +2154,7 @@ def image_command(app, message):
                                             regular_log_sent = app.send_media_group(
                                                 chat_id=log_channel,
                                                 media=regular_log_media_group,
-                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                             )
                                             logger.info(f"[IMG LOG] Regular media album sent to IMG channel: {len(regular_log_media_group)} items")
                                             
@@ -2170,7 +2255,7 @@ def image_command(app, message):
                                                 media=paid_media_list,
                                                 star_count=LimitsConfig.NSFW_STAR_COST,
                                                 payload=str(Config.STAR_RECEIVER),
-                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                             )
                                             
                                             logger.info(f"[IMG FALLBACK PAID] SUCCESS: send_paid_media returned: {type(paid_msg)}")
@@ -2198,7 +2283,7 @@ def image_command(app, message):
                                                         media=[paid_media],
                                                         star_count=LimitsConfig.NSFW_STAR_COST,
                                                         payload=str(Config.STAR_RECEIVER),
-                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                     )
                                                     if isinstance(individual_msg, list):
                                                         sent.extend(individual_msg)
@@ -2239,7 +2324,7 @@ def image_command(app, message):
                                             open_sent = app.send_media_group(
                                                 chat_id=log_channel_nsfw,
                                                 media=open_media_group,
-                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                             )
                                             logger.info(f"[IMG LOG] Open copy album sent to NSFW channel for history: {len(open_media_group)} items")
                                         except Exception as e:
@@ -2293,7 +2378,7 @@ def image_command(app, message):
                                                 media=paid_media_list,
                                                 star_count=LimitsConfig.NSFW_STAR_COST,
                                                 payload=str(Config.STAR_RECEIVER),
-                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                             )
                                             
                                             logger.info(f"[IMG FALLBACK PAID] SUCCESS: send_paid_media returned: {type(paid_msg)}")
@@ -2321,7 +2406,7 @@ def image_command(app, message):
                                                         media=[paid_media],
                                                         star_count=LimitsConfig.NSFW_STAR_COST,
                                                         payload=str(Config.STAR_RECEIVER),
-                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                     )
                                                     if isinstance(individual_msg, list):
                                                         sent.extend(individual_msg)
@@ -2373,7 +2458,7 @@ def image_command(app, message):
                                                 open_sent = app.send_media_group(
                                                     chat_id=log_channel_nsfw,
                                                     media=open_media_group,
-                                                    reply_parameters=ReplyParameters(message_id=message.id)
+                                                    reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                 )
                                                 logger.info(f"[IMG LOG] Open copy album sent to LOGS_NSFW_ID for history: {len(open_media_group)} items")
                                         except Exception as e:
@@ -2415,7 +2500,7 @@ def image_command(app, message):
                                                 media=paid_media_list,
                                                 star_count=LimitsConfig.NSFW_STAR_COST,
                                                 payload=str(Config.STAR_RECEIVER),
-                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                             )
                                             if isinstance(sent_msg, list):
                                                 sent.extend(sent_msg)
@@ -2448,8 +2533,8 @@ def image_command(app, message):
                                             sent_msg = app.send_media_group(
                                                 user_id,
                                                 media=media_group,
-                                                reply_parameters=ReplyParameters(message_id=message.id),
-                                                message_thread_id=getattr(message, 'message_thread_id', None)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
+                                                message_thread_id=message_thread_id
                                             )
                                             if isinstance(sent_msg, list):
                                                 sent.extend(sent_msg)
@@ -2519,7 +2604,7 @@ def image_command(app, message):
                                                         nsfw_log_sent = app.send_media_group(
                                                             chat_id=log_channel_nsfw,
                                                             media=nsfw_log_media_group,
-                                                            reply_parameters=ReplyParameters(message_id=message.id)
+                                                            reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                         )
                                                         logger.info(f"[IMG LOG] Open copy album sent to NSFW channel: {len(nsfw_log_media_group)} items")
                                                     except Exception as fe:
@@ -2616,7 +2701,7 @@ def image_command(app, message):
                                                         regular_log_sent = app.send_media_group(
                                                             chat_id=log_channel,
                                                             media=regular_log_media_group,
-                                                            reply_parameters=ReplyParameters(message_id=message.id)
+                                                            reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                         )
                                                         logger.info(f"[IMG LOG] Regular media album sent to IMG channel (fallback): {len(regular_log_media_group)} items")
                                                         
@@ -2654,8 +2739,8 @@ def image_command(app, message):
                                             sent_msg = app.send_document(
                                                 user_id,
                                                 document=f,
-                                                reply_parameters=ReplyParameters(message_id=message.id),
-                                                message_thread_id=getattr(message, 'message_thread_id', None)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
+                                                message_thread_id=message_thread_id
                                             )
                                             break
                                         except FloodWait as fw:
@@ -2775,7 +2860,7 @@ def image_command(app, message):
                                         media=paid_media_list,
                                         star_count=LimitsConfig.NSFW_STAR_COST,
                                         payload=str(Config.STAR_RECEIVER),
-                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                     )
                                     
                                     if isinstance(paid_msg, list):
@@ -2793,7 +2878,7 @@ def image_command(app, message):
                                                 media=[paid_media],
                                                 star_count=LimitsConfig.NSFW_STAR_COST,
                                                 payload=str(Config.STAR_RECEIVER),
-                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                             )
                                             if isinstance(individual_msg, list):
                                                 sent.extend(individual_msg)
@@ -2840,7 +2925,7 @@ def image_command(app, message):
                                         open_sent = app.send_media_group(
                                             chat_id=log_channel_nsfw,
                                             media=open_media_group,
-                                            reply_parameters=ReplyParameters(message_id=message.id)
+                                            reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                         )
                                         logger.info(f"[IMG LOG] Open copy album sent to LOGS_NSFW_ID for history: {len(open_media_group)} items")
                                 except Exception as e:
@@ -2858,7 +2943,7 @@ def image_command(app, message):
                                                 media=[InputPaidMediaPhoto(media=m.media)],
                                                 star_count=LimitsConfig.NSFW_STAR_COST,
                                                 payload=str(Config.STAR_RECEIVER),
-                                                reply_parameters=ReplyParameters(message_id=message.id)
+                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                             )
                                         else:
                                             # Ensure cover for video
@@ -2870,7 +2955,7 @@ def image_command(app, message):
                                                     media=[InputPaidMediaVideo(media=m.media, cover=_cover)],
                                                     star_count=LimitsConfig.NSFW_STAR_COST,
                                                     payload=str(Config.STAR_RECEIVER),
-                                                    reply_parameters=ReplyParameters(message_id=message.id)
+                                                    reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                 )
                                             except TypeError:
                                                 paid_msg = app.send_paid_media(
@@ -2878,7 +2963,7 @@ def image_command(app, message):
                                                     media=[InputPaidMediaVideo(media=m.media)],
                                                     star_count=LimitsConfig.NSFW_STAR_COST,
                                                     payload=str(Config.STAR_RECEIVER),
-                                                    reply_parameters=ReplyParameters(message_id=message.id)
+                                                    reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                 )
                                         if isinstance(paid_msg, list):
                                             sent.extend(paid_msg)
@@ -2914,8 +2999,8 @@ def image_command(app, message):
                                     sent = app.send_media_group(
                                         user_id,
                                         media=media_group,
-                                        reply_parameters=ReplyParameters(message_id=message.id),
-                                        message_thread_id=getattr(message, 'message_thread_id', None)
+                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
+                                        message_thread_id=message_thread_id
                                     )
                                     break
                                 except FloodWait as fw:
@@ -2981,7 +3066,7 @@ def image_command(app, message):
                                     nsfw_log_sent = app.send_media_group(
                                         chat_id=log_channel_nsfw,
                                         media=nsfw_log_media_group,
-                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                     )
                                     logger.info(f"[IMG LOG] Open copy album sent to NSFW channel: {len(nsfw_log_media_group)} items")
                                 except Exception as fe:
@@ -3073,7 +3158,7 @@ def image_command(app, message):
                                     regular_log_sent = app.send_media_group(
                                         chat_id=log_channel,
                                         media=regular_log_media_group,
-                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                     )
                                     logger.info(f"[IMG LOG] Regular media album sent to IMG channel (tail): {len(regular_log_media_group)} items")
                                     
@@ -3128,7 +3213,7 @@ def image_command(app, message):
                                                         media=[InputPaidMediaPhoto(media=f)],
                                                         star_count=LimitsConfig.NSFW_STAR_COST,
                                                         payload=str(Config.STAR_RECEIVER),
-                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                     )
                                                 else:
                                                     sent_msg = app.send_photo(
@@ -3136,8 +3221,8 @@ def image_command(app, message):
                                                         photo=f,
                                                         caption=(tags_text_norm or ''),
                                                         has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
-                                                        reply_parameters=ReplyParameters(message_id=message.id),
-                                                        message_thread_id=getattr(message, 'message_thread_id', None)
+                                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
+                                                        message_thread_id=message_thread_id
                                                     )
                                                 break
                                             except FloodWait as fw:
@@ -3170,7 +3255,7 @@ def image_command(app, message):
                                                         media=[media_item],
                                                         star_count=LimitsConfig.NSFW_STAR_COST,
                                                         payload=str(Config.STAR_RECEIVER),
-                                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                     )
                                                 else:
                                                     sent_msg = app.send_video(
@@ -3179,8 +3264,8 @@ def image_command(app, message):
                                                         thumb=thumb if thumb and os.path.exists(thumb) else None,
                                                         caption=(tags_text_norm or ''),
                                                         has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat),
-                                                        reply_parameters=ReplyParameters(message_id=message.id),
-                                                        message_thread_id=getattr(message, 'message_thread_id', None)
+                                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
+                                                        message_thread_id=message_thread_id
                                                     )
                                                 break
                                             except FloodWait as fw:
@@ -3264,7 +3349,7 @@ def image_command(app, message):
                                         nsfw_log_sent = app.send_media_group(
                                             chat_id=log_channel_nsfw,
                                             media=nsfw_log_media_group,
-                                            reply_parameters=ReplyParameters(message_id=message.id)
+                                            reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                         )
                                         logger.info(f"[IMG LOG] Open copy album sent to NSFW channel: {len(nsfw_log_media_group)} items")
                                     except Exception as fe:
@@ -3338,7 +3423,7 @@ def image_command(app, message):
                                         regular_log_sent = app.send_media_group(
                                             chat_id=log_channel,
                                             media=regular_log_media_group,
-                                            reply_parameters=ReplyParameters(message_id=message.id)
+                                            reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                         )
                                         logger.info(f"[IMG LOG] Regular media album sent to IMG channel (tail-fallback): {len(regular_log_media_group)} items")
                                         
@@ -3370,8 +3455,8 @@ def image_command(app, message):
                             sent_msg = app.send_document(
                                 user_id,
                                 document=f,
-                                reply_parameters=ReplyParameters(message_id=message.id),
-                                message_thread_id=getattr(message, 'message_thread_id', None)
+                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
+                                message_thread_id=message_thread_id
                             )
                         sent_message_ids.append(sent_msg.id)
                         total_sent += 1
@@ -3493,7 +3578,7 @@ def image_command(app, message):
                     sent = app.send_media_group(
                         user_id,
                         media=media_group,
-                        reply_parameters=ReplyParameters(message_id=message.id)
+                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                     )
                     sent_message_ids.extend([m.id for m in sent])
                     total_sent += len(media_group)

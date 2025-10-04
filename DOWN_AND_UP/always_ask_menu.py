@@ -12,7 +12,7 @@ import requests
 from HELPERS.app_instance import get_app
 from HELPERS.decorators import get_main_reply_keyboard
 from HELPERS.logger import send_to_logger, logger, send_error_to_user, log_error_to_channel
-from HELPERS.safe_messeger import safe_send_message
+from HELPERS.safe_messeger import safe_send_message, safe_delete_messages
 from CONFIG.logger_msg import LoggerMsg
 from HELPERS.filesystem_hlp import create_directory
 from HELPERS.qualifier import get_quality_by_min_side, get_real_height_for_quality
@@ -500,9 +500,9 @@ def ask_filter_callback(app, callback_query):
                 return
             # close
             try:
-                app.delete_messages(user_id, callback_query.message.id)
+                safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
             except Exception:
-                app.edit_message_reply_markup(chat_id=user_id, message_id=callback_query.message.id, reply_markup=None)
+                app.edit_message_reply_markup(chat_id=callback_query.message.chat.id, message_id=callback_query.message.id, reply_markup=None)
             callback_query.answer(Messages.SUBTITLE_MENU_CLOSED_MSG)
             return
         if kind == "subs_lang":
@@ -967,9 +967,9 @@ def askq_callback(app, callback_query):
             logger.warning(f"Error cleaning up old format cache files before closing menu: {e}")
         
         try:
-            app.delete_messages(user_id, callback_query.message.id)
+            safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
         except Exception:
-            app.edit_message_reply_markup(chat_id=user_id, message_id=callback_query.message.id, reply_markup=None)
+            app.edit_message_reply_markup(chat_id=callback_query.message.chat.id, message_id=callback_query.message.id, reply_markup=None)
         callback_query.answer("Menu closed.")
         return
         
@@ -1070,7 +1070,7 @@ def askq_callback(app, callback_query):
         
         # Удаляем Always Ask меню после обработки
         try:
-            app.delete_messages(callback_query.message.chat.id, callback_query.message.id)
+            safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
         except Exception as e:
             logger.warning(f"Failed to delete Always Ask menu: {e}")
         return
@@ -1181,7 +1181,7 @@ def askq_callback(app, callback_query):
         
         # Удаляем Always Ask меню после обработки
         try:
-            app.delete_messages(callback_query.message.chat.id, callback_query.message.id)
+            safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
         except Exception as e:
             logger.warning(f"Failed to delete Always Ask menu: {e}")
         return
@@ -1259,7 +1259,7 @@ def askq_callback(app, callback_query):
         
         # Удаляем Always Ask меню после обработки
         try:
-            app.delete_messages(callback_query.message.chat.id, callback_query.message.id)
+            safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
         except Exception as e:
             logger.warning(f"Failed to delete Always Ask menu: {e}")
         return
@@ -1289,7 +1289,7 @@ def askq_callback(app, callback_query):
             reply_parameters=ReplyParameters(message_id=original_message.id)
         )
         send_to_logger(original_message, Messages.QUICK_EMBED_LOG_MSG.format(embed_url=embed_url))
-        app.delete_messages(user_id, callback_query.message.id)
+        safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
         return
     
     # Handle manual quality selection menu
@@ -1460,9 +1460,9 @@ def askq_callback(app, callback_query):
         if kind == "subs" and value == "close":
             # Close subtitle menu
             try:
-                app.delete_messages(user_id, callback_query.message.id)
+                safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
             except Exception:
-                app.edit_message_reply_markup(chat_id=user_id, message_id=callback_query.message.id, reply_markup=None)
+                app.edit_message_reply_markup(chat_id=callback_query.message.chat.id, message_id=callback_query.message.id, reply_markup=None)
             callback_query.answer(Messages.SUBTITLE_MENU_CLOSED_MSG)
             return
         # OLD LINK TOGGLE HANDLER REMOVED - now using submenu approach
@@ -1610,7 +1610,7 @@ def askq_callback(app, callback_query):
         original_message = callback_query.message.reply_to_message
         if not original_message:
             callback_query.answer(Messages.AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
-            app.delete_messages(user_id, callback_query.message.id)
+            safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
             return
         
         url = None
@@ -1631,11 +1631,11 @@ def askq_callback(app, callback_query):
                 tag_matches = re.findall(r'#\S+', caption_text)
                 if tag_matches:
                     tags = tag_matches
-            app.delete_messages(user_id, callback_query.message.id)
+            safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
             ask_quality_menu(app, original_message, url, tags)
         else:
             callback_query.answer(Messages.AA_ERROR_URL_NOT_FOUND_MSG, show_alert=True)
-            app.delete_messages(user_id, callback_query.message.id)
+            safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
         return
     
     # Handle other quality selection by ID
@@ -1649,7 +1649,7 @@ def askq_callback(app, callback_query):
         original_message = callback_query.message.reply_to_message
         if not original_message:
             callback_query.answer(Messages.AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
-            app.delete_messages(user_id, callback_query.message.id)
+            safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
             return
         
         url = None
@@ -1665,14 +1665,14 @@ def askq_callback(app, callback_query):
         
         if not url:
             callback_query.answer(Messages.AA_ERROR_URL_NOT_FOUND_MSG, show_alert=True)
-            app.delete_messages(user_id, callback_query.message.id)
+            safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
             return
         
         # Extract tags from the user's source message
         original_text = original_message.text or original_message.caption or ""
         _, _, _, _, tags, tags_text, _ = extract_url_range_tags(original_text)
         
-        app.delete_messages(user_id, callback_query.message.id)
+        safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
         
         # Use specific format ID for download
         format_override = format_id
@@ -1694,7 +1694,7 @@ def askq_callback(app, callback_query):
         original_message = callback_query.message.reply_to_message
         if not original_message:
             callback_query.answer(Messages.AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
-            app.delete_messages(user_id, callback_query.message.id)
+            safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
             return
         
         url = None
@@ -1710,14 +1710,14 @@ def askq_callback(app, callback_query):
         
         if not url:
             callback_query.answer(Messages.AA_ERROR_URL_NOT_FOUND_MSG, show_alert=True)
-            app.delete_messages(user_id, callback_query.message.id)
+            safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
             return
         
         # New method: always extract tags from the user's source message
         original_text = original_message.text or original_message.caption or ""
         _, _, _, _, tags, tags_text, _ = extract_url_range_tags(original_text)
         
-        app.delete_messages(user_id, callback_query.message.id)
+        safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
         
         # Force use specific quality format like in /format command
         if quality == "best":
@@ -1765,7 +1765,7 @@ def askq_callback(app, callback_query):
     original_message = callback_query.message.reply_to_message
     if not original_message:
         callback_query.answer("❌ Error: Original message not found. It might have been deleted. Please send the link again.", show_alert=True)
-        app.delete_messages(user_id, callback_query.message.id)
+        safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
         return
 
     url = None
@@ -1780,14 +1780,14 @@ def askq_callback(app, callback_query):
             url = url_match.group(0)
     if not url:
         callback_query.answer("❌ Error: Original URL not found. Please send the link again.", show_alert=True)
-        app.delete_messages(user_id, callback_query.message.id)
+        safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
         return
 
     # We extract tags from the initial message of the user
     original_text = original_message.text or original_message.caption or ""
     _, _, _, _, tags, tags_text, _ = extract_url_range_tags(original_text)
 
-    app.delete_messages(user_id, callback_query.message.id)
+    safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
 
     original_text = original_message.text or original_message.caption or ""
     if is_playlist_with_range(original_text):
@@ -2125,7 +2125,7 @@ def askq_callback(app, callback_query):
             
             # Удаляем Always Ask меню после обработки
             try:
-                app.delete_messages(callback_query.message.chat.id, callback_query.message.id)
+                safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
             except Exception as e:
                 logger.warning(f"Failed to delete Always Ask menu: {e}")
             return
@@ -2138,7 +2138,7 @@ def askq_callback(app, callback_query):
     
     # Удаляем Always Ask меню после обработки
     try:
-        app.delete_messages(callback_query.message.chat.id, callback_query.message.id)
+        safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
     except Exception as e:
         logger.warning(f"Failed to delete Always Ask menu: {e}")
 
@@ -2199,7 +2199,7 @@ def fallback_gallery_dl_callback(app, callback_query):
         
         # Сохраняем message_thread_id из оригинального сообщения
         message_thread_id = getattr(callback_query.message, 'message_thread_id', None)
-        fake_msg = fake_message(fallback_text, user_id, original_chat_id=original_chat_id, message_thread_id=message_thread_id)
+        fake_msg = fake_message(fallback_text, user_id, original_chat_id=original_chat_id, message_thread_id=message_thread_id, original_message=callback_query.message)
         logger.info(f"[FALLBACK] fake_msg.chat.id={fake_msg.chat.id}, fake_msg.message_thread_id={fake_msg.message_thread_id}, callback_query.message.chat.id={callback_query.message.chat.id}, callback_query.message.message_thread_id={getattr(callback_query.message, 'message_thread_id', None)}")
         
         # Execute gallery-dl command
@@ -4533,7 +4533,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                 # Remove processing message quietly
                 if proc_msg:
                     try:
-                        app.delete_messages(user_id, proc_msg.id)
+                        safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[proc_msg.id])
                     except Exception:
                         pass
                 proc_msg = None
@@ -4541,7 +4541,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
             # Fallback: send new message
             if proc_msg:
                 try:
-                    app.delete_messages(user_id, proc_msg.id)
+                    safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[proc_msg.id])
                 except Exception:
                     pass
                 proc_msg = None

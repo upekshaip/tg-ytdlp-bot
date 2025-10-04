@@ -2,6 +2,7 @@ import re
 import json
 from functools import lru_cache
 from typing import Dict, Optional, Tuple
+from datetime import datetime
 
 import requests
 
@@ -106,6 +107,60 @@ def _is_valid_username(token: str) -> bool:
     if not re.search(r"[A-Za-zА-Яа-яЁё]", token):
         return False
     return True
+
+
+def _parse_date_string(date_str: str) -> Optional[str]:
+    """
+    Универсальная функция парсинга даты из строки.
+    Возвращает дату в формате DD.MM.YYYY или None.
+    """
+    if not date_str:
+        return None
+    
+    # Список форматов дат для парсинга
+    date_formats = [
+        "%Y-%m-%d",                    # 2024-10-04
+        "%Y-%m-%dT%H:%M:%S",          # 2024-10-04T15:30:00
+        "%Y-%m-%dT%H:%M:%SZ",         # 2024-10-04T15:30:00Z
+        "%Y-%m-%dT%H:%M:%S.%f",       # 2024-10-04T15:30:00.123456
+        "%Y-%m-%dT%H:%M:%S.%fZ",      # 2024-10-04T15:30:00.123456Z
+        "%Y-%m-%d %H:%M:%S",          # 2024-10-04 15:30:00
+        "%Y-%m-%d %H:%M:%S.%f",       # 2024-10-04 15:30:00.123456
+        "%d.%m.%Y",                   # 04.10.2024
+        "%d/%m/%Y",                   # 04/10/2024
+        "%m/%d/%Y",                   # 10/04/2024
+        "%B %d, %Y",                  # October 4, 2024
+        "%d %B %Y",                   # 4 October 2024
+    ]
+    
+    # Сначала пробуем стандартные форматы
+    for fmt in date_formats:
+        try:
+            dt = datetime.strptime(date_str, fmt)
+            return dt.strftime("%d.%m.%Y")
+        except ValueError:
+            continue
+    
+    # Если не удалось распарсить, попробуем извлечь год-месяц-день регулярным выражением
+    date_match = re.search(r'(\d{4})-(\d{2})-(\d{2})', date_str)
+    if date_match:
+        year, month, day = date_match.groups()
+        try:
+            dt = datetime(int(year), int(month), int(day))
+            return dt.strftime("%d.%m.%Y")
+        except ValueError:
+            pass
+    
+    # Попробуем ISO формат с временной зоной
+    try:
+        # Убираем временную зону если есть
+        date_clean = re.sub(r'[+-]\d{2}:\d{2}$', '', date_str)
+        dt = datetime.fromisoformat(date_clean)
+        return dt.strftime("%d.%m.%Y")
+    except ValueError:
+        pass
+    
+    return None
 
 
 def _guess_username_from_url(url: str, service: Optional[str]) -> Optional[str]:
@@ -241,6 +296,48 @@ def _extract_instagram_info(url: str) -> Tuple[Optional[str], Optional[str]]:
     return (name, site)
 
 
+def _extract_instagram_date(url: str) -> Optional[str]:
+    """
+    Извлекает дату загрузки из Instagram API (oEmbed).
+    Возвращает дату в формате DD.MM.YYYY или None.
+    """
+    try:
+        data = _http_get_json(f"https://www.instagram.com/oembed/?url={url}")
+        if data and isinstance(data, dict):
+            # oEmbed может содержать дату в разных полях
+            date_str = data.get("upload_date") or data.get("created_at") or data.get("date")
+            if date_str:
+                return _parse_date_string(date_str)
+    except Exception:
+        pass
+    
+    # Fallback: попробуем извлечь из OpenGraph мета-тегов
+    try:
+        html = _http_get(url)
+        metas = _extract_meta(html or "")
+        
+        # Ищем дату в различных мета-тегах
+        date_fields = [
+            "article:published_time",
+            "article:modified_time", 
+            "og:updated_time",
+            "twitter:data1",
+            "date",
+            "pubdate"
+        ]
+        
+        for field in date_fields:
+            date_str = metas.get(field)
+            if date_str:
+                result = _parse_date_string(date_str)
+                if result:
+                    return result
+    except Exception:
+        pass
+    
+    return None
+
+
 # -------- TikTok --------
 
 
@@ -263,6 +360,30 @@ def _extract_tiktok_info(url: str) -> Tuple[Optional[str], Optional[str]]:
             if candidate:
                 return (candidate.strip(), "TikTok")
     return (None, "TikTok")
+
+
+def _extract_tiktok_date(url: str) -> Optional[str]:
+    """Извлекает дату загрузки из TikTok API."""
+    try:
+        data = _http_get_json(f"https://www.tiktok.com/oembed?url={url}")
+        if data and isinstance(data, dict):
+            date_str = data.get("upload_date") or data.get("created_at") or data.get("date")
+            if date_str:
+                return _parse_date_string(date_str)
+    except Exception:
+        pass
+    
+    # Fallback to OpenGraph
+    try:
+        html = _http_get(url)
+        metas = _extract_meta(html or "")
+        date_str = metas.get("article:published_time") or metas.get("og:updated_time")
+        if date_str:
+            return _parse_date_string(date_str)
+    except Exception:
+        pass
+    
+    return None
 
 
 # -------- X (Twitter) --------
@@ -292,6 +413,30 @@ def _extract_x_info(url: str) -> Tuple[Optional[str], Optional[str]]:
             if candidate:
                 return (candidate.strip(), "X")
     return (None, "X")
+
+
+def _extract_x_date(url: str) -> Optional[str]:
+    """Извлекает дату публикации из X (Twitter) API."""
+    try:
+        data = _http_get_json(f"https://publish.twitter.com/oembed?url={url}")
+        if data and isinstance(data, dict):
+            date_str = data.get("upload_date") or data.get("created_at") or data.get("date")
+            if date_str:
+                return _parse_date_string(date_str)
+    except Exception:
+        pass
+    
+    # Fallback to OpenGraph
+    try:
+        html = _http_get(url)
+        metas = _extract_meta(html or "")
+        date_str = metas.get("article:published_time") or metas.get("og:updated_time")
+        if date_str:
+            return _parse_date_string(date_str)
+    except Exception:
+        pass
+    
+    return None
 
 
 # -------- VK --------
@@ -359,6 +504,30 @@ def _extract_youtube_info(url: str) -> Tuple[Optional[str], Optional[str]]:
     metas = _extract_meta(html or "")
     channel = metas.get("og:site_name") or metas.get("twitter:title")
     return (channel, "YouTube")
+
+
+def _extract_youtube_date(url: str) -> Optional[str]:
+    """Извлекает дату загрузки из YouTube API."""
+    try:
+        data = _http_get_json(f"https://www.youtube.com/oembed?url={url}")
+        if data and isinstance(data, dict):
+            date_str = data.get("upload_date") or data.get("created_at") or data.get("date")
+            if date_str:
+                return _parse_date_string(date_str)
+    except Exception:
+        pass
+    
+    # Fallback to OpenGraph
+    try:
+        html = _http_get(url)
+        metas = _extract_meta(html or "")
+        date_str = metas.get("article:published_time") or metas.get("og:updated_time")
+        if date_str:
+            return _parse_date_string(date_str)
+    except Exception:
+        pass
+    
+    return None
 
 
 # -------- Reddit --------
@@ -591,6 +760,14 @@ SERVICE_HANDLERS = {
     "behance": _extract_behance_info,
 }
 
+SERVICE_DATE_HANDLERS = {
+    "instagram": _extract_instagram_date,
+    "tiktok": _extract_tiktok_date,
+    "x": _extract_x_date,
+    "youtube": _extract_youtube_date,
+    # Добавьте другие сервисы по мере необходимости
+}
+
 
 @lru_cache(maxsize=512)
 def get_service_account_info(url: str) -> Dict[str, Optional[str]]:
@@ -650,10 +827,67 @@ def get_account_tag(url: str) -> str:
     return service_tag or ""
 
 
+@lru_cache(maxsize=512)
+def get_service_date(url: str) -> Optional[str]:
+    """
+    Извлекает дату загрузки/публикации из API различных сервисов.
+    Возвращает дату в формате DD.MM.YYYY или None.
+    
+    Поддерживаемые сервисы:
+    - Instagram (oEmbed API)
+    - TikTok (oEmbed API)
+    - X/Twitter (oEmbed API)
+    - YouTube (oEmbed API)
+    - И другие через OpenGraph мета-теги
+    """
+    try:
+        service = _detect_service(url)
+        if not service:
+            return None
+            
+        # Пробуем специализированный обработчик для сервиса
+        date_handler = SERVICE_DATE_HANDLERS.get(service)
+        if date_handler:
+            result = date_handler(url)
+            if result:
+                return result
+        
+        # Fallback: попробуем извлечь из OpenGraph мета-тегов
+        try:
+            html = _http_get(url)
+            metas = _extract_meta(html or "")
+            
+            # Ищем дату в различных мета-тегах
+            date_fields = [
+                "article:published_time",
+                "article:modified_time", 
+                "og:updated_time",
+                "twitter:data1",
+                "date",
+                "pubdate"
+            ]
+            
+            for field in date_fields:
+                date_str = metas.get(field)
+                if date_str:
+                    result = _parse_date_string(date_str)
+                    if result:
+                        return result
+        except Exception:
+            pass
+            
+    except Exception:
+        pass
+    
+    return None
+
+
 __all__ = [
     "get_service_account_info",
     "build_tags",
     "get_account_tag",
+    "get_service_date",
+    "_parse_date_string",
 ]
 
 
