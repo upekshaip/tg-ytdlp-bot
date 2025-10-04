@@ -430,8 +430,14 @@ def get_total_media_count(url: str, user_id=None, use_proxy: bool = False) -> in
             
             # For Instagram, use special method with Instagram-specific config
             if 'instagram.com' in url.lower():
-                logger.info("Instagram domain detected, using Instagram-specific method")
-                return _get_instagram_media_count(url, user_id, use_proxy, cfg_path)
+                # Check if Instagram should skip simulation (from GALLERYDL_FALLBACK_DOMAINS)
+                from CONFIG.domains import DomainsConfig
+                if 'instagram.com' in DomainsConfig.GALLERYDL_FALLBACK_DOMAINS:
+                    logger.info("Instagram domain in GALLERYDL_FALLBACK_DOMAINS, skipping simulation")
+                    return None  # Skip simulation for fallback domains
+                else:
+                    logger.info("Instagram domain detected, using Instagram-specific method")
+                    return _get_instagram_media_count(url, user_id, use_proxy, cfg_path)
 
             # Use gallery-dl extractor to get all media info (not just URLs)
             logger.info(f"[gallery-dl] cookies for media count: {cfg.get('extractor',{}).get('cookies')}")
@@ -471,7 +477,13 @@ def _get_total_media_count_fallback(url: str, user_id, use_proxy: bool, cfg_path
     try:
         # Special handling for Instagram - use different approach
         if 'instagram.com' in url.lower():
-            return _get_instagram_media_count(url, user_id, use_proxy, cfg_path)
+            # Check if Instagram should skip simulation (from GALLERYDL_FALLBACK_DOMAINS)
+            from CONFIG.domains import DomainsConfig
+            if 'instagram.com' in DomainsConfig.GALLERYDL_FALLBACK_DOMAINS:
+                logger.info("Instagram domain in GALLERYDL_FALLBACK_DOMAINS, skipping simulation in fallback")
+                return None  # Skip simulation for fallback domains
+            else:
+                return _get_instagram_media_count(url, user_id, use_proxy, cfg_path)
         
         cmd = [sys.executable, "-m", "gallery_dl", "--config", cfg_path, "--get-urls", url]
         logger.info(f"Fallback counting via --get-urls: {' '.join(cmd)}")

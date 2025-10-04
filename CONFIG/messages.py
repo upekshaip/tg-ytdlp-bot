@@ -213,9 +213,7 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 </blockquote>
 
 👨‍💻 <i>Developer:</i> @upekshaip
-🛠 <a href=\"https://github.com/upekshaip/tg-ytdlp-bot\">GitHub</a>
-🤝 <i>Contributor:</i> @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl 
-🛠 <a href=\"https://github.com/chelaxian/tg-ytdlp-bot\">GitHub</a>
+🤝 <i>Contributor:</i> @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl
     """
     
     # Version 1.0.0 - Добавлен SAVE_AS_COOKIE_HINT для подсказки по /save_as_cookie
