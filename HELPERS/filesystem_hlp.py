@@ -8,6 +8,8 @@ import threading
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger
 from HELPERS.limitter import humanbytes
+from CONFIG.config import Config
+from pyrogram import enums
 
 # Get app instance for decorators
 app = get_app()
@@ -89,7 +91,7 @@ def cleanup_temp_files():
             logger.error(f"Error cleaning user directory {user_dir}: {e}")
 
 def cleanup_user_temp_files(user_id):
-    """Clean up temporary files for a specific user"""
+    """Clean up temporary files for a specific user (only in root directory, not in protected subdirectories)"""
     user_dir = os.path.join("users", str(user_id))
     if not os.path.exists(user_dir):
         return
@@ -105,8 +107,13 @@ def cleanup_user_temp_files(user_id):
         return
     
     try:
+        # Only clean files in root directory, not in subdirectories (which might be protected)
         for filename in os.listdir(user_dir):
             file_path = os.path.join(user_dir, filename)
+            # Skip subdirectories (they might be protected download folders)
+            if os.path.isdir(file_path):
+                continue
+                
             # Remove temporary files
             if (filename.endswith(('.part', '.ytdl', '.temp', '.tmp', '.json', '.jsonl', '.srt', '.vtt', '.ass', '.ssa')) or  # Removed .srt - subtitles are handled separately
                 filename.startswith('yt_thumb_') or  # YouTube thumbnails
@@ -123,7 +130,7 @@ def cleanup_user_temp_files(user_id):
         logger.error(f"Error cleaning user directory {user_id}: {e}")
 
 def cleanup_subtitle_files(user_id):
-    """Clean up subtitle files for a specific user after embedding"""
+    """Clean up subtitle files for a specific user after embedding (only in root directory, not in protected subdirectories)"""
     user_dir = os.path.join("users", str(user_id))
     if not os.path.exists(user_dir):
         return
@@ -131,8 +138,13 @@ def cleanup_subtitle_files(user_id):
     logger.info(f"Cleaning up subtitle files for user {user_id}")
     
     try:
+        # Only clean files in root directory, not in subdirectories (which might be protected)
         for filename in os.listdir(user_dir):
             file_path = os.path.join(user_dir, filename)
+            # Skip subdirectories (they might be protected download folders)
+            if os.path.isdir(file_path):
+                continue
+                
             # Remove subtitle files
             if filename.endswith(('.srt', '.vtt', '.ass', '.ssa', '.json', '.jsonl')):
                 try:
@@ -181,11 +193,20 @@ def create_directory(path):
 
 # Remove All User Media Files
 
-def remove_media(message, only=None):
+def remove_media(message, only=None, force_clean=False):
+    """
+    Remove media files from user directory.
+    
+    Args:
+        message: Telegram message object
+        only: List of specific files to remove (if None, removes all media files)
+        force_clean: If True, ignores protection files and cleans everything (for /clean command)
+    """
     dir = f'./users/{str(message.chat.id)}'
     if not os.path.exists(dir):
         logger.warning(f"Directory {dir} does not exist, nothing to remove")
         return
+    
     if only:
         for fname in only:
             file_path = os.path.join(dir, fname)
@@ -196,26 +217,68 @@ def remove_media(message, only=None):
                 except Exception as e:
                     logger.error(f"Failed to remove file {file_path}: {e}")
         return
-    allfiles = os.listdir(dir)
-    file_extensions = [
-        '.mp4', '.mkv', '.mp3', '.m4a', '.jpg', '.jpeg', '.part', '.ytdl',
-        '.txt', '.ts', '.m3u8', '.webm', '.wmv', '.avi', '.mpeg', '.wav',
-        '.json', '.jsonl', '.srt', '.vtt', '.ass', '.ssa',
-    ]
-    for extension in file_extensions:
-        if isinstance(extension, tuple):
-            files = [fname for fname in allfiles if any(fname.endswith(ext) for ext in extension)]
-        else:
-            files = [fname for fname in allfiles if fname.endswith(extension)]
-        for file in files:
-            if extension == '.txt' and file in ['logs.txt', 'tags.txt', 'keyboard.txt']:
-                continue
-            file_path = os.path.join(dir, file)
-            try:
-                os.remove(file_path)
-                logger.info(f"Removed file: {file_path}")
-            except Exception as e:
-                logger.error(f"Failed to remove file {file_path}: {e}")
+    
+    # Check if parallel downloads are allowed and we're not forcing cleanup
+    if not force_clean and is_parallel_download_allowed(message):
+        # For parallel downloads, only clean files in root directory, skip protected subdirectories
+        allfiles = os.listdir(dir)
+        file_extensions = [
+            '.mp4', '.mkv', '.mp3', '.m4a', '.jpg', '.jpeg', '.part', '.ytdl',
+            '.txt', '.ts', '.m3u8', '.webm', '.wmv', '.avi', '.mpeg', '.wav',
+            '.json', '.jsonl', '.srt', '.vtt', '.ass', '.ssa',
+        ]
+        
+        # Clean files in root directory
+        for extension in file_extensions:
+            if isinstance(extension, tuple):
+                files = [fname for fname in allfiles if any(fname.endswith(ext) for ext in extension)]
+            else:
+                files = [fname for fname in allfiles if fname.endswith(extension)]
+            for file in files:
+                if extension == '.txt' and file in ['logs.txt', 'tags.txt', 'keyboard.txt']:
+                    continue
+                file_path = os.path.join(dir, file)
+                try:
+                    os.remove(file_path)
+                    logger.info(f"Removed file: {file_path}")
+                except Exception as e:
+                    logger.error(f"Failed to remove file {file_path}: {e}")
+        
+        # Clean unprotected subdirectories
+        for item in os.listdir(dir):
+            item_path = os.path.join(dir, item)
+            if os.path.isdir(item_path):
+                if not is_directory_protected(item_path):
+                    try:
+                        shutil.rmtree(item_path)
+                        logger.info(f"Removed unprotected directory: {item_path}")
+                    except Exception as e:
+                        logger.error(f"Failed to remove directory {item_path}: {e}")
+                else:
+                    logger.info(f"Skipped protected directory: {item_path}")
+    else:
+        # For non-parallel downloads or force cleanup, clean everything
+        allfiles = os.listdir(dir)
+        file_extensions = [
+            '.mp4', '.mkv', '.mp3', '.m4a', '.jpg', '.jpeg', '.part', '.ytdl',
+            '.txt', '.ts', '.m3u8', '.webm', '.wmv', '.avi', '.mpeg', '.wav',
+            '.json', '.jsonl', '.srt', '.vtt', '.ass', '.ssa',
+        ]
+        for extension in file_extensions:
+            if isinstance(extension, tuple):
+                files = [fname for fname in allfiles if any(fname.endswith(ext) for ext in extension)]
+            else:
+                files = [fname for fname in allfiles if fname.endswith(extension)]
+            for file in files:
+                if extension == '.txt' and file in ['logs.txt', 'tags.txt', 'keyboard.txt']:
+                    continue
+                file_path = os.path.join(dir, file)
+                try:
+                    os.remove(file_path)
+                    logger.info(f"Removed file: {file_path}")
+                except Exception as e:
+                    logger.error(f"Failed to remove file {file_path}: {e}")
+    
     logger.info(f"Media cleanup completed for user {message.chat.id}")
 
 # Helper function to sanitize and shorten filenames
@@ -293,3 +356,66 @@ def sanitize_filename(filename, max_length=150):
        full_name = name + ext
     
     return full_name
+
+def is_parallel_download_allowed(message):
+    """
+    Check if parallel downloads are allowed for this user/chat.
+    Allowed for:
+    1. Groups (chat_id < 0)
+    2. Admin users in private chats (chat_id > 0)
+    """
+    try:
+        # Groups always allow parallel downloads
+        if message.chat.id < 0:
+            return True
+        
+        # For private chats, only admins can have parallel downloads
+        if message.chat.id > 0:
+            return int(message.chat.id) in Config.ADMIN
+        
+        return False
+    except Exception as e:
+        logger.warning(f"Error checking parallel download permission: {e}")
+        return False
+
+def create_protection_file(directory_path):
+    """
+    Create do_not_delete_me file in the specified directory to protect it from cleanup.
+    """
+    try:
+        protection_file = os.path.join(directory_path, "do_not_delete_me")
+        with open(protection_file, 'w') as f:
+            f.write(f"Protected directory created at: {os.path.basename(directory_path)}\n")
+            f.write("This directory is currently being used for download.\n")
+            f.write("Do not delete this directory until download is complete.\n")
+        logger.info(f"Created protection file: {protection_file}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to create protection file in {directory_path}: {e}")
+        return False
+
+def remove_protection_file(directory_path):
+    """
+    Remove do_not_delete_me file from the specified directory.
+    """
+    try:
+        protection_file = os.path.join(directory_path, "do_not_delete_me")
+        if os.path.exists(protection_file):
+            os.remove(protection_file)
+            logger.info(f"Removed protection file: {protection_file}")
+            return True
+        return False
+    except Exception as e:
+        logger.error(f"Failed to remove protection file from {directory_path}: {e}")
+        return False
+
+def is_directory_protected(directory_path):
+    """
+    Check if directory is protected by do_not_delete_me file.
+    """
+    try:
+        protection_file = os.path.join(directory_path, "do_not_delete_me")
+        return os.path.exists(protection_file)
+    except Exception as e:
+        logger.error(f"Error checking protection file in {directory_path}: {e}")
+        return False

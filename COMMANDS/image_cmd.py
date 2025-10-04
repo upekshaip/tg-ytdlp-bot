@@ -1351,34 +1351,8 @@ def image_command(app, message):
         # Pre-cleanup: remove all media files from user directory before starting
         try:
             logger.info(LoggerMsg.IMG_PRE_CLEANUP_START_LOG_MSG.format(user_id=user_id))
-            user_dir = os.path.join("users", str(user_id))
-            if os.path.exists(user_dir):
-                for root, dirs, files in os.walk(user_dir):
-                    for file in files:
-                        file_path = os.path.join(root, file)
-                        try:
-                            # Remove all media files (keep .txt and .json files)
-                            if file.lower().endswith((
-                                '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff',
-                                '.mp4', '.m4v', '.avi', '.mov', '.mkv', '.webm', '.flv',
-                                '.mp3', '.wav', '.ogg', '.m4a',
-                                '.pdf', '.doc', '.docx', '.zip', '.rar', '.7z'
-                            )):
-                                os.remove(file_path)
-                                logger.info(LoggerMsg.IMG_PRE_CLEANUP_REMOVED_FILE_LOG_MSG.format(file_path=file_path))
-                        except Exception as e:
-                            logger.warning(LoggerMsg.IMG_PRE_CLEANUP_FAILED_REMOVE_FILE_LOG_MSG.format(file_path=file_path, e=e))
-                    
-                    # Remove empty directories (except user root)
-                    for dir_name in dirs:
-                        dir_path = os.path.join(root, dir_name)
-                        try:
-                            if os.path.exists(dir_path) and not os.listdir(dir_path) and dir_path != user_dir:
-                                os.rmdir(dir_path)
-                                logger.info(LoggerMsg.IMG_PRE_CLEANUP_REMOVED_DIR_LOG_MSG.format(dir_path=dir_path))
-                        except Exception as e:
-                            logger.warning(LoggerMsg.IMG_PRE_CLEANUP_FAILED_REMOVE_DIR_LOG_MSG.format(dir_path=dir_path, e=e))
-            
+            from HELPERS.filesystem_hlp import remove_media
+            remove_media(message)  # This will respect protection files for parallel downloads
             logger.info(LoggerMsg.IMG_PRE_CLEANUP_COMPLETED_LOG_MSG)
         except Exception as e:
             logger.warning(LoggerMsg.IMG_PRE_CLEANUP_FAILED_LOG_MSG.format(e=e))
@@ -1386,6 +1360,12 @@ def image_command(app, message):
         # Streaming download: run range-based batches (1-10, 11-20, ...) scoped to a unique per-run directory
         run_dir = create_unique_download_path(user_id, url)
         create_directory(run_dir)
+        
+        # Create protection file for parallel downloads
+        from HELPERS.filesystem_hlp import is_parallel_download_allowed, create_protection_file
+        if is_parallel_download_allowed(message):
+            create_protection_file(run_dir)
+        
         files_to_cleanup = []
 
         # We'll not start full download thread; we'll pull ranges to enforce batching
@@ -3698,6 +3678,10 @@ def image_command(app, message):
         except Exception as e:
             logger.warning(f"[IMG CLEANUP] Failed to perform final cleanup: {e}")
 
+        # Remove protection file after successful download
+        from HELPERS.filesystem_hlp import remove_protection_file
+        remove_protection_file(run_dir)
+        
         send_to_logger(message, LoggerMsg.STREAMED_AND_SENT_MEDIA.format(total_sent=total_sent, url=url))
             
     except Exception as e:

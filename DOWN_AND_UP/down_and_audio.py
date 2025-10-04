@@ -558,6 +558,11 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         except Exception as e:
                             logger.warning(f"Pre-cleanup: failed to remove directory {dir_path}: {e}")
             
+            # Create protection file for parallel downloads
+            from HELPERS.filesystem_hlp import is_parallel_download_allowed, create_protection_file
+            if is_parallel_download_allowed(message):
+                create_protection_file(user_folder)
+            
             logger.info(f"Pre-cleanup completed for unique directory {user_folder}")
         except Exception as e:
             logger.warning(f"Pre-cleanup failed for unique directory {user_folder}: {e}")
@@ -905,6 +910,11 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     safe_edit_message_text(user_id, proc_msg_id, Messages.AUDIO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
                 except Exception as e:
                     logger.error(f"Final progress update error: {e}")
+                
+                # Remove protection file after successful download
+                from HELPERS.filesystem_hlp import remove_protection_file
+                remove_protection_file(user_folder)
+                
                 return info_dict
             except yt_dlp.utils.DownloadError as e:
                 error_text = str(e)

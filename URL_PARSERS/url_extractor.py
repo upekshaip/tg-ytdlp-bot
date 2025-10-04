@@ -599,7 +599,7 @@ def url_distractor(app, message):
             return
         else:
             # Regular command /clean - delete only media files with filtering
-            remove_media(message)
+            remove_media(message, force_clean=True)
             send_to_all(message, Messages.URL_EXTRACTOR_ALL_MEDIA_FILES_REMOVED_MSG)
             try:
                 from COMMANDS.cookies_cmd import clear_youtube_cookie_cache

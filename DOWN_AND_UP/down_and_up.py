@@ -527,6 +527,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         except Exception as e:
                             logger.warning(f"Pre-cleanup: failed to remove directory {dir_path}: {e}")
             
+            # Create protection file for parallel downloads
+            from HELPERS.filesystem_hlp import is_parallel_download_allowed, create_protection_file
+            if is_parallel_download_allowed(message):
+                create_protection_file(user_dir_name)
+            
             logger.info(f"Pre-cleanup completed for unique directory {user_dir_name}")
         except Exception as e:
             logger.warning(f"Pre-cleanup failed for unique directory {user_dir_name}: {e}")
@@ -1195,6 +1200,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     logger.error(f"Final progress update error: {e}")
                 
                 logger.info("Download completed successfully")
+                
+                # Remove protection file after successful download
+                from HELPERS.filesystem_hlp import remove_protection_file
+                remove_protection_file(user_dir_name)
+                
                 return info_dict
             except yt_dlp.utils.DownloadError as e:
                 nonlocal error_message
