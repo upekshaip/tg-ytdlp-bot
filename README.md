@@ -180,7 +180,7 @@ COOKIE_URL = "https://your-domain.com/cookies/cookie.txt"  # Fallback cookie URL
 YOUTUBE_COOKIE_URL = "https://your-domain.com/cookies/youtube/cookie1.txt"
 YOUTUBE_COOKIE_URL_1 = "https://your-domain.com/cookies/youtube/cookie2.txt"
 YOUTUBE_COOKIE_URL_2 = "https://your-domain.com/cookies/youtube/cookie3.txt"
-# ... up to YOUTUBE_COOKIE_URL_9
+# ... up to YOUTUBE_COOKIE_URL_9 
 
 # Firebase Configuration
 FIREBASE_USER = "your-email@gmail.com"

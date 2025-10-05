@@ -10,7 +10,6 @@
 3sat
 4tube
 56.com
-6play
 7plus
 8tracks
 9News
@@ -213,7 +212,6 @@ Corus
 Coub
 CozyTV
 Cracked
-Crackle
 Craftsy
 CrooksAndLiars
 CrowdBunker
@@ -308,7 +306,6 @@ Fifa
 Filmweb
 FiveTV
 FiveThirtyEight
-FlexTV
 Flickr
 Floatplane
 FloatplaneChannel
@@ -543,7 +540,6 @@ Medici
 Meipai
 MelonVOD
 Metacritic
-MiTele
 MicrosoftBuild
 MicrosoftEmbed
 MicrosoftLearnEpisode
@@ -693,8 +689,6 @@ PalcoMP3
 Panopto
 PanoptoList
 PanoptoPlaylist
-ParamountPlus
-ParamountPlusSeries
 ParamountPressExpress
 Parler
 Parlview
@@ -783,7 +777,6 @@ RTS
 RTVCKaltura
 RTVCPlay
 RTVCPlayEmbed
-RUTV
 Radiko
 RadikoRadio
 Radio1Be
@@ -895,7 +888,6 @@ SkylineWebcams
 SlidesLive
 Slideshare
 Slutload
-Smotrim
 SnapchatSpotlight
 Snotr
 SoftWhiteUnderbelly
@@ -1036,9 +1028,6 @@ Tube8
 TubeTuGraz
 TubeTuGrazSeries
 Tumblr
-TuneInPodcast
-TuneInPodcastEpisode
-TuneInStation
 Tweakers
 TwitCasting
 TwitCastingLive
@@ -1078,7 +1067,8 @@ VVVVIDShow
 Varzesh3
 Vbox7
 Veo
-Vesti
+Vevo
+VevoPlaylist
 ViMP
 VidLii
 Viddler
@@ -1154,7 +1144,6 @@ XMinus
 XNXX
 XVideos
 XXXYMovies
-Xanimu
 XboxClips
 XiaoHongShu
 Xinpianchang
@@ -1234,7 +1223,6 @@ cp24
 cpac
 cu.ntv.co.jp
 curiositystream
-cwtv
 dailymotion
 damtomo
 dangalplay
@@ -1350,6 +1338,7 @@ ocw.mit.edu
 on24
 onet.pl
 onet.tv
+onsen
 openrec
 orf
 parliamentlive.tv
@@ -1361,7 +1350,6 @@ peloton
 periscope
 phoenix.de
 picarto
-pixiv
 player.sky.it
 playeur
 pluralsight
@@ -1398,6 +1386,7 @@ simplecast
 sky
 sky.it
 skynewsarabia
+smotrim
 soop
 soundcloud
 soundgasm
@@ -1407,7 +1396,6 @@ southpark.lat
 southparkstudios.co.uk
 southparkstudios.com.br
 southparkstudios.nu
-spotify
 sr
 stanfordoc
 startrek
@@ -1428,7 +1416,9 @@ toggo
 tokfm
 tou.tv
 toutiao
+ttinglive
 tubitv
+tunein
 tv.dfb.de
 tv2play.hu
 tv2playseries.hu
