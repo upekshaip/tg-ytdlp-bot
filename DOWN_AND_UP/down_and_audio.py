@@ -30,7 +30,7 @@ import subprocess
 from PIL import Image
 import io
 from CONFIG.config import Config
-from CONFIG.messages import Messages
+from CONFIG.messages import Messages, get_messages_instance
 from COMMANDS.subtitles_cmd import is_subs_enabled, check_subs_availability, get_user_subs_auto_mode, _subs_check_cache, download_subtitles_ytdlp, is_subs_always_ask
 from COMMANDS.mediainfo_cmd import send_mediainfo_if_enabled
 from URL_PARSERS.playlist_utils import is_playlist_with_range
@@ -219,20 +219,20 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 format_spec = result.get('format', 'best')
                 
                 # Form response
-                response = Messages.DIRECT_LINK_OBTAINED_MSG
-                response += Messages.TITLE_FIELD_MSG.format(title=title)
+                response = get_messages_instance().DIRECT_LINK_OBTAINED_MSG
+                response += get_messages_instance().TITLE_FIELD_MSG.format(title=title)
                 if duration > 0:
-                    response += Messages.DURATION_FIELD_MSG.format(duration=duration)
-                response += Messages.FORMAT_FIELD_MSG.format(format_spec=format_spec)
+                    response += get_messages_instance().DURATION_FIELD_MSG.format(duration=duration)
+                response += get_messages_instance().FORMAT_FIELD_MSG.format(format_spec=format_spec)
                 
                 if video_url:
-                    response += Messages.VIDEO_STREAM_FIELD_MSG.format(video_url=video_url)
+                    response += get_messages_instance().VIDEO_STREAM_FIELD_MSG.format(video_url=video_url)
                 
                 if audio_url:
-                    response += Messages.AUDIO_STREAM_FIELD_MSG.format(audio_url=audio_url)
+                    response += get_messages_instance().AUDIO_STREAM_FIELD_MSG.format(audio_url=audio_url)
                 
                 if not video_url and not audio_url:
-                    response += Messages.DOWN_UP_FAILED_STREAM_LINKS_MSG
+                    response += get_messages_instance().DOWN_UP_FAILED_STREAM_LINKS_MSG
                 
                 # Send response
                 app.send_message(
@@ -242,18 +242,18 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                send_to_logger(message, Messages.DIRECT_LINK_EXTRACTED_DOWN_AUDIO_LOG_MSG.format(user_id=user_id, url=url))
+                send_to_logger(message, get_messages_instance().DIRECT_LINK_EXTRACTED_DOWN_AUDIO_LOG_MSG.format(user_id=user_id, url=url))
                 
             else:
                 error_msg = result.get('error', 'Unknown error')
                 app.send_message(
                     user_id,
-                    Messages.DOWN_UP_ERROR_GETTING_LINK_MSG.format(error_msg=error_msg),
+                    get_messages_instance().DOWN_UP_ERROR_GETTING_LINK_MSG.format(error_msg=error_msg),
                     reply_parameters=ReplyParameters(message_id=message.id),
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                log_error_to_channel(message, Messages.DIRECT_LINK_FAILED_DOWN_AUDIO_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
+                log_error_to_channel(message, get_messages_instance().DIRECT_LINK_FAILED_DOWN_AUDIO_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
             
             return
     except Exception as e:
@@ -339,11 +339,11 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 logger.info(f"[AUDIO CACHE] send_as_file enabled for user {user_id}, skipping cache repost for playlist")
                 uncached_indices = requested_indices
             if len(uncached_indices) == 0:
-                app.send_message(user_id, Messages.PLAYLIST_CACHE_SENT_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+                app.send_message(user_id, get_messages_instance().PLAYLIST_CACHE_SENT_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
                 send_to_logger(message, LoggerMsg.PLAYLIST_AUDIO_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
                 return
             else:
-                app.send_message(user_id, Messages.CACHE_PARTIAL_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+                app.send_message(user_id, get_messages_instance().CACHE_PARTIAL_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
     elif quality_key and not is_playlist:
         # Check if Always Ask mode is enabled - if yes, skip cache completely
         if not is_subs_always_ask(user_id):
@@ -403,7 +403,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         if thread_id:
                             forward_kwargs['message_thread_id'] = thread_id
                     app.forward_messages(**forward_kwargs)
-                    app.send_message(user_id, Messages.AUDIO_SENT_FROM_CACHE_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+                    app.send_message(user_id, get_messages_instance().AUDIO_SENT_FROM_CACHE_MSG, reply_parameters=ReplyParameters(message_id=message.id))
                     send_to_logger(message, LoggerMsg.AUDIO_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
                     return
                 except Exception as e:
@@ -440,16 +440,16 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 minutes = (wait_time % 3600) // 60
                 seconds = wait_time % 60
                 time_str = f"{hours}h {minutes}m {seconds}s"
-                proc_msg = safe_send_message(user_id, Messages.RATE_LIMIT_WITH_TIME_MSG.format(time=time_str), message=message)
+                proc_msg = safe_send_message(user_id, get_messages_instance().RATE_LIMIT_WITH_TIME_MSG.format(time=time_str), message=message)
         else:
-            proc_msg = safe_send_message(user_id, Messages.RATE_LIMIT_NO_TIME_MSG, message=message)
+            proc_msg = safe_send_message(user_id, get_messages_instance().RATE_LIMIT_NO_TIME_MSG, message=message)
 
         # We are trying to replace with "Download started"
         try:
             app.edit_message_text(
                 chat_id=user_id,
                 message_id=proc_msg.id,
-                text=Messages.DOWNLOAD_STARTED_MSG,
+                text=get_messages_instance().DOWNLOAD_STARTED_MSG,
                 parse_mode=enums.ParseMode.HTML
             )
             if os.path.exists(flood_time_file):
@@ -465,15 +465,15 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             return
 
         # If there is no flood error, send a normal message (only once)
-        proc_msg = app.send_message(user_id, Messages.PROCESSING_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+        proc_msg = app.send_message(user_id, get_messages_instance().PROCESSING_MSG, reply_parameters=ReplyParameters(message_id=message.id))
         # Pin proc/status message for visibility
         try:
             app.pin_chat_message(user_id, proc_msg.id, disable_notification=True)
         except Exception:
             pass
         proc_msg_id = proc_msg.id
-        status_msg = safe_send_message(user_id, Messages.AUDIO_PROCESSING_MSG, message=message)
-        hourglass_msg = safe_send_message(user_id, Messages.WAITING_HOURGLASS_MSG, message=message)
+        status_msg = safe_send_message(user_id, get_messages_instance().AUDIO_PROCESSING_MSG, message=message)
+        hourglass_msg = safe_send_message(user_id, get_messages_instance().WAITING_HOURGLASS_MSG, message=message)
         try:
             from HELPERS.safe_messeger import schedule_delete_message
             if status_msg and hasattr(status_msg, 'id'):
@@ -491,7 +491,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         create_directory(user_folder)
 
         if not check_disk_space(user_folder, 500 * 1024 * 1024 * video_count):
-            send_to_user(message, Messages.ERROR_NO_DISK_SPACE_MSG)
+            send_to_user(message, get_messages_instance().ERROR_NO_DISK_SPACE_MSG)
             return
 
         # Create user directory (subscription already checked in video_extractor)
@@ -707,7 +707,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     progress_hook.progress_data['total_bytes'] = total
                 
                 try:
-                    safe_edit_message_text(user_id, proc_msg_id, Messages.AUDIO_DOWNLOADING_PROGRESS_MSG.format(process=current_total_process, bar=bar, percent=percent))
+                    safe_edit_message_text(user_id, proc_msg_id, get_messages_instance().AUDIO_DOWNLOADING_PROGRESS_MSG.format(process=current_total_process, bar=bar, percent=percent))
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
@@ -721,7 +721,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 last_update = current_time
             elif d.get("status") == "error":
                 try:
-                    safe_edit_message_text(user_id, proc_msg_id, Messages.AUDIO_DOWNLOAD_ERROR_MSG)
+                    safe_edit_message_text(user_id, proc_msg_id, get_messages_instance().AUDIO_DOWNLOAD_ERROR_MSG)
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
@@ -907,7 +907,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 
                 try:
                     full_bar = "🟩" * 10
-                    safe_edit_message_text(user_id, proc_msg_id, Messages.AUDIO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
+                    safe_edit_message_text(user_id, proc_msg_id, get_messages_instance().AUDIO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
                 except Exception as e:
                     logger.error(f"Final progress update error: {e}")
                 
@@ -923,7 +923,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 # Check for live stream detection
                 if "LIVE_STREAM_DETECTED" in error_text:
                     live_stream_message = (
-                        Messages.LIVE_STREAM_DETECTED_MSG +
+                        get_messages_instance().LIVE_STREAM_DETECTED_MSG +
                         "• You can see the final video length\n\n"
                         "Once the stream is completed, you'll be able to download it as a regular video."
                     )
@@ -933,7 +933,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 # Check for postprocessing errors
                 if "Postprocessing" in error_text and "Error opening output files" in error_text:
                     postprocessing_message = (
-                        Messages.AUDIO_FILE_PROCESSING_ERROR_INVALID_CHARS_MSG +
+                        get_messages_instance().AUDIO_FILE_PROCESSING_ERROR_INVALID_CHARS_MSG +
                         "**Solutions:**\n"
                         "• Try downloading again - the system will use a safer filename\n"
                         "• If the problem persists, the audio title may contain unsupported characters\n"
@@ -947,7 +947,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 # Check for postprocessing errors with Invalid argument
                 if "Postprocessing" in error_text and "Invalid argument" in error_text:
                     postprocessing_message = (
-                        Messages.AUDIO_FILE_PROCESSING_ERROR_INVALID_ARG_MSG +
+                        get_messages_instance().AUDIO_FILE_PROCESSING_ERROR_INVALID_ARG_MSG +
                         "**Possible causes:**\n"
                         "• Corrupted or incomplete download\n"
                         "• Unsupported audio format or codec\n"
@@ -1005,7 +1005,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                             # Build fallback command for single item only (not entire range)
                             # Use current_index instead of full range to download only the failed item
                             current_item_index = current_index + 1  # current_index is 0-based, we need 1-based
-                            fallback_text = f"/img {current_item_index} {parsed_url}"
+                            fallback_text = f"/img {current_item_index}-{current_item_index} {parsed_url}"
                             logger.info(f"[FALLBACK] Downloading only failed item {current_item_index} via gallery-dl, fallback_text: {fallback_text}")
                             
                             if tags:
@@ -1061,20 +1061,20 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 
                 # Check if this is a "No videos found in playlist" error
                 if "No videos found in playlist" in error_text or "Story might have expired" in error_text:
-                    error_message = Messages.DOWN_UP_NO_CONTENT_FOUND_MSG.format(index=current_index + video_start_with)
+                    error_message = get_messages_instance().DOWN_UP_NO_CONTENT_FOUND_MSG.format(index=current_index + video_start_with)
                     send_error_to_user(message, error_message)
                     logger.info(f"Skipping item at index {current_index} (no content found)")
                     return "SKIP"
                 
                 # Check if this is a TikTok infinite loop error
                 if "TikTok API keeps sending the same page" in error_text and "infinite loop" in error_text:
-                    error_message = Messages.AUDIO_TIKTOK_API_ERROR_SKIP_MSG.format(index=current_index + video_start_with)
+                    error_message = get_messages_instance().AUDIO_TIKTOK_API_ERROR_SKIP_MSG.format(index=current_index + video_start_with)
                     send_to_user(message, error_message)
                     logger.info(f"Skipping TikTok audio at index {current_index} due to API error")
                     return "SKIP"  # Skip this audio and continue with next
                 
                 else:
-                    send_to_user(message, Messages.ERROR_UNKNOWN_MSG.format(error=str(e)))
+                    send_to_user(message, get_messages_instance().ERROR_UNKNOWN_MSG.format(error=str(e)))
                 return None
 
         # Download thumbnail for embedding (only once for the URL)
@@ -1286,7 +1286,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             # Check if info_dict is None before accessing it
             if info_dict is None:
                 logger.error("info_dict is None, cannot proceed with audio processing")
-                send_to_user(message, Messages.AUDIO_EXTRACTION_FAILED_MSG)
+                send_to_user(message, get_messages_instance().AUDIO_EXTRACTION_FAILED_MSG)
                 break
 
             audio_title = info_dict.get("title", "audio")
@@ -1318,7 +1318,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             
             if not files:
                 logger.error(f"No audio files found in {user_folder}. Available files: {allfiles}")
-                send_error_to_user(message, Messages.AUDIO_UNSUPPORTED_FILE_TYPE_MSG.format(index=idx + video_start_with))
+                send_error_to_user(message, get_messages_instance().AUDIO_UNSUPPORTED_FILE_TYPE_MSG.format(index=idx + video_start_with))
                 continue
 
             downloaded_file = files[0]
@@ -1361,7 +1361,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
             audio_file = os.path.join(user_folder, final_name)
             if not os.path.exists(audio_file):
-                send_to_user(message, Messages.AUDIO_FILE_NOT_FOUND_MSG)
+                send_to_user(message, get_messages_instance().AUDIO_FILE_NOT_FOUND_MSG)
                 continue
 
             # Embed cover into MP3 file if thumbnail is available
@@ -1414,7 +1414,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
             try:
                 full_bar = "🟩" * 10
-                safe_edit_message_text(user_id, proc_msg_id, Messages.AUDIO_UPLOADING_MSG.format(process=current_total_process, bar=full_bar))
+                safe_edit_message_text(user_id, proc_msg_id, get_messages_instance().AUDIO_UPLOADING_MSG.format(process=current_total_process, bar=full_bar))
             except Exception as e:
                 logger.error(f"Error updating upload status: {e}")
 
@@ -1598,7 +1598,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     logger.info(f"down_and_audio: skipping cache for NSFW content (url={url})")
             except Exception as send_error:
                 logger.error(f"Error sending audio: {send_error}")
-                send_to_user(message, Messages.AUDIO_SEND_FAILED_MSG.format(error=send_error))
+                send_to_user(message, get_messages_instance().AUDIO_SEND_FAILED_MSG.format(error=send_error))
                 continue
 
             # Clean up the audio file after sending
@@ -1613,9 +1613,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 pass
 
         if successful_uploads == len(indices_to_download):
-            success_msg = f"✅ Audio successfully downloaded and sent - {len(indices_to_download)} files uploaded.\n{Config.CREDITS_MSG}"
+            success_msg = f"✅ Audio successfully downloaded and sent - {len(indices_to_download)} files uploaded.\n{get_messages_instance().CREDITS_MSG}"
         else:
-            success_msg = f"⚠️ Partially completed - {successful_uploads}/{len(indices_to_download)} audio files uploaded.\n{Config.CREDITS_MSG}"
+            success_msg = f"⚠️ Partially completed - {successful_uploads}/{len(indices_to_download)} audio files uploaded.\n{get_messages_instance().CREDITS_MSG}"
             
         try:
             safe_edit_message_text(user_id, proc_msg_id, success_msg)
@@ -1626,16 +1626,16 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
         if is_playlist and quality_key:
             total_sent = len(cached_videos) + successful_uploads
-            app.send_message(user_id, Messages.PLAYLIST_SENT_MSG.format(sent=total_sent, total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
-            send_to_logger(message, Messages.PLAYLIST_AUDIO_SENT_LOG_MSG.format(sent=total_sent, total=len(requested_indices), quality=quality_key, user_id=user_id))
+            app.send_message(user_id, get_messages_instance().PLAYLIST_SENT_MSG.format(sent=total_sent, total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+            send_to_logger(message, get_messages_instance().PLAYLIST_AUDIO_SENT_LOG_MSG.format(sent=total_sent, total=len(requested_indices), quality=quality_key, user_id=user_id))
 
     except Exception as e:
         if "Download timeout exceeded" in str(e):
-            send_to_user(message, Messages.DOWNLOAD_TIMEOUT_MSG)
+            send_to_user(message, get_messages_instance().DOWNLOAD_TIMEOUT_MSG)
             log_error_to_channel(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG, url)
         else:
             logger.error(f"Error in audio download: {e}")
-            send_to_user(message, Messages.AUDIO_DOWNLOAD_FAILED_MSG.format(error=str(e)))
+            send_to_user(message, get_messages_instance().AUDIO_DOWNLOAD_FAILED_MSG.format(error=str(e)))
         # Immediate cleanup on error
         try:
             if status_msg_id:

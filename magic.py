@@ -55,7 +55,7 @@ import chardet
 ###########################################################
 # CONFIG
 from CONFIG.config import Config
-from CONFIG.messages import Messages
+from CONFIG.messages import Messages, get_messages_instance
 # from test_config import Config
 
 # HELPERS (только те, что не содержат обработчики)
@@ -128,7 +128,7 @@ from COMMANDS.cookies_cmd import download_cookie
 # DOWN_AND_UP (с обработчиками - импортируем после установки app)
 from DOWN_AND_UP.always_ask_menu import *
 
-print(Messages.MAGIC_ALL_MODULES_LOADED_MSG)
+print(get_messages_instance().MAGIC_ALL_MODULES_LOADED_MSG)
 
 ###########################################################
 #        BOT KEYBOARD
@@ -171,7 +171,7 @@ def _is_allowed_group(message):
         try:
             # Explicit log once per check
             from HELPERS.logger import logger
-            logger.info(Messages.MAGIC_ALLOWED_GROUP_CHECK_LOG_MSG.format(chat_id=gid, allowed=allowed, list=list(_allowed_groups)))
+            logger.info(get_messages_instance().MAGIC_ALLOWED_GROUP_CHECK_LOG_MSG.format(chat_id=gid, allowed=allowed, list=list(_allowed_groups)))
         except Exception:
             pass
         return allowed
@@ -239,30 +239,30 @@ def _vid_handler(app, message):
             from HELPERS.safe_messeger import safe_send_message
             from pyrogram import enums
             from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-            kb = InlineKeyboardMarkup([[InlineKeyboardButton(Messages.URL_EXTRACTOR_VID_HELP_CLOSE_BUTTON_MSG, callback_data="vid_help|close")]])
+            kb = InlineKeyboardMarkup([[InlineKeyboardButton(get_messages_instance().URL_EXTRACTOR_VID_HELP_CLOSE_BUTTON_MSG, callback_data="vid_help|close")]])
             help_text = (
-                Messages.MAGIC_VID_HELP_TITLE_MSG +
-                Messages.MAGIC_VID_HELP_USAGE_MSG +
-                Messages.MAGIC_VID_HELP_EXAMPLES_MSG +
-                Messages.MAGIC_VID_HELP_EXAMPLE_1_MSG +
-                Messages.MAGIC_VID_HELP_EXAMPLE_2_MSG +
-                Messages.MAGIC_VID_HELP_EXAMPLE_3_MSG +
-                Messages.MAGIC_VID_HELP_ALSO_SEE_MSG
+                get_messages_instance().MAGIC_VID_HELP_TITLE_MSG +
+                get_messages_instance().MAGIC_VID_HELP_USAGE_MSG +
+                get_messages_instance().MAGIC_VID_HELP_EXAMPLES_MSG +
+                get_messages_instance().MAGIC_VID_HELP_EXAMPLE_1_MSG +
+                get_messages_instance().MAGIC_VID_HELP_EXAMPLE_2_MSG +
+                get_messages_instance().MAGIC_VID_HELP_EXAMPLE_3_MSG +
+                get_messages_instance().MAGIC_VID_HELP_ALSO_SEE_MSG
             )
             safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
     except Exception:
         from HELPERS.safe_messeger import safe_send_message
         from pyrogram import enums
         from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton(Messages.URL_EXTRACTOR_VID_HELP_CLOSE_BUTTON_MSG, callback_data="vid_help|close")]])
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton(get_messages_instance().URL_EXTRACTOR_VID_HELP_CLOSE_BUTTON_MSG, callback_data="vid_help|close")]])
         help_text = (
-            Messages.MAGIC_VID_HELP_TITLE_MSG +
-            Messages.MAGIC_VID_HELP_USAGE_MSG +
-            Messages.MAGIC_VID_HELP_EXAMPLES_MSG +
-            Messages.MAGIC_VID_HELP_EXAMPLE_1_MSG +
-            Messages.MAGIC_VID_HELP_EXAMPLE_2_MSG +
-            Messages.MAGIC_VID_HELP_EXAMPLE_3_MSG +
-            Messages.MAGIC_VID_HELP_ALSO_SEE_MSG
+            get_messages_instance().MAGIC_VID_HELP_TITLE_MSG +
+            get_messages_instance().MAGIC_VID_HELP_USAGE_MSG +
+            get_messages_instance().MAGIC_VID_HELP_EXAMPLES_MSG +
+            get_messages_instance().MAGIC_VID_HELP_EXAMPLE_1_MSG +
+            get_messages_instance().MAGIC_VID_HELP_EXAMPLE_2_MSG +
+            get_messages_instance().MAGIC_VID_HELP_EXAMPLE_3_MSG +
+            get_messages_instance().MAGIC_VID_HELP_ALSO_SEE_MSG
         )
         safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
 
@@ -284,7 +284,7 @@ def vid_help_callback(app, callback_query):
             except Exception:
                 pass
         try:
-            callback_query.answer(Messages.MAGIC_HELP_CLOSED_MSG)
+            callback_query.answer(get_messages_instance().MAGIC_HELP_CLOSED_MSG)
         except Exception:
             pass
         return
@@ -312,11 +312,11 @@ def cleanup_on_exit():
             from HELPERS.logger import close_logger
             close_logger()
         except Exception as e:
-            print(Messages.MAGIC_ERROR_CLOSING_LOGGER_MSG.format(error=e))
+            print(get_messages_instance().MAGIC_ERROR_CLOSING_LOGGER_MSG.format(error=e))
         
-        print(Messages.MAGIC_CLEANUP_COMPLETED_MSG)
+        print(get_messages_instance().MAGIC_CLEANUP_COMPLETED_MSG)
     except Exception as e:
-        print(Messages.MAGIC_ERROR_DURING_CLEANUP_MSG.format(error=e))
+        print(get_messages_instance().MAGIC_ERROR_DURING_CLEANUP_MSG.format(error=e))
 
 # Register cleanup function
 atexit.register(cleanup_on_exit)
@@ -324,7 +324,7 @@ atexit.register(cleanup_on_exit)
 # Register signal handlers for graceful shutdown
 def signal_handler(sig, frame):
     """Handle shutdown signals gracefully"""
-    print(Messages.MAGIC_SIGNAL_RECEIVED_MSG.format(signal=sig))
+    print(get_messages_instance().MAGIC_SIGNAL_RECEIVED_MSG.format(signal=sig))
     cleanup_on_exit()
     sys.exit(0)
 

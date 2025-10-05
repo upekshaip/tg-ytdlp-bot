@@ -2,7 +2,7 @@
 import re
 from typing import Tuple
 from CONFIG.config import Config
-from CONFIG.messages import Messages
+from CONFIG.messages import Messages, get_messages_instance
 from HELPERS.app_instance import get_app
 from HELPERS.logger import send_to_logger
 from pyrogram import filters
@@ -21,7 +21,7 @@ def caption_editor(app, message):
         user_id = message.chat.id
         caption = message.text
         video_file_id = message.reply_to_message.video.file_id
-        info_of_video = Messages.CAPTION_INFO_OF_VIDEO_MSG.format(caption=caption, user_id=user_id, users_name=users_name, video_file_id=video_file_id)
+        info_of_video = get_messages_instance().CAPTION_INFO_OF_VIDEO_MSG.format(caption=caption, user_id=user_id, users_name=users_name, video_file_id=video_file_id)
         # Sending to logs
         send_to_logger(message, info_of_video)
         app.send_video(user_id, video_file_id, caption=caption)
@@ -30,12 +30,12 @@ def caption_editor(app, message):
     except AttributeError as e:
         # Логируем ошибку, но не прерываем работу бота
         from HELPERS.logger import logger
-        logger.error(Messages.CAPTION_ERROR_IN_CAPTION_EDITOR_MSG.format(error=e))
+        logger.error(get_messages_instance().CAPTION_ERROR_IN_CAPTION_EDITOR_MSG.format(error=e))
         return
     except Exception as e:
         # Логируем любые другие ошибки
         from HELPERS.logger import logger
-        logger.error(Messages.CAPTION_UNEXPECTED_ERROR_IN_CAPTION_EDITOR_MSG.format(error=e))
+        logger.error(get_messages_instance().CAPTION_UNEXPECTED_ERROR_IN_CAPTION_EDITOR_MSG.format(error=e))
         return
 
 
@@ -71,7 +71,7 @@ def truncate_caption(
     # --- Add bot name next to the link ---
     bot_name = getattr(Config, 'BOT_NAME', None) or 'bot'
     bot_mention = f' @{bot_name}' if not bot_name.startswith('@') else f' {bot_name}'
-    link_block = Messages.CAPTION_VIDEO_URL_LINK_MSG.format(url=url, bot_mention=bot_mention)
+    link_block = get_messages_instance().CAPTION_VIDEO_URL_LINK_MSG.format(url=url, bot_mention=bot_mention)
     
     was_truncated = False
     

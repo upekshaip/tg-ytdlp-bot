@@ -12,7 +12,7 @@ from moviepy.video.fx.all import resize
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger, send_to_all, send_to_logger
 from CONFIG.config import Config
-from CONFIG.messages import Messages
+from CONFIG.messages import Messages, get_messages_instance
 from HELPERS.safe_messeger import safe_forward_messages
 from COMMANDS.format_cmd import get_user_mkv_preference
 from pyrogram import enums
@@ -38,7 +38,7 @@ def get_ffmpeg_path():
             ffmpeg_path = os.path.join(project_root, "ffmpeg")
         
         if not os.path.exists(ffmpeg_path):
-            logger.error(Messages.FFMPEG_NOT_FOUND_MSG)
+            logger.error(get_messages_instance().FFMPEG_NOT_FOUND_MSG)
             return None
     
     return ffmpeg_path
@@ -129,7 +129,7 @@ def get_ytdlp_path():
             ytdlp_path = os.path.join(project_root, "yt-dlp")
         
         if not os.path.exists(ytdlp_path):
-            logger.error(Messages.YTDLP_NOT_FOUND_MSG)
+            logger.error(get_messages_instance().YTDLP_NOT_FOUND_MSG)
             return None
     
     return ytdlp_path
@@ -156,7 +156,7 @@ def split_video_2(dir, video_name, video_path, video_size, max_size, duration):
 
     try:
         if rounds > 20:
-            logger.warning(Messages.FFMPEG_VIDEO_SPLIT_EXCESSIVE_MSG.format(rounds=rounds))
+            logger.warning(get_messages_instance().FFMPEG_VIDEO_SPLIT_EXCESSIVE_MSG.format(rounds=rounds))
 
         for x in range(rounds):
             start_time = x * n
@@ -173,17 +173,17 @@ def split_video_2(dir, video_name, video_path, video_size, max_size, duration):
 
             try:
                 # Use progress logging
-                logger.info(Messages.FFMPEG_SPLITTING_VIDEO_PART_MSG.format(current=x+1, total=rounds, start_time=start_time, end_time=end_time))
+                logger.info(get_messages_instance().FFMPEG_SPLITTING_VIDEO_PART_MSG.format(current=x+1, total=rounds, start_time=start_time, end_time=end_time))
                 ffmpeg_extract_subclip(video_path, start_time, end_time, targetname=target_name)
 
                 # Verify the split was successful
                 if not os.path.exists(target_name) or os.path.getsize(target_name) == 0:
-                    logger.error(Messages.FFMPEG_FAILED_CREATE_SPLIT_PART_MSG.format(part=x+1, target_name=target_name))
+                    logger.error(get_messages_instance().FFMPEG_FAILED_CREATE_SPLIT_PART_MSG.format(part=x+1, target_name=target_name))
                 else:
-                    logger.info(Messages.FFMPEG_SUCCESSFULLY_CREATED_SPLIT_PART_MSG.format(part=x+1, target_name=target_name, size=os.path.getsize(target_name)))
+                    logger.info(get_messages_instance().FFMPEG_SUCCESSFULLY_CREATED_SPLIT_PART_MSG.format(part=x+1, target_name=target_name, size=os.path.getsize(target_name)))
 
             except Exception as e:
-                logger.error(Messages.FFMPEG_ERROR_SPLITTING_VIDEO_PART_MSG.format(part=x+1, error=e))
+                logger.error(get_messages_instance().FFMPEG_ERROR_SPLITTING_VIDEO_PART_MSG.format(part=x+1, error=e))
                 # If a part fails, we continue with the others
 
         split_vid_dict = {
@@ -191,11 +191,11 @@ def split_video_2(dir, video_name, video_path, video_size, max_size, duration):
             "path": path_lst
         }
 
-        logger.info(Messages.FFMPEG_VIDEO_SPLIT_SUCCESS_MSG.format(count=len(path_lst)))
+        logger.info(get_messages_instance().FFMPEG_VIDEO_SPLIT_SUCCESS_MSG.format(count=len(path_lst)))
         return split_vid_dict
 
     except Exception as e:
-        logger.error(Messages.FFMPEG_ERROR_VIDEO_SPLITTING_PROCESS_MSG.format(error=e))
+        logger.error(get_messages_instance().FFMPEG_ERROR_VIDEO_SPLITTING_PROCESS_MSG.format(error=e))
         # Return what we have so far
         split_vid_dict = {
             "video": caption_lst,
@@ -215,7 +215,7 @@ def get_duration_thumb_(dir, video_path, thumb_name):
         orig_w = width if width > 0 else 1920
         orig_h = height if height > 0 else 1080
     except Exception as e:
-        logger.error(Messages.FFMPEG_FFPROBE_BYPASS_ERROR_MSG.format(video_path=video_path, error=e))
+        logger.error(get_messages_instance().FFMPEG_FFPROBE_BYPASS_ERROR_MSG.format(video_path=video_path, error=e))
         import traceback
         logger.error(traceback.format_exc())
         duration = 0
@@ -248,7 +248,7 @@ def get_duration_thumb_(dir, video_path, thumb_name):
         # Get FFmpeg path using the common function
         ffmpeg_path = get_ffmpeg_path()
         if not ffmpeg_path:
-            logger.error(Messages.FFMPEG_NOT_FOUND_MSG)
+            logger.error(get_messages_instance().FFMPEG_NOT_FOUND_MSG)
             create_default_thumbnail(thumb_dir, thumb_w, thumb_h)
             return duration, thumb_dir
         
@@ -263,7 +263,7 @@ def get_duration_thumb_(dir, video_path, thumb_name):
         ]
         subprocess.run(ffmpeg_command, check=True, capture_output=True, encoding='utf-8', errors='replace')
     except Exception as e:
-        logger.error(Messages.FFMPEG_ERROR_CREATING_THUMBNAIL_WITH_FFMPEG_MSG.format(error=e))
+        logger.error(get_messages_instance().FFMPEG_ERROR_CREATING_THUMBNAIL_WITH_FFMPEG_MSG.format(error=e))
         # Create default thumbnail as fallback
         create_default_thumbnail(thumb_dir, thumb_w, thumb_h)
     
@@ -309,8 +309,8 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
     try:
         # First check if video file exists
         if not os.path.exists(video_path):
-            logger.error(Messages.FFMPEG_VIDEO_FILE_NOT_EXISTS_MSG.format(video_path=video_path))
-            send_to_all(message, Messages.VIDEO_FILE_NOT_FOUND_MSG.format(filename=os.path.basename(video_path)))
+            logger.error(get_messages_instance().FFMPEG_VIDEO_FILE_NOT_EXISTS_MSG.format(video_path=video_path))
+            send_to_all(message, get_messages_instance().VIDEO_FILE_NOT_FOUND_MSG.format(filename=os.path.basename(video_path)))
             return None
 
         # Get video dimensions
@@ -326,12 +326,12 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
                 orig_w = int(dims_match.group(1))
                 orig_h = int(dims_match.group(2))
             except Exception as e:
-                logger.error(Messages.FFMPEG_ERROR_PARSING_DIMENSIONS_MSG.format(size_result=size_result, error=e))
+                logger.error(get_messages_instance().FFMPEG_ERROR_PARSING_DIMENSIONS_MSG.format(size_result=size_result, error=e))
                 orig_w, orig_h = 1920, 1080
         else:
             # Fallback to default horizontal orientation
             orig_w, orig_h = 1920, 1080
-            logger.warning(Messages.FFMPEG_COULD_NOT_DETERMINE_DIMENSIONS_MSG.format(size_result=size_result, width=orig_w, height=orig_h))
+            logger.warning(get_messages_instance().FFMPEG_COULD_NOT_DETERMINE_DIMENSIONS_MSG.format(size_result=size_result, width=orig_w, height=orig_h))
         
         # Determine optimal thumbnail size based on video aspect ratio
         aspect_ratio = orig_w / orig_h
@@ -369,7 +369,7 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
         # Run ffmpeg command to create thumbnail
         ffmpeg_result = subprocess.run(ffmpeg_command, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
         if ffmpeg_result.returncode != 0:
-            logger.error(Messages.FFMPEG_ERROR_CREATING_THUMBNAIL_MSG.format(stderr=ffmpeg_result.stderr))
+            logger.error(get_messages_instance().FFMPEG_ERROR_CREATING_THUMBNAIL_MSG.format(stderr=ffmpeg_result.stderr))
 
         # Run ffprobe command to get duration
         try:
@@ -388,23 +388,23 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
             else:
                 raise ValueError("No numeric duration found in ffprobe output")
         except (ValueError, TypeError) as e:
-            logger.error(Messages.FFMPEG_ERROR_PARSING_DURATION_MSG.format(error=e, result=result))
+            logger.error(get_messages_instance().FFMPEG_ERROR_PARSING_DURATION_MSG.format(error=e, result=result))
             duration = 0
 
         # Verify thumbnail was created
         if not os.path.exists(thumb_dir):
-            logger.warning(Messages.FFMPEG_THUMBNAIL_NOT_CREATED_MSG.format(thumb_dir=thumb_dir))
+            logger.warning(get_messages_instance().FFMPEG_THUMBNAIL_NOT_CREATED_MSG.format(thumb_dir=thumb_dir))
             # Create a blank thumbnail as fallback
             create_default_thumbnail(thumb_dir, thumb_w, thumb_h)
 
         return duration, thumb_dir
     except subprocess.CalledProcessError as e:
-        logger.error(Messages.FFMPEG_COMMAND_EXECUTION_ERROR_MSG.format(error=e.stderr if hasattr(e, 'stderr') else e))
-        send_to_all(message, Messages.VIDEO_PROCESSING_ERROR_MSG.format(error=str(e)))
+        logger.error(get_messages_instance().FFMPEG_COMMAND_EXECUTION_ERROR_MSG.format(error=e.stderr if hasattr(e, 'stderr') else e))
+        send_to_all(message, get_messages_instance().VIDEO_PROCESSING_ERROR_MSG.format(error=str(e)))
         return None
     except Exception as e:
         logger.error(f"Unexpected error processing video: {e}")
-        send_to_all(message, Messages.VIDEO_PROCESSING_ERROR_MSG.format(error=str(e)))
+        send_to_all(message, get_messages_instance().VIDEO_PROCESSING_ERROR_MSG.format(error=str(e)))
         return None
 
 def create_default_thumbnail(thumb_path, width=480, height=480):
@@ -829,7 +829,7 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
                     )
                     from HELPERS.logger import get_log_channel
                     safe_forward_messages(get_log_channel("video"), user_id, [sent_msg.id])
-                    send_to_logger(message, Messages.SUBS_SENT_MSG) 
+                    send_to_logger(message, get_messages_instance().SUBS_SENT_MSG) 
             except Exception as e:
                 logger.error(f"Error sending srt file: {e}")
             try:

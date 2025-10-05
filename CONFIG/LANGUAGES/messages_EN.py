@@ -6,10 +6,8 @@ class Messages(object):
     #######################################################
     CREDITS_MSG = "<blockquote><i>Managed by</i> @iilililiiillliiliililliilliliiil\n🇮🇹 @tgytdlp_it_bot\n🇦🇪 @tgytdlp_uae_bot\n🇬🇧 @tgytdlp_uk_bot\n🇫🇷 @tgytdlp_fr_bot</blockquote>"
     TO_USE_MSG = "<i>To use this bot you need to subscribe to @tg_ytdlp Telegram channel.</i>\nAfter you join the channel, <b>resend your video link again and bot will download it for you</b> ❤️  "
-    MSG1 = "Hello "
-    MSG2 = "This is the second message. which means bot's own message... 😁"
+
     ERROR1 = "Did not found a url link. Please enter a url with <b>https://</b> or <b>http://</b>"
-    INDEX_ERROR = "You did not give a valid information. Try again..."
 
     PLAYLIST_HELP_MSG = """
 <blockquote expandable>📋 <b>Playlists (yt-dlp)</b>
@@ -368,9 +366,9 @@ Use:
     CHECKING_CACHE_MSG = "🔄 <b>Checking cache...</b>\n\n<code>{url}</code>"
     PROCESSING_MSG = "🔄 Processing..."
     DOWNLOADING_MSG = "📥 <b>Downloading media...</b>\n\n"
-    DOWNLOADING_VIDEO_MSG = "📥 <b>Downloading video...</b>\n\n"
+
     DOWNLOADING_IMAGE_MSG = "📥 <b>Downloading image...</b>\n\n"
-    UPLOAD_COMPLETE_MSG = "✅ <b>Upload complete</b> - {count} files uploaded.\n{credits}"
+
     DOWNLOAD_COMPLETE_MSG = "✅ <b>Download complete</b>\n\n"
     VIDEO_PROCESSING_MSG = "📽 Video is processing..."
     WAITING_HOURGLASS_MSG = "⌛️"
@@ -380,80 +378,43 @@ Use:
     VIDEO_SENT_FROM_CACHE_MSG = "✅ Video successfully sent from cache."
     PLAYLIST_SENT_FROM_CACHE_MSG = "✅ Playlist videos sent from cache ({cached}/{total} files)."
     CACHE_PARTIAL_MSG = "📥 {cached}/{total} videos sent from cache, downloading missing ones..."
-    CACHE_FAILED_VIDEO_MSG = "⚠️ Unable to get video from cache, starting new download..."
-    CACHE_FAILED_GENERIC_MSG = "⚠️ Failed to get video from cache, starting a new download..."
-    
+
     # Error Messages
     INVALID_URL_MSG = "❌ <b>Invalid URL</b>\n\nPlease provide a valid URL starting with http:// or https://"
-    FAILED_ANALYZE_MSG = "❌ <b>Failed to analyze image</b>\n\n<code>{url}</code>\n\n"
+
     ERROR_OCCURRED_MSG = "❌ <b>Error occurred</b>\n\n<code>{url}</code>\n\nError: {error}"
-    ERROR_DOWNLOAD_MSG = "❌ Sorry... Some error occurred during download."
+
     ERROR_SENDING_VIDEO_MSG = "❌ Error sending video: {error}"
     ERROR_UNKNOWN_MSG = "❌ Unknown error: {error}"
     ERROR_NO_DISK_SPACE_MSG = "❌ Not enough disk space to download videos."
     ERROR_FILE_SIZE_LIMIT_MSG = "❌ The file size exceeds the {limit} GB limit. Please select a smaller file within the allowed size."
-    ERROR_NO_VIDEOS_PLAYLIST_MSG = "❌ No videos found in playlist at index {index}."
-    ERROR_TIKTOK_API_MSG = "⚠️ TikTok API error at index {index}, skipping to next video..."
-    ERROR_FFMPEG_NOT_FOUND_MSG = "❌ FFmpeg not found. Please install FFmpeg."
-    ERROR_CONVERSION_FAILED_MSG = "❌ Conversion to MP4 failed: {error}"
+
     ERROR_GETTING_LINK_MSG = "❌ <b>Error getting link:</b>\n{error}"
-    ERROR_AV1_NOT_AVAILABLE_MSG = "❌ AV1 format is not available for this video.\n\nAvailable formats:\n{formats}"
-    ERROR_AV1_NOT_AVAILABLE_SHORT_MSG = "❌ **AV1 format is not available for this video.**\n\n"
-    
+
     # Telegram Rate Limit Messages
     RATE_LIMIT_WITH_TIME_MSG = "⚠️ Telegram has limited message sending.\n⏳ Please wait: {time}\nTo update timer send URL again 2 times."
     RATE_LIMIT_NO_TIME_MSG = "⚠️ Telegram has limited message sending.\n⏳ Please wait: \nTo update timer send URL again 2 times."
     
     # Subtitles Messages
     SUBTITLES_FAILED_MSG = "⚠️ Failed to download subtitles"
-    SUBTITLES_NOT_FOUND_MSG = "⚠️ Subtitles for {flag} {name} not found for this video. Download without subtitles."
-    SUBTITLES_EMBEDDING_MSG = "⚠️ Embedding subtitles may take a long time (up to 1 min per 1 min of video)!\n🔥 Starting to burn subtitles..."
-    SUBTITLES_SUCCESS_MSG = "Subtitles successfully embedded! ✅"
-    SUBTITLES_NOT_FOUND_VIDEO_MSG = "⚠️ Subtitles not found for this video"
-    SUBTITLES_SIZE_LIMIT_MSG = "⚠️ Subtitles not embedded: exceeded size/duration limits"
-    
+
     # Video Processing Messages
-    HLS_STREAM_MSG = "Detected HLS stream.\n📥 Downloading..."
-    DOWNLOADING_FORMAT_MSG = "> <i>📥 Downloading using format: {format}...</i>"
-    DOWNLOADED_PROCESSING_MSG = "☑️ Downloaded video.\n📤 Processing for upload..."
-    FILE_TOO_LARGE_MSG = "⚠️ Your video size ({size}) is too large.\nSplitting file... ✂️"
-    SPLIT_PART_UPLOADED_MSG = "📤 Splitted part {part} file uploaded"
-    
+
     # Stream/Link Messages
     STREAM_LINKS_TITLE_MSG = "🔗 <b>Direct Stream Links</b>\n\n"
     STREAM_TITLE_MSG = "📹 <b>Title:</b> {title}\n"
     STREAM_DURATION_MSG = "⏱ <b>Duration:</b> {duration} sec\n"
-    STREAM_FORMAT_MSG = "🎛 <b>Format:</b> <code>bv+ba/best</code>\n\n"
-    STREAM_BROWSER_MSG = "🌐 <b>Browser:</b> Open in web browser\n\n"
-    VLC_PLAYER_IOS_MSG = "🎬 <b><a href=\"https://itunes.apple.com/app/apple-store/id650377962\">VLC Player (iOS)</a></b>\n\n<i>Click button to copy stream URL, then paste it in VLC app</i>"
-    VLC_PLAYER_ANDROID_MSG = "🎬 <b><a href=\"https://play.google.com/store/apps/details?id=org.videolan.vlc\">VLC Player (Android)</a></b>\n\n<i>Click button to copy stream URL, then paste it in VLC app</i>"
+
     
     # Download Progress Messages
-    DOWNLOADING_FORMAT_ID_MSG = "📥 Downloading format {format_id}..."
-    DOWNLOADING_QUALITY_MSG = "📥 Downloading {quality}..."
-    
+
     # Quality Selection Messages
-    MANUAL_QUALITY_TITLE_MSG = "🎛 Manual Quality Selection"
-    MANUAL_QUALITY_DESC_MSG = "Choose quality manually since automatic detection failed:"
-    ALL_FORMATS_TITLE_MSG = "🎛 All Available Formats"
-    ALL_FORMATS_PAGE_MSG = "Page {page}"
-    CACHED_QUALITIES_TITLE_MSG = "📹 Available Qualities (from cache)"
-    CACHED_QUALITIES_DESC_MSG = "⚠️ Using cached qualities - new formats may not be available"
-    ERROR_GETTING_FORMATS_MSG = "❌ Error getting available formats.\nPlease try again later."
-    
+
     # NSFW Paid Content Messages
-    NSFW_PAID_WARNING_MSG = "⭐️ — 🔞NSFW is paid (⭐️$0.02)\nUse /add_bot_to_group to make NSFW free"
-    NSFW_PAID_INFO_MSG = "⭐️ — 🔞NSFW is paid (⭐️$0.02)\nUse /add_bot_to_group to make NSFW free"
-    
+
     # Callback Error Messages
     ERROR_ORIGINAL_NOT_FOUND_MSG = "❌ Error: Original message not found."
-    ERROR_ORIGINAL_NOT_FOUND_DELETED_MSG = "❌ Error: Original message not found. It might have been deleted. Please send the link again."
-    ERROR_URL_NOT_FOUND_MSG = "❌ Error: URL not found."
-    ERROR_ORIGINAL_URL_NOT_FOUND_MSG = "❌ Error: Original URL not found. Please send the link again."
-    ERROR_URL_NOT_EMBEDDABLE_MSG = "❌ This URL cannot be embedded."
-    ERROR_CODEC_NOT_AVAILABLE_MSG = "❌ {codec} codec not available for this video"
-    ERROR_FORMAT_NOT_AVAILABLE_MSG = "❌ {format} format not available for this video"
-    
+
     # Tags Error Messages
     TAG_FORBIDDEN_CHARS_MSG = "❌ Tag #{tag} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}"
     
@@ -519,8 +480,7 @@ Use:
     # Additional missing messages
     PLEASE_WAIT_MSG = "⏳ Please wait..."
     ERROR_OCCURRED_SHORT_MSG = "❌ Error occurred"
-    MANUAL_QUALITY_TITLE_MSG = "🎛 Manual Quality Selection"
-    
+
     # Args command messages (continued)
     ARGS_INPUT_TIMEOUT_MSG = "⏰ Input mode automatically closed due to inactivity (5 minutes)."
     ARGS_INPUT_DANGEROUS_MSG = "❌ Input contains potentially dangerous content: {pattern}"
@@ -1534,8 +1494,7 @@ Use:
     DOWN_UP_FAILED_STREAM_LINKS_MSG = "❌ Failed to get stream links"
     DOWN_UP_ERROR_GETTING_LINK_MSG = "❌ <b>Error getting link:</b>\n{error_msg}"
     DOWN_UP_NO_CONTENT_FOUND_MSG = "❌ No content found at index {index}"
-    
-    
+
     # Always Ask Menu error messages
     AA_ERROR_ORIGINAL_NOT_FOUND_MSG = "❌ Error: Original message not found."
     AA_ERROR_URL_NOT_FOUND_MSG = "❌ Error: URL not found."
@@ -1559,8 +1518,7 @@ Use:
     AA_MKV_BUTTON_MSG = "✅ MKV"
     AA_MKV_BUTTON_INACTIVE_MSG = "☑️ MKV"
     AA_MKV_BUTTON_UNAVAILABLE_MSG = "❌ MKV"
-    
-    
+
     # Flood limit messages
     FLOOD_LIMIT_TRY_LATER_MSG = "⏳ Flood limit. Try later."
     
@@ -1657,10 +1615,7 @@ Use:
     DB_REST_TOKEN_REFRESH_ERROR_MSG = "❌ REST token refresh error: {error}"
     DB_ERROR_CLOSING_SESSION_MSG = "❌ Error closing Firebase session: {error}"
     DB_ERROR_INITIALIZING_BASE_MSG = "❌ Error initializing base db structure: {error}"
-    DB_IMPORT_ERROR_CONFIG_MSG = "❌ Import error CONFIG/config.py: {error}"
-    DB_CONFIG_NOT_FOUND_MSG = "❌ CONFIG/config.py or Config class not found! All parameters must be in CONFIG/config.py."
-    DB_UNEXPECTED_ERROR_IMPORT_MSG = "❌ Unexpected error importing CONFIG/config.py: {error}"
-    DB_CHECK_SYNTAX_MSG = "❌ Check syntax and dependencies in CONFIG/config.py"
+
     DB_NOT_ALL_PARAMETERS_SET_MSG = "❌ Not all parameters are set in config.py (FIREBASE_CONF, FIREBASE_USER, FIREBASE_PASSWORD)"
     DB_DATABASE_URL_NOT_SET_MSG = "❌ FIREBASE_CONF.databaseURL is not set"
     DB_API_KEY_NOT_SET_MSG = "❌ FIREBASE_CONF.apiKey is not set for getting idToken"
@@ -1682,8 +1637,7 @@ Use:
     UPDATE_CLONE_TIMEOUT_MSG = "❌ Clone timeout"
     UPDATE_CLONE_EXCEPTION_MSG = "❌ Clone exception: {error}"
     UPDATE_CANCELED_BY_USER_MSG = "❌ Update canceled by user"
-    
-    
+
     # Update from repo success messages
     UPDATE_REPOSITORY_CLONED_SUCCESS_MSG = "✅ Repository cloned successfully"
     UPDATE_BACKUPS_MOVED_MSG = "✅ Backups moved to _backup/"
@@ -1993,8 +1947,7 @@ Use:
     URL_EXTRACTOR_VID_HELP_EXAMPLE_1_MSG = "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code>"
     URL_EXTRACTOR_VID_HELP_ALSO_SEE_MSG = "Also see: /audio, /img, /help, /playlist, /settings"
     URL_EXTRACTOR_ADD_GROUP_USER_CLOSED_MSG = "User {user_id} closed add_bot_to_group command"
-    
-    
+
     # YouTube messages
     YOUTUBE_FAILED_EXTRACT_ID_MSG = "Failed to extract YouTube ID"
     YOUTUBE_FAILED_DOWNLOAD_THUMBNAIL_MSG = "Failed to download thumbnail or it is too big"
@@ -2169,6 +2122,5 @@ Use:
     ARGS_KEY_SETTINGS_MSG = "Key settings:\n"
     ARGS_ERROR_SAVING_MSG = "❌ Error saving imported settings."
     ARGS_ERROR_IMPORTING_MSG = "❌ An error occurred while importing settings."
-    
-    
+
     #######################################################
