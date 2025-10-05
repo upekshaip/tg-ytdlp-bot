@@ -78,7 +78,8 @@ def keyboard_command(app, message):
     # Create inline keyboard for options in 2 rows
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton(get_messages_instance().KEYBOARD_OFF_BUTTON_MSG, callback_data="keyboard|OFF"), InlineKeyboardButton(get_messages_instance().KEYBOARD_FULL_BUTTON_MSG, callback_data="keyboard|FULL")],
-        [InlineKeyboardButton(get_messages_instance().KEYBOARD_1X3_BUTTON_MSG, callback_data="keyboard|1x3"), InlineKeyboardButton(get_messages_instance().KEYBOARD_2X3_BUTTON_MSG, callback_data="keyboard|2x3")]
+        [InlineKeyboardButton(get_messages_instance().KEYBOARD_1X3_BUTTON_MSG, callback_data="keyboard|1x3"), InlineKeyboardButton(get_messages_instance().KEYBOARD_2X3_BUTTON_MSG, callback_data="keyboard|2x3")],
+        [InlineKeyboardButton(get_messages_instance().URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="keyboard|close")]
     ])
     
     status_text = get_messages_instance().KEYBOARD_SETTINGS_MSG.format(current=current_setting)
@@ -114,6 +115,16 @@ def keyboard_callback_handler(app, callback_query):
     """Handle keyboard setting callbacks"""
     user_id = str(callback_query.from_user.id)
     setting = callback_query.data.split("|")[1]
+    
+    # Handle close button
+    if setting == "close":
+        try:
+            callback_query.message.delete()
+            callback_query.answer(get_messages_instance().URL_EXTRACTOR_CLOSED_MSG)
+            return
+        except Exception as e:
+            callback_query.answer(get_messages_instance().URL_EXTRACTOR_ERROR_OCCURRED_MSG, show_alert=True)
+            return
     
     user_dir = f'./users/{user_id}'
     keyboard_file = os.path.join(user_dir, 'keyboard.txt')
