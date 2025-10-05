@@ -83,6 +83,9 @@ replace_logger.py
 update_bgutil_provider.sh
 update-yt-dlp.sh
 .cursor/
+remove_duplicate_keywords_correct.py
+remove_duplicate_keywords.py
+remove_duplicate_keywords_fast.py
 
 # Configs with secrets (do not commit)
 CONFIG/config.py
