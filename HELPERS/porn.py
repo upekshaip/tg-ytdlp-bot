@@ -209,7 +209,7 @@ def check_porn_detailed(url, title, description, caption=None):
     caption_lower     = caption.lower()     if caption     else ""
     
     if not (title_lower or description_lower or caption_lower):
-        explanation_parts.append("ℹ️ All text fields are empty")
+        explanation_parts.append(Messages.PORN_ALL_TEXT_FIELDS_EMPTY_MSG)
         return False, " | ".join(explanation_parts)
 
     # 3. We collect a single text for search

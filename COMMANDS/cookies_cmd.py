@@ -542,22 +542,22 @@ def download_cookie(app, message):
     buttons = [
         [
             InlineKeyboardButton(
-                f"📺 YouTube (1-{max(1, len(get_youtube_cookie_urls()))})",
+                f"{Messages.COOKIES_YOUTUBE_BUTTON_MSG}",
                 callback_data="download_cookie|youtube"
             ),
-            InlineKeyboardButton("🌐 From Browser", callback_data="download_cookie|from_browser"),            
+            InlineKeyboardButton(Messages.COOKIES_FROM_BROWSER_BUTTON_MSG, callback_data="download_cookie|from_browser"),            
         ],
         [
-            InlineKeyboardButton("🐦 Twitter/X", callback_data="download_cookie|twitter"),
-            InlineKeyboardButton("🎵 TikTok", callback_data="download_cookie|tiktok"),
+            InlineKeyboardButton(Messages.COOKIES_TWITTER_BUTTON_MSG, callback_data="download_cookie|twitter"),
+            InlineKeyboardButton(Messages.COOKIES_TIKTOK_BUTTON_MSG, callback_data="download_cookie|tiktok"),
         ],
         [
-            InlineKeyboardButton("📘 Vkontakte", callback_data="download_cookie|vk"),
+            InlineKeyboardButton(Messages.COOKIES_VK_BUTTON_MSG, callback_data="download_cookie|vk"),
             InlineKeyboardButton(Messages.COOKIES_CHECK_COOKIE_BUTTON_MSG, callback_data="download_cookie|check_cookie"),
         ],
         [
-            InlineKeyboardButton("📷 Instagram", callback_data="download_cookie|instagram"),
-            InlineKeyboardButton("📝 Your Own", callback_data="download_cookie|own"),            
+            InlineKeyboardButton(Messages.COOKIES_INSTAGRAM_BUTTON_MSG, callback_data="download_cookie|instagram"),
+            InlineKeyboardButton(Messages.COOKIES_YOUR_OWN_BUTTON_MSG, callback_data="download_cookie|own"),            
         ],
         [         
             InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="download_cookie|close")

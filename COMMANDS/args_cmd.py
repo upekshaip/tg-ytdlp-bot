@@ -91,7 +91,7 @@ def start_input_state_timer(user_id: int, thread_id: int = None):
         try:
             safe_send_message(
                 user_id,
-                getattr(Messages, 'ARGS_INPUT_TIMEOUT_MSG', "⏰ Input mode automatically closed due to inactivity (5 minutes).")
+                Messages.ARGS_INPUT_TIMEOUT_MSG
             )
         except Exception as e:
             logger.error(Messages.ARGS_ERROR_SENDING_TIMEOUT_MSG.format(error=e))
@@ -677,8 +677,8 @@ def get_args_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     
     # Control buttons
     buttons.append([
-        InlineKeyboardButton("🔄 Reset All", callback_data="args_reset_all"),
-        InlineKeyboardButton("📋 View Current", callback_data="args_view_current")
+        InlineKeyboardButton(Messages.ARGS_RESET_ALL_BUTTON_MSG, callback_data="args_reset_all"),
+        InlineKeyboardButton(Messages.ARGS_VIEW_CURRENT_BUTTON_MSG, callback_data="args_view_current")
     ])
     buttons.append([InlineKeyboardButton("🔚 Close", callback_data="args_close")])
     
@@ -712,7 +712,7 @@ def get_select_menu_keyboard(param_name: str, current_value: str) -> InlineKeybo
             callback_data=f"args_select_{param_name}_{option}"
         )])
     
-    buttons.append([InlineKeyboardButton("🔙 Back", callback_data="args_back")])
+    buttons.append([InlineKeyboardButton(Messages.ARGS_BACK_BUTTON_MSG, callback_data="args_back")])
     return InlineKeyboardMarkup(buttons)
 
 def get_text_input_message(param_name: str, current_value: str) -> str:
@@ -802,9 +802,9 @@ def format_current_args(user_args: Dict[str, Any]) -> str:
 def create_export_message(user_args: Dict[str, Any]) -> str:
     """Create export message for forwarding to favorites"""
     if not user_args:
-        return "📋 Current yt-dlp Arguments:\n\nNo custom settings configured.\n\n---\n\n<i>Forward this message to your favorites to save these settings as a template.</i> \n\n<i>Forward this message back here to apply these settings.</i>"
+        return Messages.ARGS_NO_SETTINGS_MSG
     
-    message = "📋 Current yt-dlp Arguments:\n\n"
+    message = Messages.ARGS_CURRENT_ARGUMENTS_MSG
     
     # Mapping of parameter names to their display names for export
     display_names = {
@@ -865,7 +865,7 @@ def create_export_message(user_args: Dict[str, Any]) -> str:
         
         message += f"{display_name}: {status}\n"
     
-    message += "\n---\n\n<i>Forward this message to your favorites to save these settings as a template.</i> \n\n<i>Forward this message back here to apply these settings.</i>"
+    message += Messages.ARGS_FORWARD_TEMPLATE_MSG
     
     return message
 
@@ -1050,8 +1050,8 @@ def args_callback_handler(app, callback_query):
             user_args = get_user_args(user_id)
             message = format_current_args(user_args)
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("📤 Export Settings", callback_data="args_export")],
-                [InlineKeyboardButton("🔙 Back", callback_data="args_back")]
+                [InlineKeyboardButton(Messages.ARGS_EXPORT_SETTINGS_BUTTON_MSG, callback_data="args_export")],
+                [InlineKeyboardButton(Messages.ARGS_BACK_BUTTON_MSG, callback_data="args_back")]
             ])
             callback_query.edit_message_text(message, reply_markup=keyboard)
             callback_query.answer()
@@ -1064,7 +1064,7 @@ def args_callback_handler(app, callback_query):
                 InlineKeyboardButton("🔙 Back", callback_data="args_view_current")
             ]])
             callback_query.edit_message_text(export_message, reply_markup=keyboard)
-            callback_query.answer("Settings ready for export! Forward this message to favorites to save.")
+            callback_query.answer(Messages.ARGS_SETTINGS_READY_MSG)
             return
         
         elif data == "args_reset_all":
@@ -1225,7 +1225,7 @@ def args_callback_handler(app, callback_query):
                 # If we changed impersonate, it may affect headers; but keep same screen
                 callback_query.edit_message_text(
                     f"<b>⚙️ {YTDLP_PARAMS[param_name]['description']}</b>\n\n"
-                    f"Current value: <code>{value}</code>",
+                    f"{Messages.ARGS_CURRENT_VALUE_MSG}",
                     reply_markup=keyboard
                 )
                 try:
@@ -1421,11 +1421,11 @@ def args_import_handler(app, message):
     """Handle import of settings from forwarded message"""
     try:
         # Check if this is a forwarded message with settings template
-        if not message.text or "📋 Current yt-dlp Arguments:" not in message.text:
+        if not message.text or Messages.ARGS_CURRENT_ARGUMENTS_HEADER_MSG not in message.text:
             return
         
         # Log that we're attempting to import settings
-        logger.info(f"Attempting to import settings from user {message.chat.id}")
+        logger.info(f"{LoggerMsg.ARGS_ATTEMPTING_IMPORT_SETTINGS_LOG_MSG}")
         
         user_id = message.chat.id
         invoker_id = getattr(message, 'from_user', None).id if getattr(message, 'from_user', None) else user_id
@@ -1436,12 +1436,12 @@ def args_import_handler(app, message):
         
         # Parse settings from message
         parsed_args = parse_import_message(message.text)
-        logger.info(f"Parsed {len(parsed_args)} settings from message: {list(parsed_args.keys())}")
+        logger.info(f"{LoggerMsg.ARGS_PARSED_SETTINGS_LOG_MSG}")
         
         if not parsed_args:
             safe_send_message(
                 user_id,
-                "❌ Failed to recognize settings in message. Make sure you sent a correct settings template.",
+                Messages.ARGS_FAILED_RECOGNIZE_MSG,
                 message=message
             )
             return
@@ -1466,7 +1466,7 @@ def args_import_handler(app, message):
         if save_user_args(invoker_id, parsed_args):
             # Show success message with applied settings count
             applied_count = len(parsed_args)
-            success_message = f"✅ Settings successfully imported!\n\nApplied parameters: {applied_count}\n\n"
+            success_message = f"{Messages.ARGS_SUCCESSFULLY_IMPORTED_MSG}"
             
             # Show some key settings that were applied
             key_settings = []
@@ -1480,7 +1480,7 @@ def args_import_handler(app, message):
                 key_settings.append(f"• {description}: {display_value}")
             
             if key_settings:
-                success_message += "Key settings:\n" + "\n".join(key_settings)
+                success_message += Messages.ARGS_KEY_SETTINGS_MSG + "\n".join(key_settings)
                 if len(parsed_args) > 5:
                     success_message += f"\n... and {len(parsed_args) - 5} more parameters"
             
@@ -1492,7 +1492,7 @@ def args_import_handler(app, message):
         else:
             safe_send_message(
                 user_id,
-                "❌ Error saving imported settings.",
+                Messages.ARGS_ERROR_SAVING_MSG,
                 message=message
             )
             
@@ -1500,7 +1500,7 @@ def args_import_handler(app, message):
         logger.error(f"Error in args_import_handler: {e}")
         safe_send_message(
             message.chat.id,
-            "❌ An error occurred while importing settings.",
+            Messages.ARGS_ERROR_IMPORTING_MSG,
             message=message
         )
 
@@ -1538,7 +1538,7 @@ def get_user_ytdlp_args(user_id: int, url: str = None) -> Dict[str, Any]:
                 ytdlp_args["http_headers"] = ytdlp_args.get("http_headers", {})
                 ytdlp_args["http_headers"]["Referer"] = value
                 ytdlp_args["referer"] = value
-                logger.info(f"Setting Referer for all services: {value}")
+                logger.info(f"{LoggerMsg.ARGS_SETTING_REFERER_LOG_MSG}")
         
         elif param_name == "user_agent":
             if value:
@@ -1567,7 +1567,7 @@ def get_user_ytdlp_args(user_id: int, url: str = None) -> Dict[str, Any]:
         elif param_name == "merge_output_format":
             if value and value != "mp4":
                 ytdlp_args["merge_output_format"] = value
-                logger.info(f"User {user_id} selected merge_output_format={value}")
+                logger.info(f"{LoggerMsg.ARGS_USER_SELECTED_MERGE_OUTPUT_FORMAT_LOG_MSG}")
         
         elif param_name == "format":
             # Handle format parameter (including id: format) - only if video_format not set
@@ -1645,7 +1645,7 @@ def log_ytdlp_options(user_id: int, ytdlp_opts: dict, operation: str = "download
         # Format the options nicely
         import json
         opts_str = json.dumps(opts_sanitized, indent=2, ensure_ascii=False)
-        logger.info(f"User {user_id} - Final yt-dlp options for {operation}:\n{opts_str}")
+        logger.info(f"{LoggerMsg.ARGS_FINAL_YTDLP_OPTIONS_LOG_MSG}")
         
     except Exception as e:
         logger.error(LoggerMsg.COOKIES_ERROR_LOGGING_LOG_MSG.format(e=e))

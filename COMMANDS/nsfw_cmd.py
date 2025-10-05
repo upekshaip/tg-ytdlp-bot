@@ -23,9 +23,9 @@ def nsfw_command(app, message):
     # Store setting per-chat: in groups/channels use chat_id (negative), in private use user id (== chat_id)
     user_id = getattr(message.from_user, "id", None) or chat_id
     storage_id = chat_id
-    logger.info(f"[NSFW] User {user_id} requested nsfw command")
-    logger.info(f"[NSFW] User {user_id} is admin: {int(user_id) in Config.ADMIN}")
-    logger.info(f"[NSFW] User {user_id} is in channel: {is_user_in_channel(app, message)}")
+    logger.info(f"{LoggerMsg.NSFW_USER_REQUESTED_COMMAND_LOG_MSG}")
+    logger.info(f"{LoggerMsg.NSFW_USER_IS_ADMIN_LOG_MSG}")
+    logger.info(f"{LoggerMsg.NSFW_USER_IS_IN_CHANNEL_LOG_MSG}")
     
     # In private chats: require subscription (like mediainfo). In allowed groups: bypass (wrapper in magic.py filters groups).
     if chat_type == enums.ChatType.PRIVATE:

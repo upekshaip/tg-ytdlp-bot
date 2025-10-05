@@ -197,6 +197,9 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
             logger.info(Messages.YTDLP_USING_NO_COOKIES_FOR_DOMAIN_MSG.format(url=url))
         elif cookie_file:
             ytdl_opts['cookiefile'] = cookie_file
+            logger.info(f"[YTDLP DEBUG] Using cookies for {url}: {cookie_file}")
+        else:
+            logger.info(f"[YTDLP DEBUG] No cookies available for {url}")
         
         # Add proxy configuration if needed for this domain
         if use_proxy:

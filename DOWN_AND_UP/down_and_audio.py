@@ -1002,14 +1002,11 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                                 end_range = 1
                                 logger.info(f"[FALLBACK DEBUG] NO RANGE FOUND, using url: {parsed_url}")
                             
-                            # Build fallback command converting *1*10 to 1-10 format
-                            if start_range and end_range and (start_range != 1 or end_range != 1):
-                                # Convert *1*10 format to 1-10 format
-                                fallback_text = f"/img {start_range}-{end_range} {parsed_url}"
-                                logger.info(f"[FALLBACK] Converting range: *{start_range}*{end_range} -> {start_range}-{end_range}, fallback_text: {fallback_text}")
-                            else:
-                                fallback_text = f"/img {parsed_url}"
-                                logger.info(f"[FALLBACK] No range detected, fallback_text: {fallback_text}")
+                            # Build fallback command for single item only (not entire range)
+                            # Use current_index instead of full range to download only the failed item
+                            current_item_index = current_index + 1  # current_index is 0-based, we need 1-based
+                            fallback_text = f"/img {current_item_index} {parsed_url}"
+                            logger.info(f"[FALLBACK] Downloading only failed item {current_item_index} via gallery-dl, fallback_text: {fallback_text}")
                             
                             if tags:
                                 tags_text = ' '.join(tags)
@@ -1269,6 +1266,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         continue
                 elif result == "SKIP":
                     # Skip this item and continue with next
+                    continue
+                elif result == "IMG":
+                    # Gallery-dl fallback has been triggered for this specific item
+                    logger.info(f"Gallery-dl fallback triggered for audio item {current_index}, continuing with next item")
                     continue
                 elif result == "LIVE_STREAM":
                     # Live stream detected, skip this item

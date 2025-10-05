@@ -77,8 +77,8 @@ def keyboard_command(app, message):
     
     # Create inline keyboard for options in 2 rows
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔴 OFF", callback_data="keyboard|OFF"), InlineKeyboardButton("🔣 FULL", callback_data="keyboard|FULL")],
-        [InlineKeyboardButton("📱 1x3", callback_data="keyboard|1x3"), InlineKeyboardButton("📱 2x3", callback_data="keyboard|2x3")]
+        [InlineKeyboardButton(Messages.KEYBOARD_OFF_BUTTON_MSG, callback_data="keyboard|OFF"), InlineKeyboardButton(Messages.KEYBOARD_FULL_BUTTON_MSG, callback_data="keyboard|FULL")],
+        [InlineKeyboardButton(Messages.KEYBOARD_1X3_BUTTON_MSG, callback_data="keyboard|1x3"), InlineKeyboardButton(Messages.KEYBOARD_2X3_BUTTON_MSG, callback_data="keyboard|2x3")]
     ])
     
     status_text = Messages.KEYBOARD_SETTINGS_MSG.format(current=current_setting)

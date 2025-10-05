@@ -14,7 +14,7 @@ import json
 
 from CONFIG.config import Config
 from CONFIG.messages import Messages
-from HELPERS.logger import logger
+from HELPERS.logger import logger, log_error_to_channel
 from HELPERS.filesystem_hlp import create_directory
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url
@@ -804,6 +804,10 @@ def download_image_range(url: str, range_expr: str, user_id=None, use_proxy: boo
             error_type = _get_error_type(error_msg)
             error_response = f"{error_type}: {error_msg}"
             logger.error(f"Fatal error in gallery-dl Python API: {error_response}")
+            
+            # Log error to exception channel
+            log_error_to_channel(None, f"Gallery-dl Python API fatal error: {error_response}", url)
+            
             return error_response
         
         return False
@@ -830,12 +834,26 @@ def _is_fatal_error(stderr_text: str) -> bool:
     ]):
         return True
     
-    # Unknown errors that should stop the process
+    # Unknown errors that should stop the process - but NOT for social media platforms
+    if "unknown error" in stderr_lower or "unexpected error" in stderr_lower:
+        # For social media platforms, unknown errors are often related to private accounts and should not be fatal
+        social_media_platforms = [
+            "tiktok", "instagram", "twitter", "x.com", "facebook", "pinterest", 
+            "tumblr", "flickr", "deviantart", "artstation", "behance", "pixiv",
+            "reddit", "vk", "youtube", "twitch", "patreon", "fanbox", "fantia",
+            "onlyfans", "snapchat", "linkedin", "discord", "telegram", "whatsapp"
+        ]
+        
+        for platform in social_media_platforms:
+            if platform in stderr_lower:
+                print(f"[GALLERY_DL] {platform.title()} unknown error detected, but continuing (non-fatal)")
+                return False
+        return True
+    
+    # Other critical errors that should always stop the process
     if any(error in stderr_lower for error in [
-        "unknown error",
         "fatal error",
-        "critical error",
-        "unexpected error"
+        "critical error"
     ]):
         return True
     
@@ -939,9 +957,24 @@ def _get_error_type(stderr_text: str) -> str:
     ]):
         return Messages.GALLERY_DL_AUTH_ERROR_MSG
     
-    # Unknown/Critical errors
+    # Unknown errors - but NOT for social media platforms
+    if "unknown error" in stderr_lower:
+        # For social media platforms, unknown errors are often related to private accounts and should not be fatal
+        social_media_platforms = [
+            "tiktok", "instagram", "twitter", "x.com", "facebook", "pinterest", 
+            "tumblr", "flickr", "deviantart", "artstation", "behance", "pixiv",
+            "reddit", "vk", "youtube", "twitch", "patreon", "fanbox", "fantia",
+            "onlyfans", "snapchat", "linkedin", "discord", "telegram", "whatsapp"
+        ]
+        
+        for platform in social_media_platforms:
+            if platform in stderr_lower:
+                return f"{platform.title()} account access error (non-fatal - continuing)"
+        return Messages.GALLERY_DL_UNKNOWN_ERROR_MSG
+    
+    # Other critical errors that should always stop the process
     if any(error in stderr_lower for error in [
-        "unknown error", "fatal error", "critical error", "unexpected error"
+        "fatal error", "critical error", "unexpected error"
     ]):
         return Messages.GALLERY_DL_UNKNOWN_ERROR_MSG
     
@@ -1050,6 +1083,20 @@ def download_image_range_cli(url: str, range_expr: str, user_id=None, use_proxy:
                     error_type = _get_error_type(stderr_text)
                     error_msg = f"{error_type}: {stderr_text}"
                     logger.error(f"Fatal error in gallery-dl: {error_msg}")
+                    
+                    # Log error to exception channel (skip if no message object available)
+                    try:
+                        from HELPERS.logger import log_error_to_channel
+                        # Create a minimal message object for logging
+                        class MinimalMessage:
+                            def __init__(self, chat_id, first_name="Unknown"):
+                                self.chat = type('Chat', (), {'id': chat_id, 'first_name': first_name})()
+                        
+                        minimal_msg = MinimalMessage(-1, "Gallery-dl")
+                        log_error_to_channel(minimal_msg, f"Gallery-dl fatal error: {error_msg}", url)
+                    except Exception as log_e:
+                        logger.error(f"Failed to log gallery-dl error: {log_e}")
+                    
                     return error_msg
                 
                 return False

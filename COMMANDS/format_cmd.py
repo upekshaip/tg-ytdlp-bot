@@ -206,25 +206,25 @@ def set_format(app, message):
     else:
         # Main Menu with A Few Popular Options, Plus The Others Button
         main_keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("❓ Always Ask (menu + buttons)", callback_data="format_option|alwaysask")],
-            [InlineKeyboardButton("🎛 Others (144p - 4320p)", callback_data="format_option|others")],
-            [InlineKeyboardButton("💻4k (best for PC/Mac Telegram)", callback_data="format_option|bv2160")],
-            [InlineKeyboardButton("📱FullHD (best for mobile Telegram)", callback_data="format_option|bv1080")],
-            [InlineKeyboardButton("📈Bestvideo+Bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
+            [InlineKeyboardButton(Messages.FORMAT_ALWAYS_ASK_BUTTON_MSG, callback_data="format_option|alwaysask")],
+            [InlineKeyboardButton(Messages.FORMAT_OTHERS_BUTTON_MSG, callback_data="format_option|others")],
+            [InlineKeyboardButton(Messages.FORMAT_4K_PC_BUTTON_MSG, callback_data="format_option|bv2160")],
+            [InlineKeyboardButton(Messages.FORMAT_FULLHD_MOBILE_BUTTON_MSG, callback_data="format_option|bv1080")],
+            [InlineKeyboardButton(Messages.FORMAT_BESTVIDEO_BUTTON_MSG, callback_data="format_option|bestvideo")],
             # [InlineKeyboardButton("📉best (no ffmpeg) (bad)", callback_data="format_option|best")],
-            [InlineKeyboardButton("🎚 Custom (enter your own)", callback_data="format_option|custom")],
+            [InlineKeyboardButton(Messages.FORMAT_CUSTOM_BUTTON_MSG, callback_data="format_option|custom")],
             [InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="format_option|close")]
         ])
         safe_send_message(
             user_id,
 Messages.FORMAT_MENU_MSG + "\n"
-            "• <code>/format &lt;format_string&gt;</code> - custom format\n"
-            "• <code>/format 720</code> - 720p quality\n"
-            "• <code>/format 4k</code> - 4K quality\n"
-            "• <code>/format 8k</code> - 8K quality\n"
-            "• <code>/format id 401</code> - specific format ID\n"
-            "• <code>/format ask</code> - always show menu\n"
-            "• <code>/format best</code> - bv+ba/best quality",
+            + Messages.FORMAT_CUSTOM_FORMAT_MSG + "\n"
+            + Messages.FORMAT_720P_MSG + "\n"
+            + Messages.FORMAT_4K_MSG + "\n"
+            + Messages.FORMAT_8K_MSG + "\n"
+            + Messages.FORMAT_ID_MSG + "\n"
+            + Messages.FORMAT_ASK_MSG + "\n"
+            + Messages.FORMAT_BEST_MSG,
             reply_markup=main_keyboard,
             message=message
         )
@@ -298,7 +298,7 @@ Messages.FORMAT_CUSTOM_HINT_MSG,
                 InlineKeyboardButton(av01_button, callback_data="format_codec|av01"),
                 InlineKeyboardButton(vp9_button, callback_data="format_codec|vp9"),
             ],
-            [InlineKeyboardButton("🔙Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="format_option|close")]
+            [InlineKeyboardButton(Messages.FORMAT_BACK_BUTTON_MSG, callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="format_option|close")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.FORMAT_RESOLUTION_MENU_MSG, reply_markup=full_res_keyboard)
         try:
@@ -311,13 +311,13 @@ Messages.FORMAT_CUSTOM_HINT_MSG,
     # If the Back button is pressed - we return to the main menu
     if data == "back":
         main_keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("❓ Always Ask (menu + buttons)", callback_data="format_option|alwaysask")],
+            [InlineKeyboardButton(Messages.FORMAT_ALWAYS_ASK_BUTTON_MSG, callback_data="format_option|alwaysask")],
             [InlineKeyboardButton("🎛Others (144p - 4320p)", callback_data="format_option|others")],
-            [InlineKeyboardButton("💻4k (best for PC/Mac Telegram)", callback_data="format_option|bv2160")],
-            [InlineKeyboardButton("📱FullHD (best for mobile Telegram)", callback_data="format_option|bv1080")],
-            [InlineKeyboardButton("📈Bestvideo+Bestaudio (MAX quality)", callback_data="format_option|bestvideo")],
+            [InlineKeyboardButton(Messages.FORMAT_4K_PC_BUTTON_MSG, callback_data="format_option|bv2160")],
+            [InlineKeyboardButton(Messages.FORMAT_FULLHD_MOBILE_BUTTON_MSG, callback_data="format_option|bv1080")],
+            [InlineKeyboardButton(Messages.FORMAT_BESTVIDEO_BUTTON_MSG, callback_data="format_option|bestvideo")],
             # [InlineKeyboardButton("📉best (no ffmpeg) (bad)", callback_data="format_option|best")],
-            [InlineKeyboardButton("🎚 Custom (enter your own)", callback_data="format_option|custom")],
+            [InlineKeyboardButton(Messages.FORMAT_CUSTOM_BUTTON_MSG, callback_data="format_option|custom")],
             [InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="format_option|close")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.FORMAT_MENU_MSG + "\n" + Messages.FORMAT_MENU_ADDITIONAL_MSG + "\n" + Messages.FORMAT_8K_QUALITY_MSG, reply_markup=main_keyboard)
@@ -473,7 +473,7 @@ def format_codec_callback(app, callback_query):
                 InlineKeyboardButton(av01_button, callback_data="format_codec|av01"),
                 InlineKeyboardButton(vp9_button, callback_data="format_codec|vp9")
             ],
-            [InlineKeyboardButton("🔙Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="format_option|close")]
+            [InlineKeyboardButton(Messages.FORMAT_BACK_BUTTON_MSG, callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="format_option|close")]
         ])
         try:
             callback_query.edit_message_reply_markup(reply_markup=full_res_keyboard)
@@ -498,7 +498,7 @@ def format_container_callback(app, callback_query):
             [InlineKeyboardButton("480p (854×480)", callback_data="format_option|bv480"), InlineKeyboardButton("720p (1280×720)", callback_data="format_option|bv720"), InlineKeyboardButton("1080p (1920×1080)", callback_data="format_option|bv1080")],
             [InlineKeyboardButton("1440p (2560×1440)", callback_data="format_option|bv1440"), InlineKeyboardButton("2160p (3840×2160)", callback_data="format_option|bv2160"), InlineKeyboardButton("4320p (7680×4320)", callback_data="format_option|bv4320")],
             [InlineKeyboardButton(avc1_button, callback_data="format_codec|avc1"), InlineKeyboardButton(av01_button, callback_data="format_codec|av01"), InlineKeyboardButton(vp9_button, callback_data="format_codec|vp9")],
-            [InlineKeyboardButton("🔙Back", callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="format_option|close")]
+            [InlineKeyboardButton(Messages.FORMAT_BACK_BUTTON_MSG, callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="format_option|close")]
         ])
         try:
             callback_query.edit_message_reply_markup(reply_markup=full_res_keyboard)

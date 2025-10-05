@@ -28,8 +28,8 @@ def command2(app, message):
     from pyrogram import enums
     keyboard = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🛠 Dev GitHub", url="https://github.com/upekshaip/tg-ytdlp-bot"),
-            InlineKeyboardButton("🛠 Contr GitHub", url="https://github.com/chelaxian/tg-ytdlp-bot")
+            InlineKeyboardButton(Messages.SETTINGS_DEV_GITHUB_BUTTON_MSG, url="https://github.com/upekshaip/tg-ytdlp-bot"),
+            InlineKeyboardButton(Messages.SETTINGS_CONTR_GITHUB_BUTTON_MSG, url="https://github.com/chelaxian/tg-ytdlp-bot")
         ],
         [InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="help_msg|close")]
     ])
@@ -54,15 +54,15 @@ def settings_command(app, message):
     # Main settings menu
     keyboard = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🧹 CLEAN", callback_data="settings__menu__clean"),
-            InlineKeyboardButton("🍪 COOKIES", callback_data="settings__menu__cookies"),
+            InlineKeyboardButton(Messages.SETTINGS_CLEAN_BUTTON_MSG, callback_data="settings__menu__clean"),
+            InlineKeyboardButton(Messages.SETTINGS_COOKIES_BUTTON_MSG, callback_data="settings__menu__cookies"),
         ],
         [
-            InlineKeyboardButton("🎞 MEDIA", callback_data="settings__menu__media"),
-            InlineKeyboardButton("📖 INFO", callback_data="settings__menu__logs"),
+            InlineKeyboardButton(Messages.SETTINGS_MEDIA_BUTTON_MSG, callback_data="settings__menu__media"),
+            InlineKeyboardButton(Messages.SETTINGS_INFO_BUTTON_MSG, callback_data="settings__menu__logs"),
         ],
         [
-            InlineKeyboardButton("⚙️ MORE", callback_data="settings__menu__more"),
+            InlineKeyboardButton(Messages.SETTINGS_MORE_BUTTON_MSG, callback_data="settings__menu__more"),
             InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="settings__menu__close"),
         ]
     ])
@@ -95,33 +95,33 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
         # Show the cleaning menu
         keyboard = InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("🍪 Cookies only", callback_data="clean_option|cookies"),
-                InlineKeyboardButton("📃 Logs ", callback_data="clean_option|logs"),
+                InlineKeyboardButton(Messages.SETTINGS_COOKIES_ONLY_BUTTON_MSG, callback_data="clean_option|cookies"),
+                InlineKeyboardButton(Messages.SETTINGS_LOGS_BUTTON_MSG, callback_data="clean_option|logs"),
             ],
             [
-                InlineKeyboardButton("#️⃣ Tags", callback_data="clean_option|tags"),
-                InlineKeyboardButton("📼 Format", callback_data="clean_option|format"),
+                InlineKeyboardButton(Messages.SETTINGS_TAGS_BUTTON_MSG, callback_data="clean_option|tags"),
+                InlineKeyboardButton(Messages.SETTINGS_FORMAT_BUTTON_MSG, callback_data="clean_option|format"),
             ],
             [
-                InlineKeyboardButton("✂️ Split", callback_data="clean_option|split"),
-                InlineKeyboardButton("📊 Mediainfo", callback_data="clean_option|mediainfo"),
+                InlineKeyboardButton(Messages.SETTINGS_SPLIT_BUTTON_MSG, callback_data="clean_option|split"),
+                InlineKeyboardButton(Messages.SETTINGS_MEDIAINFO_BUTTON_MSG, callback_data="clean_option|mediainfo"),
             ],
             [
-                InlineKeyboardButton("💬 Subtitles", callback_data="clean_option|subs"),
-                InlineKeyboardButton("🎹 Keyboard", callback_data="clean_option|keyboard"),
+                InlineKeyboardButton(Messages.SETTINGS_SUBTITLES_BUTTON_MSG, callback_data="clean_option|subs"),
+                InlineKeyboardButton(Messages.SETTINGS_KEYBOARD_BUTTON_MSG, callback_data="clean_option|keyboard"),
             ],
             [
-                InlineKeyboardButton("⚙️ Args", callback_data="clean_option|args"),
-                InlineKeyboardButton("🔞 NSFW", callback_data="clean_option|nsfw"),
+                InlineKeyboardButton(Messages.SETTINGS_ARGS_BUTTON_MSG, callback_data="clean_option|args"),
+                InlineKeyboardButton(Messages.SETTINGS_NSFW_BUTTON_MSG, callback_data="clean_option|nsfw"),
             ],
             [
-                InlineKeyboardButton("🌎 Proxy", callback_data="clean_option|proxy"),
-                InlineKeyboardButton("🔄 Flood wait", callback_data="clean_option|flood_wait"),
+                InlineKeyboardButton(Messages.SETTINGS_PROXY_BUTTON_MSG, callback_data="clean_option|proxy"),
+                InlineKeyboardButton(Messages.SETTINGS_FLOOD_WAIT_BUTTON_MSG, callback_data="clean_option|flood_wait"),
             ],
             [
-                InlineKeyboardButton("🗑  All files", callback_data="clean_option|all"),
+                InlineKeyboardButton(Messages.SETTINGS_ALL_FILES_BUTTON_MSG, callback_data="clean_option|all"),
             ],
-            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
+            [InlineKeyboardButton(Messages.SUBS_BACK_BUTTON_MSG, callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
 Messages.SETTINGS_CLEAN_TITLE_MSG,
@@ -136,15 +136,15 @@ Messages.SETTINGS_CLEAN_TITLE_MSG,
         return
     if data == "cookies":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📥 /cookie - Download my 5 cookies",
+            [InlineKeyboardButton(Messages.SETTINGS_DOWNLOAD_COOKIE_BUTTON_MSG,
                                   callback_data="settings__cmd__download_cookie")],
-            [InlineKeyboardButton("🌐 /cookies_from_browser - Get browser's YT-cookie",
+            [InlineKeyboardButton(Messages.SETTINGS_COOKIES_FROM_BROWSER_BUTTON_MSG,
                                   callback_data="settings__cmd__cookies_from_browser")],
-            [InlineKeyboardButton("🔎 /check_cookie - Validate your cookie file",
+            [InlineKeyboardButton(Messages.SETTINGS_CHECK_COOKIE_BUTTON_MSG,
                                   callback_data="settings__cmd__check_cookie")],
-            [InlineKeyboardButton("🔖 /save_as_cookie - Upload custom cookie",
+            [InlineKeyboardButton(Messages.SETTINGS_SAVE_AS_COOKIE_BUTTON_MSG,
                                   callback_data="settings__cmd__save_as_cookie")],
-            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
+            [InlineKeyboardButton(Messages.SUBS_BACK_BUTTON_MSG, callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
 Messages.SETTINGS_COOKIES_TITLE_MSG,
@@ -159,14 +159,14 @@ Messages.SETTINGS_COOKIES_TITLE_MSG,
         return
     if data == "media":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📼 /format - Change quality & format", callback_data="settings__cmd__format")],
-            [InlineKeyboardButton("📊 /mediainfo - Turn ON / OFF MediaInfo", callback_data="settings__cmd__mediainfo")],
-            [InlineKeyboardButton("✂️ /split - Change split video part size", callback_data="settings__cmd__split")],
-            [InlineKeyboardButton("🎧 /audio - Download video as audio", callback_data="settings__cmd__audio")],
-            [InlineKeyboardButton("💬 /subs - Subtitles language settings", callback_data="settings__cmd__subs")],
-            [InlineKeyboardButton("⏯️ /playlist - How to download playlists", callback_data="settings__cmd__playlist")],
-            [InlineKeyboardButton("🖼 /img - Download images via gallery-dl", callback_data="settings__cmd__img")],
-            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
+            [InlineKeyboardButton(Messages.SETTINGS_FORMAT_CMD_BUTTON_MSG, callback_data="settings__cmd__format")],
+            [InlineKeyboardButton(Messages.SETTINGS_MEDIAINFO_CMD_BUTTON_MSG, callback_data="settings__cmd__mediainfo")],
+            [InlineKeyboardButton(Messages.SETTINGS_SPLIT_CMD_BUTTON_MSG, callback_data="settings__cmd__split")],
+            [InlineKeyboardButton(Messages.SETTINGS_AUDIO_CMD_BUTTON_MSG, callback_data="settings__cmd__audio")],
+            [InlineKeyboardButton(Messages.SETTINGS_SUBS_CMD_BUTTON_MSG, callback_data="settings__cmd__subs")],
+            [InlineKeyboardButton(Messages.SETTINGS_PLAYLIST_CMD_BUTTON_MSG, callback_data="settings__cmd__playlist")],
+            [InlineKeyboardButton(Messages.SETTINGS_IMG_CMD_BUTTON_MSG, callback_data="settings__cmd__img")],
+            [InlineKeyboardButton(Messages.SUBS_BACK_BUTTON_MSG, callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
 Messages.SETTINGS_MEDIA_TITLE_MSG,
@@ -181,12 +181,12 @@ Messages.SETTINGS_MEDIA_TITLE_MSG,
         return
     if data == "logs":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("#️⃣ /tags - Send your #tags", callback_data="settings__cmd__tags")],
-            [InlineKeyboardButton("🆘 /help - Get instructions", callback_data="settings__cmd__help")],
-            [InlineKeyboardButton("📃 /usage -Send your logs", callback_data="settings__cmd__usage")],
-            [InlineKeyboardButton("⏯️ /playlist - Playlist's help", callback_data="settings__cmd__playlist")],
-            [InlineKeyboardButton("🤖 /add_bot_to_group - howto", callback_data="settings__cmd__add_bot_to_group")],
-            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
+            [InlineKeyboardButton(Messages.SETTINGS_TAGS_CMD_BUTTON_MSG, callback_data="settings__cmd__tags")],
+            [InlineKeyboardButton(Messages.SETTINGS_HELP_CMD_BUTTON_MSG, callback_data="settings__cmd__help")],
+            [InlineKeyboardButton(Messages.SETTINGS_USAGE_CMD_BUTTON_MSG, callback_data="settings__cmd__usage")],
+            [InlineKeyboardButton(Messages.SETTINGS_PLAYLIST_HELP_CMD_BUTTON_MSG, callback_data="settings__cmd__playlist")],
+            [InlineKeyboardButton(Messages.SETTINGS_ADD_BOT_CMD_BUTTON_MSG, callback_data="settings__cmd__add_bot_to_group")],
+            [InlineKeyboardButton(Messages.SUBS_BACK_BUTTON_MSG, callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
 Messages.SETTINGS_LOGS_TITLE_MSG,
@@ -201,13 +201,13 @@ Messages.SETTINGS_LOGS_TITLE_MSG,
         return
     if data == "more":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔗 /link - Get direct video links", callback_data="settings__cmd__link")],
-            [InlineKeyboardButton("🌍 /proxy - Enable/disable proxy", callback_data="settings__cmd__proxy")],
-            [InlineKeyboardButton("🎹 /keyboard - Keyboard layout", callback_data="settings__cmd__keyboard")],
-            [InlineKeyboardButton("🔍 /search - Inline search helper", callback_data="settings__cmd__search_menu")],
-            [InlineKeyboardButton("⚙️ /args - yt-dlp arguments", callback_data="settings__cmd__args")],
-            [InlineKeyboardButton("🔞 /nsfw - NSFW blur settings", callback_data="settings__cmd__nsfw")],
-            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
+            [InlineKeyboardButton(Messages.SETTINGS_LINK_CMD_BUTTON_MSG, callback_data="settings__cmd__link")],
+            [InlineKeyboardButton(Messages.SETTINGS_PROXY_CMD_BUTTON_MSG, callback_data="settings__cmd__proxy")],
+            [InlineKeyboardButton(Messages.SETTINGS_KEYBOARD_CMD_BUTTON_MSG, callback_data="settings__cmd__keyboard")],
+            [InlineKeyboardButton(Messages.SETTINGS_SEARCH_CMD_BUTTON_MSG, callback_data="settings__cmd__search_menu")],
+            [InlineKeyboardButton(Messages.SETTINGS_ARGS_CMD_BUTTON_MSG, callback_data="settings__cmd__args")],
+            [InlineKeyboardButton(Messages.SETTINGS_NSFW_CMD_BUTTON_MSG, callback_data="settings__cmd__nsfw")],
+            [InlineKeyboardButton(Messages.SUBS_BACK_BUTTON_MSG, callback_data="settings__menu__back")]
         ])
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
 Messages.SETTINGS_MORE_TITLE_MSG,
@@ -224,15 +224,15 @@ Messages.SETTINGS_MORE_TITLE_MSG,
         # Return to main menu
         keyboard = InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("🧹 CLEAN", callback_data="settings__menu__clean"),
-                InlineKeyboardButton("🍪 COOKIES", callback_data="settings__menu__cookies"),
+                InlineKeyboardButton(Messages.SETTINGS_CLEAN_BUTTON_MSG, callback_data="settings__menu__clean"),
+                InlineKeyboardButton(Messages.SETTINGS_COOKIES_BUTTON_MSG, callback_data="settings__menu__cookies"),
             ],
             [
-                InlineKeyboardButton("🎞 MEDIA", callback_data="settings__menu__media"),
-                InlineKeyboardButton("📖 INFO", callback_data="settings__menu__logs"),
+                InlineKeyboardButton(Messages.SETTINGS_MEDIA_BUTTON_MSG, callback_data="settings__menu__media"),
+                InlineKeyboardButton(Messages.SETTINGS_INFO_BUTTON_MSG, callback_data="settings__menu__logs"),
             ],
             [
-                InlineKeyboardButton("⚙️ MORE", callback_data="settings__menu__more"),
+                InlineKeyboardButton(Messages.SETTINGS_MORE_BUTTON_MSG, callback_data="settings__menu__more"),
                 InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="settings__menu__close"),
             ]
         ])
@@ -262,29 +262,29 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         # Show the cleaning menu instead of direct execution
         keyboard = InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("🍪 Cookies only", callback_data="clean_option|cookies"),
-                InlineKeyboardButton("📃 Logs ", callback_data="clean_option|logs"),
+                InlineKeyboardButton(Messages.SETTINGS_COOKIES_ONLY_BUTTON_MSG, callback_data="clean_option|cookies"),
+                InlineKeyboardButton(Messages.SETTINGS_LOGS_BUTTON_MSG, callback_data="clean_option|logs"),
             ],
             [
-                InlineKeyboardButton("#️⃣ Tags", callback_data="clean_option|tags"),
-                InlineKeyboardButton("📼 Format", callback_data="clean_option|format"),
+                InlineKeyboardButton(Messages.SETTINGS_TAGS_BUTTON_MSG, callback_data="clean_option|tags"),
+                InlineKeyboardButton(Messages.SETTINGS_FORMAT_BUTTON_MSG, callback_data="clean_option|format"),
             ],
             [
-                InlineKeyboardButton("✂️ Split", callback_data="clean_option|split"),
-                InlineKeyboardButton("📊 Mediainfo", callback_data="clean_option|mediainfo"),
+                InlineKeyboardButton(Messages.SETTINGS_SPLIT_BUTTON_MSG, callback_data="clean_option|split"),
+                InlineKeyboardButton(Messages.SETTINGS_MEDIAINFO_BUTTON_MSG, callback_data="clean_option|mediainfo"),
             ],
             [
-                InlineKeyboardButton("💬 Subtitles", callback_data="clean_option|subs"),
-                InlineKeyboardButton("🎹 Keyboard", callback_data="clean_option|keyboard"),
+                InlineKeyboardButton(Messages.SETTINGS_SUBTITLES_BUTTON_MSG, callback_data="clean_option|subs"),
+                InlineKeyboardButton(Messages.SETTINGS_KEYBOARD_BUTTON_MSG, callback_data="clean_option|keyboard"),
             ],
             [
-                InlineKeyboardButton("🗑  All files", callback_data="clean_option|all"),
+                InlineKeyboardButton(Messages.SETTINGS_ALL_FILES_BUTTON_MSG, callback_data="clean_option|all"),
             ],
-            [InlineKeyboardButton("🔙Back", callback_data="settings__menu__back")]
+            [InlineKeyboardButton(Messages.SUBS_BACK_BUTTON_MSG, callback_data="settings__menu__back")]
         ])
         try:
             callback_query.edit_message_text(
-                "<b>🧹 Clean Options</b>\n\nChoose what to clean:",
+                Messages.SETTINGS_CLEAN_OPTIONS_MSG,
                 reply_markup=keyboard,
                 parse_mode=enums.ParseMode.HTML
             )
@@ -607,7 +607,7 @@ def settings_cmd_callback(app, callback_query: CallbackQuery):
         keyboard = InlineKeyboardMarkup([
             [
                 InlineKeyboardButton(
-                    "📱 Mobile: Activate @vid search",
+                    Messages.SETTINGS_MOBILE_ACTIVATE_SEARCH_MSG,
                     url=f"tg://msg?text=%40vid%20%E2%80%8B&to=%40{bot_name}"
                 )
             ],
