@@ -36,7 +36,10 @@ def route_if_gallerydl_only(app, message) -> bool:
                     fallback_text = f"/img {url}"
                     if tags_text:
                         fallback_text += f" {tags_text}"
-                    fake_msg = fake_message(fallback_text, message.chat.id, original_chat_id=message.chat.id)
+                    # For groups, preserve original chat_id and message_thread_id
+                    original_chat_id = message.chat.id if hasattr(message, 'chat') else message.chat.id
+                    message_thread_id = getattr(message, 'message_thread_id', None) if hasattr(message, 'message_thread_id') else None
+                    fake_msg = fake_message(fallback_text, message.chat.id, original_chat_id=original_chat_id, message_thread_id=message_thread_id, original_message=message)
                     image_command(app, fake_msg)
                     logger.info(f"[ENGINE_ROUTER] Routed by path to gallery-dl: {path_part} -> {fallback_text}")
                     return True
@@ -57,7 +60,10 @@ def route_if_gallerydl_only(app, message) -> bool:
                     fallback_text = f"/img {url}"
                     if tags_text:
                         fallback_text += f" {tags_text}"
-                    fake_msg = fake_message(fallback_text, message.chat.id, original_chat_id=message.chat.id)
+                    # For groups, preserve original chat_id and message_thread_id
+                    original_chat_id = message.chat.id if hasattr(message, 'chat') else message.chat.id
+                    message_thread_id = getattr(message, 'message_thread_id', None) if hasattr(message, 'message_thread_id') else None
+                    fake_msg = fake_message(fallback_text, message.chat.id, original_chat_id=original_chat_id, message_thread_id=message_thread_id, original_message=message)
                     image_command(app, fake_msg)
                     logger.info(f"[ENGINE_ROUTER] Routed by domain list to gallery-dl: {domain} -> {fallback_text}")
                     return True

@@ -727,7 +727,10 @@ def url_distractor(app, message):
                             fallback_text += f" {tags_text}"
                         
                         # Create fake message for gallery-dl command
-                        fake_msg = fake_message(fallback_text, message.chat.id, original_chat_id=message.chat.id)
+                        # For groups, preserve original chat_id and message_thread_id
+                        original_chat_id = message.chat.id if hasattr(message, 'chat') else message.chat.id
+                        message_thread_id = getattr(message, 'message_thread_id', None) if hasattr(message, 'message_thread_id') else None
+                        fake_msg = fake_message(fallback_text, message.chat.id, original_chat_id=original_chat_id, message_thread_id=message_thread_id, original_message=message)
                         
                         # Execute gallery-dl command
                         image_command(app, fake_msg)

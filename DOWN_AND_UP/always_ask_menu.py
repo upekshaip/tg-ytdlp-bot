@@ -4676,7 +4676,10 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
                             fallback_text += " #nsfw"
                             logger.info(f"[ASKQ FALLBACK] Added #nsfw tag for NSFW content: {url}")
                         
-                        image_command(app, fake_message(fallback_text, user_id, original_chat_id=user_id))
+                        # For groups, preserve original chat_id and message_thread_id
+                        original_chat_id = user_id
+                        message_thread_id = None  # This is for private chat fallback
+                        image_command(app, fake_message(fallback_text, user_id, original_chat_id=original_chat_id, message_thread_id=message_thread_id, original_message=None))
                         logger.info(f"Triggered gallery-dl fallback via /img from Always Ask menu, is_nsfw={is_nsfw}, range={start_range}-{end_range}")
                         return
                     except Exception as call_e:

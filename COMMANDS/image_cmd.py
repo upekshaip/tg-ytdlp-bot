@@ -300,7 +300,7 @@ def get_emoji_number(index):
     else:
         return f"{index}."
 
-def get_file_date(file_path, original_url=None):
+def get_file_date(file_path, original_url=None, user_id=None):
     """Get file creation date in DD.MM.YYYY format from EXIF data or filename"""
     try:
         from datetime import datetime
@@ -468,7 +468,7 @@ def get_file_date(file_path, original_url=None):
             try:
                 from URL_PARSERS.service_api_info import get_service_date
                 logger.info(f"[FILE_DATE] Trying to get date from service API for URL: {original_url}")
-                api_date = get_service_date(original_url)
+                api_date = get_service_date(original_url, user_id)
                 if api_date:
                     logger.info(f"[FILE_DATE] Got date from service API: {api_date}")
                     if is_valid_date(api_date, "api"):
@@ -530,14 +530,14 @@ def create_unique_download_path(user_id, url):
         # Fallback to simple timestamp-based directory
         return os.path.join("users", str(user_id), f"download_{int(time.time() * 1000000)}_{random.randint(1000, 9999)}")
 
-def create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name):
+def create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name, user_id=None):
     """Create album caption with emoji numbers and dates grouped by date"""
     try:
         # Group media by date
         date_groups = {}
         for i, media in enumerate(media_group, 1):
             file_path = media.media
-            date = get_file_date(file_path, url)
+            date = get_file_date(file_path, url, user_id)
             if date:
                 if date not in date_groups:
                     date_groups[date] = []
@@ -1516,21 +1516,37 @@ def image_command(app, message):
                     files_before = len(seen_files)
                     result = run_and_collect(next_end)
                     
+                    # Debug: Log the result type and content
+                    logger.info(f"[IMG DEBUG] run_and_collect result: type={type(result)}, value={result}")
+                    
                     # Check for fatal errors
                     if isinstance(result, str) and ":" in result and any(error_type in result for error_type in [
                         "Authentication Error", "Account Not Found", "Account Unavailable", 
                         "Rate Limit Exceeded", "Network Error", "Content Unavailable",
-                        "Geographic Restrictions", "Verification Required", "Policy Violation"
+                        "Geographic Restrictions", "Verification Required", "Policy Violation",
+                        "Unknown Error", "Fatal Error", "Critical Error", "Unexpected Error"
                     ]):
                         logger.error(LoggerMsg.IMG_FATAL_ERROR_DETECTED_LOG_MSG.format(result=result))
+                        logger.info(f"[IMG DEBUG] Processing fatal error: status_msg={status_msg}, status_msg.id={status_msg.id if status_msg else 'None'}")
                         # Send error message to user and stop downloading
-                        safe_edit_message_text(
-                            user_id, status_msg.id,
-                            Messages.IMG_INSTAGRAM_AUTH_ERROR_MSG.format(
-                                error_type=result.split(':')[0],
+                        error_type = result.split(':')[0]
+                        error_details = result.split(':', 1)[1].strip()
+                        
+                        # Use appropriate error message based on error type
+                        if "Instagram" in error_details or "instagram" in error_details.lower():
+                            error_msg = Messages.IMG_INSTAGRAM_AUTH_ERROR_MSG.format(
+                                error_type=error_type,
                                 url=url,
-                                error_details=result.split(':', 1)[1].strip()
-                            ),
+                                error_details=error_details
+                            )
+                        else:
+                            # Generic error message for other platforms
+                            error_msg = f"❌ <b>{error_type}</b>\n\n<b>URL:</b> <code>{url}</code>\n\n<b>Details:</b> {error_details}\n\nDownload stopped due to critical error."
+                        
+                        logger.info(f"[IMG DEBUG] Updating status message with error: {error_msg[:100]}...")
+                        safe_edit_message_text(
+                            status_msg.chat.id, status_msg.id,
+                            error_msg,
                             parse_mode=enums.ParseMode.HTML
                         )
                         log_error_to_channel(message, f"Fatal error in image download: {result}", url)
@@ -1951,7 +1967,7 @@ def image_command(app, message):
                                                     # Create user caption with emoji numbers and dates
                                                     profile_name = extract_profile_name(url)
                                                     site_name = extract_site_name(url)
-                                                    user_caption = create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name)
+                                                    user_caption = create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name, user_id)
                                                     
                                                     _sep = (' ' if _exist and not _exist.endswith('\n') else '')
                                                     # Если у первого уже стоит эта подпись, не дублируем
@@ -2511,7 +2527,7 @@ def image_command(app, message):
                                                     ))
                                             
                                             sent_msg = app.send_media_group(
-                                                user_id,
+                                                chat_id,
                                                 media=media_group,
                                                 reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
                                                 message_thread_id=message_thread_id
@@ -2966,7 +2982,7 @@ def image_command(app, message):
                                             # Create user caption with emoji numbers and dates
                                             profile_name = extract_profile_name(url)
                                             site_name = extract_site_name(url)
-                                            user_caption = create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name)
+                                            user_caption = create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name, user_id)
                                             
                                             _sep = (' ' if _exist and not _exist.endswith('\n') else '')
                                             _first.caption = (_exist + _sep + user_caption).strip()
@@ -2977,7 +2993,7 @@ def image_command(app, message):
                                     except Exception as _e:
                                         logger.debug(f"[IMG] Tail album caption normalization skipped: { _e }")
                                     sent = app.send_media_group(
-                                        user_id,
+                                        chat_id,
                                         media=media_group,
                                         reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
                                         message_thread_id=message_thread_id
@@ -3548,7 +3564,7 @@ def image_command(app, message):
                             # Create user caption with emoji numbers and dates
                             profile_name = extract_profile_name(url)
                             site_name = extract_site_name(url)
-                            user_caption = create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name)
+                            user_caption = create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name, user_id)
                             _first.caption = user_caption
                         # Clear captions from other items
                         for _itm in media_group[1:]:

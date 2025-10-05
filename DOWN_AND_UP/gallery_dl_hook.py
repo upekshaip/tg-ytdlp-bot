@@ -10,6 +10,7 @@ import os
 import time
 import shutil
 import gallery_dl
+import json
 
 from CONFIG.config import Config
 from CONFIG.messages import Messages
@@ -19,11 +20,93 @@ from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url
 import subprocess
 import sys
-import json
 import tempfile
 
 
 # ---------- Low-level helpers ----------
+
+def get_user_gallery_dl_args(user_id: int) -> dict:
+    """
+    Get user's yt-dlp arguments that are compatible with gallery-dl
+    Returns dict with gallery-dl compatible configuration
+    """
+    try:
+        # Import here to avoid circular imports
+        from COMMANDS.args_cmd import get_user_args
+        
+        user_args = get_user_args(user_id)
+        if not user_args:
+            return {}
+        
+        gallery_dl_config = {}
+        
+        # Gallery-dl uses 'extractor' section for most configuration
+        # Compatible arguments mapping from yt-dlp to gallery-dl
+        compatible_args = {
+            'user_agent': 'extractor.headers.User-Agent',
+            'referer': 'extractor.headers.Referer', 
+            'username': 'extractor.username',
+            'password': 'extractor.password',
+            'timeout': 'extractor.timeout',
+            'retries': 'extractor.retries'
+        }
+        
+        # Apply compatible arguments
+        for ytdlp_param, gallery_dl_path in compatible_args.items():
+            if ytdlp_param in user_args:
+                value = user_args[ytdlp_param]
+                if value:  # Only apply non-empty values
+                    # Parse nested path like 'extractor.headers.User-Agent'
+                    parts = gallery_dl_path.split('.')
+                    current = gallery_dl_config
+                    
+                    # Navigate/create nested structure
+                    for part in parts[:-1]:
+                        if part not in current:
+                            current[part] = {}
+                        current = current[part]
+                    
+                    # Set the final value
+                    current[parts[-1]] = value
+        
+        # Handle http_headers (JSON format) - merge with existing headers
+        if 'http_headers' in user_args and user_args['http_headers']:
+            try:
+                custom_headers = json.loads(user_args['http_headers'])
+                if isinstance(custom_headers, dict):
+                    # Ensure extractor.headers exists
+                    if 'extractor' not in gallery_dl_config:
+                        gallery_dl_config['extractor'] = {}
+                    if 'headers' not in gallery_dl_config['extractor']:
+                        gallery_dl_config['extractor']['headers'] = {}
+                    
+                    # Merge custom headers
+                    gallery_dl_config['extractor']['headers'].update(custom_headers)
+            except json.JSONDecodeError:
+                logger.warning(f"Invalid JSON in http_headers for user {user_id}")
+        
+        # Log applied arguments
+        if gallery_dl_config:
+            logger.info(f"Applied gallery-dl compatible args for user {user_id}: {gallery_dl_config}")
+        
+        return gallery_dl_config
+        
+    except Exception as e:
+        logger.error(f"Error getting user gallery-dl args for user {user_id}: {e}")
+        return {}
+
+def _add_cookies_to_cmd(cmd: list, url: str, user_id: int) -> list:
+    """
+    Add cookies to gallery-dl CLI command for all sites
+    """
+    user_dir = os.path.join("users", str(user_id))
+    user_cookie_path = os.path.join(user_dir, "cookie.txt")
+    if os.path.exists(user_cookie_path):
+        # Insert --cookies and path before the URL (last argument)
+        cmd.insert(-1, "--cookies")
+        cmd.insert(-1, user_cookie_path)
+        logger.info(f"[gallery-dl] Added --cookies {user_cookie_path} for {url}")
+    return cmd
 
 def _gdl_set(section: str, key: str, value):
     """
@@ -60,17 +143,69 @@ def _apply_config(config: dict):
 def _prepare_user_cookies_and_proxy(url: str, user_id, use_proxy: bool, config: dict):
     """
     Fill cookies/proxy into config['extractor'] according to your logic.
+    Also applies user's compatible yt-dlp arguments to gallery-dl.
     """
     if user_id is None:
         return config
 
+    # Apply user's compatible yt-dlp arguments to gallery-dl
+    user_gallery_dl_args = get_user_gallery_dl_args(user_id)
+    if user_gallery_dl_args:
+        # Deep merge user args into config
+        def deep_merge(target, source):
+            """Recursively merge source dict into target dict"""
+            for key, value in source.items():
+                if key in target and isinstance(target[key], dict) and isinstance(value, dict):
+                    deep_merge(target[key], value)
+                else:
+                    target[key] = value
+        
+        deep_merge(config, user_gallery_dl_args)
+
     user_dir = os.path.join("users", str(user_id))
     user_cookie_path = os.path.join(user_dir, "cookie.txt")
 
-    # cookies
+    # Add Instagram-specific headers to prevent "useragent mismatch" error
+    # Only if user hasn't set custom User-Agent
+    if "instagram.com" in url.lower():
+        # Check if user has set custom User-Agent
+        user_has_custom_ua = (
+            'extractor' in config and 
+            'headers' in config['extractor'] and 
+            'User-Agent' in config['extractor']['headers']
+        )
+        
+        if not user_has_custom_ua:
+            # Ensure extractor.headers exists
+            if 'extractor' not in config:
+                config['extractor'] = {}
+            if 'headers' not in config['extractor']:
+                config['extractor']['headers'] = {}
+            
+            # Add Instagram-specific headers
+            config['extractor']['headers'].update({
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept-Encoding": "gzip, deflate, br",
+                "DNT": "1",
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Sec-Fetch-User": "?1",
+                "Cache-Control": "max-age=0"
+            })
+            logger.info("[GALLERY_DL] Added Instagram-specific headers to prevent useragent mismatch")
+        else:
+            logger.info("[GALLERY_DL] Using user's custom User-Agent for Instagram")
+
+    # cookies - use CLI arguments for all sites (more reliable than config)
     if os.path.exists(user_cookie_path):
-        config['extractor']['cookies'] = user_cookie_path
+        # For all sites, we'll pass cookies via CLI arguments (more reliable)
         logger.info(Messages.GALLERY_DL_USING_USER_COOKIES_MSG.format(cookie_path=user_cookie_path))
+        
         if is_youtube_url(url):
             logger.info(Messages.GALLERY_DL_USING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
     else:
@@ -80,7 +215,8 @@ def _prepare_user_cookies_and_proxy(url: str, user_id, use_proxy: bool, config: 
                 create_directory(user_dir)
                 shutil.copy2(global_cookie_path, user_cookie_path)
                 logger.info(Messages.GALLERY_DL_COPIED_GLOBAL_COOKIE_MSG.format(user_id=user_id))
-                config['extractor']['cookies'] = user_cookie_path
+                
+                # For all sites, we'll pass cookies via CLI arguments (more reliable)
                 logger.info(Messages.GALLERY_DL_USING_COPIED_GLOBAL_COOKIES_MSG.format(cookie_path=user_cookie_path))
             except Exception as e:
                 logger.error(Messages.GALLERY_DL_FAILED_COPY_GLOBAL_COOKIE_MSG.format(user_id=user_id, error=e))
@@ -442,6 +578,7 @@ def get_total_media_count(url: str, user_id=None, use_proxy: bool = False) -> in
             # Use gallery-dl extractor to get all media info (not just URLs)
             logger.info(f"[gallery-dl] cookies for media count: {cfg.get('extractor',{}).get('cookies')}")
             cmd = [sys.executable, "-m", "gallery_dl", "--config", cfg_path, "--simulate", url]
+            cmd = _add_cookies_to_cmd(cmd, url, user_id)
             logger.info(f"Counting total media via: {' '.join(cmd)}")
             try:
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
@@ -486,6 +623,7 @@ def _get_total_media_count_fallback(url: str, user_id, use_proxy: bool, cfg_path
                 return _get_instagram_media_count(url, user_id, use_proxy, cfg_path)
         
         cmd = [sys.executable, "-m", "gallery_dl", "--config", cfg_path, "--get-urls", url]
+        cmd = _add_cookies_to_cmd(cmd, url, user_id)
         logger.info(f"Fallback counting via --get-urls: {' '.join(cmd)}")
         # VK альбомы могут быть большими – увеличим таймаут для VK
         timeout_sec = 30 if 'vk.com' in url.lower() else 15
@@ -506,7 +644,7 @@ def _get_total_media_count_fallback(url: str, user_id, use_proxy: bool, cfg_path
             # Try without cookies for problematic sites
             if any(domain in url.lower() for domain in ['vk.com', 'instagram.com', 'tiktok.com']):
                 logger.info(f"Trying {url.split('/')[2]} without cookies...")
-                return _try_without_cookies(url, cfg_path)
+                return _try_without_cookies(url, cfg_path, user_id)
             return None
     except Exception as e:
         logger.error(f"Fallback get_total_media_count error: {e}")
@@ -564,6 +702,7 @@ def _get_instagram_media_count(url: str, user_id, use_proxy: bool, cfg_path: str
                 logger.warning(f"Instagram --simulate failed: {result.stderr[:400]}")
                 # Fallback to --get-urls with Instagram config
                 cmd = [sys.executable, "-m", "gallery_dl", "--config", instagram_cfg_path, "--get-urls", url]
+                cmd = _add_cookies_to_cmd(cmd, url, user_id)
                 logger.info(f"Instagram fallback via --get-urls: {' '.join(cmd)}")
                 
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
@@ -588,7 +727,7 @@ def _get_instagram_media_count(url: str, user_id, use_proxy: bool, cfg_path: str
         logger.error(f"Instagram media count error: {e}")
         return None
 
-def _try_without_cookies(url: str, cfg_path: str) -> int | None:
+def _try_without_cookies(url: str, cfg_path: str, user_id: int = None) -> int | None:
     """Try without cookies as fallback for problematic sites"""
     try:
         # Create config without cookies
@@ -605,6 +744,7 @@ def _try_without_cookies(url: str, cfg_path: str) -> int | None:
         
         try:
             cmd = [sys.executable, "-m", "gallery_dl", "--config", no_cookies_cfg_path, "--get-urls", url]
+            cmd = _add_cookies_to_cmd(cmd, url, user_id)
             logger.info(f"Without cookies: {' '.join(cmd)}")
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
             if result.returncode == 0:
@@ -683,7 +823,19 @@ def _is_fatal_error(stderr_text: str) -> bool:
         "authentication failed",
         "login required",
         "access denied",
-        "unauthorized access"
+        "unauthorized access",
+        "http redirect to login page",
+        "redirect to login",
+        "login page"
+    ]):
+        return True
+    
+    # Unknown errors that should stop the process
+    if any(error in stderr_lower for error in [
+        "unknown error",
+        "fatal error",
+        "critical error",
+        "unexpected error"
     ]):
         return True
     
@@ -782,9 +934,16 @@ def _get_error_type(stderr_text: str) -> str:
     
     # Authentication errors
     if any(error in stderr_lower for error in [
-        "401 unauthorized", "authentication failed", "login required", "access denied"
+        "401 unauthorized", "authentication failed", "login required", "access denied",
+        "http redirect to login page", "redirect to login", "login page"
     ]):
         return Messages.GALLERY_DL_AUTH_ERROR_MSG
+    
+    # Unknown/Critical errors
+    if any(error in stderr_lower for error in [
+        "unknown error", "fatal error", "critical error", "unexpected error"
+    ]):
+        return Messages.GALLERY_DL_UNKNOWN_ERROR_MSG
     
     # Account/Profile errors
     if any(error in stderr_lower for error in [
@@ -872,6 +1031,9 @@ def download_image_range_cli(url: str, range_expr: str, user_id=None, use_proxy:
             # Use module invocation to avoid PATH issues
             logger.info(f"[gallery-dl] cookies for --range {range_expr}: {cfg.get('extractor',{}).get('cookies')}")
             cmd = [sys.executable, "-m", "gallery_dl", "--config", cfg_path, "--range", range_expr, url]
+            
+            # Add cookies via CLI for social media sites
+            cmd = _add_cookies_to_cmd(cmd, url, user_id)
             cmd_pretty = ' '.join(cmd)
             # Final safety check that command includes proper --range
             if "--range" not in cmd or range_expr not in cmd:
