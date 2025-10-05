@@ -136,9 +136,23 @@ def url_distractor(app, message):
         
         # Import and call the appropriate command handler directly
         if mapped == Config.CLEAN_COMMAND:
-            # For clean command, call the clean command without arguments
-            from URL_PARSERS.url_extractor import url_distractor
-            return url_distractor(app, fake_msg)
+            # For clean command, call the clean command without arguments - EXACT SAME LOGIC as /clean
+            from HELPERS.filesystem_hlp import remove_media
+            from COMMANDS.subtitles_cmd import clear_subs_check_cache
+            from COMMANDS.cookies_cmd import clear_youtube_cookie_cache
+            from CONFIG.messages import get_messages_instance
+            
+            logger.info(f"🧹 Emoji triggered - cleaning media files for user {user_id}")
+            # Regular command /clean - delete only media files with filtering
+            remove_media(fake_msg, force_clean=True)
+            send_to_all(fake_msg, get_messages_instance(user_id).URL_EXTRACTOR_ALL_MEDIA_FILES_REMOVED_MSG)
+            try:
+                clear_youtube_cookie_cache(fake_msg.chat.id)
+            except Exception as e:
+                logger.error(f"Failed to clear YouTube cookie cache: {e}")
+            clear_subs_check_cache()
+            logger.info(f"🧹 Emoji completed - media files cleaned for user {user_id}")
+            return
         elif mapped == Config.DOWNLOAD_COOKIE_COMMAND:
             # For cookies command, we need to show the menu
             from COMMANDS.cookies_cmd import download_cookie
@@ -202,6 +216,7 @@ def url_distractor(app, message):
             if not is_user_in_channel(app, fake_msg):
                 return
             from HELPERS.safe_messeger import safe_send_message
+            from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
             keyboard = InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton("🛠 Dev GitHub", url="https://github.com/upekshaip/tg-ytdlp-bot"),
@@ -218,8 +233,9 @@ def url_distractor(app, message):
                 safe_send_message(fake_msg.chat.id, (get_messages_instance(user_id).HELP_MSG), reply_markup=keyboard, message=fake_msg)
             return
         else:
-            # Fallback to url_distractor for unknown commands
-            return url_distractor(app, fake_msg)
+            # Unknown emoji command - do nothing
+            logger.warning(f"Unknown emoji command: {mapped}")
+            return
 
     # ----- Admin-only denial for non-admins -----
     if not is_admin:
@@ -721,7 +737,9 @@ def url_distractor(app, message):
     # /USAGE Command
     if Config.USAGE_COMMAND in text:
         from COMMANDS.admin_cmd import get_user_usage_stats
+        logger.info(f"📃 Emoji triggered - showing usage stats for user {user_id}")
         get_user_usage_stats(app, message)
+        logger.info(f"📃 Emoji completed - usage stats shown for user {user_id}")
         return
 
     # /lang Command

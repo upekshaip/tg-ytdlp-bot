@@ -148,9 +148,8 @@ def browser_choice_callback(app, callback_query):
         app: Экземпляр приложения
         callback_query: Callback запрос с выбором браузера
     """
-    logger.info(get_messages_instance(user_id).COOKIES_BROWSER_CALLBACK_MSG.format(callback_data=callback_query.data))
-
     user_id = callback_query.from_user.id
+    logger.info(get_messages_instance(user_id).COOKIES_BROWSER_CALLBACK_MSG.format(callback_data=callback_query.data))
     data = callback_query.data.split("|")[1]  # E.G. "Chromium", "Firefox", or "Close"
     # Path to the User's Directory, E.G. "./users/1234567"
     user_dir = os.path.join(".", "users", str(user_id))
