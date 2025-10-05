@@ -31,10 +31,10 @@ A powerful Telegram bot that downloads videos, audio, and images from YouTube, T
 ### Try the Bot
 
 **Live Demo Bots:**
-- 🇺🇸 [@tgytdlp_bot](https://t.me/tgytdlp_bot) - Main bot
+- 🇮🇹 [@tgytdlp_it_bot](https://t.me/tgytdlp_it_bot) - Main IT bot
 - 🇦🇪 [@tgytdlp_uae_bot](https://t.me/tgytdlp_uae_bot) - UAE server
 - 🇬🇧 [@tgytdlp_uk_bot](https://t.me/tgytdlp_uk_bot) - UK server
-- 🇫🇷 [@tgytdlp_fr_bot](https://t.me/tgytdlp_fr_bot) - France server
+- 🇫🇷 [@tgytdlp_fr_bot](https://t.me/tgytdlp_fr_bot) - FR server
 
 **Community Channel:** [@tg_ytdlp](https://t.me/tg_ytdlp)
 
