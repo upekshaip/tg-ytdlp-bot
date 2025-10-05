@@ -93,3 +93,5 @@ CONFIG/config.py
 config.py
 TXT/porn_domains.txt
 TXT/porn_keywords.txt
+TXT/porn_keywords.txt.removal_report.txt
+TXT/porn_keywords.txt.backup
