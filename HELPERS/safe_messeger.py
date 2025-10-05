@@ -30,7 +30,11 @@ def fake_message(text, user_id, command=None, original_chat_id=None, message_thr
     m = SimpleNamespace()
     m.chat = SimpleNamespace()
     # Use original_chat_id if provided, otherwise use user_id
-    m.chat.id = original_chat_id if original_chat_id is not None else user_id
+    # Ensure we have a valid chat_id (fallback to -1 if both are None)
+    chat_id = original_chat_id if original_chat_id is not None else user_id
+    if chat_id is None:
+        chat_id = -1  # Fallback for gallery-dl operations
+    m.chat.id = chat_id
     m.chat.first_name = Messages.HELPER_USER_NAME_MSG
     # Set chat type based on chat_id (negative = group, positive = private)
     m.chat.type = enums.ChatType.PRIVATE if (original_chat_id if original_chat_id is not None else user_id) > 0 else enums.ChatType.SUPERGROUP

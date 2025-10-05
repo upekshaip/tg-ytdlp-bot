@@ -60,25 +60,25 @@ def _save_video_cache_with_logging(url: str, quality_key: str, message_ids: list
             user_args = get_user_args(user_id)
             send_as_file = user_args.get("send_as_file", False)
             if send_as_file:
-                logger.info(f"[VIDEO CACHE] Skipping cache save for user {user_id} with send_as_file enabled: url={url}, quality={quality_key}")
+                logger.info(LoggerMsg.DOWN_UP_SKIPPING_CACHE_SEND_AS_FILE_LOG_MSG.format(user_id=user_id, url=url, quality=quality_key))
                 return
         
         # Determine channel type for logging
         from HELPERS.porn import is_porn
         is_nsfw = is_porn(url, "", "", None)
-        logger.info(f"[FALLBACK] is_porn check for {url}: {is_nsfw}")
+        logger.info(LoggerMsg.DOWN_UP_IS_PORN_CHECK_LOG_MSG.format(url=url, is_nsfw=is_nsfw))
         channel_type = "NSFW" if is_nsfw else "regular"
         
         # Don't cache NSFW content
         if is_nsfw:
-            logger.info(f"[VIDEO CACHE] Skipping cache save for NSFW content: url={url}, quality={quality_key}, channel_type={channel_type}")
+            logger.info(LoggerMsg.DOWN_UP_SKIPPING_CACHE_NSFW_LOG_MSG.format(url=url, quality=quality_key, channel_type=channel_type))
             return
         
-        logger.info(f"[VIDEO CACHE] About to save video: url={url}, quality={quality_key}, message_ids={message_ids}, channel_type={channel_type}")
+        logger.info(LoggerMsg.DOWN_UP_ABOUT_TO_SAVE_VIDEO_LOG_MSG.format(url=url, quality=quality_key, message_ids=message_ids, channel_type=channel_type))
         save_to_video_cache(url, quality_key, message_ids, original_text=original_text)
-        logger.info(f"[VIDEO CACHE] Save requested for quality={quality_key}, channel_type={channel_type}")
+        logger.info(LoggerMsg.DOWN_UP_SAVE_REQUESTED_LOG_MSG.format(quality=quality_key, channel_type=channel_type))
     except Exception as e:
-        logger.error(f"[VIDEO CACHE] Save failed for quality={quality_key}: {e}")
+        logger.error(LoggerMsg.DOWN_UP_SAVE_FAILED_LOG_MSG.format(quality=quality_key, error=e))
 
 
 def determine_need_subs(subs_enabled, found_type, user_id):
@@ -1314,14 +1314,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 end_range = 1
                                 logger.info(f"[FALLBACK DEBUG] NO RANGE FOUND, using url: {parsed_url}")
                             
-                            # Build fallback command converting *1*10 to 1-10 format
-                            if start_range and end_range and (start_range != 1 or end_range != 1):
-                                # Convert *1*10 format to 1-10 format
-                                fallback_text = f"/img {start_range}-{end_range} {parsed_url}"
-                                logger.info(f"[FALLBACK] Converting range: *{start_range}*{end_range} -> {start_range}-{end_range}, fallback_text: {fallback_text}")
-                            else:
-                                fallback_text = f"/img {parsed_url}"
-                                logger.info(f"[FALLBACK] No range detected, fallback_text: {fallback_text}")
+                            # Build fallback command for single item only (not entire range)
+                            # Use current_index instead of full range to download only the failed item
+                            current_item_index = current_index + 1  # current_index is 0-based, we need 1-based
+                            fallback_text = f"/img {current_item_index} {parsed_url}"
+                            logger.info(f"[FALLBACK] Downloading only failed item {current_item_index} via gallery-dl, fallback_text: {fallback_text}")
                             
                             if tags_text:
                                 fallback_text += f" {tags_text}"
@@ -1414,14 +1411,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 end_range = 1
                                 logger.info(f"[FALLBACK DEBUG] NO RANGE FOUND, using url: {parsed_url}")
                             
-                            # Build fallback command converting *1*10 to 1-10 format
-                            if start_range and end_range and (start_range != 1 or end_range != 1):
-                                # Convert *1*10 format to 1-10 format
-                                fallback_text = f"/img {start_range}-{end_range} {parsed_url}"
-                                logger.info(f"[FALLBACK] Converting range: *{start_range}*{end_range} -> {start_range}-{end_range}, fallback_text: {fallback_text}")
-                            else:
-                                fallback_text = f"/img {parsed_url}"
-                                logger.info(f"[FALLBACK] No range detected, fallback_text: {fallback_text}")
+                            # Build fallback command for single item only (not entire range)
+                            # Use current_index instead of full range to download only the failed item
+                            current_item_index = current_index + 1  # current_index is 0-based, we need 1-based
+                            fallback_text = f"/img {current_item_index} {parsed_url}"
+                            logger.info(f"[FALLBACK] Downloading only failed item {current_item_index} via gallery-dl, fallback_text: {fallback_text}")
                             
                             if tags_text:
                                 fallback_text += f" {tags_text}"
@@ -1516,9 +1510,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     skip_item = True
                     break
                 elif result == "IMG":
-                    # Gallery-dl fallback has been triggered; stop further video processing
-                    logger.info("Stopping video workflow after gallery-dl fallback trigger")
-                    return
+                    # Gallery-dl fallback has been triggered for this specific item
+                    logger.info(f"Gallery-dl fallback triggered for item {current_index}, continuing with next item")
+                    skip_item = True
+                    break
                 elif result is not None and isinstance(result, dict):
                     info_dict = result
                     break
@@ -1590,15 +1585,15 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
             info_text = f"""
 {total_process}
-<b>📋 Video Info</b>
-<blockquote><b>Number:</b> {idx + video_start_with}</blockquote>
-<blockquote><b>Title:</b> {original_video_title}</blockquote>
-<blockquote><b>ID:</b> {video_id}</blockquote>
+<b>{Messages.DOWN_UP_VIDEO_INFO_MSG}</b>
+<blockquote><b>{Messages.DOWN_UP_NUMBER_MSG}:</b> {idx + video_start_with}</blockquote>
+<blockquote><b>{Messages.DOWN_UP_TITLE_MSG}:</b> {original_video_title}</blockquote>
+<blockquote><b>{Messages.DOWN_UP_ID_MSG}:</b> {video_id}</blockquote>
 """
 
             try:
                 safe_edit_message_text(user_id, proc_msg_id,
-                    f"{info_text}\n{full_bar}   100.0%\n<i>☑️ Downloaded video.\n📤 Processing for upload...</i>")
+                    f"{info_text}\n{full_bar}   100.0%\n<i>{Messages.DOWN_UP_DOWNLOADED_VIDEO_MSG}\n{Messages.DOWN_UP_PROCESSING_UPLOAD_MSG}</i>")
             except Exception as e:
                 logger.error(f"Status update error after download: {e}")
 
@@ -2043,7 +2038,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             # Accumulate IDs of parts for split video
                             split_msg_ids.append(video_msg.id)
                             safe_edit_message_text(user_id, proc_msg_id,
-                                f"{info_text}\n{full_bar}   100.0%\n<i>📤 Splitted part {p + 1} file uploaded</i>")
+                                f"{info_text}\n{full_bar}   100.0%\n<i>{Messages.DOWN_UP_SPLITTED_PART_UPLOADED_MSG.format(part=p + 1)}</i>")
                     if p < len(caption_lst) - 1:
                         pass
                     if os.path.exists(splited_thumb_dir):
@@ -2069,7 +2064,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     os.remove(thumb_dir)
                 if os.path.exists(user_vid_path):
                     os.remove(user_vid_path)
-                success_msg = f"<b>✅ Upload complete</b> - {video_count} files uploaded.\n{Config.CREDITS_MSG}"
+                success_msg = f"<b>{Messages.DOWN_UP_UPLOAD_COMPLETE_MSG}</b> - {video_count} {Messages.DOWN_UP_FILES_UPLOADED_MSG}.\n{Config.CREDITS_MSG}"
                 safe_edit_message_text(user_id, proc_msg_id, success_msg)
                 send_to_logger(message, Messages.VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
                 break

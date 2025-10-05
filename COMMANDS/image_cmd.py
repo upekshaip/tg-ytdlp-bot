@@ -316,22 +316,22 @@ def get_file_date(file_path, original_url=None, user_id=None):
             if not date_str:
                 return False
             if date_str == invalid_date_str:
-                logger.info(f"[FILE_DATE] Date {date_str} is Unix epoch - invalid")
+                logger.info(LoggerMsg.IMG_FILE_DATE_UNIX_EPOCH_INVALID_LOG_MSG.format(date_str=date_str))
                 return False
             if date_str == today_str:
                 # Сегодняшняя дата валидна только если она извлечена из надежных источников
                 # (EXIF, метаданные видео, API) и НЕ из времени модификации файла
                 if source_context in ["exif", "video_metadata", "api"]:
-                    logger.info(f"[FILE_DATE] Date {date_str} is today's date from {source_context} - valid")
+                    logger.info(LoggerMsg.IMG_FILE_DATE_TODAY_VALID_LOG_MSG.format(date_str=date_str, source_context=source_context))
                     return True
                 else:
-                    logger.info(f"[FILE_DATE] Date {date_str} is today's date from {source_context} - likely invalid (file modification time)")
+                    logger.info(LoggerMsg.IMG_FILE_DATE_TODAY_LIKELY_INVALID_LOG_MSG.format(date_str=date_str, source_context=source_context))
                     return False
             return True
         
         # First, try to extract date from filename (Instagram format: timestamp.jpg)
         filename = os.path.basename(file_path)
-        logger.info(f"[FILE_DATE] Trying to extract date from filename: {filename}")
+        logger.info(LoggerMsg.IMG_FILE_DATE_EXTRACT_FROM_FILENAME_LOG_MSG.format(filename=filename))
         
         # Instagram files often have timestamp as filename (e.g., 3732982640044472150.jpg)
         # This is usually a Unix timestamp in microseconds
@@ -341,21 +341,21 @@ def get_file_date(file_path, original_url=None, user_id=None):
             # Try to extract timestamp from filename patterns like "3608469449724736561._fast.mp4"
             # Remove ._fast suffix if present
             clean_name = name_without_ext.replace('._fast', '')
-            logger.info(f"[FILE_DATE] Cleaned name: {clean_name}, isdigit: {clean_name.isdigit()}, len: {len(clean_name)}")
+            logger.info(LoggerMsg.IMG_FILE_DATE_CLEANED_NAME_LOG_MSG.format(clean_name=clean_name, isdigit=clean_name.isdigit(), length=len(clean_name)))
             if clean_name.isdigit() and len(clean_name) > 10:
                 # Instagram IDs don't contain reliable timestamp information
                 # Instagram uses Snowflake-like IDs but they don't encode upload dates
                 # Return None to group as 'unknown' date
-                logger.info(f"[FILE_DATE] Instagram ID detected: {clean_name} - returning None (no reliable date)")
+                logger.info(LoggerMsg.IMG_FILE_DATE_INSTAGRAM_ID_DETECTED_LOG_MSG.format(clean_name=clean_name))
                 return None
             
             # Check if it's a numeric timestamp (Instagram format) - original name
-            logger.info(f"[FILE_DATE] Original name: {name_without_ext}, isdigit: {name_without_ext.isdigit()}, len: {len(name_without_ext)}")
+            logger.info(LoggerMsg.IMG_FILE_DATE_ORIGINAL_NAME_LOG_MSG.format(name_without_ext=name_without_ext, isdigit=name_without_ext.isdigit(), length=len(name_without_ext)))
             if name_without_ext.isdigit() and len(name_without_ext) > 10:
                 # Instagram IDs don't contain reliable timestamp information
                 # Instagram uses Snowflake-like IDs but they don't encode upload dates
                 # Return None to group as 'unknown' date
-                logger.info(f"[FILE_DATE] Original Instagram ID detected: {name_without_ext} - returning None (no reliable date)")
+                logger.info(LoggerMsg.IMG_FILE_DATE_ORIGINAL_INSTAGRAM_ID_DETECTED_LOG_MSG.format(name_without_ext=name_without_ext))
                 return None
             
             # Try to extract date from gallery-dl filename patterns
@@ -377,11 +377,11 @@ def get_file_date(file_path, original_url=None, user_id=None):
                             try:
                                 dt = datetime.strptime(date_str, fmt)
                                 date_str = dt.strftime("%d.%m.%Y")
-                                logger.info(f"[FILE_DATE] Found date in filename: {date_str}")
+                                logger.info(LoggerMsg.IMG_FILE_DATE_FOUND_IN_FILENAME_LOG_MSG.format(date_str=date_str))
                                 if is_valid_date(date_str, "filename"):
                                     return date_str
                                 else:
-                                    logger.info(f"[FILE_DATE] Date {date_str} is invalid, continuing search")
+                                    logger.info(LoggerMsg.IMG_FILE_DATE_INVALID_CONTINUING_SEARCH_LOG_MSG.format(date_str=date_str))
                             except ValueError:
                                 continue
                     except Exception:
@@ -451,15 +451,15 @@ def get_file_date(file_path, original_url=None, user_id=None):
             # Only reject today's date if we couldn't extract date from metadata
             now = datetime.now()
             if dt.date() == now.date():
-                logger.info(f"[FILE_DATE] File created today, likely fake message fallback - returning None")
+                logger.info(LoggerMsg.IMG_FILE_DATE_CREATED_TODAY_LOG_MSG)
                 return None
             
             date_str = dt.strftime("%d.%m.%Y")
-            logger.info(f"[FILE_DATE] Using file modification time: {date_str}")
+            logger.info(LoggerMsg.IMG_FILE_DATE_USING_MODIFICATION_TIME_LOG_MSG.format(date_str=date_str))
             if is_valid_date(date_str, "file_modification"):
                 return date_str
             else:
-                logger.info(f"[FILE_DATE] File modification date {date_str} is invalid")
+                logger.info(LoggerMsg.IMG_FILE_DATE_MODIFICATION_INVALID_LOG_MSG.format(date_str=date_str))
         except Exception:
             pass
         
@@ -603,7 +603,7 @@ def create_album_caption_with_dates(media_group, url, tags_text_norm, profile_na
     except Exception as e:
         logger.error(f"Failed to create album caption with dates: {e}")
         # Fallback to simple caption
-        return f"🔗[Images URL]({url}) @{Config.BOT_NAME}"
+        return f"{Messages.IMAGE_URL_CAPTION_MSG}"
 
 def is_image_url(url):
     """Check if URL is likely an image URL"""
@@ -1748,55 +1748,58 @@ def image_command(app, message):
                                         # Send as single paid media album
                                         logger.info(LoggerMsg.IMG_PAID_SENDING_ALBUM_LOG_MSG.format(item_count=len(paid_media_list)))
                                         logger.info(LoggerMsg.IMG_PAID_MEDIA_TYPES_LOG_MSG.format(media_types=[type(item).__name__ for item in paid_media_list]))
-                                        # Try to send as album first, if that fails, send individually
-                                        try:
-                                            logger.info(LoggerMsg.IMG_PAID_ATTEMPTING_ALBUM_LOG_MSG.format(item_count=len(paid_media_list), user_id=user_id))
-                                            logger.info(LoggerMsg.IMG_PAID_ALBUM_DETAILS_LOG_MSG.format(star_count=LimitsConfig.NSFW_STAR_COST, payload=Config.STAR_RECEIVER))
+                                        # Try to send as multiple albums (max 10 files per album), if that fails, send individually
+                                        max_album_size = 10
+                                        for album_start in range(0, len(paid_media_list), max_album_size):
+                                            album_end = min(album_start + max_album_size, len(paid_media_list))
+                                            album_items = paid_media_list[album_start:album_end]
                                             
-                                            paid_msg = app.send_paid_media(
-                                                user_id,
-                                                media=paid_media_list,
-                                                star_count=LimitsConfig.NSFW_STAR_COST,
-                                                payload=str(Config.STAR_RECEIVER),
-                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
-                                            )
-                                            
-                                            logger.info(f"[IMG PAID] SUCCESS: send_paid_media returned: {type(paid_msg)}")
-                                            logger.info(f"[IMG PAID] SUCCESS: Response details: {paid_msg}")
-                                            
-                                            if isinstance(paid_msg, list):
-                                                logger.info(f"[IMG PAID] SUCCESS: Received list of {len(paid_msg)} messages")
-                                                sent.extend(paid_msg)
-                                            elif paid_msg is not None:
-                                                logger.info(f"[IMG PAID] SUCCESS: Received single message with ID: {getattr(paid_msg, 'id', 'unknown')}")
-                                                sent.append(paid_msg)
-                                            else:
-                                                logger.warning(f"[IMG PAID] SUCCESS: Received None response from send_paid_media")
+                                            try:
+                                                logger.info(f"{LoggerMsg.IMG_PAID_ATTEMPTING_ALBUM_LOG_MSG}")
+                                                logger.info(f"{LoggerMsg.IMG_PAID_ALBUM_DETAILS_LOG_MSG}")
                                                 
-                                        except Exception as e:
-                                            logger.error(f"[IMG PAID] FAILED: send_paid_media album failed with error: {e}")
-                                            logger.error(f"[IMG PAID] FAILED: Error type: {type(e)}")
-                                            logger.error(f"[IMG PAID] FAILED: Error details: {str(e)}")
-                                            # Fallback: send individually as paid media with same reply_parameters
-                                            for i, paid_media in enumerate(paid_media_list):
-                                                try:
-                                                    # Use same reply_parameters for all to group them
-                                                    individual_msg = app.send_paid_media(
-                                                        user_id,
-                                                        media=[paid_media],
-                                                        star_count=LimitsConfig.NSFW_STAR_COST,
-                                                        payload=str(Config.STAR_RECEIVER),
-                                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
-                                                    )
-                                                    if isinstance(individual_msg, list):
-                                                        sent.extend(individual_msg)
-                                                    elif individual_msg is not None:
-                                                        sent.append(individual_msg)
-                                                    # Small delay between messages to help grouping
-                                                    if i < len(paid_media_list) - 1:
-                                                        time.sleep(0.1)
-                                                except Exception as e2:
-                                                    logger.error(f"[IMG PAID] Individual paid media failed: {e2}")
+                                                paid_msg = app.send_paid_media(
+                                                    user_id,
+                                                    media=album_items,
+                                                    star_count=LimitsConfig.NSFW_STAR_COST,
+                                                    payload=str(Config.STAR_RECEIVER),
+                                                    reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
+                                                )
+                                                
+                                                logger.info(f"[IMG PAID] SUCCESS: send_paid_media returned: {type(paid_msg)}")
+                                                logger.info(f"[IMG PAID] SUCCESS: Response details: {paid_msg}")
+                                                
+                                                if isinstance(paid_msg, list):
+                                                    logger.info(f"[IMG PAID] SUCCESS: Received list of {len(paid_msg)} messages")
+                                                    sent.extend(paid_msg)
+                                                elif paid_msg is not None:
+                                                    logger.info(f"[IMG PAID] SUCCESS: Received single message with ID: {getattr(paid_msg, 'id', 'unknown')}")
+                                                    sent.append(paid_msg)
+                                                else:
+                                                    logger.warning(f"[IMG PAID] SUCCESS: Received None response from send_paid_media")
+                                                
+                                            except Exception as e:
+                                                logger.error(f"[IMG PAID] Album {album_start//max_album_size + 1} failed: {e}")
+                                                # Fallback: send individually as paid media with same reply_parameters
+                                                for i, paid_media in enumerate(album_items):
+                                                    try:
+                                                        # Use same reply_parameters for all to group them
+                                                        individual_msg = app.send_paid_media(
+                                                            user_id,
+                                                            media=[paid_media],
+                                                            star_count=LimitsConfig.NSFW_STAR_COST,
+                                                            payload=str(Config.STAR_RECEIVER),
+                                                            reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
+                                                        )
+                                                        if isinstance(individual_msg, list):
+                                                            sent.extend(individual_msg)
+                                                        elif individual_msg is not None:
+                                                            sent.append(individual_msg)
+                                                        # Small delay between messages to help grouping
+                                                        if i < len(album_items) - 1:
+                                                            time.sleep(0.1)
+                                                    except Exception as e2:
+                                                        logger.error(f"[IMG PAID] Individual paid media failed: {e2}")
                                         
                                         # Note: LOGS_PAID_ID forwarding is handled in main logic, not in fallback
                                         
@@ -1870,55 +1873,58 @@ def image_command(app, message):
                                                 except TypeError:
                                                     paid_media_list.append(InputPaidMediaVideo(media=media_path))
                                         
-                                        # Try to send as album first, if that fails, send individually with grouping
-                                        try:
-                                            logger.info(f"[IMG MAIN FALLBACK] Attempting to send album with {len(paid_media_list)} items to user {user_id}")
-                                            logger.info(f"[IMG MAIN FALLBACK] Album details: star_count={LimitsConfig.NSFW_STAR_COST}, payload={Config.STAR_RECEIVER}")
+                                        # Try to send as multiple albums (max 10 files per album), if that fails, send individually with grouping
+                                        max_album_size = 10
+                                        for album_start in range(0, len(paid_media_list), max_album_size):
+                                            album_end = min(album_start + max_album_size, len(paid_media_list))
+                                            album_items = paid_media_list[album_start:album_end]
                                             
-                                            paid_msg = app.send_paid_media(
-                                                    user_id,
-                                                media=paid_media_list,
-                                                star_count=LimitsConfig.NSFW_STAR_COST,
-                                                payload=str(Config.STAR_RECEIVER),
-                                                    reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
-                                                )
-                                            
-                                            logger.info(f"[IMG MAIN FALLBACK] SUCCESS: send_paid_media returned: {type(paid_msg)}")
-                                            logger.info(f"[IMG MAIN FALLBACK] SUCCESS: Response details: {paid_msg}")
-                                            
-                                            if isinstance(paid_msg, list):
-                                                logger.info(f"[IMG MAIN FALLBACK] SUCCESS: Received list of {len(paid_msg)} messages")
-                                                sent.extend(paid_msg)
-                                            elif paid_msg is not None:
-                                                logger.info(f"[IMG MAIN FALLBACK] SUCCESS: Received single message with ID: {getattr(paid_msg, 'id', 'unknown')}")
-                                                sent.append(paid_msg)
-                                            else:
-                                                logger.warning(f"[IMG MAIN FALLBACK] SUCCESS: Received None response from send_paid_media")
+                                            try:
+                                                logger.info(f"[IMG MAIN FALLBACK] Attempting album {album_start//max_album_size + 1} with {len(album_items)} items to user {user_id}")
+                                                logger.info(f"[IMG MAIN FALLBACK] Album details: star_count={LimitsConfig.NSFW_STAR_COST}, payload={Config.STAR_RECEIVER}")
                                                 
-                                        except Exception as e:
-                                            logger.error(f"[IMG MAIN FALLBACK] FAILED: send_paid_media album failed with error: {e}")
-                                            logger.error(f"[IMG MAIN FALLBACK] FAILED: Error type: {type(e)}")
-                                            logger.error(f"[IMG MAIN FALLBACK] FAILED: Error details: {str(e)}")
-                                            # Fallback: send individually as paid media with same reply_parameters for grouping
-                                            for i, paid_media in enumerate(paid_media_list):
-                                                try:
-                                                    # Use same reply_parameters for all to group them
-                                                    individual_msg = app.send_paid_media(
-                                                    user_id,
-                                                        media=[paid_media],
-                                                        star_count=LimitsConfig.NSFW_STAR_COST,
-                                                        payload=str(Config.STAR_RECEIVER),
+                                                paid_msg = app.send_paid_media(
+                                                        user_id,
+                                                    media=album_items,
+                                                    star_count=LimitsConfig.NSFW_STAR_COST,
+                                                    payload=str(Config.STAR_RECEIVER),
                                                         reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                     )
-                                                    if isinstance(individual_msg, list):
-                                                        sent.extend(individual_msg)
-                                                    elif individual_msg is not None:
-                                                        sent.append(individual_msg)
-                                                    # Small delay between messages to help grouping
-                                                    if i < len(paid_media_list) - 1:
-                                                        time.sleep(0.1)
-                                                except Exception as e2:
-                                                    logger.error(f"[IMG MAIN FALLBACK] Individual paid media failed: {e2}")
+                                                
+                                                logger.info(f"[IMG MAIN FALLBACK] SUCCESS: send_paid_media returned: {type(paid_msg)}")
+                                                logger.info(f"[IMG MAIN FALLBACK] SUCCESS: Response details: {paid_msg}")
+                                                
+                                                if isinstance(paid_msg, list):
+                                                    logger.info(f"[IMG MAIN FALLBACK] SUCCESS: Received list of {len(paid_msg)} messages")
+                                                    sent.extend(paid_msg)
+                                                elif paid_msg is not None:
+                                                    logger.info(f"[IMG MAIN FALLBACK] SUCCESS: Received single message with ID: {getattr(paid_msg, 'id', 'unknown')}")
+                                                    sent.append(paid_msg)
+                                                else:
+                                                    logger.warning(f"[IMG MAIN FALLBACK] SUCCESS: Received None response from send_paid_media")
+                                                
+                                            except Exception as e:
+                                                logger.error(f"[IMG MAIN FALLBACK] Album {album_start//max_album_size + 1} failed: {e}")
+                                                # Fallback: send individually as paid media with same reply_parameters for grouping
+                                                for i, paid_media in enumerate(album_items):
+                                                    try:
+                                                        # Use same reply_parameters for all to group them
+                                                        individual_msg = app.send_paid_media(
+                                                        user_id,
+                                                            media=[paid_media],
+                                                            star_count=LimitsConfig.NSFW_STAR_COST,
+                                                            payload=str(Config.STAR_RECEIVER),
+                                                            reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
+                                                        )
+                                                        if isinstance(individual_msg, list):
+                                                            sent.extend(individual_msg)
+                                                        elif individual_msg is not None:
+                                                            sent.append(individual_msg)
+                                                        # Small delay between messages to help grouping
+                                                        if i < len(album_items) - 1:
+                                                            time.sleep(0.1)
+                                                    except Exception as e2:
+                                                        logger.error(f"[IMG MAIN FALLBACK] Individual paid media failed: {e2}")
                                         
                                         # Send open copy to NSFW channel for history as album
                                         try:
@@ -2239,57 +2245,59 @@ def image_command(app, message):
                                                 except TypeError:
                                                     paid_media_list.append(InputPaidMediaVideo(media=p))
                                         
-                                        # Send as paid media album
-                                        logger.info(f"[IMG FALLBACK PAID] Sending paid media album with {len(paid_media_list)} items")
-                                        # Try to send as album first, if that fails, send individually
-                                        try:
-                                            logger.info(f"[IMG FALLBACK PAID] Attempting to send album with {len(paid_media_list)} items to user {user_id}")
-                                            logger.info(f"[IMG FALLBACK PAID] Album details: star_count={LimitsConfig.NSFW_STAR_COST}, payload={Config.STAR_RECEIVER}")
+                                        # Send as multiple paid media albums (max 10 files per album)
+                                        logger.info(f"[IMG FALLBACK PAID] Sending paid media albums with {len(paid_media_list)} items total")
+                                        max_album_size = 10
+                                        for album_start in range(0, len(paid_media_list), max_album_size):
+                                            album_end = min(album_start + max_album_size, len(paid_media_list))
+                                            album_items = paid_media_list[album_start:album_end]
                                             
-                                            paid_msg = app.send_paid_media(
-                                                user_id,
-                                                media=paid_media_list,
-                                                star_count=LimitsConfig.NSFW_STAR_COST,
-                                                payload=str(Config.STAR_RECEIVER),
-                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
-                                            )
-                                            
-                                            logger.info(f"[IMG FALLBACK PAID] SUCCESS: send_paid_media returned: {type(paid_msg)}")
-                                            logger.info(f"[IMG FALLBACK PAID] SUCCESS: Response details: {paid_msg}")
-                                            
-                                            if isinstance(paid_msg, list):
-                                                logger.info(f"[IMG FALLBACK PAID] SUCCESS: Received list of {len(paid_msg)} messages")
-                                                sent.extend(paid_msg)
-                                            elif paid_msg is not None:
-                                                logger.info(f"[IMG FALLBACK PAID] SUCCESS: Received single message with ID: {getattr(paid_msg, 'id', 'unknown')}")
-                                                sent.append(paid_msg)
-                                            else:
-                                                logger.warning(f"[IMG FALLBACK PAID] SUCCESS: Received None response from send_paid_media")
+                                            try:
+                                                logger.info(f"[IMG FALLBACK PAID] Attempting album {album_start//max_album_size + 1} with {len(album_items)} items to user {user_id}")
+                                                logger.info(f"[IMG FALLBACK PAID] Album details: star_count={LimitsConfig.NSFW_STAR_COST}, payload={Config.STAR_RECEIVER}")
                                                 
-                                        except Exception as e:
-                                            logger.error(f"[IMG FALLBACK PAID] FAILED: send_paid_media album failed with error: {e}")
-                                            logger.error(f"[IMG FALLBACK PAID] FAILED: Error type: {type(e)}")
-                                            logger.error(f"[IMG FALLBACK PAID] FAILED: Error details: {str(e)}")
-                                            # Fallback: send individually as paid media with same reply_parameters
-                                            for i, paid_media in enumerate(paid_media_list):
-                                                try:
-                                                    # Use same reply_parameters for all to group them
-                                                    individual_msg = app.send_paid_media(
-                                                        user_id,
-                                                        media=[paid_media],
-                                                        star_count=LimitsConfig.NSFW_STAR_COST,
-                                                        payload=str(Config.STAR_RECEIVER),
-                                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
-                                                    )
-                                                    if isinstance(individual_msg, list):
-                                                        sent.extend(individual_msg)
-                                                    elif individual_msg is not None:
-                                                        sent.append(individual_msg)
-                                                    # Small delay between messages to help grouping
-                                                    if i < len(paid_media_list) - 1:
-                                                        time.sleep(0.1)
-                                                except Exception as e2:
-                                                    logger.error(f"[IMG FALLBACK PAID] Individual paid media failed: {e2}")
+                                                paid_msg = app.send_paid_media(
+                                                    user_id,
+                                                    media=album_items,
+                                                    star_count=LimitsConfig.NSFW_STAR_COST,
+                                                    payload=str(Config.STAR_RECEIVER),
+                                                    reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
+                                                )
+                                                
+                                                logger.info(f"[IMG FALLBACK PAID] SUCCESS: send_paid_media returned: {type(paid_msg)}")
+                                                logger.info(f"[IMG FALLBACK PAID] SUCCESS: Response details: {paid_msg}")
+                                                
+                                                if isinstance(paid_msg, list):
+                                                    logger.info(f"[IMG FALLBACK PAID] SUCCESS: Received list of {len(paid_msg)} messages")
+                                                    sent.extend(paid_msg)
+                                                elif paid_msg is not None:
+                                                    logger.info(f"[IMG FALLBACK PAID] SUCCESS: Received single message with ID: {getattr(paid_msg, 'id', 'unknown')}")
+                                                    sent.append(paid_msg)
+                                                else:
+                                                    logger.warning(f"[IMG FALLBACK PAID] SUCCESS: Received None response from send_paid_media")
+                                                    
+                                            except Exception as e:
+                                                logger.error(f"[IMG FALLBACK PAID] Album {album_start//max_album_size + 1} failed: {e}")
+                                                # Fallback: send individually as paid media with same reply_parameters
+                                                for i, paid_media in enumerate(album_items):
+                                                    try:
+                                                        # Use same reply_parameters for all to group them
+                                                        individual_msg = app.send_paid_media(
+                                                            user_id,
+                                                            media=[paid_media],
+                                                            star_count=LimitsConfig.NSFW_STAR_COST,
+                                                            payload=str(Config.STAR_RECEIVER),
+                                                            reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
+                                                        )
+                                                        if isinstance(individual_msg, list):
+                                                            sent.extend(individual_msg)
+                                                        elif individual_msg is not None:
+                                                            sent.append(individual_msg)
+                                                        # Small delay between messages to help grouping
+                                                        if i < len(album_items) - 1:
+                                                            time.sleep(0.1)
+                                                    except Exception as e2:
+                                                        logger.error(f"[IMG FALLBACK PAID] Individual paid media failed: {e2}")
                                         
                                         # Send open copy to NSFW channel for history
                                         try:
@@ -2390,9 +2398,9 @@ def image_command(app, message):
                                                 logger.warning(f"[IMG FALLBACK PAID] SUCCESS: Received None response from send_paid_media")
                                                 
                                         except Exception as e:
-                                            logger.error(f"[IMG FALLBACK PAID] FAILED: send_paid_media album failed with error: {e}")
-                                            logger.error(f"[IMG FALLBACK PAID] FAILED: Error type: {type(e)}")
-                                            logger.error(f"[IMG FALLBACK PAID] FAILED: Error details: {str(e)}")
+                                            logger.error(f"{LoggerMsg.IMG_PAID_SEND_PAID_MEDIA_ALBUM_FAILED_LOG_MSG}")
+                                            logger.error(f"{LoggerMsg.IMG_PAID_ERROR_TYPE_LOG_MSG}")
+                                            logger.error(f"{LoggerMsg.IMG_PAID_ERROR_DETAILS_LOG_MSG}")
                                             # Fallback: send individually as paid media with same reply_parameters
                                             for i, paid_media in enumerate(paid_media_list):
                                                 try:
@@ -2825,6 +2833,7 @@ def image_command(app, message):
                             logger.info(f"[IMG TAIL] FAKE MESSAGE DETECTED - original_chat_id={original_chat_id}, is_private_chat={is_private_chat}")
                         if nsfw_flag and is_private_chat:
                             # Send as paid media album (up to 10 media files)
+                            sent = []  # Initialize sent variable
                             try:
                                 # Convert media group to paid media format
                                 paid_media_list = []
@@ -2848,40 +2857,48 @@ def image_command(app, message):
                                         except TypeError:
                                             paid_media_list.append(InputPaidMediaVideo(media=media_path))
                                 
-                                # Send as single paid media album
-                                logger.info(f"[IMG TAIL PAID] Sending paid media album with {len(paid_media_list)} items")
-                                try:
-                                    paid_msg = app.send_paid_media(
-                                        user_id,
-                                        media=paid_media_list,
-                                        star_count=LimitsConfig.NSFW_STAR_COST,
-                                        payload=str(Config.STAR_RECEIVER),
-                                        reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
-                                    )
+                                # Send as multiple paid media albums (max 10 files per album)
+                                max_album_size = 10
+                                for album_start in range(0, len(paid_media_list), max_album_size):
+                                    album_end = min(album_start + max_album_size, len(paid_media_list))
+                                    album_items = paid_media_list[album_start:album_end]
                                     
-                                    if isinstance(paid_msg, list):
-                                        sent.extend(paid_msg)
-                                    elif paid_msg is not None:
-                                        sent.append(paid_msg)
+                                    logger.info(f"[IMG TAIL PAID] Sending paid media album {album_start//max_album_size + 1} with {len(album_items)} items")
+                                    try:
+                                        paid_msg = app.send_paid_media(
+                                            user_id,
+                                            media=album_items,
+                                            star_count=LimitsConfig.NSFW_STAR_COST,
+                                            payload=str(Config.STAR_RECEIVER),
+                                            reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
+                                        )
                                         
-                                except Exception as e:
-                                    logger.error(f"[IMG TAIL PAID] send_paid_media album failed: {e}")
-                                    # Fallback: send individually as paid media
-                                    for paid_media in paid_media_list:
-                                        try:
-                                            individual_msg = app.send_paid_media(
-                                                user_id,
-                                                media=[paid_media],
-                                                star_count=LimitsConfig.NSFW_STAR_COST,
-                                                payload=str(Config.STAR_RECEIVER),
-                                                reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
-                                            )
-                                            if isinstance(individual_msg, list):
-                                                sent.extend(individual_msg)
-                                            elif individual_msg is not None:
-                                                sent.append(individual_msg)
-                                        except Exception as e2:
-                                            logger.error(f"[IMG TAIL PAID] Individual paid media failed: {e2}")
+                                        if isinstance(paid_msg, list):
+                                            sent.extend(paid_msg)
+                                        elif paid_msg is not None:
+                                            sent.append(paid_msg)
+                                            
+                                    except Exception as e:
+                                        logger.error(f"[IMG TAIL PAID] send_paid_media album failed: {e}")
+                                        # Ensure sent variable is initialized
+                                        if 'sent' not in locals():
+                                            sent = []
+                                        # Fallback: send individually as paid media
+                                        for paid_media in album_items:
+                                            try:
+                                                individual_msg = app.send_paid_media(
+                                                    user_id,
+                                                    media=[paid_media],
+                                                    star_count=LimitsConfig.NSFW_STAR_COST,
+                                                    payload=str(Config.STAR_RECEIVER),
+                                                    reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
+                                                )
+                                                if isinstance(individual_msg, list):
+                                                    sent.extend(individual_msg)
+                                                elif individual_msg is not None:
+                                                    sent.append(individual_msg)
+                                            except Exception as e2:
+                                                logger.error(f"[IMG TAIL PAID] Individual paid media failed: {e2}")
                                 
                                 # Note: LOGS_PAID_ID forwarding is handled in main logic, not in tail
                                 
@@ -2991,7 +3008,7 @@ def image_command(app, message):
                                                 if getattr(_itm, 'caption', None) == tags_text_norm:
                                                     _itm.caption = None
                                     except Exception as _e:
-                                        logger.debug(f"[IMG] Tail album caption normalization skipped: { _e }")
+                                        logger.debug(f"{LoggerMsg.IMG_TAIL_ALBUM_CAPTION_NORMALIZATION_SKIPPED_LOG_MSG}")
                                     sent = app.send_media_group(
                                         chat_id,
                                         media=media_group,
@@ -3862,6 +3879,6 @@ def img_range_callback(app, callback_query: CallbackQuery):
         
     except Exception as e:
         try:
-            callback_query.answer(f"❌ Error: {str(e)}")
+            callback_query.answer(f"{Messages.IMAGE_ERROR_MSG}")
         except Exception:
             pass

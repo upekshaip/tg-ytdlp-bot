@@ -9,6 +9,7 @@ from HELPERS.app_instance import get_app
 from HELPERS.logger import logger
 from HELPERS.limitter import humanbytes
 from CONFIG.config import Config
+from CONFIG.logger_msg import LoggerMsg
 from pyrogram import enums
 
 # Get app instance for decorators
@@ -20,9 +21,9 @@ def close_firebase_connections():
         from DATABASE.firebase_init import db
         if hasattr(db, 'close'):
             db.close()
-            logger.info("Firebase connections closed successfully")
+            logger.info(LoggerMsg.FILESYSTEM_FIREBASE_CLOSED_LOG_MSG)
     except Exception as e:
-        logger.error(f"Error closing Firebase connections: {e}")
+        logger.error(LoggerMsg.FILESYSTEM_FIREBASE_CLOSE_ERROR_LOG_MSG.format(error=e))
 
 def signal_handler(sig, frame):
     """
@@ -32,7 +33,7 @@ def signal_handler(sig, frame):
         sig: Signal number
         frame: Current stack frame
     """
-    logger.info(f"Received signal {sig}, shutting down gracefully...")
+    logger.info(LoggerMsg.FILESYSTEM_SIGNAL_RECEIVED_LOG_MSG.format(signal=sig))
 
     # Close Firebase connections first
     close_firebase_connections()
@@ -42,33 +43,33 @@ def signal_handler(sig, frame):
                      if t != threading.current_thread() and not t.daemon]
 
     if active_threads:
-        logger.info(f"Waiting for {len(active_threads)} active threads to finish")
+        logger.info(LoggerMsg.FILESYSTEM_WAITING_THREADS_LOG_MSG.format(count=len(active_threads)))
         for thread in active_threads:
-            logger.info(f"Waiting for thread {thread.name} to finish...")
+            logger.info(LoggerMsg.FILESYSTEM_WAITING_THREAD_LOG_MSG.format(name=thread.name))
             thread.join(timeout=2)  # Wait with timeout to avoid hanging
 
     # Clean up temporary files
     try:
         cleanup_temp_files()
     except Exception as e:
-        logger.error(f"Error during cleanup: {e}")
+        logger.error(LoggerMsg.FILESYSTEM_CLEANUP_ERROR_LOG_MSG.format(error=e))
 
     # Finish the application
-    logger.info("Shutting down Pyrogram client...")
+    logger.info(LoggerMsg.FILESYSTEM_SHUTTING_DOWN_PYROGRAM_LOG_MSG)
     try:
         app.stop()
-        logger.info("Pyrogram client stopped successfully")
+        logger.info(LoggerMsg.FILESYSTEM_PYROGRAM_STOPPED_LOG_MSG)
     except Exception as e:
-        logger.error(f"Error stopping Pyrogram client: {e}")
+        logger.error(LoggerMsg.FILESYSTEM_PYROGRAM_STOP_ERROR_LOG_MSG.format(error=e))
 
     # Close logger handlers
     try:
         from HELPERS.logger import close_logger
         close_logger()
     except Exception as e:
-        logger.error(f"Error closing logger: {e}")
+        logger.error(LoggerMsg.FILESYSTEM_LOGGER_CLOSE_ERROR_LOG_MSG.format(error=e))
 
-    logger.info("Shutdown complete.")
+    logger.info(LoggerMsg.FILESYSTEM_SHUTDOWN_COMPLETE_LOG_MSG)
     sys.exit(0)
 
 def cleanup_temp_files():
@@ -76,7 +77,7 @@ def cleanup_temp_files():
     if not os.path.exists("users"):
         return
 
-    logger.info("Cleaning up temporary files")
+    logger.info(LoggerMsg.FILESYSTEM_CLEANING_TEMP_FILES_LOG_MSG)
     for user_dir in os.listdir("users"):
         try:
             user_path = os.path.join("users", user_dir)
@@ -86,9 +87,9 @@ def cleanup_temp_files():
                         try:
                             os.remove(os.path.join(user_path, filename))
                         except Exception as e:
-                            logger.error(f"Failed to remove temp file {filename}: {e}")
+                            logger.error(LoggerMsg.FILESYSTEM_FAILED_REMOVE_TEMP_FILE_LOG_MSG.format(filename=filename, error=e))
         except Exception as e:
-            logger.error(f"Error cleaning user directory {user_dir}: {e}")
+            logger.error(LoggerMsg.FILESYSTEM_ERROR_CLEANING_USER_DIR_LOG_MSG.format(user_dir=user_dir, error=e))
 
 def cleanup_user_temp_files(user_id):
     """Clean up temporary files for a specific user (only in root directory, not in protected subdirectories)"""
@@ -96,14 +97,14 @@ def cleanup_user_temp_files(user_id):
     if not os.path.exists(user_dir):
         return
     
-    logger.info(f"Cleaning up temporary files for user {user_id}")
+    logger.info(LoggerMsg.FILESYSTEM_CLEANING_USER_TEMP_FILES_LOG_MSG.format(user_id=user_id))
     
     # Log all files before cleanup
     try:
         all_files = os.listdir(user_dir)
-        logger.info(f"Files in {user_dir} before cleanup: {all_files}")
+        logger.info(LoggerMsg.FILESYSTEM_FILES_BEFORE_CLEANUP_LOG_MSG.format(user_dir=user_dir, files=all_files))
     except Exception as e:
-        logger.error(f"Error listing files in {user_dir}: {e}")
+        logger.error(LoggerMsg.FILESYSTEM_ERROR_LISTING_FILES_LOG_MSG.format(user_dir=user_dir, error=e))
         return
     
     try:
@@ -123,11 +124,11 @@ def cleanup_user_temp_files(user_id):
                 try:
                     if os.path.isfile(file_path):
                         os.remove(file_path)
-                        logger.info(f"Removed temp file: {filename}")
+                        logger.info(LoggerMsg.FILESYSTEM_REMOVED_TEMP_FILE_LOG_MSG.format(filename=filename))
                 except Exception as e:
-                    logger.error(f"Failed to remove temp file {filename}: {e}")
+                    logger.error(LoggerMsg.FILESYSTEM_FAILED_REMOVE_TEMP_FILE_LOG_MSG.format(filename=filename, error=e))
     except Exception as e:
-        logger.error(f"Error cleaning user directory {user_id}: {e}")
+        logger.error(LoggerMsg.FILESYSTEM_ERROR_CLEANING_USER_DIR_LOG_MSG.format(user_dir=user_id, error=e))
 
 def cleanup_subtitle_files(user_id):
     """Clean up subtitle files for a specific user after embedding (only in root directory, not in protected subdirectories)"""
@@ -135,7 +136,7 @@ def cleanup_subtitle_files(user_id):
     if not os.path.exists(user_dir):
         return
     
-    logger.info(f"Cleaning up subtitle files for user {user_id}")
+    logger.info(LoggerMsg.FILESYSTEM_CLEANING_SUBTITLE_FILES_LOG_MSG.format(user_id=user_id))
     
     try:
         # Only clean files in root directory, not in subdirectories (which might be protected)
@@ -150,11 +151,11 @@ def cleanup_subtitle_files(user_id):
                 try:
                     if os.path.isfile(file_path):
                         os.remove(file_path)
-                        logger.info(f"Removed subtitle file: {filename}")
+                        logger.info(LoggerMsg.FILESYSTEM_REMOVED_SUBTITLE_FILE_LOG_MSG.format(filename=filename))
                 except Exception as e:
-                    logger.error(f"Failed to remove subtitle file {filename}: {e}")
+                    logger.error(LoggerMsg.FILESYSTEM_FAILED_REMOVE_SUBTITLE_FILE_LOG_MSG.format(filename=filename, error=e))
     except Exception as e:
-        logger.error(f"Error cleaning subtitle files for user {user_id}: {e}")
+        logger.error(LoggerMsg.FILESYSTEM_ERROR_CLEANING_SUBTITLE_FILES_LOG_MSG.format(user_id=user_id, error=e))
 
 # Register handlers for the most common termination signals
 signal.signal(signal.SIGINT, signal_handler)
@@ -181,7 +182,7 @@ def check_disk_space(path, required_bytes):
             return False
         return True
     except Exception as e:
-        logger.error(f"Error checking disk space: {e}")
+        logger.error(LoggerMsg.FILESYSTEM_ERROR_CHECKING_DISK_SPACE_LOG_MSG.format(error=e))
         # If we can't check, assume there's enough space
         return True
 
@@ -204,7 +205,7 @@ def remove_media(message, only=None, force_clean=False):
     """
     dir = f'./users/{str(message.chat.id)}'
     if not os.path.exists(dir):
-        logger.warning(f"Directory {dir} does not exist, nothing to remove")
+        logger.warning(LoggerMsg.FILESYSTEM_DIRECTORY_NOT_EXISTS_LOG_MSG.format(directory=dir))
         return
     
     if only:
@@ -213,9 +214,9 @@ def remove_media(message, only=None, force_clean=False):
             if os.path.exists(file_path):
                 try:
                     os.remove(file_path)
-                    logger.info(f"Removed file: {file_path}")
+                    logger.info(LoggerMsg.FILESYSTEM_REMOVED_FILE_LOG_MSG.format(file_path=file_path))
                 except Exception as e:
-                    logger.error(f"Failed to remove file {file_path}: {e}")
+                    logger.error(LoggerMsg.FILESYSTEM_FAILED_REMOVE_FILE_LOG_MSG.format(file_path=file_path, error=e))
         return
     
     # Check if parallel downloads are allowed and we're not forcing cleanup
@@ -240,9 +241,9 @@ def remove_media(message, only=None, force_clean=False):
                 file_path = os.path.join(dir, file)
                 try:
                     os.remove(file_path)
-                    logger.info(f"Removed file: {file_path}")
+                    logger.info(LoggerMsg.FILESYSTEM_REMOVED_FILE_LOG_MSG.format(file_path=file_path))
                 except Exception as e:
-                    logger.error(f"Failed to remove file {file_path}: {e}")
+                    logger.error(LoggerMsg.FILESYSTEM_FAILED_REMOVE_FILE_LOG_MSG.format(file_path=file_path, error=e))
         
         # Clean unprotected subdirectories
         for item in os.listdir(dir):
@@ -251,11 +252,11 @@ def remove_media(message, only=None, force_clean=False):
                 if not is_directory_protected(item_path):
                     try:
                         shutil.rmtree(item_path)
-                        logger.info(f"Removed unprotected directory: {item_path}")
+                        logger.info(LoggerMsg.FILESYSTEM_REMOVED_UNPROTECTED_DIR_LOG_MSG.format(item_path=item_path))
                     except Exception as e:
-                        logger.error(f"Failed to remove directory {item_path}: {e}")
+                        logger.error(LoggerMsg.FILESYSTEM_FAILED_REMOVE_DIRECTORY_LOG_MSG.format(item_path=item_path, error=e))
                 else:
-                    logger.info(f"Skipped protected directory: {item_path}")
+                    logger.info(LoggerMsg.FILESYSTEM_SKIPPED_PROTECTED_DIR_LOG_MSG.format(item_path=item_path))
     else:
         # For non-parallel downloads or force cleanup, clean everything
         allfiles = os.listdir(dir)
@@ -275,11 +276,11 @@ def remove_media(message, only=None, force_clean=False):
                 file_path = os.path.join(dir, file)
                 try:
                     os.remove(file_path)
-                    logger.info(f"Removed file: {file_path}")
+                    logger.info(LoggerMsg.FILESYSTEM_REMOVED_FILE_LOG_MSG.format(file_path=file_path))
                 except Exception as e:
-                    logger.error(f"Failed to remove file {file_path}: {e}")
+                    logger.error(LoggerMsg.FILESYSTEM_FAILED_REMOVE_FILE_LOG_MSG.format(file_path=file_path, error=e))
     
-    logger.info(f"Media cleanup completed for user {message.chat.id}")
+    logger.info(LoggerMsg.FILESYSTEM_MEDIA_CLEANUP_COMPLETED_LOG_MSG.format(user_id=message.chat.id))
 
 # Helper function to sanitize and shorten filenames
 def sanitize_filename(filename, max_length=150):
@@ -375,7 +376,7 @@ def is_parallel_download_allowed(message):
         
         return False
     except Exception as e:
-        logger.warning(f"Error checking parallel download permission: {e}")
+        logger.warning(LoggerMsg.FILESYSTEM_ERROR_CHECKING_PARALLEL_PERMISSION_LOG_MSG.format(error=e))
         return False
 
 def create_protection_file(directory_path):
@@ -388,10 +389,10 @@ def create_protection_file(directory_path):
             f.write(f"Protected directory created at: {os.path.basename(directory_path)}\n")
             f.write("This directory is currently being used for download.\n")
             f.write("Do not delete this directory until download is complete.\n")
-        logger.info(f"Created protection file: {protection_file}")
+        logger.info(LoggerMsg.FILESYSTEM_CREATED_PROTECTION_FILE_LOG_MSG.format(protection_file=protection_file))
         return True
     except Exception as e:
-        logger.error(f"Failed to create protection file in {directory_path}: {e}")
+        logger.error(LoggerMsg.FILESYSTEM_FAILED_CREATE_PROTECTION_FILE_LOG_MSG.format(directory_path=directory_path, error=e))
         return False
 
 def remove_protection_file(directory_path):
@@ -402,11 +403,11 @@ def remove_protection_file(directory_path):
         protection_file = os.path.join(directory_path, "do_not_delete_me")
         if os.path.exists(protection_file):
             os.remove(protection_file)
-            logger.info(f"Removed protection file: {protection_file}")
+            logger.info(LoggerMsg.FILESYSTEM_REMOVED_PROTECTION_FILE_LOG_MSG.format(protection_file=protection_file))
             return True
         return False
     except Exception as e:
-        logger.error(f"Failed to remove protection file from {directory_path}: {e}")
+        logger.error(LoggerMsg.FILESYSTEM_FAILED_REMOVE_PROTECTION_FILE_LOG_MSG.format(directory_path=directory_path, error=e))
         return False
 
 def is_directory_protected(directory_path):
@@ -417,5 +418,5 @@ def is_directory_protected(directory_path):
         protection_file = os.path.join(directory_path, "do_not_delete_me")
         return os.path.exists(protection_file)
     except Exception as e:
-        logger.error(f"Error checking protection file in {directory_path}: {e}")
+        logger.error(LoggerMsg.FILESYSTEM_ERROR_CHECKING_PROTECTION_FILE_LOG_MSG.format(directory_path=directory_path, error=e))
         return False

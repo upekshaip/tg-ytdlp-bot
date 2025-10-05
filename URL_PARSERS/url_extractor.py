@@ -51,7 +51,7 @@ def url_distractor(app, message):
     
     # Debug logging
     from HELPERS.logger import logger
-    logger.info(f"url_distractor called with text: {text[:100]}...")
+    logger.info(LoggerMsg.URL_EXTRACTOR_DISTRACTOR_CALLED_LOG_MSG.format(text=text[:100]))
     
     # Check if user is in args input state
     from COMMANDS.args_cmd import user_input_states, handle_args_text_input, args_import_handler
@@ -61,17 +61,17 @@ def url_distractor(app, message):
     
     # Check for args import (flexible recognition for forwarded messages)
     if "📋 Current yt-dlp Arguments:" in text:
-        logger.info(f"Found potential args import template in message from user {user_id}")
+        logger.info(LoggerMsg.URL_EXTRACTOR_FOUND_ARGS_TEMPLATE_LOG_MSG.format(user_id=user_id))
         # Additional checks to ensure it's a settings template
         has_settings_line = any(":" in line and ("✅" in line or "❌" in line or "True" in line or "False" in line) 
                                for line in text.split('\n'))
         has_forward_instruction = ("Forward this message" in text or "apply these settings" in text)
         has_separator = ("---" in text or "-" in text)
         
-        logger.info(f"has_settings_line: {has_settings_line}, has_forward_instruction: {has_forward_instruction}, has_separator: {has_separator}")
+        logger.info(LoggerMsg.URL_EXTRACTOR_SETTINGS_CHECK_LOG_MSG.format(has_settings_line=has_settings_line, has_forward_instruction=has_forward_instruction, has_separator=has_separator))
         
         if has_settings_line and (has_forward_instruction or has_separator):
-            logger.info(f"Calling args_import_handler for user {user_id}")
+            logger.info(LoggerMsg.URL_EXTRACTOR_CALLING_ARGS_IMPORT_LOG_MSG.format(user_id=user_id))
             args_import_handler(app, message)
             return
     # Normalize commands like /cmd@bot to /cmd for group mentions
@@ -703,7 +703,7 @@ def url_distractor(app, message):
                 if route_if_gallerydl_only(app, message):
                     return
             except Exception as route_e:
-                logger.error(f"Engine router error: {route_e}")
+                logger.error(LoggerMsg.URL_EXTRACTOR_ENGINE_ROUTER_ERROR_LOG_MSG.format(error=route_e))
             try:
                 video_url_extractor(app, message)
             except Exception as e:

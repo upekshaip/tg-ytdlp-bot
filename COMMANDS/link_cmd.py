@@ -140,7 +140,7 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
                         ytdl_opts['cookiefile'] = user_cookie_path
                         logger.info(Messages.LINK_COPIED_GLOBAL_COOKIE_FILE_MSG.format(user_id=user_id))
                     except Exception as e:
-                        logger.error(f"Failed to copy global cookie file for user {user_id}: {e}")
+                        logger.error(f"{LoggerMsg.LINK_FAILED_COPY_GLOBAL_COOKIE_LOG_MSG}")
                         ytdl_opts['cookiefile'] = None
                 else:
                     ytdl_opts['cookiefile'] = None
@@ -176,7 +176,7 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
                     proxy_url = build_proxy_url(proxy_config)
                     if proxy_url:
                         ytdl_opts['proxy'] = proxy_url
-                        logger.info(f"Using domain-specific proxy for link extraction: {proxy_url}")
+                        logger.info(f"{LoggerMsg.LINK_USING_DOMAIN_SPECIFIC_PROXY_LOG_MSG}")
                     else:
                         logger.warning("Failed to build proxy URL from domain config")
                 else:
@@ -207,11 +207,11 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
                     proxy_url = build_proxy_url(proxy_config)
                     if proxy_url:
                         ytdl_opts['proxy'] = proxy_url
-                        logger.info(f"Using domain-specific proxy for link extraction: {proxy_url}")
+                        logger.info(f"{LoggerMsg.LINK_USING_DOMAIN_SPECIFIC_PROXY_LOG_MSG}")
                     else:
-                        logger.warning("Failed to build proxy URL for domain-specific proxy")
+                        logger.warning(LoggerMsg.LINK_FAILED_BUILD_PROXY_URL_LOG_MSG)
                 else:
-                    logger.info(f"User proxy disabled and domain doesn't require proxy - using direct connection for {url}")
+                    logger.info(f"{LoggerMsg.LINK_USER_PROXY_DISABLED_LOG_MSG}")
         
         # Add PO token provider for YouTube domains
         ytdl_opts = add_pot_to_ytdl_opts(ytdl_opts, url)

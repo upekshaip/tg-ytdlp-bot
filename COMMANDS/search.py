@@ -25,7 +25,7 @@ def search_command(app, message):
     keyboard = InlineKeyboardMarkup([
         [
             InlineKeyboardButton(
-                "📱 Mobile: Activate @vid search",
+                Messages.SEARCH_MOBILE_ACTIVATE_SEARCH_MSG,
                 url=f"tg://msg?text=%40vid%20%E2%80%8B&to=%40{bot_name}"
             )
         ],

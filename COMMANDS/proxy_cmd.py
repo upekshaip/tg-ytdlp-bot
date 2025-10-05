@@ -4,6 +4,7 @@ import tempfile
 from pyrogram import filters
 from CONFIG.config import Config
 from CONFIG.messages import Messages
+from CONFIG.logger_msg import LoggerMsg
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 
 from HELPERS.app_instance import get_app
@@ -33,7 +34,7 @@ def safe_write_file(file_path, content):
         os.rename(temp_path, file_path)
         return True
     except OSError as e:
-        logger.error(f"Error writing file {file_path}: {e}")
+        logger.error(LoggerMsg.PROXY_CMD_ERROR_WRITING_FILE_LOG_MSG.format(file_path=file_path, error=e))
         # Clean up temp file if it exists
         try:
             if 'temp_path' in locals() and os.path.exists(temp_path):
@@ -42,23 +43,23 @@ def safe_write_file(file_path, content):
             pass
         return False
     except Exception as e:
-        logger.error(f"Unexpected error writing file {file_path}: {e}")
+        logger.error(LoggerMsg.PROXY_CMD_UNEXPECTED_ERROR_WRITING_FILE_LOG_MSG.format(file_path=file_path, error=e))
         return False
 
 @app.on_message(filters.command("proxy") & filters.private)
 def proxy_command(app, message):
     user_id = message.chat.id
-    logger.info(f"[PROXY] User {user_id} requested proxy command")
-    logger.info(f"[PROXY] User {user_id} is admin: {int(user_id) in Config.ADMIN}")
+    logger.info(LoggerMsg.PROXY_CMD_USER_REQUESTED_LOG_MSG.format(user_id=user_id))
+    logger.info(LoggerMsg.PROXY_CMD_USER_IS_ADMIN_LOG_MSG.format(user_id=user_id, is_admin=int(user_id) in Config.ADMIN))
     
     is_in_channel = is_user_in_channel(app, message)
-    logger.info(f"[PROXY] User {user_id} is in channel: {is_in_channel}")
+    logger.info(LoggerMsg.PROXY_CMD_USER_IS_IN_CHANNEL_LOG_MSG.format(user_id=user_id, is_in_channel=is_in_channel))
     
     if int(user_id) not in Config.ADMIN and not is_in_channel:
-        logger.info(f"[PROXY] User {user_id} access denied - not admin and not in channel")
+        logger.info(LoggerMsg.PROXY_CMD_USER_ACCESS_DENIED_LOG_MSG.format(user_id=user_id))
         return
     
-    logger.info(f"[PROXY] User {user_id} access granted")
+    logger.info(LoggerMsg.PROXY_CMD_USER_ACCESS_GRANTED_LOG_MSG.format(user_id=user_id))
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
     
@@ -107,7 +108,7 @@ def proxy_command(app, message):
 
 @app.on_callback_query(filters.regex(r"^proxy_option\|"))
 def proxy_option_callback(app, callback_query):
-    logger.info(f"[PROXY] callback: {callback_query.data}")
+    logger.info(LoggerMsg.PROXY_CMD_CALLBACK_LOG_MSG.format(callback_data=callback_query.data))
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]
     user_dir = os.path.join("users", str(user_id))
@@ -179,10 +180,10 @@ def is_proxy_enabled(user_id):
             content = f.read().strip().upper()
             return content == "ON"
     except OSError as e:
-        logger.error(f"Error reading proxy file {proxy_file}: {e}")
+        logger.error(LoggerMsg.PROXY_CMD_ERROR_READING_FILE_LOG_MSG.format(proxy_file=proxy_file, error=e))
         return False
     except Exception as e:
-        logger.error(f"Unexpected error reading proxy file {proxy_file}: {e}")
+        logger.error(LoggerMsg.PROXY_CMD_UNEXPECTED_ERROR_READING_FILE_LOG_MSG.format(proxy_file=proxy_file, error=e))
         return False
 
 
@@ -294,9 +295,9 @@ def select_proxy_for_domain(url):
     else:
         domain = url.split('/')[0]
     
-    logger.info(f"select_proxy_for_domain: URL={url}, extracted_domain={domain}")
-    logger.info(f"PROXY_2_DOMAINS: {getattr(DomainsConfig, 'PROXY_2_DOMAINS', [])}")
-    logger.info(f"PROXY_DOMAINS: {getattr(DomainsConfig, 'PROXY_DOMAINS', [])}")
+    logger.info(LoggerMsg.PROXY_CMD_SELECT_PROXY_FOR_DOMAIN_LOG_MSG.format(url=url, domain=domain))
+    logger.info(LoggerMsg.PROXY_CMD_PROXY_2_DOMAINS_LOG_MSG.format(domains=getattr(DomainsConfig, 'PROXY_2_DOMAINS', [])))
+    logger.info(LoggerMsg.PROXY_CMD_PROXY_DOMAINS_LOG_MSG.format(domains=getattr(DomainsConfig, 'PROXY_DOMAINS', [])))
     
     # Helper function to check if domain matches any domain in the list (including subdomains)
     def is_domain_in_list(domain, domain_list):
@@ -318,26 +319,26 @@ def select_proxy_for_domain(url):
     # Check PROXY_2_DOMAINS first
     if hasattr(DomainsConfig, 'PROXY_2_DOMAINS') and DomainsConfig.PROXY_2_DOMAINS:
         if is_domain_in_list(domain, DomainsConfig.PROXY_2_DOMAINS):
-            logger.info(f"Domain {domain} found in PROXY_2_DOMAINS (or is subdomain), using proxy 2")
+            logger.info(LoggerMsg.PROXY_CMD_DOMAIN_FOUND_IN_PROXY_2_LOG_MSG.format(domain=domain))
             return get_proxy_2_config()
     
     # Check PROXY_DOMAINS
     if hasattr(DomainsConfig, 'PROXY_DOMAINS') and DomainsConfig.PROXY_DOMAINS:
         if is_domain_in_list(domain, DomainsConfig.PROXY_DOMAINS):
-            logger.info(f"Domain {domain} found in PROXY_DOMAINS (or is subdomain), using proxy 1")
+            logger.info(LoggerMsg.PROXY_CMD_DOMAIN_FOUND_IN_PROXY_1_LOG_MSG.format(domain=domain))
             return get_proxy_config()
     
-    logger.info(f"Domain {domain} not found in any proxy domain list")
+    logger.info(LoggerMsg.PROXY_CMD_DOMAIN_NOT_IN_LIST_LOG_MSG.format(domain=domain))
     return None
 
 def add_proxy_to_ytdl_opts(ytdl_opts, url, user_id=None):
     """Add proxy to yt-dlp options if proxy is enabled for user or domain requires it"""
-    logger.info(f"add_proxy_to_ytdl_opts called: user_id={user_id}, url={url}")
+    logger.info(LoggerMsg.PROXY_CMD_ADD_PROXY_CALLED_LOG_MSG.format(user_id=user_id, url=url))
     
     # Check if user has proxy enabled
     if user_id:
         proxy_enabled = is_proxy_enabled(user_id)
-        logger.info(f"Proxy check for user {user_id}: {proxy_enabled}")
+        logger.info(LoggerMsg.PROXY_CMD_PROXY_CHECK_FOR_USER_LOG_MSG.format(user_id=user_id, proxy_enabled=proxy_enabled))
         if proxy_enabled:
             # Use round-robin/random selection for user proxy
             proxy_config = select_proxy_for_user()
@@ -345,7 +346,7 @@ def add_proxy_to_ytdl_opts(ytdl_opts, url, user_id=None):
                 proxy_url = build_proxy_url(proxy_config)
                 if proxy_url:
                     ytdl_opts['proxy'] = proxy_url
-                    logger.info(f"Added proxy for user {user_id}: {proxy_url}")
+                    logger.info(LoggerMsg.PROXY_CMD_ADDED_PROXY_FOR_USER_LOG_MSG.format(user_id=user_id, proxy_url=proxy_url))
                     return ytdl_opts
     
     # Check if domain requires specific proxy
@@ -354,6 +355,6 @@ def add_proxy_to_ytdl_opts(ytdl_opts, url, user_id=None):
         proxy_url = build_proxy_url(proxy_config)
         if proxy_url:
             ytdl_opts['proxy'] = proxy_url
-            logger.info(f"Added domain-specific proxy for {url}: {proxy_url}")
+            logger.info(LoggerMsg.PROXY_CMD_ADDED_DOMAIN_PROXY_LOG_MSG.format(url=url, proxy_url=proxy_url))
     
     return ytdl_opts

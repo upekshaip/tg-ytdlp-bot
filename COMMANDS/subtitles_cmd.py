@@ -19,6 +19,7 @@ from pyrogram import filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 from CONFIG.config import Config
 from CONFIG.messages import Messages
+from CONFIG.logger_msg import LoggerMsg
 import os
 import glob
 
@@ -313,7 +314,7 @@ def subs_command(app, message):
             from HELPERS.safe_messeger import safe_send_message
             safe_send_message(user_id, 
                 Messages.SUBS_INVALID_ARGUMENT_MSG +
-                "Valid options:\n" +
+                Messages.SUBS_VALID_OPTIONS_MSG + "\n" +
                 Messages.SUBS_DISABLE_COMMAND_MSG +
                 Messages.SUBS_ENABLE_ASK_MODE_MSG +
                 Messages.SUBS_SET_LANGUAGE_MSG +
@@ -562,7 +563,7 @@ def check_subs_availability(url, user_id, quality_key=None, return_type=False):
 def lang_match(user_lang, available_langs):
     # user_lang: for example, 'en', 'en -us', 'zh', 'pt'
     # AVAILABLE_LANGS: a list of all available languages, for example ['en -us', 'EN-GB', 'FR', 'PT-BR']
-    logger.info(f"lang_match: user_lang='{user_lang}', available_langs={available_langs}")
+    logger.info(f"{LoggerMsg.SUBS_LANG_MATCH_USER_LANG_LOG_MSG}")
     
     if user_lang in available_langs:
         logger.info(f"lang_match: exact match found: {user_lang}")
@@ -586,7 +587,7 @@ def lang_match(user_lang, available_langs):
     if '-' not in user_lang:
         for lang in available_langs:
             if lang.lower() == f'{user_lang.lower()}-{user_lang.lower()}':
-                logger.info(f"lang_match: duplicate match found: {lang} for {user_lang}")
+                logger.info(f"{LoggerMsg.SUBS_LANG_MATCH_DUPLICATE_LOG_MSG}")
                 return lang
     
     # NEW: Look for auto-translated subtitles (e.g., 'ru-en' for user_lang='ru')
@@ -595,7 +596,7 @@ def lang_match(user_lang, available_langs):
             if '-' in lang:
                 parts = lang.split('-')
                 if len(parts) == 2 and parts[0] == user_lang:
-                    logger.info(f"lang_match: auto-translated match found: {lang} for {user_lang}")
+                    logger.info(f"{LoggerMsg.SUBS_LANG_MATCH_AUTO_TRANSLATED_LOG_MSG}")
                     return lang
     
     logger.info(f"lang_match: no match found for {user_lang}")
@@ -661,10 +662,10 @@ def ensure_utf8_srt(srt_path):
         try:
             decoded_text = raw.decode(encoding)
             successful_encoding = encoding
-            logger.info(f"Successfully decoded with encoding: {encoding}")
+            logger.info(f"{LoggerMsg.SUBS_SUCCESSFULLY_DECODED_LOG_MSG}")
             break
         except (UnicodeDecodeError, LookupError) as e:
-            logger.debug(f"Failed to decode with {encoding}: {e}")
+            logger.debug(f"{LoggerMsg.SUBS_FAILED_TO_DECODE_LOG_MSG}")
             continue
 
     # If no encoding has worked, we use Force Decode
@@ -675,7 +676,7 @@ def ensure_utf8_srt(srt_path):
 
     # We check if there are spray bars in the text (replacement symbols)
     if '' in decoded_text or '?' in decoded_text:
-        logger.warning(f"Replacement characters found in text, encoding {successful_encoding} may be incorrect")
+        logger.warning(f"{LoggerMsg.SUBS_REPLACEMENT_CHARACTERS_FOUND_LOG_MSG}")
         
         # We try again with other encodings, ignoring the already tried
         for encoding in ['cp1256', 'iso-8859-6', 'cp1252', 'utf-8-sig']:
@@ -685,7 +686,7 @@ def ensure_utf8_srt(srt_path):
                     if '' not in test_text and '?' not in test_text:
                         decoded_text = test_text
                         successful_encoding = encoding
-                        logger.info(f"The best encoding has been found: {encoding}")
+                        logger.info(f"{LoggerMsg.SUBS_BEST_ENCODING_FOUND_LOG_MSG}")
                         break
                 except:
                     continue
@@ -694,7 +695,7 @@ def ensure_utf8_srt(srt_path):
     try:
         with open(srt_path, 'w', encoding='utf-8') as f:
             f.write(decoded_text)
-        logger.info(f"File {srt_path} successfully encoded to UTF-8 (original encoding: {successful_encoding})")
+        logger.info(f"{LoggerMsg.SUBS_FILE_SUCCESSFULLY_ENCODED_UTF8_LOG_MSG}")
         return srt_path
     except Exception as e:
         logger.error(f"Error writing file {srt_path}: {e}")
@@ -820,10 +821,10 @@ def get_available_subs_languages(url, user_id=None, auto_only=False):
                 raise
             if info.get('subtitles') or info.get('automatic_captions'):
                 used_client = client or 'default'
-                logger.info(f"youtube player_client={used_client} returned captions")
+                logger.info(f"{LoggerMsg.SUBS_YOUTUBE_PLAYER_CLIENT_RETURNED_CAPTIONS_LOG_MSG}")
                 _subs_check_cache[f"{url}_{user_id}_client"] = used_client
                 return info
-            logger.info(f"player_client={client or 'default'} has no captions, trying next...")
+            logger.info(f"{LoggerMsg.SUBS_PLAYER_CLIENT_NO_CAPTIONS_LOG_MSG}")
             last_info = info
         _subs_check_cache[f"{url}_{user_id}_client"] = used_client or 'default'
         return last_info
@@ -883,13 +884,13 @@ def get_available_subs_languages(url, user_id=None, auto_only=False):
         except yt_dlp.utils.DownloadError as e:
             if "429" in str(e) and attempt < MAX_RETRIES - 1:
                 delay = backoff(attempt)
-                logger.warning(f"429 Too Many Requests (attempt {attempt+1}/{MAX_RETRIES}) sleep {delay:.1f}s")
+                logger.warning(f"{LoggerMsg.SUBS_429_TOO_MANY_REQUESTS_SLEEP_LOG_MSG}")
                 time.sleep(delay)
                 continue
-            logger.error(f"DownloadError while getting subtitles: {e}")
+            logger.error(f"{LoggerMsg.SUBS_DOWNLOAD_ERROR_GETTING_SUBTITLES_LOG_MSG}")
             break
         except Exception as e:
-            logger.error(f"Unexpected error getting subtitles: {e}")
+            logger.error(f"{LoggerMsg.SUBS_UNEXPECTED_ERROR_GETTING_SUBTITLES_LOG_MSG}")
             break
 
     return []
@@ -929,10 +930,10 @@ def force_fix_arabic_encoding(srt_path: str, lang: str | None = None):
         with open(srt_path, 'w', encoding='utf-8') as f:
             f.write(best_text)
 
-        logger.info(f"force_fix_arabic_encoding: {srt_path} re-encoded from {best_enc} -> utf-8")
+        logger.info(f"{LoggerMsg.SUBS_FORCE_FIX_ARABIC_ENCODING_LOG_MSG}")
         return srt_path
     except Exception as e:
-        logger.error(f"force_fix_arabic_encoding error {srt_path}: {e}")
+        logger.error(f"{LoggerMsg.SUBS_FORCE_FIX_ARABIC_ENCODING_ERROR_LOG_MSG}")
         return None
 
 
@@ -1156,11 +1157,11 @@ def download_subtitles_ytdlp(url, user_id, video_dir, available_langs):
                 return True
 
             if r.status_code == 429:
-                logger.warning(f"timedtext 429 ({url_tt}), sleep a bit")
+                logger.warning(f"{LoggerMsg.SUBS_TIMEDTEXT_429_LOG_MSG}")
                 time.sleep(_rand_jitter(12, 6))
                 continue
 
-            logger.error(f"timedtext HTTP {r.status_code} ({url_tt})")
+            logger.error(f"{LoggerMsg.SUBS_TIMEDTEXT_HTTP_ERROR_LOG_MSG}")
             time.sleep(_rand_jitter(4))
         return False
 
@@ -1171,12 +1172,12 @@ def download_subtitles_ytdlp(url, user_id, video_dir, available_langs):
             if not subs_lang or subs_lang == "OFF":
                 return None
             if not available_langs:
-                logger.info(f"No subtitles available for {subs_lang}")
+                logger.info(f"{LoggerMsg.SUBS_NO_SUBTITLES_AVAILABLE_LOG_MSG}")
                 return None
 
             found_lang = lang_match(subs_lang, available_langs)
             if not found_lang:
-                logger.info(f"Language {subs_lang} not found in {available_langs}")
+                logger.info(f"{LoggerMsg.SUBS_LANGUAGE_NOT_FOUND_LOG_MSG}")
                 return None
 
             client = _subs_check_cache.get(f"{url}_{user_id}_client", 'tv')  # tv is the only reliable client
@@ -1231,7 +1232,7 @@ def download_subtitles_ytdlp(url, user_id, video_dir, available_langs):
                 tracks = subs_dict.get(alt, []) if alt else []
 
             if not tracks:
-                logger.error("No track URL found in info for selected language")
+                logger.error(LoggerMsg.SUBS_NO_TRACK_URL_FOUND_LOG_MSG)
                 return None
 
             # priority
@@ -1277,7 +1278,7 @@ def download_subtitles_ytdlp(url, user_id, video_dir, available_langs):
             if not ok or os.path.getsize(dst) < 200:
                 try: os.remove(dst)
                 except Exception: pass
-                logger.warning("Could not download/too small -> None")
+                logger.warning(LoggerMsg.SUBS_COULD_NOT_DOWNLOAD_LOG_MSG)
                 return None
 
             # envelope
@@ -1303,26 +1304,26 @@ def download_subtitles_ytdlp(url, user_id, video_dir, available_langs):
             if ok_ts and ok_lang:
                 if subs_lang in {'ar', 'fa', 'ur', 'ps', 'iw', 'he'}:
                     force_fix_arabic_encoding(dst, subs_lang)
-                logger.info(f"Valid subtitles ({subs_lang}), size={os.path.getsize(dst)}")
+                logger.info(f"{LoggerMsg.SUBS_VALID_SUBTITLES_LOG_MSG}")
                 return dst
 
-            logger.warning("Downloaded track invalid after clean/convert")
+            logger.warning(LoggerMsg.SUBS_DOWNLOADED_TRACK_INVALID_LOG_MSG)
             try: os.remove(dst)
             except Exception: pass
             return None
 
         except yt_dlp.utils.DownloadError as e:
             if "429" in str(e):
-                logger.warning(f"429 Too Many Requests (attempt {attempt+1}/{MAX_RETRIES})")
+                logger.warning(f"{LoggerMsg.SUBS_429_TOO_MANY_REQUESTS_LOG_MSG}")
                 if attempt < MAX_RETRIES - 1:
                     time.sleep(_rand_jitter(25 * (attempt + 1)))
                     continue
-                logger.error("Final attempt failed due to 429")
+                logger.error(LoggerMsg.SUBS_FINAL_ATTEMPT_FAILED_429_LOG_MSG)
                 return None
-            logger.error(f"DownloadError: {e}")
+            logger.error(f"{LoggerMsg.SUBS_DOWNLOAD_ERROR_LOG_MSG}")
             return None
         except Exception as e:
-            logger.error(f"Unexpected error (attempt {attempt+1}/{MAX_RETRIES}): {e}")
+            logger.error(f"{LoggerMsg.SUBS_UNEXPECTED_ERROR_LOG_MSG}")
             if attempt < MAX_RETRIES - 1:
                 time.sleep(_rand_jitter(10))
                 continue
@@ -1484,16 +1485,16 @@ def get_language_keyboard(page=0, user_id=None, langs_override=None, per_page_ro
     # Navigation
     nav_row = []
     if page > 0:
-        nav_row.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"subs_page|{page-1}"))
+        nav_row.append(InlineKeyboardButton(Messages.SUBS_PREV_BUTTON_MSG, callback_data=f"subs_page|{page-1}"))
     if page < total_pages - 1:
-        nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"subs_page|{page+1}"))
+        nav_row.append(InlineKeyboardButton(Messages.SUBTITLES_NEXT_BUTTON_MSG, callback_data=f"subs_page|{page+1}"))
     if nav_row:
         keyboard.append(nav_row)
 
     # Specialist. Options
     auto_emoji = Messages.SUBS_AUTO_EMOJI_MSG if auto_mode else Messages.SUBS_AUTO_EMOJI_INACTIVE_MSG
     keyboard.append([
-        InlineKeyboardButton("🚫 OFF", callback_data="subs_lang|OFF"),
+        InlineKeyboardButton(Messages.SUBS_OFF_BUTTON_MSG, callback_data="subs_lang|OFF"),
         InlineKeyboardButton(f"{auto_emoji} AUTO/TRANS", callback_data=f"subs_auto|toggle|{page}")
 
     ])
@@ -1562,15 +1563,15 @@ def get_language_keyboard_always_ask(page=0, user_id=None, langs_override=None, 
     # Navigation
     nav_row = []
     if page > 0:
-        nav_row.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"askf|subs_page|{page-1}"))
+        nav_row.append(InlineKeyboardButton(Messages.SUBS_PREV_BUTTON_MSG, callback_data=f"askf|subs_page|{page-1}"))
     if page < total_pages - 1:
-        nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"askf|subs_page|{page+1}"))
+        nav_row.append(InlineKeyboardButton(Messages.SUBTITLES_NEXT_BUTTON_MSG, callback_data=f"askf|subs_page|{page+1}"))
     if nav_row:
         keyboard.append(nav_row)
 
     # Back and Close buttons
     keyboard.append([
-        InlineKeyboardButton("🔙Back", callback_data="askf|subs|back"),
+        InlineKeyboardButton(Messages.SUBS_BACK_BUTTON_MSG, callback_data="askf|subs|back"),
         InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="askf|subs|close")
     ])
 

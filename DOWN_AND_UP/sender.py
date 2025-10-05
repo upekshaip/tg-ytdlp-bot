@@ -429,7 +429,7 @@ def send_videos(
                 progress_args=(
                     user_id,
                     msg_id,
-                    f"{info_text}\n<b>Video duration:</b> <i>{TimeFormatter(duration*1000)}</i>\n\n<i>📤 Uploading file...</i>"
+                    f"{info_text}\n<b>{Messages.SENDER_VIDEO_DURATION_MSG}</b> <i>{TimeFormatter(duration*1000)}</i>\n\n<i>{Messages.SENDER_UPLOADING_FILE_MSG}</i>"
                 ),
                 reply_parameters=ReplyParameters(message_id=message.id),
                 parse_mode=enums.ParseMode.HTML

@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from urllib.parse import urlparse
 from CONFIG.config import Config
 from CONFIG.messages import Messages
+from CONFIG.logger_msg import LoggerMsg
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger, send_to_user, send_to_logger
 
@@ -55,7 +56,7 @@ def log_firebase_access_attempt(path_parts, success=True):
     path_str = ' -> '.join(path_parts)  # For example: "bot -> video_cache -> playlists -> url_hash -> quality"
     status = "SUCCESS" if success else "MISS"
     try:
-        logger.info(f"Firebase local-cache access: {path_str} -> {status}")
+        logger.info(LoggerMsg.DB_FIREBASE_CACHE_ACCESS_LOG_MSG.format(path=path_str, status=status))
     except Exception:
         # Fallback to stdout if logger is not usable for any reason during early init
         print(f"Firebase local-cache access: {path_str} -> {status}")
@@ -68,12 +69,12 @@ def load_firebase_cache():
         if os.path.exists(cache_file):
             with open(cache_file, "r", encoding="utf-8") as f:
                 firebase_cache = json.load(f)
-            print(f"✅ Firebase cache loaded: {len(firebase_cache)} root nodes")
+            print(Messages.DB_FIREBASE_CACHE_LOADED_MSG.format(count=len(firebase_cache)))
         else:
-            print(f"⚠️ Firebase cache file not found, starting with empty cache: {cache_file}")
+            print(Messages.DB_FIREBASE_CACHE_NOT_FOUND_MSG.format(cache_file=cache_file))
             firebase_cache = {}
     except Exception as e:
-        print(f"❌ Failed to load firebase cache: {e}")
+        print(Messages.DB_FAILED_LOAD_FIREBASE_CACHE_MSG.format(error=e))
         firebase_cache = {}
 
 def reload_firebase_cache():
@@ -84,13 +85,13 @@ def reload_firebase_cache():
         if os.path.exists(cache_file):
             with open(cache_file, "r", encoding="utf-8") as f:
                 firebase_cache = json.load(f)
-            print(f"✅ Firebase cache reloaded: {len(firebase_cache)} root nodes")
+            print(Messages.DB_FIREBASE_CACHE_RELOADED_MSG.format(count=len(firebase_cache)))
             return True
         else:
-            print(f"⚠️ Firebase cache file not found: {cache_file}")
+            print(Messages.DB_FIREBASE_CACHE_FILE_NOT_FOUND_MSG.format(cache_file=cache_file))
             return False
     except Exception as e:
-        print(f"❌ Failed to reload firebase cache: {e}")
+        print(Messages.DB_FAILED_RELOAD_FIREBASE_CACHE_MSG.format(error=e))
         return False
 
 
@@ -237,7 +238,7 @@ def _persist_reload_interval_in_config(new_hours: int) -> bool:
     try:
         cfg_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'CONFIG', 'config.py')
         if not os.path.exists(cfg_path):
-            logger.warning(f"config.py not found at {cfg_path}")
+            logger.warning(LoggerMsg.DB_CONFIG_NOT_FOUND_LOG_MSG.format(path=cfg_path))
             return False
         with open(cfg_path, 'r', encoding='utf-8') as f:
             content = f.read()
@@ -260,7 +261,7 @@ def _persist_reload_interval_in_config(new_hours: int) -> bool:
         logger.info(Messages.DB_RELOAD_CACHE_EVERY_PERSISTED_MSG.format(hours=int(new_hours)))
         return True
     except Exception as e:
-        logger.error(f"Failed to persist RELOAD_CACHE_EVERY to config.py: {e}")
+        logger.error(LoggerMsg.DB_FAILED_PERSIST_RELOAD_CACHE_EVERY_LOG_MSG.format(error=e))
         return False
 
 def set_reload_interval_hours(new_hours: int) -> bool:
@@ -404,7 +405,7 @@ def auto_cache_command(app, message):
             send_to_user(message, Messages.DB_AUTO_CACHE_RELOADING_STOPPED_BY_ADMIN_MSG)
             send_to_logger(message, Messages.DB_AUTO_CACHE_RELOAD_STOPPED_LOG_MSG)
     except Exception as e:
-        logger.error(f"/auto_cache handler error: {e}")
+        logger.error(LoggerMsg.DB_AUTO_CACHE_HANDLER_ERROR_LOG_MSG.format(error=e))
 
 
 # Added playlist caching - separate functions for saving and retrieving playlist cache
@@ -417,11 +418,11 @@ def save_to_playlist_cache(playlist_url: str, quality_key: str, video_indices: l
         f"save_to_playlist_cache called: playlist_url={playlist_url}, quality_key={quality_key}, video_indices={video_indices}, message_ids={message_ids}, clear={clear}")
     
     if not quality_key:
-        logger.warning(f"quality_key is empty, skipping cache save for playlist: {playlist_url}")
+        logger.warning(LoggerMsg.DB_QUALITY_KEY_EMPTY_LOG_MSG.format(playlist_url=playlist_url))
         return
 
     if not hasattr(Config, 'PLAYLIST_CACHE_DB_PATH') or not Config.PLAYLIST_CACHE_DB_PATH or Config.PLAYLIST_CACHE_DB_PATH.strip() in ('', '/', '.'):
-        logger.error(f"PLAYLIST_CACHE_DB_PATH is invalid, skipping write for: {playlist_url}")
+        logger.error(LoggerMsg.DB_PLAYLIST_CACHE_PATH_INVALID_LOG_MSG.format(playlist_url=playlist_url))
         return
 
     try:
@@ -432,7 +433,7 @@ def save_to_playlist_cache(playlist_url: str, quality_key: str, video_indices: l
                 normalize_url_for_cache(strip_range_from_url(youtube_to_short_url(playlist_url))),
                 normalize_url_for_cache(strip_range_from_url(youtube_to_long_url(playlist_url))),
             ])
-        logger.info(f"Normalized playlist URLs: {urls}")
+        logger.info(LoggerMsg.DB_NORMALIZED_PLAYLIST_URLS_LOG_MSG.format(urls=urls))
 
         for u in set(urls):
             url_hash = get_url_hash(u)

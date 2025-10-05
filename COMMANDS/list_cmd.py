@@ -208,5 +208,5 @@ def list_help_callback(app, callback_query):
             callback_query.message.delete()
             callback_query.answer(Messages.HELP_CLOSED_MSG)
     except Exception as e:
-        logger.error(f"Error in list help callback: {e}")
+        logger.error(f"{LoggerMsg.LIST_ERROR_IN_HELP_CALLBACK_LOG_MSG}")
         callback_query.answer(Messages.LIST_ERROR_CALLBACK_MSG, show_alert=True)
