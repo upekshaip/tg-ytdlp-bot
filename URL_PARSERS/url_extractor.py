@@ -50,6 +50,10 @@ def url_distractor(app, message):
     is_admin = int(user_id) in Config.ADMIN
     text = message.text.strip()
     
+    # Import get_messages_instance locally to avoid UnboundLocalError
+    from CONFIG.messages import get_messages_instance
+    from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    
     # Debug logging
     from HELPERS.logger import logger
     logger.info(LoggerMsg.URL_EXTRACTOR_DISTRACTOR_CALLED_LOG_MSG.format(text=text[:100]))
