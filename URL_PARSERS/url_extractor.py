@@ -53,6 +53,8 @@ def url_distractor(app, message):
     # Import get_messages_instance locally to avoid UnboundLocalError
     from CONFIG.messages import get_messages_instance
     from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    from HELPERS.filesystem_hlp import remove_media
+    from COMMANDS.cookies_cmd import download_cookie
     
     # Debug logging
     from HELPERS.logger import logger
