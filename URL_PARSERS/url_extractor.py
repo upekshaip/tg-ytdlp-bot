@@ -119,6 +119,7 @@ def url_distractor(app, message):
         if mapped == Config.AUDIO_COMMAND:
             from HELPERS.safe_messeger import safe_send_message
             from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            from CONFIG.messages import get_messages_instance
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton(get_messages_instance(user_id).URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="audio_hint|close")]
             ])
@@ -211,12 +212,19 @@ def url_distractor(app, message):
         elif mapped == Config.LIST_COMMAND:
             from COMMANDS.list_cmd import list_command
             return list_command(app, fake_msg)
+        elif mapped == Config.USAGE_COMMAND:
+            from COMMANDS.admin_cmd import get_user_usage_stats
+            logger.info(f"📃 Emoji triggered - showing usage stats for user {user_id}")
+            get_user_usage_stats(app, fake_msg)
+            logger.info(f"📃 Emoji completed - usage stats shown for user {user_id}")
+            return
         elif mapped == "/help":
             # Handle help command directly
             if not is_user_in_channel(app, fake_msg):
                 return
             from HELPERS.safe_messeger import safe_send_message
             from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            from CONFIG.messages import get_messages_instance
             keyboard = InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton("🛠 Dev GitHub", url="https://github.com/upekshaip/tg-ytdlp-bot"),
