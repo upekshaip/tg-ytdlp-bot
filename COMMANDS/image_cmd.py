@@ -316,7 +316,7 @@ def get_file_date(file_path, original_url=None, user_id=None):
             if not date_str:
                 return False
             if date_str == invalid_date_str:
-                logger.info(f"[FILE_DATE] Date {date_str} is Unix epoch - invalid")
+                logger.info(LoggerMsg.IMG_FILE_DATE_UNIX_EPOCH_INVALID_LOG_MSG.format(date_str=date_str))
                 return False
             if date_str == today_str:
                 # Сегодняшняя дата валидна только если она извлечена из надежных источников

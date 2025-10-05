@@ -900,8 +900,6 @@ Use:
     IMG_RANGE_LIMIT_EXCEEDED_MSG = "❗️ Range limit exceeded: {range_count} files requested (maximum {max_img_files}).\n\nUse one of these commands to download maximum available files:\n\n<code>/img {start_range}-{end_range} {url}</code>\n\n<code>/img {suggested_command_url_format}</code>"
     COMMAND_IMAGE_HELP_CLOSE_BUTTON_MSG = "🔚Close"
     COMMAND_IMAGE_MEDIA_LIMIT_EXCEEDED_MSG = "❗️ Media limit exceeded: {count} files requested (maximum {max_count}).\n\nUse one of these commands to download maximum available files:\n\n<code>/img {start_range}-{end_range} {url}</code>\n\n<code>/img {suggested_command_url_format}</code>"
-    COMMAND_IMAGE_RUN_DIRECTORY_MSG = "Run directory"
-    IMG_URL_NOT_ACCESSIBLE_MSG = "The URL might not be accessible or not contain a valid image."
     
     # Args command parameter descriptions
     ARGS_IMPERSONATE_DESC_MSG = "Browser impersonation"
@@ -1847,8 +1845,6 @@ Use:
     HELPER_MSG_SEQNO_ERROR_DETECTED_MSG = "msg_seqno error detected, sleeping for {retry_delay} seconds"
     HELPER_MESSAGE_ID_INVALID_MSG = "MESSAGE_ID_INVALID"
     HELPER_MESSAGE_DELETE_FORBIDDEN_MSG = "MESSAGE_DELETE_FORBIDDEN"
-    HELPER_MESSAGE_NOT_MODIFIED_MSG = "message is not modified"
-    HELPER_MESSAGE_NOT_MODIFIED_UPPER_MSG = "MESSAGE_NOT_MODIFIED"
     
     # Proxy helper messages
     HELPER_PROXY_CONFIG_INCOMPLETE_MSG = "Proxy configuration incomplete, using direct connection"

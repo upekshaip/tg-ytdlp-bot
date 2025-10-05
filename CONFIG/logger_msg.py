@@ -21,7 +21,6 @@ class LoggerMsg(object):
     IMG_HELP_SHOWN = "Showed /img help"
     INVALID_URL_PROVIDED = "Invalid URL provided: {url}"
     REPOSTED_CACHED_ALBUMS = "Reposted {count} cached albums for {url}"
-    FAILED_ANALYZE_IMAGE = "Failed to analyze image URL: {url}"
     STREAMED_AND_SENT_MEDIA = "Streamed and sent {total_sent} media: {url}"
     IMAGE_COMMAND_ERROR = "Error in image command: {url}, error: {error}"
 
@@ -200,10 +199,6 @@ class LoggerMsg(object):
     IMG_CACHE_FORWARD_EARLY_FAILED_LOG_MSG = "Image cache forward (early) failed: {_e}"
     IMG_USER_ADMIN_LIMIT_LOG_MSG = "[IMG] User {user_id} is admin: {is_admin}, limit: {limit_text}"
     IMG_PRE_CLEANUP_START_LOG_MSG = "[IMG PRE-CLEANUP] Starting pre-cleanup of user directory: users/{user_id}"
-    IMG_PRE_CLEANUP_REMOVED_FILE_LOG_MSG = "[IMG PRE-CLEANUP] Removed file: {file_path}"
-    IMG_PRE_CLEANUP_FAILED_REMOVE_FILE_LOG_MSG = "[IMG PRE-CLEANUP] Failed to remove {file_path}: {e}"
-    IMG_PRE_CLEANUP_REMOVED_DIR_LOG_MSG = "[IMG PRE-CLEANUP] Removed empty directory: {dir_path}"
-    IMG_PRE_CLEANUP_FAILED_REMOVE_DIR_LOG_MSG = "[IMG PRE-CLEANUP] Failed to remove directory {dir_path}: {e}"
     IMG_PRE_CLEANUP_COMPLETED_LOG_MSG = "[IMG PRE-CLEANUP] Pre-cleanup completed"
     IMG_PRE_CLEANUP_FAILED_LOG_MSG = "[IMG PRE-CLEANUP] Failed to perform pre-cleanup: {e}"
     IMG_BATCH_SMALL_TOTAL_LOG_MSG = "[IMG BATCH] Small total detected: {detected_total}, setting end cap to {manual_end_cap}"
