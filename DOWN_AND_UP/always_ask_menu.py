@@ -1311,7 +1311,7 @@ def askq_callback(app, callback_query):
         if kind in ("codec", "ext"):
             # Handle empty callback (fixed format)
             if value == "empty":
-                callback_query.answer("Format is fixed via /args settings", show_alert=True)
+                callback_query.answer(Messages.ALWAYS_ASK_FORMAT_FIXED_VIA_ARGS_MSG, show_alert=True)
                 return
                 
             # Get original message and URL
