@@ -481,7 +481,7 @@ def get_user_args(user_id: int) -> Dict[str, Any]:
         with open(args_file, 'r', encoding='utf-8') as f:
             return json.load(f)
     except Exception as e:
-        logger.error(f"Error reading user args for {user_id}: {e}")
+        logger.error(LoggerMsg.ARGS_ERROR_READING_USER_ARGS_LOG_MSG.format(user_id=user_id, error=e))
         return {}
 
 def save_user_args(user_id: int, args: Dict[str, Any]) -> bool:
@@ -495,7 +495,7 @@ def save_user_args(user_id: int, args: Dict[str, Any]) -> bool:
             json.dump(args, f, ensure_ascii=False, indent=2)
         return True
     except Exception as e:
-        logger.error(f"Error saving user args for {user_id}: {e}")
+        logger.error(LoggerMsg.ARGS_ERROR_SAVING_USER_ARGS_LOG_MSG.format(user_id=user_id, error=e))
         return False
 
 def get_args_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
@@ -1241,7 +1241,7 @@ def args_callback_handler(app, callback_query):
             return
         
     except Exception as e:
-        logger.error(f"Error in args callback handler: {e}")
+        logger.error(LoggerMsg.ARGS_ERROR_CALLBACK_HANDLER_LOG_MSG.format(error=e))
         try:
             callback_query.answer(Messages.ERROR_OCCURRED_SHORT_MSG, show_alert=False)
         except Exception:
@@ -1389,7 +1389,7 @@ def handle_args_text_input(app, message):
                     return
                 
     except Exception as e:
-        logger.error(f"Error handling args text input: {e}")
+        logger.error(LoggerMsg.ARGS_ERROR_HANDLING_TEXT_INPUT_LOG_MSG.format(error=e))
         error_msg = Messages.ARGS_ERROR_PROCESSING_MSG
         safe_send_message(user_id, error_msg, message=message)
         from HELPERS.logger import log_error_to_channel
@@ -1415,7 +1415,7 @@ def args_text_handler(app, message):
     try:
         handle_args_text_input(app, message)
     except Exception as e:
-        logger.error(f"args_text_handler critical error: {e}")
+        logger.error(LoggerMsg.ARGS_CRITICAL_ERROR_LOG_MSG.format(error=e))
 
 def args_import_handler(app, message):
     """Handle import of settings from forwarded message"""

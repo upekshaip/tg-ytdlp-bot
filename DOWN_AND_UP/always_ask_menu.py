@@ -20,6 +20,7 @@ from HELPERS.limitter import check_subs_limits, check_playlist_range_limits, Tim
 
 from CONFIG.config import Config
 from CONFIG.messages import Messages
+from CONFIG.logger_msg import LoggerMsg
 from URL_PARSERS.tags import extract_url_range_tags
 
 from COMMANDS.subtitles_cmd import (
@@ -66,7 +67,7 @@ def get_user_args(user_id: int):
         with open(args_file, 'r', encoding='utf-8') as f:
             return json.load(f)
     except Exception as e:
-        logger.error(f"Error reading user args for {user_id}: {e}")
+        logger.error(LoggerMsg.ALWAYS_ASK_ERROR_READING_USER_ARGS_LOG_MSG.format(user_id=user_id, error=e))
         return {}
 from COMMANDS.image_cmd import image_command
 from HELPERS.safe_messeger import fake_message
@@ -75,7 +76,7 @@ from HELPERS.safe_messeger import fake_message
 app = get_app()
 
 # Proxy functionality is now handled by COMMANDS.proxy_cmd
-logger.info(f"always_ask_menu.py imported, app instance: {app is not None}")
+logger.info(LoggerMsg.ALWAYS_ASK_IMPORTED_LOG_MSG.format(app_available=app is not None))
 
 def format_filesize(size_str):
     """Convert filesize to shortest readable format (kb, mb, gb)"""
@@ -154,7 +155,7 @@ def get_original_data_from_callback(prefix, callback_data):
             mapping = getattr(create_safe_callback_data, mapping_attr)
             return mapping.get(data_hash, data_hash)  # Return original data or hash if not found
     except Exception as e:
-        logger.warning(f"Error retrieving original data from callback: {e}")
+        logger.warning(LoggerMsg.ALWAYS_ASK_ERROR_RETRIEVING_CALLBACK_LOG_MSG.format(error=e))
     
     return callback_data.replace(f"{prefix}|", "")
 
@@ -424,12 +425,12 @@ def _dub_flag(lang_code: str) -> str:
 @app.on_callback_query(filters.regex(r"^askf\|"))
 def ask_filter_callback(app, callback_query):
     from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-    logger.info(f"[ASKF] callback received: {callback_query.data}")
+    logger.info(LoggerMsg.ALWAYS_ASK_CALLBACK_RECEIVED_LOG_MSG.format(callback_data=callback_query.data))
     user_id = callback_query.from_user.id
     parts = callback_query.data.split("|")
     if len(parts) >= 3:
         _, kind, value = parts[:3]
-        logger.info(f"[ASKF] parsed: kind={kind}, value={value}")
+        logger.info(LoggerMsg.ALWAYS_ASK_PARSED_LOG_MSG.format(kind=kind, value=value))
 
         # --- SUBS handlers must run BEFORE generic filter rebuild ---
         if kind == "subs" and value == "open":

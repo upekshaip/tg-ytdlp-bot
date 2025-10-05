@@ -1480,7 +1480,7 @@ def retry_download_with_different_cookies(user_id: int, url: str, download_func,
                 try:
                     ok, status, content, err = _download_content(cookie_urls[idx], timeout=30)
                 except Exception as download_e:
-                    logger.error(f"Error processing cookie source {idx + 1} for user {user_id}: {download_e}")
+                    logger.error(LoggerMsg.COOKIES_ERROR_PROCESSING_SOURCE_LOG_MSG.format(idx=idx + 1, user_id=user_id, error=download_e))
                     continue
                     
                 if not ok:
@@ -1572,7 +1572,7 @@ def clear_youtube_cookie_cache(user_id: int = None):
     global _youtube_cookie_cache
     if user_id is None:
         _youtube_cookie_cache.clear()
-        logger.info("Cleared all YouTube cookie validation cache")
+        logger.info(LoggerMsg.COOKIES_CLEARED_CACHE_LOG_MSG)
     else:
         if user_id in _youtube_cookie_cache:
             del _youtube_cookie_cache[user_id]

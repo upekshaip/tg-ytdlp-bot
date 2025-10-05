@@ -60,25 +60,25 @@ def _save_video_cache_with_logging(url: str, quality_key: str, message_ids: list
             user_args = get_user_args(user_id)
             send_as_file = user_args.get("send_as_file", False)
             if send_as_file:
-                logger.info(f"[VIDEO CACHE] Skipping cache save for user {user_id} with send_as_file enabled: url={url}, quality={quality_key}")
+                logger.info(LoggerMsg.DOWN_UP_SKIPPING_CACHE_SEND_AS_FILE_LOG_MSG.format(user_id=user_id, url=url, quality=quality_key))
                 return
         
         # Determine channel type for logging
         from HELPERS.porn import is_porn
         is_nsfw = is_porn(url, "", "", None)
-        logger.info(f"[FALLBACK] is_porn check for {url}: {is_nsfw}")
+        logger.info(LoggerMsg.DOWN_UP_IS_PORN_CHECK_LOG_MSG.format(url=url, is_nsfw=is_nsfw))
         channel_type = "NSFW" if is_nsfw else "regular"
         
         # Don't cache NSFW content
         if is_nsfw:
-            logger.info(f"[VIDEO CACHE] Skipping cache save for NSFW content: url={url}, quality={quality_key}, channel_type={channel_type}")
+            logger.info(LoggerMsg.DOWN_UP_SKIPPING_CACHE_NSFW_LOG_MSG.format(url=url, quality=quality_key, channel_type=channel_type))
             return
         
-        logger.info(f"[VIDEO CACHE] About to save video: url={url}, quality={quality_key}, message_ids={message_ids}, channel_type={channel_type}")
+        logger.info(LoggerMsg.DOWN_UP_ABOUT_TO_SAVE_VIDEO_LOG_MSG.format(url=url, quality=quality_key, message_ids=message_ids, channel_type=channel_type))
         save_to_video_cache(url, quality_key, message_ids, original_text=original_text)
-        logger.info(f"[VIDEO CACHE] Save requested for quality={quality_key}, channel_type={channel_type}")
+        logger.info(LoggerMsg.DOWN_UP_SAVE_REQUESTED_LOG_MSG.format(quality=quality_key, channel_type=channel_type))
     except Exception as e:
-        logger.error(f"[VIDEO CACHE] Save failed for quality={quality_key}: {e}")
+        logger.error(LoggerMsg.DOWN_UP_SAVE_FAILED_LOG_MSG.format(quality=quality_key, error=e))
 
 
 def determine_need_subs(subs_enabled, found_type, user_id):

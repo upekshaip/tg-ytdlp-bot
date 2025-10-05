@@ -351,6 +351,42 @@ class LoggerMsg(object):
     FILESYSTEM_ERROR_CHECKING_PROTECTION_FILE_LOG_MSG = "Error checking protection file in {directory_path}: {error}"
     FILESYSTEM_ERROR_CHECKING_PARALLEL_PERMISSION_LOG_MSG = "Error checking parallel download permission: {error}"
     
+    # Args command logs
+    ARGS_ERROR_READING_USER_ARGS_LOG_MSG = "Error reading user args for {user_id}: {error}"
+    ARGS_ERROR_SAVING_USER_ARGS_LOG_MSG = "Error saving user args for {user_id}: {error}"
+    ARGS_ERROR_CALLBACK_HANDLER_LOG_MSG = "Error in args callback handler: {error}"
+    ARGS_ERROR_HANDLING_TEXT_INPUT_LOG_MSG = "Error handling args text input: {error}"
+    ARGS_CRITICAL_ERROR_LOG_MSG = "args_text_handler critical error: {error}"
+    
+    # Cookies command logs
+    COOKIES_ERROR_PROCESSING_SOURCE_LOG_MSG = "Error processing cookie source {idx} for user {user_id}: {error}"
+    COOKIES_CLEARED_CACHE_LOG_MSG = "Cleared all YouTube cookie validation cache"
+    
+    # Format command logs
+    FORMAT_CALLBACK_LOG_MSG = "[FORMAT] callback: {callback_data}"
+    
+    # Always ask menu logs
+    ALWAYS_ASK_ERROR_READING_USER_ARGS_LOG_MSG = "Error reading user args for {user_id}: {error}"
+    ALWAYS_ASK_IMPORTED_LOG_MSG = "always_ask_menu.py imported, app instance: {app_available}"
+    ALWAYS_ASK_ERROR_RETRIEVING_CALLBACK_LOG_MSG = "Error retrieving original data from callback: {error}"
+    ALWAYS_ASK_CALLBACK_RECEIVED_LOG_MSG = "[ASKF] callback received: {callback_data}"
+    ALWAYS_ASK_PARSED_LOG_MSG = "[ASKF] parsed: kind={kind}, value={value}"
+    
+    # Down and up logs
+    DOWN_UP_SKIPPING_CACHE_SEND_AS_FILE_LOG_MSG = "[VIDEO CACHE] Skipping cache save for user {user_id} with send_as_file enabled: url={url}, quality={quality_key}"
+    DOWN_UP_IS_PORN_CHECK_LOG_MSG = "[FALLBACK] is_porn check for {url}: {is_nsfw}"
+    DOWN_UP_SKIPPING_CACHE_NSFW_LOG_MSG = "[VIDEO CACHE] Skipping cache save for NSFW content: url={url}, quality={quality_key}, channel_type={channel_type}"
+    DOWN_UP_ABOUT_TO_SAVE_VIDEO_LOG_MSG = "[VIDEO CACHE] About to save video: url={url}, quality={quality_key}, message_ids={message_ids}, channel_type={channel_type}"
+    DOWN_UP_SAVE_REQUESTED_LOG_MSG = "[VIDEO CACHE] Save requested for quality={quality_key}, channel_type={channel_type}"
+    DOWN_UP_SAVE_FAILED_LOG_MSG = "[VIDEO CACHE] Save failed for quality={quality_key}: {error}"
+    
+    # URL extractor logs
+    URL_EXTRACTOR_DISTRACTOR_CALLED_LOG_MSG = "url_distractor called with text: {text}..."
+    URL_EXTRACTOR_FOUND_ARGS_TEMPLATE_LOG_MSG = "Found potential args import template in message from user {user_id}"
+    URL_EXTRACTOR_SETTINGS_CHECK_LOG_MSG = "has_settings_line: {has_settings_line}, has_forward_instruction: {has_forward_instruction}, has_separator: {has_separator}"
+    URL_EXTRACTOR_CALLING_ARGS_IMPORT_LOG_MSG = "Calling args_import_handler for user {user_id}"
+    URL_EXTRACTOR_ENGINE_ROUTER_ERROR_LOG_MSG = "Engine router error: {error}"
+    
     # Thumbnail downloader logs
     THUMBNAIL_DOWNLOADER_VK_FAILED_LOG_MSG = "Failed to download VK thumbnail: {e}"
     THUMBNAIL_DOWNLOADER_TIKTOK_FAILED_LOG_MSG = "Failed to download TikTok thumbnail: {e}"

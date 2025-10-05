@@ -3,6 +3,7 @@
 from pyrogram import filters
 from CONFIG.config import Config
 from CONFIG.messages import Messages
+from CONFIG.logger_msg import LoggerMsg
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 
 from HELPERS.app_instance import get_app
@@ -234,7 +235,7 @@ Messages.FORMAT_MENU_MSG + "\n"
 @app.on_callback_query(filters.regex(r"^format_option\|"))
 # @reply_with_keyboard
 def format_option_callback(app, callback_query):
-    logger.info(f"[FORMAT] callback: {callback_query.data}")
+    logger.info(LoggerMsg.FORMAT_CALLBACK_LOG_MSG.format(callback_data=callback_query.data))
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]
 
