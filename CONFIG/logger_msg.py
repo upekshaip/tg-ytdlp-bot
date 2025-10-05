@@ -23,6 +23,21 @@ class LoggerMsg(object):
     REPOSTED_CACHED_ALBUMS = "Reposted {count} cached albums for {url}"
     STREAMED_AND_SENT_MEDIA = "Streamed and sent {total_sent} media: {url}"
     IMAGE_COMMAND_ERROR = "Error in image command: {url}, error: {error}"
+    
+    # Image file date logs
+    IMG_FILE_DATE_UNIX_EPOCH_INVALID_LOG_MSG = "[FILE_DATE] Date {date_str} is Unix epoch - invalid"
+    IMG_FILE_DATE_TODAY_VALID_LOG_MSG = "[FILE_DATE] Date {date_str} is today's date from {source_context} - valid"
+    IMG_FILE_DATE_TODAY_LIKELY_INVALID_LOG_MSG = "[FILE_DATE] Date {date_str} is today's date from {source_context} - likely invalid (file modification time)"
+    IMG_FILE_DATE_EXTRACT_FROM_FILENAME_LOG_MSG = "[FILE_DATE] Trying to extract date from filename: {filename}"
+    IMG_FILE_DATE_CLEANED_NAME_LOG_MSG = "[FILE_DATE] Cleaned name: {clean_name}, isdigit: {isdigit}, len: {length}"
+    IMG_FILE_DATE_INSTAGRAM_ID_DETECTED_LOG_MSG = "[FILE_DATE] Instagram ID detected: {clean_name} - returning None (no reliable date)"
+    IMG_FILE_DATE_ORIGINAL_NAME_LOG_MSG = "[FILE_DATE] Original name: {name_without_ext}, isdigit: {isdigit}, len: {length}"
+    IMG_FILE_DATE_ORIGINAL_INSTAGRAM_ID_DETECTED_LOG_MSG = "[FILE_DATE] Original Instagram ID detected: {name_without_ext} - returning None (no reliable date)"
+    IMG_FILE_DATE_FOUND_IN_FILENAME_LOG_MSG = "[FILE_DATE] Found date in filename: {date_str}"
+    IMG_FILE_DATE_INVALID_CONTINUING_SEARCH_LOG_MSG = "[FILE_DATE] Date {date_str} is invalid, continuing search"
+    IMG_FILE_DATE_CREATED_TODAY_LOG_MSG = "[FILE_DATE] File created today, likely fake message fallback - returning None"
+    IMG_FILE_DATE_USING_MODIFICATION_TIME_LOG_MSG = "[FILE_DATE] Using file modification time: {date_str}"
+    IMG_FILE_DATE_MODIFICATION_INVALID_LOG_MSG = "[FILE_DATE] File modification date {date_str} is invalid"
 
     # Search helper logs
     SEARCH_HELPER_OPENED = "User {user_id} opened search helper"

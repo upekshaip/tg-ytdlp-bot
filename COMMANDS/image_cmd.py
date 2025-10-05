@@ -322,16 +322,16 @@ def get_file_date(file_path, original_url=None, user_id=None):
                 # Сегодняшняя дата валидна только если она извлечена из надежных источников
                 # (EXIF, метаданные видео, API) и НЕ из времени модификации файла
                 if source_context in ["exif", "video_metadata", "api"]:
-                    logger.info(f"[FILE_DATE] Date {date_str} is today's date from {source_context} - valid")
+                    logger.info(LoggerMsg.IMG_FILE_DATE_TODAY_VALID_LOG_MSG.format(date_str=date_str, source_context=source_context))
                     return True
                 else:
-                    logger.info(f"[FILE_DATE] Date {date_str} is today's date from {source_context} - likely invalid (file modification time)")
+                    logger.info(LoggerMsg.IMG_FILE_DATE_TODAY_LIKELY_INVALID_LOG_MSG.format(date_str=date_str, source_context=source_context))
                     return False
             return True
         
         # First, try to extract date from filename (Instagram format: timestamp.jpg)
         filename = os.path.basename(file_path)
-        logger.info(f"[FILE_DATE] Trying to extract date from filename: {filename}")
+        logger.info(LoggerMsg.IMG_FILE_DATE_EXTRACT_FROM_FILENAME_LOG_MSG.format(filename=filename))
         
         # Instagram files often have timestamp as filename (e.g., 3732982640044472150.jpg)
         # This is usually a Unix timestamp in microseconds
@@ -341,21 +341,21 @@ def get_file_date(file_path, original_url=None, user_id=None):
             # Try to extract timestamp from filename patterns like "3608469449724736561._fast.mp4"
             # Remove ._fast suffix if present
             clean_name = name_without_ext.replace('._fast', '')
-            logger.info(f"[FILE_DATE] Cleaned name: {clean_name}, isdigit: {clean_name.isdigit()}, len: {len(clean_name)}")
+            logger.info(LoggerMsg.IMG_FILE_DATE_CLEANED_NAME_LOG_MSG.format(clean_name=clean_name, isdigit=clean_name.isdigit(), length=len(clean_name)))
             if clean_name.isdigit() and len(clean_name) > 10:
                 # Instagram IDs don't contain reliable timestamp information
                 # Instagram uses Snowflake-like IDs but they don't encode upload dates
                 # Return None to group as 'unknown' date
-                logger.info(f"[FILE_DATE] Instagram ID detected: {clean_name} - returning None (no reliable date)")
+                logger.info(LoggerMsg.IMG_FILE_DATE_INSTAGRAM_ID_DETECTED_LOG_MSG.format(clean_name=clean_name))
                 return None
             
             # Check if it's a numeric timestamp (Instagram format) - original name
-            logger.info(f"[FILE_DATE] Original name: {name_without_ext}, isdigit: {name_without_ext.isdigit()}, len: {len(name_without_ext)}")
+            logger.info(LoggerMsg.IMG_FILE_DATE_ORIGINAL_NAME_LOG_MSG.format(name_without_ext=name_without_ext, isdigit=name_without_ext.isdigit(), length=len(name_without_ext)))
             if name_without_ext.isdigit() and len(name_without_ext) > 10:
                 # Instagram IDs don't contain reliable timestamp information
                 # Instagram uses Snowflake-like IDs but they don't encode upload dates
                 # Return None to group as 'unknown' date
-                logger.info(f"[FILE_DATE] Original Instagram ID detected: {name_without_ext} - returning None (no reliable date)")
+                logger.info(LoggerMsg.IMG_FILE_DATE_ORIGINAL_INSTAGRAM_ID_DETECTED_LOG_MSG.format(name_without_ext=name_without_ext))
                 return None
             
             # Try to extract date from gallery-dl filename patterns
@@ -377,11 +377,11 @@ def get_file_date(file_path, original_url=None, user_id=None):
                             try:
                                 dt = datetime.strptime(date_str, fmt)
                                 date_str = dt.strftime("%d.%m.%Y")
-                                logger.info(f"[FILE_DATE] Found date in filename: {date_str}")
+                                logger.info(LoggerMsg.IMG_FILE_DATE_FOUND_IN_FILENAME_LOG_MSG.format(date_str=date_str))
                                 if is_valid_date(date_str, "filename"):
                                     return date_str
                                 else:
-                                    logger.info(f"[FILE_DATE] Date {date_str} is invalid, continuing search")
+                                    logger.info(LoggerMsg.IMG_FILE_DATE_INVALID_CONTINUING_SEARCH_LOG_MSG.format(date_str=date_str))
                             except ValueError:
                                 continue
                     except Exception:
@@ -451,15 +451,15 @@ def get_file_date(file_path, original_url=None, user_id=None):
             # Only reject today's date if we couldn't extract date from metadata
             now = datetime.now()
             if dt.date() == now.date():
-                logger.info(f"[FILE_DATE] File created today, likely fake message fallback - returning None")
+                logger.info(LoggerMsg.IMG_FILE_DATE_CREATED_TODAY_LOG_MSG)
                 return None
             
             date_str = dt.strftime("%d.%m.%Y")
-            logger.info(f"[FILE_DATE] Using file modification time: {date_str}")
+            logger.info(LoggerMsg.IMG_FILE_DATE_USING_MODIFICATION_TIME_LOG_MSG.format(date_str=date_str))
             if is_valid_date(date_str, "file_modification"):
                 return date_str
             else:
-                logger.info(f"[FILE_DATE] File modification date {date_str} is invalid")
+                logger.info(LoggerMsg.IMG_FILE_DATE_MODIFICATION_INVALID_LOG_MSG.format(date_str=date_str))
         except Exception:
             pass
         
