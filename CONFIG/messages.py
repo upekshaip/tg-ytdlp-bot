@@ -1577,6 +1577,7 @@ Use:
     # Magic.py success messages
     MAGIC_ALL_MODULES_LOADED_MSG = "✅ All modules are loaded"
     MAGIC_CLEANUP_COMPLETED_MSG = "✅ Cleanup completed on exit"
+    MAGIC_SIGNAL_RECEIVED_MSG = "\n🛑 Received signal {signal}, shutting down gracefully..."
     
     # Removed duplicate logger messages - these are user messages, not logger messages
     

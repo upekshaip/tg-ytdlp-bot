@@ -171,7 +171,7 @@ def _is_allowed_group(message):
         try:
             # Explicit log once per check
             from HELPERS.logger import logger
-            logger.info(f"[ALLOWED_GROUP_CHECK] chat_id={gid} allowed={allowed} list={list(_allowed_groups)}")
+            logger.info(Messages.MAGIC_ALLOWED_GROUP_CHECK_LOG_MSG.format(chat_id=gid, allowed=allowed, list=list(_allowed_groups)))
         except Exception:
             pass
         return allowed
@@ -324,7 +324,7 @@ atexit.register(cleanup_on_exit)
 # Register signal handlers for graceful shutdown
 def signal_handler(sig, frame):
     """Handle shutdown signals gracefully"""
-    print(f"\n🛑 Received signal {sig}, shutting down gracefully...")
+    print(Messages.MAGIC_SIGNAL_RECEIVED_MSG.format(signal=sig))
     cleanup_on_exit()
     sys.exit(0)
 

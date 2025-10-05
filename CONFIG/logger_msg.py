@@ -260,6 +260,9 @@ class LoggerMsg(object):
     URL_EXTRACTOR_FAILED_REMOVE_FILE_LOG_MSG = "Failed to remove file {file_path}: {e}"
     URL_EXTRACTOR_FAILED_CLEAR_YOUTUBE_CACHE_LOG_MSG = "Failed to clear YouTube cookie cache: {e}"
     
+    # Magic.py logs
+    MAGIC_ALLOWED_GROUP_CHECK_LOG_MSG = "[ALLOWED_GROUP_CHECK] chat_id={chat_id} allowed={allowed} list={list}"
+    
     # Thumbnail downloader logs
     THUMBNAIL_DOWNLOADER_VK_FAILED_LOG_MSG = "Failed to download VK thumbnail: {e}"
     THUMBNAIL_DOWNLOADER_TIKTOK_FAILED_LOG_MSG = "Failed to download TikTok thumbnail: {e}"
