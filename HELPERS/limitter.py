@@ -1,6 +1,7 @@
 from HELPERS.app_instance import get_app
 from CONFIG.config import Config
 from CONFIG.messages import Messages
+from CONFIG.logger_msg import LoggerMsg
 from HELPERS.logger import logger, get_log_channel
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from pyrogram.enums import ChatMemberStatus
@@ -44,19 +45,19 @@ def is_user_in_channel(app, message):
     except Exception:
         pass
     try:
-        logger.info(f"[CHANNEL_CHECK] Checking membership for user {message.chat.id} in channel {Config.SUBSCRIBE_CHANNEL}")
+        logger.info(LoggerMsg.LIMITTER_CHANNEL_CHECK_MEMBERSHIP_LOG_MSG.format(user_id=message.chat.id, channel=Config.SUBSCRIBE_CHANNEL))
         cht_member = app.get_chat_member(
             Config.SUBSCRIBE_CHANNEL, message.chat.id)
-        logger.info(f"[CHANNEL_CHECK] User {message.chat.id} status: {cht_member.status}")
+        logger.info(LoggerMsg.LIMITTER_CHANNEL_CHECK_STATUS_LOG_MSG.format(user_id=message.chat.id, status=cht_member.status))
         if cht_member.status == ChatMemberStatus.MEMBER or cht_member.status == ChatMemberStatus.OWNER or cht_member.status == ChatMemberStatus.ADMINISTRATOR:
-            logger.info(f"[CHANNEL_CHECK] User {message.chat.id} is member of channel")
+            logger.info(LoggerMsg.LIMITTER_CHANNEL_CHECK_IS_MEMBER_LOG_MSG.format(user_id=message.chat.id))
             return True
         else:
-            logger.info(f"[CHANNEL_CHECK] User {message.chat.id} is not member of channel")
+            logger.info(LoggerMsg.LIMITTER_CHANNEL_CHECK_NOT_MEMBER_LOG_MSG.format(user_id=message.chat.id))
             return False
 
     except Exception as e:
-        logger.error(f"Error checking channel membership for user {message.chat.id}: {e}")
+        logger.error(LoggerMsg.LIMITTER_CHANNEL_CHECK_ERROR_LOG_MSG.format(user_id=message.chat.id, error=e))
         text = f"{Config.TO_USE_MSG}\n \n{Config.CREDITS_MSG}"
         button = InlineKeyboardButton(
             Messages.CHANNEL_JOIN_BUTTON_MSG, url=Config.SUBSCRIBE_CHANNEL_URL)
@@ -231,10 +232,10 @@ def check_subs_limits(info_dict, quality_key=None):
                 logger.info(Messages.HELPER_SUBTITLE_EMBEDDING_SKIPPED_QUALITY_MSG.format(width=width, height=height, min_side=min_side, max_quality=max_quality))
                 return False
         
-        logger.info(f"Subtitle limits check passed: duration={duration}s, size={filesize} bytes, quality={width}x{height}")
+        logger.info(LoggerMsg.LIMITTER_SUBTITLE_LIMITS_CHECK_PASSED_LOG_MSG.format(duration=duration, size=filesize, width=width, height=height))
         return True
     except Exception as e:
-        logger.error(f"Error checking subtitle limits: {e}")
+        logger.error(LoggerMsg.LIMITTER_SUBTITLE_LIMITS_CHECK_ERROR_LOG_MSG.format(error=e))
         return False
 
 def check_playlist_range_limits(url, video_start_with, video_end_with, app, message):
