@@ -83,6 +83,8 @@ replace_logger.py
 update_bgutil_provider.sh
 update-yt-dlp.sh
 .cursor/
+.cursor/commands/
+.cursor/commands/cookiesfrombrowser.md
 remove_duplicate_keywords_correct.py
 remove_duplicate_keywords.py
 remove_duplicate_keywords_fast.py
