@@ -89,7 +89,7 @@ remove_duplicate_keywords_correct.py
 remove_duplicate_keywords.py
 remove_duplicate_keywords_fast.py
 lang_trans.py
-RREFACTORING_PROMPT.md
+REFACTORING_PROMPT.md
 MULTILANG_SYSTEM_REPORT.md
 translate_ar.py
 translate_in.py
