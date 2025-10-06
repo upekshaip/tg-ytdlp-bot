@@ -551,10 +551,11 @@ def download_cookie(app, message):
         ],
         [
             InlineKeyboardButton(get_messages_instance(user_id).COOKIES_VK_BUTTON_MSG, callback_data="download_cookie|vk"),
-            InlineKeyboardButton(get_messages_instance(user_id).COOKIES_CHECK_COOKIE_BUTTON_MSG, callback_data="download_cookie|check_cookie"),
+            InlineKeyboardButton(get_messages_instance(user_id).COOKIES_INSTAGRAM_BUTTON_MSG, callback_data="download_cookie|instagram"),
         ],
         [
-            InlineKeyboardButton(get_messages_instance(user_id).COOKIES_INSTAGRAM_BUTTON_MSG, callback_data="download_cookie|instagram"),
+
+            InlineKeyboardButton(get_messages_instance(user_id).COOKIES_CHECK_COOKIE_BUTTON_MSG, callback_data="download_cookie|check_cookie"),
             InlineKeyboardButton(get_messages_instance(user_id).COOKIES_YOUR_OWN_BUTTON_MSG, callback_data="download_cookie|own"),            
         ],
         [         

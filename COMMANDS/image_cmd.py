@@ -1708,7 +1708,7 @@ def image_command(app, message):
                             sent = []
                             # For paid media, only send in private chats (not groups/channels)
                             is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                            # ЖЕСТКО: При фоллбэке через fake_message определяем is_private_chat по оригинальному chat_id
+                            #  При фоллбэке через fake_message определяем is_private_chat по оригинальному chat_id
                             if hasattr(message, '_is_fake_message') and message._is_fake_message:
                                 original_chat_id = getattr(message, '_original_chat_id', user_id)
                                 # Если chat_id начинается с -100, это группа/канал (не приватный чат)
@@ -2019,7 +2019,7 @@ def image_command(app, message):
                                     
                                     # Determine correct log channel based on media type and chat type
                                     is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                                    # ЖЕСТКО: При фоллбэке через fake_message определяем is_private_chat по оригинальному chat_id
+                                    #  При фоллбэке через fake_message определяем is_private_chat по оригинальному chat_id
                                     if hasattr(message, '_is_fake_message') and message._is_fake_message:
                                         original_chat_id = getattr(message, '_original_chat_id', user_id)
                                         # Если chat_id начинается с -100, это группа/канал (не приватный чат)
@@ -2027,7 +2027,7 @@ def image_command(app, message):
                                         logger.info(LoggerMsg.IMG_LOG_FAKE_MESSAGE_DETECTED_LOG_MSG.format(original_chat_id=original_chat_id, is_private_chat=is_private_chat))
                                     is_paid_media = nsfw_flag and is_private_chat
                                     
-                                    # ЖЕСТКО: Отправка в лог-каналы должна быть ВНЕ цикла, только один раз для всего альбома
+                                    #  Отправка в лог-каналы должна быть ВНЕ цикла, только один раз для всего альбома
                                     if is_paid_media:
                                         # For NSFW content in private chat, send to both channels but don't cache
                                         # Add delay to allow Telegram to process paid media before sending to log channels
@@ -2213,7 +2213,7 @@ def image_command(app, message):
                                 
                                 # Check if we should send as paid media album
                                 is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                                # ЖЕСТКО: При фоллбэке через fake_message определяем is_private_chat по оригинальному chat_id
+                                #  При фоллбэке через fake_message определяем is_private_chat по оригинальному chat_id
                                 if hasattr(message, '_is_fake_message') and message._is_fake_message:
                                     original_chat_id = getattr(message, '_original_chat_id', user_id)
                                     # Если chat_id начинается с -100, это группа/канал (не приватный чат)
@@ -2341,7 +2341,7 @@ def image_command(app, message):
                                         # Continue with individual sending
                                 
                                 # Individual sending (fallback or single items) - group with reply_parameters
-                                # ЖЕСТКО: При фоллбэке через fake_message определяем is_private_chat по оригинальному chat_id
+                                #  При фоллбэке через fake_message определяем is_private_chat по оригинальному chat_id
                                 if hasattr(message, '_is_fake_message') and message._is_fake_message:
                                     original_chat_id = getattr(message, '_original_chat_id', user_id)
                                     # Если chat_id начинается с -100, это группа/канал (не приватный чат)
@@ -2824,7 +2824,7 @@ def image_command(app, message):
                     try:
                         # For paid media, only send in private chats (not groups/channels)
                         is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                        # ЖЕСТКО: При фоллбэке через fake_message определяем is_private_chat по оригинальному chat_id
+                        #  При фоллбэке через fake_message определяем is_private_chat по оригинальному chat_id
                         if hasattr(message, '_is_fake_message') and message._is_fake_message:
                             original_chat_id = getattr(message, '_original_chat_id', user_id)
                             # Если chat_id начинается с -100, это группа/канал (не приватный чат)

@@ -122,8 +122,9 @@ get_messages_instance().LIST_PROCESSING_MSG,
         success, output = run_ytdlp_list(url, user_id)
         
         if success:
-            # Check if any format contains "audio only" and extract format IDs
+            # Check if any format contains "audio only" and "video only" and extract format IDs
             audio_only_formats = []
+            video_only_formats = []
             lines = output.split('\n')
             for line in lines:
                 if 'audio only' in line.lower() or 'audio_only' in line.lower():
@@ -132,6 +133,12 @@ get_messages_instance().LIST_PROCESSING_MSG,
                     if parts and parts[0].isdigit():
                         format_id = parts[0]
                         audio_only_formats.append(format_id)
+                elif 'video only' in line.lower() or 'video_only' in line.lower():
+                    # Extract format ID from the line (usually at the beginning)
+                    parts = line.strip().split()
+                    if parts and parts[0].isdigit():
+                        format_id = parts[0]
+                        video_only_formats.append(format_id)
             
             # Create temporary file with output
             with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as temp_file:
@@ -157,11 +164,17 @@ get_messages_instance().LIST_PROCESSING_MSG,
                 # Send the file
                 caption = get_messages_instance().LIST_CAPTION_MSG.format(url=url, audio_note="")
                 
-                # Add special note for audio-only formats
-                if audio_only_formats:
-                    caption += get_messages_instance().LIST_AUDIO_FORMATS_MSG.format(formats=', '.join(audio_only_formats))
+                # Add video-only formats info first
+                if video_only_formats:
+                    video_formats_text = ', '.join([f'<code>{fmt}</code>' for fmt in video_only_formats])
+                    caption += f"\n{get_messages_instance().LIST_VIDEO_ONLY_FORMATS_MSG.format(formats=video_formats_text)}"
                 
-                caption += f"📋 Use format ID from the list above"
+                # Add special note for audio-only formats with monospace formatting
+                if audio_only_formats:
+                    audio_formats_text = ', '.join([f'<code>{fmt}</code>' for fmt in audio_only_formats])
+                    caption += get_messages_instance().LIST_AUDIO_FORMATS_MSG.format(formats=audio_formats_text)
+                
+                caption += f"\n{get_messages_instance().LIST_USE_FORMAT_ID_MSG}"
                 
                 app.send_document(
                     user_id,
@@ -208,5 +221,5 @@ def list_help_callback(app, callback_query):
             callback_query.message.delete()
             callback_query.answer(get_messages_instance().HELP_CLOSED_MSG)
     except Exception as e:
-        logger.error(f"{LoggerMsg.LIST_ERROR_IN_HELP_CALLBACK_LOG_MSG}")
+        logger.error("Error in list help callback")
         callback_query.answer(get_messages_instance().LIST_ERROR_CALLBACK_MSG, show_alert=True)

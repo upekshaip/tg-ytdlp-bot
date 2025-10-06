@@ -88,6 +88,14 @@ update-yt-dlp.sh
 remove_duplicate_keywords_correct.py
 remove_duplicate_keywords.py
 remove_duplicate_keywords_fast.py
+lang_trans.py
+REFACORING_PROMPT.md
+MULTILANG_SYSTEM_REPORT.md
+translate_ar.py
+translate_hi.py
+translate_ru.py
+translate_en.py
+translate_messages.py
 
 # Configs with secrets (do not commit)
 CONFIG/config.py

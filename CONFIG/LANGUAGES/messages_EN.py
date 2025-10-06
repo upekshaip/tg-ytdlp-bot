@@ -682,6 +682,8 @@ Use:
     LIST_FORMAT_EXAMPLE_140_AUDIO_SHORT = "• /format id140 audio - same as above\n"
     LIST_AUDIO_FORMATS_DETECTED = "🎵 Audio-only formats detected: {formats}\n"
     LIST_AUDIO_FORMATS_NOTE = "These formats will be downloaded as MP3 audio files.\n"
+    LIST_VIDEO_ONLY_FORMATS_MSG = "🎬 <b>Video-only formats:</b> {formats}\n"
+    LIST_USE_FORMAT_ID_MSG = "📋 Use format ID from the list above"
     
     # Link command messages
     LINK_USAGE_MSG = (
@@ -1864,8 +1866,8 @@ Use:
     AA_ERROR_GETTING_LINK_MSG = "❌ <b>Error getting link:</b>\n{error_msg}"
     AA_ERROR_SENDING_FORMATS_MSG = "❌ Error sending formats file: {error}"
     AA_FAILED_GET_FORMATS_MSG = "❌ Failed to get formats:\n<code>{output}</code>"
-    AA_PROCESSING_WAIT_MSG = "🔄 Processing... (wait 6 sec)"
-    AA_PROCESSING_MSG = "🔄 Processing..."
+    AA_PROCESSING_WAIT_MSG = "🔎 Analyzing... (wait 6 sec)"
+    AA_PROCESSING_MSG = "🔎 Analyzing..."
     AA_TAG_FORBIDDEN_CHARS_MSG = "❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}"
     
     # Helper limitter messages

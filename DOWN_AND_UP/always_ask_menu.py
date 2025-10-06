@@ -306,6 +306,10 @@ def extract_button_data(format_line):
 _ASK_FILTERS = {}
 _ASK_INFO_CACHE_FILE = "ask_formats.json"
 _ASK_SUBS_LANGS_PREFIX = "ask_subs_"
+# Store download directories for each user session
+_USER_DOWNLOAD_DIRS = {}
+# Store processing messages for each user session
+_PROC_MSG_CACHE = {}
 
 def get_filters(user_id):
     f = _ASK_FILTERS.get(str(user_id))
@@ -314,6 +318,122 @@ def get_filters(user_id):
         f = {"codec": "avc1", "ext": "mp4", "visible": False, "audio_lang": None, "has_dubs": False, "available_dubs": []}
         _ASK_FILTERS[str(user_id)] = f
     return f
+
+def set_user_download_dir(user_id, download_dir):
+    """Set download directory for user session"""
+    _USER_DOWNLOAD_DIRS[str(user_id)] = download_dir
+
+def get_user_download_dir(user_id):
+    """Get download directory for user session"""
+    return _USER_DOWNLOAD_DIRS.get(str(user_id))
+
+def set_user_proc_msg(user_id, proc_msg):
+    """Set processing message for user session"""
+    _PROC_MSG_CACHE[str(user_id)] = proc_msg
+
+def get_user_proc_msg(user_id):
+    """Get processing message for user session"""
+    return _PROC_MSG_CACHE.get(str(user_id))
+
+def clear_user_proc_msg(user_id):
+    """Clear processing message for user session"""
+    _PROC_MSG_CACHE.pop(str(user_id), None)
+
+def copy_cookies_to_download_dir(user_id, download_dir):
+    """Copy cookies from user root directory to download directory"""
+    try:
+        if not download_dir or not os.path.exists(download_dir):
+            return False
+            
+        user_dir = os.path.join("users", str(user_id))
+        cookie_file = os.path.join(user_dir, "cookie.txt")
+        
+        if os.path.exists(cookie_file):
+            import shutil
+            download_cookie_file = os.path.join(download_dir, "cookie.txt")
+            shutil.copy2(cookie_file, download_cookie_file)
+            logger.info(f"Copied cookies to download directory: {download_cookie_file}")
+            return True
+        return False
+    except Exception as e:
+        logger.warning(f"Failed to copy cookies to download directory: {e}")
+        return False
+
+def generate_download_dir_name(url):
+    """Generate download directory name based on URL with minimal sanitization - only replace unsupported characters"""
+    try:
+        from urllib.parse import urlparse
+        import re
+        
+        parsed = urlparse(url)
+        domain = parsed.netloc.lower()
+        if domain.startswith('www.'):
+            domain = domain[4:]
+        
+        # Start with domain
+        dir_name = domain
+        
+        # Add path if exists and not just '/'
+        if parsed.path and parsed.path != '/':
+            path = parsed.path.strip('/')
+            # Remove file extension if present
+            path = re.sub(r'\.[a-zA-Z0-9]+$', '', path)
+            if path:
+                dir_name += f"_{path}"
+        
+        # Add query parameters if exist
+        if parsed.query:
+            # Add first few query parameters for all sites
+            query_parts = parsed.query.split('&')[:3]
+            for part in query_parts:
+                if '=' in part:
+                    key, value = part.split('=', 1)
+                    # Only replace truly problematic characters, keep most symbols
+                    key = re.sub(r'[^\w\-_.]', '_', key)
+                    value = re.sub(r'[^\w\-_.]', '_', value)
+                    dir_name += f"_{key}_{value}"
+        
+        # Only replace characters that are truly problematic for filesystem
+        # Keep letters, numbers, hyphens, underscores, dots
+        dir_name = re.sub(r'[^\w\-_.]', '_', dir_name)
+        
+        # Clean up multiple underscores
+        dir_name = re.sub(r'_+', '_', dir_name)
+        dir_name = dir_name.strip('_')
+        
+        # Limit length to reasonable size
+        if len(dir_name) > 150:
+            # Keep domain and first part, truncate rest
+            parts = dir_name.split('_')
+            if len(parts) > 1:
+                domain_part = parts[0]
+                remaining = '_'.join(parts[1:])
+                if len(remaining) > 100:
+                    remaining = remaining[:100]
+                dir_name = f"{domain_part}_{remaining}"
+            else:
+                dir_name = dir_name[:150]
+        
+        # Ensure we have something
+        if not dir_name or dir_name == '_':
+            import hashlib
+            url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
+            dir_name = f"{domain}_{url_hash}"
+        
+        return dir_name
+    except Exception as e:
+        logger.warning(f"Failed to generate download directory name: {e}")
+        try:
+            from urllib.parse import urlparse
+            import hashlib
+            parsed = urlparse(url)
+            domain = parsed.netloc.lower()
+            if domain.startswith('www.'):
+                domain = domain[4:]
+            url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
+            return f"{domain}_{url_hash}"
+        except:
+            return "unknown"
 
 def set_filter(user_id, kind, value):
     f = get_filters(user_id)
@@ -374,31 +494,66 @@ def delete_subs_langs_cache(user_id: int, url: str) -> None:
     except Exception:
         pass
 
-def save_ask_info(user_id, url, info):
+def save_ask_info(user_id, url, info, download_dir=None):
     try:
-        path = _ask_cache_path(user_id)
-        data = {}
-        if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        data[url] = {
-            "title": info.get("title"),
-            "id": info.get("id"),
-            "formats": info.get("formats", [])
-        }
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+        # Use stored download directory if not provided
+        if download_dir is None:
+            download_dir = get_user_download_dir(user_id)
+        
+        # Create ask_formats.json directly in download directory if available
+        if download_dir and os.path.exists(download_dir):
+            download_ask_file = os.path.join(download_dir, _ASK_INFO_CACHE_FILE)
+            data = {}
+            if os.path.exists(download_ask_file):
+                with open(download_ask_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            data[url] = {
+                "title": info.get("title"),
+                "id": info.get("id"),
+                "formats": info.get("formats", [])
+            }
+            with open(download_ask_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            logger.info(f"Created ask_formats.json in download directory: {download_ask_file}")
+        else:
+            # Fallback to user root directory if download directory not available
+            path = _ask_cache_path(user_id)
+            data = {}
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            data[url] = {
+                "title": info.get("title"),
+                "id": info.get("id"),
+                "formats": info.get("formats", [])
+            }
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            logger.info(f"Created ask_formats.json in user directory: {path}")
+    except Exception as e:
+        logger.warning(f"Failed to save ask_formats.json: {e}")
 
 def load_ask_info(user_id, url):
     try:
+        # First try to find ask_formats.json in download directory
+        download_dir = get_user_download_dir(user_id)
+        if download_dir and os.path.exists(download_dir):
+            download_cache_file = os.path.join(download_dir, _ASK_INFO_CACHE_FILE)
+            if os.path.exists(download_cache_file):
+                with open(download_cache_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                logger.info(f"Using ask_formats.json from download directory: {download_cache_file}")
+                return data.get(url)
+        
+        # Fallback to user root directory
         path = _ask_cache_path(user_id)
         if os.path.exists(path):
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
+            logger.info(f"Using ask_formats.json from user directory: {path}")
             return data.get(url)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to load ask_formats.json: {e}")
         return None
     return None
 
@@ -622,13 +777,25 @@ def ask_filter_callback(app, callback_query):
         except Exception:
             pass
 
-def get_available_formats_from_cache(user_id, url):
+def get_available_formats_from_cache(user_id, url, download_dir=None):
     """Get available codecs and formats from ask_formats.json cache"""
     try:
-        user_dir = os.path.join("users", str(user_id))
-        cache_file = os.path.join(user_dir, _ASK_INFO_CACHE_FILE)
+        # First try to find ask_formats.json in download directory
+        cache_file = None
+        if download_dir and os.path.exists(download_dir):
+            download_cache_file = os.path.join(download_dir, _ASK_INFO_CACHE_FILE)
+            if os.path.exists(download_cache_file):
+                cache_file = download_cache_file
+                logger.info(f"Using ask_formats.json from download directory: {download_cache_file}")
         
-        if not os.path.exists(cache_file):
+        # Fallback to user root directory
+        if not cache_file:
+            user_dir = os.path.join("users", str(user_id))
+            cache_file = os.path.join(user_dir, _ASK_INFO_CACHE_FILE)
+            if os.path.exists(cache_file):
+                logger.info(f"Using ask_formats.json from user directory: {cache_file}")
+        
+        if not cache_file or not os.path.exists(cache_file):
             return {"codecs": set(), "formats": set()}
         
         with open(cache_file, 'r', encoding='utf-8') as f:
@@ -666,7 +833,7 @@ def get_available_formats_from_cache(user_id, url):
         logger.warning(f"{LoggerMsg.ALWAYS_ASK_ERROR_READING_AVAILABLE_FORMATS_FROM_CACHE_LOG_MSG}: {e}")
         return {"codecs": set(), "formats": set()}
 
-def filter_qualities_by_codec_format(user_id, url, qualities):
+def filter_qualities_by_codec_format(user_id, url, qualities, download_dir=None):
     """Filter qualities based on selected codec and format"""
     try:
         # Get current filters
@@ -675,7 +842,8 @@ def filter_qualities_by_codec_format(user_id, url, qualities):
         selected_format = f.get("ext", "mp4")
         
         # Get available formats from cache
-        available_formats = get_available_formats_from_cache(user_id, url)
+        user_download_dir = get_user_download_dir(user_id) if download_dir is None else download_dir
+        available_formats = get_available_formats_from_cache(user_id, url, user_download_dir)
         
         # If no cache or no specific formats available, return all qualities
         if not available_formats["codecs"] and not available_formats["formats"]:
@@ -767,7 +935,7 @@ def set_link_mode(user_id, enabled):
         logger.error(f"{LoggerMsg.ALWAYS_ASK_ERROR_SETTING_LINK_MODE_LOG_MSG} {user_id}: {e}")
         return False
 
-def build_filter_rows(user_id, url=None, is_private_chat=False):
+def build_filter_rows(user_id, url=None, is_private_chat=False, download_dir=None):
     from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     f = get_filters(user_id)
     codec = f.get("codec", "avc1")
@@ -795,7 +963,8 @@ def build_filter_rows(user_id, url=None, is_private_chat=False):
     # Get available formats from cache if URL is provided
     available_formats = {"codecs": set(), "formats": set()}
     if url:
-        available_formats = get_available_formats_from_cache(user_id, url)
+        user_download_dir = get_user_download_dir(user_id) if download_dir is None else download_dir
+        available_formats = get_available_formats_from_cache(user_id, url, user_download_dir)
     
     # When filters are hidden – show compact row with CODEC + audio (+ optional DUBS, SUBS)
     if not visible:
@@ -945,6 +1114,9 @@ def askq_callback(app, callback_query):
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]
     found_type = None
+    
+    # Get processing message from cache (created in ask_quality_menu)
+    proc_msg = get_user_proc_msg(user_id)
     if data == "close":
         # Clean up old format cache files before closing menu
         try:
@@ -1101,8 +1273,9 @@ def askq_callback(app, callback_query):
         success, output = run_ytdlp_list(url, user_id)
         
         if success:
-            # Check if any format contains "audio only" and extract format IDs
+            # Check if any format contains "audio only" and "video only" and extract format IDs
             audio_only_formats = []
+            video_only_formats = []
             lines = output.split('\n')
             for line in lines:
                 if 'audio only' in line.lower() or 'audio_only' in line.lower():
@@ -1111,6 +1284,12 @@ def askq_callback(app, callback_query):
                     if parts and parts[0].isdigit():
                         format_id = parts[0]
                         audio_only_formats.append(format_id)
+                elif 'video only' in line.lower() or 'video_only' in line.lower():
+                    # Extract format ID from the line (usually at the beginning)
+                    parts = line.strip().split()
+                    if parts and parts[0].isdigit():
+                        format_id = parts[0]
+                        video_only_formats.append(format_id)
             
             # Create temporary file with output
             import tempfile
@@ -1142,9 +1321,15 @@ def askq_callback(app, callback_query):
                 caption += f"{get_messages_instance().ALWAYS_ASK_FORMAT_BEST_MSG}\n"
                 caption += f"{get_messages_instance().ALWAYS_ASK_FORMAT_ASK_MSG}\n\n"
                 
-                # Add special note for audio-only formats
+                # Add video-only formats info first
+                if video_only_formats:
+                    video_formats_text = ', '.join([f'<code>{fmt}</code>' for fmt in video_only_formats])
+                    caption += f"\n{get_messages_instance().LIST_VIDEO_ONLY_FORMATS_MSG.format(formats=video_formats_text)}\n"
+                
+                # Add special note for audio-only formats with monospace formatting
                 if audio_only_formats:
-                    caption += f"{get_messages_instance().ALWAYS_ASK_AUDIO_ONLY_FORMATS_MSG}: {', '.join(audio_only_formats)}\n"
+                    audio_formats_text = ', '.join([f'<code>{fmt}</code>' for fmt in audio_only_formats])
+                    caption += f"{get_messages_instance().ALWAYS_ASK_AUDIO_ONLY_FORMATS_MSG}: {audio_formats_text}\n"
                     caption += f"{get_messages_instance().ALWAYS_ASK_FORMAT_ID_140_AUDIO_CAPTION_MSG}\n"
                     caption += f"{get_messages_instance().ALWAYS_ASK_THESE_WILL_BE_MP3_MSG}\n\n"
                 
@@ -1682,9 +1867,13 @@ def askq_callback(app, callback_query):
         if is_playlist_with_range(original_text):
             _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(original_text)
             video_count = video_end_with - video_start_with + 1
+            # Delete processing message before starting download
+            delete_processing_message(app, user_id, proc_msg)
             down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=format_id, cookies_already_checked=True)
         else:
-                            down_and_up_with_format(app, original_message, url, format_override, tags_text, quality_key=format_id)
+            # Delete processing message before starting download
+            delete_processing_message(app, user_id, proc_msg)
+            down_and_up_with_format(app, original_message, url, format_override, tags_text, quality_key=format_id, proc_msg=proc_msg)
         return
     
     # Handle manual quality selection
@@ -1724,6 +1913,8 @@ def askq_callback(app, callback_query):
         if quality == "best":
             format_override = "bv*[vcodec*=avc1]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bv+ba/best"
         elif quality == "mp3":
+            # Delete processing message before starting download
+            delete_processing_message(app, user_id, proc_msg)
             down_and_audio(app, original_message, url, tags, quality_key="mp3", format_override="ba", cookies_already_checked=True)
             return
         else:
@@ -1758,9 +1949,13 @@ def askq_callback(app, callback_query):
         if is_playlist_with_range(original_text):
             _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(original_text)
             video_count = video_end_with - video_start_with + 1
+            # Delete processing message before starting download
+            delete_processing_message(app, user_id, proc_msg)
             down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=quality, cookies_already_checked=True)
         else:
-                            down_and_up_with_format(app, original_message, url, format_override, tags_text, quality_key=quality)
+            # Delete processing message before starting download
+            delete_processing_message(app, user_id, proc_msg)
+            down_and_up_with_format(app, original_message, url, format_override, tags_text, quality_key=quality, proc_msg=proc_msg)
         return
 
     original_message = callback_query.message.reply_to_message
@@ -1927,6 +2122,8 @@ def askq_callback(app, callback_query):
                 new_count = new_end - new_start + 1
                 
                 if data == "mp3":
+                    # Delete processing message before starting download
+                    delete_processing_message(app, user_id, proc_msg)
                     down_and_audio(app, original_message, url, tags, quality_key=used_quality_key, playlist_name=playlist_name, video_count=new_count, video_start_with=new_start, format_override="ba", cookies_already_checked=True)
                 else:
                     try:
@@ -1959,6 +2156,8 @@ def askq_callback(app, callback_query):
                         logger.error(f"askq_callback: error forming format: {e}")
                         format_override = "bestvideo+bestaudio/best/bv+ba/best"
                     
+                    # Delete processing message before starting download
+                    delete_processing_message(app, user_id, proc_msg)
                     down_and_up(app, original_message, url, playlist_name, new_count, new_start, tags_text, force_no_title=False, format_override=format_override, quality_key=used_quality_key, cookies_already_checked=True)
             else:
                 # All videos were in the cache
@@ -1971,6 +2170,8 @@ def askq_callback(app, callback_query):
             # If there is no cache at all - download everything again
             logger.info(f"askq_callback: no cache found for any quality, starting new download")
             if data == "mp3":
+                # Delete processing message before starting download
+                delete_processing_message(app, user_id, proc_msg)
                 down_and_audio(app, original_message, url, tags, quality_key=data, playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with, format_override="ba", cookies_already_checked=True)
             else:
                 try:
@@ -2002,6 +2203,8 @@ def askq_callback(app, callback_query):
                 except ValueError:
                     format_override = "bestvideo+bestaudio/best/bv+ba/best"
                 
+                # Delete processing message before starting download
+                delete_processing_message(app, user_id, proc_msg)
                 down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=data, cookies_already_checked=True)
             return
     # --- other logic for single files ---
@@ -2122,7 +2325,7 @@ def askq_callback(app, callback_query):
                     logger.info("Video with subtitles (real subs found and needed) is not cached!")
                 # Don't show error message if we successfully got video from cache
                 # The video was already sent successfully in the try block
-                askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs)
+                askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs, proc_msg)
             
             # Удаляем Always Ask меню после обработки
             try:
@@ -2135,7 +2338,7 @@ def askq_callback(app, callback_query):
             logger.info(f"[VIDEO CACHE] Skipping cache check because Always Ask mode is enabled: url={url}, quality={data}")
         else:
             logger.info(f"[VIDEO CACHE] Skipping cache check because need_subs=True: url={url}, quality={data}")
-    askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs)
+    askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs, proc_msg)
     
     # Удаляем Always Ask меню после обработки
     try:
@@ -3143,13 +3346,48 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         return False
 
 # @reply_with_keyboard
-def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
+def delete_processing_message(app, user_id, proc_msg):
+    """Delete processing message if it exists"""
+    if proc_msg:
+        try:
+
+            logger.info(f"Deleting processing message {proc_msg.id} for user {user_id}")
+            from HELPERS.safe_messeger import safe_delete_messages
+            safe_delete_messages(chat_id=user_id, message_ids=[proc_msg.id], revoke=True)
+            logger.info(f"Successfully deleted processing message {proc_msg.id}")
+            # Clear from cache after successful deletion
+            clear_user_proc_msg(user_id)
+        except Exception as e:
+            logger.warning(f"Failed to delete processing message: {e}")
+    else:
+        logger.warning(f"proc_msg is None for user {user_id}, cannot delete processing message")
+
+def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, download_dir=None):
     """Show quality selection menu for video"""
     from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     user_id = message.chat.id
     proc_msg = None
     # Defensive init to avoid UnboundLocalError in rare branches
     action_buttons = []
+    
+    # Create download directory if not provided
+    if download_dir is None:
+        try:
+            user_dir = os.path.join("users", str(user_id))
+            os.makedirs(user_dir, exist_ok=True)
+            
+            # Generate download directory name based on URL
+            dir_name = generate_download_dir_name(url)
+            download_dir = os.path.join(user_dir, "downloads", dir_name)
+            os.makedirs(download_dir, exist_ok=True)
+            logger.info(f"Created download directory for ask_quality_menu: {download_dir}")
+            # Store download directory for this user session
+            set_user_download_dir(user_id, download_dir)
+            # Copy cookies to download directory
+            copy_cookies_to_download_dir(user_id, download_dir)
+        except Exception as e:
+            logger.warning(f"Failed to create download directory in ask_quality_menu: {e}")
+            download_dir = None
     
     # Clean up old format cache files before starting
     try:
@@ -3232,6 +3470,8 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         subs_enabled = is_subs_enabled(user_id)
         processing_text = get_messages_instance().AA_PROCESSING_WAIT_MSG if subs_enabled else get_messages_instance().AA_PROCESSING_MSG
         proc_msg = app.send_message(user_id, processing_text, reply_parameters=ReplyParameters(message_id=message.id), reply_markup=get_main_reply_keyboard())
+        # Save processing message to cache for deletion when download starts
+        set_user_proc_msg(user_id, proc_msg)
         original_text = message.text or message.caption or ""
         is_playlist = is_playlist_with_range(original_text)
         playlist_range = None
@@ -3343,13 +3583,21 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         # Check if we're in a private chat (paid media only works in private chats)
         is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
         thumb_path = None
-        user_dir = os.path.join("users", str(user_id))
-        create_directory(user_dir)
+        # Use download directory if available, otherwise fallback to user directory
+        download_dir = get_user_download_dir(user_id)
+        if download_dir and os.path.exists(download_dir):
+            thumb_dir = download_dir
+        else:
+            thumb_dir = os.path.join("users", str(user_id))
+            create_directory(thumb_dir)
+        
         if ("youtube.com" in url or "youtu.be" in url) and video_id:
-            thumb_path = os.path.join(user_dir, f"yt_thumb_{video_id}.jpg")
+            thumb_path = os.path.join(thumb_dir, f"yt_thumb_{video_id}.jpg")
             try:
                 download_thumbnail(video_id, thumb_path, url)
-            except Exception:
+                logger.info(f"Downloaded thumbnail to download directory: {thumb_path}")
+            except Exception as e:
+                logger.warning(f"Failed to download thumbnail: {e}")
                 thumb_path = None
         else:
             # Try to download thumbnail for non-YouTube services
@@ -4721,7 +4969,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None):
         log_error_to_channel(message, get_messages_instance().ALWAYS_ASK_MENU_ERROR_LOG_MSG.format(url=url, error=str(e)), url)
         return
 
-def askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs):
+def askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs, proc_msg=None):
     user_id = callback_query.from_user.id
     tags = tags_text.split() if tags_text else []
     
@@ -4810,6 +5058,8 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
         full_string = original_message.text or original_message.caption or ""
         _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
         video_count = video_end_with - video_start_with + 1
+        # Delete processing message before starting download
+        delete_processing_message(app, user_id, proc_msg)
         down_and_audio(app, original_message, url, tags, quality_key="mp3", playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with, format_override="ba", cookies_already_checked=True)
         return
     
@@ -4940,7 +5190,9 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
             callback_query.answer("Unknown quality.")
             return
     
-    down_and_up_with_format(app, original_message, url, fmt, tags_text, quality_key=quality_key)
+    # Delete processing message before starting download
+    delete_processing_message(app, user_id, proc_msg)
+    down_and_up_with_format(app, original_message, url, fmt, tags_text, quality_key=quality_key, proc_msg=proc_msg)
 
 def analyze_format_type(format_info):
     """
@@ -4998,7 +5250,8 @@ def get_complementary_audio_format(video_format_info, all_formats):
 
 # --- an auxiliary function for downloading with the format ---
 # @reply_with_keyboard
-def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None):
+def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None, proc_msg=None):
+    user_id = message.chat.id
 
     # We extract the range and other parameters from the original user message
     full_string = message.text or message.caption or ""
@@ -5087,6 +5340,8 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
     logger.info(f"Checking format: {fmt} for /bestaudio")
     if fmt and '/bestaudio' in fmt:
         logger.info(f"Audio-only format detected: {fmt}, redirecting to down_and_audio")
+        # Delete processing message before starting download
+        delete_processing_message(app, user_id, proc_msg)
         down_and_audio(app, message, url, tags_text, quality_key=quality_key, format_override=fmt, cookies_already_checked=True)
         return
 
@@ -5114,6 +5369,8 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
                 if format_type == 'audio_only':
                     # Use audio download function with the selected format
                     # Pass cookies_already_checked=True since we already checked cookies in get_video_formats
+                    # Delete processing message before starting download
+                    delete_processing_message(app, user_id, proc_msg)
                     down_and_audio(app, message, url, tags_text, quality_key=quality_key, format_override=fmt, cookies_already_checked=True)
                     return
                 
@@ -5139,6 +5396,8 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
 
     # We call the main function of loading with the correct parameters of the playlist
     # Pass cookies_already_checked=True since we already checked cookies in get_video_formats
+    # Delete processing message before starting download
+    delete_processing_message(app, user_id, proc_msg)
     down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=is_tiktok, format_override=fmt, quality_key=quality_key, cookies_already_checked=True)
     # Cleanup temp subs languages cache after we kicked off download
     try:
@@ -5148,9 +5407,16 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
 
     # Save detected qualities per filters to a per-user file for all services
     try:
-        user_dir = os.path.join("users", str(user_id))
-        create_directory(user_dir)
-        qfile = os.path.join(user_dir, "available_qualities.txt")
+        # Use download directory if available, otherwise fallback to user directory
+        download_dir = get_user_download_dir(user_id)
+        if download_dir and os.path.exists(download_dir):
+            qfile = os.path.join(download_dir, "available_qualities.txt")
+            logger.info(f"Saving available_qualities.txt to download directory: {qfile}")
+        else:
+            user_dir = os.path.join("users", str(user_id))
+            create_directory(user_dir)
+            qfile = os.path.join(user_dir, "available_qualities.txt")
+            logger.info(f"Saving available_qualities.txt to user directory: {qfile}")
         
         # Get current filters
         filters_state = get_filters(user_id)
@@ -5176,6 +5442,6 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None)
         import json as _json
         with open(qfile, "w", encoding="utf-8") as f:
             f.write(_json.dumps(payload, ensure_ascii=False, indent=2))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to save available_qualities.txt: {e}")
     

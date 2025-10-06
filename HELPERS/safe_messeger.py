@@ -489,3 +489,43 @@ def schedule_delete_message(chat_id, message_id, delete_after_seconds=60):
         return True
     except Exception:
         return False
+
+def schedule_delete_processing_messages(chat_id, delete_after_seconds=5):
+    """
+    Schedule deletion of all "Processing..." messages for a user after a delay.
+    This helps clean up duplicate processing messages.
+
+    Args:
+        chat_id: The chat ID
+        delete_after_seconds: Seconds to wait before deleting
+    Returns:
+        True if scheduled, False otherwise
+    """
+    try:
+        if not chat_id:
+            return False
+
+        def _del_processing_messages():
+            try:
+                logger.info(f"[AUTO-DELETE] Scheduling deletion of all processing messages for user {chat_id} in {delete_after_seconds} seconds")
+                time.sleep(delete_after_seconds)
+                
+                # Get app instance
+                app = get_app_safe()
+                if not app:
+                    logger.error("[AUTO-DELETE] Cannot get app instance for deleting processing messages")
+                    return
+                
+                # Bots cannot use get_chat_history, so we'll skip this functionality
+                # Instead, we'll rely on the individual message deletion that's already scheduled
+                logger.info(f"[AUTO-DELETE] Skipping chat history scan for user {chat_id} (bots cannot use get_chat_history)")
+                logger.info(f"[AUTO-DELETE] Individual processing messages will be deleted by their own timers")
+                    
+            except Exception as e:
+                logger.error(f"[AUTO-DELETE] Error while deleting processing messages for user {chat_id}: {e}")
+
+        t = threading.Thread(target=_del_processing_messages, daemon=True)
+        t.start()
+        return True
+    except Exception:
+        return False

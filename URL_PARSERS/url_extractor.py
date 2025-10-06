@@ -121,44 +121,87 @@ def url_distractor(app, message):
 
     if text in emoji_to_command:
         mapped = emoji_to_command[text]
-        # Special case: headphones emoji should show audio usage hint
-        if mapped == Config.AUDIO_COMMAND:
-            from HELPERS.safe_messeger import safe_send_message
-            from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-            from CONFIG.messages import get_messages_instance
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton(get_messages_instance(user_id).URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="audio_hint|close")]
-            ])
-            safe_send_message(
-                message.chat.id,
-                get_messages_instance(user_id).URL_EXTRACTOR_AUDIO_HINT_MSG,
-                message=message,
-                reply_markup=keyboard
-            )
-            return
         # Emulate a user command for the mapped emoji
         from HELPERS.safe_messeger import fake_message
         fake_msg = fake_message(mapped, user_id)
         fake_msg._is_emoji_command = True  # Mark as emoji command to prevent recursion
         
+        # Special case: headphones emoji should work exactly like /audio command
+        if mapped == Config.AUDIO_COMMAND:
+            from COMMANDS.other_handlers import audio_command_handler
+            return audio_command_handler(app, fake_msg)
+        
         # Import and call the appropriate command handler directly
         if mapped == Config.CLEAN_COMMAND:
             # For clean command, call the clean command without arguments - EXACT SAME LOGIC as /clean
-            from HELPERS.filesystem_hlp import remove_media
             from COMMANDS.subtitles_cmd import clear_subs_check_cache
             from COMMANDS.cookies_cmd import clear_youtube_cookie_cache
             from CONFIG.messages import get_messages_instance
+            import os
+            import shutil
             
-            logger.info(f"🧹 Emoji triggered - cleaning media files for user {user_id}")
-            # Regular command /clean - delete only media files with filtering
-            remove_media(fake_msg, force_clean=True)
-            send_to_all(fake_msg, get_messages_instance(user_id).URL_EXTRACTOR_ALL_MEDIA_FILES_REMOVED_MSG)
+            logger.info(f"🧹 Emoji triggered - cleaning all files and folders for user {user_id}")
+            
+            # EXACT SAME LOGIC as /clean without arguments
+            user_dir = f'./users/{str(fake_msg.chat.id)}'
+            if not os.path.exists(user_dir):
+                send_to_all(fake_msg, get_messages_instance(user_id).URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
+                clear_subs_check_cache()
+                return
+
+            removed_items = []
+            allitems = os.listdir(user_dir)
+
+            # Delete all files and folders in the user folder (except protected files)
+            def scan_and_remove_recursive_emoji(path, prefix=""):
+                """Recursively scan and remove files/folders, building a detailed structure list (emoji version)"""
+                items = []
+                try:
+                    if os.path.isfile(path):
+                        if os.path.basename(path) not in ["keyboard.txt", "tags.txt", "logs.txt"]:
+                            os.remove(path)
+                            items.append(f"{prefix}📄 {os.path.basename(path)}")
+                            logger.info(f"Removed file: {path}")
+                    elif os.path.isdir(path):
+                        # First, scan contents of the directory
+                        dir_items = []
+                        try:
+                            for subitem in os.listdir(path):
+                                subitem_path = os.path.join(path, subitem)
+                                sub_items = scan_and_remove_recursive_emoji(subitem_path, prefix + "  ")
+                                dir_items.extend(sub_items)
+                        except Exception as e:
+                            logger.error(f"Error scanning directory {path}: {e}")
+                        
+                        # Then remove the directory itself
+                        shutil.rmtree(path)
+                        items.append(f"{prefix}📁 {os.path.basename(path)}/")
+                        items.extend(dir_items)
+                        logger.info(f"Removed directory: {path}")
+                except Exception as e:
+                    logger.error(f"Failed to remove {path}: {e}")
+                return items
+            
+            for item in allitems:
+                item_path = os.path.join(user_dir, item)
+                if item not in ["keyboard.txt", "tags.txt", "logs.txt"]:
+                    sub_items = scan_and_remove_recursive_emoji(item_path)
+                    removed_items.extend(sub_items)
+
+            # Clear YouTube cookie validation cache for this user
             try:
                 clear_youtube_cookie_cache(fake_msg.chat.id)
             except Exception as e:
                 logger.error(f"Failed to clear YouTube cookie cache: {e}")
+            
+            if removed_items:
+                items_list = "\n".join([f"• {item}" for item in removed_items])
+                send_to_all(fake_msg, get_messages_instance(user_id).URL_EXTRACTOR_ALL_FILES_REMOVED_MSG.format(files_list=items_list))
+            else:
+                send_to_all(fake_msg, get_messages_instance(user_id).URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
+            
             clear_subs_check_cache()
-            logger.info(f"🧹 Emoji completed - media files cleaned for user {user_id}")
+            logger.info(f"🧹 Emoji completed - all files and folders cleaned for user {user_id}")
             return
         elif mapped == Config.DOWNLOAD_COOKIE_COMMAND:
             # For cookies command, we need to show the menu
@@ -185,9 +228,6 @@ def url_distractor(app, message):
         elif mapped == Config.SPLIT_COMMAND:
             from COMMANDS.split_sizer import split_command
             return split_command(app, fake_msg)
-        elif mapped == Config.AUDIO_COMMAND:
-            from COMMANDS.other_handlers import audio_command_handler
-            return audio_command_handler(app, fake_msg)
         elif mapped == Config.SUBS_COMMAND:
             from COMMANDS.subtitles_cmd import subs_command
             return subs_command(app, fake_msg)
@@ -679,6 +719,7 @@ def url_distractor(app, message):
         elif clean_args == "subs":
             remove_media(message, only=["subs.txt"])
             send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_CLEAN_SUBS_SETTINGS_REMOVED_MSG)
+            from COMMANDS.subtitles_cmd import clear_subs_check_cache
             clear_subs_check_cache()
             return
         elif clean_args == "keyboard":
@@ -702,26 +743,52 @@ def url_distractor(app, message):
             send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_CLEAN_FLOOD_WAIT_SETTINGS_REMOVED_MSG)
             return
         elif clean_args == "all":
-            # Delete all files and display the list of deleted ones
+            # Delete all files and folders and display the list of deleted ones (NO EXCEPTIONS)
+            import os
+            import shutil
             user_dir = f'./users/{str(message.chat.id)}'
             if not os.path.exists(user_dir):
                 send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
+                from COMMANDS.subtitles_cmd import clear_subs_check_cache
                 clear_subs_check_cache()
                 return
 
-            removed_files = []
-            allfiles = os.listdir(user_dir)
+            removed_items = []
+            allitems = os.listdir(user_dir)
 
-            # Delete all files in the user folder (except keyboard.txt)
-            for file in allfiles:
-                file_path = os.path.join(user_dir, file)
+            # Delete ALL files and folders in the user folder (NO EXCEPTIONS)
+            def scan_and_remove_recursive_all(path, prefix=""):
+                """Recursively scan and remove files/folders, building a detailed structure list (NO EXCEPTIONS)"""
+                items = []
                 try:
-                    if os.path.isfile(file_path) and file != "keyboard.txt":
-                        os.remove(file_path)
-                        removed_files.append(file)
-                        logger.info(LoggerMsg.URL_EXTRACTOR_REMOVED_FILE_LOG_MSG.format(file_path=file_path))
+                    if os.path.isfile(path):
+                        os.remove(path)
+                        items.append(f"{prefix}📄 {os.path.basename(path)}")
+                        logger.info(LoggerMsg.URL_EXTRACTOR_REMOVED_FILE_LOG_MSG.format(file_path=path))
+                    elif os.path.isdir(path):
+                        # First, scan contents of the directory
+                        dir_items = []
+                        try:
+                            for subitem in os.listdir(path):
+                                subitem_path = os.path.join(path, subitem)
+                                sub_items = scan_and_remove_recursive_all(subitem_path, prefix + "  ")
+                                dir_items.extend(sub_items)
+                        except Exception as e:
+                            logger.error(f"Error scanning directory {path}: {e}")
+                        
+                        # Then remove the directory itself
+                        shutil.rmtree(path)
+                        items.append(f"{prefix}📁 {os.path.basename(path)}/")
+                        items.extend(dir_items)
+                        logger.info(f"Removed directory: {path}")
                 except Exception as e:
-                    logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_REMOVE_FILE_LOG_MSG.format(file_path=file_path, e=e))
+                    logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_REMOVE_FILE_LOG_MSG.format(file_path=path, e=e))
+                return items
+            
+            for item in allitems:
+                item_path = os.path.join(user_dir, item)
+                sub_items = scan_and_remove_recursive_all(item_path)
+                removed_items.extend(sub_items)
 
             # Clear YouTube cookie validation cache for this user
             try:
@@ -730,21 +797,76 @@ def url_distractor(app, message):
             except Exception as e:
                 logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_CLEAR_YOUTUBE_CACHE_LOG_MSG.format(e=e))
             
-            if removed_files:
-                files_list = "\n".join([f"• {file}" for file in removed_files])
-                send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_ALL_FILES_REMOVED_MSG.format(files_list=files_list))
+            if removed_items:
+                items_list = "\n".join([f"• {item}" for item in removed_items])
+                send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_ALL_FILES_REMOVED_MSG.format(files_list=items_list))
             else:
                 send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
             return
         else:
-            # Regular command /clean - delete only media files with filtering
-            remove_media(message, force_clean=True)
-            send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_ALL_MEDIA_FILES_REMOVED_MSG)
+            # Regular command /clean - delete all files and folders (same as /clean all)
+            import os
+            import shutil
+            user_dir = f'./users/{str(message.chat.id)}'
+            if not os.path.exists(user_dir):
+                send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
+                from COMMANDS.subtitles_cmd import clear_subs_check_cache
+                clear_subs_check_cache()
+                return
+
+            removed_items = []
+            allitems = os.listdir(user_dir)
+
+            # Delete all files and folders in the user folder (except protected files)
+            def scan_and_remove_recursive(path, prefix=""):
+                """Recursively scan and remove files/folders, building a detailed structure list"""
+                items = []
+                try:
+                    if os.path.isfile(path):
+                        if os.path.basename(path) not in ["keyboard.txt", "tags.txt", "logs.txt"]:
+                            os.remove(path)
+                            items.append(f"{prefix}📄 {os.path.basename(path)}")
+                            logger.info(LoggerMsg.URL_EXTRACTOR_REMOVED_FILE_LOG_MSG.format(file_path=path))
+                    elif os.path.isdir(path):
+                        # First, scan contents of the directory
+                        dir_items = []
+                        try:
+                            for subitem in os.listdir(path):
+                                subitem_path = os.path.join(path, subitem)
+                                sub_items = scan_and_remove_recursive(subitem_path, prefix + "  ")
+                                dir_items.extend(sub_items)
+                        except Exception as e:
+                            logger.error(f"Error scanning directory {path}: {e}")
+                        
+                        # Then remove the directory itself
+                        shutil.rmtree(path)
+                        items.append(f"{prefix}📁 {os.path.basename(path)}/")
+                        items.extend(dir_items)
+                        logger.info(f"Removed directory: {path}")
+                except Exception as e:
+                    logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_REMOVE_FILE_LOG_MSG.format(file_path=path, e=e))
+                return items
+            
+            for item in allitems:
+                item_path = os.path.join(user_dir, item)
+                if item not in ["keyboard.txt", "tags.txt", "logs.txt"]:
+                    sub_items = scan_and_remove_recursive(item_path)
+                    removed_items.extend(sub_items)
+
+            # Clear YouTube cookie validation cache for this user
             try:
                 from COMMANDS.cookies_cmd import clear_youtube_cookie_cache
                 clear_youtube_cookie_cache(message.chat.id)
             except Exception as e:
                 logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_CLEAR_YOUTUBE_CACHE_LOG_MSG.format(e=e))
+            
+            if removed_items:
+                items_list = "\n".join([f"• {item}" for item in removed_items])
+                send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_ALL_FILES_REMOVED_MSG.format(files_list=items_list))
+            else:
+                send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
+            
+            from COMMANDS.subtitles_cmd import clear_subs_check_cache
             clear_subs_check_cache()
             return
 
@@ -844,6 +966,7 @@ def url_distractor(app, message):
     # 2) On failure, fallback to gallery-dl (/img handler)
     if ("https://" in text) or ("http://" in text):
         if not is_user_blocked(message):
+            from COMMANDS.subtitles_cmd import clear_subs_check_cache
             clear_subs_check_cache()
             # Централизованный роутер на gallery-dl для некоторых ссылок
             try:
@@ -976,6 +1099,7 @@ def url_distractor(app, message):
             return
 
     logger.info(LoggerMsg.URL_EXTRACTOR_NO_MATCHING_COMMAND_LOG_MSG.format(user_id=user_id))
+    from COMMANDS.subtitles_cmd import clear_subs_check_cache
     clear_subs_check_cache()
 
 @app.on_callback_query(filters.regex("^keyboard\\|"))

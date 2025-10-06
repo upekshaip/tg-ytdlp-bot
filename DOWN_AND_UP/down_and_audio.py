@@ -15,7 +15,7 @@ from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, se
 from HELPERS.limitter import TimeFormatter, humanbytes, check_user
 from HELPERS.download_status import set_active_download, clear_download_start_time, check_download_timeout, start_hourglass_animation, start_cycle_progress, playlist_errors, playlist_errors_lock
 from HELPERS.safe_messeger import safe_delete_messages, safe_edit_message_text, safe_forward_messages
-from HELPERS.filesystem_hlp import sanitize_filename, create_directory, check_disk_space, cleanup_user_temp_files
+from HELPERS.filesystem_hlp import sanitize_filename, sanitize_filename_strict, create_directory, check_disk_space, cleanup_user_temp_files
 from DATABASE.firebase_init import write_logs
 from URL_PARSERS.tags import generate_final_tags
 from URL_PARSERS.nocookie import is_no_cookie_domain
@@ -452,6 +452,12 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 text=get_messages_instance().DOWNLOAD_STARTED_MSG,
                 parse_mode=enums.ParseMode.HTML
             )
+            # Schedule deletion of "Download started" message after 5 seconds
+            try:
+                from HELPERS.safe_messeger import schedule_delete_message
+                schedule_delete_message(user_id, proc_msg.id, delete_after_seconds=5)
+            except Exception as e:
+                logger.error(f"Error scheduling download started message deletion: {e}")
             if os.path.exists(flood_time_file):
                 os.remove(flood_time_file)
         except FloodWait as e:
@@ -499,34 +505,27 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         if not os.path.exists(user_dir):
             os.makedirs(user_dir, exist_ok=True)
 
-        # Create unique download directory for this session to avoid conflicts with parallel downloads
-        import time
-        import random
-        from urllib.parse import urlparse
+        # Try to get download directory from ask_quality_menu first
+        from DOWN_AND_UP.always_ask_menu import get_user_download_dir, generate_download_dir_name
+        user_folder = get_user_download_dir(user_id)
         
-        try:
-            # Parse URL to extract domain for better organization
-            parsed = urlparse(url)
-            domain = parsed.netloc.lower()
-            if domain.startswith('www.'):
-                domain = domain[4:]
-            
-            # Create unique timestamp-based directory
-            timestamp = int(time.time() * 1000000)  # Microsecond precision
-            random_suffix = random.randint(1000, 9999)  # Random 4-digit number
-            
-            # Structure: users/{user_id}/downloads/{domain}_{timestamp}_{random}/
-            unique_download_dir = os.path.join(user_dir, "downloads", f"{domain}_{timestamp}_{random_suffix}")
-            os.makedirs(unique_download_dir, exist_ok=True)
-            
-            # Update user_folder to use the unique directory
-            user_folder = unique_download_dir
-            
-            logger.info(f"Created unique download directory: {unique_download_dir}")
-        except Exception as e:
-            logger.warning(f"Failed to create unique download directory, using default: {e}")
-            # Fallback to original behavior
-            user_folder = os.path.abspath(os.path.join("users", str(user_id)))
+        # If no download directory from ask_quality_menu, create one
+        if not user_folder or not os.path.exists(user_folder):
+            try:
+                # Generate download directory name based on URL
+                dir_name = generate_download_dir_name(url)
+                unique_download_dir = os.path.join(user_dir, "downloads", dir_name)
+                os.makedirs(unique_download_dir, exist_ok=True)
+                
+                # Update user_folder to use the unique directory
+                user_folder = unique_download_dir
+                
+                logger.info(f"Created download directory: {unique_download_dir}")
+            except Exception as e:
+                logger.warning(f"Failed to create download directory, using default: {e}")
+                # Fallback to original behavior
+                user_folder = os.path.abspath(os.path.join("users", str(user_id)))
+
 
         # Pre-cleanup: remove all media files from unique download directory before starting
         try:
@@ -760,10 +759,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                'prefer_ffmpeg': True,
                'extractaudio': True,
                'playlist_items': str(current_index + video_start_with),
-               # Try original filename first, fallback to safe filename if needed
-               'outtmpl': os.path.join(user_folder, "%(title)s.%(ext)s"),
-               # Add restrictfilenames to sanitize output filename
-               'restrictfilenames': True,
+               # outtmpl will be set later with sanitized title
+               # Allow Unicode characters in filenames
+               'restrictfilenames': False,
                'progress_hooks': [progress_hook],
                'extractor_args': {
                   'generic': {
@@ -788,12 +786,21 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 # Reduce parallelism for fragile HLS endpoints
                 ytdl_opts["concurrent_fragment_downloads"] = 1
             
-            # Add match_filter only if domain is not in NO_FILTER_DOMAINS
+            # Define sanitize_title_for_filename function
+            def sanitize_title_for_filename(title):
+                """Sanitize title for filename using strict sanitization"""
+                if not title:
+                    return "audio"
+                from HELPERS.filesystem_hlp import sanitize_filename_strict
+                return sanitize_filename_strict(title)
+            
+            # Title sanitization is now handled manually before second extract_info call
+            
+            # Add match_filter for domain filtering only (no title sanitization needed)
             if not is_no_filter_domain(url):
-                # Use smart filter that allows downloads when duration is unknown
                 ytdl_opts['match_filter'] = create_smart_match_filter()
             else:
-                logger.info(f"Skipping match_filter for domain in NO_FILTER_DOMAINS: {url}")
+                logger.info(f"Skipping domain filter for domain in NO_FILTER_DOMAINS: {url}")
             
             # Add user's custom yt-dlp arguments
             from COMMANDS.args_cmd import get_user_ytdlp_args, log_ytdlp_options
@@ -852,6 +859,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             # Add PO token provider for YouTube domains
             ytdl_opts = add_pot_to_ytdl_opts(ytdl_opts, url)
             
+            # match_filter will be added later for domain filtering only
+            
             try:
                 with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
                     info_dict = ydl.extract_info(url, download=False)
@@ -869,6 +878,22 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     else:
                         # If there is only one video in the playlist, just download it
                         info_dict = entries[0]  # Just take the first video
+                
+                # Get original title and sanitize it for filename
+                original_title = info_dict.get("title", "audio")
+                logger.info(f"DEBUG: info_dict.get('title') = '{original_title}'")
+                
+                # MANUALLY apply sanitization since match_filter doesn't work with download=False
+                sanitized_title = sanitize_title_for_filename(original_title)
+                info_dict['title'] = sanitized_title  # Update info_dict with sanitized title
+                info_dict['original_title'] = original_title  # Save original for caption
+                logger.info(f"MANUAL sanitization: '{original_title}' -> '{sanitized_title}'")
+                
+                # FORCE filename by using literal sanitized title in outtmpl
+                ytdl_opts['outtmpl'] = os.path.join(user_folder, f"{sanitized_title}.%(ext)s")
+                logger.info(f"FORCED outtmpl to use literal filename: {sanitized_title}.%(ext)s")
+                
+                # Original title already saved above for caption
 
                 try:
                     if is_hls:
@@ -1099,7 +1124,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         download_thumbnail(yt_id, youtube_thumb_path, url)
                         if os.path.exists(youtube_thumb_path):
                             thumbnail_path = youtube_thumb_path
-                            logger.info(f"Downloaded YouTube thumbnail: {youtube_thumb_path}")
+                            logger.info(f"Downloaded thumbnail to download directory: {youtube_thumb_path}")
                 except Exception as e:
                     logger.warning(f"YouTube thumbnail download failed: {e}")
             
@@ -1137,7 +1162,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             # Determine rename_name based on the incoming playlist_name:
             if playlist_name and playlist_name.strip():
                 # A new name for the playlist is explicitly set - let's use it
-                rename_name = sanitize_filename(f"{playlist_name.strip()} - Part {idx + video_start_with}")
+                rename_name = sanitize_filename_strict(f"{playlist_name.strip()} - Part {idx + video_start_with}")
             else:
                 # No new name set - extract name from metadata
                 rename_name = None
@@ -1206,7 +1231,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                            'extractaudio': True,
                            'playlist_items': str(current_index + video_start_with),
                            'outtmpl': safe_outtmpl,  # Use safe filename
-                           'restrictfilenames': True,
+                           'restrictfilenames': False,
                            'progress_hooks': [progress_hook],
                            'extractor_args': {
                               'generic': {'impersonate': ['chrome']}
@@ -1289,8 +1314,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 send_to_user(message, get_messages_instance().AUDIO_EXTRACTION_FAILED_MSG)
                 break
 
-            audio_title = info_dict.get("title", "audio")
-            audio_title = sanitize_filename(audio_title)
+            # Get original title for caption (already processed to remove uploader)
+            original_audio_title = info_dict.get("original_title", info_dict.get("title", "audio"))  # Original title for caption
+            audio_title = info_dict.get("title", "audio")  # Already sanitized title for filename
             
             # If rename_name is not set, set it equal to audio_title
             if rename_name is None:
@@ -1324,25 +1350,43 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             downloaded_file = files[0]
             write_logs(message, url, downloaded_file)
 
-            if rename_name == audio_title:
-                caption_name = audio_title  # Original title for caption
-                # Sanitize filename for disk storage while keeping original title for caption
-                final_name = sanitize_filename(downloaded_file)
-                if final_name != downloaded_file:
-                    old_path = os.path.join(user_folder, downloaded_file)
-                    new_path = os.path.join(user_folder, final_name)
+            # FORCE filename replacement - ensure we always get sanitized name
+            logger.info(f"FORCE CHECK: downloaded_file = '{downloaded_file}'")
+            logger.info(f"FORCE CHECK: expected sanitized = '{sanitized_title}'")
+            
+            # Check if filename needs to be forced to sanitized version
+            expected_sanitized_name = f"{sanitized_title}.mp3"
+            if not downloaded_file.endswith(expected_sanitized_name):
+                logger.info(f"FORCE RENAME: '{downloaded_file}' -> '{expected_sanitized_name}'")
+                old_path = os.path.join(user_folder, downloaded_file)
+                new_path = os.path.join(user_folder, expected_sanitized_name)
+                
+                if os.path.exists(new_path):
                     try:
-                        if os.path.exists(new_path):
-                            os.remove(new_path)
-                        os.rename(old_path, new_path)
+                        os.remove(new_path)
+                        logger.info(f"FORCE RENAME: Removed existing file {new_path}")
                     except Exception as e:
-                        logger.error(f"Error renaming file from {old_path} to {new_path}: {e}")
-                        final_name = downloaded_file
+                        logger.error(f"FORCE RENAME: Error removing existing file {new_path}: {e}")
+                
+                try:
+                    os.rename(old_path, new_path)
+                    downloaded_file = expected_sanitized_name
+                    logger.info(f"FORCE RENAME: Successfully renamed to {expected_sanitized_name}")
+                except Exception as e:
+                    logger.error(f"FORCE RENAME: Error renaming file from {old_path} to {new_path}: {e}")
+            else:
+                logger.info(f"FORCE CHECK: Filename already correct: {downloaded_file}")
+
+            if rename_name == audio_title:
+                caption_name = original_audio_title  # Original title for caption
+                # yt-dlp already created file with sanitized name via match_filter
+                # Just use the downloaded file name as is
+                final_name = downloaded_file
             else:
                 ext = os.path.splitext(downloaded_file)[1]
-                # Sanitize filename for disk storage while keeping original title for caption
-                final_name = sanitize_filename(rename_name + ext)
-                caption_name = rename_name  # Original title for caption
+                # Create sanitized filename based on rename_name
+                final_name = sanitize_filename_strict(rename_name) + ext
+                caption_name = original_audio_title  # Original title for caption
                 old_path = os.path.join(user_folder, downloaded_file)
                 new_path = os.path.join(user_folder, final_name)
 
@@ -1357,7 +1401,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 except Exception as e:
                     logger.error(f"Error renaming file from {old_path} to {new_path}: {e}")
                     final_name = downloaded_file
-                    caption_name = audio_title  # Original title for caption
+                    caption_name = original_audio_title  # Original title for caption
 
             audio_file = os.path.join(user_folder, final_name)
             if not os.path.exists(audio_file):
@@ -1425,7 +1469,24 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             bot_name = getattr(Config, 'BOT_NAME', None) or 'bot'
             bot_mention = f' @{bot_name}' if not bot_name.startswith('@') else f' {bot_name}'
             # Use original audio_title for caption, not sanitized caption_name
-            caption_with_link = f"{audio_title}\n{tags_block}[🔗 Audio URL]({url}){bot_mention}"
+            caption_with_link = f"{original_audio_title}\n{tags_block}[🔗 Audio URL]({url}){bot_mention}"
+            
+            # Trim caption to fit Telegram's 1024 character limit using truncate_caption
+            from HELPERS.caption import truncate_caption
+            title_html, pre_block, blockquote_content, tags_block, link_block, was_truncated = truncate_caption(
+                title=original_audio_title,
+                description="",  # No description for audio
+                url=url,
+                tags_text=tags_text_final,
+                max_length=1000  # Reduced for safety
+            )
+            # Rebuild caption from truncated parts
+            caption_with_link = ""
+            if title_html:
+                caption_with_link += title_html + "\n"
+            if tags_block:
+                caption_with_link += tags_block
+            caption_with_link += link_block
             
             try:
                 # Create Telegram-compliant thumbnail if cover is available
@@ -1623,6 +1684,18 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             logger.error(f"Error updating final status: {e}")
 
         send_to_logger(message, success_msg)
+        
+        # Clean up download subdirectory after successful upload
+        try:
+            from DOWN_AND_UP.always_ask_menu import get_user_download_dir
+            download_dir = get_user_download_dir(user_id)
+            if download_dir and os.path.exists(download_dir):
+                logger.info(f"Cleaning up download subdirectory after successful audio upload: {download_dir}")
+                import shutil
+                shutil.rmtree(download_dir)
+                logger.info(f"Successfully removed download subdirectory: {download_dir}")
+        except Exception as cleanup_error:
+            logger.error(f"Error cleaning up download subdirectory for user {user_id}: {cleanup_error}")
 
         if is_playlist and quality_key:
             total_sent = len(cached_videos) + successful_uploads
