@@ -885,14 +885,14 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 
                 # MANUALLY apply sanitization since match_filter doesn't work with download=False
                 sanitized_title = sanitize_title_for_filename(original_title)
-                info_dict['title'] = sanitized_title  # Update info_dict with sanitized title
+                
+                # Keep original title in info_dict for metadata, but use sanitized for filename
                 info_dict['original_title'] = original_title  # Save original for caption
-                info_dict['sanitized_title'] = sanitized_title  # Save sanitized title for force check
                 logger.info(f"MANUAL sanitization: '{original_title}' -> '{sanitized_title}'")
                 
-                # FORCE filename by using literal sanitized title in outtmpl
+                # Set filename using literal sanitized title in outtmpl
                 ytdl_opts['outtmpl'] = os.path.join(user_folder, f"{sanitized_title}.%(ext)s")
-                logger.info(f"FORCED outtmpl to use literal filename: {sanitized_title}.%(ext)s")
+                logger.info(f"Set outtmpl to use literal filename: {sanitized_title}.%(ext)s")
                 
                 # Original title already saved above for caption
 
@@ -1160,13 +1160,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
             current_total_process = total_process
 
-            # Determine rename_name based on the incoming playlist_name:
-            if playlist_name and playlist_name.strip():
-                # A new name for the playlist is explicitly set - let's use it
-                rename_name = sanitize_filename_strict(f"{playlist_name.strip()} - Part {idx + video_start_with}")
-            else:
-                # No new name set - extract name from metadata
-                rename_name = None
+            # Playlist naming is handled by yt-dlp with our custom outtmpl
 
             # Reset retry flags for each new item in playlist
             did_cookie_retry = False
@@ -1315,13 +1309,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 send_to_user(message, get_messages_instance().AUDIO_EXTRACTION_FAILED_MSG)
                 break
 
-            # Get original title for caption (already processed to remove uploader)
-            original_audio_title = info_dict.get("original_title", info_dict.get("title", "audio"))  # Original title for caption
-            audio_title = info_dict.get("title", "audio")  # Already sanitized title for filename
+            # Get original title for fallback (if MP3 metadata reading fails)
+            original_audio_title = info_dict.get("original_title", info_dict.get("title", "audio"))
             
-            # If rename_name is not set, set it equal to audio_title
-            if rename_name is None:
-                rename_name = audio_title
+            # File naming is handled by yt-dlp with our custom outtmpl
 
             dir_path = user_folder
 
@@ -1351,61 +1342,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             downloaded_file = files[0]
             write_logs(message, url, downloaded_file)
 
-            # FORCE filename replacement - ensure we always get sanitized name
-            sanitized_title = info_dict.get('sanitized_title', 'audio')
-            logger.info(f"FORCE CHECK: downloaded_file = '{downloaded_file}'")
-            logger.info(f"FORCE CHECK: expected sanitized = '{sanitized_title}'")
-            
-            # Check if filename needs to be forced to sanitized version
-            expected_sanitized_name = f"{sanitized_title}.mp3"
-            if not downloaded_file.endswith(expected_sanitized_name):
-                logger.info(f"FORCE RENAME: '{downloaded_file}' -> '{expected_sanitized_name}'")
-                old_path = os.path.join(user_folder, downloaded_file)
-                new_path = os.path.join(user_folder, expected_sanitized_name)
-                
-                if os.path.exists(new_path):
-                    try:
-                        os.remove(new_path)
-                        logger.info(f"FORCE RENAME: Removed existing file {new_path}")
-                    except Exception as e:
-                        logger.error(f"FORCE RENAME: Error removing existing file {new_path}: {e}")
-                
-                try:
-                    os.rename(old_path, new_path)
-                    downloaded_file = expected_sanitized_name
-                    logger.info(f"FORCE RENAME: Successfully renamed to {expected_sanitized_name}")
-                except Exception as e:
-                    logger.error(f"FORCE RENAME: Error renaming file from {old_path} to {new_path}: {e}")
-            else:
-                logger.info(f"FORCE CHECK: Filename already correct: {downloaded_file}")
-
-            if rename_name == audio_title:
-                caption_name = original_audio_title  # Original title for caption
-                # yt-dlp already created file with sanitized name via match_filter
-                # Just use the downloaded file name as is
-                final_name = downloaded_file
-            else:
-                ext = os.path.splitext(downloaded_file)[1]
-                # Create sanitized filename based on rename_name
-                final_name = sanitize_filename_strict(rename_name) + ext
-                caption_name = original_audio_title  # Original title for caption
-                old_path = os.path.join(user_folder, downloaded_file)
-                new_path = os.path.join(user_folder, final_name)
-
-                if os.path.exists(new_path):
-                    try:
-                        os.remove(new_path)
-                    except Exception as e:
-                        logger.error(f"Error removing existing file {new_path}: {e}")
-
-                try:
-                    os.rename(old_path, new_path)
-                except Exception as e:
-                    logger.error(f"Error renaming file from {old_path} to {new_path}: {e}")
-                    final_name = downloaded_file
-                    caption_name = original_audio_title  # Original title for caption
-
-            audio_file = os.path.join(user_folder, final_name)
+            # File is already sanitized by yt-dlp with our custom outtmpl
+            audio_file = os.path.join(user_folder, downloaded_file)
             if not os.path.exists(audio_file):
                 send_to_user(message, get_messages_instance().AUDIO_FILE_NOT_FOUND_MSG)
                 continue
@@ -1424,7 +1362,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     # Fallback: look for any thumbnail files
                     logger.info("Pre-downloaded thumbnail not found, searching for any thumbnails")
                     for file in os.listdir(user_folder):
-                        if file.endswith(('.jpg', '.jpeg', '.png', '.webp')) and file != final_name:
+                        if file.endswith(('.jpg', '.jpeg', '.png', '.webp')) and file != downloaded_file:
                             thumb_path = os.path.join(user_folder, file)
                             if os.path.exists(thumb_path):
                                 cover_path = thumb_path
@@ -1436,13 +1374,20 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     logger.info(f"Embedding cover {cover_path} into {audio_file}")
                     
                     # Extract metadata for embedding
-                    title = info_dict.get("title", "")
+                    original_title = info_dict.get("original_title", info_dict.get("title", ""))
                     artist = info_dict.get("artist") or info_dict.get("uploader") or info_dict.get("channel", "")
                     album = info_dict.get("album", "")
                     
-                    logger.info(f"Metadata - Title: {title}, Artist: {artist}, Album: {album}")
+                    # Remove artist name from title if it's included
+                    title_for_metadata = original_title
+                    if artist and artist in original_title:
+                        # Remove artist name from title (e.g., "Rick Astley - Never Gonna Give You Up" -> "Never Gonna Give You Up")
+                        title_for_metadata = original_title.replace(f"{artist} - ", "").replace(f"{artist}: ", "").strip()
+                        logger.info(f"Removed artist from title: '{original_title}' -> '{title_for_metadata}'")
                     
-                    success = embed_cover_mp3(audio_file, cover_path, title=title, artist=artist, album=album)
+                    logger.info(f"Metadata - Title: {title_for_metadata}, Artist: {artist}, Album: {album}")
+                    
+                    success = embed_cover_mp3(audio_file, cover_path, title=title_for_metadata, artist=artist, album=album)
                     if success:
                         logger.info(f"Successfully embedded cover in audio file: {audio_file}")
                     else:
@@ -1470,13 +1415,32 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             tags_block = (tags_text_final.strip() + '\n') if tags_text_final and tags_text_final.strip() else ''
             bot_name = getattr(Config, 'BOT_NAME', None) or 'bot'
             bot_mention = f' @{bot_name}' if not bot_name.startswith('@') else f' {bot_name}'
-            # Use original audio_title for caption, not sanitized caption_name
-            caption_with_link = f"{original_audio_title}\n{tags_block}[🔗 Audio URL]({url}){bot_mention}"
+            # Create display title from MP3 metadata (artist + title)
+            try:
+                import mutagen
+                from mutagen.mp3 import MP3
+                from mutagen.id3 import ID3NoHeaderError
+                
+                # Try to read metadata from the MP3 file
+                audio_metadata = MP3(audio_file)
+                artist = audio_metadata.get('TPE1', ['Unknown Artist'])[0] if 'TPE1' in audio_metadata else 'Unknown Artist'
+                title = audio_metadata.get('TIT2', ['Unknown Title'])[0] if 'TIT2' in audio_metadata else 'Unknown Title'
+                
+                # Create display title: "Artist - Title"
+                display_title = f"{artist} - {title}"
+                logger.info(f"MP3 metadata display title: '{display_title}'")
+                
+            except Exception as e:
+                logger.warning(f"Failed to read MP3 metadata, using original title: {e}")
+                display_title = original_audio_title
+            
+            # Use display title from metadata for caption
+            caption_with_link = f"{display_title}\n{tags_block}[🔗 Audio URL]({url}){bot_mention}"
             
             # Trim caption to fit Telegram's 1024 character limit using truncate_caption
             from HELPERS.caption import truncate_caption
             title_html, pre_block, blockquote_content, tags_block, link_block, was_truncated = truncate_caption(
-                title=original_audio_title,
+                title=display_title,
                 description="",  # No description for audio
                 url=url,
                 tags_text=tags_text_final,

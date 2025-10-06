@@ -66,11 +66,15 @@ def should_update_file(file_path):
         if file_path.startswith(excluded_dir + "/"):
             return False
     
-    # Update only Python files
-    if not file_path.endswith('.py'):
-        return False
+    # Update Python files
+    if file_path.endswith('.py'):
+        return True
     
-    return True
+    # Update files from LANGUAGES directory (all file types)
+    if file_path.startswith('CONFIG/LANGUAGES/'):
+        return True
+    
+    return False
 
 def backup_file(file_path):
     """Create a backup copy of a file"""
@@ -118,21 +122,20 @@ def clone_repository(temp_dir):
         return False
 
 def find_python_files(source_dir):
-    """Find all Python files in the source directory"""
-    python_files = []
+    """Find all Python files and LANGUAGES files in the source directory"""
+    files_to_update = []
     
     for root, dirs, files in os.walk(source_dir):
         # Exclude unnecessary directories
         dirs[:] = [d for d in dirs if d not in ['.git', '__pycache__', 'venv']]
         
         for file in files:
-            if file.endswith('.py'):
-                # Build relative path
-                rel_path = os.path.relpath(os.path.join(root, file), source_dir)
-                if should_update_file(rel_path):
-                    python_files.append(rel_path)
+            # Build relative path
+            rel_path = os.path.relpath(os.path.join(root, file), source_dir)
+            if should_update_file(rel_path):
+                files_to_update.append(rel_path)
     
-    return sorted(python_files)
+    return sorted(files_to_update)
 
 def update_file_from_source(source_file, target_file):
     """Update a file from the source repository"""
@@ -141,6 +144,7 @@ def update_file_from_source(source_file, target_file):
         dir_name = os.path.dirname(target_file)
         if dir_name:  # Directory path is not empty
             os.makedirs(dir_name, exist_ok=True)
+            log(f"📁 Created directory: {dir_name}")
         
         # Create a backup
         backup_path = backup_file(target_file)
@@ -178,6 +182,15 @@ def main():
         log("❌ File magic.py not found. Make sure you run this in the bot folder.", "ERROR")
         return False
     
+    # Ensure LANGUAGES directory exists
+    languages_dir = "CONFIG/LANGUAGES"
+    if not os.path.exists(languages_dir):
+        try:
+            os.makedirs(languages_dir, exist_ok=True)
+            log(f"📁 Created LANGUAGES directory: {languages_dir}")
+        except Exception as e:
+            log(f"⚠️ Failed to create LANGUAGES directory: {e}", "WARNING")
+    
     # Ensure git is available
     if not shutil.which('git'):
         log("❌ Git not found. Please install Git to use this updater.", "ERROR")
@@ -193,18 +206,18 @@ def main():
         if not clone_repository(temp_dir):
             return False
         
-        # Find Python files
-        python_files = find_python_files(temp_dir)
+        # Find files to update
+        files_to_update = find_python_files(temp_dir)
         
-        if not python_files:
-            log("❌ No Python files found to update", "ERROR")
+        if not files_to_update:
+            log("❌ No files found to update", "ERROR")
             return False
         
-        log(f"📋 Found {len(python_files)} Python files to update")
+        log(f"📋 Found {len(files_to_update)} files to update")
         
         # Show file list to update
         log("📝 Files to update:")
-        for file_path in python_files:
+        for file_path in files_to_update:
             log(f"  - {file_path}")
         
         # Ask for confirmation
@@ -217,7 +230,7 @@ def main():
         updated_count = 0
         failed_count = 0
         
-        for file_path in python_files:
+        for file_path in files_to_update:
             log(f"🔄 Updating {file_path}...")
             
             source_file = os.path.join(temp_dir, file_path)
@@ -233,7 +246,7 @@ def main():
         log("📊 Update results:")
         log(f"✅ Successfully updated: {updated_count}")
         log(f"❌ Errors: {failed_count}")
-        log(f"📁 Total files: {len(python_files)}")
+        log(f"📁 Total files: {len(files_to_update)}")
 
         # Move backups into _backup/
         move_backups_to_backup_dir()
