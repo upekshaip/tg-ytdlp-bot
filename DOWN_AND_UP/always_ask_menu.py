@@ -3469,9 +3469,17 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         # Check if subtitles are included
         subs_enabled = is_subs_enabled(user_id)
         processing_text = get_messages_instance().AA_PROCESSING_WAIT_MSG if subs_enabled else get_messages_instance().AA_PROCESSING_MSG
-        proc_msg = app.send_message(user_id, processing_text, reply_parameters=ReplyParameters(message_id=message.id), reply_markup=get_main_reply_keyboard())
-        # Save processing message to cache for deletion when download starts
-        set_user_proc_msg(user_id, proc_msg)
+        
+        # Only send new processing message if this is the initial menu open (no callback)
+        # If callback is provided, we should NOT edit the message here - let the final logic handle it
+        if cb is None:
+            proc_msg = app.send_message(user_id, processing_text, reply_parameters=ReplyParameters(message_id=message.id), reply_markup=get_main_reply_keyboard())
+            # Save processing message to cache for deletion when download starts
+            set_user_proc_msg(user_id, proc_msg)
+        else:
+            # For callback queries, we don't edit the message here - let the final logic handle it
+            # This prevents the menu from being replaced with "🔎 Analyzing..." temporarily
+            proc_msg = None
         original_text = message.text or message.caption or ""
         is_playlist = is_playlist_with_range(original_text)
         playlist_range = None
@@ -4771,26 +4779,42 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         # cap now contains dynamic hints based on actual buttons
         # Replace current menu in-place if possible
         if cb is not None and getattr(cb, 'message', None):
-                # Edit caption or text in place
+            # Edit caption or text in place
+            try:
+                if cb.message.photo:
+                    cb.edit_message_caption(caption=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+                else:
+                    cb.edit_message_text(text=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+            except Exception as e:
+                logger.warning(f"Failed to edit message for callback: {e}")
+                # Fallback: send new message if edit fails
                 try:
-                    if cb.message.photo:
-                        cb.edit_message_caption(caption=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+                    if thumb_path and os.path.exists(thumb_path):
+                        app.send_photo(
+                            user_id,
+                            thumb_path,
+                            caption=cap,
+                            parse_mode=enums.ParseMode.HTML,
+                            reply_markup=keyboard,
+                            reply_parameters=ReplyParameters(message_id=message.id),
+                            has_spoiler=should_apply_spoiler(user_id, is_nsfw, getattr(message.chat, "type", None) == enums.ChatType.PRIVATE)
+                        )
                     else:
-                        cb.edit_message_text(text=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+                        app.send_message(user_id, cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, reply_parameters=ReplyParameters(message_id=message.id))
+                except Exception as fallback_error:
+                    logger.error(f"Failed to send fallback message: {fallback_error}")
+            # Remove processing message quietly
+            if proc_msg:
+                try:
+                    safe_delete_messages(chat_id=cb.message.chat.id, message_ids=[proc_msg.id])
                 except Exception:
                     pass
-                # Remove processing message quietly
-                if proc_msg:
-                    try:
-                        safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[proc_msg.id])
-                    except Exception:
-                        pass
                 proc_msg = None
         else:
             # Fallback: send new message
             if proc_msg:
                 try:
-                    safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[proc_msg.id])
+                    safe_delete_messages(chat_id=user_id, message_ids=[proc_msg.id])
                 except Exception:
                     pass
                 proc_msg = None
