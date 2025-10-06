@@ -887,6 +887,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 sanitized_title = sanitize_title_for_filename(original_title)
                 info_dict['title'] = sanitized_title  # Update info_dict with sanitized title
                 info_dict['original_title'] = original_title  # Save original for caption
+                info_dict['sanitized_title'] = sanitized_title  # Save sanitized title for force check
                 logger.info(f"MANUAL sanitization: '{original_title}' -> '{sanitized_title}'")
                 
                 # FORCE filename by using literal sanitized title in outtmpl
@@ -1351,6 +1352,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             write_logs(message, url, downloaded_file)
 
             # FORCE filename replacement - ensure we always get sanitized name
+            sanitized_title = info_dict.get('sanitized_title', 'audio')
             logger.info(f"FORCE CHECK: downloaded_file = '{downloaded_file}'")
             logger.info(f"FORCE CHECK: expected sanitized = '{sanitized_title}'")
             
