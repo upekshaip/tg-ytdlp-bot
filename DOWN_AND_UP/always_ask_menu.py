@@ -151,13 +151,22 @@ def get_original_data_from_callback(prefix, callback_data):
         data_hash = callback_data.replace(f"{prefix}|", "")
         mapping_attr = f"_{prefix.replace('|', '_')}_mapping"
         
+        logger.info(f"Looking for data_hash '{data_hash}' in mapping_attr '{mapping_attr}'")
+        
         if hasattr(create_safe_callback_data, mapping_attr):
             mapping = getattr(create_safe_callback_data, mapping_attr)
-            return mapping.get(data_hash, data_hash)  # Return original data or hash if not found
+            logger.info(f"Mapping found: {mapping}")
+            result = mapping.get(data_hash, data_hash)  # Return original data or hash if not found
+            logger.info(f"Retrieved result: '{result}'")
+            return result
+        else:
+            logger.warning(f"Mapping attribute '{mapping_attr}' not found")
     except Exception as e:
         logger.warning(LoggerMsg.ALWAYS_ASK_ERROR_RETRIEVING_CALLBACK_LOG_MSG.format(error=e))
     
-    return callback_data.replace(f"{prefix}|", "")
+    fallback = callback_data.replace(f"{prefix}|", "")
+    logger.info(f"Using fallback: '{fallback}'")
+    return fallback
 
 def extract_button_data(format_line):
     """Extract only needed data for button display from complete format line"""
@@ -1112,8 +1121,15 @@ def askq_callback(app, callback_query):
     from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     logger.info(f"{LoggerMsg.ALWAYS_ASK_CALLBACK_LOG_MSG}: {callback_query.data}")
     user_id = callback_query.from_user.id
-    data = callback_query.data.split("|")[1]
+    # Parse callback data correctly - handle both old and new formats
+    parts = callback_query.data.split("|")
+    if len(parts) >= 3 and parts[1] == "other_id":
+        data = f"other_id_{parts[2]}"  # Reconstruct other_id_XXX format
+    else:
+        data = parts[1] if len(parts) > 1 else ""
     found_type = None
+    
+    logger.info(f"Processing callback data: '{data}' for user {user_id}")
     
     # Get processing message from cache (created in ask_quality_menu)
     proc_msg = get_user_proc_msg(user_id)
@@ -1123,9 +1139,16 @@ def askq_callback(app, callback_query):
             user_dir = os.path.join("users", str(user_id))
             create_directory(user_dir)
             
+            # Get download directory if available
+            user_download_dir = get_user_download_dir(user_id)
+            
             # Remove all old format cache files
             import glob
-            format_cache_pattern = os.path.join(user_dir, "formats_cache_*.json")
+            # Use download directory if available, otherwise fallback to user directory
+            if user_download_dir and os.path.exists(user_download_dir):
+                format_cache_pattern = os.path.join(user_download_dir, "formats_cache_*.json")
+            else:
+                format_cache_pattern = os.path.join(user_dir, "formats_cache_*.json")
             old_cache_files = glob.glob(format_cache_pattern)
             
             for cache_file in old_cache_files:
@@ -1720,12 +1743,19 @@ def askq_callback(app, callback_query):
                     user_dir = os.path.join("users", str(callback_query.from_user.id))
                     create_directory(user_dir)
                     
+                    # Get download directory if available
+                    user_download_dir = get_user_download_dir(callback_query.from_user.id)
+                    
                     # Remove all old format cache files except current one
                     import glob
-                    format_cache_pattern = os.path.join(user_dir, "formats_cache_*.json")
+                    # Use download directory if available, otherwise fallback to user directory
+                    if user_download_dir and os.path.exists(user_download_dir):
+                        format_cache_pattern = os.path.join(user_download_dir, "formats_cache_*.json")
+                        current_cache_file = os.path.join(user_download_dir, f"formats_cache_{hashlib.md5(url.encode()).hexdigest()[:8]}.json")
+                    else:
+                        format_cache_pattern = os.path.join(user_dir, "formats_cache_*.json")
+                        current_cache_file = os.path.join(user_dir, f"formats_cache_{hashlib.md5(url.encode()).hexdigest()[:8]}.json")
                     old_cache_files = glob.glob(format_cache_pattern)
-                    
-                    current_cache_file = os.path.join(user_dir, f"formats_cache_{hashlib.md5(url.encode()).hexdigest()[:8]}.json")
                     
                     for cache_file in old_cache_files:
                         if cache_file != current_cache_file:  # Don't delete current cache
@@ -1769,12 +1799,19 @@ def askq_callback(app, callback_query):
                 user_dir = os.path.join("users", str(callback_query.from_user.id))
                 create_directory(user_dir)
                 
+                # Get download directory if available
+                user_download_dir = get_user_download_dir(callback_query.from_user.id)
+                
                 # Remove all old format cache files except current one
                 import glob
-                format_cache_pattern = os.path.join(user_dir, "formats_cache_*.json")
+                # Use download directory if available, otherwise fallback to user directory
+                if user_download_dir and os.path.exists(user_download_dir):
+                    format_cache_pattern = os.path.join(user_download_dir, "formats_cache_*.json")
+                    current_cache_file = os.path.join(user_download_dir, f"formats_cache_{hashlib.md5(url.encode()).hexdigest()[:8]}.json")
+                else:
+                    format_cache_pattern = os.path.join(user_dir, "formats_cache_*.json")
+                    current_cache_file = os.path.join(user_dir, f"formats_cache_{hashlib.md5(url.encode()).hexdigest()[:8]}.json")
                 old_cache_files = glob.glob(format_cache_pattern)
-                
-                current_cache_file = os.path.join(user_dir, f"formats_cache_{hashlib.md5(url.encode()).hexdigest()[:8]}.json")
                 
                 for cache_file in old_cache_files:
                     if cache_file != current_cache_file:  # Don't delete current cache
@@ -1826,16 +1863,47 @@ def askq_callback(app, callback_query):
     
     # Handle other quality selection by ID
     if data.startswith("other_id_"):
+        logger.info(f"Processing other_id_ callback: {data}")
         format_id_hash = data.replace("other_id_", "")
         
         # Get original format_id from callback data
         format_id = get_original_data_from_callback("askq|other_id", callback_query.data)
+        logger.info(f"Retrieved format_id from callback: '{format_id}' for hash '{format_id_hash}'")
+        
+        # If format_id is still a hash, try to get it from the cache
+        if format_id == format_id_hash:
+            logger.warning(f"Format ID is still a hash, trying to get from cache")
+            # Try to get format_id from the cached formats
+            try:
+                user_id = callback_query.from_user.id
+                user_dir = os.path.join("users", str(user_id))
+                cache_file = os.path.join(user_dir, "formats_cache_75170fc2.json")
+                if os.path.exists(cache_file):
+                    import json
+                    with open(cache_file, 'r') as f:
+                        formats = json.load(f)
+                    # Find format by hash or try to use the hash as format_id
+                    format_id = format_id_hash
+                    logger.info(f"Using hash as format_id: {format_id}")
+                else:
+                    logger.error(f"Cache file not found: {cache_file}")
+            except Exception as e:
+                logger.error(f"Error reading cache file: {e}")
+        
+        # Delete the menu message immediately to prevent multiple menus
+        try:
+            safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
+            logger.info("Deleted Other menu message successfully")
+        except Exception as e:
+            logger.warning(f"Failed to delete Other menu message: {e}")
+        
         callback_query.answer(f"{get_messages_instance().ALWAYS_ASK_DOWNLOADING_FORMAT_MSG} {format_id}...")
+        logger.info(f"Starting download process for format_id: {format_id}")
         
         original_message = callback_query.message.reply_to_message
         if not original_message:
+            logger.error("Original message not found")
             callback_query.answer(get_messages_instance().AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
-            safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
             return
         
         url = None
@@ -1849,31 +1917,35 @@ def askq_callback(app, callback_query):
             if url_match:
                 url = url_match.group(0)
         
+        logger.info(f"Extracted URL: {url}")
         if not url:
+            logger.error("URL not found in message")
             callback_query.answer(get_messages_instance().AA_ERROR_URL_NOT_FOUND_MSG, show_alert=True)
-            safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
             return
         
         # Extract tags from the user's source message
         original_text = original_message.text or original_message.caption or ""
         _, _, _, _, tags, tags_text, _ = extract_url_range_tags(original_text)
-        
-        safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
+        logger.info(f"Extracted tags: {tags_text}")
         
         # Use specific format ID for download
         format_override = format_id
+        logger.info(f"Using format_override: {format_override}")
         
         # Handle playlists
         if is_playlist_with_range(original_text):
+            logger.info("Detected playlist, using down_and_up")
             _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(original_text)
             video_count = video_end_with - video_start_with + 1
             # Delete processing message before starting download
-            delete_processing_message(app, user_id, proc_msg)
+            delete_processing_message(app, user_id, None)
             down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=format_id, cookies_already_checked=True)
         else:
+            logger.info("Single video, using down_and_up_with_format")
             # Delete processing message before starting download
-            delete_processing_message(app, user_id, proc_msg)
-            down_and_up_with_format(app, original_message, url, format_override, tags_text, quality_key=format_id, proc_msg=proc_msg)
+            delete_processing_message(app, user_id, None)
+            down_and_up_with_format(app, original_message, url, format_override, tags_text, quality_key=format_id, proc_msg=None)
+        logger.info("Download process initiated successfully")
         return
     
     # Handle manual quality selection
@@ -2633,12 +2705,19 @@ def show_other_qualities_menu(app, callback_query, page=0):
             user_dir = os.path.join("users", str(user_id))
             create_directory(user_dir)
             
+            # Get download directory if available
+            user_download_dir = get_user_download_dir(user_id)
+            
             # Remove all old format cache files except current one
             import glob
-            format_cache_pattern = os.path.join(user_dir, "formats_cache_*.json")
+            # Use download directory if available, otherwise fallback to user directory
+            if user_download_dir and os.path.exists(user_download_dir):
+                format_cache_pattern = os.path.join(user_download_dir, "formats_cache_*.json")
+                current_cache_file = os.path.join(user_download_dir, f"formats_cache_{hashlib.md5(url.encode()).hexdigest()[:8]}.json")
+            else:
+                format_cache_pattern = os.path.join(user_dir, "formats_cache_*.json")
+                current_cache_file = os.path.join(user_dir, f"formats_cache_{hashlib.md5(url.encode()).hexdigest()[:8]}.json")
             old_cache_files = glob.glob(format_cache_pattern)
-            
-            current_cache_file = os.path.join(user_dir, f"formats_cache_{hashlib.md5(url.encode()).hexdigest()[:8]}.json")
             
             for cache_file in old_cache_files:
                 if cache_file != current_cache_file:  # Don't delete current cache
@@ -2654,18 +2733,19 @@ def show_other_qualities_menu(app, callback_query, page=0):
             logger.warning(f"Error cleaning up old format cache files: {e}")
         
         cache_file = current_cache_file
-        if os.path.exists(cache_file) and page == 0:
-            # Use cached formats for first page
+        if os.path.exists(cache_file):
+            # Use cached formats for any page
             try:
                 with open(cache_file, 'r', encoding='utf-8') as f:
                     cached_data = json.load(f)
                     format_lines = cached_data.get('formats', [])
                     if format_lines:
                         # Show cached formats immediately
-                        logger.info(f"Using cached formats for first page, {len(format_lines)} formats found")
+                        logger.info(f"Using cached formats for page {page + 1}, {len(format_lines)} formats found")
                         show_formats_from_cache(app, callback_query, format_lines, page, url)
                         return
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Failed to read cache file {cache_file}: {e}")
                 pass  # Fall back to fresh fetch
     
     # Extract URL from the callback
@@ -2736,7 +2816,15 @@ def show_other_qualities_menu(app, callback_query, page=0):
         # Create cache file path
         user_dir = os.path.join("users", str(user_id))
         create_directory(user_dir)
-        cache_file = os.path.join(user_dir, f"formats_cache_{hashlib.md5(url.encode()).hexdigest()[:8]}.json")
+        
+        # Get download directory if available
+        user_download_dir = get_user_download_dir(user_id)
+        
+        # Use download directory if available, otherwise fallback to user directory
+        if user_download_dir and os.path.exists(user_download_dir):
+            cache_file = os.path.join(user_download_dir, f"formats_cache_{hashlib.md5(url.encode()).hexdigest()[:8]}.json")
+        else:
+            cache_file = os.path.join(user_dir, f"formats_cache_{hashlib.md5(url.encode()).hexdigest()[:8]}.json")
         
         # Check if we have cached formats
         format_lines = []
@@ -2939,6 +3027,7 @@ def show_other_qualities_menu(app, callback_query, page=0):
                     
                     # Create safe callback data
                     callback_data = create_safe_callback_data("askq|other_id", format_id)
+                    logger.info(f"Created callback_data '{callback_data}' for format_id '{format_id}'")
                     
                     # Each button goes in its own row (1 column layout)
                     keyboard_rows.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
@@ -3070,6 +3159,7 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
                 
                 # Create safe callback data
                 callback_data = create_safe_callback_data("askq|other_id", format_id)
+                logger.info(f"Created callback_data '{callback_data}' for format_id '{format_id}'")
                 
                 # Each button goes in its own row (1 column layout)
                 keyboard_rows.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
@@ -3394,20 +3484,27 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         user_dir = os.path.join("users", str(user_id))
         create_directory(user_dir)
         
-        # Remove all old format cache files
+        # Remove old format cache files except current one
         import glob
-        format_cache_pattern = os.path.join(user_dir, "formats_cache_*.json")
+        # Use download directory if available, otherwise fallback to user directory
+        if download_dir and os.path.exists(download_dir):
+            format_cache_pattern = os.path.join(download_dir, "formats_cache_*.json")
+            current_cache_file = os.path.join(download_dir, f"formats_cache_{hashlib.md5(url.encode()).hexdigest()[:8]}.json")
+        else:
+            format_cache_pattern = os.path.join(user_dir, "formats_cache_*.json")
+            current_cache_file = os.path.join(user_dir, f"formats_cache_{hashlib.md5(url.encode()).hexdigest()[:8]}.json")
         old_cache_files = glob.glob(format_cache_pattern)
         
         for cache_file in old_cache_files:
-            try:
-                os.remove(cache_file)
-                logger.info(f"Cleaned up old format cache: {cache_file}")
-            except Exception as e:
-                logger.warning(f"Failed to remove old cache file {cache_file}: {e}")
+            if cache_file != current_cache_file:  # Don't delete current cache
+                try:
+                    os.remove(cache_file)
+                    logger.info(f"Cleaned up old format cache: {cache_file}")
+                except Exception as e:
+                    logger.warning(f"Failed to remove old cache file {cache_file}: {e}")
                 
-        if old_cache_files:
-            logger.info(f"Cleaned up {len(old_cache_files)} old format cache files for user {user_id}")
+        if len(old_cache_files) > 1:  # More than just current cache
+            logger.info(f"Cleaned up {len(old_cache_files) - 1} old format cache files for user {user_id}")
     except Exception as e:
         logger.warning(f"Error cleaning up old format cache files: {e}")
     

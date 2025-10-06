@@ -201,7 +201,7 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
         else:
             logger.info(f"[YTDLP DEBUG] No cookies available for {url}")
         
-        # Add proxy configuration if needed for this domain
+        # Add proxy configuration if needed for this domain 
         if use_proxy:
             # Force proxy for this request
             from COMMANDS.proxy_cmd import get_proxy_config
