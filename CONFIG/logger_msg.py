@@ -1,4 +1,4 @@
-from CONFIG.messages import Messages
+from CONFIG.messages import Messages, get_messages_instance
 
 class LoggerMsg(object):
     # Generic user/admin/access - removed unused variables

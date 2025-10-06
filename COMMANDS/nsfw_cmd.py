@@ -2,7 +2,7 @@
 import os
 from pyrogram import filters, enums
 from CONFIG.config import Config
-from CONFIG.messages import Messages
+from CONFIG.messages import Messages, get_messages_instance
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from HELPERS.app_instance import get_app
@@ -10,7 +10,6 @@ from HELPERS.filesystem_hlp import create_directory
 from HELPERS.logger import send_to_logger, logger
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
 from HELPERS.limitter import is_user_in_channel
-from CONFIG.messages import Messages as Messages
 
 # Get app instance for decorators
 app = get_app()
@@ -23,9 +22,11 @@ def nsfw_command(app, message):
     # Store setting per-chat: in groups/channels use chat_id (negative), in private use user id (== chat_id)
     user_id = getattr(message.from_user, "id", None) or chat_id
     storage_id = chat_id
-    logger.info(f"{LoggerMsg.NSFW_USER_REQUESTED_COMMAND_LOG_MSG}")
-    logger.info(f"{LoggerMsg.NSFW_USER_IS_ADMIN_LOG_MSG}")
-    logger.info(f"{LoggerMsg.NSFW_USER_IS_IN_CHANNEL_LOG_MSG}")
+    is_admin = int(user_id) in Config.ADMIN
+    is_in_channel = is_user_in_channel(app, message)
+    logger.info(f"[NSFW] User {user_id} requested nsfw command")
+    logger.info(f"[NSFW] User {user_id} is admin: {is_admin}")
+    logger.info(f"[NSFW] User {user_id} is in channel: {is_in_channel}")
     
     # In private chats: require subscription (like mediainfo). In allowed groups: bypass (wrapper in magic.py filters groups).
     if chat_type == enums.ChatType.PRIVATE:
@@ -48,14 +49,14 @@ def nsfw_command(app, message):
                     f.write("ON" if arg == "on" else "OFF")
                 
                 if arg == "on":
-                    safe_send_message(chat_id, Messages.NSFW_ON_MSG, parse_mode=enums.ParseMode.HTML, message=message)
+                    safe_send_message(chat_id, get_messages_instance().NSFW_ON_MSG, parse_mode=enums.ParseMode.HTML, message=message)
                 else:
-                    safe_send_message(chat_id, Messages.NSFW_OFF_MSG, parse_mode=enums.ParseMode.HTML, message=message)
+                    safe_send_message(chat_id, get_messages_instance().NSFW_OFF_MSG, parse_mode=enums.ParseMode.HTML, message=message)
                 
-                send_to_logger(message, Messages.NSFW_BLUR_SET_COMMAND_LOG_MSG.format(arg=arg))
+                send_to_logger(message, get_messages_instance().NSFW_BLUR_SET_COMMAND_LOG_MSG.format(arg=arg))
                 return
             else:
-                safe_send_message(chat_id, Messages.NSFW_INVALID_MSG, parse_mode=enums.ParseMode.HTML, message=message)
+                safe_send_message(chat_id, get_messages_instance().NSFW_INVALID_MSG, parse_mode=enums.ParseMode.HTML, message=message)
                 return
     except Exception as e:
         logger.error(f"Error processing nsfw command: {e}")
@@ -64,24 +65,24 @@ def nsfw_command(app, message):
     # Show menu if no args provided
     # Check current setting to show proper status
     current_setting = is_nsfw_blur_enabled(storage_id)
-    on_text = Messages.NSFW_ON_NO_BLUR_MSG if not current_setting else Messages.NSFW_ON_NO_BLUR_INACTIVE_MSG
-    off_text = Messages.NSFW_OFF_BLUR_MSG if current_setting else Messages.NSFW_OFF_BLUR_INACTIVE_MSG
+    on_text = get_messages_instance().NSFW_ON_NO_BLUR_MSG if not current_setting else get_messages_instance().NSFW_ON_NO_BLUR_INACTIVE_MSG
+    off_text = get_messages_instance().NSFW_OFF_BLUR_MSG if current_setting else get_messages_instance().NSFW_OFF_BLUR_INACTIVE_MSG
     
     buttons = [
         [InlineKeyboardButton(on_text, callback_data="nsfw_option|on"), InlineKeyboardButton(off_text, callback_data="nsfw_option|off")],
-        [InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="nsfw_option|close")],
+        [InlineKeyboardButton(get_messages_instance().URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="nsfw_option|close")],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
     
     status_text = "currently blurred" if current_setting else "currently not blurred"
     safe_send_message(
         chat_id,
-Messages.NSFW_BLUR_SETTINGS_TITLE_MSG.format(status=status_text),
+get_messages_instance().NSFW_BLUR_SETTINGS_TITLE_MSG.format(status=status_text),
         reply_markup=keyboard,
         parse_mode=enums.ParseMode.HTML,
         message=message
     )
-    send_to_logger(message, Messages.NSFW_MENU_OPENED_LOG_MSG)
+    send_to_logger(message, get_messages_instance().NSFW_MENU_OPENED_LOG_MSG)
 
 
 @app.on_callback_query(filters.regex(r"^nsfw_option\|"))
@@ -103,19 +104,19 @@ def nsfw_option_callback(app, callback_query):
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
         try:
-            callback_query.answer(Messages.NSFW_MENU_CLOSED_MSG)
+            callback_query.answer(get_messages_instance().NSFW_MENU_CLOSED_MSG)
         except Exception:
             pass
-        send_to_logger(callback_query.message, Messages.NSFW_MENU_CLOSED_LOG_MSG)
+        send_to_logger(callback_query.message, get_messages_instance().NSFW_MENU_CLOSED_LOG_MSG)
         return
     
     if data == "on":
         with open(nsfw_file, "w", encoding="utf-8") as f:
             f.write("ON")
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.NSFW_ON_MSG, parse_mode=enums.ParseMode.HTML)
-        send_to_logger(callback_query.message, Messages.NSFW_BLUR_DISABLED_MSG)
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, get_messages_instance().NSFW_ON_MSG, parse_mode=enums.ParseMode.HTML)
+        send_to_logger(callback_query.message, get_messages_instance().NSFW_BLUR_DISABLED_MSG)
         try:
-            callback_query.answer(Messages.NSFW_BLUR_DISABLED_CALLBACK_MSG)
+            callback_query.answer(get_messages_instance().NSFW_BLUR_DISABLED_CALLBACK_MSG)
         except Exception:
             pass
         return
@@ -123,10 +124,10 @@ def nsfw_option_callback(app, callback_query):
     if data == "off":
         with open(nsfw_file, "w", encoding="utf-8") as f:
             f.write("OFF")
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.NSFW_OFF_MSG, parse_mode=enums.ParseMode.HTML)
-        send_to_logger(callback_query.message, Messages.NSFW_BLUR_ENABLED_MSG)
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, get_messages_instance().NSFW_OFF_MSG, parse_mode=enums.ParseMode.HTML)
+        send_to_logger(callback_query.message, get_messages_instance().NSFW_BLUR_ENABLED_MSG)
         try:
-            callback_query.answer(Messages.NSFW_BLUR_ENABLED_CALLBACK_MSG)
+            callback_query.answer(get_messages_instance().NSFW_BLUR_ENABLED_CALLBACK_MSG)
         except Exception:
             pass
         return

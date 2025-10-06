@@ -8,7 +8,7 @@ from HELPERS.filesystem_hlp import create_directory
 from HELPERS.logger import send_to_logger, logger
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
 from HELPERS.limitter import humanbytes, is_user_in_channel
-from CONFIG.messages import Messages as Messages
+from CONFIG.messages import Messages, get_messages_instance
 import re
 
 def parse_size_argument(arg):
@@ -77,11 +77,11 @@ def split_command(app, message):
             with open(split_file, "w", encoding="utf-8") as f:
                 f.write(str(size))
             
-            safe_send_message(user_id, Messages.SPLIT_SIZE_SET_MSG.format(size=humanbytes(size)), message=message)
-            send_to_logger(message, Messages.SPLIT_SIZE_SET_ARGUMENT_LOG_MSG.format(size=size))
+            safe_send_message(user_id, get_messages_instance().SPLIT_SIZE_SET_MSG.format(size=humanbytes(size)), message=message)
+            send_to_logger(message, get_messages_instance().SPLIT_SIZE_SET_ARGUMENT_LOG_MSG.format(size=size))
             return
         else:
-            safe_send_message(user_id, Messages.SPLIT_INVALID_SIZE_MSG, message=message)
+            safe_send_message(user_id, get_messages_instance().SPLIT_INVALID_SIZE_MSG, message=message)
             return
     
     user_dir = os.path.join("users", str(user_id))
@@ -105,14 +105,14 @@ def split_command(app, message):
                 text, size = sizes[i + j]
                 row.append(InlineKeyboardButton(text, callback_data=f"split_size|{size}"))
         buttons.append(row)
-    buttons.append([InlineKeyboardButton(Messages.SPLIT_CLOSE_BUTTON_MSG, callback_data="split_size|close")])
+    buttons.append([InlineKeyboardButton(get_messages_instance().SPLIT_CLOSE_BUTTON_MSG, callback_data="split_size|close")])
     keyboard = InlineKeyboardMarkup(buttons)
     safe_send_message(user_id, 
-Messages.SPLIT_MENU_TITLE_MSG, 
+get_messages_instance().SPLIT_MENU_TITLE_MSG, 
         reply_markup=keyboard,
         message=message
     )
-    send_to_logger(message, Messages.SPLIT_MENU_OPENED_LOG_MSG)
+    send_to_logger(message, get_messages_instance().SPLIT_MENU_OPENED_LOG_MSG)
 
 @app.on_callback_query(filters.regex(r"^split_size\|"))
 # @reply_with_keyboard
@@ -134,23 +134,23 @@ def split_size_callback(app, callback_query):
                 except Exception:
                     pass
         try:
-            callback_query.answer(Messages.SPLIT_MENU_CLOSED_MSG)
+            callback_query.answer(get_messages_instance().SPLIT_MENU_CLOSED_MSG)
         except Exception:
             pass
-        send_to_logger(callback_query.message, Messages.SPLIT_SELECTION_CLOSED_LOG_MSG)
+        send_to_logger(callback_query.message, get_messages_instance().SPLIT_SELECTION_CLOSED_LOG_MSG)
         return
     try:
         size = int(data)
     except Exception:
-        callback_query.answer(Messages.SPLIT_INVALID_SIZE_CALLBACK_MSG)
+        callback_query.answer(get_messages_instance().SPLIT_INVALID_SIZE_CALLBACK_MSG)
         return
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
     split_file = os.path.join(user_dir, "split.txt")
     with open(split_file, "w", encoding="utf-8") as f:
         f.write(str(size))
-    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, Messages.SPLIT_SIZE_SET_MSG.format(size=humanbytes(size)))
-    send_to_logger(callback_query.message, Messages.SPLIT_SIZE_SET_CALLBACK_LOG_MSG.format(size=size))
+    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, get_messages_instance().SPLIT_SIZE_SET_MSG.format(size=humanbytes(size)))
+    send_to_logger(callback_query.message, get_messages_instance().SPLIT_SIZE_SET_CALLBACK_LOG_MSG.format(size=size))
 
 # --- Function for reading split.txt ---
 def get_user_split_size(user_id):

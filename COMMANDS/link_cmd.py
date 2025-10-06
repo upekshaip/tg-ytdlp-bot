@@ -12,7 +12,7 @@ from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all
 from HELPERS.limitter import check_user, is_user_in_channel
 from HELPERS.filesystem_hlp import create_directory
 from CONFIG.config import Config
-from CONFIG.messages import Messages as Messages
+from CONFIG.messages import Messages, get_messages_instance
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url
 from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
@@ -115,17 +115,17 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
             has_working_cookies = ensure_working_youtube_cookies(user_id)
             if has_working_cookies and os.path.exists(user_cookie_path):
                 ytdl_opts['cookiefile'] = user_cookie_path
-                logger.info(Messages.LINK_USING_WORKING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
+                logger.info(get_messages_instance().LINK_USING_WORKING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
             else:
                 ytdl_opts['cookiefile'] = None
-                logger.info(Messages.LINK_NO_WORKING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
+                logger.info(get_messages_instance().LINK_NO_WORKING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
         elif is_youtube_url(url) and cookies_already_checked:
             if os.path.exists(user_cookie_path):
                 ytdl_opts['cookiefile'] = user_cookie_path
-                logger.info(Messages.LINK_USING_EXISTING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
+                logger.info(get_messages_instance().LINK_USING_EXISTING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
             else:
                 ytdl_opts['cookiefile'] = None
-                logger.info(Messages.LINK_NO_YOUTUBE_COOKIES_FOUND_MSG.format(user_id=user_id))
+                logger.info(get_messages_instance().LINK_NO_YOUTUBE_COOKIES_FOUND_MSG.format(user_id=user_id))
         else:
             # For non-YouTube URL use existing logic
             if os.path.exists(user_cookie_path):
@@ -138,7 +138,7 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
                         import shutil
                         shutil.copy2(global_cookie_path, user_cookie_path)
                         ytdl_opts['cookiefile'] = user_cookie_path
-                        logger.info(Messages.LINK_COPIED_GLOBAL_COOKIE_FILE_MSG.format(user_id=user_id))
+                        logger.info(get_messages_instance().LINK_COPIED_GLOBAL_COOKIE_FILE_MSG.format(user_id=user_id))
                     except Exception as e:
                         logger.error(f"{LoggerMsg.LINK_FAILED_COPY_GLOBAL_COOKIE_LOG_MSG}")
                         ytdl_opts['cookiefile'] = None
@@ -326,7 +326,12 @@ def link_command(app, message):
         parts = text.strip().split()
         
         if len(parts) < 2:
-            send_to_user(message, Messages.LINK_USAGE_MSG)
+            from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            from HELPERS.safe_messeger import safe_send_message
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton(get_messages_instance().URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="link_hint|close")]
+            ])
+            safe_send_message(message.chat.id, get_messages_instance().LINK_USAGE_MSG, reply_markup=keyboard, message=message)
             return
         
         # Determine URL and quality
@@ -341,12 +346,12 @@ def link_command(app, message):
         
         # Check if this is a URL
         if not url.startswith(('http://', 'https://')):
-            send_to_user(message, Messages.LINK_INVALID_URL_MSG)
+            send_to_user(message, get_messages_instance().LINK_INVALID_URL_MSG)
             return
         
         # Send processing start message
         from HELPERS.safe_messeger import safe_send_message
-        status_msg = safe_send_message(user_id, Messages.LINK_PROCESSING_MSG, reply_to_message_id=message.id, message=message)
+        status_msg = safe_send_message(user_id, get_messages_instance().LINK_PROCESSING_MSG, reply_to_message_id=message.id, message=message)
         
         # Get direct link - use proxy only if user has proxy enabled and domain requires it
         result = get_direct_link(url, user_id, quality_arg, use_proxy=False)
@@ -359,20 +364,20 @@ def link_command(app, message):
             format_spec = result.get('format', 'best')
             
             # Form response
-            response = Messages.LINK_DIRECT_LINK_OBTAINED_MSG
-            response += Messages.LINK_TITLE_MSG.format(title=title)
+            response = get_messages_instance().LINK_DIRECT_LINK_OBTAINED_MSG
+            response += get_messages_instance().LINK_TITLE_MSG.format(title=title)
             if duration > 0:
-                response += Messages.LINK_DURATION_MSG.format(duration=duration)
-            response += Messages.LINK_FORMAT_INFO_MSG.format(format_spec=format_spec)
+                response += get_messages_instance().LINK_DURATION_MSG.format(duration=duration)
+            response += get_messages_instance().LINK_FORMAT_INFO_MSG.format(format_spec=format_spec)
             
             if video_url:
-                response += Messages.LINK_VIDEO_STREAM_MSG.format(video_url=video_url)
+                response += get_messages_instance().LINK_VIDEO_STREAM_MSG.format(video_url=video_url)
             
             if audio_url:
-                response += Messages.LINK_AUDIO_STREAM_MSG.format(audio_url=audio_url)
+                response += get_messages_instance().LINK_AUDIO_STREAM_MSG.format(audio_url=audio_url)
             
             if not video_url and not audio_url:
-                response += Messages.LINK_FAILED_GET_STREAMS_MSG
+                response += get_messages_instance().LINK_FAILED_GET_STREAMS_MSG
             
             # Update message
             app.edit_message_text(
@@ -382,21 +387,21 @@ def link_command(app, message):
                 parse_mode=enums.ParseMode.HTML
             )
             
-            send_to_logger(message, Messages.LINK_EXTRACTED_LOG_MSG.format(user_id=user_id, url=url))
+            send_to_logger(message, get_messages_instance().LINK_EXTRACTED_LOG_MSG.format(user_id=user_id, url=url))
             
         else:
             error_msg = result.get('error', 'Unknown error')
             app.edit_message_text(
                 chat_id=user_id,
                 message_id=status_msg.id,
-                text=Messages.LINK_ERROR_GETTING_MSG.format(error_msg=error_msg),
+                text=get_messages_instance().LINK_ERROR_GETTING_MSG.format(error_msg=error_msg),
                 parse_mode=enums.ParseMode.HTML
             )
             
-            send_to_logger(message, Messages.LINK_EXTRACTION_FAILED_LOG_MSG.format(user_id=user_id, url=url, error=error_msg))
+            send_to_logger(message, get_messages_instance().LINK_EXTRACTION_FAILED_LOG_MSG.format(user_id=user_id, url=url, error=error_msg))
             
     except Exception as e:
         logger.error(f"Error in link command: {e}")
         from HELPERS.logger import send_error_to_user
-        send_error_to_user(message, Messages.LINK_ERROR_OCCURRED_MSG.format(error=str(e)))
-        send_to_logger(message, Messages.LINK_COMMAND_ERROR_LOG_MSG.format(user_id=message.chat.id, error=str(e)))
+        send_error_to_user(message, get_messages_instance().LINK_ERROR_OCCURRED_MSG.format(error=str(e)))
+        send_to_logger(message, get_messages_instance().LINK_COMMAND_ERROR_LOG_MSG.format(user_id=message.chat.id, error=str(e)))

@@ -8,7 +8,7 @@ import os
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger
 from HELPERS.safe_messeger import safe_send_message
-from CONFIG.messages import Messages
+from CONFIG.messages import Messages, get_messages_instance
 
 def app_handler(func):
     """Decorator to automatically inject app instance"""
@@ -39,9 +39,9 @@ def get_main_reply_keyboard(mode="2x3"):
         ]
     elif mode == "FULL":
         keyboard = [
-            [Messages.CLEAN_EMOJI, Messages.COOKIE_EMOJI, Messages.SETTINGS_EMOJI, Messages.PROXY_EMOJI, Messages.IMAGE_EMOJI, Messages.SEARCH_EMOJI, Messages.ARGS_EMOJI],
-            [Messages.VIDEO_EMOJI, Messages.USAGE_EMOJI, Messages.SPLIT_EMOJI, Messages.AUDIO_EMOJI, Messages.SUBTITLE_EMOJI, Messages.LANGUAGE_EMOJI, Messages.NSFW_EMOJI],
-            [Messages.TAG_EMOJI, Messages.HELP_EMOJI, Messages.LIST_EMOJI, Messages.PLAY_EMOJI, Messages.KEYBOARD_EMOJI, Messages.LINK_EMOJI, "🧾"]
+            [get_messages_instance().CLEAN_EMOJI, get_messages_instance().COOKIE_EMOJI, get_messages_instance().SETTINGS_EMOJI, get_messages_instance().PROXY_EMOJI, get_messages_instance().IMAGE_EMOJI, get_messages_instance().SEARCH_EMOJI, get_messages_instance().ARGS_EMOJI],
+            [get_messages_instance().VIDEO_EMOJI, get_messages_instance().USAGE_EMOJI, get_messages_instance().SPLIT_EMOJI, get_messages_instance().AUDIO_EMOJI, get_messages_instance().SUBTITLE_EMOJI, get_messages_instance().LANGUAGE_EMOJI, get_messages_instance().NSFW_EMOJI],
+            [get_messages_instance().TAG_EMOJI, get_messages_instance().HELP_EMOJI, get_messages_instance().LIST_EMOJI, get_messages_instance().PLAY_EMOJI, get_messages_instance().KEYBOARD_EMOJI, get_messages_instance().LINK_EMOJI, "🧾"]
         ]
     else:  # 2x3 mode (default)
         keyboard = [

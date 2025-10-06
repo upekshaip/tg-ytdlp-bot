@@ -3,7 +3,7 @@ import logging
 import os
 from urllib.parse import quote
 from COMMANDS.proxy_cmd import get_proxy_config
-from CONFIG.messages import Messages
+from CONFIG.messages import Messages, get_messages_instance
 
 logger = logging.getLogger(__name__)
 
@@ -58,12 +58,12 @@ def get_direct_link_with_proxy(url: str, format_spec: str = "bv+ba/best", user_i
             ydl_opts['proxy'] = proxy_url
             logger.info(f"Using proxy for yt-dlp: {proxy_url}")
         else:
-            logger.warning(Messages.HELPER_PROXY_CONFIG_INCOMPLETE_MSG)
+            logger.warning(get_messages_instance().HELPER_PROXY_CONFIG_INCOMPLETE_MSG)
         
         # Add cookie file for YouTube if user_id is provided
         #if user_id and 'youtube.com' in url or 'youtu.be' in url:
         if user_id:
-            cookie_path = Messages.HELPER_PROXY_COOKIE_PATH_MSG.format(user_id=user_id)
+            cookie_path = get_messages_instance().HELPER_PROXY_COOKIE_PATH_MSG.format(user_id=user_id)
             if os.path.exists(cookie_path):
                 ydl_opts['cookiefile'] = cookie_path
         

@@ -33,6 +33,7 @@ from URL_PARSERS.tags import extract_url_range_tags
 from pyrogram import filters
 import re
 from CONFIG.config import Config
+from CONFIG.messages import get_messages_instance
 from CONFIG.messages import Messages
 from HELPERS.logger import logger
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -49,9 +50,19 @@ def url_distractor(app, message):
     is_admin = int(user_id) in Config.ADMIN
     text = message.text.strip()
     
+    # Import get_messages_instance locally to avoid UnboundLocalError
+    from CONFIG.messages import get_messages_instance
+    from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    from HELPERS.filesystem_hlp import remove_media
+    from COMMANDS.cookies_cmd import download_cookie
+    
     # Debug logging
     from HELPERS.logger import logger
     logger.info(LoggerMsg.URL_EXTRACTOR_DISTRACTOR_CALLED_LOG_MSG.format(text=text[:100]))
+    
+    # Prevent recursion for emoji commands
+    if hasattr(message, '_is_emoji_command') and message._is_emoji_command:
+        return
     
     # Check if user is in args input state
     from COMMANDS.args_cmd import user_input_states, handle_args_text_input, args_import_handler
@@ -110,59 +121,216 @@ def url_distractor(app, message):
 
     if text in emoji_to_command:
         mapped = emoji_to_command[text]
-        # Special case: headphones emoji should show audio usage hint
-        if mapped == Config.AUDIO_COMMAND:
-            from HELPERS.safe_messeger import safe_send_message
-            safe_send_message(
-                message.chat.id,
-                Messages.URL_EXTRACTOR_AUDIO_HINT_MSG,
-                message=message
-            )
-            return
         # Emulate a user command for the mapped emoji
         from HELPERS.safe_messeger import fake_message
-        return url_distractor(app, fake_message(mapped, user_id))
+        fake_msg = fake_message(mapped, user_id)
+        fake_msg._is_emoji_command = True  # Mark as emoji command to prevent recursion
+        
+        # Special case: headphones emoji should work exactly like /audio command
+        if mapped == Config.AUDIO_COMMAND:
+            from COMMANDS.other_handlers import audio_command_handler
+            return audio_command_handler(app, fake_msg)
+        
+        # Import and call the appropriate command handler directly
+        if mapped == Config.CLEAN_COMMAND:
+            # For clean command, call the clean command without arguments - EXACT SAME LOGIC as /clean
+            from COMMANDS.subtitles_cmd import clear_subs_check_cache
+            from COMMANDS.cookies_cmd import clear_youtube_cookie_cache
+            from CONFIG.messages import get_messages_instance
+            import os
+            import shutil
+            
+            logger.info(f"🧹 Emoji triggered - cleaning all files and folders for user {user_id}")
+            
+            # EXACT SAME LOGIC as /clean without arguments
+            user_dir = f'./users/{str(fake_msg.chat.id)}'
+            if not os.path.exists(user_dir):
+                send_to_all(fake_msg, get_messages_instance(user_id).URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
+                clear_subs_check_cache()
+                return
+
+            removed_items = []
+            allitems = os.listdir(user_dir)
+
+            # Delete all files and folders in the user folder (except protected files)
+            def scan_and_remove_recursive_emoji(path, prefix=""):
+                """Recursively scan and remove files/folders, building a detailed structure list (emoji version)"""
+                items = []
+                try:
+                    if os.path.isfile(path):
+                        if os.path.basename(path) not in ["keyboard.txt", "tags.txt", "logs.txt"]:
+                            os.remove(path)
+                            items.append(f"{prefix}📄 {os.path.basename(path)}")
+                            logger.info(f"Removed file: {path}")
+                    elif os.path.isdir(path):
+                        # First, scan contents of the directory
+                        dir_items = []
+                        try:
+                            for subitem in os.listdir(path):
+                                subitem_path = os.path.join(path, subitem)
+                                sub_items = scan_and_remove_recursive_emoji(subitem_path, prefix + "  ")
+                                dir_items.extend(sub_items)
+                        except Exception as e:
+                            logger.error(f"Error scanning directory {path}: {e}")
+                        
+                        # Then remove the directory itself
+                        shutil.rmtree(path)
+                        items.append(f"{prefix}📁 {os.path.basename(path)}/")
+                        items.extend(dir_items)
+                        logger.info(f"Removed directory: {path}")
+                except Exception as e:
+                    logger.error(f"Failed to remove {path}: {e}")
+                return items
+            
+            for item in allitems:
+                item_path = os.path.join(user_dir, item)
+                if item not in ["keyboard.txt", "tags.txt", "logs.txt"]:
+                    sub_items = scan_and_remove_recursive_emoji(item_path)
+                    removed_items.extend(sub_items)
+
+            # Clear YouTube cookie validation cache for this user
+            try:
+                clear_youtube_cookie_cache(fake_msg.chat.id)
+            except Exception as e:
+                logger.error(f"Failed to clear YouTube cookie cache: {e}")
+            
+            if removed_items:
+                items_list = "\n".join([f"• {item}" for item in removed_items])
+                send_to_all(fake_msg, get_messages_instance(user_id).URL_EXTRACTOR_ALL_FILES_REMOVED_MSG.format(files_list=items_list))
+            else:
+                send_to_all(fake_msg, get_messages_instance(user_id).URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
+            
+            clear_subs_check_cache()
+            logger.info(f"🧹 Emoji completed - all files and folders cleaned for user {user_id}")
+            return
+        elif mapped == Config.DOWNLOAD_COOKIE_COMMAND:
+            # For cookies command, we need to show the menu
+            from COMMANDS.cookies_cmd import download_cookie
+            return download_cookie(app, fake_msg)
+        elif mapped == Config.SETTINGS_COMMAND:
+            from COMMANDS.settings_cmd import settings_command
+            return settings_command(app, fake_msg)
+        elif mapped == Config.SEARCH_COMMAND:
+            from COMMANDS.search import search_command
+            return search_command(app, fake_msg)
+        elif mapped == Config.COOKIES_FROM_BROWSER_COMMAND:
+            from COMMANDS.cookies_cmd import cookies_from_browser
+            return cookies_from_browser(app, fake_msg)
+        elif mapped == Config.LINK_COMMAND:
+            from COMMANDS.link_cmd import link_command
+            return link_command(app, fake_msg)
+        elif mapped == Config.FORMAT_COMMAND:
+            from COMMANDS.format_cmd import set_format
+            return set_format(app, fake_msg)
+        elif mapped == Config.MEDIINFO_COMMAND:
+            from COMMANDS.mediainfo_cmd import mediainfo_command
+            return mediainfo_command(app, fake_msg)
+        elif mapped == Config.SPLIT_COMMAND:
+            from COMMANDS.split_sizer import split_command
+            return split_command(app, fake_msg)
+        elif mapped == Config.SUBS_COMMAND:
+            from COMMANDS.subtitles_cmd import subs_command
+            return subs_command(app, fake_msg)
+        elif mapped == Config.TAGS_COMMAND:
+            from COMMANDS.tag_cmd import tags_command
+            return tags_command(app, fake_msg)
+        elif mapped == Config.PLAYLIST_COMMAND:
+            from COMMANDS.other_handlers import playlist_command
+            return playlist_command(app, fake_msg)
+        elif mapped == Config.KEYBOARD_COMMAND:
+            from COMMANDS.keyboard_cmd import keyboard_command
+            return keyboard_command(app, fake_msg)
+        elif mapped == Config.PROXY_COMMAND:
+            from COMMANDS.proxy_cmd import proxy_command
+            return proxy_command(app, fake_msg)
+        elif mapped == Config.CHECK_COOKIE_COMMAND:
+            from COMMANDS.cookies_cmd import check_cookie_command
+            return check_cookie_command(app, fake_msg)
+        elif mapped == Config.IMG_COMMAND:
+            from COMMANDS.image_cmd import image_command
+            return image_command(app, fake_msg)
+        elif mapped == Config.ARGS_COMMAND:
+            from COMMANDS.args_cmd import args_command
+            return args_command(app, fake_msg)
+        elif mapped == Config.NSFW_COMMAND:
+            from COMMANDS.nsfw_cmd import nsfw_command
+            return nsfw_command(app, fake_msg)
+        elif mapped == Config.LIST_COMMAND:
+            from COMMANDS.list_cmd import list_command
+            return list_command(app, fake_msg)
+        elif mapped == Config.USAGE_COMMAND:
+            from COMMANDS.admin_cmd import get_user_usage_stats
+            logger.info(f"📃 Emoji triggered - showing usage stats for user {user_id}")
+            get_user_usage_stats(app, fake_msg)
+            logger.info(f"📃 Emoji completed - usage stats shown for user {user_id}")
+            return
+        elif mapped == "/help":
+            # Handle help command directly
+            if not is_user_in_channel(app, fake_msg):
+                return
+            from HELPERS.safe_messeger import safe_send_message
+            from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            from CONFIG.messages import get_messages_instance
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🛠 Dev GitHub", url="https://github.com/upekshaip/tg-ytdlp-bot"),
+                    InlineKeyboardButton("🛠 Contr GitHub", url="https://github.com/chelaxian/tg-ytdlp-bot")
+                ],
+                [InlineKeyboardButton(get_messages_instance(user_id).URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="help_msg|close")]
+            ])
+            try:
+                safe_send_message(fake_msg.chat.id, (get_messages_instance(user_id).HELP_MSG),
+                                 parse_mode=enums.ParseMode.HTML,
+                                 reply_markup=keyboard,
+                                 message=fake_msg)
+            except Exception:
+                safe_send_message(fake_msg.chat.id, (get_messages_instance(user_id).HELP_MSG), reply_markup=keyboard, message=fake_msg)
+            return
+        else:
+            # Unknown emoji command - do nothing
+            logger.warning(f"Unknown emoji command: {mapped}")
+            return
 
     # ----- Admin-only denial for non-admins -----
     if not is_admin:
         # /uncache
         if text.startswith(Config.UNCACHE_COMMAND):
-            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
+            send_to_user(message, get_messages_instance(user_id).ACCESS_DENIED_ADMIN)
             return
         # /auto_cache
         if text.startswith(Config.AUTO_CACHE_COMMAND):
-            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
+            send_to_user(message, get_messages_instance(user_id).ACCESS_DENIED_ADMIN)
             return
         # /all_* (user details)
         if Config.GET_USER_DETAILS_COMMAND in text:
-            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
+            send_to_user(message, get_messages_instance(user_id).ACCESS_DENIED_ADMIN)
             return
         # /unblock_user
         if Config.UNBLOCK_USER_COMMAND in text:
-            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
+            send_to_user(message, get_messages_instance(user_id).ACCESS_DENIED_ADMIN)
             return
         # /block_user
         if Config.BLOCK_USER_COMMAND in text:
-            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
+            send_to_user(message, get_messages_instance(user_id).ACCESS_DENIED_ADMIN)
             return
         # /broadcast
         if text.startswith(Config.BROADCAST_MESSAGE):
-            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
+            send_to_user(message, get_messages_instance(user_id).ACCESS_DENIED_ADMIN)
             return
         # /log (user logs)
         if Config.GET_USER_LOGS_COMMAND in text:
-            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
+            send_to_user(message, get_messages_instance(user_id).ACCESS_DENIED_ADMIN)
             return
         # /reload_cache
         if text.startswith(Config.RELOAD_CACHE_COMMAND):
-            send_to_user(message, Messages.ACCESS_DENIED_ADMIN)
+            send_to_user(message, get_messages_instance(user_id).ACCESS_DENIED_ADMIN)
             return
 
     # ----- Basic Commands -----
     # /Start Command
     if text == "/start":
         if is_admin:
-            send_to_user(message, Messages.WELCOME_MASTER)
+            send_to_user(message, get_messages_instance(user_id).WELCOME_MASTER)
         else:
             # For non-admins, check subscription first
             if not is_user_in_channel(app, message):
@@ -171,7 +339,7 @@ def url_distractor(app, message):
             from HELPERS.safe_messeger import safe_send_message
             safe_send_message(
                 message.chat.id,
-                Messages.URL_EXTRACTOR_WELCOME_MSG.format(first_name=message.chat.first_name, credits=Config.CREDITS_MSG),
+                get_messages_instance(user_id).URL_EXTRACTOR_WELCOME_MSG.format(first_name=message.chat.first_name, credits=get_messages_instance(user_id).CREDITS_MSG),
                 parse_mode=enums.ParseMode.HTML,
                 message=message)
             send_to_logger(message, LoggerMsg.USER_STARTED_BOT.format(chat_id=message.chat.id))
@@ -188,17 +356,17 @@ def url_distractor(app, message):
                 InlineKeyboardButton("🛠 Dev GitHub", url="https://github.com/upekshaip/tg-ytdlp-bot"),
                 InlineKeyboardButton("🛠 Contr GitHub", url="https://github.com/chelaxian/tg-ytdlp-bot")
             ],
-            [InlineKeyboardButton(Messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="help_msg|close")]
+            [InlineKeyboardButton(get_messages_instance(user_id).URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="help_msg|close")]
         ])
         from HELPERS.safe_messeger import safe_send_message
         try:
-            safe_send_message(message.chat.id, (Config.HELP_MSG),
+            safe_send_message(message.chat.id, (get_messages_instance(user_id).HELP_MSG),
                              parse_mode=enums.ParseMode.HTML,
                              reply_markup=keyboard,
                              message=message)
         except Exception:
             # Fallback without parse_mode if enums shadowed unexpectedly
-            safe_send_message(message.chat.id, (Config.HELP_MSG), reply_markup=keyboard, message=message)
+            safe_send_message(message.chat.id, (get_messages_instance(user_id).HELP_MSG), reply_markup=keyboard, message=message)
         send_to_logger(message, LoggerMsg.HELP_SENT_TO_USER)
         return
 
@@ -208,19 +376,19 @@ def url_distractor(app, message):
         if not is_user_in_channel(app, message):
             return  # is_user_in_channel already sends subscription message
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(Messages.URL_EXTRACTOR_ADD_GROUP_CLOSE_BUTTON_MSG, callback_data="add_group_msg|close")]
+            [InlineKeyboardButton(get_messages_instance(user_id).URL_EXTRACTOR_ADD_GROUP_CLOSE_BUTTON_MSG, callback_data="add_group_msg|close")]
         ])
         from HELPERS.safe_messeger import safe_send_message
         try:
             safe_send_message(
                 message.chat.id,
-                (Config.ADD_BOT_TO_GROUP_MSG),
+                (get_messages_instance(user_id).ADD_BOT_TO_GROUP_MSG),
                 parse_mode=enums.ParseMode.HTML,
                 reply_markup=keyboard,
                 message=message,
             )
         except Exception:
-            safe_send_message(message.chat.id, (Config.ADD_BOT_TO_GROUP_MSG), reply_markup=keyboard, message=message)
+            safe_send_message(message.chat.id, (get_messages_instance(user_id).ADD_BOT_TO_GROUP_MSG), reply_markup=keyboard, message=message)
         send_to_logger(message, LoggerMsg.ADD_BOT_TO_GROUP_SENT)
         return
 
@@ -232,6 +400,7 @@ def url_distractor(app, message):
     # ----- User Commands -----
     # /Search Command
     if text.startswith(Config.SEARCH_COMMAND):
+        from COMMANDS.search import search_command
         search_command(app, message)
         return
         
@@ -247,6 +416,7 @@ def url_distractor(app, message):
                 message.command = [cmd] + args
             else:
                 message.command = []
+        from COMMANDS.keyboard_cmd import keyboard_command
         keyboard_command(app, message)
         return
         
@@ -257,6 +427,7 @@ def url_distractor(app, message):
 
     # /Subs Command
     if text.startswith(Config.SUBS_COMMAND):
+        from COMMANDS.subtitles_cmd import subs_command
         subs_command(app, message)
         return
 
@@ -272,6 +443,7 @@ def url_distractor(app, message):
                 message.command = [cmd] + args
             else:
                 message.command = []
+        from COMMANDS.proxy_cmd import proxy_command
         proxy_command(app, message)
         return
 
@@ -287,11 +459,13 @@ def url_distractor(app, message):
                 message.command = [cmd] + args
             else:
                 message.command = []
+        from COMMANDS.link_cmd import link_command
         link_command(app, message)
         return
 
     # /Img Command
     if text.startswith(Config.IMG_COMMAND):
+        from COMMANDS.image_cmd import image_command
         image_command(app, message)
         return
 
@@ -319,12 +493,12 @@ def url_distractor(app, message):
         cookie_args = raw_args.lower()
         
         # Handle direct arguments
-        if cookie_args.startswith(Messages.URL_EXTRACTOR_COOKIE_ARGS_YOUTUBE_MSG):
+        if cookie_args.startswith(get_messages_instance(user_id).URL_EXTRACTOR_COOKIE_ARGS_YOUTUBE_MSG):
             # Support optional index: /cookie youtube <n>
             selected_index = None
             try:
                 parts = raw_args.split()
-                if len(parts) >= 1 and parts[0].lower() == Messages.URL_EXTRACTOR_COOKIE_ARGS_YOUTUBE_MSG:
+                if len(parts) >= 1 and parts[0].lower() == get_messages_instance(user_id).URL_EXTRACTOR_COOKIE_ARGS_YOUTUBE_MSG:
                     if len(parts) >= 2 and parts[1].isdigit():
                         selected_index = int(parts[1])
             except Exception:
@@ -344,7 +518,7 @@ def url_distractor(app, message):
             download_and_validate_youtube_cookies(app, fake_callback, selected_index=selected_index)
             return
             
-        elif cookie_args == Messages.URL_EXTRACTOR_COOKIE_ARGS_INSTAGRAM_MSG:
+        elif cookie_args == get_messages_instance(user_id).URL_EXTRACTOR_COOKIE_ARGS_INSTAGRAM_MSG:
             # Simulate Instagram button click
             from pyrogram.types import CallbackQuery
             from collections import namedtuple
@@ -363,7 +537,7 @@ def url_distractor(app, message):
             download_and_save_cookie(app, fake_callback, Config.INSTAGRAM_COOKIE_URL, "instagram")
             return
             
-        elif cookie_args == Messages.URL_EXTRACTOR_COOKIE_ARGS_TIKTOK_MSG:
+        elif cookie_args == get_messages_instance(user_id).URL_EXTRACTOR_COOKIE_ARGS_TIKTOK_MSG:
             # Simulate TikTok button click
             from pyrogram.types import CallbackQuery
             from collections import namedtuple
@@ -381,7 +555,7 @@ def url_distractor(app, message):
             download_and_save_cookie(app, fake_callback, Config.TIKTOK_COOKIE_URL, "tiktok")
             return
             
-        elif cookie_args in ["x", Messages.URL_EXTRACTOR_COOKIE_ARGS_TWITTER_MSG]:
+        elif cookie_args in ["x", get_messages_instance(user_id).URL_EXTRACTOR_COOKIE_ARGS_TWITTER_MSG]:
             # Simulate Twitter/X button click
             from pyrogram.types import CallbackQuery
             from collections import namedtuple
@@ -417,7 +591,7 @@ def url_distractor(app, message):
             #download_and_save_cookie(app, fake_callback, Config.FACEBOOK_COOKIE_URL, "facebook")
             #return
             
-        elif cookie_args == Messages.URL_EXTRACTOR_COOKIE_ARGS_CUSTOM_MSG:
+        elif cookie_args == get_messages_instance(user_id).URL_EXTRACTOR_COOKIE_ARGS_CUSTOM_MSG:
             # Simulate "Your Own" button click
             from pyrogram.types import CallbackQuery
             from collections import namedtuple
@@ -437,7 +611,7 @@ def url_distractor(app, message):
             except Exception:
                 pass
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton(Messages.URL_EXTRACTOR_SAVE_AS_COOKIE_HINT_CLOSE_BUTTON_MSG, callback_data="save_as_cookie_hint|close")]
+                [InlineKeyboardButton(get_messages_instance(user_id).URL_EXTRACTOR_SAVE_AS_COOKIE_HINT_CLOSE_BUTTON_MSG, callback_data="save_as_cookie_hint|close")]
             ])
             from HELPERS.safe_messeger import safe_send_message
             from pyrogram.types import ReplyParameters
@@ -447,7 +621,7 @@ def url_distractor(app, message):
                 reply_parameters=ReplyParameters(message_id=fake_callback.message.id if hasattr(fake_callback.message, 'id') else None),
                 reply_markup=keyboard,
                 _callback_query=fake_callback,
-                _fallback_notice=Messages.FLOOD_LIMIT_TRY_LATER_FALLBACK_MSG
+                _fallback_notice=get_messages_instance(user_id).FLOOD_LIMIT_TRY_LATER_FALLBACK_MSG
             )
             return
             
@@ -458,7 +632,7 @@ def url_distractor(app, message):
         else:
             # Invalid argument - show usage message
             from pyrogram.types import ReplyParameters
-            usage_text = Messages.COOKIE_COMMAND_USAGE_MSG
+            usage_text = get_messages_instance(user_id).COOKIE_COMMAND_USAGE_MSG
             app.send_message(
                 message.chat.id,
                 usage_text,
@@ -479,21 +653,25 @@ def url_distractor(app, message):
 
     # /Audio Command
     if text.startswith(Config.AUDIO_COMMAND):
+        from COMMANDS.other_handlers import audio_command_handler
         audio_command_handler(app, message)
         return
 
     # /Format Command
     if text.startswith(Config.FORMAT_COMMAND):
+        from COMMANDS.format_cmd import set_format
         set_format(app, message)
         return
 
     # /Mediainfo Command
     if text.startswith(Config.MEDIINFO_COMMAND):
+        from COMMANDS.mediainfo_cmd import mediainfo_command
         mediainfo_command(app, message)
         return
 
     # /Settings Command
     if text.startswith(Config.SETTINGS_COMMAND):
+        from COMMANDS.settings_cmd import settings_command
         settings_command(app, message)
         return
 
@@ -501,6 +679,7 @@ def url_distractor(app, message):
 
         # /Playlist Command
     if text.startswith(Config.PLAYLIST_COMMAND):
+        from COMMANDS.other_handlers import playlist_command
         playlist_command(app, message)
         return
 
@@ -515,74 +694,101 @@ def url_distractor(app, message):
                 clear_youtube_cookie_cache(message.chat.id)
             except Exception as e:
                 logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_CLEAR_YOUTUBE_CACHE_LOG_MSG.format(e=e))
-            send_to_all(message, Messages.COOKIE_FILE_REMOVED_CACHE_CLEARED_MSG)
+            send_to_all(message, get_messages_instance(user_id).COOKIE_FILE_REMOVED_CACHE_CLEARED_MSG)
             return
         elif clean_args in ["log", "logs"]:
             remove_media(message, only=["logs.txt"])
-            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_LOGS_FILE_REMOVED_MSG)
+            send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_CLEAN_LOGS_FILE_REMOVED_MSG)
             return
         elif clean_args in ["tag", "tags"]:
             remove_media(message, only=["tags.txt"])
-            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_TAGS_FILE_REMOVED_MSG)
+            send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_CLEAN_TAGS_FILE_REMOVED_MSG)
             return
         elif clean_args == "format":
             remove_media(message, only=["format.txt"])
-            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_FORMAT_FILE_REMOVED_MSG)
+            send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_CLEAN_FORMAT_FILE_REMOVED_MSG)
             return
         elif clean_args == "split":
             remove_media(message, only=["split.txt"])
-            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_SPLIT_FILE_REMOVED_MSG)
+            send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_CLEAN_SPLIT_FILE_REMOVED_MSG)
             return
         elif clean_args == "mediainfo":
             remove_media(message, only=["mediainfo.txt"])
-            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_MEDIAINFO_FILE_REMOVED_MSG)
+            send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_CLEAN_MEDIAINFO_FILE_REMOVED_MSG)
             return
         elif clean_args == "subs":
             remove_media(message, only=["subs.txt"])
-            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_SUBS_SETTINGS_REMOVED_MSG)
+            send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_CLEAN_SUBS_SETTINGS_REMOVED_MSG)
+            from COMMANDS.subtitles_cmd import clear_subs_check_cache
             clear_subs_check_cache()
             return
         elif clean_args == "keyboard":
             remove_media(message, only=["keyboard.txt"])
-            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_KEYBOARD_SETTINGS_REMOVED_MSG)
+            send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_CLEAN_KEYBOARD_SETTINGS_REMOVED_MSG)
             return
         elif clean_args == "args":
             remove_media(message, only=["args.txt"])
-            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_ARGS_SETTINGS_REMOVED_MSG)
+            send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_CLEAN_ARGS_SETTINGS_REMOVED_MSG)
             return
         elif clean_args == "nsfw":
             remove_media(message, only=["nsfw_blur.txt"])
-            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_NSFW_SETTINGS_REMOVED_MSG)
+            send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_CLEAN_NSFW_SETTINGS_REMOVED_MSG)
             return
         elif clean_args == "proxy":
             remove_media(message, only=["proxy.txt"])
-            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_PROXY_SETTINGS_REMOVED_MSG)
+            send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_CLEAN_PROXY_SETTINGS_REMOVED_MSG)
             return
         elif clean_args == "flood_wait":
             remove_media(message, only=["flood_wait.txt"])
-            send_to_all(message, Messages.URL_EXTRACTOR_CLEAN_FLOOD_WAIT_SETTINGS_REMOVED_MSG)
+            send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_CLEAN_FLOOD_WAIT_SETTINGS_REMOVED_MSG)
             return
         elif clean_args == "all":
-            # Delete all files and display the list of deleted ones
+            # Delete all files and folders and display the list of deleted ones (NO EXCEPTIONS)
+            import os
+            import shutil
             user_dir = f'./users/{str(message.chat.id)}'
             if not os.path.exists(user_dir):
-                send_to_all(message, Messages.URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
+                send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
+                from COMMANDS.subtitles_cmd import clear_subs_check_cache
                 clear_subs_check_cache()
                 return
 
-            removed_files = []
-            allfiles = os.listdir(user_dir)
+            removed_items = []
+            allitems = os.listdir(user_dir)
 
-            # Delete all files in the user folder
-            for file in allfiles:
-                file_path = os.path.join(user_dir, file)
+            # Delete ALL files and folders in the user folder (NO EXCEPTIONS)
+            def scan_and_remove_recursive_all(path, prefix=""):
+                """Recursively scan and remove files/folders, building a detailed structure list (NO EXCEPTIONS)"""
+                items = []
                 try:
-                    if os.path.isfile(file_path):
-                        os.remove(file_path)
-                        removed_files.append(file)
-                        logger.info(LoggerMsg.URL_EXTRACTOR_REMOVED_FILE_LOG_MSG.format(file_path=file_path))
+                    if os.path.isfile(path):
+                        os.remove(path)
+                        items.append(f"{prefix}📄 {os.path.basename(path)}")
+                        logger.info(LoggerMsg.URL_EXTRACTOR_REMOVED_FILE_LOG_MSG.format(file_path=path))
+                    elif os.path.isdir(path):
+                        # First, scan contents of the directory
+                        dir_items = []
+                        try:
+                            for subitem in os.listdir(path):
+                                subitem_path = os.path.join(path, subitem)
+                                sub_items = scan_and_remove_recursive_all(subitem_path, prefix + "  ")
+                                dir_items.extend(sub_items)
+                        except Exception as e:
+                            logger.error(f"Error scanning directory {path}: {e}")
+                        
+                        # Then remove the directory itself
+                        shutil.rmtree(path)
+                        items.append(f"{prefix}📁 {os.path.basename(path)}/")
+                        items.extend(dir_items)
+                        logger.info(f"Removed directory: {path}")
                 except Exception as e:
-                    logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_REMOVE_FILE_LOG_MSG.format(file_path=file_path, e=e))
+                    logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_REMOVE_FILE_LOG_MSG.format(file_path=path, e=e))
+                return items
+            
+            for item in allitems:
+                item_path = os.path.join(user_dir, item)
+                sub_items = scan_and_remove_recursive_all(item_path)
+                removed_items.extend(sub_items)
 
             # Clear YouTube cookie validation cache for this user
             try:
@@ -591,31 +797,96 @@ def url_distractor(app, message):
             except Exception as e:
                 logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_CLEAR_YOUTUBE_CACHE_LOG_MSG.format(e=e))
             
-            if removed_files:
-                files_list = "\n".join([f"• {file}" for file in removed_files])
-                send_to_all(message, Messages.URL_EXTRACTOR_ALL_FILES_REMOVED_MSG.format(files_list=files_list))
+            if removed_items:
+                items_list = "\n".join([f"• {item}" for item in removed_items])
+                send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_ALL_FILES_REMOVED_MSG.format(files_list=items_list))
             else:
-                send_to_all(message, Messages.URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
+                send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
             return
         else:
-            # Regular command /clean - delete only media files with filtering
-            remove_media(message, force_clean=True)
-            send_to_all(message, Messages.URL_EXTRACTOR_ALL_MEDIA_FILES_REMOVED_MSG)
+            # Regular command /clean - delete all files and folders (same as /clean all)
+            import os
+            import shutil
+            user_dir = f'./users/{str(message.chat.id)}'
+            if not os.path.exists(user_dir):
+                send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
+                from COMMANDS.subtitles_cmd import clear_subs_check_cache
+                clear_subs_check_cache()
+                return
+
+            removed_items = []
+            allitems = os.listdir(user_dir)
+
+            # Delete all files and folders in the user folder (except protected files)
+            def scan_and_remove_recursive(path, prefix=""):
+                """Recursively scan and remove files/folders, building a detailed structure list"""
+                items = []
+                try:
+                    if os.path.isfile(path):
+                        if os.path.basename(path) not in ["keyboard.txt", "tags.txt", "logs.txt"]:
+                            os.remove(path)
+                            items.append(f"{prefix}📄 {os.path.basename(path)}")
+                            logger.info(LoggerMsg.URL_EXTRACTOR_REMOVED_FILE_LOG_MSG.format(file_path=path))
+                    elif os.path.isdir(path):
+                        # First, scan contents of the directory
+                        dir_items = []
+                        try:
+                            for subitem in os.listdir(path):
+                                subitem_path = os.path.join(path, subitem)
+                                sub_items = scan_and_remove_recursive(subitem_path, prefix + "  ")
+                                dir_items.extend(sub_items)
+                        except Exception as e:
+                            logger.error(f"Error scanning directory {path}: {e}")
+                        
+                        # Then remove the directory itself
+                        shutil.rmtree(path)
+                        items.append(f"{prefix}📁 {os.path.basename(path)}/")
+                        items.extend(dir_items)
+                        logger.info(f"Removed directory: {path}")
+                except Exception as e:
+                    logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_REMOVE_FILE_LOG_MSG.format(file_path=path, e=e))
+                return items
+            
+            for item in allitems:
+                item_path = os.path.join(user_dir, item)
+                if item not in ["keyboard.txt", "tags.txt", "logs.txt"]:
+                    sub_items = scan_and_remove_recursive(item_path)
+                    removed_items.extend(sub_items)
+
+            # Clear YouTube cookie validation cache for this user
             try:
                 from COMMANDS.cookies_cmd import clear_youtube_cookie_cache
                 clear_youtube_cookie_cache(message.chat.id)
             except Exception as e:
                 logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_CLEAR_YOUTUBE_CACHE_LOG_MSG.format(e=e))
+            
+            if removed_items:
+                items_list = "\n".join([f"• {item}" for item in removed_items])
+                send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_ALL_FILES_REMOVED_MSG.format(files_list=items_list))
+            else:
+                send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
+            
+            from COMMANDS.subtitles_cmd import clear_subs_check_cache
             clear_subs_check_cache()
             return
 
     # /USAGE Command
     if Config.USAGE_COMMAND in text:
-        get_user_log(app, message)
+        from COMMANDS.admin_cmd import get_user_usage_stats
+        logger.info(f"📃 Emoji triggered - showing usage stats for user {user_id}")
+        get_user_usage_stats(app, message)
+        logger.info(f"📃 Emoji completed - usage stats shown for user {user_id}")
+        return
+
+    # /lang Command
+    if text.startswith("/lang"):
+        from COMMANDS.lang_cmd import lang_command
+        lang_command(app, message)
         return
 
     # /tags Command
     if Config.TAGS_COMMAND in text:
+        from COMMANDS.tag_cmd import tags_command
         tags_command(app, message)
         return
 
@@ -631,11 +902,13 @@ def url_distractor(app, message):
                 message.command = [cmd] + args
             else:
                 message.command = []
+        from COMMANDS.split_sizer import split_command
         split_command(app, message)
         return
 
     # /Search Command
     if text.startswith(Config.SEARCH_COMMAND):
+        from COMMANDS.search import search_command
         search_command(app, message)
         return
 
@@ -644,7 +917,7 @@ def url_distractor(app, message):
         if is_admin:
             uncache_command(app, message)
         else:
-            send_to_all(message, Messages.URL_PARSER_ADMIN_ONLY_MSG)
+            send_to_all(message, get_messages_instance(user_id).URL_PARSER_ADMIN_ONLY_MSG)
         return
 
     # /vid help & range transformation when handled by the text pipeline
@@ -668,13 +941,13 @@ def url_distractor(app, message):
             try:
                 from HELPERS.safe_messeger import safe_send_message
                 # Use top-level imports to avoid shadowing names in function scope
-                kb = InlineKeyboardMarkup([[InlineKeyboardButton(Messages.URL_EXTRACTOR_VID_HELP_CLOSE_BUTTON_MSG, callback_data="vid_help|close")]])
+                kb = InlineKeyboardMarkup([[InlineKeyboardButton(get_messages_instance(user_id).URL_EXTRACTOR_VID_HELP_CLOSE_BUTTON_MSG, callback_data="vid_help|close")]])
                 help_text = (
-                    f"<b>{Messages.URL_EXTRACTOR_VID_HELP_TITLE_MSG}</b>\n\n"
-                    f"{Messages.URL_EXTRACTOR_VID_HELP_USAGE_MSG}\n\n"
-                    f"<b>{Messages.URL_EXTRACTOR_VID_HELP_EXAMPLES_MSG}</b>\n"
-                    f"{Messages.URL_EXTRACTOR_VID_HELP_EXAMPLE_1_MSG}\n\n"
-                    f"{Messages.URL_EXTRACTOR_VID_HELP_ALSO_SEE_MSG}"
+                    f"<b>{get_messages_instance(user_id).URL_EXTRACTOR_VID_HELP_TITLE_MSG}</b>\n\n"
+                    f"{get_messages_instance(user_id).URL_EXTRACTOR_VID_HELP_USAGE_MSG}\n\n"
+                    f"<b>{get_messages_instance(user_id).URL_EXTRACTOR_VID_HELP_EXAMPLES_MSG}</b>\n"
+                    f"{get_messages_instance(user_id).URL_EXTRACTOR_VID_HELP_EXAMPLE_1_MSG}\n\n"
+                    f"{get_messages_instance(user_id).URL_EXTRACTOR_VID_HELP_ALSO_SEE_MSG}"
                 )
                 safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
             except Exception:
@@ -693,6 +966,7 @@ def url_distractor(app, message):
     # 2) On failure, fallback to gallery-dl (/img handler)
     if ("https://" in text) or ("http://" in text):
         if not is_user_blocked(message):
+            from COMMANDS.subtitles_cmd import clear_subs_check_cache
             clear_subs_check_cache()
             # Централизованный роутер на gallery-dl для некоторых ссылок
             try:
@@ -791,6 +1065,7 @@ def url_distractor(app, message):
 
         # /Search Command (for admins too)
         if text.startswith(Config.SEARCH_COMMAND):
+            from COMMANDS.search import search_command
             search_command(app, message)
             return
 
@@ -824,6 +1099,7 @@ def url_distractor(app, message):
             return
 
     logger.info(LoggerMsg.URL_EXTRACTOR_NO_MATCHING_COMMAND_LOG_MSG.format(user_id=user_id))
+    from COMMANDS.subtitles_cmd import clear_subs_check_cache
     clear_subs_check_cache()
 
 @app.on_callback_query(filters.regex("^keyboard\\|"))
@@ -857,14 +1133,115 @@ def add_group_msg_callback(app, callback_query):
                 )
             
             # Answer callback query
-            callback_query.answer(Messages.URL_EXTRACTOR_CLOSED_MSG)
+            callback_query.answer(get_messages_instance(user_id).URL_EXTRACTOR_CLOSED_MSG)
             
             # Log the action
-            send_to_logger(callback_query.message, Messages.URL_EXTRACTOR_ADD_GROUP_USER_CLOSED_MSG.format(user_id=user_id))
+            send_to_logger(callback_query.message, get_messages_instance(user_id).URL_EXTRACTOR_ADD_GROUP_USER_CLOSED_MSG.format(user_id=user_id))
             
     except Exception as e:
         # Log error and answer callback
         send_to_logger(callback_query.message, LoggerMsg.URL_EXTRACTOR_ADD_GROUP_CALLBACK_ERROR_LOG_MSG.format(e=e))
-        callback_query.answer(Messages.URL_EXTRACTOR_ERROR_OCCURRED_MSG, show_alert=True)
+        callback_query.answer(get_messages_instance(user_id).URL_EXTRACTOR_ERROR_OCCURRED_MSG, show_alert=True)
+
+# Callback handler for audio hint close button
+@app.on_callback_query(filters.regex(r"^audio_hint\|"))
+def audio_hint_callback(app, callback_query):
+    """Handle audio hint close button callback queries"""
+    try:
+        data = callback_query.data.split("|")[1]
+        user_id = callback_query.from_user.id
+        
+        if data == "close":
+            # Delete the message
+            try:
+                callback_query.message.delete()
+            except Exception:
+                pass
+            # Answer callback query
+            callback_query.answer(get_messages_instance(user_id).URL_EXTRACTOR_CLOSED_MSG)
+            
+            # Log the action
+            send_to_logger(callback_query.message, get_messages_instance(user_id).URL_EXTRACTOR_AUDIO_HINT_CLOSED_MSG.format(user_id=user_id))
+            
+    except Exception as e:
+        # Log error and answer callback
+        send_to_logger(callback_query.message, LoggerMsg.URL_EXTRACTOR_AUDIO_HINT_CALLBACK_ERROR_LOG_MSG.format(e=e))
+        callback_query.answer(get_messages_instance(user_id).URL_EXTRACTOR_ERROR_OCCURRED_MSG, show_alert=True)
+
+# Callback handler for link hint close button
+@app.on_callback_query(filters.regex(r"^link_hint\|"))
+def link_hint_callback(app, callback_query):
+    """Handle link hint close button callback queries"""
+    try:
+        data = callback_query.data.split("|")[1]
+        user_id = callback_query.from_user.id
+        
+        if data == "close":
+            # Delete the message
+            try:
+                callback_query.message.delete()
+            except Exception:
+                pass
+            # Answer callback query
+            callback_query.answer(get_messages_instance(user_id).URL_EXTRACTOR_CLOSED_MSG)
+            
+            # Log the action
+            send_to_logger(callback_query.message, get_messages_instance(user_id).URL_EXTRACTOR_LINK_HINT_CLOSED_MSG.format(user_id=user_id))
+            
+    except Exception as e:
+        # Log error and answer callback
+        send_to_logger(callback_query.message, LoggerMsg.URL_EXTRACTOR_LINK_HINT_CALLBACK_ERROR_LOG_MSG.format(e=e))
+        callback_query.answer(get_messages_instance(user_id).URL_EXTRACTOR_ERROR_OCCURRED_MSG, show_alert=True)
+
+# Callback handler for language selection
+@app.on_callback_query(filters.regex(r"^lang_"))
+def lang_callback(app, callback_query):
+    """Handle language selection callback queries"""
+    try:
+        data = callback_query.data
+        user_id = callback_query.from_user.id
+        
+        if data.startswith('lang_select_'):
+            # Extract language code
+            lang_code = data.replace('lang_select_', '')
+            
+            # Set user language
+            from CONFIG.LANGUAGES.language_router import set_user_language
+            success = set_user_language(user_id, lang_code)
+            
+            if success:
+                # Get messages in new language
+                from CONFIG.LANGUAGES.language_router import get_messages
+                new_messages = get_messages(language_code=lang_code)
+                
+                # Get language name
+                from CONFIG.LANGUAGES.language_router import language_router
+                available_languages = language_router.get_available_languages()
+                lang_name = available_languages.get(lang_code, lang_code)
+                
+                # Send confirmation message
+                confirmation_msg = getattr(new_messages, 'LANG_CHANGED_MSG', 
+                    f"✅ Language changed to {lang_name}"
+                )
+                
+                callback_query.answer(confirmation_msg)
+                callback_query.edit_message_text(
+                    confirmation_msg,
+                    parse_mode=enums.ParseMode.HTML
+                )
+            else:
+                error_msg = get_messages_instance(user_id).LANG_ERROR_MSG if hasattr(get_messages_instance(user_id), 'LANG_ERROR_MSG') else "❌ Error changing language"
+                callback_query.answer(error_msg)
+                
+        elif data == 'lang_close':
+            # Close language selection
+            close_msg = get_messages_instance(user_id).LANG_CLOSED_MSG if hasattr(get_messages_instance(user_id), 'LANG_CLOSED_MSG') else "Language selection closed"
+            callback_query.answer(close_msg)
+            callback_query.edit_message_text(close_msg)
+            
+    except Exception as e:
+        # Log error and answer callback
+        send_to_logger(callback_query.message, f"Language callback error: {e}")
+        callback_query.answer(get_messages_instance(user_id).URL_EXTRACTOR_ERROR_OCCURRED_MSG, show_alert=True)
 
 ######################################################  

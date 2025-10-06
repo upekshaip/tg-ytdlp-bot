@@ -92,7 +92,7 @@ def cleanup_temp_files():
             logger.error(LoggerMsg.FILESYSTEM_ERROR_CLEANING_USER_DIR_LOG_MSG.format(user_dir=user_dir, error=e))
 
 def cleanup_user_temp_files(user_id):
-    """Clean up temporary files for a specific user (only in root directory, not in protected subdirectories)"""
+    """Clean up temporary files and media files in download folders for a specific user"""
     user_dir = os.path.join("users", str(user_id))
     if not os.path.exists(user_dir):
         return
@@ -108,15 +108,16 @@ def cleanup_user_temp_files(user_id):
         return
     
     try:
-        # Only clean files in root directory, not in subdirectories (which might be protected)
+        # Clean files in root directory
         for filename in os.listdir(user_dir):
             file_path = os.path.join(user_dir, filename)
-            # Skip subdirectories (they might be protected download folders)
+            
+            # Skip subdirectories (download folders are handled separately)
             if os.path.isdir(file_path):
                 continue
                 
-            # Remove temporary files
-            if (filename.endswith(('.part', '.ytdl', '.temp', '.tmp', '.json', '.jsonl', '.srt', '.vtt', '.ass', '.ssa')) or  # Removed .srt - subtitles are handled separately
+            # Remove temporary files and media files
+            if (filename.endswith(('.part', '.ytdl', '.temp', '.tmp', '.json', '.jsonl', '.srt', '.vtt', '.ass', '.ssa', '.mp3', '.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4a', '.aac', '.ogg', '.wav')) or  # Media files
                 filename.startswith('yt_thumb_') or  # YouTube thumbnails
                 filename.endswith('.jpg') or  # Thumbnails
                 filename == 'full_title.txt' or  # Full title file
@@ -127,8 +128,37 @@ def cleanup_user_temp_files(user_id):
                         logger.info(LoggerMsg.FILESYSTEM_REMOVED_TEMP_FILE_LOG_MSG.format(filename=filename))
                 except Exception as e:
                     logger.error(LoggerMsg.FILESYSTEM_FAILED_REMOVE_TEMP_FILE_LOG_MSG.format(filename=filename, error=e))
+        
+        # Clean media files in download folders (but keep txt, json, jpg, jpeg, png files)
+        download_folders = ["downloads", "cyberdrop.me"]
+        for folder_name in download_folders:
+            folder_path = os.path.join(user_dir, folder_name)
+            if os.path.exists(folder_path) and os.path.isdir(folder_path):
+                cleanup_media_in_download_folder(folder_path)
+                
     except Exception as e:
         logger.error(LoggerMsg.FILESYSTEM_ERROR_CLEANING_USER_DIR_LOG_MSG.format(user_dir=user_id, error=e))
+
+def cleanup_media_in_download_folder(folder_path):
+    """Clean up media files in download folder, keeping txt, json, jpg, jpeg, png files"""
+    try:
+        for root, dirs, files in os.walk(folder_path):
+            for filename in files:
+                file_path = os.path.join(root, filename)
+                
+                # Keep txt, json, jpg, jpeg, png files
+                if filename.endswith(('.txt', '.json', '.jpg', '.jpeg', '.png')):
+                    continue
+                
+                # Remove media files
+                if filename.endswith(('.mp3', '.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4a', '.aac', '.ogg', '.wav', '.part', '.ytdl', '.temp', '.tmp')):
+                    try:
+                        os.remove(file_path)
+                        logger.info(f"Removed media file: {file_path}")
+                    except Exception as e:
+                        logger.error(f"Failed to remove media file {file_path}: {e}")
+    except Exception as e:
+        logger.error(f"Error cleaning media in download folder {folder_path}: {e}")
 
 def cleanup_subtitle_files(user_id):
     """Clean up subtitle files for a specific user after embedding (only in root directory, not in protected subdirectories)"""
@@ -355,6 +385,58 @@ def sanitize_filename(filename, max_length=150):
        else:
           name = name[:max_name_length]
        full_name = name + ext
+    
+    return full_name
+
+def sanitize_filename_strict(filename, max_length=150):
+    """
+    Strict sanitization for filenames - removes all characters except letters and numbers,
+    replaces spaces with underscores. Used specifically for yt-dlp file downloads.
+    
+    Args:
+        filename (str): Original filename
+        max_length (int): Maximum allowed length for filename (excluding extension)
+    
+    Returns:
+        str: Strictly sanitized filename with only letters, numbers, and underscores
+    """
+    # Exit early if None
+    if filename is None:
+        return "untitled"
+    
+    # Extract extension first
+    name, ext = os.path.splitext(filename)
+    
+    # Normalize Unicode characters
+    import unicodedata
+    name = unicodedata.normalize('NFKC', name)
+    
+    # Keep only letters, numbers, and safe ASCII characters, replace everything else with underscores
+    import re
+    # Keep letters, numbers, underscores, hyphens, dots, parentheses
+    # Replace all other characters (including spaces) with underscores
+    name = re.sub(r'[^\w\-\.\(\)]', '_', name)
+    
+    # Remove multiple consecutive underscores
+    name = re.sub(r'_+', '_', name)
+    
+    # Remove leading/trailing underscores
+    name = name.strip('_')
+    
+    # If name is empty after cleaning, use default
+    if not name:
+        name = "untitled"
+    
+    # Shorten if too long
+    full_name = name + ext
+    max_total = max_length
+    if len(full_name) > max_total:
+        max_name_length = max_total - len(ext)
+        if max_name_length > 3:
+            name = name[:max_name_length-3] + "..."
+        else:
+            name = name[:max_name_length]
+        full_name = name + ext
     
     return full_name
 

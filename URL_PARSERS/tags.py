@@ -78,7 +78,7 @@ def extract_url_range_tags(text: str):
     if not isinstance(text, str):
         return None, 1, 1, None, [], '', None
     
-    # ЖЕСТКО: Сначала ищем формат /img start-end URL
+    #  Сначала ищем формат /img start-end URL
     img_range_match = re.search(r'/img\s+(\d+)-(\d+)\s+(https?://[^\s\*#]+)', text)
     if img_range_match:
         video_start_with = int(img_range_match.group(1))

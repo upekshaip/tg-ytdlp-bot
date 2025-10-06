@@ -6,7 +6,7 @@ from HELPERS.safe_messeger import safe_send_message
 from CONFIG.config import Config
 from HELPERS.logger import send_to_logger
 from HELPERS.limitter import is_user_in_channel
-from CONFIG.messages import Messages as Messages
+from CONFIG.messages import Messages, get_messages_instance
 
 # Get app instance for decorators
 app = get_app()
@@ -21,21 +21,21 @@ def tags_command(app, message):
     user_dir = os.path.join("users", str(user_id))
     tags_file = os.path.join(user_dir, "tags.txt")
     if not os.path.exists(tags_file):
-        reply_text = Messages.TAGS_NO_TAGS_MSG
+        reply_text = get_messages_instance().TAGS_NO_TAGS_MSG
         safe_send_message(user_id, reply_text, reply_parameters=ReplyParameters(message_id=message.id))
         send_to_logger(message, reply_text)
         return
     with open(tags_file, "r", encoding="utf-8") as f:
         tags = [line.strip() for line in f if line.strip()]
     if not tags:
-        reply_text = Messages.TAGS_NO_TAGS_MSG
+        reply_text = get_messages_instance().TAGS_NO_TAGS_MSG
         safe_send_message(user_id, reply_text, reply_parameters=ReplyParameters(message_id=message.id))
         send_to_logger(message, reply_text)
         return
     # We form posts by 4096 characters
     msg = ''
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton(Messages.TAG_CLOSE_BUTTON_MSG, callback_data="tags_close|close")]
+        [InlineKeyboardButton(get_messages_instance().TAG_CLOSE_BUTTON_MSG, callback_data="tags_close|close")]
     ])
     for tag in tags:
         if len(msg) + len(tag) + 1 > 4096:
@@ -55,8 +55,8 @@ def tags_close_callback(app, callback_query):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        callback_query.answer(Messages.TAGS_MESSAGE_CLOSED_MSG)
-        send_to_logger(callback_query.message, Messages.TAGS_MESSAGE_CLOSED_MSG)
+        callback_query.answer(get_messages_instance().TAGS_MESSAGE_CLOSED_MSG)
+        send_to_logger(callback_query.message, get_messages_instance().TAGS_MESSAGE_CLOSED_MSG)
         return
 
     data = callback_query.data.split("|")[1]
@@ -65,6 +65,6 @@ def tags_close_callback(app, callback_query):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        callback_query.answer(Messages.TAGS_MESSAGE_CLOSED_MSG)
-        send_to_logger(callback_query.message, Messages.TAGS_MESSAGE_CLOSED_MSG)
+        callback_query.answer(get_messages_instance().TAGS_MESSAGE_CLOSED_MSG)
+        send_to_logger(callback_query.message, get_messages_instance().TAGS_MESSAGE_CLOSED_MSG)
         return

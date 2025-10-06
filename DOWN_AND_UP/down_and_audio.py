@@ -15,7 +15,7 @@ from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, se
 from HELPERS.limitter import TimeFormatter, humanbytes, check_user
 from HELPERS.download_status import set_active_download, clear_download_start_time, check_download_timeout, start_hourglass_animation, start_cycle_progress, playlist_errors, playlist_errors_lock
 from HELPERS.safe_messeger import safe_delete_messages, safe_edit_message_text, safe_forward_messages
-from HELPERS.filesystem_hlp import sanitize_filename, create_directory, check_disk_space, cleanup_user_temp_files
+from HELPERS.filesystem_hlp import sanitize_filename, sanitize_filename_strict, create_directory, check_disk_space, cleanup_user_temp_files
 from DATABASE.firebase_init import write_logs
 from URL_PARSERS.tags import generate_final_tags
 from URL_PARSERS.nocookie import is_no_cookie_domain
@@ -30,7 +30,7 @@ import subprocess
 from PIL import Image
 import io
 from CONFIG.config import Config
-from CONFIG.messages import Messages
+from CONFIG.messages import Messages, get_messages_instance
 from COMMANDS.subtitles_cmd import is_subs_enabled, check_subs_availability, get_user_subs_auto_mode, _subs_check_cache, download_subtitles_ytdlp, is_subs_always_ask
 from COMMANDS.mediainfo_cmd import send_mediainfo_if_enabled
 from URL_PARSERS.playlist_utils import is_playlist_with_range
@@ -219,20 +219,20 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 format_spec = result.get('format', 'best')
                 
                 # Form response
-                response = Messages.DIRECT_LINK_OBTAINED_MSG
-                response += Messages.TITLE_FIELD_MSG.format(title=title)
+                response = get_messages_instance().DIRECT_LINK_OBTAINED_MSG
+                response += get_messages_instance().TITLE_FIELD_MSG.format(title=title)
                 if duration > 0:
-                    response += Messages.DURATION_FIELD_MSG.format(duration=duration)
-                response += Messages.FORMAT_FIELD_MSG.format(format_spec=format_spec)
+                    response += get_messages_instance().DURATION_FIELD_MSG.format(duration=duration)
+                response += get_messages_instance().FORMAT_FIELD_MSG.format(format_spec=format_spec)
                 
                 if video_url:
-                    response += Messages.VIDEO_STREAM_FIELD_MSG.format(video_url=video_url)
+                    response += get_messages_instance().VIDEO_STREAM_FIELD_MSG.format(video_url=video_url)
                 
                 if audio_url:
-                    response += Messages.AUDIO_STREAM_FIELD_MSG.format(audio_url=audio_url)
+                    response += get_messages_instance().AUDIO_STREAM_FIELD_MSG.format(audio_url=audio_url)
                 
                 if not video_url and not audio_url:
-                    response += Messages.DOWN_UP_FAILED_STREAM_LINKS_MSG
+                    response += get_messages_instance().DOWN_UP_FAILED_STREAM_LINKS_MSG
                 
                 # Send response
                 app.send_message(
@@ -242,18 +242,18 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                send_to_logger(message, Messages.DIRECT_LINK_EXTRACTED_DOWN_AUDIO_LOG_MSG.format(user_id=user_id, url=url))
+                send_to_logger(message, get_messages_instance().DIRECT_LINK_EXTRACTED_DOWN_AUDIO_LOG_MSG.format(user_id=user_id, url=url))
                 
             else:
                 error_msg = result.get('error', 'Unknown error')
                 app.send_message(
                     user_id,
-                    Messages.DOWN_UP_ERROR_GETTING_LINK_MSG.format(error_msg=error_msg),
+                    get_messages_instance().DOWN_UP_ERROR_GETTING_LINK_MSG.format(error_msg=error_msg),
                     reply_parameters=ReplyParameters(message_id=message.id),
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                log_error_to_channel(message, Messages.DIRECT_LINK_FAILED_DOWN_AUDIO_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
+                log_error_to_channel(message, get_messages_instance().DIRECT_LINK_FAILED_DOWN_AUDIO_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
             
             return
     except Exception as e:
@@ -339,11 +339,11 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 logger.info(f"[AUDIO CACHE] send_as_file enabled for user {user_id}, skipping cache repost for playlist")
                 uncached_indices = requested_indices
             if len(uncached_indices) == 0:
-                app.send_message(user_id, Messages.PLAYLIST_CACHE_SENT_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+                app.send_message(user_id, get_messages_instance().PLAYLIST_CACHE_SENT_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
                 send_to_logger(message, LoggerMsg.PLAYLIST_AUDIO_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
                 return
             else:
-                app.send_message(user_id, Messages.CACHE_PARTIAL_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+                app.send_message(user_id, get_messages_instance().CACHE_PARTIAL_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
     elif quality_key and not is_playlist:
         # Check if Always Ask mode is enabled - if yes, skip cache completely
         if not is_subs_always_ask(user_id):
@@ -403,7 +403,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         if thread_id:
                             forward_kwargs['message_thread_id'] = thread_id
                     app.forward_messages(**forward_kwargs)
-                    app.send_message(user_id, Messages.AUDIO_SENT_FROM_CACHE_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+                    app.send_message(user_id, get_messages_instance().AUDIO_SENT_FROM_CACHE_MSG, reply_parameters=ReplyParameters(message_id=message.id))
                     send_to_logger(message, LoggerMsg.AUDIO_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
                     return
                 except Exception as e:
@@ -440,18 +440,24 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 minutes = (wait_time % 3600) // 60
                 seconds = wait_time % 60
                 time_str = f"{hours}h {minutes}m {seconds}s"
-                proc_msg = safe_send_message(user_id, Messages.RATE_LIMIT_WITH_TIME_MSG.format(time=time_str), message=message)
+                proc_msg = safe_send_message(user_id, get_messages_instance().RATE_LIMIT_WITH_TIME_MSG.format(time=time_str), message=message)
         else:
-            proc_msg = safe_send_message(user_id, Messages.RATE_LIMIT_NO_TIME_MSG, message=message)
+            proc_msg = safe_send_message(user_id, get_messages_instance().RATE_LIMIT_NO_TIME_MSG, message=message)
 
         # We are trying to replace with "Download started"
         try:
             app.edit_message_text(
                 chat_id=user_id,
                 message_id=proc_msg.id,
-                text=Messages.DOWNLOAD_STARTED_MSG,
+                text=get_messages_instance().DOWNLOAD_STARTED_MSG,
                 parse_mode=enums.ParseMode.HTML
             )
+            # Schedule deletion of "Download started" message after 5 seconds
+            try:
+                from HELPERS.safe_messeger import schedule_delete_message
+                schedule_delete_message(user_id, proc_msg.id, delete_after_seconds=5)
+            except Exception as e:
+                logger.error(f"Error scheduling download started message deletion: {e}")
             if os.path.exists(flood_time_file):
                 os.remove(flood_time_file)
         except FloodWait as e:
@@ -465,15 +471,15 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             return
 
         # If there is no flood error, send a normal message (only once)
-        proc_msg = app.send_message(user_id, Messages.PROCESSING_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+        proc_msg = app.send_message(user_id, get_messages_instance().PROCESSING_MSG, reply_parameters=ReplyParameters(message_id=message.id))
         # Pin proc/status message for visibility
         try:
             app.pin_chat_message(user_id, proc_msg.id, disable_notification=True)
         except Exception:
             pass
         proc_msg_id = proc_msg.id
-        status_msg = safe_send_message(user_id, Messages.AUDIO_PROCESSING_MSG, message=message)
-        hourglass_msg = safe_send_message(user_id, Messages.WAITING_HOURGLASS_MSG, message=message)
+        status_msg = safe_send_message(user_id, get_messages_instance().AUDIO_PROCESSING_MSG, message=message)
+        hourglass_msg = safe_send_message(user_id, get_messages_instance().WAITING_HOURGLASS_MSG, message=message)
         try:
             from HELPERS.safe_messeger import schedule_delete_message
             if status_msg and hasattr(status_msg, 'id'):
@@ -491,7 +497,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         create_directory(user_folder)
 
         if not check_disk_space(user_folder, 500 * 1024 * 1024 * video_count):
-            send_to_user(message, Messages.ERROR_NO_DISK_SPACE_MSG)
+            send_to_user(message, get_messages_instance().ERROR_NO_DISK_SPACE_MSG)
             return
 
         # Create user directory (subscription already checked in video_extractor)
@@ -499,34 +505,27 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         if not os.path.exists(user_dir):
             os.makedirs(user_dir, exist_ok=True)
 
-        # Create unique download directory for this session to avoid conflicts with parallel downloads
-        import time
-        import random
-        from urllib.parse import urlparse
+        # Try to get download directory from ask_quality_menu first
+        from DOWN_AND_UP.always_ask_menu import get_user_download_dir, generate_download_dir_name
+        user_folder = get_user_download_dir(user_id)
         
-        try:
-            # Parse URL to extract domain for better organization
-            parsed = urlparse(url)
-            domain = parsed.netloc.lower()
-            if domain.startswith('www.'):
-                domain = domain[4:]
-            
-            # Create unique timestamp-based directory
-            timestamp = int(time.time() * 1000000)  # Microsecond precision
-            random_suffix = random.randint(1000, 9999)  # Random 4-digit number
-            
-            # Structure: users/{user_id}/downloads/{domain}_{timestamp}_{random}/
-            unique_download_dir = os.path.join(user_dir, "downloads", f"{domain}_{timestamp}_{random_suffix}")
-            os.makedirs(unique_download_dir, exist_ok=True)
-            
-            # Update user_folder to use the unique directory
-            user_folder = unique_download_dir
-            
-            logger.info(f"Created unique download directory: {unique_download_dir}")
-        except Exception as e:
-            logger.warning(f"Failed to create unique download directory, using default: {e}")
-            # Fallback to original behavior
-            user_folder = os.path.abspath(os.path.join("users", str(user_id)))
+        # If no download directory from ask_quality_menu, create one
+        if not user_folder or not os.path.exists(user_folder):
+            try:
+                # Generate download directory name based on URL
+                dir_name = generate_download_dir_name(url)
+                unique_download_dir = os.path.join(user_dir, "downloads", dir_name)
+                os.makedirs(unique_download_dir, exist_ok=True)
+                
+                # Update user_folder to use the unique directory
+                user_folder = unique_download_dir
+                
+                logger.info(f"Created download directory: {unique_download_dir}")
+            except Exception as e:
+                logger.warning(f"Failed to create download directory, using default: {e}")
+                # Fallback to original behavior
+                user_folder = os.path.abspath(os.path.join("users", str(user_id)))
+
 
         # Pre-cleanup: remove all media files from unique download directory before starting
         try:
@@ -707,7 +706,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     progress_hook.progress_data['total_bytes'] = total
                 
                 try:
-                    safe_edit_message_text(user_id, proc_msg_id, Messages.AUDIO_DOWNLOADING_PROGRESS_MSG.format(process=current_total_process, bar=bar, percent=percent))
+                    safe_edit_message_text(user_id, proc_msg_id, get_messages_instance().AUDIO_DOWNLOADING_PROGRESS_MSG.format(process=current_total_process, bar=bar, percent=percent))
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
@@ -721,7 +720,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 last_update = current_time
             elif d.get("status") == "error":
                 try:
-                    safe_edit_message_text(user_id, proc_msg_id, Messages.AUDIO_DOWNLOAD_ERROR_MSG)
+                    safe_edit_message_text(user_id, proc_msg_id, get_messages_instance().AUDIO_DOWNLOAD_ERROR_MSG)
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
@@ -760,10 +759,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                'prefer_ffmpeg': True,
                'extractaudio': True,
                'playlist_items': str(current_index + video_start_with),
-               # Try original filename first, fallback to safe filename if needed
-               'outtmpl': os.path.join(user_folder, "%(title)s.%(ext)s"),
-               # Add restrictfilenames to sanitize output filename
-               'restrictfilenames': True,
+               # outtmpl will be set later with sanitized title
+               # Allow Unicode characters in filenames
+               'restrictfilenames': False,
                'progress_hooks': [progress_hook],
                'extractor_args': {
                   'generic': {
@@ -788,12 +786,21 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 # Reduce parallelism for fragile HLS endpoints
                 ytdl_opts["concurrent_fragment_downloads"] = 1
             
-            # Add match_filter only if domain is not in NO_FILTER_DOMAINS
+            # Define sanitize_title_for_filename function
+            def sanitize_title_for_filename(title):
+                """Sanitize title for filename using strict sanitization"""
+                if not title:
+                    return "audio"
+                from HELPERS.filesystem_hlp import sanitize_filename_strict
+                return sanitize_filename_strict(title)
+            
+            # Title sanitization is now handled manually before second extract_info call
+            
+            # Add match_filter for domain filtering only (no title sanitization needed)
             if not is_no_filter_domain(url):
-                # Use smart filter that allows downloads when duration is unknown
                 ytdl_opts['match_filter'] = create_smart_match_filter()
             else:
-                logger.info(f"Skipping match_filter for domain in NO_FILTER_DOMAINS: {url}")
+                logger.info(f"Skipping domain filter for domain in NO_FILTER_DOMAINS: {url}")
             
             # Add user's custom yt-dlp arguments
             from COMMANDS.args_cmd import get_user_ytdlp_args, log_ytdlp_options
@@ -852,6 +859,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             # Add PO token provider for YouTube domains
             ytdl_opts = add_pot_to_ytdl_opts(ytdl_opts, url)
             
+            # match_filter will be added later for domain filtering only
+            
             try:
                 with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
                     info_dict = ydl.extract_info(url, download=False)
@@ -869,6 +878,23 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     else:
                         # If there is only one video in the playlist, just download it
                         info_dict = entries[0]  # Just take the first video
+                
+                # Get original title and sanitize it for filename
+                original_title = info_dict.get("title", "audio")
+                logger.info(f"DEBUG: info_dict.get('title') = '{original_title}'")
+                
+                # MANUALLY apply sanitization since match_filter doesn't work with download=False
+                sanitized_title = sanitize_title_for_filename(original_title)
+                
+                # Keep original title in info_dict for metadata, but use sanitized for filename
+                info_dict['original_title'] = original_title  # Save original for caption
+                logger.info(f"MANUAL sanitization: '{original_title}' -> '{sanitized_title}'")
+                
+                # Set filename using literal sanitized title in outtmpl
+                ytdl_opts['outtmpl'] = os.path.join(user_folder, f"{sanitized_title}.%(ext)s")
+                logger.info(f"Set outtmpl to use literal filename: {sanitized_title}.%(ext)s")
+                
+                # Original title already saved above for caption
 
                 try:
                     if is_hls:
@@ -907,7 +933,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 
                 try:
                     full_bar = "🟩" * 10
-                    safe_edit_message_text(user_id, proc_msg_id, Messages.AUDIO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
+                    safe_edit_message_text(user_id, proc_msg_id, get_messages_instance().AUDIO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
                 except Exception as e:
                     logger.error(f"Final progress update error: {e}")
                 
@@ -923,7 +949,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 # Check for live stream detection
                 if "LIVE_STREAM_DETECTED" in error_text:
                     live_stream_message = (
-                        Messages.LIVE_STREAM_DETECTED_MSG +
+                        get_messages_instance().LIVE_STREAM_DETECTED_MSG +
                         "• You can see the final video length\n\n"
                         "Once the stream is completed, you'll be able to download it as a regular video."
                     )
@@ -933,7 +959,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 # Check for postprocessing errors
                 if "Postprocessing" in error_text and "Error opening output files" in error_text:
                     postprocessing_message = (
-                        Messages.AUDIO_FILE_PROCESSING_ERROR_INVALID_CHARS_MSG +
+                        get_messages_instance().AUDIO_FILE_PROCESSING_ERROR_INVALID_CHARS_MSG +
                         "**Solutions:**\n"
                         "• Try downloading again - the system will use a safer filename\n"
                         "• If the problem persists, the audio title may contain unsupported characters\n"
@@ -947,7 +973,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 # Check for postprocessing errors with Invalid argument
                 if "Postprocessing" in error_text and "Invalid argument" in error_text:
                     postprocessing_message = (
-                        Messages.AUDIO_FILE_PROCESSING_ERROR_INVALID_ARG_MSG +
+                        get_messages_instance().AUDIO_FILE_PROCESSING_ERROR_INVALID_ARG_MSG +
                         "**Possible causes:**\n"
                         "• Corrupted or incomplete download\n"
                         "• Unsupported audio format or codec\n"
@@ -1005,7 +1031,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                             # Build fallback command for single item only (not entire range)
                             # Use current_index instead of full range to download only the failed item
                             current_item_index = current_index + 1  # current_index is 0-based, we need 1-based
-                            fallback_text = f"/img {current_item_index} {parsed_url}"
+                            fallback_text = f"/img {current_item_index}-{current_item_index} {parsed_url}"
                             logger.info(f"[FALLBACK] Downloading only failed item {current_item_index} via gallery-dl, fallback_text: {fallback_text}")
                             
                             if tags:
@@ -1061,20 +1087,20 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 
                 # Check if this is a "No videos found in playlist" error
                 if "No videos found in playlist" in error_text or "Story might have expired" in error_text:
-                    error_message = Messages.DOWN_UP_NO_CONTENT_FOUND_MSG.format(index=current_index + video_start_with)
+                    error_message = get_messages_instance().DOWN_UP_NO_CONTENT_FOUND_MSG.format(index=current_index + video_start_with)
                     send_error_to_user(message, error_message)
                     logger.info(f"Skipping item at index {current_index} (no content found)")
                     return "SKIP"
                 
                 # Check if this is a TikTok infinite loop error
                 if "TikTok API keeps sending the same page" in error_text and "infinite loop" in error_text:
-                    error_message = Messages.AUDIO_TIKTOK_API_ERROR_SKIP_MSG.format(index=current_index + video_start_with)
+                    error_message = get_messages_instance().AUDIO_TIKTOK_API_ERROR_SKIP_MSG.format(index=current_index + video_start_with)
                     send_to_user(message, error_message)
                     logger.info(f"Skipping TikTok audio at index {current_index} due to API error")
                     return "SKIP"  # Skip this audio and continue with next
                 
                 else:
-                    send_to_user(message, Messages.ERROR_UNKNOWN_MSG.format(error=str(e)))
+                    send_to_user(message, get_messages_instance().ERROR_UNKNOWN_MSG.format(error=str(e)))
                 return None
 
         # Download thumbnail for embedding (only once for the URL)
@@ -1099,7 +1125,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         download_thumbnail(yt_id, youtube_thumb_path, url)
                         if os.path.exists(youtube_thumb_path):
                             thumbnail_path = youtube_thumb_path
-                            logger.info(f"Downloaded YouTube thumbnail: {youtube_thumb_path}")
+                            logger.info(f"Downloaded thumbnail to download directory: {youtube_thumb_path}")
                 except Exception as e:
                     logger.warning(f"YouTube thumbnail download failed: {e}")
             
@@ -1134,13 +1160,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
             current_total_process = total_process
 
-            # Determine rename_name based on the incoming playlist_name:
-            if playlist_name and playlist_name.strip():
-                # A new name for the playlist is explicitly set - let's use it
-                rename_name = sanitize_filename(f"{playlist_name.strip()} - Part {idx + video_start_with}")
-            else:
-                # No new name set - extract name from metadata
-                rename_name = None
+            # Playlist naming is handled by yt-dlp with our custom outtmpl
 
             # Reset retry flags for each new item in playlist
             did_cookie_retry = False
@@ -1206,7 +1226,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                            'extractaudio': True,
                            'playlist_items': str(current_index + video_start_with),
                            'outtmpl': safe_outtmpl,  # Use safe filename
-                           'restrictfilenames': True,
+                           'restrictfilenames': False,
                            'progress_hooks': [progress_hook],
                            'extractor_args': {
                               'generic': {'impersonate': ['chrome']}
@@ -1286,15 +1306,13 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             # Check if info_dict is None before accessing it
             if info_dict is None:
                 logger.error("info_dict is None, cannot proceed with audio processing")
-                send_to_user(message, Messages.AUDIO_EXTRACTION_FAILED_MSG)
+                send_to_user(message, get_messages_instance().AUDIO_EXTRACTION_FAILED_MSG)
                 break
 
-            audio_title = info_dict.get("title", "audio")
-            audio_title = sanitize_filename(audio_title)
+            # Get original title for fallback (if MP3 metadata reading fails)
+            original_audio_title = info_dict.get("original_title", info_dict.get("title", "audio"))
             
-            # If rename_name is not set, set it equal to audio_title
-            if rename_name is None:
-                rename_name = audio_title
+            # File naming is handled by yt-dlp with our custom outtmpl
 
             dir_path = user_folder
 
@@ -1318,50 +1336,16 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             
             if not files:
                 logger.error(f"No audio files found in {user_folder}. Available files: {allfiles}")
-                send_error_to_user(message, Messages.AUDIO_UNSUPPORTED_FILE_TYPE_MSG.format(index=idx + video_start_with))
+                send_error_to_user(message, get_messages_instance().AUDIO_UNSUPPORTED_FILE_TYPE_MSG.format(index=idx + video_start_with))
                 continue
 
             downloaded_file = files[0]
             write_logs(message, url, downloaded_file)
 
-            if rename_name == audio_title:
-                caption_name = audio_title  # Original title for caption
-                # Sanitize filename for disk storage while keeping original title for caption
-                final_name = sanitize_filename(downloaded_file)
-                if final_name != downloaded_file:
-                    old_path = os.path.join(user_folder, downloaded_file)
-                    new_path = os.path.join(user_folder, final_name)
-                    try:
-                        if os.path.exists(new_path):
-                            os.remove(new_path)
-                        os.rename(old_path, new_path)
-                    except Exception as e:
-                        logger.error(f"Error renaming file from {old_path} to {new_path}: {e}")
-                        final_name = downloaded_file
-            else:
-                ext = os.path.splitext(downloaded_file)[1]
-                # Sanitize filename for disk storage while keeping original title for caption
-                final_name = sanitize_filename(rename_name + ext)
-                caption_name = rename_name  # Original title for caption
-                old_path = os.path.join(user_folder, downloaded_file)
-                new_path = os.path.join(user_folder, final_name)
-
-                if os.path.exists(new_path):
-                    try:
-                        os.remove(new_path)
-                    except Exception as e:
-                        logger.error(f"Error removing existing file {new_path}: {e}")
-
-                try:
-                    os.rename(old_path, new_path)
-                except Exception as e:
-                    logger.error(f"Error renaming file from {old_path} to {new_path}: {e}")
-                    final_name = downloaded_file
-                    caption_name = audio_title  # Original title for caption
-
-            audio_file = os.path.join(user_folder, final_name)
+            # File is already sanitized by yt-dlp with our custom outtmpl
+            audio_file = os.path.join(user_folder, downloaded_file)
             if not os.path.exists(audio_file):
-                send_to_user(message, Messages.AUDIO_FILE_NOT_FOUND_MSG)
+                send_to_user(message, get_messages_instance().AUDIO_FILE_NOT_FOUND_MSG)
                 continue
 
             # Embed cover into MP3 file if thumbnail is available
@@ -1378,7 +1362,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     # Fallback: look for any thumbnail files
                     logger.info("Pre-downloaded thumbnail not found, searching for any thumbnails")
                     for file in os.listdir(user_folder):
-                        if file.endswith(('.jpg', '.jpeg', '.png', '.webp')) and file != final_name:
+                        if file.endswith(('.jpg', '.jpeg', '.png', '.webp')) and file != downloaded_file:
                             thumb_path = os.path.join(user_folder, file)
                             if os.path.exists(thumb_path):
                                 cover_path = thumb_path
@@ -1390,13 +1374,20 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     logger.info(f"Embedding cover {cover_path} into {audio_file}")
                     
                     # Extract metadata for embedding
-                    title = info_dict.get("title", "")
+                    original_title = info_dict.get("original_title", info_dict.get("title", ""))
                     artist = info_dict.get("artist") or info_dict.get("uploader") or info_dict.get("channel", "")
                     album = info_dict.get("album", "")
                     
-                    logger.info(f"Metadata - Title: {title}, Artist: {artist}, Album: {album}")
+                    # Remove artist name from title if it's included
+                    title_for_metadata = original_title
+                    if artist and artist in original_title:
+                        # Remove artist name from title (e.g., "Rick Astley - Never Gonna Give You Up" -> "Never Gonna Give You Up")
+                        title_for_metadata = original_title.replace(f"{artist} - ", "").replace(f"{artist}: ", "").strip()
+                        logger.info(f"Removed artist from title: '{original_title}' -> '{title_for_metadata}'")
                     
-                    success = embed_cover_mp3(audio_file, cover_path, title=title, artist=artist, album=album)
+                    logger.info(f"Metadata - Title: {title_for_metadata}, Artist: {artist}, Album: {album}")
+                    
+                    success = embed_cover_mp3(audio_file, cover_path, title=title_for_metadata, artist=artist, album=album)
                     if success:
                         logger.info(f"Successfully embedded cover in audio file: {audio_file}")
                     else:
@@ -1414,7 +1405,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
             try:
                 full_bar = "🟩" * 10
-                safe_edit_message_text(user_id, proc_msg_id, Messages.AUDIO_UPLOADING_MSG.format(process=current_total_process, bar=full_bar))
+                safe_edit_message_text(user_id, proc_msg_id, get_messages_instance().AUDIO_UPLOADING_MSG.format(process=current_total_process, bar=full_bar))
             except Exception as e:
                 logger.error(f"Error updating upload status: {e}")
 
@@ -1424,8 +1415,44 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             tags_block = (tags_text_final.strip() + '\n') if tags_text_final and tags_text_final.strip() else ''
             bot_name = getattr(Config, 'BOT_NAME', None) or 'bot'
             bot_mention = f' @{bot_name}' if not bot_name.startswith('@') else f' {bot_name}'
-            # Use original audio_title for caption, not sanitized caption_name
-            caption_with_link = f"{audio_title}\n{tags_block}[🔗 Audio URL]({url}){bot_mention}"
+            # Create display title from MP3 metadata (artist + title)
+            try:
+                import mutagen
+                from mutagen.mp3 import MP3
+                from mutagen.id3 import ID3NoHeaderError
+                
+                # Try to read metadata from the MP3 file
+                audio_metadata = MP3(audio_file)
+                artist = audio_metadata.get('TPE1', ['Unknown Artist'])[0] if 'TPE1' in audio_metadata else 'Unknown Artist'
+                title = audio_metadata.get('TIT2', ['Unknown Title'])[0] if 'TIT2' in audio_metadata else 'Unknown Title'
+                
+                # Create display title: "Artist - Title"
+                display_title = f"{artist} - {title}"
+                logger.info(f"MP3 metadata display title: '{display_title}'")
+                
+            except Exception as e:
+                logger.warning(f"Failed to read MP3 metadata, using original title: {e}")
+                display_title = original_audio_title
+            
+            # Use display title from metadata for caption
+            caption_with_link = f"{display_title}\n{tags_block}[🔗 Audio URL]({url}){bot_mention}"
+            
+            # Trim caption to fit Telegram's 1024 character limit using truncate_caption
+            from HELPERS.caption import truncate_caption
+            title_html, pre_block, blockquote_content, tags_block, link_block, was_truncated = truncate_caption(
+                title=display_title,
+                description="",  # No description for audio
+                url=url,
+                tags_text=tags_text_final,
+                max_length=1000  # Reduced for safety
+            )
+            # Rebuild caption from truncated parts
+            caption_with_link = ""
+            if title_html:
+                caption_with_link += title_html + "\n"
+            if tags_block:
+                caption_with_link += tags_block
+            caption_with_link += link_block
             
             try:
                 # Create Telegram-compliant thumbnail if cover is available
@@ -1598,7 +1625,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     logger.info(f"down_and_audio: skipping cache for NSFW content (url={url})")
             except Exception as send_error:
                 logger.error(f"Error sending audio: {send_error}")
-                send_to_user(message, Messages.AUDIO_SEND_FAILED_MSG.format(error=send_error))
+                send_to_user(message, get_messages_instance().AUDIO_SEND_FAILED_MSG.format(error=send_error))
                 continue
 
             # Clean up the audio file after sending
@@ -1613,9 +1640,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 pass
 
         if successful_uploads == len(indices_to_download):
-            success_msg = f"✅ Audio successfully downloaded and sent - {len(indices_to_download)} files uploaded.\n{Config.CREDITS_MSG}"
+            success_msg = f"✅ Audio successfully downloaded and sent - {len(indices_to_download)} files uploaded.\n{get_messages_instance().CREDITS_MSG}"
         else:
-            success_msg = f"⚠️ Partially completed - {successful_uploads}/{len(indices_to_download)} audio files uploaded.\n{Config.CREDITS_MSG}"
+            success_msg = f"⚠️ Partially completed - {successful_uploads}/{len(indices_to_download)} audio files uploaded.\n{get_messages_instance().CREDITS_MSG}"
             
         try:
             safe_edit_message_text(user_id, proc_msg_id, success_msg)
@@ -1623,19 +1650,31 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             logger.error(f"Error updating final status: {e}")
 
         send_to_logger(message, success_msg)
+        
+        # Clean up download subdirectory after successful upload
+        try:
+            from DOWN_AND_UP.always_ask_menu import get_user_download_dir
+            download_dir = get_user_download_dir(user_id)
+            if download_dir and os.path.exists(download_dir):
+                logger.info(f"Cleaning up download subdirectory after successful audio upload: {download_dir}")
+                import shutil
+                shutil.rmtree(download_dir)
+                logger.info(f"Successfully removed download subdirectory: {download_dir}")
+        except Exception as cleanup_error:
+            logger.error(f"Error cleaning up download subdirectory for user {user_id}: {cleanup_error}")
 
         if is_playlist and quality_key:
             total_sent = len(cached_videos) + successful_uploads
-            app.send_message(user_id, Messages.PLAYLIST_SENT_MSG.format(sent=total_sent, total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
-            send_to_logger(message, Messages.PLAYLIST_AUDIO_SENT_LOG_MSG.format(sent=total_sent, total=len(requested_indices), quality=quality_key, user_id=user_id))
+            app.send_message(user_id, get_messages_instance().PLAYLIST_SENT_MSG.format(sent=total_sent, total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+            send_to_logger(message, get_messages_instance().PLAYLIST_AUDIO_SENT_LOG_MSG.format(sent=total_sent, total=len(requested_indices), quality=quality_key, user_id=user_id))
 
     except Exception as e:
         if "Download timeout exceeded" in str(e):
-            send_to_user(message, Messages.DOWNLOAD_TIMEOUT_MSG)
+            send_to_user(message, get_messages_instance().DOWNLOAD_TIMEOUT_MSG)
             log_error_to_channel(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG, url)
         else:
             logger.error(f"Error in audio download: {e}")
-            send_to_user(message, Messages.AUDIO_DOWNLOAD_FAILED_MSG.format(error=str(e)))
+            send_to_user(message, get_messages_instance().AUDIO_DOWNLOAD_FAILED_MSG.format(error=str(e)))
         # Immediate cleanup on error
         try:
             if status_msg_id:

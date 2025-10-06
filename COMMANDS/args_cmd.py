@@ -17,7 +17,7 @@ from HELPERS.logger import logger, send_to_user, send_error_to_user
 from HELPERS.limitter import check_user, is_user_in_channel
 from HELPERS.safe_messeger import safe_send_message
 from CONFIG.config import Config
-from CONFIG.messages import Messages as Messages
+from CONFIG.messages import Messages, get_messages_instance
 from CONFIG.logger_msg import LoggerMsg
 
 # Get app instance
@@ -91,10 +91,10 @@ def start_input_state_timer(user_id: int, thread_id: int = None):
         try:
             safe_send_message(
                 user_id,
-                Messages.ARGS_INPUT_TIMEOUT_MSG
+                get_messages_instance().ARGS_INPUT_TIMEOUT_MSG
             )
         except Exception as e:
-            logger.error(Messages.ARGS_ERROR_SENDING_TIMEOUT_MSG.format(error=e))
+            logger.error(get_messages_instance().ARGS_ERROR_SENDING_TIMEOUT_MSG.format(error=e))
     
     # Cancel existing timer if any
     if thread_id:
@@ -116,88 +116,88 @@ def start_input_state_timer(user_id: int, thread_id: int = None):
 YTDLP_PARAMS = {
     "impersonate": {
         "type": "select",
-        "description": Messages.ARGS_IMPERSONATE_DESC_MSG,
+        "description": get_messages_instance().ARGS_IMPERSONATE_DESC_MSG,
         "options": ["chrome", "firefox", "safari", "edge", "opera"],
         "default": "chrome"
     },
     "referer": {
         "type": "text",
-        "description": Messages.ARGS_REFERER_DESC_MSG,
+        "description": get_messages_instance().ARGS_REFERER_DESC_MSG,
         "placeholder": "https://example.com",
         "default": "",
         "validation": "url"
     },
     "user_agent": {
         "type": "text", 
-        "description": Messages.ARGS_USER_AGENT_DESC_MSG,
+        "description": get_messages_instance().ARGS_USER_AGENT_DESC_MSG,
         "placeholder": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "default": "",
         "validation": "text"
     },
     "geo_bypass": {
         "type": "boolean",
-        "description": Messages.ARGS_GEO_BYPASS_DESC_MSG,
+        "description": get_messages_instance().ARGS_GEO_BYPASS_DESC_MSG,
         "default": True
     },
     "check_certificate": {
         "type": "boolean", 
-        "description": Messages.ARGS_CHECK_CERTIFICATE_DESC_MSG,
+        "description": get_messages_instance().ARGS_CHECK_CERTIFICATE_DESC_MSG,
         "default": False
     },
     "live_from_start": {
         "type": "boolean",
-        "description": Messages.ARGS_LIVE_FROM_START_DESC_MSG,
+        "description": get_messages_instance().ARGS_LIVE_FROM_START_DESC_MSG,
         "default": True
     },
     "no_live_from_start": {
         "type": "boolean",
-        "description": Messages.ARGS_NO_LIVE_FROM_START_DESC_MSG,
+        "description": get_messages_instance().ARGS_NO_LIVE_FROM_START_DESC_MSG,
         "default": False
     },
     "hls_use_mpegts": {
         "type": "boolean",
-        "description": Messages.ARGS_HLS_USE_MPEGTS_DESC_MSG,
+        "description": get_messages_instance().ARGS_HLS_USE_MPEGTS_DESC_MSG,
         "default": True
     },
     "no_playlist": {
         "type": "boolean",
-        "description": Messages.ARGS_NO_PLAYLIST_DESC_MSG,
+        "description": get_messages_instance().ARGS_NO_PLAYLIST_DESC_MSG,
         "default": False
     },
     "no_part": {
         "type": "boolean",
-        "description": Messages.ARGS_NO_PART_DESC_MSG,
+        "description": get_messages_instance().ARGS_NO_PART_DESC_MSG,
         "default": False
     },
     "no_continue": {
         "type": "boolean",
-        "description": Messages.ARGS_NO_CONTINUE_DESC_MSG,
+        "description": get_messages_instance().ARGS_NO_CONTINUE_DESC_MSG,
         "default": False
     },
     "audio_format": {
         "type": "select",
-        "description": Messages.ARGS_AUDIO_FORMAT_DESC_MSG,
+        "description": get_messages_instance().ARGS_AUDIO_FORMAT_DESC_MSG,
         "options": ["best", "aac", "flac", "mp3", "m4a", "opus", "vorbis", "wav", "alac", "ac3"],
         "default": "best"
     },
     "embed_metadata": {
         "type": "boolean",
-        "description": Messages.ARGS_EMBED_METADATA_DESC_MSG,
+        "description": get_messages_instance().ARGS_EMBED_METADATA_DESC_MSG,
         "default": False
     },
     "embed_thumbnail": {
         "type": "boolean",
-        "description": Messages.ARGS_EMBED_THUMBNAIL_DESC_MSG,
+        "description": get_messages_instance().ARGS_EMBED_THUMBNAIL_DESC_MSG,
         "default": False
     },
     "write_thumbnail": {
         "type": "boolean",
-        "description": Messages.ARGS_WRITE_THUMBNAIL_DESC_MSG,
+        "description": get_messages_instance().ARGS_WRITE_THUMBNAIL_DESC_MSG,
         "default": False
     },
     "concurrent_fragments": {
         "type": "number",
-        "description": Messages.ARGS_CONCURRENT_FRAGMENTS_DESC_MSG,
+        "description": get_messages_instance().ARGS_CONCURRENT_FRAGMENTS_DESC_MSG,
         "placeholder": "1",
         "default": 1,
         "min": 1,
@@ -205,24 +205,24 @@ YTDLP_PARAMS = {
     },
     "force_ipv4": {
         "type": "boolean",
-        "description": Messages.ARGS_FORCE_IPV4_DESC_MSG,
+        "description": get_messages_instance().ARGS_FORCE_IPV4_DESC_MSG,
         "default": False
     },
     "force_ipv6": {
         "type": "boolean",
-        "description": Messages.ARGS_FORCE_IPV6_DESC_MSG,
+        "description": get_messages_instance().ARGS_FORCE_IPV6_DESC_MSG,
         "default": False
     },
     "xff": {
         "type": "text",
-        "description": Messages.ARGS_XFF_DESC_MSG,
+        "description": get_messages_instance().ARGS_XFF_DESC_MSG,
         "placeholder": "default, never, US, GB, DE, 192.168.1.0/24",
         "default": "default",
         "validation": "xff"
     },
     "http_chunk_size": {
         "type": "number",
-        "description": Messages.ARGS_HTTP_CHUNK_SIZE_DESC_MSG,
+        "description": get_messages_instance().ARGS_HTTP_CHUNK_SIZE_DESC_MSG,
         "placeholder": "10485760",
         "default": 0,
         "min": 0,
@@ -230,7 +230,7 @@ YTDLP_PARAMS = {
     },
     "sleep_subtitles": {
         "type": "number",
-        "description": Messages.ARGS_SLEEP_SUBTITLES_DESC_MSG,
+        "description": get_messages_instance().ARGS_SLEEP_SUBTITLES_DESC_MSG,
         "placeholder": "0",
         "default": 0,
         "min": 0,
@@ -238,43 +238,43 @@ YTDLP_PARAMS = {
     },
     "legacy_server_connect": {
         "type": "boolean",
-        "description": Messages.ARGS_LEGACY_SERVER_CONNECT_DESC_MSG,
+        "description": get_messages_instance().ARGS_LEGACY_SERVER_CONNECT_DESC_MSG,
         "default": False
     },
     "no_check_certificates": {
         "type": "boolean",
-        "description": Messages.ARGS_NO_CHECK_CERTIFICATES_DESC_MSG,
+        "description": get_messages_instance().ARGS_NO_CHECK_CERTIFICATES_DESC_MSG,
         "default": False
     },
     "username": {
         "type": "text",
-        "description": Messages.ARGS_USERNAME_DESC_MSG,
+        "description": get_messages_instance().ARGS_USERNAME_DESC_MSG,
         "placeholder": "your_username",
         "default": "",
         "validation": "text"
     },
     "password": {
         "type": "text",
-        "description": Messages.ARGS_PASSWORD_DESC_MSG,
+        "description": get_messages_instance().ARGS_PASSWORD_DESC_MSG,
         "placeholder": "your_password",
         "default": "",
         "validation": "text"
     },
     "twofactor": {
         "type": "text",
-        "description": Messages.ARGS_TWOFACTOR_DESC_MSG,
+        "description": get_messages_instance().ARGS_TWOFACTOR_DESC_MSG,
         "placeholder": "123456",
         "default": "",
         "validation": "text"
     },
     "ignore_errors": {
         "type": "boolean",
-        "description": Messages.ARGS_IGNORE_ERRORS_DESC_MSG,
+        "description": get_messages_instance().ARGS_IGNORE_ERRORS_DESC_MSG,
         "default": False
     },
     "min_filesize": {
         "type": "number",
-        "description": Messages.ARGS_MIN_FILESIZE_DESC_MSG,
+        "description": get_messages_instance().ARGS_MIN_FILESIZE_DESC_MSG,
         "placeholder": "0",
         "default": 0,
         "min": 0,
@@ -282,7 +282,7 @@ YTDLP_PARAMS = {
     },
     "max_filesize": {
         "type": "number",
-        "description": Messages.ARGS_MAX_FILESIZE_DESC_MSG,
+        "description": get_messages_instance().ARGS_MAX_FILESIZE_DESC_MSG,
         "placeholder": "0",
         "default": 0,
         "min": 0,
@@ -290,42 +290,42 @@ YTDLP_PARAMS = {
     },
     "playlist_items": {
         "type": "text",
-        "description": Messages.ARGS_PLAYLIST_ITEMS_DESC_MSG,
+        "description": get_messages_instance().ARGS_PLAYLIST_ITEMS_DESC_MSG,
         "placeholder": "1,3,5",
         "default": "",
         "validation": "text"
     },
     "date": {
         "type": "text",
-        "description": Messages.ARGS_DATE_DESC_MSG,
+        "description": get_messages_instance().ARGS_DATE_DESC_MSG,
         "placeholder": "20230930",
         "default": "",
         "validation": "date"
     },
     "datebefore": {
         "type": "text",
-        "description": Messages.ARGS_DATEBEFORE_DESC_MSG,
+        "description": get_messages_instance().ARGS_DATEBEFORE_DESC_MSG,
         "placeholder": "20230930",
         "default": "",
         "validation": "date"
     },
     "dateafter": {
         "type": "text",
-        "description": Messages.ARGS_DATEAFTER_DESC_MSG,
+        "description": get_messages_instance().ARGS_DATEAFTER_DESC_MSG,
         "placeholder": "20230930",
         "default": "",
         "validation": "date"
     },
     "http_headers": {
         "type": "json",
-        "description": Messages.ARGS_HTTP_HEADERS_DESC_MSG,
+        "description": get_messages_instance().ARGS_HTTP_HEADERS_DESC_MSG,
         "placeholder": '{"Authorization": "Bearer token", "X-API-Key": "key123"}',
         "default": "{}",
         "validation": "json"
     },
     "sleep_interval": {
         "type": "number",
-        "description": Messages.ARGS_SLEEP_INTERVAL_DESC_MSG,
+        "description": get_messages_instance().ARGS_SLEEP_INTERVAL_DESC_MSG,
         "placeholder": "1",
         "default": 1,
         "min": 0,
@@ -333,7 +333,7 @@ YTDLP_PARAMS = {
     },
     "max_sleep_interval": {
         "type": "number", 
-        "description": Messages.ARGS_MAX_SLEEP_INTERVAL_DESC_MSG,
+        "description": get_messages_instance().ARGS_MAX_SLEEP_INTERVAL_DESC_MSG,
         "placeholder": "5",
         "default": 5,
         "min": 0,
@@ -341,7 +341,7 @@ YTDLP_PARAMS = {
     },
     "retries": {
         "type": "number",
-        "description": Messages.ARGS_RETRIES_DESC_MSG,
+        "description": get_messages_instance().ARGS_RETRIES_DESC_MSG,
         "placeholder": "10",
         "default": 10,
         "min": 0,
@@ -349,19 +349,19 @@ YTDLP_PARAMS = {
     },
     "video_format": {
         "type": "select",
-        "description": Messages.ARGS_VIDEO_FORMAT_DESC_MSG,
+        "description": get_messages_instance().ARGS_VIDEO_FORMAT_DESC_MSG,
         "options": ["mp4", "webm", "mkv", "avi", "mov", "flv", "3gp", "ogv", "m4v", "wmv", "asf"],
         "default": "mp4"
     },
     "merge_output_format": {
         "type": "select",
-        "description": Messages.ARGS_MERGE_OUTPUT_FORMAT_DESC_MSG,
+        "description": get_messages_instance().ARGS_MERGE_OUTPUT_FORMAT_DESC_MSG,
         "options": ["mp4", "webm", "mkv", "avi", "mov", "flv", "3gp", "ogv", "m4v", "wmv", "asf"],
         "default": "mp4"
     },
     "send_as_file": {
         "type": "boolean",
-        "description": Messages.ARGS_SEND_AS_FILE_DESC_MSG,
+        "description": get_messages_instance().ARGS_SEND_AS_FILE_DESC_MSG,
         "default": False
     }
 }
@@ -405,23 +405,23 @@ def validate_input(value: str, param_name: str) -> tuple[bool, str]:
     
     for pattern in dangerous_patterns:
         if re.search(pattern, value, re.IGNORECASE):
-            return False, Messages.ARGS_INPUT_DANGEROUS_MSG.format(pattern=pattern)
+            return False, get_messages_instance().ARGS_INPUT_DANGEROUS_MSG.format(pattern=pattern)
     
     # Length check
     if len(value) > 1000:
-        return False, Messages.ARGS_INPUT_TOO_LONG_MSG
+        return False, get_messages_instance().ARGS_INPUT_TOO_LONG_MSG
     
     # Type-specific validation
     if validation_type == "url":
         if value and not re.match(r'^https?://[^\s]+$', value):
-            return False, Messages.ARGS_INVALID_URL_MSG
+            return False, get_messages_instance().ARGS_INVALID_URL_MSG
     
     elif validation_type == "json":
         if value:
             try:
                 json.loads(value)
             except json.JSONDecodeError:
-                return False, Messages.ARGS_INVALID_JSON_MSG
+                return False, get_messages_instance().ARGS_INVALID_JSON_MSG
     
     elif validation_type == "number":
         try:
@@ -429,27 +429,27 @@ def validate_input(value: str, param_name: str) -> tuple[bool, str]:
             min_val = param_config.get("min", 0)
             max_val = param_config.get("max", 999999)
             if num < min_val or num > max_val:
-                return False, Messages.ARGS_NUMBER_RANGE_MSG.format(min_val=min_val, max_val=max_val)
+                return False, get_messages_instance().ARGS_NUMBER_RANGE_MSG.format(min_val=min_val, max_val=max_val)
         except ValueError:
-            return False, Messages.ARGS_INVALID_NUMBER_MSG
+            return False, get_messages_instance().ARGS_INVALID_NUMBER_MSG
     
     elif validation_type == "date":
         if value:
             # Validate YYYYMMDD format
             if not re.match(r'^\d{8}$', value):
-                return False, Messages.ARGS_DATE_FORMAT_MSG
+                return False, get_messages_instance().ARGS_DATE_FORMAT_MSG
             try:
                 year = int(value[:4])
                 month = int(value[4:6])
                 day = int(value[6:8])
                 if year < 1900 or year > 2100:
-                    return False, Messages.ARGS_YEAR_RANGE_MSG
+                    return False, get_messages_instance().ARGS_YEAR_RANGE_MSG
                 if month < 1 or month > 12:
-                    return False, Messages.ARGS_MONTH_RANGE_MSG
+                    return False, get_messages_instance().ARGS_MONTH_RANGE_MSG
                 if day < 1 or day > 31:
-                    return False, Messages.ARGS_DAY_RANGE_MSG
+                    return False, get_messages_instance().ARGS_DAY_RANGE_MSG
             except ValueError:
-                return False, Messages.ARGS_INVALID_DATE_MSG
+                return False, get_messages_instance().ARGS_INVALID_DATE_MSG
     
     elif validation_type == "xff":
         if value:
@@ -465,7 +465,7 @@ def validate_input(value: str, param_name: str) -> tuple[bool, str]:
             if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(/\d{1,2})?$', value):
                 return True, ""
             
-            return False, Messages.ARGS_INVALID_XFF_MSG
+            return False, get_messages_instance().ARGS_INVALID_XFF_MSG
     
     return True, ""
 
@@ -504,45 +504,45 @@ def get_args_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     
     # Short descriptions for better UI
     short_descriptions = {
-        "impersonate": Messages.ARGS_IMPERSONATE_SHORT_MSG,
-        "referer": Messages.ARGS_REFERER_SHORT_MSG,
-        "geo_bypass": Messages.ARGS_GEO_BYPASS_SHORT_MSG,
-        "check_certificate": Messages.ARGS_CHECK_CERTIFICATE_SHORT_MSG,
-        "live_from_start": Messages.ARGS_LIVE_FROM_START_SHORT_MSG,
-        "no_live_from_start": Messages.ARGS_NO_LIVE_FROM_START_SHORT_MSG,
-        "user_agent": Messages.ARGS_USER_AGENT_SHORT_MSG,
-        "hls_use_mpegts": Messages.ARGS_HLS_USE_MPEGTS_SHORT_MSG,
-        "no_playlist": Messages.ARGS_NO_PLAYLIST_SHORT_MSG,
-        "no_part": Messages.ARGS_NO_PART_SHORT_MSG,
-        "no_continue": Messages.ARGS_NO_CONTINUE_SHORT_MSG,
-        "audio_format": Messages.ARGS_AUDIO_FORMAT_SHORT_MSG,
-        "embed_metadata": Messages.ARGS_EMBED_METADATA_SHORT_MSG,
-        "embed_thumbnail": Messages.ARGS_EMBED_THUMBNAIL_SHORT_MSG,
-        "write_thumbnail": Messages.ARGS_WRITE_THUMBNAIL_SHORT_MSG,
-        "concurrent_fragments": Messages.ARGS_CONCURRENT_FRAGMENTS_SHORT_MSG,
-        "force_ipv4": Messages.ARGS_FORCE_IPV4_SHORT_MSG,
-        "force_ipv6": Messages.ARGS_FORCE_IPV6_SHORT_MSG,
-        "xff": Messages.ARGS_XFF_SHORT_MSG,
-        "http_chunk_size": Messages.ARGS_HTTP_CHUNK_SIZE_SHORT_MSG,
-        "sleep_subtitles": Messages.ARGS_SLEEP_SUBTITLES_SHORT_MSG,
-        "legacy_server_connect": Messages.ARGS_LEGACY_SERVER_CONNECT_SHORT_MSG,
-        "no_check_certificates": Messages.ARGS_NO_CHECK_CERTIFICATES_SHORT_MSG,
-        "username": Messages.ARGS_USERNAME_SHORT_MSG,
-        "password": Messages.ARGS_PASSWORD_SHORT_MSG,
-        "twofactor": Messages.ARGS_TWOFACTOR_SHORT_MSG,
-        "ignore_errors": Messages.ARGS_IGNORE_ERRORS_SHORT_MSG,
-        "min_filesize": Messages.ARGS_MIN_FILESIZE_SHORT_MSG,
-        "max_filesize": Messages.ARGS_MAX_FILESIZE_SHORT_MSG,
-        "playlist_items": Messages.ARGS_PLAYLIST_ITEMS_SHORT_MSG,
-        "date": Messages.ARGS_DATE_SHORT_MSG,
-        "datebefore": Messages.ARGS_DATEBEFORE_SHORT_MSG,
-        "dateafter": Messages.ARGS_DATEAFTER_SHORT_MSG,
-        "http_headers": Messages.ARGS_HTTP_HEADERS_SHORT_MSG,
-        "sleep_interval": Messages.ARGS_SLEEP_INTERVAL_SHORT_MSG,
-        "max_sleep_interval": Messages.ARGS_MAX_SLEEP_INTERVAL_SHORT_MSG,
-        "video_format": Messages.ARGS_VIDEO_FORMAT_SHORT_MSG,
-        "merge_output_format": Messages.ARGS_MERGE_OUTPUT_FORMAT_SHORT_MSG,
-        "send_as_file": Messages.ARGS_SEND_AS_FILE_SHORT_MSG
+        "impersonate": get_messages_instance().ARGS_IMPERSONATE_SHORT_MSG,
+        "referer": get_messages_instance().ARGS_REFERER_SHORT_MSG,
+        "geo_bypass": get_messages_instance().ARGS_GEO_BYPASS_SHORT_MSG,
+        "check_certificate": get_messages_instance().ARGS_CHECK_CERTIFICATE_SHORT_MSG,
+        "live_from_start": get_messages_instance().ARGS_LIVE_FROM_START_SHORT_MSG,
+        "no_live_from_start": get_messages_instance().ARGS_NO_LIVE_FROM_START_SHORT_MSG,
+        "user_agent": get_messages_instance().ARGS_USER_AGENT_SHORT_MSG,
+        "hls_use_mpegts": get_messages_instance().ARGS_HLS_USE_MPEGTS_SHORT_MSG,
+        "no_playlist": get_messages_instance().ARGS_NO_PLAYLIST_SHORT_MSG,
+        "no_part": get_messages_instance().ARGS_NO_PART_SHORT_MSG,
+        "no_continue": get_messages_instance().ARGS_NO_CONTINUE_SHORT_MSG,
+        "audio_format": get_messages_instance().ARGS_AUDIO_FORMAT_SHORT_MSG,
+        "embed_metadata": get_messages_instance().ARGS_EMBED_METADATA_SHORT_MSG,
+        "embed_thumbnail": get_messages_instance().ARGS_EMBED_THUMBNAIL_SHORT_MSG,
+        "write_thumbnail": get_messages_instance().ARGS_WRITE_THUMBNAIL_SHORT_MSG,
+        "concurrent_fragments": get_messages_instance().ARGS_CONCURRENT_FRAGMENTS_SHORT_MSG,
+        "force_ipv4": get_messages_instance().ARGS_FORCE_IPV4_SHORT_MSG,
+        "force_ipv6": get_messages_instance().ARGS_FORCE_IPV6_SHORT_MSG,
+        "xff": get_messages_instance().ARGS_XFF_SHORT_MSG,
+        "http_chunk_size": get_messages_instance().ARGS_HTTP_CHUNK_SIZE_SHORT_MSG,
+        "sleep_subtitles": get_messages_instance().ARGS_SLEEP_SUBTITLES_SHORT_MSG,
+        "legacy_server_connect": get_messages_instance().ARGS_LEGACY_SERVER_CONNECT_SHORT_MSG,
+        "no_check_certificates": get_messages_instance().ARGS_NO_CHECK_CERTIFICATES_SHORT_MSG,
+        "username": get_messages_instance().ARGS_USERNAME_SHORT_MSG,
+        "password": get_messages_instance().ARGS_PASSWORD_SHORT_MSG,
+        "twofactor": get_messages_instance().ARGS_TWOFACTOR_SHORT_MSG,
+        "ignore_errors": get_messages_instance().ARGS_IGNORE_ERRORS_SHORT_MSG,
+        "min_filesize": get_messages_instance().ARGS_MIN_FILESIZE_SHORT_MSG,
+        "max_filesize": get_messages_instance().ARGS_MAX_FILESIZE_SHORT_MSG,
+        "playlist_items": get_messages_instance().ARGS_PLAYLIST_ITEMS_SHORT_MSG,
+        "date": get_messages_instance().ARGS_DATE_SHORT_MSG,
+        "datebefore": get_messages_instance().ARGS_DATEBEFORE_SHORT_MSG,
+        "dateafter": get_messages_instance().ARGS_DATEAFTER_SHORT_MSG,
+        "http_headers": get_messages_instance().ARGS_HTTP_HEADERS_SHORT_MSG,
+        "sleep_interval": get_messages_instance().ARGS_SLEEP_INTERVAL_SHORT_MSG,
+        "max_sleep_interval": get_messages_instance().ARGS_MAX_SLEEP_INTERVAL_SHORT_MSG,
+        "video_format": get_messages_instance().ARGS_VIDEO_FORMAT_SHORT_MSG,
+        "merge_output_format": get_messages_instance().ARGS_MERGE_OUTPUT_FORMAT_SHORT_MSG,
+        "send_as_file": get_messages_instance().ARGS_SEND_AS_FILE_SHORT_MSG
     }
     
     buttons = []
@@ -554,7 +554,7 @@ def get_args_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
         if not pconfig or pconfig.get("type") != "boolean":
             return
         current_value = user_args.get(pname, pconfig.get("default", False))
-        status = Messages.ARGS_STATUS_TRUE_MSG if current_value else Messages.ARGS_STATUS_FALSE_MSG
+        status = get_messages_instance().ARGS_STATUS_TRUE_MSG if current_value else get_messages_instance().ARGS_STATUS_FALSE_MSG
         short_desc = short_descriptions.get(pname, pconfig['description'][:15])
         btn_text = f"{status} {short_desc}"
         if len(btn_text) > 30:
@@ -620,7 +620,7 @@ def get_args_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
                     display_value = "True" if current_value else "False"
                 else:
                     display_value = str(current_value)
-                status = Messages.ARGS_STATUS_TRUE_MSG if current_value else Messages.ARGS_STATUS_FALSE_MSG
+                status = get_messages_instance().ARGS_STATUS_TRUE_MSG if current_value else get_messages_instance().ARGS_STATUS_FALSE_MSG
             else:
                 status = f"🔢 {current_value}"
                 display_value = str(current_value)
@@ -677,8 +677,8 @@ def get_args_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     
     # Control buttons
     buttons.append([
-        InlineKeyboardButton(Messages.ARGS_RESET_ALL_BUTTON_MSG, callback_data="args_reset_all"),
-        InlineKeyboardButton(Messages.ARGS_VIEW_CURRENT_BUTTON_MSG, callback_data="args_view_current")
+        InlineKeyboardButton(get_messages_instance().ARGS_RESET_ALL_BUTTON_MSG, callback_data="args_reset_all"),
+        InlineKeyboardButton(get_messages_instance().ARGS_VIEW_CURRENT_BUTTON_MSG, callback_data="args_view_current")
     ])
     buttons.append([InlineKeyboardButton("🔚 Close", callback_data="args_close")])
     
@@ -688,14 +688,14 @@ def get_boolean_menu_keyboard(param_name: str, current_value: bool) -> InlineKey
     """Generate boolean parameter menu keyboard"""
     buttons = [
         [InlineKeyboardButton(
-            Messages.ARGS_TRUE_BUTTON_MSG,
+            get_messages_instance().ARGS_TRUE_BUTTON_MSG,
             callback_data=f"args_bool_{param_name}_true"
         )],
         [InlineKeyboardButton(
-            Messages.ARGS_FALSE_BUTTON_MSG, 
+            get_messages_instance().ARGS_FALSE_BUTTON_MSG, 
             callback_data=f"args_bool_{param_name}_false"
         )],
-        [InlineKeyboardButton(Messages.ARGS_BACK_BUTTON_MSG, callback_data="args_back")]
+        [InlineKeyboardButton(get_messages_instance().ARGS_BACK_BUTTON_MSG, callback_data="args_back")]
     ]
     return InlineKeyboardMarkup(buttons)
 
@@ -706,13 +706,13 @@ def get_select_menu_keyboard(param_name: str, current_value: str) -> InlineKeybo
     
     buttons = []
     for option in options:
-        status = Messages.ARGS_STATUS_SELECTED_MSG if option == current_value else Messages.ARGS_STATUS_UNSELECTED_MSG
+        status = get_messages_instance().ARGS_STATUS_SELECTED_MSG if option == current_value else get_messages_instance().ARGS_STATUS_UNSELECTED_MSG
         buttons.append([InlineKeyboardButton(
             f"{status} {option}",
             callback_data=f"args_select_{param_name}_{option}"
         )])
     
-    buttons.append([InlineKeyboardButton(Messages.ARGS_BACK_BUTTON_MSG, callback_data="args_back")])
+    buttons.append([InlineKeyboardButton(get_messages_instance().ARGS_BACK_BUTTON_MSG, callback_data="args_back")])
     return InlineKeyboardMarkup(buttons)
 
 def get_text_input_message(param_name: str, current_value: str) -> str:
@@ -720,17 +720,17 @@ def get_text_input_message(param_name: str, current_value: str) -> str:
     param_config = YTDLP_PARAMS[param_name]
     placeholder = param_config.get("placeholder", "")
     
-    message = Messages.ARGS_PARAM_DESCRIPTION_MSG.format(description=param_config['description'])
+    message = get_messages_instance().ARGS_PARAM_DESCRIPTION_MSG.format(description=param_config['description'])
     if current_value:
-        message += Messages.ARGS_CURRENT_VALUE_MSG.format(current_value=current_value)
+        message += get_messages_instance().ARGS_CURRENT_VALUE_MSG.format(current_value=current_value)
     
     if param_name == "xff":
-        message += Messages.ARGS_XFF_EXAMPLES_MSG
-        message += Messages.ARGS_XFF_NOTE_MSG
+        message += get_messages_instance().ARGS_XFF_EXAMPLES_MSG
+        message += get_messages_instance().ARGS_XFF_NOTE_MSG
     elif placeholder:
-        message += Messages.ARGS_EXAMPLE_MSG.format(placeholder=placeholder)
+        message += get_messages_instance().ARGS_EXAMPLE_MSG.format(placeholder=placeholder)
     
-    message += Messages.ARGS_SEND_VALUE_MSG
+    message += get_messages_instance().ARGS_SEND_VALUE_MSG
     
     return message
 
@@ -744,17 +744,17 @@ def get_number_input_message(param_name: str, current_value: Any) -> str:
         if current_value is not None:
             display_value = "True" if current_value else "False"
             message += f"Current value: <code>{display_value}</code>\n\n"
-        message += Messages.ARGS_BOOL_VALUE_REQUEST_MSG
+        message += get_messages_instance().ARGS_BOOL_VALUE_REQUEST_MSG
         return message
     
     min_val = param_config.get("min", 0)
     max_val = param_config.get("max", 999999)
     
-    message = Messages.ARGS_NUMBER_PARAM_MSG.format(description=param_config['description'])
+    message = get_messages_instance().ARGS_NUMBER_PARAM_MSG.format(description=param_config['description'])
     if current_value is not None:
-        message += Messages.ARGS_CURRENT_VALUE_MSG.format(current_value=current_value)
-    message += Messages.ARGS_RANGE_MSG.format(min_val=min_val, max_val=max_val)
-    message += Messages.ARGS_SEND_NUMBER_MSG
+        message += get_messages_instance().ARGS_CURRENT_VALUE_MSG.format(current_value=current_value)
+    message += get_messages_instance().ARGS_RANGE_MSG.format(min_val=min_val, max_val=max_val)
+    message += get_messages_instance().ARGS_SEND_NUMBER_MSG
     
     return message
 
@@ -763,33 +763,33 @@ def get_json_input_message(param_name: str, current_value: str) -> str:
     param_config = YTDLP_PARAMS[param_name]
     placeholder = param_config.get("placeholder", "{}")
     
-    message = Messages.ARGS_JSON_PARAM_MSG.format(description=param_config['description'])
+    message = get_messages_instance().ARGS_JSON_PARAM_MSG.format(description=param_config['description'])
     if current_value and current_value != "{}":
-        message += Messages.ARGS_CURRENT_VALUE_MSG.format(current_value=current_value)
+        message += get_messages_instance().ARGS_CURRENT_VALUE_MSG.format(current_value=current_value)
     
     if param_name == "http_headers":
-        message += Messages.ARGS_HTTP_HEADERS_EXAMPLES_MSG.format(placeholder=placeholder)
-        message += Messages.ARGS_HTTP_HEADERS_NOTE_MSG
+        message += get_messages_instance().ARGS_HTTP_HEADERS_EXAMPLES_MSG.format(placeholder=placeholder)
+        message += get_messages_instance().ARGS_HTTP_HEADERS_NOTE_MSG
     else:
-        message += Messages.ARGS_EXAMPLE_MSG.format(placeholder=placeholder)
+        message += get_messages_instance().ARGS_EXAMPLE_MSG.format(placeholder=placeholder)
     
-    message += Messages.ARGS_JSON_VALUE_REQUEST_MSG
+    message += get_messages_instance().ARGS_JSON_VALUE_REQUEST_MSG
     
     return message
 
 def format_current_args(user_args: Dict[str, Any]) -> str:
     """Format current args for display"""
     if not user_args:
-        return Messages.ARGS_NO_CUSTOM_MSG
+        return get_messages_instance().ARGS_NO_CUSTOM_MSG
     
-    message = Messages.ARGS_CURRENT_ARGS_MSG
+    message = get_messages_instance().ARGS_CURRENT_ARGS_MSG
     
     for param_name, value in user_args.items():
         param_config = YTDLP_PARAMS.get(param_name, {})
         description = param_config.get("description", param_name)
         
         if isinstance(value, bool):
-            display_value = Messages.ARGS_STATUS_TRUE_DISPLAY_MSG if value else Messages.ARGS_STATUS_FALSE_DISPLAY_MSG
+            display_value = get_messages_instance().ARGS_STATUS_TRUE_DISPLAY_MSG if value else get_messages_instance().ARGS_STATUS_FALSE_DISPLAY_MSG
         elif isinstance(value, (int, float)):
             display_value = str(value)
         else:
@@ -802,9 +802,9 @@ def format_current_args(user_args: Dict[str, Any]) -> str:
 def create_export_message(user_args: Dict[str, Any]) -> str:
     """Create export message for forwarding to favorites"""
     if not user_args:
-        return Messages.ARGS_NO_SETTINGS_MSG
+        return get_messages_instance().ARGS_NO_SETTINGS_MSG
     
-    message = Messages.ARGS_CURRENT_ARGUMENTS_MSG
+    message = get_messages_instance().ARGS_CURRENT_ARGUMENTS_MSG
     
     # Mapping of parameter names to their display names for export
     display_names = {
@@ -865,7 +865,7 @@ def create_export_message(user_args: Dict[str, Any]) -> str:
         
         message += f"{display_name}: {status}\n"
     
-    message += Messages.ARGS_FORWARD_TEMPLATE_MSG
+    message += get_messages_instance().ARGS_FORWARD_TEMPLATE_MSG
     
     return message
 
@@ -998,7 +998,7 @@ def args_command(app, message):
     
     safe_send_message(
         chat_id,
-        Messages.ARGS_CONFIG_TITLE_MSG.format(groups_msg=Messages.ARGS_MENU_DESCRIPTION_MSG),
+        get_messages_instance().ARGS_CONFIG_TITLE_MSG.format(groups_msg=get_messages_instance().ARGS_MENU_DESCRIPTION_MSG),
         reply_markup=keyboard,
         message=message
     )
@@ -1012,7 +1012,7 @@ def args_callback_handler(app, callback_query):
     try:
         if data == "args_close":
             callback_query.message.delete()
-            callback_query.answer(Messages.ARGS_CLOSED_MSG)
+            callback_query.answer(get_messages_instance().ARGS_CLOSED_MSG)
             return
         
         elif data == "args_empty":
@@ -1034,7 +1034,7 @@ def args_callback_handler(app, callback_query):
             keyboard = get_args_menu_keyboard(user_id)
             try:
                 callback_query.edit_message_text(
-                    Messages.ARGS_CONFIG_TITLE_MSG.format(groups_msg=Messages.ARGS_MENU_DESCRIPTION_MSG),
+                    get_messages_instance().ARGS_CONFIG_TITLE_MSG.format(groups_msg=get_messages_instance().ARGS_MENU_DESCRIPTION_MSG),
                     reply_markup=keyboard
                 )
             except Exception:
@@ -1050,8 +1050,8 @@ def args_callback_handler(app, callback_query):
             user_args = get_user_args(user_id)
             message = format_current_args(user_args)
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton(Messages.ARGS_EXPORT_SETTINGS_BUTTON_MSG, callback_data="args_export")],
-                [InlineKeyboardButton(Messages.ARGS_BACK_BUTTON_MSG, callback_data="args_back")]
+                [InlineKeyboardButton(get_messages_instance().ARGS_EXPORT_SETTINGS_BUTTON_MSG, callback_data="args_export")],
+                [InlineKeyboardButton(get_messages_instance().ARGS_BACK_BUTTON_MSG, callback_data="args_back")]
             ])
             callback_query.edit_message_text(message, reply_markup=keyboard)
             callback_query.answer()
@@ -1064,25 +1064,25 @@ def args_callback_handler(app, callback_query):
                 InlineKeyboardButton("🔙 Back", callback_data="args_view_current")
             ]])
             callback_query.edit_message_text(export_message, reply_markup=keyboard)
-            callback_query.answer(Messages.ARGS_SETTINGS_READY_MSG)
+            callback_query.answer(get_messages_instance().ARGS_SETTINGS_READY_MSG)
             return
         
         elif data == "args_reset_all":
             if save_user_args(user_id, {}):
                 keyboard = get_args_menu_keyboard(user_id)
                 callback_query.edit_message_text(
-                    Messages.ARGS_CONFIG_TITLE_MSG.format(groups_msg=Messages.ARGS_MENU_DESCRIPTION_MSG) + "\n\n" + Messages.ARGS_RESET_SUCCESS_MSG,
+                    get_messages_instance().ARGS_CONFIG_TITLE_MSG.format(groups_msg=get_messages_instance().ARGS_MENU_DESCRIPTION_MSG) + "\n\n" + get_messages_instance().ARGS_RESET_SUCCESS_MSG,
                     reply_markup=keyboard
                 )
-                callback_query.answer(Messages.ARGS_ALL_RESET_MSG)
+                callback_query.answer(get_messages_instance().ARGS_ALL_RESET_MSG)
             else:
-                callback_query.answer(Messages.ARGS_RESET_ERROR_MSG, show_alert=True)
+                callback_query.answer(get_messages_instance().ARGS_RESET_ERROR_MSG, show_alert=True)
             return
         
         elif data.startswith("args_set_"):
             param_name = data.replace("args_set_", "")
             if param_name not in YTDLP_PARAMS:
-                callback_query.answer(Messages.ARGS_INVALID_PARAM_MSG, show_alert=True)
+                callback_query.answer(get_messages_instance().ARGS_INVALID_PARAM_MSG, show_alert=True)
                 return
             
             param_config = YTDLP_PARAMS[param_name]
@@ -1093,7 +1093,7 @@ def args_callback_handler(app, callback_query):
                 keyboard = get_boolean_menu_keyboard(param_name, current_value)
                 callback_query.edit_message_text(
                     f"<b>⚙️ {param_config['description']}</b>\n\n"
-                    f"Current value: {Messages.ARGS_STATUS_TRUE_DISPLAY_MSG if current_value else Messages.ARGS_STATUS_FALSE_DISPLAY_MSG}",
+                    f"Current value: {get_messages_instance().ARGS_STATUS_TRUE_DISPLAY_MSG if current_value else get_messages_instance().ARGS_STATUS_FALSE_DISPLAY_MSG}",
                     reply_markup=keyboard
                 )
             
@@ -1150,7 +1150,7 @@ def args_callback_handler(app, callback_query):
                 param_name = remaining[:-6]  # Remove "_false"
                 value = False
             else:
-                callback_query.answer(Messages.ARGS_INVALID_BOOL_MSG, show_alert=True)
+                callback_query.answer(get_messages_instance().ARGS_INVALID_BOOL_MSG, show_alert=True)
                 return
             
             user_args = get_user_args(user_id)
@@ -1186,17 +1186,17 @@ def args_callback_handler(app, callback_query):
                 # Rebuild main menu to reflect paired toggles instantly
                 keyboard = get_args_menu_keyboard(user_id)
                 callback_query.edit_message_text(
-                    Messages.ARGS_MENU_TEXT,
+                    get_messages_instance().ARGS_MENU_TEXT,
                     reply_markup=keyboard
                 )
                 try:
-                    callback_query.answer(Messages.ARGS_BOOL_SET_MSG.format(value='True' if value else 'False'))
+                    callback_query.answer(get_messages_instance().ARGS_BOOL_SET_MSG.format(value='True' if value else 'False'))
                 except Exception:
                     pass
             else:
                 # Value is the same, just acknowledge
                 try:
-                    callback_query.answer(Messages.ARGS_BOOL_ALREADY_SET_MSG.format(value='True' if value else 'False'))
+                    callback_query.answer(get_messages_instance().ARGS_BOOL_ALREADY_SET_MSG.format(value='True' if value else 'False'))
                 except Exception:
                     pass
             return
@@ -1207,7 +1207,7 @@ def args_callback_handler(app, callback_query):
             # Find the last underscore to separate param_name and value
             last_underscore = remaining.rfind("_")
             if last_underscore == -1:
-                callback_query.answer(Messages.ARGS_INVALID_SELECT_MSG, show_alert=True)
+                callback_query.answer(get_messages_instance().ARGS_INVALID_SELECT_MSG, show_alert=True)
                 return
             param_name = remaining[:last_underscore]
             value = remaining[last_underscore + 1:]
@@ -1225,17 +1225,17 @@ def args_callback_handler(app, callback_query):
                 # If we changed impersonate, it may affect headers; but keep same screen
                 callback_query.edit_message_text(
                     f"<b>⚙️ {YTDLP_PARAMS[param_name]['description']}</b>\n\n"
-                    f"{Messages.ARGS_CURRENT_VALUE_MSG}",
+                    f"{get_messages_instance().ARGS_CURRENT_VALUE_MSG}",
                     reply_markup=keyboard
                 )
                 try:
-                    callback_query.answer(Messages.ARGS_VALUE_SET_MSG.format(value=value))
+                    callback_query.answer(get_messages_instance().ARGS_VALUE_SET_MSG.format(value=value))
                 except Exception:
                     pass
             else:
                 # Value is the same, just acknowledge
                 try:
-                    callback_query.answer(Messages.ARGS_VALUE_ALREADY_SET_MSG.format(value=value))
+                    callback_query.answer(get_messages_instance().ARGS_VALUE_ALREADY_SET_MSG.format(value=value))
                 except Exception:
                     pass
             return
@@ -1243,7 +1243,7 @@ def args_callback_handler(app, callback_query):
     except Exception as e:
         logger.error(LoggerMsg.ARGS_ERROR_CALLBACK_HANDLER_LOG_MSG.format(error=e))
         try:
-            callback_query.answer(Messages.ERROR_OCCURRED_SHORT_MSG, show_alert=False)
+            callback_query.answer(get_messages_instance().ERROR_OCCURRED_SHORT_MSG, show_alert=False)
         except Exception:
             pass
 
@@ -1269,7 +1269,7 @@ def handle_args_text_input(app, message):
         if param_type == "text":
             # Basic validation for text input
             if len(text) > 500:
-                error_msg = Messages.ARGS_TEXT_TOO_LONG_MSG
+                error_msg = get_messages_instance().ARGS_TEXT_TOO_LONG_MSG
                 safe_send_message(user_id, error_msg, message=message)
                 from HELPERS.logger import log_error_to_channel
                 log_error_to_channel(message, error_msg)
@@ -1284,7 +1284,7 @@ def handle_args_text_input(app, message):
             clear_input_state_timer(user_id, thread_id)
             safe_send_message(
                 user_id,
-                    Messages.ARGS_PARAM_SET_TO_MSG.format(description=YTDLP_PARAMS[param_name]['description'], value=text),
+                    get_messages_instance().ARGS_PARAM_SET_TO_MSG.format(description=YTDLP_PARAMS[param_name]['description'], value=text),
                 parse_mode=enums.ParseMode.HTML,
                 message=message
             )
@@ -1295,7 +1295,7 @@ def handle_args_text_input(app, message):
                 import json
                 parsed_json = json.loads(text)
                 if not isinstance(parsed_json, dict):
-                    error_msg = Messages.ARGS_JSON_MUST_BE_OBJECT_MSG
+                    error_msg = get_messages_instance().ARGS_JSON_MUST_BE_OBJECT_MSG
                     safe_send_message(user_id, error_msg, message=message)
                     from HELPERS.logger import log_error_to_channel
                     log_error_to_channel(message, error_msg)
@@ -1310,13 +1310,13 @@ def handle_args_text_input(app, message):
                 clear_input_state_timer(user_id, thread_id)
                 safe_send_message(
                     user_id,
-                    Messages.ARGS_PARAM_SET_TO_MSG.format(description=YTDLP_PARAMS[param_name]['description'], value=text),
+                    get_messages_instance().ARGS_PARAM_SET_TO_MSG.format(description=YTDLP_PARAMS[param_name]['description'], value=text),
                     parse_mode=enums.ParseMode.HTML,
                     message=message
                 )
                 
             except json.JSONDecodeError:
-                error_msg = Messages.ARGS_INVALID_JSON_FORMAT_MSG
+                error_msg = get_messages_instance().ARGS_INVALID_JSON_FORMAT_MSG
                 safe_send_message(user_id, error_msg, message=message)
                 from HELPERS.logger import log_error_to_channel
                 log_error_to_channel(message, error_msg)
@@ -1332,7 +1332,7 @@ def handle_args_text_input(app, message):
                 elif text_lower in ["false", "0", "no", "off"]:
                     value = False
                 else:
-                    error_msg = Messages.ARGS_BOOL_INPUT_MSG
+                    error_msg = get_messages_instance().ARGS_BOOL_INPUT_MSG
                     safe_send_message(user_id, error_msg, message=message)
                     from HELPERS.logger import log_error_to_channel
                     log_error_to_channel(message, error_msg)
@@ -1347,7 +1347,7 @@ def handle_args_text_input(app, message):
                 clear_input_state_timer(user_id, thread_id)
                 safe_send_message(
                     user_id,
-                    Messages.ARGS_PARAM_SET_TO_MSG.format(description=YTDLP_PARAMS[param_name]['description'], value='True' if value else 'False'),
+                    get_messages_instance().ARGS_PARAM_SET_TO_MSG.format(description=YTDLP_PARAMS[param_name]['description'], value='True' if value else 'False'),
                     parse_mode=enums.ParseMode.HTML,
                     message=message
                 )
@@ -1362,7 +1362,7 @@ def handle_args_text_input(app, message):
                     if value < min_val or value > max_val:
                         safe_send_message(
                             user_id,
-                            Messages.ARGS_VALUE_MUST_BE_BETWEEN_MSG.format(min_val=min_val, max_val=max_val),
+                            get_messages_instance().ARGS_VALUE_MUST_BE_BETWEEN_MSG.format(min_val=min_val, max_val=max_val),
                             message=message
                         )
                         return
@@ -1376,13 +1376,13 @@ def handle_args_text_input(app, message):
                     clear_input_state_timer(user_id, thread_id)
                     safe_send_message(
                         user_id,
-                        Messages.ARGS_PARAM_SET_TO_MSG.format(description=YTDLP_PARAMS[param_name]['description'], value=value),
+                        get_messages_instance().ARGS_PARAM_SET_TO_MSG.format(description=YTDLP_PARAMS[param_name]['description'], value=value),
                         parse_mode=enums.ParseMode.HTML,
                         message=message
                     )
                     
                 except ValueError:
-                    error_msg = Messages.ARGS_INVALID_NUMBER_INPUT_MSG
+                    error_msg = get_messages_instance().ARGS_INVALID_NUMBER_INPUT_MSG
                     safe_send_message(user_id, error_msg, message=message)
                     from HELPERS.logger import log_error_to_channel
                     log_error_to_channel(message, error_msg)
@@ -1390,7 +1390,7 @@ def handle_args_text_input(app, message):
                 
     except Exception as e:
         logger.error(LoggerMsg.ARGS_ERROR_HANDLING_TEXT_INPUT_LOG_MSG.format(error=e))
-        error_msg = Messages.ARGS_ERROR_PROCESSING_MSG
+        error_msg = get_messages_instance().ARGS_ERROR_PROCESSING_MSG
         safe_send_message(user_id, error_msg, message=message)
         from HELPERS.logger import log_error_to_channel
         log_error_to_channel(message, error_msg)
@@ -1421,7 +1421,7 @@ def args_import_handler(app, message):
     """Handle import of settings from forwarded message"""
     try:
         # Check if this is a forwarded message with settings template
-        if not message.text or Messages.ARGS_CURRENT_ARGUMENTS_HEADER_MSG not in message.text:
+        if not message.text or get_messages_instance().ARGS_CURRENT_ARGUMENTS_HEADER_MSG not in message.text:
             return
         
         # Log that we're attempting to import settings
@@ -1441,7 +1441,7 @@ def args_import_handler(app, message):
         if not parsed_args:
             safe_send_message(
                 user_id,
-                Messages.ARGS_FAILED_RECOGNIZE_MSG,
+                get_messages_instance().ARGS_FAILED_RECOGNIZE_MSG,
                 message=message
             )
             return
@@ -1466,7 +1466,7 @@ def args_import_handler(app, message):
         if save_user_args(invoker_id, parsed_args):
             # Show success message with applied settings count
             applied_count = len(parsed_args)
-            success_message = f"{Messages.ARGS_SUCCESSFULLY_IMPORTED_MSG}"
+            success_message = f"{get_messages_instance().ARGS_SUCCESSFULLY_IMPORTED_MSG}"
             
             # Show some key settings that were applied
             key_settings = []
@@ -1480,7 +1480,7 @@ def args_import_handler(app, message):
                 key_settings.append(f"• {description}: {display_value}")
             
             if key_settings:
-                success_message += Messages.ARGS_KEY_SETTINGS_MSG + "\n".join(key_settings)
+                success_message += get_messages_instance().ARGS_KEY_SETTINGS_MSG + "\n".join(key_settings)
                 if len(parsed_args) > 5:
                     success_message += f"\n... and {len(parsed_args) - 5} more parameters"
             
@@ -1492,7 +1492,7 @@ def args_import_handler(app, message):
         else:
             safe_send_message(
                 user_id,
-                Messages.ARGS_ERROR_SAVING_MSG,
+                get_messages_instance().ARGS_ERROR_SAVING_MSG,
                 message=message
             )
             
@@ -1500,7 +1500,7 @@ def args_import_handler(app, message):
         logger.error(f"Error in args_import_handler: {e}")
         safe_send_message(
             message.chat.id,
-            Messages.ARGS_ERROR_IMPORTING_MSG,
+            get_messages_instance().ARGS_ERROR_IMPORTING_MSG,
             message=message
         )
 
