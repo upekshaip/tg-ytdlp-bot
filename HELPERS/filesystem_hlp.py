@@ -122,6 +122,9 @@ def cleanup_user_temp_files(user_id):
                 filename.endswith('.jpg') or  # Thumbnails
                 filename == 'full_title.txt' or  # Full title file
                 filename == 'full_description.txt'):  # Tags file
+                # Skip formats_cache files - they should be preserved
+                if filename.startswith('formats_cache_') and filename.endswith('.json'):
+                    continue
                 try:
                     if os.path.isfile(file_path):
                         os.remove(file_path)
@@ -148,6 +151,10 @@ def cleanup_media_in_download_folder(folder_path):
                 
                 # Keep txt, json, jpg, jpeg, png files
                 if filename.endswith(('.txt', '.json', '.jpg', '.jpeg', '.png')):
+                    continue
+                
+                # Always keep formats_cache files
+                if filename.startswith('formats_cache_') and filename.endswith('.json'):
                     continue
                 
                 # Remove media files
