@@ -21,7 +21,6 @@ BRANCH = "main"
 
 # Files and directories that MUST NOT be updated
 EXCLUDED_FILES = [
-    #"CONFIG/messages.py",  # Main configuration file (contains messages data)
     "CONFIG/domains.py",  # Main configuration file (contains domains data)
     "CONFIG/config.py",  # Main configuration file (contains sensitive data)
     #"requirements.txt", # Dependencies may differ
