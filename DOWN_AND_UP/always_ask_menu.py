@@ -1890,6 +1890,13 @@ def askq_callback(app, callback_query):
             except Exception as e:
                 logger.error(f"Error reading cache file: {e}")
         
+        # Delete the menu message immediately to prevent multiple menus
+        try:
+            safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
+            logger.info("Deleted Other menu message successfully")
+        except Exception as e:
+            logger.warning(f"Failed to delete Other menu message: {e}")
+        
         callback_query.answer(f"{get_messages_instance().ALWAYS_ASK_DOWNLOADING_FORMAT_MSG} {format_id}...")
         logger.info(f"Starting download process for format_id: {format_id}")
         
@@ -1897,7 +1904,6 @@ def askq_callback(app, callback_query):
         if not original_message:
             logger.error("Original message not found")
             callback_query.answer(get_messages_instance().AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
-            safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
             return
         
         url = None
@@ -1915,15 +1921,12 @@ def askq_callback(app, callback_query):
         if not url:
             logger.error("URL not found in message")
             callback_query.answer(get_messages_instance().AA_ERROR_URL_NOT_FOUND_MSG, show_alert=True)
-            safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
             return
         
         # Extract tags from the user's source message
         original_text = original_message.text or original_message.caption or ""
         _, _, _, _, tags, tags_text, _ = extract_url_range_tags(original_text)
         logger.info(f"Extracted tags: {tags_text}")
-        
-        safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
         
         # Use specific format ID for download
         format_override = format_id
