@@ -2438,9 +2438,11 @@ def fallback_gallery_dl_callback(app, callback_query):
         if len(url_parts) >= 3:
             video_start_with = int(url_parts[1])
             video_end_with = int(url_parts[2])
+            logger.info(f"[FALLBACK DEBUG] Extracted range from callback data: {video_start_with}-{video_end_with}")
         else:
             video_start_with = 1
             video_end_with = 1
+            logger.info(f"[FALLBACK DEBUG] No range in callback data, using default: 1-1")
         
         # Extract chat_id from URL data if available
         if len(url_parts) >= 4:
@@ -2468,10 +2470,10 @@ def fallback_gallery_dl_callback(app, callback_query):
         if video_start_with and video_end_with and (video_start_with != 1 or video_end_with != 1):
             # Convert *1*20 format to 1-20 format for gallery-dl
             fallback_text = f"/img {video_start_with}-{video_end_with} {url}"
-            logger.info(f"Fallback with range: {video_start_with}-{video_end_with}")
+            logger.info(f"[FALLBACK DEBUG] Creating fallback command with range: {video_start_with}-{video_end_with}")
         else:
             fallback_text = f"/img {url}"
-            logger.info(f"Fallback without range")
+            logger.info(f"[FALLBACK DEBUG] Creating fallback command without range")
         
         # Сохраняем message_thread_id из оригинального сообщения
         message_thread_id = getattr(callback_query.message, 'message_thread_id', None)
@@ -3647,14 +3649,32 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
                 # Include range info and chat_id in callback data - use safe callback data for long URLs
                 chat_id = message.chat.id
-                if video_start_with and video_end_with and (video_start_with != 1 or video_end_with != 1):
-                    url_data = f"{url}|{video_start_with}|{video_end_with}|{chat_id}"
+                
+                # ИСПРАВЛЕНИЕ: Извлекаем диапазон из оригинального сообщения, если он не был передан явно
+                original_start = video_start_with
+                original_end = video_end_with
+                
+                # Если диапазон не был передан явно, пытаемся извлечь его из оригинального сообщения
+                if (video_start_with == 1 and video_end_with == 1) and hasattr(message, 'text'):
+                    import re
+                    # Ищем диапазон в формате *start*end в оригинальном тексте
+                    range_match = re.search(r'(https?://[^\s\*#]+)\*(\d+)\*(\d+)', message.text)
+                    if range_match:
+                        original_start = int(range_match.group(2))
+                        original_end = int(range_match.group(3))
+                        logger.info(f"[FALLBACK DEBUG] Extracted range from original message: {original_start}-{original_end}")
+                
+                if original_start and original_end and (original_start != 1 or original_end != 1):
+                    url_data = f"{url}|{original_start}|{original_end}|{chat_id}"
+                    logger.info(f"[FALLBACK DEBUG] Using extracted range: {original_start}-{original_end}")
                 else:
-                    # Use detected_total if available, otherwise default to 1-1
+                    # Fallback: Use detected_total if available, otherwise default to 1-1
                     if detected_total and detected_total > 0:
                         url_data = f"{url}|1|{detected_total}|{chat_id}"
+                        logger.info(f"[FALLBACK DEBUG] Using detected_total: 1-{detected_total}")
                     else:
                         url_data = f"{url}|1|1|{chat_id}"
+                        logger.info(f"[FALLBACK DEBUG] Using default range: 1-1")
                 
                 callback_data = create_safe_callback_data("fallback_gallery_dl", url_data)
                 keyboard = [

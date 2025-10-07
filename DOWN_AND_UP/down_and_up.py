@@ -2601,6 +2601,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         if "Download timeout exceeded" in str(e):
             send_to_user(message, get_messages_instance().DOWNLOAD_CANCELLED_TIMEOUT_MSG)
             log_error_to_channel(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG, url)
+        elif "'quality_key'" in str(e):
+            # This is a quality_key error that was already handled earlier, don't show it to user
+            logger.warning(f"quality_key error caught at top level (already handled): {e}")
         else:
             logger.error(f"Error in video download: {e}")
             send_to_user(message, get_messages_instance().FAILED_DOWNLOAD_VIDEO_MSG.format(error=e))
