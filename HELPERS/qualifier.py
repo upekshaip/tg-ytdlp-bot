@@ -10,6 +10,7 @@ def get_quality_by_min_side(width: int, height: int) -> str:
     quality_map = {
         144: "144p", 256: "144p",
         240: "240p", 426: "240p",
+        360: "360p", 640: "360p",
         480: "480p", 854: "480p",
         540: "540p", 960: "540p",
         576: "576p", 1024: "576p",
@@ -41,6 +42,7 @@ def get_real_height_for_quality(quality: str, width: int, height: int) -> int:
             quality_map = {
                 144: [144, 256],
                 240: [240, 426],
+                360: [360, 640],
                 480: [480, 854],
                 540: [540, 960],
                 576: [576, 1024],

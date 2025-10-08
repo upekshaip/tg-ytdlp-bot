@@ -617,7 +617,7 @@ def url_distractor(app, message):
             from pyrogram.types import ReplyParameters
             safe_send_message(
                 fake_callback.message.chat.id,
-                Config.SAVE_AS_COOKIE_HINT,
+                get_messages_instance(user_id).SAVE_AS_COOKIE_HINT,
                 reply_parameters=ReplyParameters(message_id=fake_callback.message.id if hasattr(fake_callback.message, 'id') else None),
                 reply_markup=keyboard,
                 _callback_query=fake_callback,

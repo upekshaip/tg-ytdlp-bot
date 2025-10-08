@@ -50,6 +50,24 @@ from HELPERS.fallback_helper import should_fallback_to_gallery_dl
 app = get_app()
 
 
+def _handle_quality_key_error(e: Exception, split_msg_ids: list, is_playlist: bool, successful_uploads: int, indices_to_download: list, video_count: int, user_id: int, proc_msg_id: int, message, app):
+    """Universal handler for quality_key errors that ensures final actions are completed"""
+    logger.warning(f"quality_key error caught: {e}")
+    logger.info(f"Continuing after quality_key error - split_msg_ids={split_msg_ids}, is_playlist={is_playlist}")
+    
+    # Check if all downloads completed successfully
+    # For split videos, check if we have split_msg_ids; for regular videos, check successful_uploads
+    logger.info(f"Final check after quality_key error: successful_uploads={successful_uploads}, len(indices_to_download)={len(indices_to_download)}, split_msg_ids={split_msg_ids}, is_playlist={is_playlist}")
+    if (successful_uploads == len(indices_to_download)) or (split_msg_ids and not is_playlist):
+        logger.info(f"Upload complete condition met after quality_key error, replacing status message")
+        success_msg = f"<b>✅ Upload complete</b> - {video_count} files uploaded.\n{get_messages_instance().CREDITS_MSG}"
+        safe_edit_message_text(user_id, proc_msg_id, success_msg)
+        send_to_logger(message, success_msg)
+        return True
+    else:
+        logger.warning(f"Upload complete condition NOT met after quality_key error: successful_uploads={successful_uploads}, len(indices_to_download)={len(indices_to_download)}, split_msg_ids={split_msg_ids}, is_playlist={is_playlist}")
+        return False
+
 def _save_video_cache_with_logging(url: str, safe_quality_key: str, message_ids: list, original_text: str = None, user_id: int = None):
     """Save video to cache with channel type logging."""
     try:
@@ -114,7 +132,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     already_forwarded_to_log = False  # Initialize variable to track log forwarding status
     need_subs = False  # Will be determined once at the beginning
     safe_quality_key = quality_key if quality_key is not None else "best"  # Initialize safe_quality_key
+    split_msg_ids = []  # Initialize split_msg_ids for split videos
     user_id = message.chat.id
+    successful_uploads = 0  # Initialize successful_uploads counter
+    indices_to_download = []  # Initialize indices_to_download list
+    proc_msg_id = None  # Initialize proc_msg_id
     logger.info(f"down_and_up called: url={url}, quality_key={quality_key}, format_override={format_override}, video_count={video_count}, video_start_with={video_start_with}")
     
     # ЖЕСТКО: Сохраняем оригинальный текст с диапазоном для фоллбэка
@@ -409,6 +431,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             return
         except Exception as e:
             logger.error(f"Error editing message: {e}")
+            # Check if error is related to quality_key
+            if "'quality_key'" in str(e):
+                _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
             return
 
         # If there is no flood error, send a normal message
@@ -749,6 +774,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             logger.info("Skipping message cleanup - bots cannot use get_chat_history")
                         except Exception as e:
                             logger.error(f"Error in message cleanup: {e}")
+                            # Check if error is related to quality_key
+                            if "'quality_key'" in str(e):
+                                _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
                         first_progress_update = False
 
                     progress_text = f"{current_total_process}\n{bar}   {percent:.1f}%"
@@ -758,11 +786,17 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         logger.warning(f"Failed to update progress message {proc_msg_id} for user {user_id} - message may have been deleted")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
+                    # Check if error is related to quality_key
+                    if "'quality_key'" in str(e):
+                        _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
             elif d.get("status") == "finished":
                 try:
                     safe_edit_message_text(user_id, proc_msg_id, get_messages_instance().VIDEO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
+                    # Check if error is related to quality_key
+                    if "'quality_key'" in str(e):
+                        _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
             elif d.get("status") == "error":
                 logger.error("Error occurred during download.")
                 send_error_to_user(message, get_messages_instance().DOWNLOAD_ERROR_GENERIC)
@@ -1194,6 +1228,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             f"{current_total_process}\n> <i>📥 Downloading using format: {ytdl_opts.get('format', 'default')}...</i>")
                 except Exception as e:
                     logger.error(f"Status update error: {e}")
+                    # Check if error is related to quality_key
+                    if "'quality_key'" in str(e):
+                        _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
                 
                 logger.info("Starting download phase...")
                 # Try with proxy fallback if user proxy is enabled
@@ -1623,6 +1660,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     f"{info_text}\n{full_bar}   100.0%\n<i>{get_messages_instance().DOWN_UP_DOWNLOADED_VIDEO_MSG}\n{get_messages_instance().DOWN_UP_PROCESSING_UPLOAD_MSG}</i>")
             except Exception as e:
                 logger.error(f"Status update error after download: {e}")
+                # Check if error is related to quality_key
+                if "'quality_key'" in str(e):
+                    _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
 
             dir_path = user_dir_name
             allfiles = os.listdir(dir_path)
@@ -1947,29 +1987,32 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 logger.error(f"down_and_up: failed to send paid copy to PAID channel: {e}")
                             
                             # Send open copy to LOGS_NSFW_ID for history
-                            log_channel_nsfw = get_messages_instance().LOGS_NSFW_ID
-                            try:
-                                # Get video dimensions for proper aspect ratio
+                            log_channel_nsfw = get_log_channel("video", nsfw=True)
+                            if log_channel_nsfw and log_channel_nsfw != 0:
                                 try:
-                                    v_w, v_h, v_dur = get_video_info_ffprobe(path_lst[p])
-                                except Exception:
-                                    v_w, v_h, v_dur = width, height, part_duration
-                                
-                                # Create open copy for history (without stars) - send directly to NSFW channel
-                                open_video_msg = app.send_video(
-                                    chat_id=log_channel_nsfw,
-                                    video=path_lst[p],
-                                    caption=caption_lst[p],
-                                    duration=int(v_dur) if v_dur else part_duration,
-                                    width=int(v_w) if v_w else width,
-                                    height=int(v_h) if v_h else height,
-                                    thumb=splited_thumb_dir,
-                                    reply_parameters=ReplyParameters(message_id=message.id)
-                                )
-                                logger.info(f"down_and_up: NSFW content open copy sent to NSFW channel for history")
-                                already_forwarded_to_log = True
-                            except Exception as e:
-                                logger.error(f"down_and_up: failed to send open copy to NSFW channel: {e}")
+                                    # Get video dimensions for proper aspect ratio
+                                    try:
+                                        v_w, v_h, v_dur = get_video_info_ffprobe(path_lst[p])
+                                    except Exception:
+                                        v_w, v_h, v_dur = width, height, part_duration
+                                    
+                                    # Create open copy for history (without stars) - send directly to NSFW channel
+                                    open_video_msg = app.send_video(
+                                        chat_id=log_channel_nsfw,
+                                        video=path_lst[p],
+                                        caption=caption_lst[p],
+                                        duration=int(v_dur) if v_dur else part_duration,
+                                        width=int(v_w) if v_w else width,
+                                        height=int(v_h) if v_h else height,
+                                        thumb=splited_thumb_dir,
+                                        reply_parameters=ReplyParameters(message_id=message.id)
+                                    )
+                                    logger.info(f"down_and_up: NSFW content open copy sent to NSFW channel for history")
+                                    already_forwarded_to_log = True
+                                except Exception as e:
+                                    logger.error(f"down_and_up: failed to send open copy to NSFW channel: {e}")
+                            else:
+                                logger.warning(f"down_and_up: NSFW channel not available (ID: {log_channel_nsfw}), skipping open copy")
                             
                             # Don't cache NSFW content
                             logger.info(f"down_and_up: NSFW content sent to user (paid), PAID channel (paid copy), and NSFW channel (open copy), not cached")
@@ -1979,12 +2022,15 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             # NSFW content in groups -> LOGS_NSFW_ID only
                             if not already_forwarded_to_log:
                                 already_forwarded_to_log = True  # Set flag BEFORE forward to prevent duplicates
-                                log_channel = get_messages_instance().LOGS_NSFW_ID
-                                try:
-                                    safe_forward_messages(log_channel, user_id, [video_msg.id])
-                                    logger.info(f"down_and_up: NSFW content sent to NSFW channel")
-                                except Exception as e:
-                                    logger.error(f"down_and_up: failed to forward to NSFW channel: {e}")
+                                log_channel = get_log_channel("video", nsfw=True)
+                                if log_channel and log_channel != 0:
+                                    try:
+                                        safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                        logger.info(f"down_and_up: NSFW content sent to NSFW channel")
+                                    except Exception as e:
+                                        logger.error(f"down_and_up: failed to forward to NSFW channel: {e}")
+                                else:
+                                    logger.warning(f"down_and_up: NSFW channel not available (ID: {log_channel}), skipping forward")
                             else:
                                 logger.info("down_and_up: skipping forward to NSFW channel - already forwarded to log")
                             
@@ -2053,6 +2099,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         # Check if error is related to quality_key - if so, skip duplicate forwarding
                         if "'quality_key'" in str(e):
                             logger.warning(f"Error forwarding video to logger (quality_key issue): {e} - skipping duplicate forwarding")
+                            # Use universal quality_key error handler
+                            _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
                             already_forwarded_to_log = True  # Mark as already forwarded to prevent duplicates
                         else:
                             logger.error(f"Error forwarding video to logger: {e}")
@@ -2263,7 +2311,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     logger.error(f"down_and_up: failed to send paid copy to PAID channel: {e}")
                                 
                                 # Send open copy to LOGS_NSFW_ID for history
-                                log_channel_nsfw = get_messages_instance().LOGS_NSFW_ID
+                                log_channel_nsfw = get_log_channel("video", nsfw=True)
                                 try:
                                     # Get video dimensions for proper aspect ratio
                                     try:
@@ -2295,7 +2343,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 # NSFW content in groups -> LOGS_NSFW_ID only
                                 if not already_forwarded_to_log:
                                     already_forwarded_to_log = True  # Set flag BEFORE forward to prevent duplicates
-                                    log_channel = get_messages_instance().LOGS_NSFW_ID
+                                    log_channel = get_log_channel("video", nsfw=True)
                                     forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
                                 else:
                                     logger.info("down_and_up: skipping forward to NSFW channel - already forwarded to log")
@@ -2383,7 +2431,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                             
                                         elif is_nsfw:
                                             # NSFW content in groups -> LOGS_NSFW_ID only
-                                            log_channel = get_messages_instance().LOGS_NSFW_ID
+                                            log_channel = get_log_channel("video", nsfw=True)
                                             try:
                                                 safe_forward_messages(log_channel, user_id, [video_msg.id])
                                                 logger.info(f"down_and_up: NSFW content sent to NSFW channel (manual)")
@@ -2444,6 +2492,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             # Check if error is related to quality_key - if so, skip duplicate forwarding
                             if "'quality_key'" in str(e):
                                 logger.warning(f"Error forwarding video to logger (quality_key issue): {e} - skipping duplicate forwarding")
+                                # Use universal quality_key error handler
+                                _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
                                 already_forwarded_to_log = True  # Mark as already forwarded to prevent duplicates
                             else:
                                 logger.error(f"Error forwarding video to logger: {e}")
@@ -2473,7 +2523,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         logger.error(f"down_and_up: failed to send paid copy to PAID channel (error recovery): {e}")
                                     
                                     # Send open copy to LOGS_NSFW_ID for history
-                                    log_channel_nsfw = get_messages_instance().LOGS_NSFW_ID
+                                    log_channel_nsfw = get_log_channel("video", nsfw=True)
                                     try:
                                         # Get video dimensions for proper aspect ratio
                                         try:
@@ -2503,7 +2553,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     
                                 elif is_nsfw:
                                     # NSFW content in groups -> LOGS_NSFW_ID only
-                                    log_channel = get_messages_instance().LOGS_NSFW_ID
+                                    log_channel = get_log_channel("video", nsfw=True)
                                     try:
                                         safe_forward_messages(log_channel, user_id, [video_msg.id])
                                         logger.info(f"down_and_up: NSFW content sent to NSFW channel (error recovery)")
@@ -2557,6 +2607,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 # Check if error is related to quality_key - if so, skip duplicate forwarding
                                 if "'quality_key'" in str(e2):
                                     logger.warning(f"Error in manual forward after error (quality_key issue): {e2} - skipping duplicate forwarding")
+                                    # Use universal quality_key error handler
+                                    _handle_quality_key_error(e2, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
                                     already_forwarded_to_log = True  # Mark as already forwarded to prevent duplicates
                                 else:
                                     logger.error(f"Error in manual forward after error: {e2}")
@@ -2601,6 +2653,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         if "Download timeout exceeded" in str(e):
             send_to_user(message, get_messages_instance().DOWNLOAD_CANCELLED_TIMEOUT_MSG)
             log_error_to_channel(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG, url)
+        elif "'quality_key'" in str(e):
+            # This is a quality_key error that was already handled earlier, don't show it to user
+            logger.warning(f"quality_key error caught at top level (already handled): {e}")
+            # Use universal quality_key error handler
+            _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
         else:
             logger.error(f"Error in video download: {e}")
             send_to_user(message, get_messages_instance().FAILED_DOWNLOAD_VIDEO_MSG.format(error=e))

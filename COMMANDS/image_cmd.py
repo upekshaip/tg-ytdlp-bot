@@ -224,7 +224,7 @@ def _send_open_copy_to_nsfw_channel(file_path: str, caption: str, user_id: int, 
     """Send open copy of media to NSFW channel for history"""
     try:
         # Use explicit NSFW channel to avoid any fallback to LOGS_ID
-        log_channel_nsfw = getattr(Config, "LOGS_NSFW_ID", 0)
+        log_channel_nsfw = get_log_channel("video", nsfw=True)
         
         if is_video:
             # Send as video
@@ -1833,7 +1833,7 @@ def image_command(app, message):
                                                     ))
                                             
                                             # Send open copy as album to NSFW channel
-                                            log_channel_nsfw = getattr(Config, "LOGS_NSFW_ID", 0)
+                                            log_channel_nsfw = get_log_channel("video", nsfw=True)
                                             if log_channel_nsfw:
                                                 open_sent = app.send_media_group(
                                                     chat_id=log_channel_nsfw,
@@ -1948,7 +1948,7 @@ def image_command(app, message):
                                                     ))
                                             
                                             # Send open copy as album to NSFW channel
-                                            log_channel_nsfw = getattr(Config, "LOGS_NSFW_ID", 0)
+                                            log_channel_nsfw = get_log_channel("video", nsfw=True)
                                             open_sent = app.send_media_group(
                                                 chat_id=log_channel_nsfw,
                                                 media=open_media_group,
@@ -2055,7 +2055,7 @@ def image_command(app, message):
                                     
                                     elif nsfw_flag and not is_private_chat:
                                         # NSFW content in groups -> LOGS_NSFW_ID only - send as album
-                                        log_channel_nsfw = getattr(Config, "LOGS_NSFW_ID", 0)
+                                        log_channel_nsfw = get_log_channel("video", nsfw=True)
                                         if log_channel_nsfw:
                                             try:
                                                 # Create media group for NSFW log channel with proper caption
@@ -2323,7 +2323,7 @@ def image_command(app, message):
                                                     ))
                                             
                                             # Send open copy as album to NSFW channel
-                                            log_channel_nsfw = getattr(Config, "LOGS_NSFW_ID", 0)
+                                            log_channel_nsfw = get_log_channel("video", nsfw=True)
                                             open_sent = app.send_media_group(
                                                 chat_id=log_channel_nsfw,
                                                 media=open_media_group,
@@ -2456,7 +2456,7 @@ def image_command(app, message):
                                                     ))
                                             
                                             # Send open copy as album to NSFW channel
-                                            log_channel_nsfw = getattr(Config, "LOGS_NSFW_ID", 0)
+                                            log_channel_nsfw = get_log_channel("video", nsfw=True)
                                             if log_channel_nsfw:
                                                 open_sent = app.send_media_group(
                                                     chat_id=log_channel_nsfw,
@@ -2932,7 +2932,7 @@ def image_command(app, message):
                                             ))
                                     
                                     # Send open copy as album to NSFW channel
-                                    log_channel_nsfw = getattr(Config, "LOGS_NSFW_ID", 0)
+                                    log_channel_nsfw = get_log_channel("video", nsfw=True)
                                     if log_channel_nsfw:
                                         open_sent = app.send_media_group(
                                             chat_id=log_channel_nsfw,
