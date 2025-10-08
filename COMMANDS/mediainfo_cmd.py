@@ -145,9 +145,10 @@ def send_mediainfo_if_enabled(user_id, file_path, message):
 
             app.send_document(user_id, mediainfo_path, caption=get_messages_instance().MEDIAINFO_DOCUMENT_CAPTION_MSG,
                               reply_parameters=ReplyParameters(message_id=msg_id))
-            from HELPERS.logger import get_log_channel
-            app.send_document(get_log_channel("video"), mediainfo_path,
-                              caption=f"<blockquote>📊 MediaInfo</blockquote> for user {user_id}")
+            # MediaInfo files are no longer sent to log channel to avoid polluting video cache
+            # from HELPERS.logger import get_log_channel
+            # app.send_document(get_log_channel("video"), mediainfo_path,
+            #                   caption=f"<blockquote>📊 MediaInfo</blockquote> for user {user_id}")
 
             if os.path.exists(mediainfo_path):
                 os.remove(mediainfo_path)
