@@ -367,7 +367,7 @@ def download_cookie_callback(app, callback_query):
         from HELPERS.safe_messeger import safe_send_message
         safe_send_message(
             callback_query.message.chat.id,
-            Config.SAVE_AS_COOKIE_HINT,
+            get_messages_instance(user_id).SAVE_AS_COOKIE_HINT,
             reply_parameters=ReplyParameters(message_id=callback_query.message.id if hasattr(callback_query.message, 'id') else None),
             reply_markup=keyboard,
             _callback_query=callback_query,

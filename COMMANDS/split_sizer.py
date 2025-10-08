@@ -36,9 +36,9 @@ def parse_size_argument(arg):
     unit = match.group(2)
     
     # Convert to bytes
-    if unit == "MB":
+    if unit.lower() == "mb":
         size_bytes = int(number * 1024 * 1024)
-    elif unit == "GB":
+    elif unit.lower() == "gb":
         size_bytes = int(number * 1024 * 1024 * 1024)
     else:
         return None
