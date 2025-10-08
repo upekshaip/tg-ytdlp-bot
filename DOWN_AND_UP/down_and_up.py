@@ -1949,7 +1949,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 caption_lst = returned.get("video")
                 path_lst = returned.get("path")
                 # Accumulate all IDs of split video parts
-                split_msg_ids = []
+                # Note: split_msg_ids is already initialized at function start, don't reset it here
                 for p in range(len(caption_lst)):
                     part_result = get_duration_thumb(message, dir_path, path_lst[p], sanitize_filename_strict(caption_lst[p]))
                     if part_result is None:

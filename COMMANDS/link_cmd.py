@@ -298,6 +298,11 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
         error_text = str(e)
         logger.error(f"DownloadError in link extraction: {error_text}")
         return {'error': f'Download error: {error_text}'}
+    except KeyError as e:
+        error_text = str(e)
+        logger.error(f"KeyError in link extraction: {error_text}")
+        logger.error("This may be due to missing or incomplete video information")
+        return {'error': f'Missing information: {error_text}. The video may be unavailable or region-restricted.'}
     except Exception as e:
         error_text = str(e)
         logger.error(f"Error in link extraction: {error_text}")
