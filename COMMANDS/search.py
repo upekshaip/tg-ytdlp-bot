@@ -5,6 +5,7 @@ from HELPERS.app_instance import get_app
 from HELPERS.logger import send_to_all, send_to_logger
 from CONFIG.logger_msg import LoggerMsg
 from CONFIG.config import Config
+from CONFIG.messages import Messages, get_messages_instance
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram import enums, filters
 
@@ -24,20 +25,20 @@ def search_command(app, message):
     keyboard = InlineKeyboardMarkup([
         [
             InlineKeyboardButton(
-                "📱 Mobile: Activate @vid search",
+                get_messages_instance().SEARCH_MOBILE_ACTIVATE_SEARCH_MSG,
                 url=f"tg://msg?text=%40vid%20%E2%80%8B&to=%40{bot_name}"
             )
         ],
         [
             InlineKeyboardButton(
-                "🔚Close",
+                get_messages_instance().SEARCH_CLOSE_BUTTON_MSG,
                 callback_data="search_msg|close"
             )
         ]
     ])
 
     # Send single message with updated instructions (English)
-    text = Config.SEARCH_MSG
+    text = get_messages_instance().SEARCH_MSG
 
     from HELPERS.safe_messeger import safe_send_message
     safe_send_message(
@@ -71,11 +72,11 @@ def handle_search_callback(client, callback_query):
                 client.edit_message_text(
                     callback_query.message.chat.id,
                     callback_query.message.id,
-                    "🔍 Search helper closed"
+                    get_messages_instance().SEARCH_HELPER_CLOSED_MSG
                 )
             
             # Answer callback query
-            callback_query.answer("Closed")
+            callback_query.answer(get_messages_instance().SEARCH_CLOSED_MSG)
             
             # Log the action (pass message object, not callback_query)
             send_to_logger(callback_query.message, LoggerMsg.SEARCH_HELPER_CLOSED.format(user_id=user_id))
@@ -83,4 +84,4 @@ def handle_search_callback(client, callback_query):
     except Exception as e:
         # Log error and answer callback
         send_to_logger(callback_query.message, LoggerMsg.SEARCH_CALLBACK_ERROR.format(error=e))
-        callback_query.answer("Error occurred", show_alert=True)
+        callback_query.answer(get_messages_instance().ERROR_OCCURRED_SHORT_MSG, show_alert=True)

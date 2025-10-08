@@ -11,6 +11,7 @@ import firebase_admin
 from firebase_admin import credentials, db as admin_db
 
 from CONFIG.config import Config
+from CONFIG.messages import Messages, get_messages_instance
 from HELPERS.logger import logger
 from HELPERS.filesystem_hlp import create_directory
 from HELPERS.logger import send_to_all
@@ -25,7 +26,8 @@ def _get_database_url() -> str:
     except Exception:
         database_url_local = None
     if not database_url_local:
-        raise RuntimeError("FIREBASE_CONF.databaseURL отсутствует в Config")
+        messages = get_messages_instance()
+        raise RuntimeError(messages.DB_DATABASE_URL_MISSING_MSG)
     return database_url_local
 
 
@@ -60,7 +62,8 @@ def _init_firebase_admin_if_needed() -> bool:
         return False
 
     firebase_admin.initialize_app(cred_obj, {"databaseURL": database_url})
-    logger.info("✅ firebase_admin initialized")
+    messages = get_messages_instance()
+    logger.info(messages.DB_FIREBASE_ADMIN_INITIALIZED_MSG)
     return True
 
 
@@ -208,9 +211,11 @@ class RestDBAdapter:
                 with self._shared["lock"]:
                     self._shared["id_token"] = data.get("id_token", self._shared.get("id_token"))
                     self._shared["refresh_token"] = data.get("refresh_token", self._shared.get("refresh_token"))
-                logger.info("🔁 REST idToken refreshed")
+                messages = get_messages_instance()
+                logger.info(messages.DB_REST_ID_TOKEN_REFRESHED_MSG)
             except Exception as e:
-                logger.error(f"❌ REST token refresh error: {e}")
+                messages = get_messages_instance()
+                logger.error(messages.DB_REST_TOKEN_REFRESH_ERROR_MSG.format(error=e))
 
     def _auth_params(self) -> Dict[str, str]:
         with self._shared["lock"]:
@@ -279,7 +284,8 @@ class RestDBAdapter:
                 self._session.close()
                 logger.info("✅ Firebase session closed successfully (root)")
         except Exception as e:
-            logger.error(f"❌ Error closing Firebase session: {e}")
+            messages = get_messages_instance()
+            logger.error(messages.DB_ERROR_CLOSING_SESSION_MSG.format(error=e))
 
     def __del__(self):
         # Ничего не делаем у детей, чтобы не ломать общую сессию
@@ -369,7 +375,8 @@ def is_user_blocked(message):
     blocked = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("blocked_users").get().each()
     blocked_users = [int(b_user.key()) for b_user in blocked] if blocked else []
     if int(message.chat.id) in blocked_users:
-        send_to_all(message, "🚫 You are banned from the bot!")
+        messages = get_messages_instance()
+        send_to_all(message, messages.DB_USER_BANNED_MSG)
         return True
     else:
         return False
@@ -380,7 +387,8 @@ def write_logs(message, video_url, video_title):
     data = {"ID": str(message.chat.id), "timestamp": ts,
             "name": message.chat.first_name, "urls": str(video_url), "title": video_title}
     db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("logs").child(str(message.chat.id)).child(str(ts)).set(data)
-    logger.info("Log for user added")
+    messages = get_messages_instance()
+    logger.info(messages.DB_LOG_FOR_USER_ADDED_MSG)
 
 
 # ####################################################################################
@@ -390,9 +398,12 @@ try:
     db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").child("0").set(_format)
     db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("blocked_users").child("0").set(_format)
     db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("unblocked_users").child("0").set(_format)
-    logger.info("db created")
+    messages = get_messages_instance()
+    logger.info(messages.DB_DATABASE_CREATED_MSG)
 except Exception as e:
-    logger.error(f"❌ Error initializing base db structure: {e}")
+    messages = get_messages_instance()
+    logger.error(messages.DB_ERROR_INITIALIZING_BASE_MSG.format(error=e))
 
 starting_point.append(time.time())
-logger.info("Bot started")
+messages = get_messages_instance()
+logger.info(messages.DB_BOT_STARTED_MSG)

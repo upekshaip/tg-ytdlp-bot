@@ -5,6 +5,7 @@ import time
 import os
 import re
 from CONFIG.config import Config
+from CONFIG.messages import Messages, get_messages_instance
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger
 from HELPERS.safe_messeger import safe_edit_message_text
@@ -102,7 +103,7 @@ def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
     def animate_hourglass():
         """Animate an hourglass emoji by toggling between two hourglass emojis"""
         counter = 0
-        emojis = ["⏳", "⌛"]
+        emojis = get_messages_instance().DOWNLOAD_STATUS_HOURGLASS_EMOJIS
         active = True
         start_time = time.time()
         last_update = 0
@@ -126,7 +127,7 @@ def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
                 
                 emoji = emojis[counter % len(emojis)]
                 # Attempt to edit message but don't keep trying if message is invalid
-                result = safe_edit_message_text(user_id, hourglass_msg_id, f"{emoji} Please wait...")
+                result = safe_edit_message_text(user_id, hourglass_msg_id, f"{emoji} {get_messages_instance().DOWNLOAD_STATUS_PLEASE_WAIT_MSG}")
 
                 # If message edit returns None due to MESSAGE_ID_INVALID, stop animation
                 if result is None and counter > 0:  # Allow first attempt to fail
@@ -206,7 +207,7 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
                     m = re.search(r'Frag(\d+)', last_frag)
                     frag_text = f"Frag{m.group(1)}" if m else "Frag?"
                 else:
-                    frag_text = "waiting for fragments"
+                    frag_text = get_messages_instance().DOWNLOAD_STATUS_WAITING_FRAGMENTS_MSG
 
                 # Check if we have real progress data (percentages)
                 if progress_data and progress_data.get('downloaded_bytes') and progress_data.get('total_bytes'):
@@ -216,12 +217,12 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
                     blocks = int(percent // 10)
                     bar = "🟩" * blocks + "⬜️" * (10 - blocks)
                     result = safe_edit_message_text(user_id, proc_msg_id,
-                        f"{current_total_process}\n📥 Downloading HLS stream:\n{bar}   {percent:.1f}%")
+                        f"{current_total_process}\n{get_messages_instance().DOWNLOAD_STATUS_DOWNLOADING_HLS_MSG}\n{bar}   {percent:.1f}%")
                 else:
                     # Fallback to fragment-based animation
                     bar = "🟩" * counter + "⬜️" * (10 - counter)
                     result = safe_edit_message_text(user_id, proc_msg_id,
-                        f"{current_total_process}\n📥 Downloading HLS stream: {frag_text}\n{bar}")
+                        f"{current_total_process}\n{get_messages_instance().DOWNLOAD_STATUS_DOWNLOADING_HLS_MSG} {frag_text}\n{bar}")
 
                 # If message was deleted (returns None), stop animation
                 if result is None and counter > 2:  # Allow first few attempts to fail

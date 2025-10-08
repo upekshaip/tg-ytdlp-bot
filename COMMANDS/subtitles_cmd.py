@@ -18,6 +18,8 @@ import math
 from pyrogram import filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 from CONFIG.config import Config
+from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.logger_msg import LoggerMsg
 import os
 import glob
 
@@ -276,16 +278,16 @@ def subs_command(app, message):
             save_subs_always_ask(user_id, False)
             save_user_subs_language(user_id, "OFF")
             from HELPERS.safe_messeger import safe_send_message
-            safe_send_message(user_id, "✅ Subtitles disabled and Always Ask mode turned off.", message=message)
-            send_to_logger(message, f"SUBS disabled via command: {arg}")
+            safe_send_message(user_id, get_messages_instance().SUBS_DISABLED_MSG, message=message)
+            send_to_logger(message, get_messages_instance().SUBS_DISABLED_LOG_MSG.format(arg=arg))
             return
         
         # /subs on
         elif arg == "on":
             save_subs_always_ask(user_id, True)
             from HELPERS.safe_messeger import safe_send_message
-            safe_send_message(user_id, "✅ SUBS Always Ask enabled.", message=message)
-            send_to_logger(message, f"SUBS Always Ask enabled via command: {arg}")
+            safe_send_message(user_id, get_messages_instance().SUBS_ALWAYS_ASK_ENABLED_MSG, message=message)
+            send_to_logger(message, get_messages_instance().SUBS_ALWAYS_ASK_ENABLED_LOG_MSG.format(arg=arg))
             return
         
         # /subs ru (language code)
@@ -293,8 +295,8 @@ def subs_command(app, message):
             save_user_subs_language(user_id, arg)
             lang_info = LANGUAGES[arg]
             from HELPERS.safe_messeger import safe_send_message
-            safe_send_message(user_id, f"✅ Subtitle language set to: {lang_info['flag']} {lang_info['name']}", message=message)
-            send_to_logger(message, f"SUBS language set via command: {arg}")
+            safe_send_message(user_id, get_messages_instance().SUBS_LANGUAGE_SET_MSG.format(flag=lang_info['flag'], name=lang_info['name']), message=message)
+            send_to_logger(message, get_messages_instance().SUBS_LANGUAGE_SET_LOG_MSG.format(arg=arg))
             return
         
         # /subs ru auto (language + auto mode)
@@ -303,21 +305,21 @@ def subs_command(app, message):
             save_user_subs_auto_mode(user_id, True)
             lang_info = LANGUAGES[arg]
             from HELPERS.safe_messeger import safe_send_message
-            safe_send_message(user_id, f"✅ Subtitle language set to: {lang_info['flag']} {lang_info['name']} with AUTO/TRANS enabled.", message=message)
-            send_to_logger(message, f"SUBS language + auto mode set via command: {arg} auto")
+            safe_send_message(user_id, get_messages_instance().SUBS_LANGUAGE_AUTO_SET_MSG.format(flag=lang_info['flag'], name=lang_info['name']), message=message)
+            send_to_logger(message, get_messages_instance().SUBS_LANGUAGE_AUTO_SET_LOG_MSG.format(arg=arg))
             return
         
         # Invalid argument
         else:
             from HELPERS.safe_messeger import safe_send_message
             safe_send_message(user_id, 
-                "❌ **Invalid argument!**\n\n"
-                "Valid options:\n"
-                "• `/subs off` - disable subtitles\n"
-                "• `/subs on` - enable Always Ask mode\n"
-                "• `/subs ru` - set language (any language code)\n"
-                "• `/subs ru auto` - set language with AUTO/TRANS enabled\n\n"
-                "Example: `/subs en auto`",
+                get_messages_instance().SUBS_INVALID_ARGUMENT_MSG +
+                get_messages_instance().SUBS_VALID_OPTIONS_MSG + "\n" +
+                get_messages_instance().SUBS_DISABLE_COMMAND_MSG +
+                get_messages_instance().SUBS_ENABLE_ASK_MODE_MSG +
+                get_messages_instance().SUBS_SET_LANGUAGE_MSG +
+                get_messages_instance().SUBS_SET_LANGUAGE_AUTO_MSG +
+                get_messages_instance().SUBS_EXAMPLE_AUTO_MSG,
                 message=message
             )
             return
@@ -332,30 +334,28 @@ def subs_command(app, message):
 
     # Create status text
     if current_lang == "OFF" or current_lang is None:
-        status_text = "🚫 Subtitles are disabled"
+        status_text = get_messages_instance().SUBS_DISABLED_STATUS_MSG
     else:
         lang_info = LANGUAGES.get(current_lang, {"name": current_lang, "flag": "🌐"})
-        auto_text = " (auto-subs)" if auto_mode else ""
-        status_text = f"{lang_info['flag']} Selected language: {lang_info['name']}{auto_text}"
+        auto_text = get_messages_instance().SUBS_AUTO_SUBS_TEXT if auto_mode else ""
+        status_text = get_messages_instance().SUBS_SELECTED_LANGUAGE_MSG.format(flag=lang_info['flag'], name=lang_info['name'], auto_text=auto_text)
 
     from HELPERS.safe_messeger import safe_send_message
     safe_send_message(
         message.chat.id,
-        f"<b>💬 Subtitle settings</b>\n\n{status_text}\n\nSelect subtitle language:\n\n"
-        "<blockquote>❗️WARNING: due to high CPU impact this function is very slow (near real-time) and limited to:\n"
-        "- 720p max quality\n"
-        "- 1.5 hour max duration\n"
-        "- 500mb max video size</blockquote>\n\n"
-        "<b>Quick commands:</b>\n"
-        "• <code>/subs off</code> - disable subtitles\n"
-        "• <code>/subs on</code> - enable Always Ask mode\n"
-        "• <code>/subs ru</code> - set language\n"
+        get_messages_instance().SUBS_SETTINGS_MENU_MSG.format(status_text=status_text) +
+        get_messages_instance().SUBS_WARNING_MSG +
+        get_messages_instance().SUBS_LIMITATIONS_MSG +
+        get_messages_instance().SUBS_QUICK_COMMANDS_MSG +
+        get_messages_instance().SUBS_SETTINGS_ADDITIONAL_MSG +
+        get_messages_instance().SUBS_SET_LANGUAGE_CODE_MSG +
+        "• <code>/subs ru</code> - set language\n" +
         "• <code>/subs ru auto</code> - set language with AUTO/TRANS",
         reply_markup=get_language_keyboard(page=0, user_id=user_id, per_page_rows=8),
         parse_mode=enums.ParseMode.HTML,
         message=message
     )
-    send_to_logger(message, "User opened /subs menu.")
+    send_to_logger(message, get_messages_instance().SUBS_MENU_OPENED_LOG_MSG)
 
 
 @app.on_callback_query(filters.regex(r"^subs_page\|"))
@@ -368,18 +368,18 @@ def subs_page_callback(app, callback_query):
     
     # Create status text
     if current_lang == "OFF" or current_lang is None:
-        status_text = "🚫 Subtitles are disabled"
+        status_text = get_messages_instance().SUBS_DISABLED_STATUS_MSG
     else:
         lang_info = LANGUAGES.get(current_lang, {"name": current_lang, "flag": "🌐"})
-        auto_text = " (auto-subs)" if auto_mode else ""
-        status_text = f"{lang_info['flag']} Selected language: {lang_info['name']}{auto_text}"
+        auto_text = get_messages_instance().SUBS_AUTO_SUBS_TEXT if auto_mode else ""
+        status_text = get_messages_instance().SUBS_SELECTED_LANGUAGE_MSG.format(flag=lang_info['flag'], name=lang_info['name'], auto_text=auto_text)
     
     callback_query.edit_message_text(
-        f"<b>💬 Subtitle settings</b>\n\n{status_text}\n\nSelect subtitle language:\n\n"
-        "<b>Quick commands:</b>\n"
-        "• <code>/subs off</code> - disable subtitles\n"
-        "• <code>/subs on</code> - enable Always Ask mode\n"
-        "• <code>/subs ru</code> - set language\n"
+        get_messages_instance().SUBS_SETTINGS_MENU_MSG.format(status_text=status_text) +
+        get_messages_instance().SUBS_QUICK_COMMANDS_MSG +
+        get_messages_instance().SUBS_SETTINGS_ADDITIONAL_MSG +
+        get_messages_instance().SUBS_SET_LANGUAGE_CODE_MSG +
+        "• <code>/subs ru</code> - set language\n" +
         "• <code>/subs ru auto</code> - set language with AUTO/TRANS",
         reply_markup=get_language_keyboard(page, user_id=user_id)
     )
@@ -395,13 +395,13 @@ def subs_lang_callback(app, callback_query):
     save_user_subs_language(user_id, lang_code)
     
     if lang_code == "OFF":
-        status = "🚫 Subtitles are disabled"
+        status = get_messages_instance().SUBS_DISABLED_STATUS_MSG
     else:
-        status = f"✅ Subtitle language set: {LANGUAGES[lang_code]['flag']} {LANGUAGES[lang_code]['name']}"
+        status = get_messages_instance().SUBS_LANGUAGE_SET_STATUS_MSG.format(flag=LANGUAGES[lang_code]['flag'], name=LANGUAGES[lang_code]['name'])
     
     callback_query.edit_message_text(status)
-    callback_query.answer("Subtitle language settings updated.")
-    send_to_logger(callback_query.message, f"User set subtitle language to: {lang_code}")
+    callback_query.answer(get_messages_instance().SUBS_LANGUAGE_UPDATED_MSG)
+    send_to_logger(callback_query.message, get_messages_instance().SUBS_LANGUAGE_SET_CALLBACK_LOG_MSG.format(lang_code=lang_code))
 
 @app.on_callback_query(filters.regex(r"^subs_auto\|"))
 def subs_auto_callback(app, callback_query):
@@ -418,7 +418,7 @@ def subs_auto_callback(app, callback_query):
         
         # We show the notification to the user
         auto_text = "enabled" if new_auto else "disabled"
-        notification = f"✅ Auto-subs mode {auto_text}"
+        notification = get_messages_instance().SUBS_AUTO_MODE_TOGGLE_MSG.format(status=auto_text)
         
         # We answer only by notification, do not close the menu
         callback_query.answer(notification, show_alert=False)
@@ -429,19 +429,19 @@ def subs_auto_callback(app, callback_query):
         
         # Create status text
         if current_lang == "OFF" or current_lang is None:
-            status_text = "🚫 Subtitles are disabled"
+            status_text = get_messages_instance().SUBS_DISABLED_STATUS_MSG
         else:
             lang_info = LANGUAGES.get(current_lang, {"name": current_lang, "flag": "🌐"})
-            auto_text = " (auto-subs)" if auto_mode else ""
-            status_text = f"{lang_info['flag']} Selected language: {lang_info['name']}{auto_text}"
+            auto_text = get_messages_instance().SUBS_AUTO_SUBS_TEXT if auto_mode else ""
+            status_text = get_messages_instance().SUBS_SELECTED_LANGUAGE_MSG.format(flag=lang_info['flag'], name=lang_info['name'], auto_text=auto_text)
         
         # We update the message from the new menu
         callback_query.edit_message_text(
-            f"<b>💬 Subtitle settings</b>\n\n{status_text}\n\nSelect subtitle language:",
+            get_messages_instance().SUBS_AUTO_MENU_MSG.format(status_text=status_text),
             reply_markup=get_language_keyboard(page=page, user_id=user_id)
         )
         
-        send_to_logger(callback_query.message, f"User toggled AUTO/TRANS mode to: {new_auto}")
+        send_to_logger(callback_query.message, get_messages_instance().SUBS_AUTO_MODE_TOGGLED_LOG_MSG.format(new_auto=new_auto))
 
 
 @app.on_callback_query(filters.regex(r"^subs_always_ask\|"))
@@ -459,7 +459,7 @@ def subs_always_ask_callback(app, callback_query):
         
         # Show notification
         always_ask_text = "enabled" if new_always_ask else "disabled"
-        notification = f"✅ Always Ask mode {always_ask_text}"
+        notification = get_messages_instance().SUBS_ALWAYS_ASK_TOGGLE_MSG.format(status=always_ask_text)
         callback_query.answer(notification, show_alert=False)
         
         # Auto-close menu after toggling Always Ask
@@ -468,7 +468,7 @@ def subs_always_ask_callback(app, callback_query):
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
         
-        send_to_logger(callback_query.message, f"User toggled Always Ask mode to: {new_always_ask}")
+        send_to_logger(callback_query.message, get_messages_instance().SUBS_ALWAYS_ASK_TOGGLED_LOG_MSG.format(new_always_ask=new_always_ask))
 
 
 @app.on_callback_query(filters.regex(r"^subs_lang_close\|"))
@@ -479,8 +479,8 @@ def subs_lang_close_callback(app, callback_query):
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        callback_query.answer("Subtitle language menu closed.")
-        send_to_logger(callback_query.message, "Subtitle language menu closed.")
+        callback_query.answer(get_messages_instance().SUBS_MENU_CLOSED_MSG)
+        send_to_logger(callback_query.message, get_messages_instance().SUBS_LANGUAGE_MENU_CLOSED_MSG)
         return
 
 #############################################################################################
@@ -563,7 +563,7 @@ def check_subs_availability(url, user_id, quality_key=None, return_type=False):
 def lang_match(user_lang, available_langs):
     # user_lang: for example, 'en', 'en -us', 'zh', 'pt'
     # AVAILABLE_LANGS: a list of all available languages, for example ['en -us', 'EN-GB', 'FR', 'PT-BR']
-    logger.info(f"lang_match: user_lang='{user_lang}', available_langs={available_langs}")
+    logger.info(f"{LoggerMsg.SUBS_LANG_MATCH_USER_LANG_LOG_MSG}")
     
     if user_lang in available_langs:
         logger.info(f"lang_match: exact match found: {user_lang}")
@@ -587,7 +587,7 @@ def lang_match(user_lang, available_langs):
     if '-' not in user_lang:
         for lang in available_langs:
             if lang.lower() == f'{user_lang.lower()}-{user_lang.lower()}':
-                logger.info(f"lang_match: duplicate match found: {lang} for {user_lang}")
+                logger.info(f"{LoggerMsg.SUBS_LANG_MATCH_DUPLICATE_LOG_MSG}")
                 return lang
     
     # NEW: Look for auto-translated subtitles (e.g., 'ru-en' for user_lang='ru')
@@ -596,7 +596,7 @@ def lang_match(user_lang, available_langs):
             if '-' in lang:
                 parts = lang.split('-')
                 if len(parts) == 2 and parts[0] == user_lang:
-                    logger.info(f"lang_match: auto-translated match found: {lang} for {user_lang}")
+                    logger.info(f"{LoggerMsg.SUBS_LANG_MATCH_AUTO_TRANSLATED_LOG_MSG}")
                     return lang
     
     logger.info(f"lang_match: no match found for {user_lang}")
@@ -662,10 +662,10 @@ def ensure_utf8_srt(srt_path):
         try:
             decoded_text = raw.decode(encoding)
             successful_encoding = encoding
-            logger.info(f"Successfully decoded with encoding: {encoding}")
+            logger.info(f"{LoggerMsg.SUBS_SUCCESSFULLY_DECODED_LOG_MSG}")
             break
         except (UnicodeDecodeError, LookupError) as e:
-            logger.debug(f"Failed to decode with {encoding}: {e}")
+            logger.debug(f"{LoggerMsg.SUBS_FAILED_TO_DECODE_LOG_MSG}")
             continue
 
     # If no encoding has worked, we use Force Decode
@@ -676,7 +676,7 @@ def ensure_utf8_srt(srt_path):
 
     # We check if there are spray bars in the text (replacement symbols)
     if '' in decoded_text or '?' in decoded_text:
-        logger.warning(f"Replacement characters found in text, encoding {successful_encoding} may be incorrect")
+        logger.warning(f"{LoggerMsg.SUBS_REPLACEMENT_CHARACTERS_FOUND_LOG_MSG}")
         
         # We try again with other encodings, ignoring the already tried
         for encoding in ['cp1256', 'iso-8859-6', 'cp1252', 'utf-8-sig']:
@@ -686,7 +686,7 @@ def ensure_utf8_srt(srt_path):
                     if '' not in test_text and '?' not in test_text:
                         decoded_text = test_text
                         successful_encoding = encoding
-                        logger.info(f"The best encoding has been found: {encoding}")
+                        logger.info(f"{LoggerMsg.SUBS_BEST_ENCODING_FOUND_LOG_MSG}")
                         break
                 except:
                     continue
@@ -695,7 +695,7 @@ def ensure_utf8_srt(srt_path):
     try:
         with open(srt_path, 'w', encoding='utf-8') as f:
             f.write(decoded_text)
-        logger.info(f"File {srt_path} successfully encoded to UTF-8 (original encoding: {successful_encoding})")
+        logger.info(f"{LoggerMsg.SUBS_FILE_SUCCESSFULLY_ENCODED_UTF8_LOG_MSG}")
         return srt_path
     except Exception as e:
         logger.error(f"Error writing file {srt_path}: {e}")
@@ -821,10 +821,10 @@ def get_available_subs_languages(url, user_id=None, auto_only=False):
                 raise
             if info.get('subtitles') or info.get('automatic_captions'):
                 used_client = client or 'default'
-                logger.info(f"youtube player_client={used_client} returned captions")
+                logger.info(f"{LoggerMsg.SUBS_YOUTUBE_PLAYER_CLIENT_RETURNED_CAPTIONS_LOG_MSG}")
                 _subs_check_cache[f"{url}_{user_id}_client"] = used_client
                 return info
-            logger.info(f"player_client={client or 'default'} has no captions, trying next...")
+            logger.info(f"{LoggerMsg.SUBS_PLAYER_CLIENT_NO_CAPTIONS_LOG_MSG}")
             last_info = info
         _subs_check_cache[f"{url}_{user_id}_client"] = used_client or 'default'
         return last_info
@@ -884,13 +884,13 @@ def get_available_subs_languages(url, user_id=None, auto_only=False):
         except yt_dlp.utils.DownloadError as e:
             if "429" in str(e) and attempt < MAX_RETRIES - 1:
                 delay = backoff(attempt)
-                logger.warning(f"429 Too Many Requests (attempt {attempt+1}/{MAX_RETRIES}) sleep {delay:.1f}s")
+                logger.warning(f"{LoggerMsg.SUBS_429_TOO_MANY_REQUESTS_SLEEP_LOG_MSG}")
                 time.sleep(delay)
                 continue
-            logger.error(f"DownloadError while getting subtitles: {e}")
+            logger.error(f"{LoggerMsg.SUBS_DOWNLOAD_ERROR_GETTING_SUBTITLES_LOG_MSG}")
             break
         except Exception as e:
-            logger.error(f"Unexpected error getting subtitles: {e}")
+            logger.error(f"{LoggerMsg.SUBS_UNEXPECTED_ERROR_GETTING_SUBTITLES_LOG_MSG}")
             break
 
     return []
@@ -930,10 +930,10 @@ def force_fix_arabic_encoding(srt_path: str, lang: str | None = None):
         with open(srt_path, 'w', encoding='utf-8') as f:
             f.write(best_text)
 
-        logger.info(f"force_fix_arabic_encoding: {srt_path} re-encoded from {best_enc} -> utf-8")
+        logger.info(f"{LoggerMsg.SUBS_FORCE_FIX_ARABIC_ENCODING_LOG_MSG}")
         return srt_path
     except Exception as e:
-        logger.error(f"force_fix_arabic_encoding error {srt_path}: {e}")
+        logger.error(f"{LoggerMsg.SUBS_FORCE_FIX_ARABIC_ENCODING_ERROR_LOG_MSG}")
         return None
 
 
@@ -1157,11 +1157,11 @@ def download_subtitles_ytdlp(url, user_id, video_dir, available_langs):
                 return True
 
             if r.status_code == 429:
-                logger.warning(f"timedtext 429 ({url_tt}), sleep a bit")
+                logger.warning(f"{LoggerMsg.SUBS_TIMEDTEXT_429_LOG_MSG}")
                 time.sleep(_rand_jitter(12, 6))
                 continue
 
-            logger.error(f"timedtext HTTP {r.status_code} ({url_tt})")
+            logger.error(f"{LoggerMsg.SUBS_TIMEDTEXT_HTTP_ERROR_LOG_MSG}")
             time.sleep(_rand_jitter(4))
         return False
 
@@ -1172,12 +1172,12 @@ def download_subtitles_ytdlp(url, user_id, video_dir, available_langs):
             if not subs_lang or subs_lang == "OFF":
                 return None
             if not available_langs:
-                logger.info(f"No subtitles available for {subs_lang}")
+                logger.info(f"{LoggerMsg.SUBS_NO_SUBTITLES_AVAILABLE_LOG_MSG}")
                 return None
 
             found_lang = lang_match(subs_lang, available_langs)
             if not found_lang:
-                logger.info(f"Language {subs_lang} not found in {available_langs}")
+                logger.info(f"{LoggerMsg.SUBS_LANGUAGE_NOT_FOUND_LOG_MSG}")
                 return None
 
             client = _subs_check_cache.get(f"{url}_{user_id}_client", 'tv')  # tv is the only reliable client
@@ -1232,7 +1232,7 @@ def download_subtitles_ytdlp(url, user_id, video_dir, available_langs):
                 tracks = subs_dict.get(alt, []) if alt else []
 
             if not tracks:
-                logger.error("No track URL found in info for selected language")
+                logger.error(LoggerMsg.SUBS_NO_TRACK_URL_FOUND_LOG_MSG)
                 return None
 
             # priority
@@ -1278,7 +1278,7 @@ def download_subtitles_ytdlp(url, user_id, video_dir, available_langs):
             if not ok or os.path.getsize(dst) < 200:
                 try: os.remove(dst)
                 except Exception: pass
-                logger.warning("Could not download/too small -> None")
+                logger.warning(LoggerMsg.SUBS_COULD_NOT_DOWNLOAD_LOG_MSG)
                 return None
 
             # envelope
@@ -1304,26 +1304,26 @@ def download_subtitles_ytdlp(url, user_id, video_dir, available_langs):
             if ok_ts and ok_lang:
                 if subs_lang in {'ar', 'fa', 'ur', 'ps', 'iw', 'he'}:
                     force_fix_arabic_encoding(dst, subs_lang)
-                logger.info(f"Valid subtitles ({subs_lang}), size={os.path.getsize(dst)}")
+                logger.info(f"{LoggerMsg.SUBS_VALID_SUBTITLES_LOG_MSG}")
                 return dst
 
-            logger.warning("Downloaded track invalid after clean/convert")
+            logger.warning(LoggerMsg.SUBS_DOWNLOADED_TRACK_INVALID_LOG_MSG)
             try: os.remove(dst)
             except Exception: pass
             return None
 
         except yt_dlp.utils.DownloadError as e:
             if "429" in str(e):
-                logger.warning(f"429 Too Many Requests (attempt {attempt+1}/{MAX_RETRIES})")
+                logger.warning(f"{LoggerMsg.SUBS_429_TOO_MANY_REQUESTS_LOG_MSG}")
                 if attempt < MAX_RETRIES - 1:
                     time.sleep(_rand_jitter(25 * (attempt + 1)))
                     continue
-                logger.error("Final attempt failed due to 429")
+                logger.error(LoggerMsg.SUBS_FINAL_ATTEMPT_FAILED_429_LOG_MSG)
                 return None
-            logger.error(f"DownloadError: {e}")
+            logger.error(f"{LoggerMsg.SUBS_DOWNLOAD_ERROR_LOG_MSG}")
             return None
         except Exception as e:
-            logger.error(f"Unexpected error (attempt {attempt+1}/{MAX_RETRIES}): {e}")
+            logger.error(f"{LoggerMsg.SUBS_UNEXPECTED_ERROR_LOG_MSG}")
             if attempt < MAX_RETRIES - 1:
                 time.sleep(_rand_jitter(10))
                 continue
@@ -1345,7 +1345,7 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
         subs_lang = get_user_subs_language(user_id)
         if not subs_lang or subs_lang == "OFF":
             from HELPERS.safe_messeger import safe_send_message
-            error_msg = "❌ Subtitles are disabled. Use /subs to configure."
+            error_msg = get_messages_instance().SUBS_DISABLED_ERROR_MSG
             safe_send_message(user_id, error_msg)
             from HELPERS.logger import log_error_to_channel
             log_error_to_channel(message, error_msg)
@@ -1354,7 +1354,7 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
         # Check if this is YouTube
         if not is_youtube_url(url):
             from HELPERS.safe_messeger import safe_send_message
-            error_msg = "❌ Subtitle downloading is only supported for YouTube."
+            error_msg = get_messages_instance().SUBS_YOUTUBE_ONLY_MSG
             safe_send_message(user_id, error_msg)
             from HELPERS.logger import log_error_to_channel
             log_error_to_channel(message, error_msg)
@@ -1375,7 +1375,7 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
         
         # Send message about download start
         from HELPERS.safe_messeger import safe_send_message
-        status_msg = safe_send_message(user_id, "💬 Downloading subtitles...", reply_parameters=ReplyParameters(message_id=message.id))
+        status_msg = safe_send_message(user_id, get_messages_instance().SUBS_DOWNLOADING_MSG, reply_parameters=ReplyParameters(message_id=message.id))
         
         # Download subtitles
         subs_path = download_subtitles_ytdlp(url, user_id, user_dir, available_langs)
@@ -1395,13 +1395,12 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
                     title = "Video"
                 
                 # Form caption
-                caption = f"<b>💬 Subtitles</b>\n\n"
-                caption += f"<b>Video:</b> {title}\n"
-                caption += f"<b>Language:</b> {subs_lang}\n"
-                caption += f"<b>Type:</b> {'AUTO/TRANSerated' if auto_mode else 'Manual'}\n"
-                
-                if tags:
-                    caption += f"\n<b>Tags:</b> {' '.join(tags)}"
+                caption = get_messages_instance().SUBS_CAPTION_MSG.format(
+                    title=title,
+                    lang=subs_lang,
+                    type='AUTO/TRANSerated' if auto_mode else 'Manual',
+                    tags=f"\n<b>Tags:</b> {' '.join(tags)}" if tags else ""
+                )
                 
                 # Send subtitle file
                 sent_msg = app.send_document(
@@ -1414,7 +1413,7 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
                 # We send this message to the log channel
                 from HELPERS.logger import get_log_channel
                 safe_forward_messages(get_log_channel("video"), user_id, [sent_msg.id])
-                send_to_logger(message, "💬 Subtitles SRT-file sent to user.")
+                send_to_logger(message, get_messages_instance().SUBS_SENT_MSG)
                 # Remove temporary file
                 try:
                     os.remove(subs_path)
@@ -1427,17 +1426,17 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
                 except:
                     pass
             else:
-                app.edit_message_text(user_id, status_msg.id, "❌ Error processing subtitle file.")
+                app.edit_message_text(user_id, status_msg.id, get_messages_instance().SUBS_ERROR_PROCESSING_MSG)
         else:
-            app.edit_message_text(user_id, status_msg.id, "❌ Failed to download subtitles.")
+            app.edit_message_text(user_id, status_msg.id, get_messages_instance().SUBS_ERROR_DOWNLOAD_MSG)
             
     except Exception as e:
         logger.error(f"Error downloading subtitles: {e}")
         try:
-            app.edit_message_text(user_id, status_msg.id, f"❌ Error: {str(e)}")
+            app.edit_message_text(user_id, status_msg.id, get_messages_instance().ERROR_SUBTITLES_NOT_FOUND_MSG.format(error=str(e)))
         except:
             from HELPERS.safe_messeger import safe_send_message
-            error_msg = f"❌ Error downloading subtitles: {str(e)}"
+            error_msg = get_messages_instance().SUBS_ERROR_MSG.format(error=str(e))
             safe_send_message(user_id, error_msg)
             from HELPERS.logger import log_error_to_channel
             log_error_to_channel(message, error_msg)
@@ -1475,7 +1474,7 @@ def get_language_keyboard(page=0, user_id=None, langs_override=None, per_page_ro
         for j in range(LANGS_PER_ROW):
             if i + j < len(current_page_langs):
                 lang_code, lang_info = current_page_langs[i + j]
-                checkmark = "✅ " if lang_code == current_lang else ""
+                checkmark = get_messages_instance().SUBS_LANGUAGE_CHECKMARK_MSG if lang_code == current_lang else ""
                 button_text = f"{checkmark}{lang_info.get('flag', get_flag(lang_code))} {lang_info.get('name', lang_code)}"
                 row.append(InlineKeyboardButton(
                     button_text,
@@ -1486,29 +1485,29 @@ def get_language_keyboard(page=0, user_id=None, langs_override=None, per_page_ro
     # Navigation
     nav_row = []
     if page > 0:
-        nav_row.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"subs_page|{page-1}"))
+        nav_row.append(InlineKeyboardButton(get_messages_instance().SUBS_PREV_BUTTON_MSG, callback_data=f"subs_page|{page-1}"))
     if page < total_pages - 1:
-        nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"subs_page|{page+1}"))
+        nav_row.append(InlineKeyboardButton(get_messages_instance().SUBTITLES_NEXT_BUTTON_MSG, callback_data=f"subs_page|{page+1}"))
     if nav_row:
         keyboard.append(nav_row)
 
     # Specialist. Options
-    auto_emoji = "✅" if auto_mode else "☑️"
+    auto_emoji = get_messages_instance().SUBS_AUTO_EMOJI_MSG if auto_mode else get_messages_instance().SUBS_AUTO_EMOJI_INACTIVE_MSG
     keyboard.append([
-        InlineKeyboardButton("🚫 OFF", callback_data="subs_lang|OFF"),
+        InlineKeyboardButton(get_messages_instance().SUBS_OFF_BUTTON_MSG, callback_data="subs_lang|OFF"),
         InlineKeyboardButton(f"{auto_emoji} AUTO/TRANS", callback_data=f"subs_auto|toggle|{page}")
 
     ])
     # Always Ask option
     always_ask_enabled = is_subs_always_ask(user_id) if user_id else False
-    always_ask_emoji = "✅" if always_ask_enabled else "☑️"
+    always_ask_emoji = get_messages_instance().SUBS_ALWAYS_ASK_EMOJI_MSG if always_ask_enabled else get_messages_instance().SUBS_ALWAYS_ASK_EMOJI_INACTIVE_MSG
     keyboard.append([
         InlineKeyboardButton(f"{always_ask_emoji} Always Ask", callback_data=f"subs_always_ask|toggle|{page}")
 
     ])
     # Close button
     keyboard.append([
-        InlineKeyboardButton("🔚Close", callback_data="subs_lang_close|close")
+        InlineKeyboardButton(get_messages_instance().URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="subs_lang_close|close")
     ])
 
     return InlineKeyboardMarkup(keyboard)
@@ -1564,16 +1563,16 @@ def get_language_keyboard_always_ask(page=0, user_id=None, langs_override=None, 
     # Navigation
     nav_row = []
     if page > 0:
-        nav_row.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"askf|subs_page|{page-1}"))
+        nav_row.append(InlineKeyboardButton(get_messages_instance().SUBS_PREV_BUTTON_MSG, callback_data=f"askf|subs_page|{page-1}"))
     if page < total_pages - 1:
-        nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"askf|subs_page|{page+1}"))
+        nav_row.append(InlineKeyboardButton(get_messages_instance().SUBTITLES_NEXT_BUTTON_MSG, callback_data=f"askf|subs_page|{page+1}"))
     if nav_row:
         keyboard.append(nav_row)
 
     # Back and Close buttons
     keyboard.append([
-        InlineKeyboardButton("🔙Back", callback_data="askf|subs|back"),
-        InlineKeyboardButton("🔚Close", callback_data="askf|subs|close")
+        InlineKeyboardButton(get_messages_instance().SUBS_BACK_BUTTON_MSG, callback_data="askf|subs|back"),
+        InlineKeyboardButton(get_messages_instance().URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="askf|subs|close")
     ])
 
     return InlineKeyboardMarkup(keyboard)

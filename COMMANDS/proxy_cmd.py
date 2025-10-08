@@ -3,6 +3,8 @@ import os
 import tempfile
 from pyrogram import filters
 from CONFIG.config import Config
+from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.logger_msg import LoggerMsg
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 
 from HELPERS.app_instance import get_app
@@ -31,7 +33,7 @@ def safe_write_file(file_path, content):
         os.rename(temp_path, file_path)
         return True
     except OSError as e:
-        logger.error(f"Error writing file {file_path}: {e}")
+        logger.error(LoggerMsg.PROXY_CMD_ERROR_WRITING_FILE_LOG_MSG.format(file_path=file_path, error=e))
         # Clean up temp file if it exists
         try:
             if 'temp_path' in locals() and os.path.exists(temp_path):
@@ -40,23 +42,23 @@ def safe_write_file(file_path, content):
             pass
         return False
     except Exception as e:
-        logger.error(f"Unexpected error writing file {file_path}: {e}")
+        logger.error(LoggerMsg.PROXY_CMD_UNEXPECTED_ERROR_WRITING_FILE_LOG_MSG.format(file_path=file_path, error=e))
         return False
 
 @app.on_message(filters.command("proxy") & filters.private)
 def proxy_command(app, message):
     user_id = message.chat.id
-    logger.info(f"[PROXY] User {user_id} requested proxy command")
-    logger.info(f"[PROXY] User {user_id} is admin: {int(user_id) in Config.ADMIN}")
+    logger.info(LoggerMsg.PROXY_CMD_USER_REQUESTED_LOG_MSG.format(user_id=user_id))
+    logger.info(LoggerMsg.PROXY_CMD_USER_IS_ADMIN_LOG_MSG.format(user_id=user_id, is_admin=int(user_id) in Config.ADMIN))
     
     is_in_channel = is_user_in_channel(app, message)
-    logger.info(f"[PROXY] User {user_id} is in channel: {is_in_channel}")
+    logger.info(LoggerMsg.PROXY_CMD_USER_IS_IN_CHANNEL_LOG_MSG.format(user_id=user_id, is_in_channel=is_in_channel))
     
     if int(user_id) not in Config.ADMIN and not is_in_channel:
-        logger.info(f"[PROXY] User {user_id} access denied - not admin and not in channel")
+        logger.info(LoggerMsg.PROXY_CMD_USER_ACCESS_DENIED_LOG_MSG.format(user_id=user_id))
         return
     
-    logger.info(f"[PROXY] User {user_id} access granted")
+    logger.info(LoggerMsg.PROXY_CMD_USER_ACCESS_GRANTED_LOG_MSG.format(user_id=user_id))
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
     
@@ -68,11 +70,11 @@ def proxy_command(app, message):
             proxy_file = os.path.join(user_dir, "proxy.txt")
             if arg in ("on", "off"):
                 if safe_write_file(proxy_file, "ON" if arg == "on" else "OFF"):
-                    safe_send_message(user_id, f"✅ Proxy {'enabled' if arg=='on' else 'disabled' }.", message=message)
-                    send_to_logger(message, f"Proxy set via command: {arg}")
+                    safe_send_message(user_id, get_messages_instance().PROXY_ENABLED_MSG.format(status='enabled' if arg=='on' else 'disabled'), message=message)
+                    send_to_logger(message, get_messages_instance().PROXY_SET_COMMAND_LOG_MSG.format(arg=arg))
                     return
                 else:
-                    error_msg = "❌ Error saving proxy settings."
+                    error_msg = get_messages_instance().PROXY_ERROR_SAVING_MSG
                     safe_send_message(user_id, error_msg, message=message)
                     from HELPERS.logger import log_error_to_channel
                     log_error_to_channel(message, error_msg)
@@ -81,8 +83,8 @@ def proxy_command(app, message):
         pass
     
     buttons = [
-        [InlineKeyboardButton("✅ ON", callback_data="proxy_option|on"), InlineKeyboardButton("❌ OFF", callback_data="proxy_option|off")],
-        [InlineKeyboardButton("🔚Close", callback_data="proxy_option|close")],
+        [InlineKeyboardButton(get_messages_instance().PROXY_ON_BUTTON_MSG, callback_data="proxy_option|on"), InlineKeyboardButton(get_messages_instance().PROXY_OFF_BUTTON_MSG, callback_data="proxy_option|off")],
+        [InlineKeyboardButton(get_messages_instance().PROXY_CLOSE_BUTTON_MSG, callback_data="proxy_option|close")],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
     # Get available proxy count
@@ -90,9 +92,9 @@ def proxy_command(app, message):
     proxy_count = len(configs)
     
     if proxy_count > 1:
-        proxy_text = f"Enable or disable using proxy servers ({proxy_count} available) for all yt-dlp operations?\n\nWhen enabled, proxies will be selected using {Config.PROXY_SELECT} method."
+        proxy_text = get_messages_instance().PROXY_MENU_TEXT_MULTIPLE_MSG.format(count=proxy_count, method=Config.PROXY_SELECT)
     else:
-        proxy_text = "Enable or disable using proxy server for all yt-dlp operations?"
+        proxy_text = get_messages_instance().PROXY_MENU_TEXT_MSG
     
     safe_send_message(
         user_id,
@@ -100,12 +102,12 @@ def proxy_command(app, message):
         reply_markup=keyboard,
         message=message
     )
-    send_to_logger(message, "User opened /proxy menu.")
+    send_to_logger(message, get_messages_instance().PROXY_MENU_OPENED_LOG_MSG)
 
 
 @app.on_callback_query(filters.regex(r"^proxy_option\|"))
 def proxy_option_callback(app, callback_query):
-    logger.info(f"[PROXY] callback: {callback_query.data}")
+    logger.info(LoggerMsg.PROXY_CMD_CALLBACK_LOG_MSG.format(callback_data=callback_query.data))
     user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]
     user_dir = os.path.join("users", str(user_id))
@@ -118,16 +120,16 @@ def proxy_option_callback(app, callback_query):
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
         try:
-            callback_query.answer("Menu closed.")
+            callback_query.answer(get_messages_instance().PROXY_MENU_CLOSED_MSG)
         except Exception:
             pass
-        send_to_logger(callback_query.message, "Proxy: closed.")
+        send_to_logger(callback_query.message, get_messages_instance().PROXY_MENU_CLOSED_LOG_MSG)
         return
     
     if data == "on":
         if not safe_write_file(proxy_file, "ON"):
             try:
-                callback_query.answer("❌ Error saving proxy settings.")
+                callback_query.answer(get_messages_instance().PROXY_ERROR_SAVING_CALLBACK_MSG)
             except Exception:
                 pass
             return
@@ -137,14 +139,14 @@ def proxy_option_callback(app, callback_query):
         proxy_count = len(configs)
         
         if proxy_count > 1:
-            message_text = f"✅ Proxy enabled. All yt-dlp operations will use {proxy_count} proxy servers with {Config.PROXY_SELECT} selection method."
+            message_text = get_messages_instance().PROXY_ENABLED_MULTIPLE_MSG.format(count=proxy_count, method=Config.PROXY_SELECT)
         else:
-            message_text = "✅ Proxy enabled. All yt-dlp operations will use proxy."
+            message_text = get_messages_instance().PROXY_ENABLED_CONFIRM_MSG
         
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, message_text)
-        send_to_logger(callback_query.message, "Proxy enabled.")
+        send_to_logger(callback_query.message, get_messages_instance().PROXY_ENABLED_LOG_MSG)
         try:
-            callback_query.answer("Proxy enabled.")
+            callback_query.answer(get_messages_instance().PROXY_ENABLED_CALLBACK_MSG)
         except Exception:
             pass
         return
@@ -152,15 +154,15 @@ def proxy_option_callback(app, callback_query):
     if data == "off":
         if not safe_write_file(proxy_file, "OFF"):
             try:
-                callback_query.answer("❌ Error saving proxy settings.")
+                callback_query.answer(get_messages_instance().PROXY_ERROR_SAVING_CALLBACK_MSG)
             except Exception:
                 pass
             return
         
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, "❌ Proxy disabled.")
-        send_to_logger(callback_query.message, "Proxy disabled.")
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, get_messages_instance().PROXY_DISABLED_MSG)
+        send_to_logger(callback_query.message, get_messages_instance().PROXY_DISABLED_LOG_MSG)
         try:
-            callback_query.answer("Proxy disabled.")
+            callback_query.answer(get_messages_instance().PROXY_DISABLED_CALLBACK_MSG)
         except Exception:
             pass
         return
@@ -177,10 +179,10 @@ def is_proxy_enabled(user_id):
             content = f.read().strip().upper()
             return content == "ON"
     except OSError as e:
-        logger.error(f"Error reading proxy file {proxy_file}: {e}")
+        logger.error(LoggerMsg.PROXY_CMD_ERROR_READING_FILE_LOG_MSG.format(proxy_file=proxy_file, error=e))
         return False
     except Exception as e:
-        logger.error(f"Unexpected error reading proxy file {proxy_file}: {e}")
+        logger.error(LoggerMsg.PROXY_CMD_UNEXPECTED_ERROR_READING_FILE_LOG_MSG.format(proxy_file=proxy_file, error=e))
         return False
 
 
@@ -292,9 +294,9 @@ def select_proxy_for_domain(url):
     else:
         domain = url.split('/')[0]
     
-    logger.info(f"select_proxy_for_domain: URL={url}, extracted_domain={domain}")
-    logger.info(f"PROXY_2_DOMAINS: {getattr(DomainsConfig, 'PROXY_2_DOMAINS', [])}")
-    logger.info(f"PROXY_DOMAINS: {getattr(DomainsConfig, 'PROXY_DOMAINS', [])}")
+    logger.info(LoggerMsg.PROXY_CMD_SELECT_PROXY_FOR_DOMAIN_LOG_MSG.format(url=url, domain=domain))
+    logger.info(LoggerMsg.PROXY_CMD_PROXY_2_DOMAINS_LOG_MSG.format(domains=getattr(DomainsConfig, 'PROXY_2_DOMAINS', [])))
+    logger.info(LoggerMsg.PROXY_CMD_PROXY_DOMAINS_LOG_MSG.format(domains=getattr(DomainsConfig, 'PROXY_DOMAINS', [])))
     
     # Helper function to check if domain matches any domain in the list (including subdomains)
     def is_domain_in_list(domain, domain_list):
@@ -316,26 +318,26 @@ def select_proxy_for_domain(url):
     # Check PROXY_2_DOMAINS first
     if hasattr(DomainsConfig, 'PROXY_2_DOMAINS') and DomainsConfig.PROXY_2_DOMAINS:
         if is_domain_in_list(domain, DomainsConfig.PROXY_2_DOMAINS):
-            logger.info(f"Domain {domain} found in PROXY_2_DOMAINS (or is subdomain), using proxy 2")
+            logger.info(LoggerMsg.PROXY_CMD_DOMAIN_FOUND_IN_PROXY_2_LOG_MSG.format(domain=domain))
             return get_proxy_2_config()
     
     # Check PROXY_DOMAINS
     if hasattr(DomainsConfig, 'PROXY_DOMAINS') and DomainsConfig.PROXY_DOMAINS:
         if is_domain_in_list(domain, DomainsConfig.PROXY_DOMAINS):
-            logger.info(f"Domain {domain} found in PROXY_DOMAINS (or is subdomain), using proxy 1")
+            logger.info(LoggerMsg.PROXY_CMD_DOMAIN_FOUND_IN_PROXY_1_LOG_MSG.format(domain=domain))
             return get_proxy_config()
     
-    logger.info(f"Domain {domain} not found in any proxy domain list")
+    logger.info(LoggerMsg.PROXY_CMD_DOMAIN_NOT_IN_LIST_LOG_MSG.format(domain=domain))
     return None
 
 def add_proxy_to_ytdl_opts(ytdl_opts, url, user_id=None):
     """Add proxy to yt-dlp options if proxy is enabled for user or domain requires it"""
-    logger.info(f"add_proxy_to_ytdl_opts called: user_id={user_id}, url={url}")
+    logger.info(LoggerMsg.PROXY_CMD_ADD_PROXY_CALLED_LOG_MSG.format(user_id=user_id, url=url))
     
     # Check if user has proxy enabled
     if user_id:
         proxy_enabled = is_proxy_enabled(user_id)
-        logger.info(f"Proxy check for user {user_id}: {proxy_enabled}")
+        logger.info(LoggerMsg.PROXY_CMD_PROXY_CHECK_FOR_USER_LOG_MSG.format(user_id=user_id, proxy_enabled=proxy_enabled))
         if proxy_enabled:
             # Use round-robin/random selection for user proxy
             proxy_config = select_proxy_for_user()
@@ -343,7 +345,7 @@ def add_proxy_to_ytdl_opts(ytdl_opts, url, user_id=None):
                 proxy_url = build_proxy_url(proxy_config)
                 if proxy_url:
                     ytdl_opts['proxy'] = proxy_url
-                    logger.info(f"Added proxy for user {user_id}: {proxy_url}")
+                    logger.info(LoggerMsg.PROXY_CMD_ADDED_PROXY_FOR_USER_LOG_MSG.format(user_id=user_id, proxy_url=proxy_url))
                     return ytdl_opts
     
     # Check if domain requires specific proxy
@@ -352,6 +354,6 @@ def add_proxy_to_ytdl_opts(ytdl_opts, url, user_id=None):
         proxy_url = build_proxy_url(proxy_config)
         if proxy_url:
             ytdl_opts['proxy'] = proxy_url
-            logger.info(f"Added domain-specific proxy for {url}: {proxy_url}")
+            logger.info(LoggerMsg.PROXY_CMD_ADDED_DOMAIN_PROXY_LOG_MSG.format(url=url, proxy_url=proxy_url))
     
     return ytdl_opts

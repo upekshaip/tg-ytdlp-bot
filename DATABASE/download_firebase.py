@@ -22,13 +22,14 @@ except ImportError:
 
 try:
     from CONFIG.config import Config
+    from CONFIG.messages import Messages, get_messages_instance
 except ImportError as e:
-    print(f"❌ Import error CONFIG/config.py: {e}")
-    print("❌ CONFIG/config.py or Config class not found! All parameters must be in CONFIG/config.py.")
+    print(f"Import error: {e}")
+    print("Config not found")
     sys.exit(1)
 except Exception as e:
-    print(f"❌ Unexpected error importing CONFIG/config.py: {e}")
-    print("❌ Check syntax and dependencies in CONFIG/config.py")
+    print(f"Unexpected error: {e}")
+    print("Check syntax")
     sys.exit(1)
 
 try:
@@ -51,13 +52,13 @@ FIREBASE_PASSWORD = getattr(Config, 'FIREBASE_PASSWORD', None)
 OUTPUT_FILE = getattr(Config, 'FIREBASE_CACHE_FILE', 'firebase_cache.json')
 
 if not FIREBASE_CONFIG or not FIREBASE_USER or not FIREBASE_PASSWORD:
-    print("❌ Not all parameters are set in config.py (FIREBASE_CONF, FIREBASE_USER, FIREBASE_PASSWORD)")
+    print(get_messages_instance().DB_NOT_ALL_PARAMETERS_SET_MSG)
     sys.exit(1)
 
 def download_firebase_dump():
     """Downloads the entire Firebase Realtime Database dump"""
     if requests is None or Session is None:
-        print("⚠️ Dependency not available: requests or Session")
+        print(get_messages_instance().DB_DEPENDENCY_NOT_AVAILABLE_MSG)
         return False
 
     # Create session for connection pooling
@@ -78,18 +79,18 @@ def download_firebase_dump():
     session.mount('https://', adapter)
     
     try:
-        print(f"🔄 Starting Firebase dump download at {datetime.now()}")
+        print(get_messages_instance().DB_STARTING_FIREBASE_DUMP_MSG.format(datetime=datetime.now()))
 
         database_url = FIREBASE_CONFIG.get("databaseURL")
         if not database_url:
-            print("❌ FIREBASE_CONF.databaseURL is not set")
+            print(get_messages_instance().DB_DATABASE_URL_NOT_SET_MSG)
             return False
 
         # For downloading dump we use REST API and custom token/ID token.
         # Preferably ID token via REST signInWithPassword.
         key = FIREBASE_CONFIG.get("apiKey")
         if not key:
-            print("❌ FIREBASE_CONF.apiKey is not set for getting idToken")
+            print(get_messages_instance().DB_API_KEY_NOT_SET_MSG)
             return False
 
         auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={key}"
@@ -128,12 +129,12 @@ def download_firebase_dump():
                 else:
                     print(f"  - {key}: {type(data[key]).__name__}")
         else:
-            print("⚠️ Database is empty")
+            print(get_messages_instance().DB_DATABASE_EMPTY_MSG)
 
         return True
 
     except Exception as e:
-        print(f"❌ Error downloading Firebase dump: {e}")
+        print(get_messages_instance().DB_ERROR_DOWNLOADING_DUMP_MSG.format(error=e))
         return False
     finally:
         # Always close the session
@@ -145,7 +146,7 @@ def main():
     
     # Check config
     if not FIREBASE_CONFIG or not FIREBASE_USER or not FIREBASE_PASSWORD:
-        print("❌ Not all parameters are set in config.py (FIREBASE_CONF, FIREBASE_USER, FIREBASE_PASSWORD)")
+        print(get_messages_instance().DB_NOT_ALL_PARAMETERS_SET_MSG)
         return False
     
     # Download dump

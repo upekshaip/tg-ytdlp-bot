@@ -54,10 +54,10 @@ https://t.me/tgytdlp_bot
 
 
 **Live Demo Bots:**
-- 🇺🇸 [@tgytdlp_bot](https://t.me/tgytdlp_bot) - Main bot
+- 🇮🇹 [@tgytdlp_it_bot](https://t.me/tgytdlp_it_bot) - Main IT bot
 - 🇦🇪 [@tgytdlp_uae_bot](https://t.me/tgytdlp_uae_bot) - UAE server
 - 🇬🇧 [@tgytdlp_uk_bot](https://t.me/tgytdlp_uk_bot) - UK server
-- 🇫🇷 [@tgytdlp_fr_bot](https://t.me/tgytdlp_fr_bot) - France server
+- 🇫🇷 [@tgytdlp_fr_bot](https://t.me/tgytdlp_fr_bot) - FR server
 
 **Community Channel:** [@tg_ytdlp](https://t.me/tg_ytdlp)
 
@@ -180,7 +180,7 @@ COOKIE_URL = "https://your-domain.com/cookies/cookie.txt"  # Fallback cookie URL
 YOUTUBE_COOKIE_URL = "https://your-domain.com/cookies/youtube/cookie1.txt"
 YOUTUBE_COOKIE_URL_1 = "https://your-domain.com/cookies/youtube/cookie2.txt"
 YOUTUBE_COOKIE_URL_2 = "https://your-domain.com/cookies/youtube/cookie3.txt"
-# ... up to YOUTUBE_COOKIE_URL_9
+# ... up to YOUTUBE_COOKIE_URL_9 
 
 # Firebase Configuration
 FIREBASE_USER = "your-email@gmail.com"

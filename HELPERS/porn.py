@@ -37,6 +37,7 @@ def unwrap_redirect_url(url: str) -> str:
     except Exception:
         return url
 from CONFIG.config import Config
+from CONFIG.messages import Messages, get_messages_instance
 from CONFIG.domains import DomainsConfig
 import importlib
 import types
@@ -194,12 +195,12 @@ def check_porn_detailed(url, title, description, caption=None):
     # Check whitelist first
     for dom in Config.WHITELIST:
         if dom in domain_parts:
-            explanation_parts.append(f"✅ Domain in whitelist: {dom}")
+            explanation_parts.append(get_messages_instance().PORN_DOMAIN_WHITELIST_MSG.format(domain=dom))
             return False, " | ".join(explanation_parts)
     
     # Check if domain is in porn domains
     if is_porn_domain(domain_parts):
-        explanation_parts.append(f"❌ Domain in porn blacklist: {domain_parts}")
+        explanation_parts.append(get_messages_instance().PORN_DOMAIN_BLACKLIST_MSG.format(domain_parts=domain_parts))
         return True, " | ".join(explanation_parts)
 
     # 2. Preparation of the text
@@ -208,7 +209,7 @@ def check_porn_detailed(url, title, description, caption=None):
     caption_lower     = caption.lower()     if caption     else ""
     
     if not (title_lower or description_lower or caption_lower):
-        explanation_parts.append("ℹ️ All text fields are empty")
+        explanation_parts.append(get_messages_instance().PORN_ALL_TEXT_FIELDS_EMPTY_MSG)
         return False, " | ".join(explanation_parts)
 
     # 3. We collect a single text for search
@@ -222,7 +223,7 @@ def check_porn_detailed(url, title, description, caption=None):
             white_pattern = re.compile(r"\b(" + "|".join(white_kws) + r")\b", flags=re.IGNORECASE)
             white_matches = white_pattern.findall(combined)
             if white_matches:
-                explanation_parts.append(f"✅ Found whitelist keywords: {', '.join(set(white_matches))}")
+                explanation_parts.append(get_messages_instance().PORN_WHITELIST_KEYWORDS_MSG.format(keywords=', '.join(set(white_matches))))
                 return False, " | ".join(explanation_parts)
 
     # 5. Check for porn keywords
@@ -236,10 +237,10 @@ def check_porn_detailed(url, title, description, caption=None):
     porn_matches = pattern.findall(combined)
     
     if porn_matches:
-        explanation_parts.append(f"❌ Found porn keywords: {', '.join(set(porn_matches))}")
+        explanation_parts.append(get_messages_instance().PORN_KEYWORDS_FOUND_MSG.format(keywords=', '.join(set(porn_matches))))
         return True, " | ".join(explanation_parts)
 
-    explanation_parts.append("✅ No porn keywords found")
+    explanation_parts.append(get_messages_instance().PORN_NO_KEYWORDS_FOUND_MSG)
     return False, " | ".join(explanation_parts)
 
 

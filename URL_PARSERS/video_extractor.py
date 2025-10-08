@@ -11,6 +11,8 @@ from DOWN_AND_UP.down_and_up import down_and_up
 from HELPERS.download_status import playlist_errors, playlist_errors_lock
 from pyrogram import filters
 from CONFIG.config import Config
+from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.logger_msg import LoggerMsg
 import os
 from pyrogram import enums
 from pyrogram.types import ReplyParameters
@@ -42,11 +44,12 @@ def video_url_extractor(app, message):
             saved_format = fmt
 
     if should_ask:
-        url, video_start_with, _, _, tags, _, tag_error = extract_url_range_tags(message.text)
+        full_string = message.text
+        url, video_start_with, _, _, tags, _, tag_error = extract_url_range_tags(full_string)
         # Add tag error check
         if tag_error:
             wrong, example = tag_error
-            error_msg = f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}"
+            error_msg = get_messages_instance().TAG_FORBIDDEN_CHARS_MSG.format(tag=wrong, example=example)
             app.send_message(user_id, error_msg, reply_parameters=ReplyParameters(message_id=message.id))
             from HELPERS.logger import log_error_to_channel
             log_error_to_channel(message, error_msg)
@@ -61,7 +64,7 @@ def video_url_extractor(app, message):
             del playlist_errors[key]
             
     if get_active_download(user_id):
-        app.send_message(user_id, "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED", reply_parameters=ReplyParameters(message_id=message.id))
+        app.send_message(user_id, get_messages_instance().VIDEO_EXTRACTOR_WAIT_DOWNLOAD_MSG, reply_parameters=ReplyParameters(message_id=message.id))
         return
         
     full_string = message.text
@@ -69,7 +72,7 @@ def video_url_extractor(app, message):
     url, video_start_with, video_end_with, playlist_name, tags, tags_text, tag_error = extract_url_range_tags(full_string)
     if tag_error:
         wrong, example = tag_error
-        error_msg = f"❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}"
+        error_msg = get_messages_instance().TAG_FORBIDDEN_CHARS_MSG.format(tag=wrong, example=example)
         app.send_message(user_id, error_msg, reply_parameters=ReplyParameters(message_id=message.id))
         from HELPERS.logger import log_error_to_channel
         log_error_to_channel(message, error_msg)
@@ -81,10 +84,10 @@ def video_url_extractor(app, message):
     
     if url:
         users_first_name = message.chat.first_name
-        send_to_logger(message, f"User entered a <b>url</b>\n <b>user's name:</b> {users_first_name}\nURL: {full_string}")
+        send_to_logger(message, get_messages_instance().URL_PARSER_USER_ENTERED_URL_LOG_MSG.format(user_name=users_first_name, url=full_string))
         for j in range(len(Config.BLACK_LIST)):
             if Config.BLACK_LIST[j] in full_string:
-                send_error_to_user(message, "User entered a porn content. Cannot be downloaded.")
+                send_error_to_user(message, get_messages_instance().PORN_CONTENT_CANNOT_DOWNLOAD_MSG)
                 return
         # --- TikTok: auto-tag profile and no title ---
         is_tiktok = is_tiktok_url(url)
@@ -148,7 +151,7 @@ def video_url_extractor(app, message):
                 # For custom formats, we use the format hash as quality_key
                 quality_key = f"custom_{hashlib.md5(saved_format.encode()).hexdigest()[:8]}"
         
-        logger.info(f"video_url_extractor: using saved format '{saved_format}', quality_key='{quality_key}'")
+        logger.info(LoggerMsg.VIDEO_EXTRACTOR_SAVED_FORMAT_LOG_MSG.format(saved_format=saved_format, quality_key=quality_key))
         
         # --- Pass title='' for TikTok, otherwise as usual ---
         if is_tiktok:
@@ -156,4 +159,4 @@ def video_url_extractor(app, message):
         else:
             down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full, format_override=saved_format, quality_key=quality_key)
     else:
-        send_error_to_user(message, f"<b>User entered like this:</b> {full_string}\n{Config.ERROR1}")
+        send_error_to_user(message, get_messages_instance().URL_PARSER_USER_ENTERED_INVALID_MSG.format(input=full_string, error_msg=get_messages_instance().ERROR1))
