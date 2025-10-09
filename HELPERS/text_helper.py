@@ -42,22 +42,18 @@ def format_clean_output_as_html(items_list, max_length=4000):
         str: HTML-formatted collapsible quote
     """
     # Base message structure
-    base_message = "🗑 All files removed successfully!\n\nRemoved files:"
+    base_message = "🗑 All files removed successfully!"
     
     # Calculate available space for items list
-    html_overhead = len('<details>\n<summary>Click to expand</summary>\n<pre>\n</pre>\n</details>')
+    html_overhead = len('<b>Removed files:</b>\n<pre>\n</pre>')
     available_space = max_length - len(base_message) - html_overhead
     
     # Truncate items list if needed
     if len(items_list) > available_space:
         items_list = truncate_text_with_html(items_list, available_space, "\n...")
     
-    # Format as collapsible HTML quote
-    html_output = f"""<details>
-<summary>Click to expand</summary>
-<pre>
-{items_list}
-</pre>
-</details>"""
+    # Format as simple HTML with basic tags
+    html_output = f"""<b>Removed files:</b>
+<pre>{items_list}</pre>"""
     
     return f"{base_message}\n\n{html_output}"
