@@ -3926,7 +3926,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                     if video_bytes > get_user_split_size(user_id):
                         n_parts = (video_bytes + get_user_split_size(user_id) - 1) // get_user_split_size(user_id)
                         scissors = f" ✂️{n_parts}"
-                # Check the availability of subtitles for this quality
+                # Check the availability of subtitles for this quality 
                 subs_enabled = is_subs_enabled(user_id)
                 auto_mode = get_user_subs_auto_mode(user_id)
                 subs_available = ""
