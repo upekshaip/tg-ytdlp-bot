@@ -649,7 +649,8 @@ Use:
         "<b>💡 How to use format IDs:</b>\n"
         "After getting the list, use specific format ID:\n"
         "• <code>/format id 401</code> - download format 401\n"
-        "• <code>/format id401</code> - same as above\n\n"
+        "• <code>/format id401</code> - same as above\n"
+        "• <code>/format id140 audio</code> - download format 140 as MP3 audio\n\n"
         "This command will show all available formats that can be downloaded."
     )
     LIST_PROCESSING_MSG = "🔄 Getting उपलब्ध formats..."
