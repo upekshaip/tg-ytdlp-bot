@@ -972,21 +972,6 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 
                 # Check for postprocessing errors with Invalid argument
                 if "Postprocessing" in error_text and "Invalid argument" in error_text:
-                    postprocessing_message = (
-                        get_messages_instance().AUDIO_FILE_PROCESSING_ERROR_INVALID_ARG_MSG +
-                        "**Possible causes:**\n"
-                        "• Corrupted or incomplete download\n"
-                        "• Unsupported audio format or codec\n"
-                        "• File system permissions issue\n"
-                        "• Insufficient disk space\n\n"
-                        "**Solutions:**\n"
-                        "• Try downloading again - the system will retry with different settings\n"
-                        "• Check if you have enough disk space\n"
-                        "• Try a different quality or format\n"
-                        "• If the problem persists, the audio source may be corrupted\n\n"
-                        "The download will be retried automatically."
-                    )
-                    send_error_to_user(message, postprocessing_message)
                     logger.error(f"Postprocessing error (Invalid argument): {error_text}")
                     return "POSTPROCESSING_ERROR"
                 
@@ -1306,7 +1291,24 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             # Check if info_dict is None before accessing it
             if info_dict is None:
                 logger.error("info_dict is None, cannot proceed with audio processing")
-                send_to_user(message, get_messages_instance().AUDIO_EXTRACTION_FAILED_MSG)
+                # Send specific error message if available
+                if error_text and "Postprocessing" in error_text and "Invalid argument" in error_text:
+                    postprocessing_message = (
+                        get_messages_instance().AUDIO_FILE_PROCESSING_ERROR_INVALID_ARG_MSG +
+                        "**Possible causes:**\n"
+                        "• Corrupted or incomplete download\n"
+                        "• Unsupported audio format or codec\n"
+                        "• File system permissions issue\n"
+                        "• Insufficient disk space\n\n"
+                        "**Solutions:**\n"
+                        "• Try downloading again with different settings\n"
+                        "• Check if you have enough disk space\n"
+                        "• Try a different quality or format\n"
+                        "• If the problem persists, the audio source may be corrupted"
+                    )
+                    send_error_to_user(message, postprocessing_message)
+                else:
+                    send_to_user(message, get_messages_instance().AUDIO_EXTRACTION_FAILED_MSG)
                 break
 
             # Get original title for fallback (if MP3 metadata reading fails)

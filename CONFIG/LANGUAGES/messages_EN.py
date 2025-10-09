@@ -1239,6 +1239,8 @@ Use:
     DOWN_UP_SPLITTED_PART_UPLOADED_MSG = "📤 Splitted part {part} file uploaded"
     DOWN_UP_UPLOAD_COMPLETE_MSG = "✅ Upload complete"
     DOWN_UP_FILES_UPLOADED_MSG = "files uploaded"
+    UPLOAD_COMPLETE_MSG = "✅ Upload complete"
+    FILES_UPLOADED_MSG = "files uploaded"
     
     # Always Ask Menu Button Messages
     ALWAYS_ASK_VLC_ANDROID_BUTTON_MSG = "🎬 VLC (Android)"

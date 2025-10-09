@@ -798,8 +798,10 @@ def url_distractor(app, message):
                 logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_CLEAR_YOUTUBE_CACHE_LOG_MSG.format(e=e))
             
             if removed_items:
+                from HELPERS.text_helper import format_clean_output_as_html
                 items_list = "\n".join([f"• {item}" for item in removed_items])
-                send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_ALL_FILES_REMOVED_MSG.format(files_list=items_list))
+                formatted_output = format_clean_output_as_html(items_list)
+                send_to_all(message, formatted_output, parse_mode="HTML")
             else:
                 send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
             return
@@ -861,8 +863,10 @@ def url_distractor(app, message):
                 logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_CLEAR_YOUTUBE_CACHE_LOG_MSG.format(e=e))
             
             if removed_items:
+                from HELPERS.text_helper import format_clean_output_as_html
                 items_list = "\n".join([f"• {item}" for item in removed_items])
-                send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_ALL_FILES_REMOVED_MSG.format(files_list=items_list))
+                formatted_output = format_clean_output_as_html(items_list)
+                send_to_all(message, formatted_output, parse_mode="HTML")
             else:
                 send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
             

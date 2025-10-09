@@ -835,17 +835,9 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
             is_subs_enabled = lambda _uid: False
             get_user_subs_auto_mode = lambda _uid: False
 
-        found_type = check_subs_availability(url, user_id, quality_key, return_type=True) if check_subs_availability else None
-        subs_enabled = is_subs_enabled(user_id) if callable(is_subs_enabled) else False
-        auto_mode = get_user_subs_auto_mode(user_id) if callable(get_user_subs_auto_mode) else False
-        need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
-        always_ask_mode = is_subs_always_ask(user_id) if callable(is_subs_always_ask) else False
-        if need_subs or always_ask_mode:
-            if always_ask_mode:
-                logger.info("Video with Always Ask mode enabled is not cached!")
-            else:
-                logger.info("Video with subtitles is not cached!")
-            return
+        # Always save to cache regardless of subtitles or Always Ask mode
+        # The cache will be used for display purposes (rocket emoji) but not for reposting
+        # Only skip caching if user has send_as_file enabled (handled in _save_video_cache_with_logging)
 
     logger.info(f"save_to_video_cache called: url={url}, quality_key={quality_key}, message_ids={message_ids}, clear={clear}, original_text={original_text}")
 

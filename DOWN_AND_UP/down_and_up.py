@@ -50,9 +50,9 @@ from HELPERS.fallback_helper import should_fallback_to_gallery_dl
 app = get_app()
 
 
-def _handle_quality_key_error(e: Exception, split_msg_ids: list, is_playlist: bool, successful_uploads: int, indices_to_download: list, video_count: int, user_id: int, proc_msg_id: int, message, app):
+def _handle_quality_key_error(e: Exception, split_msg_ids: list, is_playlist: bool, successful_uploads: int, indices_to_download: list, video_count: int, user_id: int, proc_msg_id: int, message, app, url: str = None, safe_quality_key: str = None):
     """Universal handler for quality_key errors that ensures final actions are completed"""
-    logger.warning(f"quality_key error caught: {e}")
+    logger.info(f"quality_key error ignored (non-critical): {e}")
     logger.info(f"Continuing after quality_key error - split_msg_ids={split_msg_ids}, is_playlist={is_playlist}")
     
     # Check if all downloads completed successfully
@@ -60,9 +60,15 @@ def _handle_quality_key_error(e: Exception, split_msg_ids: list, is_playlist: bo
     logger.info(f"Final check after quality_key error: successful_uploads={successful_uploads}, len(indices_to_download)={len(indices_to_download)}, split_msg_ids={split_msg_ids}, is_playlist={is_playlist}")
     if (successful_uploads == len(indices_to_download)) or (split_msg_ids and not is_playlist):
         logger.info(f"Upload complete condition met after quality_key error, replacing status message")
-        success_msg = f"<b>✅ Upload complete</b> - {video_count} files uploaded.\n{get_messages_instance().CREDITS_MSG}"
+        success_msg = f"<b>{get_messages_instance().UPLOAD_COMPLETE_MSG}</b> - {video_count} {get_messages_instance().FILES_UPLOADED_MSG}.\n{get_messages_instance().CREDITS_MSG}"
         safe_edit_message_text(user_id, proc_msg_id, success_msg)
         send_to_logger(message, success_msg)
+        
+        # Save to cache if we have the necessary data
+        if url and safe_quality_key and split_msg_ids and not is_playlist:
+            logger.info(f"down_and_up: saving split video to cache after quality_key error: {split_msg_ids}")
+            _save_video_cache_with_logging(url, safe_quality_key, split_msg_ids, original_text=message.text or message.caption or "", user_id=user_id)
+        
         return True
     else:
         logger.warning(f"Upload complete condition NOT met after quality_key error: successful_uploads={successful_uploads}, len(indices_to_download)={len(indices_to_download)}, split_msg_ids={split_msg_ids}, is_playlist={is_playlist}")
@@ -361,11 +367,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         return
                     except Exception as e:
                         logger.error(f"Error reposting video from cache: {e}")
-                        # Use the already determined subtitle availability
-                        if not need_subs:
-                            _save_video_cache_with_logging(url, safe_quality_key, [], original_text="", user_id=user_id)
-                        else:
-                            logger.info("Video with subs (subs.txt found) is not cached!")
+                        # Always save to cache regardless of subtitles or Always Ask mode
+                        # The cache will be used for display purposes (rocket emoji) but not for reposting
+                        _save_video_cache_with_logging(url, safe_quality_key, [], original_text="", user_id=user_id)
                         # Don't show error message if we successfully got video from cache
                         # The video was already sent successfully in the try block
                 else:
@@ -1300,40 +1304,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 
                 # Check for postprocessing errors with Invalid argument
                 if "Postprocessing" in error_message and "Invalid argument" in error_message:
-                    postprocessing_message = (
-                        get_messages_instance().FILE_PROCESSING_ERROR_INVALID_ARG_MSG +
-                        "**Possible causes:**\n"
-                        "• Corrupted or incomplete download\n"
-                        "• Unsupported file format or codec\n"
-                        "• File system permissions issue\n"
-                        "• Insufficient disk space\n\n"
-                        "**Solutions:**\n"
-                        "• Try downloading again - the system will retry with different settings\n"
-                        "• Check if you have enough disk space\n"
-                        "• Try a different quality or format\n"
-                        "• If the problem persists, the video source may be corrupted\n\n"
-                        "The download will be retried automatically."
-                    )
-                    send_error_to_user(message, postprocessing_message)
                     logger.error(f"Postprocessing error (Invalid argument): {error_message}")
                     return "POSTPROCESSING_ERROR"
                 
                 # Check for format not available error
                 if "Requested format is not available" in error_message:
-                    format_error_message = (
-                        get_messages_instance().FORMAT_NOT_AVAILABLE_MSG +
-                        "**Possible causes:**\n"
-                        "• The video doesn't have the requested format (e.g., webm, mp4)\n"
-                        "• The video quality is not available in the requested format\n"
-                        "• The video source has limited format options\n\n"
-                        "**Solutions:**\n"
-                        "• Try downloading with a different quality setting\n"
-                        "• Use the 'Always Ask' menu to see available formats\n"
-                        "• Try changing your format preferences in /args settings\n"
-                        "• The system will automatically try alternative formats\n\n"
-                        "The download will be retried with available formats."
-                    )
-                    send_error_to_user(message, format_error_message)
                     logger.error(f"Format not available error: {error_message}")
                     return "FORMAT_NOT_AVAILABLE"
                 
@@ -1613,6 +1588,41 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 continue
 
             if info_dict is None:
+                # Send error message to user only on final failure
+                if error_message and not error_message_sent:
+                    # Check for specific error types and send appropriate messages
+                    if "Postprocessing" in error_message and "Invalid argument" in error_message:
+                        postprocessing_message = (
+                            get_messages_instance().FILE_PROCESSING_ERROR_INVALID_ARG_MSG +
+                            "**Possible causes:**\n"
+                            "• Corrupted or incomplete download\n"
+                            "• Unsupported file format or codec\n"
+                            "• File system permissions issue\n"
+                            "• Insufficient disk space\n\n"
+                            "**Solutions:**\n"
+                            "• Try downloading again with different settings\n"
+                            "• Check if you have enough disk space\n"
+                            "• Try a different quality or format\n"
+                            "• If the problem persists, the video source may be corrupted"
+                        )
+                        send_error_to_user(message, postprocessing_message)
+                        error_message_sent = True
+                    elif "Requested format is not available" in error_message:
+                        format_error_message = (
+                            get_messages_instance().FORMAT_NOT_AVAILABLE_MSG +
+                            "**Possible causes:**\n"
+                            "• The video doesn't have the requested format (e.g., webm, mp4)\n"
+                            "• The video quality is not available in the requested format\n"
+                            "• The video source has limited format options\n\n"
+                            "**Solutions:**\n"
+                            "• Try downloading with a different quality setting\n"
+                            "• Use the 'Always Ask' menu to see available formats\n"
+                            "• Try changing your format preferences in /args settings\n"
+                            "• The system will automatically try alternative formats"
+                        )
+                        send_error_to_user(message, format_error_message)
+                        error_message_sent = True
+                
                 with playlist_errors_lock:
                     error_key = f"{user_id}_{playlist_name}"
                     if error_key not in playlist_errors:
@@ -2020,27 +2030,48 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             
                         elif is_nsfw:
                             # NSFW content in groups -> LOGS_NSFW_ID only
-                            if not already_forwarded_to_log:
+                            # For split videos, always forward each part to NSFW channel
+                            if len(caption_lst) > 1:
+                                # This is a split video - always forward each part
+                                log_channel = get_log_channel("video", nsfw=True)
+                                if log_channel and log_channel != 0:
+                                    try:
+                                        forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                        logger.info(f"down_and_up: NSFW content sent to NSFW channel")
+                                    except Exception as e:
+                                        logger.error(f"down_and_up: failed to forward to NSFW channel: {e}")
+                                        forwarded_msgs = None
+                                else:
+                                    logger.warning(f"down_and_up: NSFW channel not available (ID: {log_channel}), skipping forward")
+                                    forwarded_msgs = None
+                            elif not already_forwarded_to_log:
                                 already_forwarded_to_log = True  # Set flag BEFORE forward to prevent duplicates
                                 log_channel = get_log_channel("video", nsfw=True)
                                 if log_channel and log_channel != 0:
                                     try:
-                                        safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                        forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
                                         logger.info(f"down_and_up: NSFW content sent to NSFW channel")
                                     except Exception as e:
                                         logger.error(f"down_and_up: failed to forward to NSFW channel: {e}")
+                                        forwarded_msgs = None
                                 else:
                                     logger.warning(f"down_and_up: NSFW channel not available (ID: {log_channel}), skipping forward")
+                                    forwarded_msgs = None
                             else:
                                 logger.info("down_and_up: skipping forward to NSFW channel - already forwarded to log")
+                                forwarded_msgs = None
                             
                             # Don't cache NSFW content
                             logger.info(f"down_and_up: NSFW content sent to NSFW channel, not cached")
-                            forwarded_msgs = None
                             
                         else:
                             # Regular content -> LOGS_VIDEO_ID and cache
-                            if not already_forwarded_to_log:
+                            # For split videos, always forward each part to log channel
+                            if len(caption_lst) > 1:
+                                # This is a split video - always forward each part
+                                log_channel = get_log_channel("video")
+                                forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                            elif not already_forwarded_to_log:
                                 already_forwarded_to_log = True  # Set flag BEFORE forward to prevent duplicates
                                 log_channel = get_log_channel("video")
                                 forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
@@ -2095,16 +2126,25 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             else:
                                 # Accumulate IDs of parts for split video
                                 split_msg_ids.append(video_msg.id)
+                                logger.info(f"down_and_up: added video_msg.id to split_msg_ids: {video_msg.id}, current split_msg_ids: {split_msg_ids}")
                     except Exception as e:
-                        # Check if error is related to quality_key - if so, skip duplicate forwarding
+                        # Check if error is related to quality_key - if so, ignore it completely
                         if "'quality_key'" in str(e):
-                            logger.warning(f"Error forwarding video to logger (quality_key issue): {e} - skipping duplicate forwarding")
-                            # Use universal quality_key error handler
-                            _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
-                            already_forwarded_to_log = True  # Mark as already forwarded to prevent duplicates
+                            logger.info(f"quality_key error ignored (non-critical): {e}")
+                            # Quality_key errors don't affect functionality, just continue
                         else:
                             logger.error(f"Error forwarding video to logger: {e}")
                         logger.info(f"down_and_up: collecting video_msg.id after error for split video: {video_msg.id}")
+                        
+                        # PREVENTIVE FIX: Handle split video completion even after quality_key error
+                        if split_msg_ids and not is_playlist:
+                            logger.info(f"PREVENTIVE FIX: Processing split video completion after quality_key error in loop: {split_msg_ids}")
+                            actual_video_count = len(split_msg_ids)
+                            success_msg = f"<b>{get_messages_instance().UPLOAD_COMPLETE_MSG}</b> - {actual_video_count} {get_messages_instance().FILES_UPLOADED_MSG}.\n{get_messages_instance().CREDITS_MSG}"
+                            logger.info(f"PREVENTIVE FIX: sending final success message for split video: {success_msg}")
+                            safe_edit_message_text(user_id, proc_msg_id, success_msg)
+                            send_to_logger(message, get_messages_instance().VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
+                            break
                         if is_playlist:
                             # For playlists, save to playlist cache with video index
                             current_video_index = x + video_start_with
@@ -2123,6 +2163,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         else:
                             # Accumulate IDs of parts for split video
                             split_msg_ids.append(video_msg.id)
+                            logger.info(f"down_and_up: added video_msg.id to split_msg_ids after error: {video_msg.id}, current split_msg_ids: {split_msg_ids}")
                             safe_edit_message_text(user_id, proc_msg_id,
                                 f"{info_text}\n{full_bar}   100.0%\n<i>{get_messages_instance().DOWN_UP_SPLITTED_PART_UPLOADED_MSG.format(part=p + 1)}</i>")
                     if p < len(caption_lst) - 1:
@@ -2134,23 +2175,38 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         os.remove(path_lst[p])
                 
                 # Save all parts of split video to cache after the loop is completed
+                logger.info(f"down_and_up: checking split_msg_ids for cache save: {split_msg_ids}, is_playlist={is_playlist}")
                 if split_msg_ids and not is_playlist:
                     # Remove duplicates
                     split_msg_ids = list(dict.fromkeys(split_msg_ids))
                     logger.info(f"down_and_up: saving all split video parts to cache: {split_msg_ids}")
-                    #found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
+                    
+                    # Update safe_quality_key to the actual quality used for splitting
+                    if quality_key and quality_key != "best":
+                        safe_quality_key = quality_key
+                        logger.info(f"down_and_up: updated safe_quality_key for split video: {safe_quality_key}")
+                    
+                    # Check subtitle requirements for split videos
+                    found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
                     subs_enabled = is_subs_enabled(user_id)
                     auto_mode = get_user_subs_auto_mode(user_id)
                     need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+                    
+                    # Only save to cache if subtitles are not needed
                     if not need_subs:
                         _save_video_cache_with_logging(url, safe_quality_key, split_msg_ids, original_text=message.text or message.caption or "", user_id=user_id)
                     else:
                         logger.info(f"Split video with subtitles is not cached (found_type={found_type}, auto_mode={auto_mode})")
+                else:
+                    logger.warning(f"down_and_up: NOT saving to cache - split_msg_ids={split_msg_ids}, is_playlist={is_playlist}")
                 if os.path.exists(thumb_dir):
                     os.remove(thumb_dir)
                 if os.path.exists(user_vid_path):
                     os.remove(user_vid_path)
-                success_msg = f"<b>{get_messages_instance().DOWN_UP_UPLOAD_COMPLETE_MSG}</b> - {video_count} {get_messages_instance().DOWN_UP_FILES_UPLOADED_MSG}.\n{get_messages_instance().CREDITS_MSG}"
+                # Use the actual number of split parts for the success message
+                actual_video_count = len(split_msg_ids) if split_msg_ids else video_count
+                success_msg = f"<b>{get_messages_instance().UPLOAD_COMPLETE_MSG}</b> - {actual_video_count} {get_messages_instance().FILES_UPLOADED_MSG}.\n{get_messages_instance().CREDITS_MSG}"
+                logger.info(f"down_and_up: sending final success message for split video: {success_msg}")
                 safe_edit_message_text(user_id, proc_msg_id, success_msg)
                 send_to_logger(message, get_messages_instance().VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
                 break
@@ -2341,7 +2397,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 
                             elif is_nsfw:
                                 # NSFW content in groups -> LOGS_NSFW_ID only
-                                if not already_forwarded_to_log:
+                                # For split videos, always forward each part to NSFW channel
+                                if len(caption_lst) > 1:
+                                    # This is a split video - always forward each part
+                                    log_channel = get_log_channel("video", nsfw=True)
+                                    forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                elif not already_forwarded_to_log:
                                     already_forwarded_to_log = True  # Set flag BEFORE forward to prevent duplicates
                                     log_channel = get_log_channel("video", nsfw=True)
                                     forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
@@ -2357,6 +2418,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 ) or (getattr(video_msg, "paid_media", None) is not None):
                                     logger.info("down_and_up: skipping forward to LOGS_VIDEO_ID for paid media")
                                     forwarded_msgs = None
+                                elif len(caption_lst) > 1:
+                                    # This is a split video - always forward each part
+                                    log_channel = get_log_channel("video")
+                                    forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
                                 elif not already_forwarded_to_log:
                                     log_channel = get_log_channel("video")
                                     forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
@@ -2383,18 +2448,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     playlist_msg_ids.extend([m.id for m in forwarded_msgs])
                                 else:
                                     # For single videos, save to regular cache
-                                    #found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
-                                    subs_enabled = is_subs_enabled(user_id)
-                                    auto_mode = get_user_subs_auto_mode(user_id)
-                                    need_subs = determine_need_subs(subs_enabled, found_type, user_id)
-                                    if not need_subs:
-                                        # Only cache regular content (not NSFW)
-                                        if not is_nsfw:
-                                            _save_video_cache_with_logging(url, safe_quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "", user_id=user_id)
-                                        else:
-                                            logger.info("NSFW content not cached")
+                                    # Always save to cache regardless of subtitles or Always Ask mode
+                                    # The cache will be used for display purposes (rocket emoji) but not for reposting
+                                    if not is_nsfw:
+                                        _save_video_cache_with_logging(url, safe_quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "", user_id=user_id)
                                     else:
-                                        logger.info("Video with subtitles (subs.txt found) is not cached!")
+                                        logger.info("NSFW content not cached")
                             else:
                                 # If forwarding failed, try to forward manually and get log channel IDs
                                 if 'already_forwarded_to_log' in locals() and already_forwarded_to_log:
@@ -2449,6 +2508,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                             ) or (getattr(video_msg, "paid_media", None) is not None):
                                                 logger.info("down_and_up: skipping forward to LOGS_VIDEO_ID for paid media (manual)")
                                                 forwarded_msgs = None
+                                            elif len(caption_lst) > 1:
+                                                # This is a split video - always forward each part
+                                                log_channel = get_log_channel("video")
+                                                forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
                                             elif not already_forwarded_to_log:
                                                 log_channel = get_log_channel("video")
                                                 forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
@@ -2473,28 +2536,31 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                                 playlist_msg_ids.extend([m.id for m in forwarded_msgs])
                                             else:
                                                 # For single videos, save to regular cache
-                                                subs_enabled = is_subs_enabled(user_id)
-                                                auto_mode = get_user_subs_auto_mode(user_id)
-                                                need_subs = determine_need_subs(subs_enabled, found_type, user_id)
-                                                if not need_subs:
-                                                    # Only cache regular content (not NSFW)
-                                                    if not is_nsfw:
-                                                        _save_video_cache_with_logging(url, safe_quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "", user_id=user_id)
-                                                    else:
-                                                        logger.info("NSFW content not cached (manual)")
+                                                # Always save to cache regardless of subtitles or Always Ask mode
+                                                # The cache will be used for display purposes (rocket emoji) but not for reposting
+                                                if not is_nsfw:
+                                                    _save_video_cache_with_logging(url, safe_quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "", user_id=user_id)
                                                 else:
-                                                    logger.info("Video with subtitles (subs.txt found) is not cached!")
+                                                    logger.info("NSFW content not cached (manual)")
                                         else:
                                             logger.error("Manual forward also failed, cannot cache video")
                                     except Exception as e:
                                         logger.error(f"Error in manual forward: {e}")
                         except Exception as e:
-                            # Check if error is related to quality_key - if so, skip duplicate forwarding
+                            # Check if error is related to quality_key - if so, ignore it completely
                             if "'quality_key'" in str(e):
-                                logger.warning(f"Error forwarding video to logger (quality_key issue): {e} - skipping duplicate forwarding")
-                                # Use universal quality_key error handler
-                                _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
-                                already_forwarded_to_log = True  # Mark as already forwarded to prevent duplicates
+                                logger.info(f"quality_key error ignored (non-critical): {e}")
+                                # Quality_key errors don't affect functionality, just continue
+                                
+                                # PREVENTIVE FIX: Handle split video completion even after quality_key error
+                                if split_msg_ids and not is_playlist:
+                                    logger.info(f"PREVENTIVE FIX: Processing split video completion after quality_key error in manual forward: {split_msg_ids}")
+                                    actual_video_count = len(split_msg_ids)
+                                    success_msg = f"<b>{get_messages_instance().UPLOAD_COMPLETE_MSG}</b> - {actual_video_count} {get_messages_instance().FILES_UPLOADED_MSG}.\n{get_messages_instance().CREDITS_MSG}"
+                                    logger.info(f"PREVENTIVE FIX: sending final success message for split video: {success_msg}")
+                                    safe_edit_message_text(user_id, proc_msg_id, success_msg)
+                                    send_to_logger(message, get_messages_instance().VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
+                                    break
                             else:
                                 logger.error(f"Error forwarding video to logger: {e}")
                             # Try to forward manually even after error
@@ -2566,7 +2632,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     
                                 else:
                                     # Regular content -> LOGS_VIDEO_ID and cache
-                                    if not already_forwarded_to_log:
+                                    if len(caption_lst) > 1:
+                                        # This is a split video - always forward each part
+                                        log_channel = get_log_channel("video")
+                                        forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                    elif not already_forwarded_to_log:
                                         log_channel = get_log_channel("video")
                                         forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
                                     else:
@@ -2590,26 +2660,29 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         playlist_msg_ids.extend([m.id for m in forwarded_msgs])
                                     else:
                                         # For single videos, save to regular cache
-                                        subs_enabled = is_subs_enabled(user_id)
-                                        auto_mode = get_user_subs_auto_mode(user_id)
-                                        need_subs = determine_need_subs(subs_enabled, found_type, user_id)
-                                        if not need_subs:
-                                            # Only cache regular content (not NSFW)
-                                            if not is_nsfw:
-                                                _save_video_cache_with_logging(url, safe_quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "", user_id=user_id)
-                                            else:
-                                                logger.info("NSFW content not cached (error recovery)")
+                                        # Always save to cache regardless of subtitles or Always Ask mode
+                                        # The cache will be used for display purposes (rocket emoji) but not for reposting
+                                        if not is_nsfw:
+                                            _save_video_cache_with_logging(url, safe_quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "", user_id=user_id)
                                         else:
-                                            logger.info("Video with subtitles (subs.txt found) is not cached!")
+                                            logger.info("NSFW content not cached (error recovery)")
                                 else:
                                     logger.error("Manual forward after error also failed, cannot cache video")
                             except Exception as e2:
-                                # Check if error is related to quality_key - if so, skip duplicate forwarding
+                                # Check if error is related to quality_key - if so, ignore it completely
                                 if "'quality_key'" in str(e2):
-                                    logger.warning(f"Error in manual forward after error (quality_key issue): {e2} - skipping duplicate forwarding")
-                                    # Use universal quality_key error handler
-                                    _handle_quality_key_error(e2, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
-                                    already_forwarded_to_log = True  # Mark as already forwarded to prevent duplicates
+                                    logger.info(f"quality_key error ignored (non-critical): {e2}")
+                                    # Quality_key errors don't affect functionality, just continue
+                                    
+                                    # PREVENTIVE FIX: Handle split video completion even after quality_key error
+                                    if split_msg_ids and not is_playlist:
+                                        logger.info(f"PREVENTIVE FIX: Processing split video completion after quality_key error in manual forward after error: {split_msg_ids}")
+                                        actual_video_count = len(split_msg_ids)
+                                        success_msg = f"<b>{get_messages_instance().UPLOAD_COMPLETE_MSG}</b> - {actual_video_count} {get_messages_instance().FILES_UPLOADED_MSG}.\n{get_messages_instance().CREDITS_MSG}"
+                                        logger.info(f"PREVENTIVE FIX: sending final success message for split video: {success_msg}")
+                                        safe_edit_message_text(user_id, proc_msg_id, success_msg)
+                                        send_to_logger(message, get_messages_instance().VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
+                                        break
                                 else:
                                     logger.error(f"Error in manual forward after error: {e2}")
                         safe_edit_message_text(user_id, proc_msg_id,
@@ -2628,7 +2701,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         send_error_to_user(message, get_messages_instance().ERROR_SENDING_VIDEO_MSG.format(error=str(e)))
                         continue
         if successful_uploads == len(indices_to_download):
-            success_msg = f"<b>✅ Upload complete</b> - {video_count} files uploaded.\n{get_messages_instance().CREDITS_MSG}"
+            success_msg = f"<b>{get_messages_instance().UPLOAD_COMPLETE_MSG}</b> - {video_count} {get_messages_instance().FILES_UPLOADED_MSG}.\n{get_messages_instance().CREDITS_MSG}"
             safe_edit_message_text(user_id, proc_msg_id, success_msg)
             send_to_logger(message, success_msg)
             
@@ -2654,10 +2727,18 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             send_to_user(message, get_messages_instance().DOWNLOAD_CANCELLED_TIMEOUT_MSG)
             log_error_to_channel(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG, url)
         elif "'quality_key'" in str(e):
-            # This is a quality_key error that was already handled earlier, don't show it to user
-            logger.warning(f"quality_key error caught at top level (already handled): {e}")
-            # Use universal quality_key error handler
-            _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
+            # Quality_key errors are non-critical and should be completely ignored
+            logger.info(f"quality_key error ignored (non-critical): {e}")
+            # Quality_key errors don't affect functionality, just continue normally
+            
+            # HARD FIX: Handle split videos completion even after quality_key error
+            if split_msg_ids and not is_playlist:
+                logger.info(f"HARD FIX: Processing split video completion after quality_key error: {split_msg_ids}")
+                actual_video_count = len(split_msg_ids)
+                success_msg = f"<b>{get_messages_instance().UPLOAD_COMPLETE_MSG}</b> - {actual_video_count} {get_messages_instance().FILES_UPLOADED_MSG}.\n{get_messages_instance().CREDITS_MSG}"
+                logger.info(f"HARD FIX: sending final success message for split video: {success_msg}")
+                safe_edit_message_text(user_id, proc_msg_id, success_msg)
+                send_to_logger(message, get_messages_instance().VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
         else:
             logger.error(f"Error in video download: {e}")
             send_to_user(message, get_messages_instance().FAILED_DOWNLOAD_VIDEO_MSG.format(error=e))

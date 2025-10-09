@@ -13,6 +13,7 @@ from HELPERS.limitter import check_user, is_user_in_channel
 from HELPERS.filesystem_hlp import create_directory
 from CONFIG.config import Config
 from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.logger_msg import LoggerMsg
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url
 from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
@@ -74,7 +75,7 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
         # Parse quality
         format_spec = parse_quality_argument(quality_arg)
         
-        # Basic yt-dlp options
+        # Basic yt-dlp options - use same parameters as down_and_up.py
         ytdl_opts = {
             'quiet': True,
             'no_warnings': True,
@@ -94,7 +95,17 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
             'referer': url,
             'geo_bypass': True,
             'check_certificate': False,
-            'live_from_start': True
+            'live_from_start': True,
+            # Add additional stability options
+            'socket_timeout': 60,
+            'retries': 15,
+            'fragment_retries': 15,
+            'http_chunk_size': 5242880,  # 5MB chunks
+            'buffersize': 2048,
+            'sleep_interval': 2,
+            'max_sleep_interval': 10,
+            'read_timeout': 60,
+            'connect_timeout': 30
         }
         
         # Add user's custom yt-dlp arguments
@@ -213,6 +224,10 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
                 else:
                     logger.info(f"{LoggerMsg.LINK_USER_PROXY_DISABLED_LOG_MSG}")
         
+        # Add proxy configuration if needed (same as down_and_up.py)
+        from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
+        ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url, user_id)
+        
         # Add PO token provider for YouTube domains
         ytdl_opts = add_pot_to_ytdl_opts(ytdl_opts, url)
         
@@ -230,65 +245,102 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
         if not info:
             return {'error': 'Failed to extract video information'}
         
+        # Get the best direct URL for VLC players
+        direct_url = None
+        video_url = None
+        audio_url = None
+        
         # Get requested formats
         requested_formats = info.get('requested_formats', [])
         
         if requested_formats:
             # There are separate video and audio streams
-            video_url = None
-            audio_url = None
-            
             for fmt in requested_formats:
                 if fmt.get('vcodec') != 'none':
                     video_url = fmt.get('url')
+                    if not direct_url:  # Use first video URL as direct URL
+                        direct_url = video_url
                 elif fmt.get('acodec') != 'none':
                     audio_url = fmt.get('url')
             
+            # Create player URLs for separate video/audio streams
             if video_url and audio_url:
-                return {
-                    'success': True,
-                    'video_url': video_url,
-                    'audio_url': audio_url,
-                    'title': info.get('title', 'Unknown'),
-                    'duration': info.get('duration', 0),
-                    'format': format_spec
-                }
+                # Both video and audio available - use video as direct URL
+                if not direct_url:
+                    direct_url = video_url
             elif video_url:
-                return {
-                    'success': True,
-                    'video_url': video_url,
-                    'audio_url': None,
-                    'title': info.get('title', 'Unknown'),
-                    'duration': info.get('duration', 0),
-                    'format': format_spec
-                }
+                # Only video available
+                if not direct_url:
+                    direct_url = video_url
             elif audio_url:
-                return {
-                    'success': True,
-                    'video_url': None,
-                    'audio_url': audio_url,
-                    'title': info.get('title', 'Unknown'),
-                    'duration': info.get('duration', 0),
-                    'format': format_spec
-                }
+                # Only audio available
+                if not direct_url:
+                    direct_url = audio_url
+        else:
+            # Fallback: look for best format with video and audio
+            formats = info.get('formats', [])
+            best_format = None
+            
+            for fmt in formats:
+                if fmt.get('vcodec') != 'none' and fmt.get('acodec') != 'none':
+                    if not best_format or fmt.get('height', 0) > best_format.get('height', 0):
+                        best_format = fmt
+            
+            if best_format:
+                direct_url = best_format.get('url')
+                video_url = direct_url
         
-        # Fallback: look for best format with video and audio
-        formats = info.get('formats', [])
-        best_format = None
+        # If we have a direct URL, create VLC player URLs
+        player_urls = {}
+        if direct_url:
+            from urllib.parse import quote, urlparse
+            
+            # Кодируем URL для iOS VLC (однократное кодирование)
+            encoded_url = quote(direct_url, safe='')
+            
+            # Parse URL to get host and path for Android intent
+            parsed_url = urlparse(direct_url)
+            scheme = parsed_url.scheme
+            
+            # For Android VLC: remove scheme and encode URL properly
+            android_url_clean = direct_url.replace('https://', '').replace('http://', '')
+            
+            # Create player URLs
+            player_urls = {
+                'direct': direct_url,
+                'vlc_ios': f"https://vlc.ratu.sh/?url=vlc-x-callback://x-callback-url/stream?url={encoded_url}",
+                'vlc_android': f"https://vlc.ratu.sh/?url=intent://{android_url_clean}#Intent;scheme={scheme};package=org.videolan.vlc;type=video/*;end"
+            }
         
-        for fmt in formats:
-            if fmt.get('vcodec') != 'none' and fmt.get('acodec') != 'none':
-                if not best_format or fmt.get('height', 0) > best_format.get('height', 0):
-                    best_format = fmt
-        
-        if best_format:
+        if direct_url:
             return {
                 'success': True,
-                'video_url': best_format.get('url'),
+                'video_url': video_url,
+                'audio_url': audio_url,
+                'title': info.get('title', 'Unknown'),
+                'duration': info.get('duration', 0),
+                'format': format_spec,
+                'player_urls': player_urls
+            }
+        elif video_url:
+            return {
+                'success': True,
+                'video_url': video_url,
                 'audio_url': None,
                 'title': info.get('title', 'Unknown'),
                 'duration': info.get('duration', 0),
-                'format': format_spec
+                'format': format_spec,
+                'player_urls': player_urls
+            }
+        elif audio_url:
+            return {
+                'success': True,
+                'video_url': None,
+                'audio_url': audio_url,
+                'title': info.get('title', 'Unknown'),
+                'duration': info.get('duration', 0),
+                'format': format_spec,
+                'player_urls': player_urls
             }
         
         # If nothing found, return error
@@ -358,8 +410,8 @@ def link_command(app, message):
         from HELPERS.safe_messeger import safe_send_message
         status_msg = safe_send_message(user_id, get_messages_instance().LINK_PROCESSING_MSG, reply_to_message_id=message.id, message=message)
         
-        # Get direct link - use proxy only if user has proxy enabled and domain requires it
-        result = get_direct_link(url, user_id, quality_arg, use_proxy=False)
+        # Get direct link - use the same mechanisms as Always Ask Menu
+        result = get_direct_link(url, user_id, quality_arg, cookies_already_checked=True, use_proxy=True)
         
         if result.get('success'):
             title = result.get('title', 'Unknown')
@@ -367,30 +419,71 @@ def link_command(app, message):
             video_url = result.get('video_url')
             audio_url = result.get('audio_url')
             format_spec = result.get('format', 'best')
+            player_urls = result.get('player_urls', {})
             
-            # Form response
-            response = get_messages_instance().LINK_DIRECT_LINK_OBTAINED_MSG
-            response += get_messages_instance().LINK_TITLE_MSG.format(title=title)
+            # Form response using same format as Always Ask Menu
+            response = get_messages_instance().STREAM_LINKS_TITLE_MSG
+            response += get_messages_instance().STREAM_TITLE_MSG.format(title=title)
             if duration > 0:
-                response += get_messages_instance().LINK_DURATION_MSG.format(duration=duration)
-            response += get_messages_instance().LINK_FORMAT_INFO_MSG.format(format_spec=format_spec)
+                response += f"{get_messages_instance().ALWAYS_ASK_DURATION_MSG} {duration} sec\n"
+            response += f"{get_messages_instance().ALWAYS_ASK_FORMAT_MSG} <code>{format_spec}</code>\n\n"
+            response += f"{get_messages_instance().ALWAYS_ASK_BROWSER_MSG}\n\n"
             
-            if video_url:
-                response += get_messages_instance().LINK_VIDEO_STREAM_MSG.format(video_url=video_url)
+            # Create browser keyboard with direct URL
+            direct_url = player_urls.get('direct', video_url or audio_url)
+            if direct_url:
+                from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+                browser_keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_BROWSER_BUTTON_MSG, url=direct_url)],
+                    [InlineKeyboardButton("🔚 Close", callback_data="askq|close")]
+                ])
+                
+                # Update message with keyboard
+                app.edit_message_text(
+                    chat_id=user_id,
+                    message_id=status_msg.id,
+                    text=response,
+                    reply_markup=browser_keyboard,
+                    parse_mode=enums.ParseMode.HTML
+                )
+            else:
+                # Fallback if no direct URL
+                app.edit_message_text(
+                    chat_id=user_id,
+                    message_id=status_msg.id,
+                    text=response,
+                    parse_mode=enums.ParseMode.HTML
+                )
             
-            if audio_url:
-                response += get_messages_instance().LINK_AUDIO_STREAM_MSG.format(audio_url=audio_url)
+            # Send VLC iOS message if available
+            if 'vlc_ios' in player_urls:
+                from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+                vlc_ios_keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_VLC_IOS_BUTTON_MSG, url=player_urls['vlc_ios'])],
+                    [InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_CLOSE_BUTTON_MSG, callback_data="askq|close")]
+                ])
+                app.send_message(
+                    user_id,
+                    get_messages_instance().AA_VLC_IOS_MSG,
+                    reply_parameters=ReplyParameters(message_id=message.id),
+                    reply_markup=vlc_ios_keyboard,
+                    parse_mode=enums.ParseMode.HTML
+                )
             
-            if not video_url and not audio_url:
-                response += get_messages_instance().LINK_FAILED_GET_STREAMS_MSG
-            
-            # Update message
-            app.edit_message_text(
-                chat_id=user_id,
-                message_id=status_msg.id,
-                text=response,
-                parse_mode=enums.ParseMode.HTML
-            )
+            # Send VLC Android message if available
+            if 'vlc_android' in player_urls:
+                from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+                vlc_android_keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_VLC_ANDROID_BUTTON_MSG, url=player_urls['vlc_android'])],
+                    [InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_CLOSE_BUTTON_MSG, callback_data="askq|close")]
+                ])
+                app.send_message(
+                    user_id,
+                    get_messages_instance().AA_VLC_ANDROID_MSG,
+                    reply_parameters=ReplyParameters(message_id=message.id),
+                    reply_markup=vlc_android_keyboard,
+                    parse_mode=enums.ParseMode.HTML
+                )
             
             send_to_logger(message, get_messages_instance().LINK_EXTRACTED_LOG_MSG.format(user_id=user_id, url=url))
             
