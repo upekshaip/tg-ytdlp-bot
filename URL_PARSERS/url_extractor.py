@@ -195,8 +195,10 @@ def url_distractor(app, message):
                 logger.error(f"Failed to clear YouTube cookie cache: {e}")
             
             if removed_items:
+                from HELPERS.text_helper import format_clean_output_as_html
                 items_list = "\n".join([f"• {item}" for item in removed_items])
-                send_to_all(fake_msg, get_messages_instance(user_id).URL_EXTRACTOR_ALL_FILES_REMOVED_MSG.format(files_list=items_list))
+                formatted_output = format_clean_output_as_html(items_list)
+                send_to_all(fake_msg, formatted_output, parse_mode=enums.ParseMode.HTML)
             else:
                 send_to_all(fake_msg, get_messages_instance(user_id).URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
             
