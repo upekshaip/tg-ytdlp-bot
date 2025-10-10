@@ -373,12 +373,12 @@ class LoggerMsg(object):
     ALWAYS_ASK_PARSED_LOG_MSG = "[ASKF] parsed: kind={kind}, value={value}"
     
     # Down and up logs
-    DOWN_UP_SKIPPING_CACHE_SEND_AS_FILE_LOG_MSG = "[VIDEO CACHE] Skipping cache save for user {user_id} with send_as_file enabled: url={url}, quality={quality_key}"
+    DOWN_UP_SKIPPING_CACHE_SEND_AS_FILE_LOG_MSG = "[VIDEO CACHE] Skipping cache save for user {user_id} with send_as_file enabled: url={url}, quality={quality}"
     DOWN_UP_IS_PORN_CHECK_LOG_MSG = "[FALLBACK] is_porn check for {url}: {is_nsfw}"
-    DOWN_UP_SKIPPING_CACHE_NSFW_LOG_MSG = "[VIDEO CACHE] Skipping cache save for NSFW content: url={url}, quality={quality_key}, channel_type={channel_type}"
-    DOWN_UP_ABOUT_TO_SAVE_VIDEO_LOG_MSG = "[VIDEO CACHE] About to save video: url={url}, quality={quality_key}, message_ids={message_ids}, channel_type={channel_type}"
-    DOWN_UP_SAVE_REQUESTED_LOG_MSG = "[VIDEO CACHE] Save requested for quality={quality_key}, channel_type={channel_type}"
-    DOWN_UP_SAVE_FAILED_LOG_MSG = "[VIDEO CACHE] Save failed for quality={quality_key}: {error}"
+    DOWN_UP_SKIPPING_CACHE_NSFW_LOG_MSG = "[VIDEO CACHE] Skipping cache save for NSFW content: url={url}, quality={quality}, channel_type={channel_type}"
+    DOWN_UP_ABOUT_TO_SAVE_VIDEO_LOG_MSG = "[VIDEO CACHE] About to save video: url={url}, quality={quality}, message_ids={message_ids}, channel_type={channel_type}"
+    DOWN_UP_SAVE_REQUESTED_LOG_MSG = "[VIDEO CACHE] Save requested for quality={quality}, channel_type={channel_type}"
+    DOWN_UP_SAVE_FAILED_LOG_MSG = "[VIDEO CACHE] Save failed for quality={quality}: {error}"
     
     # URL extractor logs
     URL_EXTRACTOR_DISTRACTOR_CALLED_LOG_MSG = "url_distractor called with text: {text}..."

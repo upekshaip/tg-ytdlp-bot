@@ -875,10 +875,10 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
                 continue
 
             # === LOCAL CACHE CHECK ===
+            # Note: We now allow overwriting existing cache to ensure consistency
             existing = get_from_local_cache(path_parts_local + [quality_key])
             if existing is not None:
-                logger.info(f"Cache already exists for URL hash {url_hash}, quality {quality_key}, skipping save.")
-                continue  # skip writing if already cached locally
+                logger.info(f"Cache already exists for URL hash {url_hash}, quality {quality_key}, but will update with new message_ids.")
 
             cache_ref = db.child(*path_parts)
 

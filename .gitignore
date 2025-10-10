@@ -89,13 +89,16 @@ remove_duplicate_keywords_correct.py
 remove_duplicate_keywords.py
 remove_duplicate_keywords_fast.py
 lang_trans.py
-REFACTORING_PROMPT.md
-MULTILANG_SYSTEM_REPORT.md
 translate_ar.py
 translate_in.py
 translate_ru.py
 translate_en.py
 translate_messages.py
+COPY_FILES_FOR_VPS.sh
+README_TEST_FILES.md
+create_test_files.py
+REFACTORING_PROMPT.md
+MULTILANG_SYSTEM_REPORT.md
 
 # Configs with secrets (do not commit)
 CONFIG/config.py

@@ -801,7 +801,7 @@ def url_distractor(app, message):
                 from HELPERS.text_helper import format_clean_output_as_html
                 items_list = "\n".join([f"• {item}" for item in removed_items])
                 formatted_output = format_clean_output_as_html(items_list)
-                send_to_all(message, formatted_output)
+                send_to_all(message, formatted_output, parse_mode=enums.ParseMode.HTML)
             else:
                 send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
             return
@@ -866,7 +866,7 @@ def url_distractor(app, message):
                 from HELPERS.text_helper import format_clean_output_as_html
                 items_list = "\n".join([f"• {item}" for item in removed_items])
                 formatted_output = format_clean_output_as_html(items_list)
-                send_to_all(message, formatted_output)
+                send_to_all(message, formatted_output, parse_mode=enums.ParseMode.HTML)
             else:
                 send_to_all(message, get_messages_instance(user_id).URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
             

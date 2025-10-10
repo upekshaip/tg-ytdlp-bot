@@ -139,6 +139,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     need_subs = False  # Will be determined once at the beginning
     safe_quality_key = quality_key if quality_key is not None else "best"  # Initialize safe_quality_key
     split_msg_ids = []  # Initialize split_msg_ids for split videos
+    caption_lst = []  # Initialize caption_lst for split videos
+    last_video_msg_id = None  # Initialize last_video_msg_id for caching
     user_id = message.chat.id
     successful_uploads = 0  # Initialize successful_uploads counter
     indices_to_download = []  # Initialize indices_to_download list
@@ -1960,13 +1962,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 path_lst = returned.get("path")
                 # Accumulate all IDs of split video parts
                 # Note: split_msg_ids is already initialized at function start, don't reset it here
-                for p in range(len(caption_lst)):
-                    part_result = get_duration_thumb(message, dir_path, path_lst[p], sanitize_filename_strict(caption_lst[p]))
+                for p in range(len(caption_lst) if caption_lst else 0):
+                    caption_name = caption_lst[p] if caption_lst and p < len(caption_lst) else f"part_{p+1}"
+                    part_result = get_duration_thumb(message, dir_path, path_lst[p], sanitize_filename_strict(caption_name))
                     if part_result is None:
                         continue
                     part_duration, splited_thumb_dir = part_result
                     # --- TikTok: Don't Pass Title ---
-                    video_msg = send_videos(message, path_lst[p], '' if force_no_title else caption_lst[p], part_duration, splited_thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final)
+                    video_msg = send_videos(message, path_lst[p], '' if force_no_title else caption_name, part_duration, splited_thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final)
                     if not video_msg:
                         logger.error("send_videos returned None for split part; skipping cache save for this part")
                         continue
@@ -2010,7 +2013,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     open_video_msg = app.send_video(
                                         chat_id=log_channel_nsfw,
                                         video=path_lst[p],
-                                        caption=caption_lst[p],
+                                        caption=caption_lst[p] if caption_lst and p < len(caption_lst) else f"part_{p+1}",
                                         duration=int(v_dur) if v_dur else part_duration,
                                         width=int(v_w) if v_w else width,
                                         height=int(v_h) if v_h else height,
@@ -2031,7 +2034,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         elif is_nsfw:
                             # NSFW content in groups -> LOGS_NSFW_ID only
                             # For split videos, always forward each part to NSFW channel
-                            if len(caption_lst) > 1:
+                            if caption_lst and len(caption_lst) > 1:
                                 # This is a split video - always forward each part
                                 log_channel = get_log_channel("video", nsfw=True)
                                 if log_channel and log_channel != 0:
@@ -2067,7 +2070,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         else:
                             # Regular content -> LOGS_VIDEO_ID and cache
                             # For split videos, always forward each part to log channel
-                            if len(caption_lst) > 1:
+                            if caption_lst and len(caption_lst) > 1:
                                 # This is a split video - always forward each part
                                 log_channel = get_log_channel("video")
                                 forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
@@ -2166,7 +2169,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             logger.info(f"down_and_up: added video_msg.id to split_msg_ids after error: {video_msg.id}, current split_msg_ids: {split_msg_ids}")
                             safe_edit_message_text(user_id, proc_msg_id,
                                 f"{info_text}\n{full_bar}   100.0%\n<i>{get_messages_instance().DOWN_UP_SPLITTED_PART_UPLOADED_MSG.format(part=p + 1)}</i>")
-                    if p < len(caption_lst) - 1:
+                    if caption_lst and p < len(caption_lst) - 1:
                         pass
                     if os.path.exists(splited_thumb_dir):
                         os.remove(splited_thumb_dir)
@@ -2196,7 +2199,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     if not need_subs:
                         _save_video_cache_with_logging(url, safe_quality_key, split_msg_ids, original_text=message.text or message.caption or "", user_id=user_id)
                     else:
-                        logger.info(f"Split video with subtitles is not cached (found_type={found_type}, auto_mode={auto_mode})")
+                        logger.info(f"Split video with subtitles is not cached (found_type={found_type}, auto_mode={auto_mode}) - different users may need different languages")
                 else:
                     logger.warning(f"down_and_up: NOT saving to cache - split_msg_ids={split_msg_ids}, is_playlist={is_playlist}")
                 if os.path.exists(thumb_dir):
@@ -2336,6 +2339,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             logger.error("send_videos returned None for single video; aborting cache save for this item")
                             continue
                         
+                        # Save video message ID for caching purposes
+                        last_video_msg_id = video_msg.id
+                        
                         #found_type = None
                         try:
                             # Determine the correct log channel based on content type
@@ -2398,7 +2404,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             elif is_nsfw:
                                 # NSFW content in groups -> LOGS_NSFW_ID only
                                 # For split videos, always forward each part to NSFW channel
-                                if len(caption_lst) > 1:
+                                if caption_lst and len(caption_lst) > 1:
                                     # This is a split video - always forward each part
                                     log_channel = get_log_channel("video", nsfw=True)
                                     forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
@@ -2418,7 +2424,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 ) or (getattr(video_msg, "paid_media", None) is not None):
                                     logger.info("down_and_up: skipping forward to LOGS_VIDEO_ID for paid media")
                                     forwarded_msgs = None
-                                elif len(caption_lst) > 1:
+                                elif caption_lst and len(caption_lst) > 1:
                                     # This is a split video - always forward each part
                                     log_channel = get_log_channel("video")
                                     forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
@@ -2508,7 +2514,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                             ) or (getattr(video_msg, "paid_media", None) is not None):
                                                 logger.info("down_and_up: skipping forward to LOGS_VIDEO_ID for paid media (manual)")
                                                 forwarded_msgs = None
-                                            elif len(caption_lst) > 1:
+                                            elif caption_lst and len(caption_lst) > 1:
                                                 # This is a split video - always forward each part
                                                 log_channel = get_log_channel("video")
                                                 forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
@@ -2632,7 +2638,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     
                                 else:
                                     # Regular content -> LOGS_VIDEO_ID and cache
-                                    if len(caption_lst) > 1:
+                                    if caption_lst and len(caption_lst) > 1:
                                         # This is a split video - always forward each part
                                         log_channel = get_log_channel("video")
                                         forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
