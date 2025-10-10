@@ -62,6 +62,7 @@ def log_firebase_access_attempt(path_parts, success=True):
         print(f"Firebase local-cache access: {path_str} -> {status}")
 
 def load_firebase_cache():
+    messages = get_messages_instance(None)
     """Load local Firebase cache from JSON file."""
     global firebase_cache
     try:
@@ -69,18 +70,19 @@ def load_firebase_cache():
         if os.path.exists(cache_file):
             with open(cache_file, "r", encoding="utf-8") as f:
                 firebase_cache = json.load(f)
-            messages = get_messages_instance()
+            messages = messages
             print(messages.DB_FIREBASE_CACHE_LOADED_MSG.format(count=len(firebase_cache)))
         else:
-            messages = get_messages_instance()
+            messages = messages
             print(messages.DB_FIREBASE_CACHE_NOT_FOUND_MSG.format(cache_file=cache_file))
             firebase_cache = {}
     except Exception as e:
-        messages = get_messages_instance()
+        messages = messages
         print(messages.DB_FAILED_LOAD_FIREBASE_CACHE_MSG.format(error=e))
         firebase_cache = {}
 
 def reload_firebase_cache():
+    messages = get_messages_instance(None)
     """Reloading the local Firebase cache from JSON file"""
     global firebase_cache
     try:
@@ -88,13 +90,13 @@ def reload_firebase_cache():
         if os.path.exists(cache_file):
             with open(cache_file, "r", encoding="utf-8") as f:
                 firebase_cache = json.load(f)
-            print(get_messages_instance().DB_FIREBASE_CACHE_RELOADED_MSG.format(count=len(firebase_cache)))
+            print(messages.DB_FIREBASE_CACHE_RELOADED_MSG.format(count=len(firebase_cache)))
             return True
         else:
-            print(get_messages_instance().DB_FIREBASE_CACHE_FILE_NOT_FOUND_MSG.format(cache_file=cache_file))
+            print(messages.DB_FIREBASE_CACHE_FILE_NOT_FOUND_MSG.format(cache_file=cache_file))
             return False
     except Exception as e:
-        print(get_messages_instance().DB_FAILED_RELOAD_FIREBASE_CACHE_MSG.format(error=e))
+        print(messages.DB_FAILED_RELOAD_FIREBASE_CACHE_MSG.format(error=e))
         return False
 
 
@@ -112,17 +114,19 @@ def get_next_reload_time(interval_hours: int) -> datetime:
 
 def _download_and_reload_cache() -> bool:
     """Download dump via REST and reload local JSON into memory."""
+    messages = get_messages_instance(None)
     try:
         ok = download_firebase_dump()
         if not ok:
-            print(get_messages_instance().DB_FAILED_DOWNLOAD_DUMP_REST_MSG)
+            print(messages.DB_FAILED_DOWNLOAD_DUMP_REST_MSG)
             return False
         return reload_firebase_cache()
     except Exception as e:
-        print(get_messages_instance().DB_ERROR_DOWNLOAD_RELOAD_CACHE_MSG.format(error=e))
+        print(messages.DB_ERROR_DOWNLOAD_RELOAD_CACHE_MSG.format(error=e))
         return False
 
 def auto_reload_firebase_cache():
+    messages = get_messages_instance(None)
     """Background thread that reloads local cache every N hours by downloading dump first."""
     global auto_cache_enabled
 
@@ -185,12 +189,12 @@ def auto_reload_firebase_cache():
                 break  # Success, exit retry loop
                 
             except Exception as e:
-                print(get_messages_instance().DB_ERROR_RUNNING_AUTO_RELOAD_MSG.format(attempt=attempt + 1, max_retries=max_retries, error=e))
+                print(messages.DB_ERROR_RUNNING_AUTO_RELOAD_MSG.format(attempt=attempt + 1, max_retries=max_retries, error=e))
                 if attempt < max_retries - 1:
                     print(f"⏳ Retrying in {retry_delay} seconds...")
                     time.sleep(retry_delay)
                 else:
-                    print(get_messages_instance().DB_ALL_RETRY_ATTEMPTS_FAILED_MSG)
+                    print(messages.DB_ALL_RETRY_ATTEMPTS_FAILED_MSG)
                     import traceback; traceback.print_exc()
 
 def start_auto_cache_reloader():
@@ -238,6 +242,7 @@ def _persist_reload_interval_in_config(new_hours: int) -> bool:
     Keeps formatting/comments around the assignment line intact where possible.
     Also repairs previously corrupted lines if found.
     """
+    messages = get_messages_instance(None)
     try:
         cfg_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'CONFIG', 'config.py')
         if not os.path.exists(cfg_path):
@@ -261,7 +266,7 @@ def _persist_reload_interval_in_config(new_hours: int) -> bool:
 
         with open(cfg_path, 'w', encoding='utf-8') as f:
             f.write(new_content)
-        logger.info(get_messages_instance().DB_RELOAD_CACHE_EVERY_PERSISTED_MSG.format(hours=int(new_hours)))
+        logger.info(messages.DB_RELOAD_CACHE_EVERY_PERSISTED_MSG.format(hours=int(new_hours)))
         return True
     except Exception as e:
         logger.error(LoggerMsg.DB_FAILED_PERSIST_RELOAD_CACHE_EVERY_LOG_MSG.format(error=e))
@@ -321,6 +326,7 @@ load_firebase_cache()
 # ================= /auto_cache command =================
 
 def auto_cache_command(app, message):
+    messages = get_messages_instance(message.chat.id)
     """Command handler to control automatic Firebase cache loading.
 
     Supports:
@@ -330,7 +336,7 @@ def auto_cache_command(app, message):
     """
     try:
         if int(message.chat.id) not in Config.ADMIN:
-            send_to_user(message, get_messages_instance().DB_AUTO_CACHE_ACCESS_DENIED_MSG)
+            send_to_user(message, messages.DB_AUTO_CACHE_ACCESS_DENIED_MSG)
             return
 
         text = (message.text or "").strip()
@@ -347,17 +353,17 @@ def auto_cache_command(app, message):
                 delta_min = int((next_exec - datetime.now()).total_seconds() // 60)
                 send_to_user(
                     message,
-                    get_messages_instance().DB_AUTO_CACHE_RELOADING_UPDATED_MSG.format(
+                    messages.DB_AUTO_CACHE_RELOADING_UPDATED_MSG.format(
                         status=status,
                         interval=interval,
                         next_exec=next_exec.strftime('%H:%M'),
                         delta_min=delta_min
                     )
                 )
-                send_to_logger(message, get_messages_instance().DB_AUTO_CACHE_RELOAD_ENABLED_LOG_MSG.format(next_exec=next_exec))
+                send_to_logger(message, messages.DB_AUTO_CACHE_RELOAD_ENABLED_LOG_MSG.format(next_exec=next_exec))
             else:
-                send_to_user(message, get_messages_instance().DB_AUTO_CACHE_RELOADING_STOPPED_MSG)
-                send_to_logger(message, get_messages_instance().DB_AUTO_CACHE_RELOAD_DISABLED_LOG_MSG)
+                send_to_user(message, messages.DB_AUTO_CACHE_RELOADING_STOPPED_MSG)
+                send_to_logger(message, messages.DB_AUTO_CACHE_RELOAD_DISABLED_LOG_MSG)
             return
 
         # Try numeric interval
@@ -365,28 +371,28 @@ def auto_cache_command(app, message):
             try:
                 n = int(arg)
             except Exception:
-                send_to_user(message, get_messages_instance().DB_AUTO_CACHE_INVALID_ARGUMENT_MSG)
+                send_to_user(message, messages.DB_AUTO_CACHE_INVALID_ARGUMENT_MSG)
                 return
             if n < 1 or n > 168:
-                send_to_user(message, get_messages_instance().DB_AUTO_CACHE_INTERVAL_RANGE_MSG)
+                send_to_user(message, messages.DB_AUTO_CACHE_INTERVAL_RANGE_MSG)
                 return
             ok = set_reload_interval_hours(n)
             if not ok:
-                send_to_user(message, get_messages_instance().DB_AUTO_CACHE_FAILED_SET_INTERVAL_MSG)
+                send_to_user(message, messages.DB_AUTO_CACHE_FAILED_SET_INTERVAL_MSG)
                 return
             interval = max(1, int(reload_interval_hours))
             next_exec = get_next_reload_time(interval)
             delta_min = int((next_exec - datetime.now()).total_seconds() // 60)
             send_to_user(
                 message,
-                get_messages_instance().DB_AUTO_CACHE_INTERVAL_UPDATED_MSG.format(
+                messages.DB_AUTO_CACHE_INTERVAL_UPDATED_MSG.format(
                     status='✅ ENABLED' if auto_cache_enabled else '❌ DISABLED',
                     interval=interval,
                     next_exec=next_exec.strftime('%H:%M'),
                     delta_min=delta_min
                 )
             )
-            send_to_logger(message, get_messages_instance().DB_AUTO_CACHE_INTERVAL_SET_LOG_MSG.format(interval=interval, next_exec=next_exec))
+            send_to_logger(message, messages.DB_AUTO_CACHE_INTERVAL_SET_LOG_MSG.format(interval=interval, next_exec=next_exec))
             return
 
         # No args: toggle legacy behavior
@@ -397,22 +403,23 @@ def auto_cache_command(app, message):
             delta_min = int((next_exec - datetime.now()).total_seconds() // 60)
             send_to_user(
                 message,
-                get_messages_instance().DB_AUTO_CACHE_RELOADING_STARTED_MSG.format(
+                messages.DB_AUTO_CACHE_RELOADING_STARTED_MSG.format(
                     interval=interval,
                     next_exec=next_exec.strftime('%H:%M'),
                     delta_min=delta_min
                 )
             )
-            send_to_logger(message, get_messages_instance().DB_AUTO_CACHE_RELOAD_STARTED_LOG_MSG.format(next_exec=next_exec))
+            send_to_logger(message, messages.DB_AUTO_CACHE_RELOAD_STARTED_LOG_MSG.format(next_exec=next_exec))
         else:
-            send_to_user(message, get_messages_instance().DB_AUTO_CACHE_RELOADING_STOPPED_BY_ADMIN_MSG)
-            send_to_logger(message, get_messages_instance().DB_AUTO_CACHE_RELOAD_STOPPED_LOG_MSG)
+            send_to_user(message, messages.DB_AUTO_CACHE_RELOADING_STOPPED_BY_ADMIN_MSG)
+            send_to_logger(message, messages.DB_AUTO_CACHE_RELOAD_STOPPED_LOG_MSG)
     except Exception as e:
         logger.error(LoggerMsg.DB_AUTO_CACHE_HANDLER_ERROR_LOG_MSG.format(error=e))
 
 
 # Added playlist caching - separate functions for saving and retrieving playlist cache
 def save_to_playlist_cache(playlist_url: str, quality_key: str, video_indices: list, message_ids: list,
+                           messages = get_messages_instance(None),
                            clear: bool = False, original_text: str = None):
     # Lazy imports to avoid circular imports
     from URL_PARSERS.normalizer import normalize_url_for_cache, strip_range_from_url
@@ -458,7 +465,7 @@ def save_to_playlist_cache(playlist_url: str, quality_key: str, video_indices: l
                 already_cached = get_from_local_cache(path_parts_local)
 
                 if already_cached:
-                    logger.info(get_messages_instance().DB_PLAYLIST_PART_ALREADY_CACHED_MSG.format(path_parts=path_parts_local))
+                    logger.info(messages.DB_PLAYLIST_PART_ALREADY_CACHED_MSG.format(path_parts=path_parts_local))
                     continue
 
                 db_child_by_path(db, "/".join(path_parts)).set(str(msg_id))
@@ -473,6 +480,7 @@ def save_to_playlist_cache(playlist_url: str, quality_key: str, video_indices: l
         
 
 def get_cached_playlist_videos(playlist_url: str, quality_key: str, requested_indices: list) -> dict:
+    messages = get_messages_instance(None)
     from URL_PARSERS.normalizer import normalize_url_for_cache, strip_range_from_url
     from URL_PARSERS.youtube import is_youtube_url, youtube_to_short_url, youtube_to_long_url
     logger.info(
@@ -522,7 +530,7 @@ def get_cached_playlist_videos(playlist_url: str, quality_key: str, requested_in
                             f"get_cached_playlist_videos: returning cached videos for indices {list(found.keys())}: {found}")
                         return found
 
-        logger.info(get_messages_instance().DB_GET_CACHED_PLAYLIST_VIDEOS_NO_CACHE_MSG)
+        logger.info(messages.DB_GET_CACHED_PLAYLIST_VIDEOS_NO_CACHE_MSG)
         return {}
     except Exception as e:
         logger.error(f"Failed to get from playlist cache: {e}")
@@ -575,6 +583,7 @@ def get_cached_playlist_count(playlist_url: str, quality_key: str, indices: list
     If a list of indices is passed, it only counts their intersection with the cache.
     For large ranges (>100), it uses a fast count.
     """
+    messages = get_messages_instance(None)
     from URL_PARSERS.normalizer import normalize_url_for_cache, strip_range_from_url
     from URL_PARSERS.youtube import is_youtube_url, youtube_to_short_url, youtube_to_long_url
     try:
@@ -604,7 +613,7 @@ def get_cached_playlist_count(playlist_url: str, quality_key: str, indices: list
                     if len(indices) > 100:
                         try:
                             cached_count = sum(1 for index in indices if index < len(arr) and arr[index] is not None)
-                            logger.info(get_messages_instance().DB_GET_CACHED_PLAYLIST_COUNT_FAST_COUNT_MSG.format(cached_count=cached_count))
+                            logger.info(messages.DB_GET_CACHED_PLAYLIST_COUNT_FAST_COUNT_MSG.format(cached_count=cached_count))
                             return cached_count
                         except Exception as e:
                             logger.error(f"get_cached_playlist_count: error in fast count: {e}")
@@ -896,6 +905,7 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
 
 def get_cached_message_ids(url: str, quality_key: str) -> list:
     """Searches cache for both versions of YouTube link (long/short)."""
+    messages = get_messages_instance(None)
     from URL_PARSERS.normalizer import normalize_url_for_cache
     from URL_PARSERS.youtube import is_youtube_url, youtube_to_short_url, youtube_to_long_url
     logger.info(f"get_cached_message_ids called: url={url}, quality_key={quality_key}")
@@ -926,8 +936,8 @@ def get_cached_message_ids(url: str, quality_key: str) -> list:
                     f"get_cached_message_ids: found cached message_ids {result} for URL: {url}, quality: {quality_key}")
                 return result
             else:
-                logger.info(get_messages_instance().DB_GET_CACHED_MESSAGE_IDS_NO_CACHE_MSG.format(url_hash=url_hash, quality_key=quality_key))
-        logger.info(get_messages_instance().DB_GET_CACHED_MESSAGE_IDS_NO_CACHE_ANY_VARIANT_MSG)
+                logger.info(messages.DB_GET_CACHED_MESSAGE_IDS_NO_CACHE_MSG.format(url_hash=url_hash, quality_key=quality_key))
+        logger.info(messages.DB_GET_CACHED_MESSAGE_IDS_NO_CACHE_ANY_VARIANT_MSG)
         return None
     except Exception as e:
         logger.error(f"Failed to get from cache: {e}")

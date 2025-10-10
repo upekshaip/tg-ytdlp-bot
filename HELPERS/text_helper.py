@@ -42,7 +42,9 @@ def format_clean_output_as_html(items_list, max_length=4000):
         str: HTML-formatted collapsible quote
     """
     # Base message structure
-    base_message = "🗑 All files removed successfully!"
+    from CONFIG.messages import get_messages_instance
+    messages = get_messages_instance(None)
+    base_message = messages.URL_EXTRACTOR_ALL_FILES_REMOVED_MSG.split('\n')[0]
     
     # Calculate available space for items list
     html_overhead = len('<b>Removed files:</b>\n<pre>\n</pre>')

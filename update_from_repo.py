@@ -90,6 +90,7 @@ def backup_file(file_path):
     return None
 
 def clone_repository(temp_dir):
+    messages = get_messages_instance(None)
     """Clone the repository into the temporary folder"""
     try:
         log(f"📥 Cloning repository into {temp_dir}...")
@@ -107,17 +108,17 @@ def clone_repository(temp_dir):
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
         
         if result.returncode == 0:
-            log(get_messages_instance().UPDATE_REPOSITORY_CLONED_SUCCESS_MSG)
+            log(messages.UPDATE_REPOSITORY_CLONED_SUCCESS_MSG)
             return True
         else:
-            log(get_messages_instance().UPDATE_CLONE_ERROR_MSG.format(error=result.stderr), "ERROR")
+            log(messages.UPDATE_CLONE_ERROR_MSG.format(error=result.stderr), "ERROR")
             return False
             
     except subprocess.TimeoutExpired:
-        log(get_messages_instance().UPDATE_CLONE_TIMEOUT_MSG, "ERROR")
+        log(messages.UPDATE_CLONE_TIMEOUT_MSG, "ERROR")
         return False
     except Exception as e:
-        log(get_messages_instance().UPDATE_CLONE_EXCEPTION_MSG.format(error=e), "ERROR")
+        log(messages.UPDATE_CLONE_EXCEPTION_MSG.format(error=e), "ERROR")
         return False
 
 def find_python_files(source_dir):
@@ -161,16 +162,18 @@ def update_file_from_source(source_file, target_file):
         return False
 
 def move_backups_to_backup_dir():
+    messages = get_messages_instance(None)
     """Move all *.backup* files into _backup directory, keeping relative paths."""
     try:
         log("📦 Moving backups to _backup/...")
         cmd = "mkdir -p _backup && find . -path './_backup' -prune -o -type f -name \"*.backup*\" -print0 | sed -z 's#^\\./##' | rsync -a --relative --from0 --files-from=- --remove-source-files ./ _backup/"
         subprocess.run(["bash", "-lc", cmd], check=True)
-        log(get_messages_instance().UPDATE_BACKUPS_MOVED_MSG)
+        log(messages.UPDATE_BACKUPS_MOVED_MSG)
     except Exception as e:
         log(f"⚠️ Failed to move backups: {e}", "WARNING")
 
 def main():
+    messages = get_messages_instance(None)
     """Main update routine"""
     log("🚀 Starting update from GitHub repository")
     log(f"Repository: {REPO_URL}")
@@ -222,7 +225,7 @@ def main():
         # Ask for confirmation
         response = input("\n🤔 Proceed with update? (y/N): ").strip().lower()
         if response not in ['y', 'yes']:
-            log(get_messages_instance().UPDATE_CANCELED_BY_USER_MSG)
+            log(messages.UPDATE_CANCELED_BY_USER_MSG)
             return False
         
         # Update files

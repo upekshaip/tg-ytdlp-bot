@@ -97,7 +97,7 @@ def restore_backup(indices: Dict[str, BackupIndex], ts: str) -> Tuple[int, int]:
     """Restore all files for timestamp ts. Returns (restored, errors)."""
     bi = indices.get(ts)
     if not bi:
-        print(get_messages_instance().RESTORE_BACKUP_NOT_FOUND_MSG.format(ts=ts))
+        print(messages.RESTORE_BACKUP_NOT_FOUND_MSG.format(ts=ts))
         return (0, 1)
     restored = 0
     errors = 0
@@ -120,10 +120,10 @@ def restore_backup(indices: Dict[str, BackupIndex], ts: str) -> Tuple[int, int]:
             with open(src, 'rb') as fsrc, open(dest_path, 'wb') as fdst:
                 fdst.write(fsrc.read())
             restored += 1
-            print(get_messages_instance().RESTORE_SUCCESS_RESTORED_MSG.format(dest_path=dest_path))
+            print(messages.RESTORE_SUCCESS_RESTORED_MSG.format(dest_path=dest_path))
         except Exception as e:
             errors += 1
-            print(get_messages_instance().RESTORE_FAILED_RESTORE_MSG.format(src=src, dest_path=dest_path, e=e))
+            print(messages.RESTORE_FAILED_RESTORE_MSG.format(src=src, dest_path=dest_path, e=e))
     return (restored, errors)
 
 

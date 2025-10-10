@@ -19,6 +19,7 @@ except ImportError:
     from language_router import language_router, get_messages, set_user_language
 
 def lang_command_handler(update, context):
+    messages = get_messages_instance(user_id)
     """
     Handle /lang command - show language selection menu
     """
@@ -114,6 +115,7 @@ def lang_command(app, message):
     )
 
 def lang_callback_handler(update, context):
+    messages = get_messages_instance(user_id)
     """
     Handle language selection callback
     """

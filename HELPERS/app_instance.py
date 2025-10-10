@@ -15,11 +15,13 @@ def get_app():
     return app
 
 def get_app_lazy():
+    messages = get_messages_instance(None)
     """Get app instance with lazy loading - returns a proxy that will work when app is set"""
     class AppProxy:
         def __getattr__(self, name):
+            messages = get_messages_instance(None)
             if app is None:
-                raise RuntimeError(get_messages_instance().APP_INSTANCE_NOT_INITIALIZED_MSG.format(name=name))
+                raise RuntimeError(messages.APP_INSTANCE_NOT_INITIALIZED_MSG.format(name=name))
             return getattr(app, name)
     
     return AppProxy() 

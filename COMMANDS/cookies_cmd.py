@@ -540,7 +540,7 @@ def download_cookie(app, message):
     buttons = [
         [
             InlineKeyboardButton(
-                f"📺 YouTube (1-{max(1, len(get_youtube_cookie_urls()))})",
+                get_messages_instance(user_id).COOKIES_YOUTUBE_BUTTON_MSG.format(max=max(1, len(get_youtube_cookie_urls()))),
                 callback_data="download_cookie|youtube"
             ),
             InlineKeyboardButton(get_messages_instance(user_id).COOKIES_FROM_BROWSER_BUTTON_MSG, callback_data="download_cookie|from_browser"),            
@@ -563,17 +563,18 @@ def download_cookie(app, message):
         ],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
+    messages = get_messages_instance(user_id)
     text = f"""
-🍪 <b>Download Cookie Files</b>
+{messages.COOKIE_MENU_TITLE_MSG}
 
-Choose a service to download the cookie file.
-Cookie files will be saved as cookie.txt in your folder.
+{messages.COOKIE_MENU_DESCRIPTION_MSG}
+{messages.COOKIE_MENU_SAVE_INFO_MSG}
 
 <blockquote>
-Tip: You can also use direct command:
-• <code>/cookie youtube</code> – download and validate cookies
-• <code>/cookie youtube 1</code> – use a specific source by index (1–{len(get_youtube_cookie_urls())})
-Then verify with <code>/check_cookie</code> (tests on RickRoll).
+{messages.COOKIE_MENU_TIP_HEADER_MSG}
+{messages.COOKIE_MENU_TIP_YOUTUBE_MSG}
+{messages.COOKIE_MENU_TIP_YOUTUBE_INDEX_MSG.format(max_index=len(get_youtube_cookie_urls()))}
+{messages.COOKIE_MENU_TIP_VERIFY_MSG}
 </blockquote>
 """
     from HELPERS.safe_messeger import safe_send_message

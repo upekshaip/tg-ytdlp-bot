@@ -509,14 +509,30 @@ class LoggerMsg(object):
     
     # NSFW Command Log Messages
     NSFW_USER_REQUESTED_COMMAND_LOG_MSG = "[NSFW] User {user_id} requested nsfw command"
-    NSFW_USER_IS_ADMIN_LOG_MSG = "[NSFW] User {user_id} is admin: {int(user_id) in Config.ADMIN}"
-    NSFW_USER_IS_IN_CHANNEL_LOG_MSG = "[NSFW] User {user_id} is in channel: {is_user_in_channel(app, message)}"
+    NSFW_USER_IS_ADMIN_LOG_MSG = "[NSFW] User {user_id} is admin: {is_admin}"
+    NSFW_USER_IS_IN_CHANNEL_LOG_MSG = "[NSFW] User {user_id} is in channel: {is_in_channel}"
     
     # List Command Log Messages
     LIST_ERROR_IN_HELP_CALLBACK_LOG_MSG = "Error in list help callback: {e}"
     
     # Link Command Log Messages
     LINK_FAILED_COPY_GLOBAL_COOKIE_LOG_MSG = "Failed to copy global cookie file for user {user_id}: {e}"
+    
+    # Emoji Command Log Messages
+    EMOJI_CLEAN_TRIGGERED_LOG_MSG = "🧹 Emoji triggered - cleaning all files and folders for user {user_id}"
+    EMOJI_CLEAN_COMPLETED_LOG_MSG = "🧹 Emoji completed - all files and folders cleaned for user {user_id}"
+    EMOJI_STATS_TRIGGERED_LOG_MSG = "📃 Emoji triggered - showing usage stats for user {user_id}"
+    EMOJI_STATS_COMPLETED_LOG_MSG = "📃 Emoji completed - usage stats shown for user {user_id}"
+    EMOJI_UNKNOWN_COMMAND_LOG_MSG = "Unknown emoji command: {mapped}"
+    
+    # File Operations Log Messages
+    URL_EXTRACTOR_REMOVED_DIRECTORY_LOG_MSG = "Removed directory: {path}"
+    URL_EXTRACTOR_ERROR_SCANNING_DIRECTORY_LOG_MSG = "Error scanning directory {path}: {e}"
+    URL_EXTRACTOR_FAILED_CLEAR_YOUTUBE_CACHE_LOG_MSG = "Failed to clear YouTube cookie cache: {e}"
+    URL_EXTRACTOR_GALLERY_DL_FALLBACK_LOG_MSG = "Gallery-dl fallback executed: {fallback_text}"
+    URL_EXTRACTOR_LANGUAGE_CALLBACK_ERROR_LOG_MSG = "Language callback error: {e}"
+    URL_EXTRACTOR_AUDIO_HINT_CALLBACK_ERROR_LOG_MSG = "Audio hint callback error: {e}"
+    URL_EXTRACTOR_LINK_HINT_CALLBACK_ERROR_LOG_MSG = "Link hint callback error: {e}"
     LINK_USING_DOMAIN_SPECIFIC_PROXY_LOG_MSG = "Using domain-specific proxy for link extraction: {proxy_url}"
     LINK_FAILED_BUILD_PROXY_URL_LOG_MSG = "Failed to build proxy URL for domain-specific proxy"
     LINK_USER_PROXY_DISABLED_LOG_MSG = "User proxy disabled and domain doesn't require proxy - using direct connection for {url}"
@@ -533,4 +549,11 @@ class LoggerMsg(object):
     ARGS_SETTING_REFERER_LOG_MSG = "Setting Referer for all services: {value}"
     ARGS_USER_SELECTED_MERGE_OUTPUT_FORMAT_LOG_MSG = "User {user_id} selected merge_output_format={value}"
     ARGS_FINAL_YTDLP_OPTIONS_LOG_MSG = "User {user_id} - Final yt-dlp options for {operation}:\n{opts_str}"
+
+
+def get_logger_msg():
+    """
+    Get LoggerMsg instance
+    """
+    return LoggerMsg()
 

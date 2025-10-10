@@ -52,13 +52,14 @@ FIREBASE_PASSWORD = getattr(Config, 'FIREBASE_PASSWORD', None)
 OUTPUT_FILE = getattr(Config, 'FIREBASE_CACHE_FILE', 'firebase_cache.json')
 
 if not FIREBASE_CONFIG or not FIREBASE_USER or not FIREBASE_PASSWORD:
-    print(get_messages_instance().DB_NOT_ALL_PARAMETERS_SET_MSG)
+    print(messages.DB_NOT_ALL_PARAMETERS_SET_MSG)
     sys.exit(1)
 
 def download_firebase_dump():
+    messages = get_messages_instance(None)
     """Downloads the entire Firebase Realtime Database dump"""
     if requests is None or Session is None:
-        print(get_messages_instance().DB_DEPENDENCY_NOT_AVAILABLE_MSG)
+        print(messages.DB_DEPENDENCY_NOT_AVAILABLE_MSG)
         return False
 
     # Create session for connection pooling
@@ -79,18 +80,18 @@ def download_firebase_dump():
     session.mount('https://', adapter)
     
     try:
-        print(get_messages_instance().DB_STARTING_FIREBASE_DUMP_MSG.format(datetime=datetime.now()))
+        print(messages.DB_STARTING_FIREBASE_DUMP_MSG.format(datetime=datetime.now()))
 
         database_url = FIREBASE_CONFIG.get("databaseURL")
         if not database_url:
-            print(get_messages_instance().DB_DATABASE_URL_NOT_SET_MSG)
+            print(messages.DB_DATABASE_URL_NOT_SET_MSG)
             return False
 
         # For downloading dump we use REST API and custom token/ID token.
         # Preferably ID token via REST signInWithPassword.
         key = FIREBASE_CONFIG.get("apiKey")
         if not key:
-            print(get_messages_instance().DB_API_KEY_NOT_SET_MSG)
+            print(messages.DB_API_KEY_NOT_SET_MSG)
             return False
 
         auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={key}"
@@ -129,24 +130,25 @@ def download_firebase_dump():
                 else:
                     print(f"  - {key}: {type(data[key]).__name__}")
         else:
-            print(get_messages_instance().DB_DATABASE_EMPTY_MSG)
+            print(messages.DB_DATABASE_EMPTY_MSG)
 
         return True
 
     except Exception as e:
-        print(get_messages_instance().DB_ERROR_DOWNLOADING_DUMP_MSG.format(error=e))
+        print(messages.DB_ERROR_DOWNLOADING_DUMP_MSG.format(error=e))
         return False
     finally:
         # Always close the session
         session.close()
 
 def main():
+    messages = get_messages_instance(None)
     print("🚀 Firebase Database Dumper (config-driven)")
     print("=" * 40)
     
     # Check config
     if not FIREBASE_CONFIG or not FIREBASE_USER or not FIREBASE_PASSWORD:
-        print(get_messages_instance().DB_NOT_ALL_PARAMETERS_SET_MSG)
+        print(messages.DB_NOT_ALL_PARAMETERS_SET_MSG)
         return False
     
     # Download dump

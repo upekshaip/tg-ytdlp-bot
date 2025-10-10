@@ -6,7 +6,7 @@ from HELPERS.app_instance import get_app
 from HELPERS.decorators import reply_with_keyboard
 from HELPERS.limitter import is_user_in_channel, check_user
 from HELPERS.logger import send_to_all, send_to_logger, send_to_user
-from CONFIG.logger_msg import LoggerMsg
+from CONFIG.logger_msg import LoggerMsg, get_logger_msg
 from CONFIG.messages import Messages
 from HELPERS.caption import caption_editor
 from HELPERS.filesystem_hlp import remove_media
@@ -140,7 +140,7 @@ def url_distractor(app, message):
             import os
             import shutil
             
-            logger.info(f"🧹 Emoji triggered - cleaning all files and folders for user {user_id}")
+            logger.info(get_logger_msg().EMOJI_CLEAN_TRIGGERED_LOG_MSG.format(user_id=user_id))
             
             # EXACT SAME LOGIC as /clean without arguments
             user_dir = f'./users/{str(fake_msg.chat.id)}'
@@ -158,10 +158,10 @@ def url_distractor(app, message):
                 items = []
                 try:
                     if os.path.isfile(path):
-                        if os.path.basename(path) not in ["keyboard.txt", "tags.txt", "logs.txt"]:
+                        if os.path.basename(path) not in ["keyboard.txt", "tags.txt", "logs.txt", "lang.txt"]:
                             os.remove(path)
                             items.append(f"{prefix}📄 {os.path.basename(path)}")
-                            logger.info(f"Removed file: {path}")
+                            logger.info(get_logger_msg().URL_EXTRACTOR_REMOVED_FILE_LOG_MSG.format(file_path=path))
                     elif os.path.isdir(path):
                         # First, scan contents of the directory
                         dir_items = []
@@ -171,20 +171,20 @@ def url_distractor(app, message):
                                 sub_items = scan_and_remove_recursive_emoji(subitem_path, prefix + "  ")
                                 dir_items.extend(sub_items)
                         except Exception as e:
-                            logger.error(f"Error scanning directory {path}: {e}")
+                            logger.error(get_logger_msg().URL_EXTRACTOR_ERROR_SCANNING_DIRECTORY_LOG_MSG.format(path=path, e=e))
                         
                         # Then remove the directory itself
                         shutil.rmtree(path)
                         items.append(f"{prefix}📁 {os.path.basename(path)}/")
                         items.extend(dir_items)
-                        logger.info(f"Removed directory: {path}")
+                        logger.info(get_logger_msg().URL_EXTRACTOR_REMOVED_DIRECTORY_LOG_MSG.format(path=path))
                 except Exception as e:
-                    logger.error(f"Failed to remove {path}: {e}")
+                    logger.error(get_logger_msg().URL_EXTRACTOR_FAILED_REMOVE_FILE_LOG_MSG.format(file_path=path, e=e))
                 return items
             
             for item in allitems:
                 item_path = os.path.join(user_dir, item)
-                if item not in ["keyboard.txt", "tags.txt", "logs.txt"]:
+                if item not in ["keyboard.txt", "tags.txt", "logs.txt", "lang.txt"]:
                     sub_items = scan_and_remove_recursive_emoji(item_path)
                     removed_items.extend(sub_items)
 
@@ -192,7 +192,7 @@ def url_distractor(app, message):
             try:
                 clear_youtube_cookie_cache(fake_msg.chat.id)
             except Exception as e:
-                logger.error(f"Failed to clear YouTube cookie cache: {e}")
+                logger.error(get_logger_msg().URL_EXTRACTOR_FAILED_CLEAR_YOUTUBE_CACHE_LOG_MSG.format(e=e))
             
             if removed_items:
                 from HELPERS.text_helper import format_clean_output_as_html
@@ -203,7 +203,7 @@ def url_distractor(app, message):
                 send_to_all(fake_msg, get_messages_instance(user_id).URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG)
             
             clear_subs_check_cache()
-            logger.info(f"🧹 Emoji completed - all files and folders cleaned for user {user_id}")
+            logger.info(get_logger_msg().EMOJI_CLEAN_COMPLETED_LOG_MSG.format(user_id=user_id))
             return
         elif mapped == Config.DOWNLOAD_COOKIE_COMMAND:
             # For cookies command, we need to show the menu
@@ -262,9 +262,9 @@ def url_distractor(app, message):
             return list_command(app, fake_msg)
         elif mapped == Config.USAGE_COMMAND:
             from COMMANDS.admin_cmd import get_user_usage_stats
-            logger.info(f"📃 Emoji triggered - showing usage stats for user {user_id}")
+            logger.info(get_logger_msg().EMOJI_STATS_TRIGGERED_LOG_MSG.format(user_id=user_id))
             get_user_usage_stats(app, fake_msg)
-            logger.info(f"📃 Emoji completed - usage stats shown for user {user_id}")
+            logger.info(get_logger_msg().EMOJI_STATS_COMPLETED_LOG_MSG.format(user_id=user_id))
             return
         elif mapped == "/help":
             # Handle help command directly
@@ -290,7 +290,7 @@ def url_distractor(app, message):
             return
         else:
             # Unknown emoji command - do nothing
-            logger.warning(f"Unknown emoji command: {mapped}")
+            logger.warning(get_logger_msg().EMOJI_UNKNOWN_COMMAND_LOG_MSG.format(mapped=mapped))
             return
 
     # ----- Admin-only denial for non-admins -----
@@ -776,13 +776,13 @@ def url_distractor(app, message):
                                 sub_items = scan_and_remove_recursive_all(subitem_path, prefix + "  ")
                                 dir_items.extend(sub_items)
                         except Exception as e:
-                            logger.error(f"Error scanning directory {path}: {e}")
+                            logger.error(get_logger_msg().URL_EXTRACTOR_ERROR_SCANNING_DIRECTORY_LOG_MSG.format(path=path, e=e))
                         
                         # Then remove the directory itself
                         shutil.rmtree(path)
                         items.append(f"{prefix}📁 {os.path.basename(path)}/")
                         items.extend(dir_items)
-                        logger.info(f"Removed directory: {path}")
+                        logger.info(get_logger_msg().URL_EXTRACTOR_REMOVED_DIRECTORY_LOG_MSG.format(path=path))
                 except Exception as e:
                     logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_REMOVE_FILE_LOG_MSG.format(file_path=path, e=e))
                 return items
@@ -827,7 +827,7 @@ def url_distractor(app, message):
                 items = []
                 try:
                     if os.path.isfile(path):
-                        if os.path.basename(path) not in ["keyboard.txt", "tags.txt", "logs.txt"]:
+                        if os.path.basename(path) not in ["keyboard.txt", "tags.txt", "logs.txt", "lang.txt"]:
                             os.remove(path)
                             items.append(f"{prefix}📄 {os.path.basename(path)}")
                             logger.info(LoggerMsg.URL_EXTRACTOR_REMOVED_FILE_LOG_MSG.format(file_path=path))
@@ -840,20 +840,20 @@ def url_distractor(app, message):
                                 sub_items = scan_and_remove_recursive(subitem_path, prefix + "  ")
                                 dir_items.extend(sub_items)
                         except Exception as e:
-                            logger.error(f"Error scanning directory {path}: {e}")
+                            logger.error(get_logger_msg().URL_EXTRACTOR_ERROR_SCANNING_DIRECTORY_LOG_MSG.format(path=path, e=e))
                         
                         # Then remove the directory itself
                         shutil.rmtree(path)
                         items.append(f"{prefix}📁 {os.path.basename(path)}/")
                         items.extend(dir_items)
-                        logger.info(f"Removed directory: {path}")
+                        logger.info(get_logger_msg().URL_EXTRACTOR_REMOVED_DIRECTORY_LOG_MSG.format(path=path))
                 except Exception as e:
                     logger.error(LoggerMsg.URL_EXTRACTOR_FAILED_REMOVE_FILE_LOG_MSG.format(file_path=path, e=e))
                 return items
             
             for item in allitems:
                 item_path = os.path.join(user_dir, item)
-                if item not in ["keyboard.txt", "tags.txt", "logs.txt"]:
+                if item not in ["keyboard.txt", "tags.txt", "logs.txt", "lang.txt"]:
                     sub_items = scan_and_remove_recursive(item_path)
                     removed_items.extend(sub_items)
 
@@ -1014,7 +1014,7 @@ def url_distractor(app, message):
                         
                         # Execute gallery-dl command
                         image_command(app, fake_msg)
-                        logger.info(f"Gallery-dl fallback executed: {fallback_text}")
+                        logger.info(get_logger_msg().URL_EXTRACTOR_GALLERY_DL_FALLBACK_LOG_MSG.format(fallback_text=fallback_text))
                     else:
                         logger.error("No URL found for gallery-dl fallback")
                         
@@ -1247,7 +1247,7 @@ def lang_callback(app, callback_query):
             
     except Exception as e:
         # Log error and answer callback
-        send_to_logger(callback_query.message, f"Language callback error: {e}")
+        send_to_logger(callback_query.message, get_logger_msg().URL_EXTRACTOR_LANGUAGE_CALLBACK_ERROR_LOG_MSG.format(e=e))
         callback_query.answer(get_messages_instance(user_id).URL_EXTRACTOR_ERROR_OCCURRED_MSG, show_alert=True)
 
 ######################################################  

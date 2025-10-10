@@ -21,6 +21,7 @@ from pyrogram import enums
 app = get_app()
 
 def get_ffmpeg_path():
+    messages = get_messages_instance(None)
     """Get FFmpeg path - first try system PATH, then fallback to local binary"""
     import shutil
     
@@ -38,7 +39,7 @@ def get_ffmpeg_path():
             ffmpeg_path = os.path.join(project_root, "ffmpeg")
         
         if not os.path.exists(ffmpeg_path):
-            logger.error(get_messages_instance().FFMPEG_NOT_FOUND_MSG)
+            logger.error(messages.FFMPEG_NOT_FOUND_MSG)
             return None
     
     return ffmpeg_path
@@ -111,6 +112,7 @@ def test_path_handling():
     return True
 
 def get_ytdlp_path():
+    messages = get_messages_instance(None)
     """Get yt-dlp binary path - first try system PATH, then fallback to local binary.
     This is used only for functions that need the binary directly (like /cookies_from_browser)"""
     import shutil
@@ -129,12 +131,13 @@ def get_ytdlp_path():
             ytdlp_path = os.path.join(project_root, "yt-dlp")
         
         if not os.path.exists(ytdlp_path):
-            logger.error(get_messages_instance().YTDLP_NOT_FOUND_MSG)
+            logger.error(messages.YTDLP_NOT_FOUND_MSG)
             return None
     
     return ytdlp_path
 
 def split_video_2(dir, video_name, video_path, video_size, max_size, duration):
+    messages = get_messages_instance(None)
     """
     Split a video into multiple parts
 
@@ -156,7 +159,7 @@ def split_video_2(dir, video_name, video_path, video_size, max_size, duration):
 
     try:
         if rounds > 20:
-            logger.warning(get_messages_instance().FFMPEG_VIDEO_SPLIT_EXCESSIVE_MSG.format(rounds=rounds))
+            logger.warning(messages.FFMPEG_VIDEO_SPLIT_EXCESSIVE_MSG.format(rounds=rounds))
 
         for x in range(rounds):
             start_time = x * n
@@ -173,17 +176,17 @@ def split_video_2(dir, video_name, video_path, video_size, max_size, duration):
 
             try:
                 # Use progress logging
-                logger.info(get_messages_instance().FFMPEG_SPLITTING_VIDEO_PART_MSG.format(current=x+1, total=rounds, start_time=start_time, end_time=end_time))
+                logger.info(messages.FFMPEG_SPLITTING_VIDEO_PART_MSG.format(current=x+1, total=rounds, start_time=start_time, end_time=end_time))
                 ffmpeg_extract_subclip(video_path, start_time, end_time, targetname=target_name)
 
                 # Verify the split was successful
                 if not os.path.exists(target_name) or os.path.getsize(target_name) == 0:
-                    logger.error(get_messages_instance().FFMPEG_FAILED_CREATE_SPLIT_PART_MSG.format(part=x+1, target_name=target_name))
+                    logger.error(messages.FFMPEG_FAILED_CREATE_SPLIT_PART_MSG.format(part=x+1, target_name=target_name))
                 else:
-                    logger.info(get_messages_instance().FFMPEG_SUCCESSFULLY_CREATED_SPLIT_PART_MSG.format(part=x+1, target_name=target_name, size=os.path.getsize(target_name)))
+                    logger.info(messages.FFMPEG_SUCCESSFULLY_CREATED_SPLIT_PART_MSG.format(part=x+1, target_name=target_name, size=os.path.getsize(target_name)))
 
             except Exception as e:
-                logger.error(get_messages_instance().FFMPEG_ERROR_SPLITTING_VIDEO_PART_MSG.format(part=x+1, error=e))
+                logger.error(messages.FFMPEG_ERROR_SPLITTING_VIDEO_PART_MSG.format(part=x+1, error=e))
                 # If a part fails, we continue with the others
 
         split_vid_dict = {
@@ -191,11 +194,11 @@ def split_video_2(dir, video_name, video_path, video_size, max_size, duration):
             "path": path_lst
         }
 
-        logger.info(get_messages_instance().FFMPEG_VIDEO_SPLIT_SUCCESS_MSG.format(count=len(path_lst)))
+        logger.info(messages.FFMPEG_VIDEO_SPLIT_SUCCESS_MSG.format(count=len(path_lst)))
         return split_vid_dict
 
     except Exception as e:
-        logger.error(get_messages_instance().FFMPEG_ERROR_VIDEO_SPLITTING_PROCESS_MSG.format(error=e))
+        logger.error(messages.FFMPEG_ERROR_VIDEO_SPLITTING_PROCESS_MSG.format(error=e))
         # Return what we have so far
         split_vid_dict = {
             "video": caption_lst,
@@ -206,6 +209,7 @@ def split_video_2(dir, video_name, video_path, video_size, max_size, duration):
 
 
 def get_duration_thumb_(dir, video_path, thumb_name):
+    messages = get_messages_instance(None)
     # Generate a short unique name for the thumbnail
     thumb_hash = hashlib.md5(thumb_name.encode()).hexdigest()[:10]
     thumb_dir = os.path.abspath(os.path.join(dir, thumb_hash + ".jpg"))
@@ -215,7 +219,7 @@ def get_duration_thumb_(dir, video_path, thumb_name):
         orig_w = width if width > 0 else 1920
         orig_h = height if height > 0 else 1080
     except Exception as e:
-        logger.error(get_messages_instance().FFMPEG_FFPROBE_BYPASS_ERROR_MSG.format(video_path=video_path, error=e))
+        logger.error(messages.FFMPEG_FFPROBE_BYPASS_ERROR_MSG.format(video_path=video_path, error=e))
         import traceback
         logger.error(traceback.format_exc())
         duration = 0
@@ -248,7 +252,7 @@ def get_duration_thumb_(dir, video_path, thumb_name):
         # Get FFmpeg path using the common function
         ffmpeg_path = get_ffmpeg_path()
         if not ffmpeg_path:
-            logger.error(get_messages_instance().FFMPEG_NOT_FOUND_MSG)
+            logger.error(messages.FFMPEG_NOT_FOUND_MSG)
             create_default_thumbnail(thumb_dir, thumb_w, thumb_h)
             return duration, thumb_dir
         
@@ -263,13 +267,14 @@ def get_duration_thumb_(dir, video_path, thumb_name):
         ]
         subprocess.run(ffmpeg_command, check=True, capture_output=True, encoding='utf-8', errors='replace')
     except Exception as e:
-        logger.error(get_messages_instance().FFMPEG_ERROR_CREATING_THUMBNAIL_WITH_FFMPEG_MSG.format(error=e))
+        logger.error(messages.FFMPEG_ERROR_CREATING_THUMBNAIL_WITH_FFMPEG_MSG.format(error=e))
         # Create default thumbnail as fallback
         create_default_thumbnail(thumb_dir, thumb_w, thumb_h)
     
     return duration, thumb_dir
 
 def get_duration_thumb(message, dir_path, video_path, thumb_name):
+    messages = get_messages_instance(None)
     """
     Captures a thumbnail at 2 seconds into the video and retrieves video duration.
     Creates thumbnail with same aspect ratio as video (no black bars).
@@ -309,8 +314,8 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
     try:
         # First check if video file exists
         if not os.path.exists(video_path):
-            logger.error(get_messages_instance().FFMPEG_VIDEO_FILE_NOT_EXISTS_MSG.format(video_path=video_path))
-            send_to_all(message, get_messages_instance().VIDEO_FILE_NOT_FOUND_MSG.format(filename=os.path.basename(video_path)))
+            logger.error(messages.FFMPEG_VIDEO_FILE_NOT_EXISTS_MSG.format(video_path=video_path))
+            send_to_all(message, messages.VIDEO_FILE_NOT_FOUND_MSG.format(filename=os.path.basename(video_path)))
             return None
 
         # Get video dimensions
@@ -326,12 +331,12 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
                 orig_w = int(dims_match.group(1))
                 orig_h = int(dims_match.group(2))
             except Exception as e:
-                logger.error(get_messages_instance().FFMPEG_ERROR_PARSING_DIMENSIONS_MSG.format(size_result=size_result, error=e))
+                logger.error(messages.FFMPEG_ERROR_PARSING_DIMENSIONS_MSG.format(size_result=size_result, error=e))
                 orig_w, orig_h = 1920, 1080
         else:
             # Fallback to default horizontal orientation
             orig_w, orig_h = 1920, 1080
-            logger.warning(get_messages_instance().FFMPEG_COULD_NOT_DETERMINE_DIMENSIONS_MSG.format(size_result=size_result, width=orig_w, height=orig_h))
+            logger.warning(messages.FFMPEG_COULD_NOT_DETERMINE_DIMENSIONS_MSG.format(size_result=size_result, width=orig_w, height=orig_h))
         
         # Determine optimal thumbnail size based on video aspect ratio
         aspect_ratio = orig_w / orig_h
@@ -369,7 +374,7 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
         # Run ffmpeg command to create thumbnail
         ffmpeg_result = subprocess.run(ffmpeg_command, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
         if ffmpeg_result.returncode != 0:
-            logger.error(get_messages_instance().FFMPEG_ERROR_CREATING_THUMBNAIL_MSG.format(stderr=ffmpeg_result.stderr))
+            logger.error(messages.FFMPEG_ERROR_CREATING_THUMBNAIL_MSG.format(stderr=ffmpeg_result.stderr))
 
         # Run ffprobe command to get duration
         try:
@@ -388,23 +393,23 @@ def get_duration_thumb(message, dir_path, video_path, thumb_name):
             else:
                 raise ValueError("No numeric duration found in ffprobe output")
         except (ValueError, TypeError) as e:
-            logger.error(get_messages_instance().FFMPEG_ERROR_PARSING_DURATION_MSG.format(error=e, result=result))
+            logger.error(messages.FFMPEG_ERROR_PARSING_DURATION_MSG.format(error=e, result=result))
             duration = 0
 
         # Verify thumbnail was created
         if not os.path.exists(thumb_dir):
-            logger.warning(get_messages_instance().FFMPEG_THUMBNAIL_NOT_CREATED_MSG.format(thumb_dir=thumb_dir))
+            logger.warning(messages.FFMPEG_THUMBNAIL_NOT_CREATED_MSG.format(thumb_dir=thumb_dir))
             # Create a blank thumbnail as fallback
             create_default_thumbnail(thumb_dir, thumb_w, thumb_h)
 
         return duration, thumb_dir
     except subprocess.CalledProcessError as e:
-        logger.error(get_messages_instance().FFMPEG_COMMAND_EXECUTION_ERROR_MSG.format(error=e.stderr if hasattr(e, 'stderr') else e))
-        send_to_all(message, get_messages_instance().VIDEO_PROCESSING_ERROR_MSG.format(error=str(e)))
+        logger.error(messages.FFMPEG_COMMAND_EXECUTION_ERROR_MSG.format(error=e.stderr if hasattr(e, 'stderr') else e))
+        send_to_all(message, messages.VIDEO_PROCESSING_ERROR_MSG.format(error=str(e)))
         return None
     except Exception as e:
         logger.error(f"Unexpected error processing video: {e}")
-        send_to_all(message, get_messages_instance().VIDEO_PROCESSING_ERROR_MSG.format(error=str(e)))
+        send_to_all(message, messages.VIDEO_PROCESSING_ERROR_MSG.format(error=str(e)))
         return None
 
 def create_default_thumbnail(thumb_path, width=480, height=480):
@@ -544,6 +549,7 @@ def get_video_info_ffprobe(video_path):
 
 
 def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, message=None):
+    messages = get_messages_instance(user_id)
     """
     Burning (hardcode) subtitles in a video file, if there is any .SRT file and subs.txt
     tg_update_callback (Progress: Float, ETA: StR) - Function for updating the status in Telegram
@@ -698,6 +704,7 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
         
         # We get the duration of the video via FFPRobe
         def get_duration(path):
+            messages = get_messages_instance(user_id)
             try:
                 import json
                 result = subprocess.run([
@@ -829,7 +836,7 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
                     )
                     from HELPERS.logger import get_log_channel
                     safe_forward_messages(get_log_channel("video"), user_id, [sent_msg.id])
-                    send_to_logger(message, get_messages_instance().SUBS_SENT_MSG) 
+                    send_to_logger(message, messages.SUBS_SENT_MSG) 
             except Exception as e:
                 logger.error(f"Error sending srt file: {e}")
             try:

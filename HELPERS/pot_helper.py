@@ -72,12 +72,12 @@ def add_pot_to_ytdl_opts(ytdl_opts: dict, url: str) -> dict:
     """
     # Проверяем, включен ли PO token провайдер
     if not getattr(Config, 'YOUTUBE_POT_ENABLED', False):
-        logger.info(get_messages_instance().HELPER_POT_PROVIDER_DISABLED_MSG)
+        logger.info(messages.HELPER_POT_PROVIDER_DISABLED_MSG)
         return ytdl_opts
     
     # Проверяем, является ли URL YouTube доменом
     if not is_youtube_url(url):
-        logger.info(get_messages_instance().HELPER_POT_URL_NOT_YOUTUBE_MSG.format(url=url))
+        logger.info(messages.HELPER_POT_URL_NOT_YOUTUBE_MSG.format(url=url))
         return ytdl_opts
     
     # Получаем базовый URL провайдера
@@ -86,7 +86,7 @@ def add_pot_to_ytdl_opts(ytdl_opts: dict, url: str) -> dict:
     
     # Проверяем доступность PO token провайдера
     if not check_pot_provider_availability(base_url):
-        logger.warning(get_messages_instance().HELPER_POT_PROVIDER_NOT_AVAILABLE_MSG.format(base_url=base_url))
+        logger.warning(messages.HELPER_POT_PROVIDER_NOT_AVAILABLE_MSG.format(base_url=base_url))
         return ytdl_opts
 
     # Добавляем extractor_args к опциям yt-dlp
@@ -146,6 +146,7 @@ def get_pot_base_url() -> str:
     return getattr(Config, 'YOUTUBE_POT_BASE_URL', 'http://127.0.0.1:4416')
 
 def clear_pot_provider_cache():
+    messages = get_messages_instance(None)
     """
     Сбрасывает кэш проверки доступности PO token провайдера
     Полезно для принудительной повторной проверки после восстановления провайдера
@@ -153,7 +154,7 @@ def clear_pot_provider_cache():
     global _pot_provider_cache
     _pot_provider_cache['available'] = None
     _pot_provider_cache['last_check'] = 0
-    logger.info(get_messages_instance().HELPER_POT_PROVIDER_CACHE_CLEARED_MSG)
+    logger.info(messages.HELPER_POT_PROVIDER_CACHE_CLEARED_MSG)
 
 def is_pot_provider_available() -> bool:
     """
@@ -166,6 +167,7 @@ def is_pot_provider_available() -> bool:
     return check_pot_provider_availability(base_url)
 
 def create_pot_debug_hook():
+    messages = get_messages_instance(None)
     """
     Создает хук для yt-dlp, который перехватывает и логирует PO токены
     
@@ -173,6 +175,7 @@ def create_pot_debug_hook():
         function: Хук функция для yt-dlp
     """
     def pot_debug_hook(d):
+        messages = get_messages_instance(None)
         """
         Хук для перехватывания PO токенов в yt-dlp
         
@@ -208,7 +211,7 @@ def create_pot_debug_hook():
         
         elif d['status'] == 'finished':
             # Логируем успешное завершение с PO токенами
-            logger.info(get_messages_instance().HELPER_DOWNLOAD_FINISHED_PO_MSG)
+            logger.info(messages.HELPER_DOWNLOAD_FINISHED_PO_MSG)
             
     return pot_debug_hook
 
@@ -250,7 +253,7 @@ def build_cli_extractor_args(url: str) -> list[str]:
             pot_segment += ";disable_innertube=1"
 
         # Дополнительные extractor-args (через запятую между неймспейсами)
-        generic_args = get_messages_instance().HELPER_POT_GENERIC_ARGS_MSG
+        generic_args = messages.HELPER_POT_GENERIC_ARGS_MSG
         value = ",".join([pot_segment, generic_args])
         logger.info(f"🧱 CLI extractor-args built for POT: {value}")
         return ['--extractor-args', value]

@@ -27,23 +27,18 @@ class Messages(object):
     
     def __getattr__(self, name):
         """
-        Get message by name, with fallback to default English
+        Get message by name from user's selected language ONLY
         """
         if name.startswith('_'):
             return super().__getattribute__(name)
         
-        # Try to get from language-specific messages first
+        # STRICT: Only use language-specific messages, NO fallback to English
         if hasattr(self, '_messages') and self._messages:
             if name in self._messages:
                 return self._messages[name]
         
-        # Fallback to default English messages
-        try:
-            from CONFIG.LANGUAGES.messages_EN import Messages as DefaultMessages
-            default_instance = DefaultMessages()
-            return getattr(default_instance, name, f"[{name}]")
-        except:
-            return f"[{name}]"
+        # If message not found in selected language, return placeholder
+        return f"[{name}]"
     
     # All messages are now loaded dynamically from language-specific files
     # through the language router. No static variables needed here.

@@ -59,6 +59,7 @@ def parse_quality_argument(quality_arg):
         return "best"
 
 def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=False, use_proxy=False):
+    messages = get_messages_instance(user_id)
     """
     Gets direct link to video using yt-dlp
     
@@ -126,17 +127,17 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
             has_working_cookies = ensure_working_youtube_cookies(user_id)
             if has_working_cookies and os.path.exists(user_cookie_path):
                 ytdl_opts['cookiefile'] = user_cookie_path
-                logger.info(get_messages_instance().LINK_USING_WORKING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
+                logger.info(messages.LINK_USING_WORKING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
             else:
                 ytdl_opts['cookiefile'] = None
-                logger.info(get_messages_instance().LINK_NO_WORKING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
+                logger.info(messages.LINK_NO_WORKING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
         elif is_youtube_url(url) and cookies_already_checked:
             if os.path.exists(user_cookie_path):
                 ytdl_opts['cookiefile'] = user_cookie_path
-                logger.info(get_messages_instance().LINK_USING_EXISTING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
+                logger.info(messages.LINK_USING_EXISTING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
             else:
                 ytdl_opts['cookiefile'] = None
-                logger.info(get_messages_instance().LINK_NO_YOUTUBE_COOKIES_FOUND_MSG.format(user_id=user_id))
+                logger.info(messages.LINK_NO_YOUTUBE_COOKIES_FOUND_MSG.format(user_id=user_id))
         else:
             # For non-YouTube URL use existing logic
             if os.path.exists(user_cookie_path):
@@ -149,7 +150,7 @@ def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=Fals
                         import shutil
                         shutil.copy2(global_cookie_path, user_cookie_path)
                         ytdl_opts['cookiefile'] = user_cookie_path
-                        logger.info(get_messages_instance().LINK_COPIED_GLOBAL_COOKIE_FILE_MSG.format(user_id=user_id))
+                        logger.info(messages.LINK_COPIED_GLOBAL_COOKIE_FILE_MSG.format(user_id=user_id))
                     except Exception as e:
                         logger.error(f"{LoggerMsg.LINK_FAILED_COPY_GLOBAL_COOKIE_LOG_MSG}")
                         ytdl_opts['cookiefile'] = None
@@ -366,6 +367,7 @@ def link_command(app, message):
     """
     try:
         user_id = message.chat.id
+        messages = get_messages_instance(user_id)
         
         # Subscription check for non-admins
         if not is_user_in_channel(app, message):
@@ -386,9 +388,9 @@ def link_command(app, message):
             from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
             from HELPERS.safe_messeger import safe_send_message
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton(get_messages_instance().URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="link_hint|close")]
+                [InlineKeyboardButton(messages.URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="link_hint|close")]
             ])
-            safe_send_message(message.chat.id, get_messages_instance().LINK_USAGE_MSG, reply_markup=keyboard, message=message)
+            safe_send_message(message.chat.id, messages.LINK_USAGE_MSG, reply_markup=keyboard, message=message)
             return
         
         # Determine URL and quality
@@ -403,12 +405,12 @@ def link_command(app, message):
         
         # Check if this is a URL
         if not url.startswith(('http://', 'https://')):
-            send_to_user(message, get_messages_instance().LINK_INVALID_URL_MSG)
+            send_to_user(message, messages.LINK_INVALID_URL_MSG)
             return
         
         # Send processing start message
         from HELPERS.safe_messeger import safe_send_message
-        status_msg = safe_send_message(user_id, get_messages_instance().LINK_PROCESSING_MSG, reply_to_message_id=message.id, message=message)
+        status_msg = safe_send_message(user_id, messages.LINK_PROCESSING_MSG, reply_to_message_id=message.id, message=message)
         
         # Get direct link - use the same mechanisms as Always Ask Menu
         result = get_direct_link(url, user_id, quality_arg, cookies_already_checked=True, use_proxy=True)
@@ -422,19 +424,27 @@ def link_command(app, message):
             player_urls = result.get('player_urls', {})
             
             # Form response using same format as Always Ask Menu
-            response = get_messages_instance().STREAM_LINKS_TITLE_MSG
-            response += get_messages_instance().STREAM_TITLE_MSG.format(title=title)
+            response = messages.LINK_DIRECT_LINK_OBTAINED_MSG
+            response += messages.LINK_TITLE_MSG.format(title=title)
             if duration > 0:
-                response += f"{get_messages_instance().ALWAYS_ASK_DURATION_MSG} {duration} sec\n"
-            response += f"{get_messages_instance().ALWAYS_ASK_FORMAT_MSG} <code>{format_spec}</code>\n\n"
-            response += f"{get_messages_instance().ALWAYS_ASK_BROWSER_MSG}\n\n"
+                response += messages.LINK_DURATION_MSG.format(duration=duration)
+            response += messages.LINK_FORMAT_INFO_MSG.format(format_spec=format_spec)
+            
+            if video_url:
+                response += messages.LINK_VIDEO_STREAM_MSG.format(video_url=video_url)
+            
+            if audio_url:
+                response += messages.LINK_AUDIO_STREAM_MSG.format(audio_url=audio_url)
+            
+            if not video_url and not audio_url:
+                response += messages.LINK_FAILED_GET_STREAMS_MSG
             
             # Create browser keyboard with direct URL
             direct_url = player_urls.get('direct', video_url or audio_url)
             if direct_url:
                 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
                 browser_keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_BROWSER_BUTTON_MSG, url=direct_url)],
+                    [InlineKeyboardButton(messages.ALWAYS_ASK_BROWSER_BUTTON_MSG, url=direct_url)],
                     [InlineKeyboardButton("🔚 Close", callback_data="askq|close")]
                 ])
                 
@@ -459,12 +469,12 @@ def link_command(app, message):
             if 'vlc_ios' in player_urls:
                 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
                 vlc_ios_keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_VLC_IOS_BUTTON_MSG, url=player_urls['vlc_ios'])],
-                    [InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_CLOSE_BUTTON_MSG, callback_data="askq|close")]
+                    [InlineKeyboardButton(messages.ALWAYS_ASK_VLC_IOS_BUTTON_MSG, url=player_urls['vlc_ios'])],
+                    [InlineKeyboardButton(messages.ALWAYS_ASK_CLOSE_BUTTON_MSG, callback_data="askq|close")]
                 ])
                 app.send_message(
                     user_id,
-                    get_messages_instance().AA_VLC_IOS_MSG,
+                    messages.AA_VLC_IOS_MSG,
                     reply_parameters=ReplyParameters(message_id=message.id),
                     reply_markup=vlc_ios_keyboard,
                     parse_mode=enums.ParseMode.HTML
@@ -474,32 +484,32 @@ def link_command(app, message):
             if 'vlc_android' in player_urls:
                 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
                 vlc_android_keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_VLC_ANDROID_BUTTON_MSG, url=player_urls['vlc_android'])],
-                    [InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_CLOSE_BUTTON_MSG, callback_data="askq|close")]
+                    [InlineKeyboardButton(messages.ALWAYS_ASK_VLC_ANDROID_BUTTON_MSG, url=player_urls['vlc_android'])],
+                    [InlineKeyboardButton(messages.ALWAYS_ASK_CLOSE_BUTTON_MSG, callback_data="askq|close")]
                 ])
                 app.send_message(
                     user_id,
-                    get_messages_instance().AA_VLC_ANDROID_MSG,
+                    messages.AA_VLC_ANDROID_MSG,
                     reply_parameters=ReplyParameters(message_id=message.id),
                     reply_markup=vlc_android_keyboard,
                     parse_mode=enums.ParseMode.HTML
                 )
             
-            send_to_logger(message, get_messages_instance().LINK_EXTRACTED_LOG_MSG.format(user_id=user_id, url=url))
+            send_to_logger(message, messages.LINK_EXTRACTED_LOG_MSG.format(user_id=user_id, url=url))
             
         else:
             error_msg = result.get('error', 'Unknown error')
             app.edit_message_text(
                 chat_id=user_id,
                 message_id=status_msg.id,
-                text=get_messages_instance().LINK_ERROR_GETTING_MSG.format(error_msg=error_msg),
+                text=messages.LINK_ERROR_GETTING_MSG.format(error_msg=error_msg),
                 parse_mode=enums.ParseMode.HTML
             )
             
-            send_to_logger(message, get_messages_instance().LINK_EXTRACTION_FAILED_LOG_MSG.format(user_id=user_id, url=url, error=error_msg))
+            send_to_logger(message, messages.LINK_EXTRACTION_FAILED_LOG_MSG.format(user_id=user_id, url=url, error=error_msg))
             
     except Exception as e:
         logger.error(f"Error in link command: {e}")
         from HELPERS.logger import send_error_to_user
-        send_error_to_user(message, get_messages_instance().LINK_ERROR_OCCURRED_MSG.format(error=str(e)))
-        send_to_logger(message, get_messages_instance().LINK_COMMAND_ERROR_LOG_MSG.format(user_id=message.chat.id, error=str(e)))
+        send_error_to_user(message, messages.LINK_ERROR_OCCURRED_MSG.format(error=str(e)))
+        send_to_logger(message, messages.LINK_COMMAND_ERROR_LOG_MSG.format(user_id=message.chat.id, error=str(e)))
