@@ -154,16 +154,16 @@ def _prepare_user_cookies_and_proxy(url: str, user_id, use_proxy: bool, config: 
     user_gallery_dl_args = get_user_gallery_dl_args(user_id)
     if user_gallery_dl_args:
         # Deep merge user args into config
-        def deep_merge(target, source):
+        def deep_merge(target, source, user_id=None):
             messages = safe_get_messages(user_id)
             """Recursively merge source dict into target dict"""
             for key, value in source.items():
                 if key in target and isinstance(target[key], dict) and isinstance(value, dict):
-                    deep_merge(target[key], value)
+                    deep_merge(target[key], value, user_id)
                 else:
                     target[key] = value
         
-        deep_merge(config, user_gallery_dl_args)
+        deep_merge(config, user_gallery_dl_args, user_id)
 
     user_dir = os.path.join("users", str(user_id))
     user_cookie_path = os.path.join(user_dir, "cookie.txt")

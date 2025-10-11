@@ -912,7 +912,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 
                 # Try with proxy fallback if user proxy is enabled
                 def download_operation(opts):
-                    messages = safe_get_messages(message.chat.id)
+                    messages = safe_get_messages(user_id)
                     with yt_dlp.YoutubeDL(opts) as ydl:
                         if is_hls:
                             # For HLS audio, start cycle progress as fallback, but progress_hook will override it if percentages are available

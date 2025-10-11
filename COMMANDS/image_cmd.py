@@ -566,7 +566,7 @@ def create_album_caption_with_dates(media_group, url, tags_text_norm, profile_na
         
         # Sort dates chronologically
         def parse_date(date_str):
-            messages = safe_get_messages(None)
+            messages = safe_get_messages(user_id)
             try:
                 from datetime import datetime
                 return datetime.strptime(date_str, "%d.%m.%Y")

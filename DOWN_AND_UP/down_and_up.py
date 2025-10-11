@@ -1247,7 +1247,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 logger.info("Starting download phase...")
                 # Try with proxy fallback if user proxy is enabled
                 def download_operation(opts):
-                    messages = safe_get_messages(message.chat.id)
+                    messages = safe_get_messages(user_id)
                     with yt_dlp.YoutubeDL(opts) as ydl:
                         if is_hls:
                             # For HLS, start cycle progress as fallback, but progress_func will override it if percentages are available
@@ -1889,7 +1889,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     yt_id = video_id or None
                     if not yt_id:
                         try:
-                            yt_id = extract_youtube_id(url)
+                            yt_id = extract_youtube_id(url, user_id)
                         except Exception:
                             yt_id = None
                     if yt_id:
