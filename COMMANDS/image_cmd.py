@@ -1445,7 +1445,12 @@ def image_command(app, message):
         others_buffer = []  # store (converted_path, original_path)
         total_downloaded = 0
         total_sent = 0
+        # Initialize album_index based on existing cache
         album_index = 0  # index of posts we send (albums only)
+        if cached_map:
+            max_cached_album_index = max(cached_map.keys())
+            album_index = max_cached_album_index  # Start from the last cached album index
+            logger.info(f"[IMG CACHE] Starting album_index from cached max: {album_index}")
         # is_admin and total_limit already defined above
         # Using detected_total if present; else metadata-based fallback
         total_expected = locals().get('total_expected') or None
