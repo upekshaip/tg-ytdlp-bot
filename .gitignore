@@ -100,6 +100,8 @@ create_test_files.py
 REFACTORING_PROMPT.md
 MULTILANG_SYSTEM_REPORT.md
 bot_debug.log
+yt-dlp
+test_clean_files/
 
 # Configs with secrets (do not commit)
 CONFIG/config.py

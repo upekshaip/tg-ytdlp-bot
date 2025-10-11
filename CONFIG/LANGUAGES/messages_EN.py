@@ -1996,6 +1996,7 @@ Use:
     SUBS_VALID_OPTIONS_MSG = "Valid options:"
     
     # Settings Command Messages
+    SETTINGS_LANGUAGE_BUTTON_MSG = "🌍 LANGUAGE"
     SETTINGS_DEV_GITHUB_BUTTON_MSG = "🛠 Dev GitHub"
     SETTINGS_CONTR_GITHUB_BUTTON_MSG = "🛠 Contr GitHub"
     SETTINGS_CLEAN_BUTTON_MSG = "🧹 CLEAN"

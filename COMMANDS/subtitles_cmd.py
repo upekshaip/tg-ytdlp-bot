@@ -1501,9 +1501,9 @@ def get_language_keyboard(page=0, user_id=None, langs_override=None, per_page_ro
 
     # Navigation
     nav_row = []
-    if page and page > 0:
+    if page > 0:
         nav_row.append(InlineKeyboardButton(safe_get_messages(user_id).SUBS_PREV_BUTTON_MSG, callback_data=f"subs_page|{page-1}"))
-    if page and page < total_pages - 1:
+    if page < total_pages - 1:
         nav_row.append(InlineKeyboardButton(safe_get_messages(user_id).SUBTITLES_NEXT_BUTTON_MSG, callback_data=f"subs_page|{page+1}"))
     if nav_row:
         keyboard.append(nav_row)
@@ -1580,9 +1580,9 @@ def get_language_keyboard_always_ask(page=0, user_id=None, langs_override=None, 
 
     # Navigation
     nav_row = []
-    if page and page > 0:
+    if page > 0:
         nav_row.append(InlineKeyboardButton(safe_get_messages(user_id).SUBS_PREV_BUTTON_MSG, callback_data=f"askf|subs_page|{page-1}"))
-    if page and page < total_pages - 1:
+    if page < total_pages - 1:
         nav_row.append(InlineKeyboardButton(safe_get_messages(user_id).SUBTITLES_NEXT_BUTTON_MSG, callback_data=f"askf|subs_page|{page+1}"))
     if nav_row:
         keyboard.append(nav_row)

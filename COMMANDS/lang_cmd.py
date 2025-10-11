@@ -20,10 +20,61 @@ except ImportError:
 
 def lang_command_handler(update, context):
     """
-    Handle /lang command - show language selection menu
+    Handle /lang command - show language selection menu or quick language switch
     """
     user_id = update.effective_user.id
     
+    # Parse command arguments
+    args = context.args
+    
+    # Check if language argument is provided
+    if args and len(args) >= 1:
+        lang_arg = args[0].lower()
+        
+        # Supported language codes
+        supported_langs = {
+            'en': 'English',
+            'ru': 'Русский', 
+            'ar': 'العربية',
+            'in': 'हिन्दी'
+        }
+        
+        if lang_arg in supported_langs:
+            # Quick language switch
+            success = set_user_language(user_id, lang_arg)
+            
+            if success:
+                # Get messages in new language
+                new_messages = get_messages(language_code=lang_arg)
+                lang_name = supported_langs[lang_arg]
+                
+                # Send confirmation message
+                confirmation_msg = getattr(new_messages, 'LANG_CHANGED_MSG', 
+                    f"✅ Language changed to {lang_name}"
+                )
+                
+                update.message.reply_text(
+                    confirmation_msg,
+                    parse_mode='HTML'
+                )
+            else:
+                # Get current messages for error
+                messages = get_messages(user_id)
+                error_msg = getattr(messages, 'LANG_ERROR_MSG', 
+                    "❌ Error changing language"
+                )
+                update.message.reply_text(error_msg)
+            return
+        else:
+            # Invalid language code
+            messages = get_messages(user_id)
+            error_msg = getattr(messages, 'LANG_INVALID_ARGUMENT_MSG', 
+                "❌ Invalid language code. Supported: en, ru, ar, in"
+            )
+            update.message.reply_text(error_msg)
+            return
+    
+    # No arguments - show language selection menu
     # Get messages in current user's language
     messages = get_messages(user_id)
     
@@ -71,7 +122,7 @@ def lang_command_handler(update, context):
 
 def lang_command(app, message):
     """
-    Handle /lang command for pyrogram - show language selection menu
+    Handle /lang command for pyrogram - show language selection menu or quick language switch
     """
     from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     from HELPERS.safe_messeger import safe_send_message
@@ -80,6 +131,59 @@ def lang_command(app, message):
     
     user_id = message.chat.id
     
+    # Parse command arguments
+    parts = (message.text or "").split()
+    
+    # Check if language argument is provided
+    if len(parts) >= 2:
+        lang_arg = parts[1].lower()
+        
+        # Supported language codes
+        supported_langs = {
+            'en': 'English',
+            'ru': 'Русский', 
+            'ar': 'العربية',
+            'in': 'हिन्दी'
+        }
+        
+        if lang_arg in supported_langs:
+            # Quick language switch
+            success = set_user_language(user_id, lang_arg)
+            
+            if success:
+                # Get messages in new language
+                new_messages = safe_get_messages(user_id)
+                lang_name = supported_langs[lang_arg]
+                
+                # Send confirmation message
+                confirmation_msg = getattr(new_messages, 'LANG_CHANGED_MSG', 
+                    f"✅ Language changed to {lang_name}"
+                )
+                
+                safe_send_message(
+                    user_id,
+                    confirmation_msg,
+                    parse_mode=enums.ParseMode.HTML,
+                    message=message
+                )
+            else:
+                # Get current messages for error
+                messages = safe_get_messages(user_id)
+                error_msg = getattr(messages, 'LANG_ERROR_MSG', 
+                    "❌ Error changing language"
+                )
+                safe_send_message(user_id, error_msg, message=message)
+            return
+        else:
+            # Invalid language code
+            messages = safe_get_messages(user_id)
+            error_msg = getattr(messages, 'LANG_INVALID_ARGUMENT_MSG', 
+                "❌ Invalid language code. Supported: en, ru, ar, in"
+            )
+            safe_send_message(user_id, error_msg, message=message)
+            return
+    
+    # No arguments - show language selection menu
     # Get messages in current user's language
     messages = safe_get_messages(user_id)
     

@@ -1996,6 +1996,7 @@ class Messages(object):
     SUBS_VALID_OPTIONS_MSG = "Допустимые опции:"
     
     # Settings Command Messages
+    SETTINGS_LANGUAGE_BUTTON_MSG = "🌍 ЯЗЫК"
     SETTINGS_DEV_GITHUB_BUTTON_MSG = "🛠 GitHub автора"
     SETTINGS_CONTR_GITHUB_BUTTON_MSG = "🛠 GitHub разработчика"
     SETTINGS_CLEAN_BUTTON_MSG = "🧹 ОЧИСТКА"
