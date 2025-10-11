@@ -566,7 +566,7 @@ def create_album_caption_with_dates(media_group, url, tags_text_norm, profile_na
         
         # Sort dates chronologically
         def parse_date(date_str):
-            messages = safe_get_messages(None)
+            messages = safe_get_messages(user_id)
             try:
                 from datetime import datetime
                 return datetime.strptime(date_str, "%d.%m.%Y")
@@ -774,6 +774,9 @@ def image_command(app, message):
     chat_id = message.chat.id
     text = message.text.strip()
     
+    # Initialize image_info to avoid undefined variable errors
+    image_info = None
+    
     # Log the command execution
     logger.info(f"image_command called for user {user_id} in chat {chat_id} with text: {text}")
     # Get message_thread_id (handles fake messages)
@@ -970,6 +973,9 @@ def image_command(app, message):
                 else:
                     cached_all = sorted(list(get_cached_image_post_indices(url)))
                     requested_indices = [i for i in cached_all if i >= int(start_i)]
+            else:
+                # No manual range specified, get all cached indices
+                requested_indices = None
             cached_map = get_cached_image_posts(url, requested_indices)
         except Exception as e:
             logger.error(LoggerMsg.IMG_ERROR_GET_CACHED_POSTS_LOG_MSG.format(e=e))
@@ -1007,7 +1013,12 @@ def image_command(app, message):
                 start_i, end_i = manual_range
                 if end_i is not None:
                     requested_count = end_i - start_i + 1
-                    if cached_sent >= requested_count:
+                    # Check if we have all requested indices in cache
+                    cached_indices = set(cached_map.keys())
+                    requested_indices = set(range(int(start_i), int(end_i) + 1))
+                    missing_indices = requested_indices - cached_indices
+                    
+                    if not missing_indices:
                         # We have all requested content in cache
                         need_download = False
                         try:
@@ -1022,14 +1033,18 @@ def image_command(app, message):
                         return
                     else:
                         # We have partial content, need to download the rest
-                        logger.info(f"Cache has {cached_sent} items, need {requested_count}, downloading remaining {requested_count - cached_sent}")
-                        # Update manual_range to start from where cache ends
-                        remaining_start = start_i + cached_sent
-                        manual_range = (remaining_start, end_i)
+                        cached_count = len(cached_indices)
+                        missing_count = len(missing_indices)
+                        logger.info(f"Cache has {cached_count} indices {sorted(cached_indices)}, missing {missing_count} indices {sorted(missing_indices)}, downloading remaining {missing_count} items")
+                        # Update manual_range to start from the first missing index
+                        first_missing = min(missing_indices)
+                        last_missing = max(missing_indices)
+                        manual_range = (first_missing, last_missing)
+                        logger.info(f"Continuing download from index {first_missing} to {last_missing} (cached: {cached_count}/{requested_count}, missing: {sorted(missing_indices)})")
                         try:
                             safe_edit_message_text(
                                 user_id, status_msg.id,
-                                f"✅ Sent from cache: {cached_sent}\n🔄 Downloading remaining...",
+                                safe_get_messages(user_id).CACHE_CONTINUING_DOWNLOAD_MSG.format(cached=cached_sent),
                                 parse_mode=enums.ParseMode.HTML,
                             )
                         except Exception:
@@ -1039,17 +1054,53 @@ def image_command(app, message):
                     try:
                         safe_edit_message_text(
                             user_id, status_msg.id,
-                            f"✅ Sent from cache: {cached_sent}\n🔄 Downloading more...",
+                            safe_get_messages(user_id).CACHE_CONTINUING_DOWNLOAD_MSG.format(cached=cached_sent),
                             parse_mode=enums.ParseMode.HTML,
                         )
                     except Exception:
                         pass
             else:
                 # No manual range, we have some cached content, continue downloading
+                # Set manual range to continue from the last cached index
+                if cached_map:
+                    cached_indices = sorted(cached_map.keys())
+                    max_cached_index = max(cached_indices)
+                    cached_count = len(cached_indices)
+                    
+                    # Count total cached images (not just album indices)
+                    total_cached_images = sum(len(ids) for ids in cached_map.values())
+                    
+                    logger.info(f"Cache contains {cached_count} album indices: {cached_indices} with {total_cached_images} total images")
+                    
+                    # Try to determine the total count to set proper end index
+                    total_count = None
+                    if image_info and isinstance(image_info, dict):
+                        for key in ("count", "total", "num", "items", "files", "num_images", "images_count"):
+                            if key in image_info and image_info[key]:
+                                total_count = int(image_info[key])
+                                break
+                    
+                    if total_count and total_count > total_cached_images:
+                        # We know the total count, set proper end index based on image count
+                        start_from = total_cached_images + 1
+                        manual_range = (start_from, total_count)
+                        logger.info(f"No manual range specified, continuing from image {start_from} to {total_count} (cached: {total_cached_images}/{total_count} images)")
+                    else:
+                        # Fallback: try to get total count from detected_total_value
+                        detected_total_value = locals().get('detected_total', None)
+                        if detected_total_value and detected_total_value > total_cached_images:
+                            start_from = total_cached_images + 1
+                            manual_range = (start_from, detected_total_value)
+                            logger.info(f"No manual range specified, using detected total {detected_total_value}, continuing from image {start_from} to {detected_total_value} (cached: {total_cached_images}/{detected_total_value} images)")
+                        else:
+                            # Last resort: continue from next image to end
+                            start_from = total_cached_images + 1
+                            manual_range = (start_from, None)
+                            logger.info(f"No manual range specified, continuing from image {start_from} to end (cached: {total_cached_images} images)")
                 try:
                     safe_edit_message_text(
                         user_id, status_msg.id,
-                        f"✅ Sent from cache: {cached_sent}\n🔄 Downloading more...",
+                        safe_get_messages(user_id).CACHE_CONTINUING_DOWNLOAD_MSG.format(cached=cached_sent),
                         parse_mode=enums.ParseMode.HTML,
                     )
                 except Exception:
@@ -1108,13 +1159,16 @@ def image_command(app, message):
                     # Update status message to show we're proceeding with fallback
                     safe_edit_message_text(
                         user_id, status_msg.id,
-                        f"🔄 Could not analyze media, proceeding with maximum allowed range (1-{fallback_limit})...",
+                        safe_get_messages(user_id).FALLBACK_ANALYZE_MEDIA_MSG.format(fallback_limit=fallback_limit),
                         parse_mode=enums.ParseMode.HTML
                     )
                     
-                    # Set manual range to max allowed range for fallback
-                    manual_range = (1, fallback_limit)
-                    logger.info(f"[IMG FALLBACK] Using manual range for fallback: {manual_range}")
+                    # Set manual range to max allowed range for fallback only if not already set
+                    if manual_range is None:
+                        manual_range = (1, fallback_limit)
+                        logger.info(f"[IMG FALLBACK] Using manual range for fallback: {manual_range}")
+                    else:
+                        logger.info(f"[IMG FALLBACK] Manual range already set from cache: {manual_range}")
                     
                     # Create minimal image_info for fallback
                     image_info = {
@@ -1224,13 +1278,16 @@ def image_command(app, message):
                 # Update status message to show we're proceeding with fallback
                 safe_edit_message_text(
                     user_id, status_msg.id,
-                    f"🔄 Could not determine media count, proceeding with maximum allowed range (1-{total_limit})...",
+                    safe_get_messages(user_id).FALLBACK_DETERMINE_COUNT_MSG.format(total_limit=total_limit),
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                # Set manual range to max allowed range for fallback
-                manual_range = (1, total_limit)
-                logger.info(f"[IMG FALLBACK] Using manual range for fallback: {manual_range}")
+                # Set manual range to max allowed range for fallback only if not already set
+                if manual_range is None:
+                    manual_range = (1, total_limit)
+                    logger.info(f"[IMG FALLBACK] Using manual range for fallback: {manual_range}")
+                else:
+                    logger.info(f"[IMG FALLBACK] Manual range already set from cache: {manual_range}")
             
             # Create range selection menu only if we have a valid count
             if total_count and total_count > 0:
@@ -1290,9 +1347,12 @@ def image_command(app, message):
             except Exception:
                 pass
             
-            # Set manual range to max allowed range for fallback
-            manual_range = (1, fallback_limit)
-            logger.info(f"[IMG FALLBACK DOMAIN] Using manual range for fallback: {manual_range}")
+            # Set manual range to max allowed range for fallback only if not already set
+            if manual_range is None:
+                manual_range = (1, fallback_limit)
+                logger.info(f"[IMG FALLBACK DOMAIN] Using manual range for fallback: {manual_range}")
+            else:
+                logger.info(f"[IMG FALLBACK DOMAIN] Manual range already set from cache: {manual_range}")
             
             # Create minimal image_info for fallback
             image_info = {
@@ -1385,7 +1445,12 @@ def image_command(app, message):
         others_buffer = []  # store (converted_path, original_path)
         total_downloaded = 0
         total_sent = 0
+        # Initialize album_index based on existing cache
         album_index = 0  # index of posts we send (albums only)
+        if cached_map:
+            max_cached_album_index = max(cached_map.keys())
+            album_index = max_cached_album_index  # Start from the last cached album index
+            logger.info(f"[IMG CACHE] Starting album_index from cached max: {album_index}")
         # is_admin and total_limit already defined above
         # Using detected_total if present; else metadata-based fallback
         total_expected = locals().get('total_expected') or None
@@ -1445,7 +1510,10 @@ def image_command(app, message):
             try:
                 safe_edit_message_text(
                     user_id, status_msg.id,
-                    f"🔄 Could not determine total media count, proceeding with specified range {manual_range[0]}-{manual_range[1] if manual_range[1] else 'end'}...",
+                    safe_get_messages(user_id).FALLBACK_SPECIFIED_RANGE_MSG.format(
+                        start=manual_range[0], 
+                        end=manual_range[1] if manual_range[1] else 'end'
+                    ),
                     parse_mode=enums.ParseMode.HTML
                 )
             except Exception as e:

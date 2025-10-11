@@ -70,6 +70,27 @@ def fake_message(text, user_id, command=None, original_chat_id=None, message_thr
             pass
     return m
 
+def fake_message_with_context(text, user_id, context_message=None, command=None):
+    """
+    Создает fake_message с автоматическим извлечением message_thread_id из контекста.
+    
+    Args:
+        text: Текст сообщения
+        user_id: ID пользователя
+        context_message: Сообщение для извлечения контекста (message_thread_id, chat_id)
+        command: Команда (опционально)
+    
+    Returns:
+        fake_message с правильным message_thread_id
+    """
+    if context_message:
+        original_chat_id = getattr(context_message, 'chat', {}).id if hasattr(context_message, 'chat') else user_id
+        message_thread_id = getattr(context_message, 'message_thread_id', None)
+        return fake_message(text, user_id, command=command, original_chat_id=original_chat_id, 
+                          message_thread_id=message_thread_id, original_message=context_message)
+    else:
+        return fake_message(text, user_id, command=command)
+
 # Helper function for safe message sending with flood wait handling
 def safe_send_message(chat_id, text, **kwargs):
     messages = safe_get_messages(None)

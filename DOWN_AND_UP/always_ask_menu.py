@@ -2684,7 +2684,7 @@ def show_other_qualities_menu(app, callback_query, page=0):
     
     # Local safe wrapper to avoid noisy QueryIdInvalid when answering twice/late
     def _safe_answer(text, show_alert=False):
-        messages = safe_get_messages(callback_query.from_user.id)
+        messages = safe_get_messages(user_id)
         try:
             callback_query.answer(text, show_alert=show_alert)
         except Exception as e:
@@ -4306,7 +4306,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                     curr_manifest = is_manifest(candidate)
 
                     def better(a_has_dims, a_has_size, a_manifest, a_size, b_has_dims, b_has_size, b_manifest, b_size):
-                        messages = safe_get_messages(message.chat.id)
+                        messages = safe_get_messages(user_id)
                         # 1) prefer with dimensions
                         if a_has_dims != b_has_dims:
                             return a_has_dims

@@ -42,7 +42,7 @@ def keyboard_command(app, message):
                 )
             
             # Apply visual keyboard immediately
-            apply_keyboard_setting(app, message.chat.id, arg.upper())
+            apply_keyboard_setting(app, message.chat.id, arg.upper(), user_id=user_id)
             
             # Log the action
             send_to_logger(message, safe_get_messages(user_id).KEYBOARD_SET_LOG_MSG.format(user_id=user_id, setting=arg.upper()))
@@ -215,8 +215,8 @@ safe_get_messages(user_id).KEYBOARD_EMOJI_ACTIVATED_MSG,
         from HELPERS.logger import logger
         logger.error(f"Error processing keyboard setting: {e}")
 
-def apply_keyboard_setting(app, chat_id, setting, message_id=None):
-    messages = safe_get_messages(None)
+def apply_keyboard_setting(app, chat_id, setting, message_id=None, user_id=None):
+    messages = safe_get_messages(user_id)
     """Apply keyboard setting immediately"""
     try:
         if setting == "OFF":

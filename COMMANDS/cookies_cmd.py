@@ -331,7 +331,7 @@ def download_cookie_callback(app, callback_query):
             callback_query.message.id, 
             safe_get_messages(user_id).COOKIES_YOUTUBE_TEST_START_MSG
         )
-        download_and_validate_youtube_cookies(app, callback_query)
+        download_and_validate_youtube_cookies(app, callback_query, user_id=user_id)
     elif data == "instagram":
         download_and_save_cookie(app, callback_query, Config.INSTAGRAM_COOKIE_URL, "instagram")
     elif data == "twitter":
@@ -522,7 +522,7 @@ def download_cookie(app, message):
                     except Exception:
                         selected_index = None
                 # Download and validate new cookies (optionally a specific source)
-                download_and_validate_youtube_cookies(app, message, selected_index=selected_index)
+                download_and_validate_youtube_cookies(app, message, selected_index=selected_index, user_id=user_id)
                 return
             elif service in ["instagram", "twitter", "tiktok", "facebook", "own", "from_browser", "vk"]:
                 # Fast command - directly call the callback
@@ -945,7 +945,7 @@ def get_youtube_cookie_urls() -> list:
     
     return urls
 
-def download_and_validate_youtube_cookies(app, message, selected_index: int | None = None) -> bool:
+def download_and_validate_youtube_cookies(app, message, selected_index: int | None = None, user_id: int = None) -> bool:
     """
     Скачивает и проверяет YouTube куки из всех доступных источников.
     
@@ -1040,7 +1040,7 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
     
     # Helper function to update the message (avoid MESSAGE_NOT_MODIFIED)
     _last_update_text = { 'text': None }
-    def update_message(new_text):
+    def update_message(new_text, user_id_param=None):
         try:
             if new_text == _last_update_text['text']:
                 return
@@ -1050,7 +1050,7 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
                 elif hasattr(message, 'from_user') and hasattr(message.from_user, 'id'):
                     app.edit_message_text(message.from_user.id, initial_msg.id, new_text, parse_mode=enums.ParseMode.HTML)
                 else:
-                    app.edit_message_text(user_id, initial_msg.id, new_text, parse_mode=enums.ParseMode.HTML)
+                    app.edit_message_text(user_id_param or user_id, initial_msg.id, new_text, parse_mode=enums.ParseMode.HTML)
                 _last_update_text['text'] = new_text
         except Exception as e:
             if "MESSAGE_NOT_MODIFIED" in str(e):
@@ -1065,7 +1065,7 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
         if 1 <= selected_index <= len(cookie_urls):
             indices = [selected_index - 1]
         else:
-            update_message(safe_get_messages(user_id).COOKIES_INVALID_YOUTUBE_INDEX_MSG.format(selected_index=selected_index, total_urls=len(cookie_urls)))
+            update_message(safe_get_messages(user_id).COOKIES_INVALID_YOUTUBE_INDEX_MSG.format(selected_index=selected_index, total_urls=len(cookie_urls)), user_id)
             return False
     else:
         order = getattr(Config, 'YOUTUBE_COOKIE_ORDER', 'round_robin')
@@ -1088,7 +1088,7 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
         url = cookie_urls[idx]
         try:
             # Update message about the current attempt
-            update_message(safe_get_messages(user_id).COOKIES_DOWNLOADING_CHECKING_MSG.format(attempt=attempt_number, total=len(indices)))
+            update_message(safe_get_messages(user_id).COOKIES_DOWNLOADING_CHECKING_MSG.format(attempt=attempt_number, total=len(indices)), user_id)
             
             # Download cookies
             ok, status, content, err = _download_content(url, timeout=30)
@@ -1111,11 +1111,11 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
                 cf.write(content)
             
             # Update message about testing
-            update_message(safe_get_messages(user_id).COOKIES_DOWNLOADING_TESTING_MSG.format(attempt=attempt_number, total=len(indices)))
+            update_message(safe_get_messages(user_id).COOKIES_DOWNLOADING_TESTING_MSG.format(attempt=attempt_number, total=len(indices)), user_id)
             
             # Check the functionality of cookies
             if test_youtube_cookies(cookie_file_path):
-                update_message(safe_get_messages(user_id).COOKIES_SUCCESS_VALIDATED_MSG.format(source=idx + 1, total=len(cookie_urls)))
+                update_message(safe_get_messages(user_id).COOKIES_SUCCESS_VALIDATED_MSG.format(source=idx + 1, total=len(cookie_urls)), user_id)
                 # Safe logging
                 try:
                     if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
@@ -1139,7 +1139,7 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
             continue
     
     # If no source worked
-    update_message(safe_get_messages(user_id).COOKIES_ALL_EXPIRED_MSG)
+    update_message(safe_get_messages(user_id).COOKIES_ALL_EXPIRED_MSG, user_id)
     # Safe logging
     try:
         if hasattr(message, 'chat') and hasattr(message.chat, 'id'):

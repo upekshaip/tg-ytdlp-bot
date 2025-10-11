@@ -52,7 +52,7 @@ def is_youtube_url(url: str) -> bool:
     return 'youtube.com' in parsed.netloc or 'youtu.be' in parsed.netloc
 
 
-def extract_youtube_id(url: str) -> str:
+def extract_youtube_id(url: str, user_id=None) -> str:
     """
     It extracts YouTube Video ID from different link formats.
     """
