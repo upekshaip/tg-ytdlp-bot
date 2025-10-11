@@ -1056,8 +1056,22 @@ def image_command(app, message):
                 # Set manual range to continue from the last cached index
                 if cached_map:
                     max_cached_index = max(cached_map.keys())
-                    manual_range = (max_cached_index + 1, None)  # Continue from next index to end
-                    logger.info(f"No manual range specified, continuing from cached index {max_cached_index + 1}")
+                    # Try to determine the total count to set proper end index
+                    total_count = None
+                    if image_info:
+                        for key in ("count", "total", "num", "items", "files", "num_images", "images_count"):
+                            if key in image_info and image_info[key]:
+                                total_count = int(image_info[key])
+                                break
+                    
+                    if total_count and total_count > max_cached_index:
+                        # We know the total count, set proper end index
+                        manual_range = (max_cached_index + 1, total_count)
+                        logger.info(f"No manual range specified, continuing from cached index {max_cached_index + 1} to {total_count}")
+                    else:
+                        # Fallback: continue from next index to end
+                        manual_range = (max_cached_index + 1, None)
+                        logger.info(f"No manual range specified, continuing from cached index {max_cached_index + 1} to end")
                 try:
                     safe_edit_message_text(
                         user_id, status_msg.id,
@@ -1124,9 +1138,12 @@ def image_command(app, message):
                         parse_mode=enums.ParseMode.HTML
                     )
                     
-                    # Set manual range to max allowed range for fallback
-                    manual_range = (1, fallback_limit)
-                    logger.info(f"[IMG FALLBACK] Using manual range for fallback: {manual_range}")
+                    # Set manual range to max allowed range for fallback only if not already set
+                    if manual_range is None:
+                        manual_range = (1, fallback_limit)
+                        logger.info(f"[IMG FALLBACK] Using manual range for fallback: {manual_range}")
+                    else:
+                        logger.info(f"[IMG FALLBACK] Manual range already set from cache: {manual_range}")
                     
                     # Create minimal image_info for fallback
                     image_info = {
@@ -1240,9 +1257,12 @@ def image_command(app, message):
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                # Set manual range to max allowed range for fallback
-                manual_range = (1, total_limit)
-                logger.info(f"[IMG FALLBACK] Using manual range for fallback: {manual_range}")
+                # Set manual range to max allowed range for fallback only if not already set
+                if manual_range is None:
+                    manual_range = (1, total_limit)
+                    logger.info(f"[IMG FALLBACK] Using manual range for fallback: {manual_range}")
+                else:
+                    logger.info(f"[IMG FALLBACK] Manual range already set from cache: {manual_range}")
             
             # Create range selection menu only if we have a valid count
             if total_count and total_count > 0:
@@ -1302,9 +1322,12 @@ def image_command(app, message):
             except Exception:
                 pass
             
-            # Set manual range to max allowed range for fallback
-            manual_range = (1, fallback_limit)
-            logger.info(f"[IMG FALLBACK DOMAIN] Using manual range for fallback: {manual_range}")
+            # Set manual range to max allowed range for fallback only if not already set
+            if manual_range is None:
+                manual_range = (1, fallback_limit)
+                logger.info(f"[IMG FALLBACK DOMAIN] Using manual range for fallback: {manual_range}")
+            else:
+                logger.info(f"[IMG FALLBACK DOMAIN] Manual range already set from cache: {manual_range}")
             
             # Create minimal image_info for fallback
             image_info = {
