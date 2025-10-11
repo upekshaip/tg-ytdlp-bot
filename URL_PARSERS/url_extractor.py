@@ -1243,6 +1243,10 @@ def lang_callback(app, callback_query):
                     f"✅ Language changed to {lang_name}"
                 )
                 
+                # Format the message with lang_name
+                if '{lang_name}' in confirmation_msg:
+                    confirmation_msg = confirmation_msg.format(lang_name=lang_name)
+                
                 callback_query.answer(confirmation_msg)
                 callback_query.edit_message_text(
                     confirmation_msg,

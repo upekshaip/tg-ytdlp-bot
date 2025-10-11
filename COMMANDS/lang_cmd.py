@@ -53,6 +53,10 @@ def lang_command_handler(update, context):
                     f"✅ Language changed to {lang_name}"
                 )
                 
+                # Format the message with lang_name
+                if '{lang_name}' in confirmation_msg:
+                    confirmation_msg = confirmation_msg.format(lang_name=lang_name)
+                
                 update.message.reply_text(
                     confirmation_msg,
                     parse_mode='HTML'
@@ -160,6 +164,10 @@ def lang_command(app, message):
                     f"✅ Language changed to {lang_name}"
                 )
                 
+                # Format the message with lang_name
+                if '{lang_name}' in confirmation_msg:
+                    confirmation_msg = confirmation_msg.format(lang_name=lang_name)
+                
                 safe_send_message(
                     user_id,
                     confirmation_msg,
@@ -258,6 +266,10 @@ def lang_callback_handler(update, context):
             confirmation_msg = getattr(new_messages, 'LANG_CHANGED_MSG', 
                 f"✅ Language changed to {lang_name}"
             )
+            
+            # Format the message with lang_name
+            if '{lang_name}' in confirmation_msg:
+                confirmation_msg = confirmation_msg.format(lang_name=lang_name)
             
             query.answer(confirmation_msg)
             query.edit_message_text(
