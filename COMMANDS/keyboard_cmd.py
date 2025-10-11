@@ -23,7 +23,7 @@ def keyboard_command(app, message):
         arg = message.command[1].lower()
         if arg in ["off", "1x3", "2x3", "full"]:
             # Apply setting directly
-            with open(keyboard_file, 'w') as f:
+            with open(keyboard_file, 'w', encoding='utf-8') as f:
                 f.write(arg.upper())
             
             # Show confirmation by editing the original message
@@ -139,7 +139,7 @@ def keyboard_callback_handler(app, callback_query):
     try:
         # Persist modes including FULL
         if setting in ["OFF", "1x3", "2x3", "FULL"]:
-            with open(keyboard_file, 'w') as f:
+            with open(keyboard_file, 'w', encoding='utf-8') as f:
                 f.write(setting)
 
         # Prepare status text
