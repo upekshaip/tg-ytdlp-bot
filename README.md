@@ -14,6 +14,7 @@ A powerful Telegram bot that downloads videos, audio, and images from YouTube, T
 ## ✨ Features
 
 - 🎬 **1500+ Platforms**: YouTube, TikTok, Instagram, Twitter, Facebook, and many more
+- 🌍 **Multi-Language Support**: 4 languages - English, Русский, العربية, हिन्दी
 - 🍪 **Cookie Support**: Download private/age-restricted content with your own cookies
 - 🎯 **Smart Format Selection**: Advanced codec support (H.264/AVC, AV1, VP9) with container preferences
 - 📱 **Interactive Menus**: Always Ask quality selection with real-time filtering
@@ -25,6 +26,8 @@ A powerful Telegram bot that downloads videos, audio, and images from YouTube, T
 - 🔒 **Privacy Focused**: User-specific settings and secure cookie handling
 - 🚀 **PO Token Provider**: Bypass YouTube restrictions automatically
 - 🖼️ **Image Support**: Download images from various platforms using gallery-dl
+- 🔞 **NSFW Content Management**: Advanced NSFW detection and content filtering
+- ⏱️ **Flood Wait Protection**: Smart rate limiting and flood wait handling
 
 ## 🚀 Quick Start
 
@@ -394,6 +397,7 @@ Also you may fill in `porn_domains.txt` `porn_keywords.txt` files in `TXT` folde
 | `/settings` | Open settings menu | `/settings` |
 | `/usage` | Show usage statistics | `/usage` |
 | `/tags` | Get all your tags | `/tags` |
+| `/lang` | Change bot language | `/lang ru` |
 
 ### Download Commands
 
@@ -438,7 +442,7 @@ Also you may fill in `porn_domains.txt` `porn_keywords.txt` files in `TXT` folde
 | `/keyboard` | Manage reply keyboard | `/keyboard full` |
 | `/search` | Inline search helper | `/search` |
 | `/clean` | Clean user files | `/clean args` |
-| `/nsfw` | NSFW content settings | `/nsfw` |
+| `/nsfw` | NSFW content settings | `/nsfw on` |
 | `/flood_wait` | Flood wait settings | `/flood_wait` |
 
 ### Command Arguments
@@ -473,6 +477,12 @@ Many commands support direct arguments for quick configuration:
 /cookie tiktok   # TikTok cookies
 /cookie x        # Twitter/X cookies
 
+# Language settings
+/lang en         # Set to English
+/lang ru         # Set to Russian
+/lang ar         # Set to Arabic
+/lang in         # Set to Hindi
+
 # Clean specific settings
 /clean args      # Clear yt-dlp arguments
 /clean nsfw      # Clear NSFW settings
@@ -485,6 +495,50 @@ Many commands support direct arguments for quick configuration:
 
 # List available formats
 /list https://youtube.com/watch?v=...  # Show all available formats
+```
+
+---
+
+## 🌍 Multi-Language Support
+
+The bot supports 4 languages with full interface translation:
+
+### Supported Languages
+
+| Language | Code | Native Name | Flag |
+|----------|------|-------------|------|
+| English | `en` | English | 🇺🇸 |
+| Russian | `ru` | Русский | 🇷🇺 |
+| Arabic | `ar` | العربية | 🇸🇦 |
+| Hindi | `in` | हिन्दी | 🇮🇳 |
+
+### Language Commands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/lang` | Show language selection menu | `/lang` |
+| `/lang en` | Quick switch to English | `/lang en` |
+| `/lang ru` | Quick switch to Russian | `/lang ru` |
+| `/lang ar` | Quick switch to Arabic | `/lang ar` |
+| `/lang in` | Quick switch to Hindi | `/lang in` |
+
+### Language Features
+
+- **Persistent Settings**: Your language choice is saved and remembered
+- **Full Interface Translation**: All menus, buttons, and messages are translated
+- **Quick Switching**: Change language instantly with `/lang <code>`
+- **Interactive Menu**: Use `/lang` without arguments for visual language selection
+- **Fallback Support**: Defaults to English if language file is unavailable
+
+### Language Files Structure
+
+```
+CONFIG/LANGUAGES/
+├── messages_EN.py    # English messages
+├── messages_RU.py    # Russian messages  
+├── messages_AR.py    # Arabic messages
+├── messages_IN.py    # Hindi messages
+└── language_router.py # Language routing system
 ```
 
 ---
@@ -853,10 +907,54 @@ View all available formats for any video URL:
 - **2x3**: Shows two rows with full command set (default mode)
 - **FULL**: Shows emoji keyboard with visual command representation
 
+### 🔞 NSFW Content Management
+
+Advanced NSFW detection and content filtering system:
+
+- **Automatic Detection**: Scans video titles, descriptions, and domains for adult content
+- **Smart Tagging**: Automatically adds `#nsfw` tag to detected content
+- **Spoiler Protection**: Hides NSFW content under spoiler tags in Telegram
+- **User Control**: Toggle NSFW blur settings with `/nsfw on/off`
+- **Admin Management**: Update and manage porn detection lists
+- **Multi-Source Detection**: Domain-based and keyword-based filtering
+- **Configurable Lists**: Customizable porn domains and keywords
+
+**NSFW Commands:**
+```bash
+/nsfw on          # Enable NSFW blur
+/nsfw off         # Disable NSFW blur
+/nsfw             # Show NSFW settings menu
+```
+
+**Admin NSFW Commands:**
+```bash
+/update_porn      # Update porn detection lists
+/reload_porn      # Reload porn detection cache
+/check_porn       # Check URL for NSFW content
+```
+
+### ⏱️ Flood Wait Protection
+
+Smart rate limiting and flood wait handling:
+
+- **Automatic Detection**: Detects Telegram API rate limits
+- **User Notification**: Informs users about flood wait periods
+- **Settings Persistence**: Saves flood wait settings per user
+- **Smart Recovery**: Automatically handles rate limit recovery
+- **Admin Monitoring**: Tracks flood wait events in logs
+
+**Flood Wait Features:**
+- Automatic flood wait detection and handling
+- User notification with estimated wait time
+- Settings persistence across bot restarts
+- Integration with all bot commands
+- Admin monitoring and logging
+
 ### Improved Error Handling
 - **Upload Retries**: Smart retry logic for failed uploads with fallback to document mode
 - **Dynamic Disk Space**: Intelligent space estimation based on video size
 - **Graceful Degradation**: Better handling of format unavailability and network issues
+- **Flood Wait Recovery**: Automatic handling of Telegram API rate limits
 
 ---
 
@@ -908,6 +1006,20 @@ Note: You can tune exact limit values and behavior in `CONFIG/limits.py` and `CO
 | `/reload_porn` | Reload porn detection cache | `/reload_porn` |
 | `/check_porn` | Check URL for NSFW content with detailed explanation | `/check_porn https://example.com/video` |
 | `/uncache` | Clear subtitle cache | `/uncache` |
+
+### Language Management
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/lang` | Show language selection menu | `/lang` |
+| `/lang <code>` | Set bot language | `/lang ru` |
+
+### System Monitoring
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/flood_wait` | Show flood wait settings | `/flood_wait` |
+| `/nsfw` | NSFW content settings | `/nsfw on` |
 ---
 
 ## Auto cache – how it works (on/off/N)
@@ -1294,6 +1406,39 @@ Notes:
 3. Verify channel ID format (should start with -100)
 4. Test channel access manually
 5. Check bot permissions in channels
+
+#### Language Issues
+
+**Symptoms:** Bot interface not in selected language
+
+**Solutions:**
+1. Check if language file exists in `CONFIG/LANGUAGES/`
+2. Verify language code is supported (en, ru, ar, in)
+3. Use `/lang` command to reset language
+4. Check user's `lang.txt` file in user directory
+5. Restart bot if language files were updated
+
+#### NSFW Detection Issues
+
+**Symptoms:** NSFW content not being detected or filtered
+
+**Solutions:**
+1. Run `/update_porn` to update detection lists
+2. Check `TXT/porn_domains.txt` and `TXT/porn_keywords.txt` files
+3. Use `/reload_porn` to refresh detection cache
+4. Test with `/check_porn <url>` command
+5. Verify NSFW settings with `/nsfw` command
+
+#### Flood Wait Issues
+
+**Symptoms:** Bot stops responding due to rate limits
+
+**Solutions:**
+1. Wait for the specified flood wait period
+2. Check bot logs for flood wait notifications
+3. Use `/flood_wait` command to check settings
+4. Consider reducing bot usage frequency
+5. Check if multiple instances are running
 
 ### Getting Help
 
