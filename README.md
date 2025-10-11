@@ -14,7 +14,7 @@ A powerful Telegram bot that downloads videos, audio, and images from YouTube, T
 ## ✨ Features
 
 - 🎬 **1500+ Platforms**: YouTube, TikTok, Instagram, Twitter, Facebook, and many more
-- 🌍 **Multi-Language Support**: 4 languages - English, Русский, العربية, हिन्दी
+- 🌍 **Multi-Language Support**: 4 languages - 🇺🇸 English, 🇷🇺 Русский, 🇸🇦 العربية, 🇮🇳 हिन्दी
 - 🍪 **Cookie Support**: Download private/age-restricted content with your own cookies
 - 🎯 **Smart Format Selection**: Advanced codec support (H.264/AVC, AV1, VP9) with container preferences
 - 📱 **Interactive Menus**: Always Ask quality selection with real-time filtering
@@ -478,10 +478,10 @@ Many commands support direct arguments for quick configuration:
 /cookie x        # Twitter/X cookies
 
 # Language settings
-/lang en         # Set to English
-/lang ru         # Set to Russian
-/lang ar         # Set to Arabic
-/lang in         # Set to Hindi
+/lang en         # 🇺🇸 Set to English
+/lang ru         # 🇷🇺 Set to Russian
+/lang ar         # 🇸🇦 Set to Arabic
+/lang in         # 🇮🇳 Set to Hindi
 
 # Clean specific settings
 /clean args      # Clear yt-dlp arguments
@@ -507,20 +507,20 @@ The bot supports 4 languages with full interface translation:
 
 | Language | Code | Native Name | Flag |
 |----------|------|-------------|------|
-| English | `en` | English | 🇺🇸 |
-| Russian | `ru` | Русский | 🇷🇺 |
-| Arabic | `ar` | العربية | 🇸🇦 |
-| Hindi | `in` | हिन्दी | 🇮🇳 |
+| 🇺🇸 English | `en` | English | 🇺🇸 |
+| 🇷🇺 Russian | `ru` | Русский | 🇷🇺 |
+| 🇸🇦 Arabic | `ar` | العربية | 🇸🇦 |
+| 🇮🇳 Hindi | `in` | हिन्दी | 🇮🇳 |
 
 ### Language Commands
 
 | Command | Description | Example |
 |---------|-------------|---------|
 | `/lang` | Show language selection menu | `/lang` |
-| `/lang en` | Quick switch to English | `/lang en` |
-| `/lang ru` | Quick switch to Russian | `/lang ru` |
-| `/lang ar` | Quick switch to Arabic | `/lang ar` |
-| `/lang in` | Quick switch to Hindi | `/lang in` |
+| `/lang en` | 🇺🇸 Quick switch to English | `/lang en` |
+| `/lang ru` | 🇷🇺 Quick switch to Russian | `/lang ru` |
+| `/lang ar` | 🇸🇦 Quick switch to Arabic | `/lang ar` |
+| `/lang in` | 🇮🇳 Quick switch to Hindi | `/lang in` |
 
 ### Language Features
 
@@ -1011,8 +1011,8 @@ Note: You can tune exact limit values and behavior in `CONFIG/limits.py` and `CO
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `/lang` | Show language selection menu | `/lang` |
-| `/lang <code>` | Set bot language | `/lang ru` |
+| `/lang` | 🌍 Show language selection menu | `/lang` |
+| `/lang <code>` | 🌍 Set bot language | `/lang ru` |
 
 ### System Monitoring
 
