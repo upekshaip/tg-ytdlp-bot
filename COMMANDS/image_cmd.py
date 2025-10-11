@@ -774,6 +774,9 @@ def image_command(app, message):
     chat_id = message.chat.id
     text = message.text.strip()
     
+    # Initialize image_info to avoid undefined variable errors
+    image_info = None
+    
     # Log the command execution
     logger.info(f"image_command called for user {user_id} in chat {chat_id} with text: {text}")
     # Get message_thread_id (handles fake messages)
