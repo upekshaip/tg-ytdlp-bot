@@ -406,11 +406,17 @@ def get_image_info(url: str, user_id=None, use_proxy: bool = False):
         except Exception as _:
             pass
 
-        logger.error(safe_get_messages(user_id).GALLERY_DL_ALL_STRATEGIES_FAILED_MSG)
+        try:
+            logger.error(safe_get_messages(user_id).GALLERY_DL_ALL_STRATEGIES_FAILED_MSG)
+        except Exception as log_e:
+            logger.error(f"All strategies failed to obtain metadata (log error: {log_e})")
         return None
 
     except Exception as e:
-        logger.error(safe_get_messages(user_id).GALLERY_DL_FAILED_EXTRACT_IMAGE_INFO_MSG.format(error=e))
+        try:
+            logger.error(safe_get_messages(user_id).GALLERY_DL_FAILED_EXTRACT_IMAGE_INFO_MSG.format(error=e))
+        except Exception as log_e:
+            logger.error(f"Failed to extract image info: {e} (log error: {log_e})")
         return None
 
 
