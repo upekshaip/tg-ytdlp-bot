@@ -1030,12 +1030,14 @@ def image_command(app, message):
                         return
                     else:
                         # We have partial content, need to download the rest
-                        logger.info(f"Cache has indices {sorted(cached_indices)}, missing {sorted(missing_indices)}, downloading remaining {len(missing_indices)} items")
+                        cached_count = len(cached_indices)
+                        missing_count = len(missing_indices)
+                        logger.info(f"Cache has {cached_count} indices {sorted(cached_indices)}, missing {missing_count} indices {sorted(missing_indices)}, downloading remaining {missing_count} items")
                         # Update manual_range to start from the first missing index
                         first_missing = min(missing_indices)
                         last_missing = max(missing_indices)
                         manual_range = (first_missing, last_missing)
-                        logger.info(f"Continuing download from index {first_missing} to {last_missing} (missing: {sorted(missing_indices)})")
+                        logger.info(f"Continuing download from index {first_missing} to {last_missing} (cached: {cached_count}/{requested_count}, missing: {sorted(missing_indices)})")
                         try:
                             safe_edit_message_text(
                                 user_id, status_msg.id,
@@ -1058,10 +1060,15 @@ def image_command(app, message):
                 # No manual range, we have some cached content, continue downloading
                 # Set manual range to continue from the last cached index
                 if cached_map:
-                    max_cached_index = max(cached_map.keys())
+                    cached_indices = sorted(cached_map.keys())
+                    max_cached_index = max(cached_indices)
+                    cached_count = len(cached_indices)
+                    
+                    logger.info(f"Cache contains {cached_count} indices: {cached_indices}")
+                    
                     # Try to determine the total count to set proper end index
                     total_count = None
-                    if image_info:
+                    if image_info and isinstance(image_info, dict):
                         for key in ("count", "total", "num", "items", "files", "num_images", "images_count"):
                             if key in image_info and image_info[key]:
                                 total_count = int(image_info[key])
@@ -1070,11 +1077,17 @@ def image_command(app, message):
                     if total_count and total_count > max_cached_index:
                         # We know the total count, set proper end index
                         manual_range = (max_cached_index + 1, total_count)
-                        logger.info(f"No manual range specified, continuing from cached index {max_cached_index + 1} to {total_count}")
+                        logger.info(f"No manual range specified, continuing from cached index {max_cached_index + 1} to {total_count} (cached: {cached_count}/{total_count})")
                     else:
-                        # Fallback: continue from next index to end
-                        manual_range = (max_cached_index + 1, None)
-                        logger.info(f"No manual range specified, continuing from cached index {max_cached_index + 1} to end")
+                        # Fallback: try to get total count from detected_total_value
+                        detected_total_value = locals().get('detected_total', None)
+                        if detected_total_value and detected_total_value > max_cached_index:
+                            manual_range = (max_cached_index + 1, detected_total_value)
+                            logger.info(f"No manual range specified, using detected total {detected_total_value}, continuing from cached index {max_cached_index + 1} to {detected_total_value} (cached: {cached_count}/{detected_total_value})")
+                        else:
+                            # Last resort: continue from next index to end
+                            manual_range = (max_cached_index + 1, None)
+                            logger.info(f"No manual range specified, continuing from cached index {max_cached_index + 1} to end (cached: {cached_count} indices)")
                 try:
                     safe_edit_message_text(
                         user_id, status_msg.id,
