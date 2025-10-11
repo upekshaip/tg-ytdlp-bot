@@ -121,8 +121,8 @@ def _gdl_set(section: str, key: str, value):
         gallery_dl.config.set((section, key), value)
 
 
-def _apply_config(config: dict):
-    messages = safe_get_messages(None)
+def _apply_config(config: dict, user_id=None):
+    messages = safe_get_messages(user_id)
     """
     Apply dict config to gallery-dl config safely.
     Expects shape like:
@@ -267,8 +267,8 @@ def _prepare_user_cookies_and_proxy(url: str, user_id, use_proxy: bool, config: 
     return config
 
 
-def _first_info_from_items(items_iter):
-    messages = safe_get_messages(None)
+def _first_info_from_items(items_iter, user_id=None):
+    messages = safe_get_messages(user_id)
     """
     Parse gallery-dl extractor items() stream and return first meaningful info dict.
     The stream yields tuples like:
@@ -353,7 +353,7 @@ def get_image_info(url: str, user_id=None, use_proxy: bool = False):
 
     try:
         logger.info(safe_get_messages(user_id).GALLERY_DL_SETTING_CONFIG_MSG2.format(config=config))
-        _apply_config(config)
+        _apply_config(config, user_id)
 
         # ---- Strategy A: extractor.find + items() (no downloads) ----
         try:
@@ -387,7 +387,7 @@ def get_image_info(url: str, user_id=None, use_proxy: bool = False):
 
             logger.info(safe_get_messages(user_id).GALLERY_DL_EXTRACTOR_FOUND_CALLING_ITEMS_MSG)
             items_iter = extractor.items()
-            info = _first_info_from_items(items_iter)
+            info = _first_info_from_items(items_iter, user_id)
             if info:
                 logger.info(safe_get_messages(user_id).GALLERY_DL_STRATEGY_A_SUCCEEDED_MSG.format(info=info))
                 return info
@@ -448,7 +448,7 @@ def download_image(url: str, user_id=None, use_proxy: bool = False, output_dir: 
 
     try:
         logger.info(safe_get_messages(user_id).GALLERY_DL_SETTING_CONFIG_MSG2.format(config=config))
-        _apply_config(config)
+        _apply_config(config, user_id)
 
         # Use DownloadJob (CLI-equivalent)
         job_mod = getattr(gallery_dl, "job", None)
@@ -819,7 +819,7 @@ def download_image_range(url: str, range_expr: str, user_id=None, use_proxy: boo
         config["base-directory"] = output_dir
     config = _prepare_user_cookies_and_proxy(url, user_id, use_proxy, config)
     try:
-        _apply_config(config)
+        _apply_config(config, user_id)
         job_mod = getattr(gallery_dl, "job", None)
         if job_mod is None:
             raise RuntimeError("gallery_dl.job module not found (broken install?)")
@@ -835,7 +835,7 @@ def download_image_range(url: str, range_expr: str, user_id=None, use_proxy: boo
         
         # Check for fatal errors in exception message
         if _is_fatal_error(error_msg):
-            error_type = _get_error_type(error_msg)
+            error_type = _get_error_type(error_msg, user_id)
             error_response = f"{error_type}: {error_msg}"
             logger.error(f"Fatal error in gallery-dl Python API: {error_response}")
             
@@ -977,7 +977,7 @@ def _is_fatal_error(stderr_text: str) -> bool:
     return False
 
 
-def _get_error_type(stderr_text: str) -> str:
+def _get_error_type(stderr_text: str, user_id=None) -> str:
     """
     Determine the type of error for better user messaging.
     Returns a human-readable error type.
