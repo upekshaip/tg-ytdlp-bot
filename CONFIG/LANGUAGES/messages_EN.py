@@ -1,11 +1,15 @@
 # Messages Configuration
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+# Removed circular import
 
 class Messages(object):
     #######################################################
     # Messages and errors
     #######################################################
-    CREDITS_MSG = "<blockquote><i>Managed by</i> @iilililiiillliiliililliilliliiil\n🇮🇹 @tgytdlp_it_bot\n🇦🇪 @tgytdlp_uae_bot\n🇬🇧 @tgytdlp_uk_bot\n🇫🇷 @tgytdlp_fr_bot</blockquote>"
-    TO_USE_MSG = "<i>To use this bot you need to subscribe to @tg_ytdlp Telegram channel.</i>\nAfter you join the channel, <b>resend your video link again and bot will download it for you</b> ❤️  "
+    CREDITS_MSG = "<blockquote><i>Managed by</i> @iilililiiillliiliililliilliliiil\n🇮🇹 @tgytdlp_it_bot\n🇦🇪 @tgytdlp_uae_bot\n🇬🇧 @tgytdlp_uk_bot\n🇫🇷 @tgytdlp_fr_bot</blockquote>\n<b>🌍 Change language: /lang</b>"
+    TO_USE_MSG = "<i>To use this bot you need to subscribe to @tg_ytdlp Telegram channel.</i>\nAfter you join the channel, <b>resend your video link again and bot will download it for you</b> ❤️"
 
     ERROR1 = "Did not found a url link. Please enter a url with <b>https://</b> or <b>http://</b>"
 
@@ -79,7 +83,7 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 </blockquote>
 """
     HELP_MSG = """
-🎬 <b>Video Download Bot - Help</b>
+<blockquote>🎬 <b>Video Download Bot - Help</b>
 
 📥 <b>Basic Usage:</b>
 • Send any link → bot downloads it
@@ -144,74 +148,9 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 • <code>/img 11-20 URL</code> → download specific range
 • <code>/img 11- URL</code> → download from 11th to the end
 
-<blockquote expandable>🇷🇺 <b>Бот для скачивания видео - Помощь</b>
-
-📥 <b>Основное:</b>
-• Отправьте любую ссылку → бот скачает её
-  <i>бот автоматически попробует скачать видео через yt-dlp и изображения через gallery-dl.</i>
-• <code>/audio URL</code> → аудио
-• <code>/link [качество] URL</code> → прямые ссылки
-• <code>/proxy</code> → включить/выключить прокси для всех загрузок
-• Ответьте на видео текстом → изменить подпись
-
-📋 <b>Плейлисты:</b>
-• <code>URL*1*5</code> → скачать видео 1-5
-• <code>/vid 3-7 URL</code> → становится <code>URL*3*7</code>
-
-🍪 <b>Cookies:</b>
-• Загрузите *.txt для приватных видео
-• <code>/cookie [сервис]</code> → скачать куки (youtube/tiktok/x/custom)
-• <code>/cookie youtube 1</code> → выбрать источник по индексу (1–N)
-• <code>/cookies_from_browser</code> → из браузера
-• <code>/check_cookie</code> → проверить cookie
-• <code>/save_as_cookie</code> → сохранить текст как cookie
-
-🧹 <b>Очистка:</b>
-• <code>/clean</code> → медиа файлы
-• <code>/clean all</code> → всё
-• <code>/clean cookies/logs/tags/format/split/mediainfo/sub/keyboard</code>
-
-⚙️ <b>Настройки:</b>
-• <code>/settings</code> → меню настроек
-• <code>/format</code> → качество и формат
-• <code>/split</code> → резать видео на части
-• <code>/mediainfo on/off</code> → информация о файле
-• <code>/nsfw on/off</code> → размытие NSFW
-• <code>/tags</code> → ваши теги
-• <code>/sub on/off</code> → субтитры
-• <code>/keyboard</code> → клавиатура (OFF/1x3/2x3)
-
-🏷️ <b>Теги:</b>
-• Добавьте <code>#тег1#тег2</code> после ссылки
-• Теги появляются в подписях
-• <code>/tags</code> → все теги
-
-🔗 <b>Прямые ссылки:</b>
-• <code>/link URL</code> → лучшее качество
-• <code>/link [144-4320]/720p/1080p/4k/8k URL</code> → конкретное качество
-
-⚙️ <b>Быстрые команды:</b>
-• <code>/format [144-4320]/720p/1080p/4k/8k/best/ask/id 134</code> → качество
-• <code>/keyboard off/1x3/2x3/full</code> → клавиатура
-• <code>/split 100mb-2000mb</code> → резать видео на части
-• <code>/subs off/ru/en auto</code> → язык субтитров
-• <code>/list URL</code> → список доступных форматов
-• <code>/mediainfo on/off</code> → вкл/выкл медиаинфо
-• <code>/proxy on/off</code> → включить/выключить прокси для всех загрузок
-
-📊 <b>Информация:</b>
-• <code>/usage</code> → история загрузок
-• <code>/search</code> → поиск через @vid
-
-🖼 <b>Изображения:</b>
-• <code>URL</code> → скачать изображения с URL
-• <code>/img URL</code> → скачать изображения с URL
-• <code>/img 11-20 URL</code> → скачать конкретный диапазон
-• <code>/img 11- URL</code> → скачать с 11-го до конца
-</blockquote>
-
 👨‍💻 <i>Developer:</i> @upekshaip
 🤝 <i>Contributor:</i> @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl
+</blockquote>
     """
     
     # Version 1.0.0 - Добавлен SAVE_AS_COOKIE_HINT для подсказки по /save_as_cookie
@@ -246,12 +185,6 @@ Press the button below to activate inline search via @vid.
     
     # Settings and Hints (English)
     
-    AUDIO_HINT_MSG = (
-        "Download only audio from video source.\n\n"
-        "Usage: /audio + URL \n\n"
-        "(ex. /audio https://youtu.be/abc123)\n"
-        "(ex. /audio https://youtu.be/playlist?list=abc123*1*10)"
-    )
     
     IMG_HELP_MSG = (
         "<b>🖼 Image Download Command</b>\n\n"
@@ -370,6 +303,14 @@ Use:
     DOWNLOADING_IMAGE_MSG = "📥 <b>Downloading image...</b>\n\n"
 
     DOWNLOAD_COMPLETE_MSG = "✅ <b>Download complete</b>\n\n"
+    
+    # Download status messages
+    DOWNLOADED_STATUS_MSG = "Downloaded:"
+    SENT_STATUS_MSG = "Sent:"
+    PENDING_TO_SEND_STATUS_MSG = "Pending to send:"
+    TITLE_LABEL_MSG = "Title:"
+    MEDIA_COUNT_LABEL_MSG = "Media count:"
+    AUDIO_DOWNLOAD_FINISHED_PROCESSING_MSG = "Download finished, processing audio..."
     VIDEO_PROCESSING_MSG = "📽 Video is processing..."
     WAITING_HOURGLASS_MSG = "⌛️"
     
@@ -649,7 +590,8 @@ Use:
         "<b>💡 How to use format IDs:</b>\n"
         "After getting the list, use specific format ID:\n"
         "• <code>/format id 401</code> - download format 401\n"
-        "• <code>/format id401</code> - same as above\n\n"
+        "• <code>/format id401</code> - same as above\n"
+        "• <code>/format id140 audio</code> - download format 140 as MP3 audio\n\n"
         "This command will show all available formats that can be downloaded."
     )
     LIST_PROCESSING_MSG = "🔄 Getting available formats..."
@@ -773,11 +715,6 @@ Use:
     ADMIN_CACHE_FAILED_MSG = "❌ Failed to reload Firebase cache. Check if {cache_file} exists."
     ADMIN_ERROR_RELOADING_MSG = "❌ Error reloading cache: {error}"
     ADMIN_ERROR_SCRIPT_MSG = "❌ Error running {script_path}:\n{stdout}\n{stderr}"
-    ADMIN_SCRIPT_NOT_FOUND_MSG = "❌ Script not found: {script_path}"
-    ADMIN_DOWNLOADING_MSG = "⏳ Downloading fresh Firebase dump using {script_path} ..."
-    ADMIN_CACHE_RELOADED_MSG = "✅ Firebase cache reloaded successfully!"
-    ADMIN_CACHE_FAILED_MSG = "❌ Failed to reload Firebase cache. Check if {cache_file} exists."
-    ADMIN_ERROR_RELOADING_MSG = "❌ Error reloading cache: {error}"
     ADMIN_PROMO_SENT_MSG = "<b>✅ Promo message sent to all other users</b>"
     ADMIN_CANNOT_SEND_PROMO_MSG = "<b>❌ Cannot send the promo message. Try replying to a message\nOr some error occurred</b>"
     ADMIN_USER_NO_DOWNLOADS_MSG = "<b>❌ User did not download any content yet...</b> Not exist in logs"
@@ -862,6 +799,8 @@ Use:
     IMG_RANGE_LIMIT_EXCEEDED_MSG = "❗️ Range limit exceeded: {range_count} files requested (maximum {max_img_files}).\n\nUse one of these commands to download maximum available files:\n\n<code>/img {start_range}-{end_range} {url}</code>\n\n<code>/img {suggested_command_url_format}</code>"
     COMMAND_IMAGE_HELP_CLOSE_BUTTON_MSG = "🔚Close"
     COMMAND_IMAGE_MEDIA_LIMIT_EXCEEDED_MSG = "❗️ Media limit exceeded: {count} files requested (maximum {max_count}).\n\nUse one of these commands to download maximum available files:\n\n<code>/img {start_range}-{end_range} {url}</code>\n\n<code>/img {suggested_command_url_format}</code>"
+    IMG_FOUND_MEDIA_ITEMS_MSG = "📊 Found <b>{count}</b> media items from the link"
+    IMG_SELECT_DOWNLOAD_RANGE_MSG = "Select download range:"
     
     # Args command parameter descriptions
     ARGS_IMPERSONATE_DESC_MSG = "Browser impersonation"
@@ -1042,7 +981,6 @@ Use:
     SELECT_BROWSER_MSG = "Select a browser to download cookies from:"
     SELECT_BROWSER_NO_BROWSERS_MSG = "No browsers found on this system. You can download cookies from remote URL or monitor browser status:"
     BROWSER_MONITOR_HINT_MSG = "🌐 <b>Open Browser</b> - to monitor browser status in mini-app"
-    COOKIES_YOUTUBE_TEST_START_MSG = "🔄 Starting YouTube cookies test...\n\nPlease wait while I check and validate your cookies."
     COOKIES_FAILED_RUN_CHECK_MSG = "❌ Failed to run /check_cookie"
     COOKIES_FLOOD_LIMIT_MSG = "⏳ Flood limit. Try later."
     COOKIES_FAILED_OPEN_BROWSER_MSG = "❌ Failed to open browser cookie menu"
@@ -1226,10 +1164,14 @@ Use:
     ALWAYS_ASK_VIDEO_TYPE_MSG = "Video"
     ALWAYS_ASK_VIDEO_TITLE_MSG = "Video"
     ALWAYS_ASK_NEXT_BUTTON_MSG = "Next ▶️"
+    ALWAYS_ASK_PREV_BUTTON_MSG = "◀️ Prev"
     SUBTITLES_NEXT_BUTTON_MSG = "Next ➡️"
     PORN_ALL_TEXT_FIELDS_EMPTY_MSG = "ℹ️ All text fields are empty"
     SENDER_VIDEO_DURATION_MSG = "Video duration:"
     SENDER_UPLOADING_FILE_MSG = "📤 Uploading file..."
+    SENDER_UPLOADING_VIDEO_MSG = "📤 Uploading Video..."
+    DOWN_UP_VIDEO_DURATION_MSG = "🎞 Video duration:"
+    DOWN_UP_ONE_FILE_UPLOADED_MSG = "1 file uploaded."
     DOWN_UP_VIDEO_INFO_MSG = "📋 Video Info"
     DOWN_UP_NUMBER_MSG = "Number"
     DOWN_UP_TITLE_MSG = "Title"
@@ -1302,7 +1244,14 @@ Use:
     ALWAYS_ASK_WATCH_VIDEO_MSG = "👁 — Watch video in poketube"
     ALWAYS_ASK_GET_DIRECT_LINK_MSG = "🔗 — Get direct link to video"
     ALWAYS_ASK_SHOW_AVAILABLE_FORMATS_MSG = "📃 — Show available formats list"
-    ALWAYS_ASK_CHANGE_VIDEO_EXT_MSG = "📼 — Сhange video ext/codec"
+    ALWAYS_ASK_CHANGE_VIDEO_EXT_MSG = "📼 — Change video ext/codec"
+    ALWAYS_ASK_EMBED_BUTTON_MSG = "🚀Embed"
+    ALWAYS_ASK_EXTRACT_AUDIO_MSG = "🎧 — Extract only audio"
+    ALWAYS_ASK_NSFW_PAID_MSG = "⭐️ — 🔞NSFW is paid (⭐️$0.02)"
+    ALWAYS_ASK_INSTANT_REPOST_MSG = "🚀 — Instant repost from cache"
+    ALWAYS_ASK_WATCH_VIDEO_MSG = "👁 — Watch video in poketube"
+    ALWAYS_ASK_CHOOSE_AUDIO_LANGUAGE_MSG = "🗣 — Choose audio language"
+    ALWAYS_ASK_BEST_BUTTON_MSG = "Best"
     ALWAYS_ASK_OTHER_LABEL_MSG = "🎛Other"
     ALWAYS_ASK_SUB_ONLY_BUTTON_MSG = "📝sub only"
     ALWAYS_ASK_SMART_GROUPING_MSG = "Smart grouping"
@@ -1326,6 +1275,12 @@ Use:
     ALWAYS_ASK_USING_CACHED_QUALITIES_MSG = "⚠️ Using cached qualities - new formats may not be available"
     ALWAYS_ASK_DOWNLOADING_FORMAT_MSG = "📥 Downloading format"
     ALWAYS_ASK_DOWNLOADING_QUALITY_MSG = "📥 Downloading"
+    ALWAYS_ASK_DOWNLOADING_HLS_MSG = "📥 Downloading with progress tracking..."
+    ALWAYS_ASK_DOWNLOADING_FORMAT_USING_MSG = "📥 Downloading using format:"
+    ALWAYS_ASK_DOWNLOADING_AUDIO_FORMAT_USING_MSG = "📥 Downloading audio using format:"
+    ALWAYS_ASK_DOWNLOADING_BEST_QUALITY_MSG = "📥 Downloading best quality..."
+    ALWAYS_ASK_DOWNLOADING_DATABASE_MSG = "📥 Downloading database dump..."
+    ALWAYS_ASK_DOWNLOADING_IMAGES_MSG = "📥 Downloading"
     ALWAYS_ASK_FORMATS_PAGE_FROM_CACHE_MSG = "Formats page"
     ALWAYS_ASK_FROM_CACHE_MSG = "(from cache)"
     ALWAYS_ASK_ERROR_ORIGINAL_MESSAGE_NOT_FOUND_DETAILED_MSG = "❌ Error: Original message not found. It might have been deleted. Please send the link again."
@@ -1370,10 +1325,18 @@ Use:
     
     # Always Ask Menu Messages
     NO_SUBTITLES_DETECTED_MSG = "No subtitles detected"
+    VIDEO_PROGRESS_MSG = "<b>Video:</b> {current} / {total}"
+    AUDIO_PROGRESS_MSG = "<b>Audio:</b> {current} / {total}"
+    
+    # Error messages
+    ERROR_CHECK_SUPPORTED_SITES_MSG = "Check <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>here</a> if your site supported"
+    ERROR_COOKIE_NEEDED_MSG = "You may need <code>cookie</code> for downloading this video. First, clean your workspace via <b>/clean</b> command"
+    ERROR_COOKIE_INSTRUCTIONS_MSG = "For Youtube - get <code>cookie</code> via <b>/cookie</b> command. For any other supported site - send your own cookie (<a href='https://t.me/c/2303231066/18'>guide1</a>) (<a href='https://t.me/c/2303231066/22'>guide2</a>) and after that send your video link again."
     CHOOSE_SUBTITLE_LANGUAGE_MSG = "Choose subtitle language"
     NO_ALTERNATIVE_AUDIO_LANGUAGES_MSG = "No alternative audio languages"
     CHOOSE_AUDIO_LANGUAGE_MSG = "Choose audio language"
     PAGE_NUMBER_MSG = "Page {page}"
+    TOTAL_PROGRESS_MSG = "Total Progress"
     SUBTITLE_MENU_CLOSED_MSG = "Subtitle menu closed."
     SUBTITLE_LANGUAGE_SET_MSG = "Subtitle language set: {value}"
     AUDIO_SET_MSG = "Audio set: {value}"
@@ -1476,12 +1439,18 @@ Use:
     ARGS_TRUE_BUTTON_MSG = "✅ True"
     ARGS_FALSE_BUTTON_MSG = "❌ False"
     ARGS_BACK_BUTTON_MSG = "🔙 Back"
+    ARGS_CLOSE_BUTTON_MSG = "🔚 Close"
     
     # Args command status texts
     ARGS_STATUS_TRUE_MSG = "✅"
     ARGS_STATUS_FALSE_MSG = "❌"
     ARGS_STATUS_TRUE_DISPLAY_MSG = "✅ True"
     ARGS_STATUS_FALSE_DISPLAY_MSG = "❌ False"
+    ARGS_NOT_SET_MSG = "Not set"
+    
+    # Boolean values for import/export (all possible variations)
+    ARGS_BOOLEAN_TRUE_VALUES = ["True", "true", "1", "yes", "on", "✅"]
+    ARGS_BOOLEAN_FALSE_VALUES = ["False", "false", "0", "no", "off", "❌"]
     
     # Args command status indicators
     ARGS_STATUS_SELECTED_MSG = "✅"
@@ -1823,7 +1792,7 @@ Use:
     CAPTION_VIDEO_URL_LINK_MSG = '<a href="{url}">🔗 Video URL</a>{bot_mention}'
     
     # Database messages
-    DB_DATABASE_URL_MISSING_MSG = "FIREBASE_CONF.databaseURL отсутствует в Config"
+    DB_DATABASE_URL_MISSING_MSG = "FIREBASE_CONF.databaseURL отсутствует в конфигурации"
     DB_FIREBASE_ADMIN_INITIALIZED_MSG = "✅ firebase_admin initialized"
     DB_REST_ID_TOKEN_REFRESHED_MSG = "🔁 REST idToken refreshed"
     DB_LOG_FOR_USER_ADDED_MSG = "Log for user added"
@@ -1879,11 +1848,9 @@ Use:
     HELPER_ADMIN_RIGHTS_REQUIRED_MSG = "❗️ Для работы в группе боту нужны права администратора. Пожалуйста, сделайте бота админом этой группы."
     
     # URL extractor messages
-    URL_EXTRACTOR_AUDIO_HINT_MSG = "Download only audio from video source.\n\nUsage: /audio + URL \n\n(ex. /audio https://youtu.be/abc123)\n(ex. /audio https://youtu.be/playlist?list=abc123*1*10)"
     URL_EXTRACTOR_WELCOME_MSG = "Hello {first_name},\n \n<i>This bot🤖 can download any videos into telegram directly.😊 For more information press <b>/help</b></i> 👈\n \n {credits}"
     URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG = "🗑 No files to remove."
     URL_EXTRACTOR_ALL_FILES_REMOVED_MSG = "🗑 All files removed successfully!\n\nRemoved files:\n{files_list}"
-    URL_EXTRACTOR_ALL_MEDIA_FILES_REMOVED_MSG = "🗑 All media files are removed."
     
     # Video extractor messages
     VIDEO_EXTRACTOR_WAIT_DOWNLOAD_MSG = "⏰ WAIT UNTIL YOUR PREVIOUS DOWNLOAD IS FINISHED"
@@ -2029,6 +1996,7 @@ Use:
     SUBS_VALID_OPTIONS_MSG = "Valid options:"
     
     # Settings Command Messages
+    SETTINGS_LANGUAGE_BUTTON_MSG = "🌍 LANGUAGE"
     SETTINGS_DEV_GITHUB_BUTTON_MSG = "🛠 Dev GitHub"
     SETTINGS_CONTR_GITHUB_BUTTON_MSG = "🛠 Contr GitHub"
     SETTINGS_CLEAN_BUTTON_MSG = "🧹 CLEAN"
@@ -2084,7 +2052,7 @@ Use:
     KEYBOARD_2X3_BUTTON_MSG = "📱 2x3"
     
     # Image Command Messages
-    IMAGE_URL_CAPTION_MSG = "🔗[Images URL]({url}) @{Config.BOT_NAME}"
+    IMAGE_URL_CAPTION_MSG = "🔗[Images URL]({url})"
     IMAGE_ERROR_MSG = "❌ Error: {str(e)}"
     
     # Format Command Messages
@@ -2104,7 +2072,7 @@ Use:
     FORMAT_CUSTOM_BUTTON_MSG = "🎚 Custom (enter your own)"
     
     # Cookies Command Messages
-    COOKIES_YOUTUBE_BUTTON_MSG = "📺 YouTube (1-{max(1, len(get_youtube_cookie_urls()))})"
+    COOKIES_YOUTUBE_BUTTON_MSG = "📺 YouTube (1-{max})"
     COOKIES_FROM_BROWSER_BUTTON_MSG = "🌐 From Browser"
     COOKIES_TWITTER_BUTTON_MSG = "🐦 Twitter/X"
     COOKIES_TIKTOK_BUTTON_MSG = "🎵 TikTok"
@@ -2122,12 +2090,43 @@ Use:
     ARGS_CURRENT_ARGUMENTS_MSG = "📋 Current yt-dlp Arguments:\n\n"
     ARGS_EXPORT_SETTINGS_BUTTON_MSG = "📤 Export Settings"
     ARGS_SETTINGS_READY_MSG = "Settings ready for export! Forward this message to favorites to save."
-    ARGS_CURRENT_VALUE_MSG = "Current value: <code>{value}</code>"
     ARGS_CURRENT_ARGUMENTS_HEADER_MSG = "📋 Current yt-dlp Arguments:"
     ARGS_FAILED_RECOGNIZE_MSG = "❌ Failed to recognize settings in message. Make sure you sent a correct settings template."
     ARGS_SUCCESSFULLY_IMPORTED_MSG = "✅ Settings successfully imported!\n\nApplied parameters: {applied_count}\n\n"
     ARGS_KEY_SETTINGS_MSG = "Key settings:\n"
     ARGS_ERROR_SAVING_MSG = "❌ Error saving imported settings."
     ARGS_ERROR_IMPORTING_MSG = "❌ An error occurred while importing settings."
+
+    # Cookie command menu messages
+    COOKIE_MENU_TITLE_MSG = "🍪 <b>Download Cookie Files</b>"
+    COOKIE_MENU_DESCRIPTION_MSG = "Choose a service to download the cookie file."
+    COOKIE_MENU_SAVE_INFO_MSG = "Cookie files will be saved as cookie.txt in your folder."
+    COOKIE_MENU_TIP_HEADER_MSG = "Tip: You can also use direct command:"
+    COOKIE_MENU_TIP_YOUTUBE_MSG = "• <code>/cookie youtube</code> – download and validate cookies"
+    COOKIE_MENU_TIP_YOUTUBE_INDEX_MSG = "• <code>/cookie youtube 1</code> – use a specific source by index (1–{max_index})"
+    COOKIE_MENU_TIP_VERIFY_MSG = "Then verify with <code>/check_cookie</code> (tests on RickRoll)."
+
+    # Subs command button messages
+    SUBS_ALWAYS_ASK_BUTTON_MSG = "Always Ask"
+    SUBS_AUTO_TRANS_BUTTON_MSG = "AUTO/TRANS"
+
+    # Always Ask menu button messages
+    ALWAYS_ASK_LINK_BUTTON_MSG = "🔗Link"
+    ALWAYS_ASK_WATCH_BUTTON_MSG = "👁Watch"
+
+    # Audio upload completion messages
+    AUDIO_PARTIALLY_COMPLETED_MSG = "⚠️ Partially completed - {successful_uploads}/{total_files} audio files uploaded."
+    AUDIO_SUCCESSFULLY_COMPLETED_MSG = "✅ Audio successfully downloaded and sent - {total_files} files uploaded."
+
+    # TikTok private account messages
+    TIKTOK_PRIVATE_ACCOUNT_MSG = (
+        "🔒 <b>Private TikTok Account</b>\n\n"
+        "This TikTok account is private or all videos are private.\n\n"
+        "<b>💡 Solution:</b>\n"
+        "1. Follow the account @{username}\n"
+        "2. Send your cookies to the bot using <code>/cookie</code> command\n"
+        "3. Try again\n\n"
+        "<b>After updating cookies, try again!</b>"
+    )
 
     #######################################################

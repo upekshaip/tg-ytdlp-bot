@@ -19,7 +19,7 @@ from HELPERS.qualifier import get_quality_by_min_side, get_real_height_for_quali
 from HELPERS.limitter import check_subs_limits, check_playlist_range_limits, TimeFormatter
 
 from CONFIG.config import Config
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 from CONFIG.logger_msg import LoggerMsg
 from URL_PARSERS.tags import extract_url_range_tags
 
@@ -111,11 +111,11 @@ def format_filesize(size_str):
     bytes_size = size * unit_multiplier
     
     # Convert to shortest readable format
-    if bytes_size >= 1024 * 1024 * 1024:  # GB
+    if bytes_size and bytes_size >= 1024 * 1024 * 1024:  # GB
         return f"{bytes_size / (1024 * 1024 * 1024):.0f}gb"
-    elif bytes_size >= 1024 * 1024:  # MB
+    elif bytes_size and bytes_size >= 1024 * 1024:  # MB
         return f"{bytes_size / (1024 * 1024):.0f}mb"
-    elif bytes_size >= 1024:  # KB
+    elif bytes_size and bytes_size >= 1024:  # KB
         return f"{bytes_size / 1024:.0f}kb"
     else:
         return f"{bytes_size:.0f}b"
@@ -588,6 +588,7 @@ def _dub_flag(lang_code: str) -> str:
 
 @app.on_callback_query(filters.regex(r"^askf\|"))
 def ask_filter_callback(app, callback_query):
+    messages = safe_get_messages(callback_query.from_user.id)
     from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     logger.info(LoggerMsg.ALWAYS_ASK_CALLBACK_RECEIVED_LOG_MSG.format(callback_data=callback_query.data))
     user_id = callback_query.from_user.id
@@ -600,7 +601,7 @@ def ask_filter_callback(app, callback_query):
         if kind == "subs" and value == "open":
             original_message = callback_query.message.reply_to_message
             if not original_message:
-                callback_query.answer(get_messages_instance().ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
+                callback_query.answer(safe_get_messages(user_id).ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
                 return
             url_text = original_message.text or (original_message.caption or "")
             import re as _re
@@ -619,20 +620,20 @@ def ask_filter_callback(app, callback_query):
                 normal, auto = load_subs_langs_cache(user_id, url)
                 langs = sorted(set(normal) | set(auto))
             if not langs:
-                callback_query.answer(get_messages_instance().NO_SUBTITLES_DETECTED_MSG, show_alert=True)
+                callback_query.answer(safe_get_messages(user_id).NO_SUBTITLES_DETECTED_MSG, show_alert=True)
                 return
             kb = get_language_keyboard_always_ask(page=0, user_id=user_id, langs_override=langs, per_page_rows=8, normal_langs=normal, auto_langs=auto)
             try:
                 callback_query.edit_message_reply_markup(reply_markup=kb)
             except Exception:
                 pass
-            callback_query.answer(get_messages_instance().CHOOSE_SUBTITLE_LANGUAGE_MSG)
+            callback_query.answer(safe_get_messages(user_id).CHOOSE_SUBTITLE_LANGUAGE_MSG)
             return
         if kind == "subs_page":
             page = int(value)
             original_message = callback_query.message.reply_to_message
             if not original_message:
-                callback_query.answer(get_messages_instance().ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
+                callback_query.answer(safe_get_messages(user_id).ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
                 return
             url_text = original_message.text or (original_message.caption or "")
             import re as _re
@@ -651,7 +652,7 @@ def ask_filter_callback(app, callback_query):
                 callback_query.edit_message_reply_markup(reply_markup=kb)
             except Exception:
                 pass
-            callback_query.answer(get_messages_instance().PAGE_NUMBER_MSG.format(page=page + 1))
+            callback_query.answer(safe_get_messages(user_id).PAGE_NUMBER_MSG.format(page=page + 1))
             return
         if kind == "subs" and value in ("back", "close"):
             if value == "back":
@@ -668,7 +669,7 @@ def ask_filter_callback(app, callback_query):
                 safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
             except Exception:
                 app.edit_message_reply_markup(chat_id=callback_query.message.chat.id, message_id=callback_query.message.id, reply_markup=None)
-            callback_query.answer(get_messages_instance().SUBTITLE_MENU_CLOSED_MSG)
+            callback_query.answer(safe_get_messages(user_id).SUBTITLE_MENU_CLOSED_MSG)
             return
         if kind == "subs_lang":
             # Persist selected subtitle language as global setting used by embed logic
@@ -687,7 +688,7 @@ def ask_filter_callback(app, callback_query):
                 # Close subs keyboard and rebuild Always Ask menu with selected lang in summary
                 ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
             try:
-                callback_query.answer(get_messages_instance().SUBTITLE_LANGUAGE_SET_MSG.format(value=value))
+                callback_query.answer(safe_get_messages(user_id).SUBTITLE_LANGUAGE_SET_MSG.format(value=value))
             except Exception:
                 pass
             return
@@ -695,7 +696,7 @@ def ask_filter_callback(app, callback_query):
         if kind == "dubs" and value == "open":
             original_message = callback_query.message.reply_to_message
             if not original_message:
-                callback_query.answer(get_messages_instance().ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
+                callback_query.answer(safe_get_messages(user_id).ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
                 return
             url_text = original_message.text or (original_message.caption or "")
             import re as _re
@@ -704,7 +705,7 @@ def ask_filter_callback(app, callback_query):
             fstate = get_filters(user_id)
             langs = fstate.get("available_dubs", [])
             if not langs or len(langs) <= 1:
-                callback_query.answer(get_messages_instance().NO_ALTERNATIVE_AUDIO_LANGUAGES_MSG, show_alert=True)
+                callback_query.answer(safe_get_messages(user_id).NO_ALTERNATIVE_AUDIO_LANGUAGES_MSG, show_alert=True)
                 return
             rows, row = [], []
             for i, lang in enumerate(sorted(langs)):
@@ -717,13 +718,13 @@ def ask_filter_callback(app, callback_query):
                     row = []
             if row:
                 rows.append(row)
-            rows.append([InlineKeyboardButton(get_messages_instance().BACK_BUTTON_TEXT, callback_data="askf|dubs|back"), InlineKeyboardButton(get_messages_instance().CLOSE_BUTTON_TEXT, callback_data="askf|dubs|close")])
+            rows.append([InlineKeyboardButton(safe_get_messages(user_id).BACK_BUTTON_TEXT, callback_data="askf|dubs|back"), InlineKeyboardButton(safe_get_messages(user_id).CLOSE_BUTTON_TEXT, callback_data="askf|dubs|close")])
             try:
                 callback_query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(rows))
             except Exception:
                 pass
             try:
-                callback_query.answer(get_messages_instance().CHOOSE_AUDIO_LANGUAGE_MSG)
+                callback_query.answer(safe_get_messages(user_id).CHOOSE_AUDIO_LANGUAGE_MSG)
             except Exception:
                 pass
             return
@@ -737,7 +738,7 @@ def ask_filter_callback(app, callback_query):
                 url = m.group(0) if m else url_text
                 ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
             try:
-                callback_query.answer(get_messages_instance().AUDIO_SET_MSG.format(value=value))
+                callback_query.answer(safe_get_messages(user_id).AUDIO_SET_MSG.format(value=value))
             except Exception:
                 pass
             return
@@ -750,7 +751,7 @@ def ask_filter_callback(app, callback_query):
                 url = m.group(0) if m else url_text
                 ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
             try:
-                callback_query.answer(get_messages_instance().FILTERS_UPDATED_MSG)
+                callback_query.answer(safe_get_messages(user_id).FILTERS_UPDATED_MSG)
             except Exception:
                 pass
             return
@@ -777,12 +778,12 @@ def ask_filter_callback(app, callback_query):
             ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
             # After starting download from menu, we will remove temp subs cache in down_and_up_with_format
             try:
-                callback_query.answer(get_messages_instance().FILTERS_UPDATED_MSG)
+                callback_query.answer(safe_get_messages(user_id).FILTERS_UPDATED_MSG)
             except Exception:
                 pass
             return
         try:
-            callback_query.answer(get_messages_instance().FILTERS_UPDATED_MSG)
+            callback_query.answer(safe_get_messages(user_id).FILTERS_UPDATED_MSG)
         except Exception:
             pass
 
@@ -945,6 +946,7 @@ def set_link_mode(user_id, enabled):
         return False
 
 def build_filter_rows(user_id, url=None, is_private_chat=False, download_dir=None):
+    messages = safe_get_messages(user_id)
     from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     f = get_filters(user_id)
     codec = f.get("codec", "avc1")
@@ -1010,16 +1012,16 @@ def build_filter_rows(user_id, url=None, is_private_chat=False, download_dir=Non
         )
         
         # Create dynamic layout based on available buttons
-        buttons = [InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_CODEC_BUTTON_MSG, callback_data="askf|toggle|on"), InlineKeyboardButton(mp3_label, callback_data="askq|mp3")]
+        buttons = [InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_CODEC_BUTTON_MSG, callback_data="askf|toggle|on"), InlineKeyboardButton(mp3_label, callback_data="askq|mp3")]
         
         # Show DUBS button only if audio dubs are detected for this video (set elsewhere)
         if has_dubs:
-            buttons.append(InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_DUBS_BUTTON_MSG, callback_data="askf|dubs|open"))
+            buttons.append(InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_DUBS_BUTTON_MSG, callback_data="askf|dubs|open"))
         
         # Show SUBS button if Always Ask is enabled for this user
         try:
             if is_subs_always_ask(user_id):
-                buttons.append(InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_SUBS_BUTTON_MSG, callback_data="askf|subs|open"))
+                buttons.append(InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_SUBS_BUTTON_MSG, callback_data="askf|subs|open"))
         except Exception:
             pass
         
@@ -1041,9 +1043,9 @@ def build_filter_rows(user_id, url=None, is_private_chat=False, download_dir=Non
     av01_available = 'av01' in available_formats["codecs"] or not available_formats["codecs"]
     vp9_available = 'vp9' in available_formats["codecs"] or not available_formats["codecs"]
     
-    avc1_btn = (get_messages_instance().AA_AVC_BUTTON_MSG if codec == "avc1" else get_messages_instance().AA_AVC_BUTTON_INACTIVE_MSG) if avc1_available else get_messages_instance().AA_AVC_BUTTON_UNAVAILABLE_MSG
-    av01_btn = (get_messages_instance().AA_AV1_BUTTON_MSG if codec == "av01" else get_messages_instance().AA_AV1_BUTTON_INACTIVE_MSG) if av01_available else get_messages_instance().AA_AV1_BUTTON_UNAVAILABLE_MSG
-    vp9_btn = (get_messages_instance().AA_VP9_BUTTON_MSG if codec == "vp9" else get_messages_instance().AA_VP9_BUTTON_INACTIVE_MSG) if vp9_available else get_messages_instance().AA_VP9_BUTTON_UNAVAILABLE_MSG
+    avc1_btn = (safe_get_messages(user_id).AA_AVC_BUTTON_MSG if codec == "avc1" else safe_get_messages(user_id).AA_AVC_BUTTON_INACTIVE_MSG) if avc1_available else safe_get_messages(user_id).AA_AVC_BUTTON_UNAVAILABLE_MSG
+    av01_btn = (safe_get_messages(user_id).AA_AV1_BUTTON_MSG if codec == "av01" else safe_get_messages(user_id).AA_AV1_BUTTON_INACTIVE_MSG) if av01_available else safe_get_messages(user_id).AA_AV1_BUTTON_UNAVAILABLE_MSG
+    vp9_btn = (safe_get_messages(user_id).AA_VP9_BUTTON_MSG if codec == "vp9" else safe_get_messages(user_id).AA_VP9_BUTTON_INACTIVE_MSG) if vp9_available else safe_get_messages(user_id).AA_VP9_BUTTON_UNAVAILABLE_MSG
     
     # Build format buttons with availability check
     # If user has fixed format via /args, don't show container buttons
@@ -1056,8 +1058,8 @@ def build_filter_rows(user_id, url=None, is_private_chat=False, download_dir=Non
         mp4_available = 'mp4' in available_formats["formats"] or not available_formats["formats"]
         mkv_available = 'mkv' in available_formats["formats"] or not available_formats["formats"]
         
-        mp4_btn = (get_messages_instance().AA_MP4_BUTTON_MSG if ext == "mp4" else get_messages_instance().AA_MP4_BUTTON_INACTIVE_MSG) if mp4_available else get_messages_instance().AA_MP4_BUTTON_UNAVAILABLE_MSG
-        mkv_btn = (get_messages_instance().AA_MKV_BUTTON_MSG if ext == "mkv" else get_messages_instance().AA_MKV_BUTTON_INACTIVE_MSG) if mkv_available else get_messages_instance().AA_MKV_BUTTON_UNAVAILABLE_MSG
+        mp4_btn = (safe_get_messages(user_id).AA_MP4_BUTTON_MSG if ext == "mp4" else safe_get_messages(user_id).AA_MP4_BUTTON_INACTIVE_MSG) if mp4_available else safe_get_messages(user_id).AA_MP4_BUTTON_UNAVAILABLE_MSG
+        mkv_btn = (safe_get_messages(user_id).AA_MKV_BUTTON_MSG if ext == "mkv" else safe_get_messages(user_id).AA_MKV_BUTTON_INACTIVE_MSG) if mkv_available else safe_get_messages(user_id).AA_MKV_BUTTON_UNAVAILABLE_MSG
     
     # NSFW detection for expanded filters
     is_nsfw = False
@@ -1118,6 +1120,7 @@ def build_filter_rows(user_id, url=None, is_private_chat=False, download_dir=Non
 @app.on_callback_query(filters.regex(r"^askq\|"))
 # @reply_with_keyboard
 def askq_callback(app, callback_query):
+    messages = safe_get_messages(callback_query.from_user.id)
     from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     logger.info(f"{LoggerMsg.ALWAYS_ASK_CALLBACK_LOG_MSG}: {callback_query.data}")
     user_id = callback_query.from_user.id
@@ -1166,7 +1169,7 @@ def askq_callback(app, callback_query):
             safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
         except Exception:
             app.edit_message_reply_markup(chat_id=callback_query.message.chat.id, message_id=callback_query.message.id, reply_markup=None)
-        callback_query.answer(get_messages_instance().ALWAYS_ASK_MENU_CLOSED_MSG)
+        callback_query.answer(safe_get_messages(user_id).ALWAYS_ASK_MENU_CLOSED_MSG)
         return
         
     # Handle LINK button - get direct link with BV+BA/BEST format
@@ -1174,7 +1177,7 @@ def askq_callback(app, callback_query):
         # Get original URL from the reply message
         original_message = callback_query.message.reply_to_message
         if not original_message:
-            callback_query.answer(get_messages_instance().AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
+            callback_query.answer(safe_get_messages(user_id).AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             return
             
         url_text = original_message.text or (original_message.caption or "")
@@ -1183,7 +1186,7 @@ def askq_callback(app, callback_query):
         url = m.group(0) if m else url_text
         
         try:
-            callback_query.answer(get_messages_instance().ALWAYS_ASK_GETTING_DIRECT_LINK_MSG)
+            callback_query.answer(safe_get_messages(user_id).ALWAYS_ASK_GETTING_DIRECT_LINK_MSG)
         except Exception:
             pass
         
@@ -1201,16 +1204,16 @@ def askq_callback(app, callback_query):
             # Browser button will be sent in main message
             
             # Send main response with browser button
-            main_response = get_messages_instance().STREAM_LINKS_TITLE_MSG
-            main_response += get_messages_instance().STREAM_TITLE_MSG.format(title=title)
-            if duration > 0:
-                main_response += f"{get_messages_instance().ALWAYS_ASK_DURATION_MSG} {duration} sec\n"
-            main_response += f"{get_messages_instance().ALWAYS_ASK_FORMAT_MSG} <code>bv+ba/best</code>\n\n"
-            main_response += f"{get_messages_instance().ALWAYS_ASK_BROWSER_MSG}\n\n"
+            main_response = safe_get_messages(user_id).STREAM_LINKS_TITLE_MSG
+            main_response += safe_get_messages(user_id).STREAM_TITLE_MSG.format(title=title)
+            if duration and duration > 0:
+                main_response += f"{safe_get_messages(user_id).ALWAYS_ASK_DURATION_MSG} {duration} sec\n"
+            main_response += f"{safe_get_messages(user_id).ALWAYS_ASK_FORMAT_MSG} <code>bv+ba/best</code>\n\n"
+            main_response += f"{safe_get_messages(user_id).ALWAYS_ASK_BROWSER_MSG}\n\n"
             
             # Create browser keyboard
             browser_keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_BROWSER_BUTTON_MSG, url=player_urls['direct'])],
+                [InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_BROWSER_BUTTON_MSG, url=player_urls['direct'])],
                 [InlineKeyboardButton("🔚 Close", callback_data="askq|close")]
             ])
             
@@ -1226,12 +1229,12 @@ def askq_callback(app, callback_query):
             # Send VLC iOS message
             if 'vlc_ios' in player_urls:
                 vlc_ios_keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_VLC_IOS_BUTTON_MSG, url=player_urls['vlc_ios'])],
-                    [InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_CLOSE_BUTTON_MSG, callback_data="askq|close")]
+                    [InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_VLC_IOS_BUTTON_MSG, url=player_urls['vlc_ios'])],
+                    [InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_CLOSE_BUTTON_MSG, callback_data="askq|close")]
                 ])
                 app.send_message(
                     user_id,
-                    get_messages_instance().AA_VLC_IOS_MSG,
+                    safe_get_messages(user_id).AA_VLC_IOS_MSG,
                     reply_parameters=ReplyParameters(message_id=original_message.id),
                     reply_markup=vlc_ios_keyboard,
                     parse_mode=enums.ParseMode.HTML
@@ -1240,29 +1243,29 @@ def askq_callback(app, callback_query):
             # Send VLC Android message
             if 'vlc_android' in player_urls:
                 vlc_android_keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_VLC_ANDROID_BUTTON_MSG, url=player_urls['vlc_android'])],
-                    [InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_CLOSE_BUTTON_MSG, callback_data="askq|close")]
+                    [InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_VLC_ANDROID_BUTTON_MSG, url=player_urls['vlc_android'])],
+                    [InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_CLOSE_BUTTON_MSG, callback_data="askq|close")]
                 ])
                 app.send_message(
                     user_id,
-                    get_messages_instance().AA_VLC_ANDROID_MSG,
+                    safe_get_messages(user_id).AA_VLC_ANDROID_MSG,
                     reply_parameters=ReplyParameters(message_id=original_message.id),
                     reply_markup=vlc_android_keyboard,
                     parse_mode=enums.ParseMode.HTML
                 )
             
-            send_to_logger(original_message, get_messages_instance().DIRECT_LINK_MENU_CREATED_LOG_MSG.format(user_id=user_id, url=url))
+            send_to_logger(original_message, safe_get_messages(user_id).DIRECT_LINK_MENU_CREATED_LOG_MSG.format(user_id=user_id, url=url))
             
         else:
             error_msg = result.get('error', 'Unknown error')
             app.send_message(
                 user_id,
-                get_messages_instance().AA_ERROR_GETTING_LINK_MSG.format(error_msg=error_msg),
+                safe_get_messages(user_id).AA_ERROR_GETTING_LINK_MSG.format(error_msg=error_msg),
                 reply_parameters=ReplyParameters(message_id=original_message.id),
                 parse_mode=enums.ParseMode.HTML
             )
             
-            log_error_to_channel(original_message, get_messages_instance().DIRECT_LINK_EXTRACTION_FAILED_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
+            log_error_to_channel(original_message, safe_get_messages(user_id).DIRECT_LINK_EXTRACTION_FAILED_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
         
         # Удаляем Always Ask меню после обработки
         try:
@@ -1276,7 +1279,7 @@ def askq_callback(app, callback_query):
         # Get original URL from the reply message
         original_message = callback_query.message.reply_to_message
         if not original_message:
-            callback_query.answer(get_messages_instance().AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
+            callback_query.answer(safe_get_messages(user_id).AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             return
             
         url_text = original_message.text or (original_message.caption or "")
@@ -1285,7 +1288,7 @@ def askq_callback(app, callback_query):
         url = m.group(0) if m else url_text
         
         try:
-            callback_query.answer(get_messages_instance().ALWAYS_ASK_GETTING_FORMATS_MSG)
+            callback_query.answer(safe_get_messages(user_id).ALWAYS_ASK_GETTING_FORMATS_MSG)
         except Exception:
             pass
         
@@ -1317,46 +1320,46 @@ def askq_callback(app, callback_query):
             # Create temporary file with output
             import tempfile
             with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as temp_file:
-                temp_file.write(f"{get_messages_instance().ALWAYS_ASK_AVAILABLE_FORMATS_FOR_MSG}: {url}\n")
+                temp_file.write(f"{safe_get_messages(user_id).ALWAYS_ASK_AVAILABLE_FORMATS_FOR_MSG}: {url}\n")
                 temp_file.write("=" * 50 + "\n\n")
                 temp_file.write(output)
                 temp_file.write("\n\n" + "=" * 50 + "\n")
-                temp_file.write(f"{get_messages_instance().ALWAYS_ASK_HOW_TO_USE_FORMAT_IDS_MSG}\n")
-                temp_file.write(f"{get_messages_instance().ALWAYS_ASK_AFTER_GETTING_LIST_MSG}\n")
-                temp_file.write(f"{get_messages_instance().ALWAYS_ASK_FORMAT_ID_401_MSG}\n")
-                temp_file.write(f"{get_messages_instance().ALWAYS_ASK_FORMAT_ID401_MSG}\n")
-                temp_file.write(f"{get_messages_instance().ALWAYS_ASK_FORMAT_ID_140_AUDIO_MSG}\n")
+                temp_file.write(f"{safe_get_messages(user_id).ALWAYS_ASK_HOW_TO_USE_FORMAT_IDS_MSG}\n")
+                temp_file.write(f"{safe_get_messages(user_id).ALWAYS_ASK_AFTER_GETTING_LIST_MSG}\n")
+                temp_file.write(f"{safe_get_messages(user_id).ALWAYS_ASK_FORMAT_ID_401_MSG}\n")
+                temp_file.write(f"{safe_get_messages(user_id).ALWAYS_ASK_FORMAT_ID401_MSG}\n")
+                temp_file.write(f"{safe_get_messages(user_id).ALWAYS_ASK_FORMAT_ID_140_AUDIO_MSG}\n")
                 
                 # Add special note for audio-only formats
                 if audio_only_formats:
-                    temp_file.write(f"\n{get_messages_instance().ALWAYS_ASK_AUDIO_ONLY_FORMATS_DETECTED_MSG}: {', '.join(audio_only_formats)}\n")
-                    temp_file.write(f"{get_messages_instance().ALWAYS_ASK_THESE_FORMATS_MP3_MSG}\n")
+                    temp_file.write(f"\n{safe_get_messages(user_id).ALWAYS_ASK_AUDIO_ONLY_FORMATS_DETECTED_MSG}: {', '.join(audio_only_formats)}\n")
+                    temp_file.write(f"{safe_get_messages(user_id).ALWAYS_ASK_THESE_FORMATS_MP3_MSG}\n")
                 
                 temp_file_path = temp_file.name
             
             try:
                 # Send the file
                 # Build caption with audio-only format info
-                caption = f"{get_messages_instance().ALWAYS_ASK_AVAILABLE_FORMATS_FOR_MSG}:\n<code>{url}</code>\n\n"
-                caption += f"{get_messages_instance().ALWAYS_ASK_HOW_TO_SET_FORMAT_MSG}\n"
-                caption += f"{get_messages_instance().ALWAYS_ASK_FORMAT_ID_134_MSG}\n"
-                caption += f"{get_messages_instance().ALWAYS_ASK_FORMAT_720P_MSG}\n"
-                caption += f"{get_messages_instance().ALWAYS_ASK_FORMAT_BEST_MSG}\n"
-                caption += f"{get_messages_instance().ALWAYS_ASK_FORMAT_ASK_MSG}\n\n"
+                caption = f"{safe_get_messages(user_id).ALWAYS_ASK_AVAILABLE_FORMATS_FOR_MSG}:\n<code>{url}</code>\n\n"
+                caption += f"{safe_get_messages(user_id).ALWAYS_ASK_HOW_TO_SET_FORMAT_MSG}\n"
+                caption += f"{safe_get_messages(user_id).ALWAYS_ASK_FORMAT_ID_134_MSG}\n"
+                caption += f"{safe_get_messages(user_id).ALWAYS_ASK_FORMAT_720P_MSG}\n"
+                caption += f"{safe_get_messages(user_id).ALWAYS_ASK_FORMAT_BEST_MSG}\n"
+                caption += f"{safe_get_messages(user_id).ALWAYS_ASK_FORMAT_ASK_MSG}\n\n"
                 
                 # Add video-only formats info first
                 if video_only_formats:
                     video_formats_text = ', '.join([f'<code>{fmt}</code>' for fmt in video_only_formats])
-                    caption += f"\n{get_messages_instance().LIST_VIDEO_ONLY_FORMATS_MSG.format(formats=video_formats_text)}\n"
+                    caption += f"\n{safe_get_messages(user_id).LIST_VIDEO_ONLY_FORMATS_MSG.format(formats=video_formats_text)}\n"
                 
                 # Add special note for audio-only formats with monospace formatting
                 if audio_only_formats:
                     audio_formats_text = ', '.join([f'<code>{fmt}</code>' for fmt in audio_only_formats])
-                    caption += f"{get_messages_instance().ALWAYS_ASK_AUDIO_ONLY_FORMATS_MSG}: {audio_formats_text}\n"
-                    caption += f"{get_messages_instance().ALWAYS_ASK_FORMAT_ID_140_AUDIO_CAPTION_MSG}\n"
-                    caption += f"{get_messages_instance().ALWAYS_ASK_THESE_WILL_BE_MP3_MSG}\n\n"
+                    caption += f"{safe_get_messages(user_id).ALWAYS_ASK_AUDIO_ONLY_FORMATS_MSG}: {audio_formats_text}\n"
+                    caption += f"{safe_get_messages(user_id).ALWAYS_ASK_FORMAT_ID_140_AUDIO_CAPTION_MSG}\n"
+                    caption += f"{safe_get_messages(user_id).ALWAYS_ASK_THESE_WILL_BE_MP3_MSG}\n\n"
                 
-                caption += f"{get_messages_instance().ALWAYS_ASK_USE_FORMAT_ID_MSG}"
+                caption += f"{safe_get_messages(user_id).ALWAYS_ASK_USE_FORMAT_ID_MSG}"
                 
                 app.send_document(
                     user_id,
@@ -1366,13 +1369,13 @@ def askq_callback(app, callback_query):
                     reply_parameters=ReplyParameters(message_id=original_message.id)
                 )
                 
-                send_to_logger(original_message, get_messages_instance().LIST_COMMAND_EXECUTED_LOG_MSG.format(user_id=user_id, url=url))
+                send_to_logger(original_message, safe_get_messages(user_id).LIST_COMMAND_EXECUTED_LOG_MSG.format(user_id=user_id, url=url))
                     
             except Exception as e:
                 logger.error(f"{LoggerMsg.ALWAYS_ASK_ERROR_SENDING_FORMATS_FILE_LOG_MSG}: {e}")
                 app.send_message(
                     user_id,
-                    get_messages_instance().AA_ERROR_SENDING_FORMATS_MSG.format(error=str(e)),
+                    safe_get_messages(user_id).AA_ERROR_SENDING_FORMATS_MSG.format(error=str(e)),
                     reply_parameters=ReplyParameters(message_id=original_message.id)
                 )
             finally:
@@ -1384,7 +1387,7 @@ def askq_callback(app, callback_query):
         else:
             app.send_message(
                 user_id,
-                get_messages_instance().AA_FAILED_GET_FORMATS_MSG.format(output=output),
+                safe_get_messages(user_id).AA_FAILED_GET_FORMATS_MSG.format(output=output),
                 reply_parameters=ReplyParameters(message_id=original_message.id)
             )
         
@@ -1399,7 +1402,7 @@ def askq_callback(app, callback_query):
     if data == "image":
         original_message = callback_query.message.reply_to_message
         if not original_message:
-            callback_query.answer(get_messages_instance().AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
+            callback_query.answer(safe_get_messages(user_id).AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             return
         # ЖЕСТКО: Получаем полный текст сообщения
         url_text = original_message.text or (original_message.caption or "")
@@ -1424,7 +1427,7 @@ def askq_callback(app, callback_query):
             end_range = 1
             logger.info(f"{LoggerMsg.ALWAYS_ASK_FALLBACK_DEBUG_NO_RANGE_FOUND_LOG_MSG}: {url}")
         try:
-            callback_query.answer(get_messages_instance().ALWAYS_ASK_STARTING_GALLERY_DL_MSG)
+            callback_query.answer(safe_get_messages(user_id).ALWAYS_ASK_STARTING_GALLERY_DL_MSG)
         except Exception:
             pass
         try:
@@ -1477,18 +1480,18 @@ def askq_callback(app, callback_query):
         # Get original URL from the reply message
         original_message = callback_query.message.reply_to_message
         if not original_message:
-            callback_query.answer(get_messages_instance().AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
+            callback_query.answer(safe_get_messages(user_id).AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             return
             
         url = original_message.text
         if not url:
-            callback_query.answer(get_messages_instance().AA_ERROR_URL_NOT_FOUND_MSG, show_alert=True)
+            callback_query.answer(safe_get_messages(user_id).AA_ERROR_URL_NOT_FOUND_MSG, show_alert=True)
             return
             
         # Transform URL
         embed_url = transform_to_embed_url(url)
         if embed_url == url:
-            callback_query.answer(get_messages_instance().AA_ERROR_URL_NOT_EMBEDDABLE_MSG, show_alert=True)
+            callback_query.answer(safe_get_messages(user_id).AA_ERROR_URL_NOT_EMBEDDABLE_MSG, show_alert=True)
             return
             
         # Send transformed URL
@@ -1497,7 +1500,7 @@ def askq_callback(app, callback_query):
             embed_url,
             reply_parameters=ReplyParameters(message_id=original_message.id)
         )
-        send_to_logger(original_message, get_messages_instance().QUICK_EMBED_LOG_MSG.format(embed_url=embed_url))
+        send_to_logger(original_message, safe_get_messages(user_id).QUICK_EMBED_LOG_MSG.format(embed_url=embed_url))
         safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
         return
     
@@ -1519,13 +1522,13 @@ def askq_callback(app, callback_query):
         if kind in ("codec", "ext"):
             # Handle empty callback (fixed format)
             if value == "empty":
-                callback_query.answer(get_messages_instance().ALWAYS_ASK_FORMAT_FIXED_VIA_ARGS_MSG, show_alert=True)
+                callback_query.answer(safe_get_messages(user_id).ALWAYS_ASK_FORMAT_FIXED_VIA_ARGS_MSG, show_alert=True)
                 return
                 
             # Get original message and URL
             original_message = callback_query.message.reply_to_message
             if not original_message:
-                callback_query.answer(get_messages_instance().ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
+                callback_query.answer(safe_get_messages(user_id).ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
                 return
             url = original_message.text or (original_message.caption or "")
             # try to extract url
@@ -1540,24 +1543,24 @@ def askq_callback(app, callback_query):
             if kind == "codec":
                 if value not in available_formats["codecs"] and available_formats["codecs"]:
                     # Codec is not available, show warning
-                    callback_query.answer(get_messages_instance().AA_ERROR_CODEC_NOT_AVAILABLE_MSG.format(codec=value.upper()), show_alert=True)
+                    callback_query.answer(safe_get_messages(user_id).AA_ERROR_CODEC_NOT_AVAILABLE_MSG.format(codec=value.upper()), show_alert=True)
                     return
             elif kind == "ext":
                 if value not in available_formats["formats"] and available_formats["formats"]:
                     # Format is not available, show warning
-                    callback_query.answer(get_messages_instance().AA_ERROR_FORMAT_NOT_AVAILABLE_MSG.format(format=value.upper()), show_alert=True)
+                    callback_query.answer(safe_get_messages(user_id).AA_ERROR_FORMAT_NOT_AVAILABLE_MSG.format(format=value.upper()), show_alert=True)
                     return
             
             # Set filter and reopen menu
             set_filter(callback_query.from_user.id, kind, value)
-            callback_query.answer(get_messages_instance().FILTERS_UPDATED_MSG)
+            callback_query.answer(safe_get_messages(user_id).FILTERS_UPDATED_MSG)
             ask_quality_menu(app, original_message, url, [], playlist_start_index=1, cb=callback_query)
             return
         if kind == "dubs" and value == "open":
             # Build and show dubs selection menu with flags
             original_message = callback_query.message.reply_to_message
             if not original_message:
-                callback_query.answer(get_messages_instance().ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
+                callback_query.answer(safe_get_messages(user_id).ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
                 return
             url_text = original_message.text or (original_message.caption or "")
             import re as _re
@@ -1579,14 +1582,14 @@ def askq_callback(app, callback_query):
                     row = []
             if row:
                 rows.append(row)
-            rows.append([InlineKeyboardButton("🔙Back", callback_data="askf|dubs|back"), InlineKeyboardButton(get_messages_instance().URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="askf|dubs|close")])
+            rows.append([InlineKeyboardButton("🔙Back", callback_data="askf|dubs|back"), InlineKeyboardButton(safe_get_messages(user_id).URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="askf|dubs|close")])
             kb = InlineKeyboardMarkup(rows)
             try:
                 # Replace entire keyboard (keeping caption/text) to show dubs
                 callback_query.edit_message_reply_markup(reply_markup=kb)
             except Exception:
                 pass
-            callback_query.answer(get_messages_instance().AA_CHOOSE_AUDIO_LANGUAGE_MSG)
+            callback_query.answer(safe_get_messages(user_id).AA_CHOOSE_AUDIO_LANGUAGE_MSG)
             return
         # LINK MENU HANDLER REMOVED - now using direct link approach
         if kind == "subs" and value == "open":
@@ -1595,7 +1598,7 @@ def askq_callback(app, callback_query):
             original_message = callback_query.message.reply_to_message
             if not original_message:
                 logger.error(f"{LoggerMsg.ALWAYS_ASK_NO_ORIGINAL_MESSAGE_FOUND_FOR_SUBS_MENU_LOG_MSG}")
-                callback_query.answer(get_messages_instance().ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
+                callback_query.answer(safe_get_messages(user_id).ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
                 return
             url_text = original_message.text or (original_message.caption or "")
             import re as _re
@@ -1619,7 +1622,7 @@ def askq_callback(app, callback_query):
             
             if not langs:
                 logger.warning(f"{LoggerMsg.ALWAYS_ASK_NO_SUBTITLES_FOUND_LOG_MSG} {url}")
-                callback_query.answer(get_messages_instance().AA_NO_SUBTITLES_DETECTED_MSG, show_alert=True)
+                callback_query.answer(safe_get_messages(user_id).AA_NO_SUBTITLES_DETECTED_MSG, show_alert=True)
                 return
                 
             logger.info(f"{LoggerMsg.ALWAYS_ASK_BUILDING_KEYBOARD_WITH_LANGUAGES_LOG_MSG} {len(langs)} languages")
@@ -1630,14 +1633,14 @@ def askq_callback(app, callback_query):
             except Exception as e:
                 logger.error(f"{LoggerMsg.ALWAYS_ASK_ERROR_UPDATING_MESSAGE_LOG_MSG}: {e}")
                 pass
-            callback_query.answer(get_messages_instance().AA_CHOOSE_SUBTITLE_LANGUAGE_MSG)
+            callback_query.answer(safe_get_messages(user_id).AA_CHOOSE_SUBTITLE_LANGUAGE_MSG)
             return
         if kind == "subs_page":
             # Handle page navigation in Always Ask subtitle menu
             page = int(value)
             original_message = callback_query.message.reply_to_message
             if not original_message:
-                callback_query.answer(get_messages_instance().ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
+                callback_query.answer(safe_get_messages(user_id).ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
                 return
             url_text = original_message.text or (original_message.caption or "")
             import re as _re
@@ -1654,7 +1657,7 @@ def askq_callback(app, callback_query):
                 callback_query.edit_message_reply_markup(reply_markup=kb)
             except Exception:
                 pass
-            callback_query.answer(get_messages_instance().PAGE_NUMBER_MSG.format(page=page + 1))
+            callback_query.answer(safe_get_messages(user_id).PAGE_NUMBER_MSG.format(page=page + 1))
             return
         if kind == "subs" and value == "back":
             # Go back to main Always Ask menu
@@ -1672,7 +1675,7 @@ def askq_callback(app, callback_query):
                 safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
             except Exception:
                 app.edit_message_reply_markup(chat_id=callback_query.message.chat.id, message_id=callback_query.message.id, reply_markup=None)
-            callback_query.answer(get_messages_instance().SUBTITLE_MENU_CLOSED_MSG)
+            callback_query.answer(safe_get_messages(user_id).SUBTITLE_MENU_CLOSED_MSG)
             return
         # OLD LINK TOGGLE HANDLER REMOVED - now using submenu approach
         if kind == "subs_lang":
@@ -1682,7 +1685,7 @@ def askq_callback(app, callback_query):
             fstate = get_filters(user_id)
             fstate['selected_subs_lang'] = selected_lang
             save_filters(user_id, fstate)
-            callback_query.answer(get_messages_instance().SUBTITLE_LANGUAGE_SET_MSG.format(value=selected_lang))
+            callback_query.answer(safe_get_messages(user_id).SUBTITLE_LANGUAGE_SET_MSG.format(value=selected_lang))
             # Return to main Always Ask menu
             original_message = callback_query.message.reply_to_message
             if original_message:
@@ -1704,7 +1707,7 @@ def askq_callback(app, callback_query):
             return
         if kind == "audio_lang":
             set_filter(callback_query.from_user.id, kind, value)
-            callback_query.answer(get_messages_instance().AUDIO_SET_MSG.format(value=value))
+            callback_query.answer(safe_get_messages(user_id).AUDIO_SET_MSG.format(value=value))
             # Return to main menu with updated summary
             original_message = callback_query.message.reply_to_message
             if original_message:
@@ -1832,7 +1835,7 @@ def askq_callback(app, callback_query):
         # Extract URL and tags to regenerate the original menu
         original_message = callback_query.message.reply_to_message
         if not original_message:
-            callback_query.answer(get_messages_instance().AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
+            callback_query.answer(safe_get_messages(user_id).AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
             return
         
@@ -1857,7 +1860,7 @@ def askq_callback(app, callback_query):
             safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
             ask_quality_menu(app, original_message, url, tags)
         else:
-            callback_query.answer(get_messages_instance().AA_ERROR_URL_NOT_FOUND_MSG, show_alert=True)
+            callback_query.answer(safe_get_messages(user_id).AA_ERROR_URL_NOT_FOUND_MSG, show_alert=True)
             safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
         return
     
@@ -1897,13 +1900,13 @@ def askq_callback(app, callback_query):
         except Exception as e:
             logger.warning(f"Failed to delete Other menu message: {e}")
         
-        callback_query.answer(f"{get_messages_instance().ALWAYS_ASK_DOWNLOADING_FORMAT_MSG} {format_id}...")
+        callback_query.answer(f"{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_FORMAT_MSG} {format_id}...")
         logger.info(f"Starting download process for format_id: {format_id}")
         
         original_message = callback_query.message.reply_to_message
         if not original_message:
             logger.error("Original message not found")
-            callback_query.answer(get_messages_instance().AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
+            callback_query.answer(safe_get_messages(user_id).AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             return
         
         url = None
@@ -1920,7 +1923,7 @@ def askq_callback(app, callback_query):
         logger.info(f"Extracted URL: {url}")
         if not url:
             logger.error("URL not found in message")
-            callback_query.answer(get_messages_instance().AA_ERROR_URL_NOT_FOUND_MSG, show_alert=True)
+            callback_query.answer(safe_get_messages(user_id).AA_ERROR_URL_NOT_FOUND_MSG, show_alert=True)
             return
         
         # Extract tags from the user's source message
@@ -1951,11 +1954,11 @@ def askq_callback(app, callback_query):
     # Handle manual quality selection
     if data.startswith("manual_"):
         quality = data.replace("manual_", "")
-        callback_query.answer(f"{get_messages_instance().ALWAYS_ASK_DOWNLOADING_QUALITY_MSG} {quality}...")
+        callback_query.answer(f"{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_QUALITY_MSG} {quality}...")
         
         original_message = callback_query.message.reply_to_message
         if not original_message:
-            callback_query.answer(get_messages_instance().AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
+            callback_query.answer(safe_get_messages(user_id).AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
             return
         
@@ -1971,7 +1974,7 @@ def askq_callback(app, callback_query):
                 url = url_match.group(0)
         
         if not url:
-            callback_query.answer(get_messages_instance().AA_ERROR_URL_NOT_FOUND_MSG, show_alert=True)
+            callback_query.answer(safe_get_messages(user_id).AA_ERROR_URL_NOT_FOUND_MSG, show_alert=True)
             safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
             return
         
@@ -1994,21 +1997,21 @@ def askq_callback(app, callback_query):
                 quality_str = quality.replace('p', '')
                 quality_val = int(quality_str)
                 # choose previous rung for lower bound
-                if quality_val >= 4320:
+                if quality_val and quality_val >= 4320:
                     prev = 2160
-                elif quality_val >= 2160:
+                elif quality_val and quality_val >= 2160:
                     prev = 1440
-                elif quality_val >= 1440:
+                elif quality_val and quality_val >= 1440:
                     prev = 1080
-                elif quality_val >= 1080:
+                elif quality_val and quality_val >= 1080:
                     prev = 720
-                elif quality_val >= 720:
+                elif quality_val and quality_val >= 720:
                     prev = 480
-                elif quality_val >= 480:
+                elif quality_val and quality_val >= 480:
                     prev = 360
-                elif quality_val >= 360:
+                elif quality_val and quality_val >= 360:
                     prev = 240
-                elif quality_val >= 240:
+                elif quality_val and quality_val >= 240:
                     prev = 144
                 else:
                     prev = 0
@@ -2032,7 +2035,7 @@ def askq_callback(app, callback_query):
 
     original_message = callback_query.message.reply_to_message
     if not original_message:
-        callback_query.answer(get_messages_instance().ALWAYS_ASK_ERROR_ORIGINAL_MESSAGE_NOT_FOUND_DETAILED_MSG, show_alert=True)
+        callback_query.answer(safe_get_messages(user_id).ALWAYS_ASK_ERROR_ORIGINAL_MESSAGE_NOT_FOUND_DETAILED_MSG, show_alert=True)
         safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
         return
 
@@ -2047,7 +2050,7 @@ def askq_callback(app, callback_query):
         if url_match:
             url = url_match.group(0)
     if not url:
-        callback_query.answer(get_messages_instance().ALWAYS_ASK_ERROR_ORIGINAL_URL_NOT_FOUND_MSG, show_alert=True)
+        callback_query.answer(safe_get_messages(user_id).ALWAYS_ASK_ERROR_ORIGINAL_URL_NOT_FOUND_MSG, show_alert=True)
         safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
         return
 
@@ -2205,21 +2208,21 @@ def askq_callback(app, callback_query):
                         else:
                             quality_str = used_quality_key.replace('p', '')
                             quality_val = int(quality_str)
-                            if quality_val >= 4320:
+                            if quality_val and quality_val >= 4320:
                                 prev = 2160
-                            elif quality_val >= 2160:
+                            elif quality_val and quality_val >= 2160:
                                 prev = 1440
-                            elif quality_val >= 1440:
+                            elif quality_val and quality_val >= 1440:
                                 prev = 1080
-                            elif quality_val >= 1080:
+                            elif quality_val and quality_val >= 1080:
                                 prev = 720
-                            elif quality_val >= 720:
+                            elif quality_val and quality_val >= 720:
                                 prev = 480
-                            elif quality_val >= 480:
+                            elif quality_val and quality_val >= 480:
                                 prev = 360
-                            elif quality_val >= 360:
+                            elif quality_val and quality_val >= 360:
                                 prev = 240
-                            elif quality_val >= 240:
+                            elif quality_val and quality_val >= 240:
                                 prev = 144
                             else:
                                 prev = 0
@@ -2233,8 +2236,8 @@ def askq_callback(app, callback_query):
                     down_and_up(app, original_message, url, playlist_name, new_count, new_start, tags_text, force_no_title=False, format_override=format_override, quality_key=used_quality_key, cookies_already_checked=True)
             else:
                 # All videos were in the cache
-                app.send_message(target_chat_id, get_messages_instance().PLAYLIST_CACHE_SENT_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=original_message.id))
-                media_type = get_messages_instance().ALWAYS_ASK_AUDIO_TYPE_MSG if data == "mp3" else get_messages_instance().ALWAYS_ASK_VIDEO_TYPE_MSG
+                app.send_message(target_chat_id, safe_get_messages(user_id).PLAYLIST_CACHE_SENT_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=original_message.id))
+                media_type = safe_get_messages(user_id).ALWAYS_ASK_AUDIO_TYPE_MSG if data == "mp3" else safe_get_messages(user_id).ALWAYS_ASK_VIDEO_TYPE_MSG
                 log_msg = f"{media_type} playlist sent from cache to user.\nURL: {url}\nUser: {callback_query.from_user.first_name} ({user_id})"
                 send_to_logger(original_message, log_msg)
             return
@@ -2253,21 +2256,21 @@ def askq_callback(app, callback_query):
                     else:
                         quality_str = data.replace('p', '')
                         quality_val = int(quality_str)
-                        if quality_val >= 4320:
+                        if quality_val and quality_val >= 4320:
                             prev = 2160
-                        elif quality_val >= 2160:
+                        elif quality_val and quality_val >= 2160:
                             prev = 1440
-                        elif quality_val >= 1440:
+                        elif quality_val and quality_val >= 1440:
                             prev = 1080
-                        elif quality_val >= 1080:
+                        elif quality_val and quality_val >= 1080:
                             prev = 720
-                        elif quality_val >= 720:
+                        elif quality_val and quality_val >= 720:
                             prev = 480
-                        elif quality_val >= 480:
+                        elif quality_val and quality_val >= 480:
                             prev = 360
-                        elif quality_val >= 360:
+                        elif quality_val and quality_val >= 360:
                             prev = 240
-                        elif quality_val >= 240:
+                        elif quality_val and quality_val >= 240:
                             prev = 144
                         else:
                             prev = 0
@@ -2380,8 +2383,8 @@ def askq_callback(app, callback_query):
                         from_chat_id=from_chat_id,
                         message_ids=message_ids
                     )
-                app.send_message(target_chat_id, get_messages_instance().VIDEO_SENT_FROM_CACHE_MSG, reply_parameters=ReplyParameters(message_id=original_message.id))
-                media_type = get_messages_instance().ALWAYS_ASK_AUDIO_TYPE_MSG if data == "mp3" else get_messages_instance().ALWAYS_ASK_VIDEO_TYPE_MSG
+                app.send_message(target_chat_id, safe_get_messages(user_id).VIDEO_SENT_FROM_CACHE_MSG, reply_parameters=ReplyParameters(message_id=original_message.id))
+                media_type = safe_get_messages(user_id).ALWAYS_ASK_AUDIO_TYPE_MSG if data == "mp3" else safe_get_messages(user_id).ALWAYS_ASK_VIDEO_TYPE_MSG
                 log_msg = f"{media_type} sent from cache to user.\nURL: {url}\nUser: {callback_query.from_user.first_name} ({user_id})"
                 send_to_logger(original_message, log_msg)
                 return
@@ -2497,6 +2500,7 @@ def fallback_gallery_dl_callback(app, callback_query):
 
 # @reply_with_keyboard
 def show_manual_quality_menu(app, callback_query):
+    messages = safe_get_messages(callback_query.from_user.id)
     """Show manual quality selection menu when automatic detection fails"""
     from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     user_id = callback_query.from_user.id
@@ -2505,7 +2509,7 @@ def show_manual_quality_menu(app, callback_query):
     # Extract URL and tags from the callback
     original_message = callback_query.message.reply_to_message
     if not original_message:
-        callback_query.answer(get_messages_instance().ALWAYS_ASK_ERROR_ORIGINAL_MESSAGE_NOT_FOUND_MSG, show_alert=True)
+        callback_query.answer(safe_get_messages(user_id).ALWAYS_ASK_ERROR_ORIGINAL_MESSAGE_NOT_FOUND_MSG, show_alert=True)
         callback_query.message.delete()
         return
     
@@ -2566,24 +2570,24 @@ def show_manual_quality_menu(app, callback_query):
             n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality, indices)
             total = len(indices)
             icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
-            postfix = f" ({n_cached}/{total})" if total > 1 else ""
+            postfix = f" ({n_cached}/{total})" if total and total > 1 else ""
             button_text = f"{icon}{quality}{postfix}"
         else:
             icon = "🚀" if (quality in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
             button_text = f"{icon}{quality}"
         buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|manual_{quality}"))
 
-    # Best Quality
+    # {safe_get_messages(user_id).ALWAYS_ASK_BEST_BUTTON_MSG} Quality
     if is_playlist and playlist_range:
         indices = list(range(playlist_range[0], playlist_range[1]+1))
         n_cached = get_cached_playlist_count(get_clean_playlist_url(url), "best", indices)
         total = len(indices)
         icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
-        postfix = f" ({n_cached}/{total})" if total > 1 else ""
-        button_text = f"{icon}Best Quality{postfix}"
+        postfix = f" ({n_cached}/{total})" if total and total > 1 else ""
+        button_text = f"{icon}{safe_get_messages(user_id).ALWAYS_ASK_BEST_BUTTON_MSG} Quality{postfix}"
     else:
         icon = "🚀" if ("best" in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
-        button_text = f"{icon}Best Quality"
+        button_text = f"{icon}{safe_get_messages(user_id).ALWAYS_ASK_BEST_BUTTON_MSG} Quality"
     buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|manual_best"))
     
     # Form rows of 3 buttons
@@ -2598,7 +2602,7 @@ def show_manual_quality_menu(app, callback_query):
         n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
         total = len(indices)
         icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "🎧")
-        postfix = f" ({n_cached}/{total})" if total > 1 else ""
+        postfix = f" ({n_cached}/{total})" if total and total > 1 else ""
         button_text = f"{icon} audio (mp3){postfix}"
     else:
         icon = "🚀" if (quality_key in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "🎧")
@@ -2613,12 +2617,12 @@ def show_manual_quality_menu(app, callback_query):
         need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
         
         if need_subs:
-            keyboard_rows.append([InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_SUB_ONLY_BUTTON_MSG, callback_data="askq|subs_only")])
+            keyboard_rows.append([InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_SUB_ONLY_BUTTON_MSG, callback_data="askq|subs_only")])
     
     # Add Back and close buttons
     keyboard_rows.append([
-        InlineKeyboardButton(get_messages_instance().BACK_BUTTON_TEXT, callback_data="askq|manual_back"),
-        InlineKeyboardButton(get_messages_instance().CLOSE_BUTTON_TEXT, callback_data="askq|close")
+        InlineKeyboardButton(safe_get_messages(user_id).BACK_BUTTON_TEXT, callback_data="askq|manual_back"),
+        InlineKeyboardButton(safe_get_messages(user_id).CLOSE_BUTTON_TEXT, callback_data="askq|close")
     ])
     
     keyboard = InlineKeyboardMarkup(keyboard_rows)
@@ -2629,7 +2633,7 @@ def show_manual_quality_menu(app, callback_query):
         title = info.get('title', 'Video')
         video_title = title
     except:
-        video_title = get_messages_instance().ALWAYS_ASK_VIDEO_TITLE_MSG
+        video_title = safe_get_messages(user_id).ALWAYS_ASK_VIDEO_TITLE_MSG
     
     # Form caption
     cap = f"<b>{video_title}</b>\n"
@@ -2643,8 +2647,8 @@ def show_manual_quality_menu(app, callback_query):
         cap += "\n<b>⭐️ — 🔞NSFW is paid (⭐️$0.02)</b>\n"
     if is_nsfw and is_private_chat:
         cap += "\n<b>⭐️ — 🔞NSFW is paid (⭐️$0.02)</b>\n"
-    cap += f"\n<b>{get_messages_instance().ALWAYS_ASK_MANUAL_QUALITY_SELECTION_MSG}</b>\n"
-    cap += f"\n<i>{get_messages_instance().ALWAYS_ASK_CHOOSE_QUALITY_MANUALLY_MSG}</i>\n"
+    cap += f"\n<b>{safe_get_messages(user_id).ALWAYS_ASK_MANUAL_QUALITY_SELECTION_MSG}</b>\n"
+    cap += f"\n<i>{safe_get_messages(user_id).ALWAYS_ASK_CHOOSE_QUALITY_MANUALLY_MSG}</i>\n"
     
     # Update current menu; if MESSAGE_ID_INVALID, send new message
     if callback_query and getattr(callback_query, 'message', None):
@@ -2673,12 +2677,14 @@ def show_manual_quality_menu(app, callback_query):
             callback_query.answer("❌ Не удалось открыть меню выбора качества.", show_alert=True)
 
 def show_other_qualities_menu(app, callback_query, page=0):
+    messages = safe_get_messages(callback_query.from_user.id)
     """Show all available qualities from yt-dlp -F output with pagination"""
     from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     user_id = callback_query.from_user.id
     
     # Local safe wrapper to avoid noisy QueryIdInvalid when answering twice/late
     def _safe_answer(text, show_alert=False):
+        messages = safe_get_messages(callback_query.from_user.id)
         try:
             callback_query.answer(text, show_alert=show_alert)
         except Exception as e:
@@ -2753,7 +2759,7 @@ def show_other_qualities_menu(app, callback_query, page=0):
     # Extract URL from the callback
     original_message = callback_query.message.reply_to_message
     if not original_message:
-        callback_query.answer(get_messages_instance().ALWAYS_ASK_ERROR_ORIGINAL_MESSAGE_NOT_FOUND_MSG, show_alert=True)
+        callback_query.answer(safe_get_messages(user_id).ALWAYS_ASK_ERROR_ORIGINAL_MESSAGE_NOT_FOUND_MSG, show_alert=True)
         callback_query.message.delete()
         return
     
@@ -2799,7 +2805,7 @@ def show_other_qualities_menu(app, callback_query, page=0):
         title = info.get('title', 'Video')
         video_title = title
     except:
-        video_title = get_messages_instance().ALWAYS_ASK_VIDEO_TITLE_MSG
+        video_title = safe_get_messages(user_id).ALWAYS_ASK_VIDEO_TITLE_MSG
     
     # Form caption
     cap = f"<b>{video_title}</b>\n"
@@ -2807,8 +2813,8 @@ def show_other_qualities_menu(app, callback_query, page=0):
         cap += f"{tags_text}"
     if is_nsfw and is_private_chat:
         cap += "\n<b>⭐️ — 🔞NSFW is paid (⭐️$0.02)</b>\n"
-    cap += f"\n<b>{get_messages_instance().ALWAYS_ASK_ALL_AVAILABLE_FORMATS_MSG}</b>\n"
-    cap += f"\n<i>Page {page + 1}</i>\n"
+    cap += f"\n<b>{safe_get_messages(user_id).ALWAYS_ASK_ALL_AVAILABLE_FORMATS_MSG}</b>\n"
+    cap += f"\n<i>{safe_get_messages(user_id).PAGE_NUMBER_MSG.format(page=page + 1)}</i>\n"
     
     # Get all formats using yt-dlp -F
     try:
@@ -2947,7 +2953,7 @@ def show_other_qualities_menu(app, callback_query, page=0):
                             
                             # Find VCODEC (usually around position 8-9)
                             for j, part in enumerate(parts):
-                                if j > 7 and part and part != 'none' and not part.startswith('mp4a') and not part.startswith('—') and not part.startswith('audio') and not part.startswith('≈'):
+                                if j and j > 7 and part and part != 'none' and not part.startswith('mp4a') and not part.startswith('—') and not part.startswith('audio') and not part.startswith('≈'):
                                     # Check if this looks like a video codec
                                     if any(codec in part.lower() for codec in ['avc', 'vp9', 'av1', 'h264', 'h265', 'hevc']):
                                         vcodec = part
@@ -3037,16 +3043,16 @@ def show_other_qualities_menu(app, callback_query, page=0):
         # Add navigation buttons
         nav_row = []
         if page > 0:
-            nav_row.append(InlineKeyboardButton("◀️ Prev", callback_data=f"askq|other_page_{page-1}"))
+            nav_row.append(InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_PREV_BUTTON_MSG, callback_data=f"askq|other_page_{page-1}"))
         if page < total_pages - 1:
-            nav_row.append(InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_NEXT_BUTTON_MSG, callback_data=f"askq|other_page_{page+1}"))
+            nav_row.append(InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_NEXT_BUTTON_MSG, callback_data=f"askq|other_page_{page+1}"))
         if nav_row:
             keyboard_rows.append(nav_row)
         
         # Add back and close buttons
         keyboard_rows.append([
-            InlineKeyboardButton(get_messages_instance().BACK_BUTTON_TEXT, callback_data="askq|other_back"),
-            InlineKeyboardButton(get_messages_instance().CLOSE_BUTTON_TEXT, callback_data="askq|close")
+            InlineKeyboardButton(safe_get_messages(user_id).BACK_BUTTON_TEXT, callback_data="askq|other_back"),
+            InlineKeyboardButton(safe_get_messages(user_id).CLOSE_BUTTON_TEXT, callback_data="askq|close")
         ])
         
         keyboard = InlineKeyboardMarkup(keyboard_rows)
@@ -3065,19 +3071,19 @@ def show_other_qualities_menu(app, callback_query, page=0):
                 ref_id = original_message.id if original_message else None
                 app.send_message(chat_id, cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard,
                                reply_parameters=ReplyParameters(message_id=ref_id))
-                _safe_answer(f"{get_messages_instance().ALWAYS_ASK_FORMATS_PAGE_MSG} {page + 1}/{total_pages}")
+                _safe_answer(f"{safe_get_messages(user_id).ALWAYS_ASK_FORMATS_PAGE_MSG} {page + 1}/{total_pages}")
             except Exception as e2:
                 logger.error(f"Error showing other qualities menu: {e2}")
-                _safe_answer(get_messages_instance().ALWAYS_ASK_ERROR_SHOWING_FORMATS_MENU_MSG, show_alert=True)
+                _safe_answer(safe_get_messages(user_id).ALWAYS_ASK_ERROR_SHOWING_FORMATS_MENU_MSG, show_alert=True)
         
             # Clean up temp file
         # No temp file used here; keep block for future extensions
             
     except Exception as e:
         logger.error(f"Error getting formats: {e}")
-        _safe_answer(get_messages_instance().ALWAYS_ASK_ERROR_GETTING_FORMATS_MSG, show_alert=True)
+        _safe_answer(safe_get_messages(user_id).ALWAYS_ASK_ERROR_GETTING_FORMATS_MSG, show_alert=True)
         # Show error message
-        error_cap = f"<b>{video_title}</b>\n\n{get_messages_instance().ALWAYS_ASK_ERROR_GETTING_AVAILABLE_FORMATS_MSG}\n{get_messages_instance().ALWAYS_ASK_PLEASE_TRY_AGAIN_LATER_MSG}"
+        error_cap = f"<b>{video_title}</b>\n\n{safe_get_messages(user_id).ALWAYS_ASK_ERROR_GETTING_AVAILABLE_FORMATS_MSG}\n{safe_get_messages(user_id).ALWAYS_ASK_PLEASE_TRY_AGAIN_LATER_MSG}"
         try:
             if callback_query.message.photo:
                 callback_query.edit_message_caption(caption=error_cap, parse_mode=enums.ParseMode.HTML)
@@ -3087,6 +3093,7 @@ def show_other_qualities_menu(app, callback_query, page=0):
             pass
 
 def show_formats_from_cache(app, callback_query, format_lines, page, url):
+    messages = safe_get_messages(callback_query.from_user.id)
     """Show formats from cached data for fast navigation"""
     from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     user_id = callback_query.from_user.id
@@ -3098,11 +3105,11 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
         title = info.get('title', 'Video')
         video_title = title
     except:
-        video_title = get_messages_instance().ALWAYS_ASK_VIDEO_TITLE_MSG
+        video_title = safe_get_messages(user_id).ALWAYS_ASK_VIDEO_TITLE_MSG
     
     # Form caption
     cap = f"<b>{video_title}</b>\n"
-    cap += f"\n<b>{get_messages_instance().ALWAYS_ASK_ALL_AVAILABLE_FORMATS_MSG}</b>\n"
+    cap += f"\n<b>{safe_get_messages(user_id).ALWAYS_ASK_ALL_AVAILABLE_FORMATS_MSG}</b>\n"
     try:
         orig_text = callback_query.message.reply_to_message.text or callback_query.message.reply_to_message.caption or ""
     except Exception:
@@ -3112,7 +3119,7 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
     is_private_chat = getattr(callback_query.message.chat, "type", None) == enums.ChatType.PRIVATE
     if isinstance(url, str) and is_nsfw and is_private_chat:
         cap += "\n<b>⭐️ — 🔞NSFW is paid (⭐️$0.02)</b>\n"
-    cap += f"\n<i>Page {page + 1}</i>\n"
+    cap += f"\n<i>{safe_get_messages(user_id).PAGE_NUMBER_MSG.format(page=page + 1)}</i>\n"
     
     # Pagination: 10 formats per page (1 column × 10 rows)
     formats_per_page = 10
@@ -3173,16 +3180,16 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
     # Add navigation buttons
     nav_row = []
     if page > 0:
-        nav_row.append(InlineKeyboardButton("◀️ Prev", callback_data=f"askq|other_page_{page-1}"))
+        nav_row.append(InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_PREV_BUTTON_MSG, callback_data=f"askq|other_page_{page-1}"))
     if page < total_pages - 1:
-        nav_row.append(InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_NEXT_BUTTON_MSG, callback_data=f"askq|other_page_{page+1}"))
+        nav_row.append(InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_NEXT_BUTTON_MSG, callback_data=f"askq|other_page_{page+1}"))
     if nav_row:
         keyboard_rows.append(nav_row)
     
     # Add back and close buttons
     keyboard_rows.append([
         InlineKeyboardButton("🔙Back", callback_data="askq|other_back"),
-        InlineKeyboardButton(get_messages_instance().URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="askq|close")
+        InlineKeyboardButton(safe_get_messages(user_id).URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="askq|close")
     ])
     
     keyboard = InlineKeyboardMarkup(keyboard_rows)
@@ -3193,7 +3200,7 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
             callback_query.edit_message_caption(caption=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
         else:
             callback_query.edit_message_text(text=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
-        callback_query.answer(f"{get_messages_instance().ALWAYS_ASK_FORMATS_PAGE_FROM_CACHE_MSG} {page + 1}/{total_pages} {get_messages_instance().ALWAYS_ASK_FROM_CACHE_MSG}")
+        callback_query.answer(f"{safe_get_messages(user_id).ALWAYS_ASK_FORMATS_PAGE_FROM_CACHE_MSG} {page + 1}/{total_pages} {safe_get_messages(user_id).ALWAYS_ASK_FROM_CACHE_MSG}")
     except Exception as e:
         # Fallback: send new message
         try:
@@ -3201,7 +3208,7 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
             ref_id = callback_query.message.reply_to_message.id if callback_query.message.reply_to_message else None
             app.send_message(chat_id, cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard,
                            reply_parameters=ReplyParameters(message_id=ref_id) if ref_id else None)
-            callback_query.answer(f"{get_messages_instance().ALWAYS_ASK_FORMATS_PAGE_FROM_CACHE_MSG} {page + 1}/{total_pages} {get_messages_instance().ALWAYS_ASK_FROM_CACHE_MSG}")
+            callback_query.answer(f"{safe_get_messages(user_id).ALWAYS_ASK_FORMATS_PAGE_FROM_CACHE_MSG} {page + 1}/{total_pages} {safe_get_messages(user_id).ALWAYS_ASK_FROM_CACHE_MSG}")
         except Exception as e2:
             logger.error(f"Error showing cached formats: {e2}")
             callback_query.answer("❌ Error showing formats menu", show_alert=True)
@@ -3221,6 +3228,7 @@ def sort_quality_key(quality_key):
             return 0  # for unknown formats
 
 def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, original_text, is_playlist, playlist_range):
+    messages = safe_get_messages(user_id)
     """
     Создает меню качества из кэшированных данных когда не удается получить новые.
     
@@ -3304,9 +3312,9 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         if is_nsfw and is_private_chat:
             cap += "\n<b>⭐️ — 🔞NSFW is paid (⭐️$0.02)</b>\n"
         if user_fixed_format:
-                cap += f"\n<b>{get_messages_instance().ALWAYS_ASK_FORMAT_FIXED_VIA_ARGS_MSG}: {user_fixed_format.upper()}</b>\n"
-        cap += f"\n<b>{get_messages_instance().ALWAYS_ASK_AVAILABLE_QUALITIES_FROM_CACHE_MSG}</b>\n"
-        cap += f"\n<i>{get_messages_instance().ALWAYS_ASK_USING_CACHED_QUALITIES_MSG}</i>\n"
+                cap += f"\n<b>{safe_get_messages(user_id).ALWAYS_ASK_FORMAT_FIXED_VIA_ARGS_MSG}: {user_fixed_format.upper()}</b>\n"
+        cap += f"\n<b>{safe_get_messages(user_id).ALWAYS_ASK_AVAILABLE_QUALITIES_FROM_CACHE_MSG}</b>\n"
+        cap += f"\n<i>{safe_get_messages(user_id).ALWAYS_ASK_USING_CACHED_QUALITIES_MSG}</i>\n"
         
         # Создаем кнопки качества из кэша
         buttons = []
@@ -3321,29 +3329,29 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
                     total = len(indices)
                     icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
-                    postfix = f" ({n_cached}/{total})" if total > 1 else ""
+                    postfix = f" ({n_cached}/{total})" if total and total > 1 else ""
                     button_text = f"{icon}{quality_key}{postfix}"
                 else:
                     icon = "🚀" if (quality_key in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     button_text = f"{icon}{quality_key}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         
-        # Всегда добавляем Best Quality
+        # Всегда добавляем {safe_get_messages(user_id).ALWAYS_ASK_BEST_BUTTON_MSG} Quality
         quality_key = "best"
         if is_playlist and playlist_range:
             indices = list(range(playlist_range[0], playlist_range[1]+1))
             n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
             total = len(indices)
             icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
-            postfix = f" ({n_cached}/{total})" if total > 1 else ""
-            button_text = f"{icon}Best{postfix}"
+            postfix = f" ({n_cached}/{total})" if total and total > 1 else ""
+            button_text = f"{icon}{safe_get_messages(user_id).ALWAYS_ASK_BEST_BUTTON_MSG}{postfix}"
         else:
             icon = "🚀" if (quality_key in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
-            button_text = f"{icon}Best"
+            button_text = f"{icon}{safe_get_messages(user_id).ALWAYS_ASK_BEST_BUTTON_MSG}"
         buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         
         # Всегда добавляем Other Qualities
-        buttons.append(InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_OTHER_LABEL_MSG, callback_data=f"askq|other_qualities"))
+        buttons.append(InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_OTHER_LABEL_MSG, callback_data=f"askq|other_qualities"))
 
         # Создаем клавиатуру
         keyboard_rows = []
@@ -3371,7 +3379,7 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         action_buttons = []
         action_buttons.extend(filter_action_buttons)
         # IMAGE fallback из кэш-меню
-        action_buttons.append(InlineKeyboardButton(get_messages_instance().IMAGE_BUTTON_TEXT, callback_data="askq|image"))        
+        action_buttons.append(InlineKeyboardButton(safe_get_messages(user_id).IMAGE_BUTTON_TEXT, callback_data="askq|image"))        
         # Добавляем WATCH кнопку для YouTube
         # - в личке: WebApp (удобный просмотр)
         # - в группах: обычная URL-кнопка (WebApp может давать BUTTON_TYPE_INVALID в некоторых контекстах)
@@ -3383,10 +3391,10 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
                 except Exception:
                     is_group = False
                 if is_group:
-                    action_buttons.append(InlineKeyboardButton("👁Watch", url=piped_url))
+                    action_buttons.append(InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_WATCH_BUTTON_MSG, url=piped_url))
                 else:
                     wa = WebAppInfo(url=piped_url)
-                    action_buttons.append(InlineKeyboardButton("👁Watch", web_app=wa))
+                    action_buttons.append(InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_WATCH_BUTTON_MSG, web_app=wa))
         except Exception as e:
             logger.error(f"Error adding WATCH button: {e}")
         
@@ -3396,7 +3404,7 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
                 keyboard_rows.append(action_buttons[i:i+3])
         
         # Добавляем кнопку закрытия
-        keyboard_rows.append([InlineKeyboardButton(get_messages_instance().CLOSE_BUTTON_TEXT, callback_data="askq|close")])
+        keyboard_rows.append([InlineKeyboardButton(safe_get_messages(user_id).CLOSE_BUTTON_TEXT, callback_data="askq|close")])
         
         keyboard = InlineKeyboardMarkup(keyboard_rows)
         
@@ -3456,6 +3464,22 @@ def delete_processing_message(app, user_id, proc_msg):
 
 def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, download_dir=None):
     """Show quality selection menu for video"""
+    # ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ДЛЯ ОТЛАДКИ
+    logger.info(f"🔍 [DEBUG] ask_quality_menu вызвана с параметрами:")
+    logger.info(f"   url: {url}")
+    logger.info(f"   tags: {tags}")
+    logger.info(f"   playlist_start_index: {playlist_start_index}")
+    logger.info(f"   download_dir: {download_dir}")
+    
+    # ГЛОБАЛЬНАЯ ЗАЩИТА: messages НИКОГДА не будет undefined
+    try:
+        messages = safe_get_messages(message.chat.id)
+        logger.info(f"✅ [DEBUG] messages инициализированы успешно")
+    except Exception as e:
+        logger.error(f"❌ [DEBUG] Ошибка инициализации messages: {e}")
+        # Если все не удается, создаем минимальную защиту
+        # Используем правильную систему переводов
+        messages = safe_get_messages(message.chat.id)
     from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     user_id = message.chat.id
     proc_msg = None
@@ -3525,11 +3549,11 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 minutes = (wait_time % 3600) // 60
                 seconds = wait_time % 60
                 time_str = f"{hours}h {minutes}m {seconds}s"
-                proc_msg = app.send_message(user_id, get_messages_instance().RATE_LIMIT_WITH_TIME_MSG.format(time=time_str))
+                proc_msg = app.send_message(user_id, safe_get_messages(user_id).RATE_LIMIT_WITH_TIME_MSG.format(time=time_str))
             else:
-                proc_msg = app.send_message(user_id, get_messages_instance().RATE_LIMIT_NO_TIME_MSG)
+                proc_msg = app.send_message(user_id, safe_get_messages(user_id).RATE_LIMIT_NO_TIME_MSG)
             try:
-                app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=get_messages_instance().DOWNLOAD_STARTED_MSG, parse_mode=enums.ParseMode.HTML)
+                app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=safe_get_messages(user_id).DOWNLOAD_STARTED_MSG, parse_mode=enums.ParseMode.HTML)
                 try:
                     from HELPERS.safe_messeger import schedule_delete_message
                     schedule_delete_message(user_id, proc_msg.id, delete_after_seconds=5)
@@ -3567,7 +3591,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
     try:
         # Check if subtitles are included
         subs_enabled = is_subs_enabled(user_id)
-        processing_text = get_messages_instance().AA_PROCESSING_WAIT_MSG if subs_enabled else get_messages_instance().AA_PROCESSING_MSG
+        processing_text = safe_get_messages(user_id).AA_PROCESSING_WAIT_MSG if subs_enabled else safe_get_messages(user_id).AA_PROCESSING_MSG
         
         # Only send new processing message if this is the initial menu open (no callback)
         # If callback is provided, we should NOT edit the message here - let the final logic handle it
@@ -3595,7 +3619,27 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         # Try load cached info first to make UI instant
         info = load_ask_info(user_id, url)
         if not info:
-            info = get_video_formats(url, user_id, playlist_start_index, cookies_already_checked=True)
+            logger.info(f"🔍 [DEBUG] Загружаем информацию о видео через get_video_formats")
+            logger.info(f"   url: {url}")
+            logger.info(f"   user_id: {user_id}")
+            logger.info(f"   playlist_start_index: {playlist_start_index}")
+            logger.info(f"   cookies_already_checked: True")
+            
+            try:
+                info = get_video_formats(url, user_id, playlist_start_index, cookies_already_checked=True)
+                logger.info(f"✅ [DEBUG] get_video_formats выполнен успешно")
+                logger.info(f"   info type: {type(info)}")
+                if isinstance(info, dict):
+                    logger.info(f"   info keys: {list(info.keys())}")
+                    if 'duration' in info:
+                        logger.info(f"   duration: {info['duration']} (тип: {type(info['duration'])})")
+                    if 'formats' in info:
+                        logger.info(f"   formats count: {len(info.get('formats', []))}")
+            except Exception as e:
+                logger.error(f"❌ [DEBUG] Ошибка в get_video_formats: {e}")
+                logger.error(f"   Тип ошибки: {type(e)}")
+                logger.error(f"   Строка ошибки: {str(e)}")
+                raise e
             
             # Check for live stream detection
             if isinstance(info, dict) and info.get('error') == 'LIVE_STREAM_DETECTED':
@@ -3612,10 +3656,34 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 send_error_to_user(message, live_stream_message)
                 return
             
+            # Check for TikTok private account error
+            if isinstance(info, dict) and info.get('error') == 'TIKTOK_PRIVATE_ACCOUNT':
+                logger.info(f"TikTok private account detected in ask_quality_menu for user {user_id}: {url}")
+                
+                # Extract username from TikTok URL
+                import re
+                username_match = re.search(r'tiktok\.com/@([^/?]+)', url)
+                username = username_match.group(1) if username_match else "unknown"
+                
+                # Get localized message
+                messages = safe_get_messages(user_id)
+                tiktok_message = messages.TIKTOK_PRIVATE_ACCOUNT_MSG.format(username=username)
+                
+                send_error_to_user(message, tiktok_message)
+                return
+            
             # Check for fallback to gallery-dl recommendation
             if isinstance(info, dict) and info.get('error') == 'FALLBACK_TO_GALLERY_DL':
                 logger.info(f"Fallback to gallery-dl recommended in ask_quality_menu for user {user_id}: {url}")
                 original_error = info.get('original_error', 'Unknown error')
+                
+                # ГЛОБАЛЬНАЯ ЗАЩИТА: Убедимся, что messages инициализирована
+                if 'messages' not in locals() or messages is None:
+                    try:
+                        messages = safe_get_messages(user_id)
+                    except Exception:
+                        # Используем правильную систему переводов
+                        messages = safe_get_messages(user_id)
                 
                 # Extract range info for better messaging
                 _, video_start_with, video_end_with, _, _, _, _ = extract_url_range_tags(message.text or "")
@@ -3635,14 +3703,14 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                     range_examples = ""
                 
                 fallback_message = (
-                    f"{get_messages_instance().ALWAYS_ASK_YTDLP_CANNOT_PROCESS_MSG}{range_info}</b>\n\n"
+                    f"{safe_get_messages(user_id).ALWAYS_ASK_YTDLP_CANNOT_PROCESS_MSG}{range_info}</b>\n\n"
                     f"<b>Error:</b> <code>{original_error[:200]}{'...' if len(original_error) > 200 else ''}</code>\n\n"
-                    f"{get_messages_instance().ALWAYS_ASK_SYSTEM_RECOMMENDS_GALLERY_DL_MSG}\n\n"
-                    f"{get_messages_instance().ALWAYS_ASK_OPTIONS_MSG}\n"
+                    f"{safe_get_messages(user_id).ALWAYS_ASK_SYSTEM_RECOMMENDS_GALLERY_DL_MSG}\n\n"
+                    f"{safe_get_messages(user_id).ALWAYS_ASK_OPTIONS_MSG}\n"
                     f"{range_examples}"
-                    f"{get_messages_instance().ALWAYS_ASK_FOR_IMAGE_GALLERIES_MSG}\n"
-                    f"{get_messages_instance().ALWAYS_ASK_FOR_SINGLE_IMAGES_MSG}\n\n"
-                    f"{get_messages_instance().ALWAYS_ASK_GALLERY_DL_WORKS_BETTER_MSG}"
+                    f"{safe_get_messages(user_id).ALWAYS_ASK_FOR_IMAGE_GALLERIES_MSG}\n"
+                    f"{safe_get_messages(user_id).ALWAYS_ASK_FOR_SINGLE_IMAGES_MSG}\n\n"
+                    f"{safe_get_messages(user_id).ALWAYS_ASK_GALLERY_DL_WORKS_BETTER_MSG}"
                 )
                 
                 # Create inline keyboard with gallery-dl option
@@ -3678,7 +3746,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 
                 callback_data = create_safe_callback_data("fallback_gallery_dl", url_data)
                 keyboard = [
-                    [InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_TRY_GALLERY_DL_BUTTON_MSG, callback_data=callback_data)]
+                    [InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_TRY_GALLERY_DL_BUTTON_MSG, callback_data=callback_data)]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
@@ -3913,7 +3981,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 h = f.get('height')
                 filesize = f.get('filesize') or f.get('filesize_approx')
                 if filesize:
-                    if filesize >= 1024*1024*1024:
+                    if filesize and filesize >= 1024*1024*1024:
                         size_str = f"{round(filesize/1024/1024/1024, 2)}GB"
                     else:
                         size_str = f"{round(filesize/1024/1024, 1)}MB"
@@ -3923,10 +3991,10 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 scissors = ""
                 if get_user_split_size(user_id) and filesize:
                     video_bytes = filesize
-                    if video_bytes > get_user_split_size(user_id):
+                    if video_bytes and video_bytes > get_user_split_size(user_id):
                         n_parts = (video_bytes + get_user_split_size(user_id) - 1) // get_user_split_size(user_id)
                         scissors = f" ✂️{n_parts}"
-                # Check the availability of subtitles for this quality
+                # Check the availability of subtitles for this quality 
                 subs_enabled = is_subs_enabled(user_id)
                 auto_mode = get_user_subs_auto_mode(user_id)
                 subs_available = ""
@@ -3972,6 +4040,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
             quality_map = {}  # quality_key -> best candidate dict
 
             def infer_quality_key(f):
+                messages = safe_get_messages(message.chat.id)
                 w = f.get('width')
                 h = f.get('height')
                 if w and h:
@@ -3999,9 +4068,35 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                         return f"{int(m3.group(1))}p"
                     except Exception:
                         return None
+                
+                # Case 4: Universal - check format_note and other fields for any service
+                # Try to extract quality from format_note
+                format_note = f.get('format_note') or ''
+                m4 = _re.search(r'(\d{3,4})p', format_note)
+                if m4:
+                    try:
+                        return f"{int(m4.group(1))}p"
+                    except Exception:
+                        pass
+                
+                # Try to extract from url field
+                url_field = f.get('url') or ''
+                m5 = _re.search(r'(\d{3,4})p', url_field)
+                if m5:
+                    try:
+                        return f"{int(m5.group(1))}p"
+                    except Exception:
+                        pass
+                
+                # Universal fallback: if we have dimensions but no quality key, try to infer from resolution
+                if w and h:
+                    # Use the existing quality mapping function for consistency
+                    return get_quality_by_min_side(w, h)
+                
                 return None
 
             def is_manifest(f):
+                messages = safe_get_messages(message.chat.id)
                 proto = (f.get('protocol') or '').lower()
                 return 'm3u8' in proto or 'dash' in (f.get('format_note') or '').lower() or f.get('manifest_url') is not None
 
@@ -4120,7 +4215,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                     kbps += float(_audio_kbps)
                 try:
                     mb = (kbps * float(duration) * 125) / (1024*1024)
-                    if mb > 0 and mb < 1:
+                    if mb and mb > 0 and mb < 1:
                         return 1
                     return int(round(mb))
                 except Exception:
@@ -4211,6 +4306,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                     curr_manifest = is_manifest(candidate)
 
                     def better(a_has_dims, a_has_size, a_manifest, a_size, b_has_dims, b_has_size, b_manifest, b_size):
+                        messages = safe_get_messages(message.chat.id)
                         # 1) prefer with dimensions
                         if a_has_dims != b_has_dims:
                             return a_has_dims
@@ -4226,6 +4322,40 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                     if better(curr_has_dims, curr_has_size, curr_manifest, candidate['size_mb'],
                               prev_has_dims, prev_has_size, prev_manifest, prev.get('size_mb', 0)):
                         quality_map[qk] = candidate
+            
+            # Universal fallback when no qualities were found for any service
+            if not quality_map:
+                # Try to create default qualities based on available formats
+                video_formats = [f for f in info.get('formats', []) if f.get('vcodec') != 'none']
+                if video_formats:
+                    # Group formats by resolution and create quality keys
+                    resolution_groups = {}
+                    for f in video_formats:
+                        w = f.get('width', 0)
+                        h = f.get('height', 0)
+                        if w and h:
+                            # Find the best quality for this resolution
+                            res_key = f"{w}x{h}"
+                            if res_key not in resolution_groups or (f.get('filesize') or 0) > (resolution_groups[res_key].get('filesize') or 0):
+                                resolution_groups[res_key] = f
+                    
+                    # Convert resolution groups to quality keys
+                    for res_key, f in resolution_groups.items():
+                        w, h = f.get('width', 0), f.get('height', 0)
+                        if w and h:
+                            # Use the existing quality mapping function for consistency
+                            qk = get_quality_by_min_side(w, h)
+                            
+                            if qk not in quality_map:
+                                quality_map[qk] = {
+                                    'w': w,
+                                    'h': h,
+                                    'size_mb': estimate_size_mb(f, qk, f.get('filesize_str') or ''),
+                                    'format_id': f.get('format_id') or '',
+                                    'protocol': f.get('protocol') or '',
+                                    'filesize_str': f.get('filesize_str') or '',
+                                }
+            
             table_lines = []
             for quality_key in sorted(quality_map.keys(), key=sort_quality_key):
                 entry = quality_map[quality_key]
@@ -4236,7 +4366,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 scissors = ""
                 if get_user_split_size(user_id) and size_val:
                     video_bytes = size_val * 1024 * 1024
-                    if video_bytes > get_user_split_size(user_id):
+                    if video_bytes and video_bytes > get_user_split_size(user_id):
                         n_parts = (video_bytes + get_user_split_size(user_id) - 1) // get_user_split_size(user_id)
                         scissors = f" ✂️{n_parts}"
                 emoji = "📹"
@@ -4248,7 +4378,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         
         # Show fixed format info if set via /args
         if user_fixed_format:
-                cap += f"\n<b>{get_messages_instance().ALWAYS_ASK_FORMAT_FIXED_VIA_ARGS_MSG}: {user_fixed_format.upper()}</b>\n"
+                cap += f"\n<b>{safe_get_messages(user_id).ALWAYS_ASK_FORMAT_FIXED_VIA_ARGS_MSG}: {user_fixed_format.upper()}</b>\n"
         
         # Audio/subs selection summary line
         fstate = get_filters(user_id)
@@ -4354,8 +4484,8 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 normal_subs = get_available_subs_languages(url, user_id, auto_only=False)
                 auto_subs = get_available_subs_languages(url, user_id, auto_only=True)
                 total_subs = len(set(normal_subs) | set(auto_subs))
-                if total_subs > 0:
-                    subs_count_info = f"{get_messages_instance().ALWAYS_ASK_SUBTITLES_MSG}: {total_subs} available\n"
+                if total_subs and total_subs > 0:
+                    subs_count_info = f"{safe_get_messages(user_id).ALWAYS_ASK_SUBTITLES_MSG}: {total_subs} available\n"
             except Exception as e:
                 logger.error(f"Error getting subtitles count: {e}")
         
@@ -4363,7 +4493,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         fstate = get_filters(user_id)
         available_dubs = fstate.get("available_dubs", [])
         if len(available_dubs) > 1:  # More than 1 language means dubs are available
-            dubs_count_info = f"{get_messages_instance().ALWAYS_ASK_DUBBED_AUDIO_MSG}: {len(available_dubs)} languages"
+            dubs_count_info = f"{safe_get_messages(user_id).ALWAYS_ASK_DUBBED_AUDIO_MSG}: {len(available_dubs)} languages"
         
         # Add the info to caption if any is available
         if subs_count_info or dubs_count_info:
@@ -4453,56 +4583,57 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
             
             logger.info(f"Always Ask menu: subs_enabled={subs_enabled}, auto_mode={auto_mode}, found_type={found_type}, is_always_ask={is_always_ask_mode}, need_subs={need_subs}")
             if need_subs:
-                subs_hint = f"\n{get_messages_instance().ALWAYS_ASK_SUBTITLES_ARE_AVAILABLE_MSG}"
+                subs_hint = f"\n{safe_get_messages(user_id).ALWAYS_ASK_SUBTITLES_ARE_AVAILABLE_MSG}"
                 show_repost_hint = False  # 🚀 we don't show if subs really exist and are needed
             elif is_always_ask_mode and not need_subs:
                 # In Always Ask mode, show subs hint even if not found (user can still try)
-                subs_hint = f"\n{get_messages_instance().ALWAYS_ASK_CHOOSE_SUBTITLE_LANGUAGE_MSG}"
+                subs_hint = f"\n{safe_get_messages(user_id).ALWAYS_ASK_CHOOSE_SUBTITLE_LANGUAGE_MSG}"
             else:
-                subs_warn = f"\n{get_messages_instance().ALWAYS_ASK_SUBS_NOT_FOUND_MSG}"
+                subs_warn = f"\n{safe_get_messages(user_id).ALWAYS_ASK_SUBS_NOT_FOUND_MSG}"
 
-        repost_line = f"\n{get_messages_instance().ALWAYS_ASK_INSTANT_REPOST_MSG}" if show_repost_hint else ""
+        repost_line = f"\n{safe_get_messages(user_id).ALWAYS_ASK_INSTANT_REPOST_MSG}" if show_repost_hint else ""
         # Add DUBS hint if available
-        dubs_hint = f"\n{get_messages_instance().ALWAYS_ASK_CHOOSE_AUDIO_LANGUAGE_MSG}" if get_filters(user_id).get("has_dubs") else ""
+        dubs_hint = f"\n{safe_get_messages(user_id).ALWAYS_ASK_CHOOSE_AUDIO_LANGUAGE_MSG}" if get_filters(user_id).get("has_dubs") else ""
         # Replace quality hint with paid note for NSFW
-        paid_hint = f"\n{get_messages_instance().ALWAYS_ASK_NSFW_IS_PAID_MSG}" if (is_nsfw and is_private_chat) else f"\n{get_messages_instance().ALWAYS_ASK_CHOOSE_DOWNLOAD_QUALITY_MSG}"
+        paid_hint = f"\n{safe_get_messages(user_id).ALWAYS_ASK_NSFW_IS_PAID_MSG}" if (is_nsfw and is_private_chat) else f"\n{safe_get_messages(user_id).ALWAYS_ASK_CHOOSE_DOWNLOAD_QUALITY_MSG}"
         # Hints tied to optional buttons
-        image_hint = f"\n{get_messages_instance().ALWAYS_ASK_DOWNLOAD_IMAGE_MSG}" if not found_quality_keys else ""
-        watch_hint = f"\n{get_messages_instance().ALWAYS_ASK_WATCH_VIDEO_MSG}" if is_youtube_url(url) else ""
-        link_hint = f"\n{get_messages_instance().ALWAYS_ASK_GET_DIRECT_LINK_MSG}"  # Link button is always present
-        list_hint = f"\n{get_messages_instance().ALWAYS_ASK_SHOW_AVAILABLE_FORMATS_MSG}"  # LIST button is always present
+        image_hint = f"\n{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOAD_IMAGE_MSG}" if not found_quality_keys else ""
+        watch_hint = f"\n{safe_get_messages(user_id).ALWAYS_ASK_WATCH_VIDEO_MSG}" if is_youtube_url(url) else ""
+        link_hint = f"\n{safe_get_messages(user_id).ALWAYS_ASK_GET_DIRECT_LINK_MSG}"  # Link button is always present
+        list_hint = f"\n{safe_get_messages(user_id).ALWAYS_ASK_SHOW_AVAILABLE_FORMATS_MSG}"  # LIST button is always present
         
         # Create dynamic hints based on actual buttons that will be shown
         def create_dynamic_hints(action_buttons, found_quality_keys, is_youtube_url, url, is_nsfw, is_private_chat, get_filters, user_id, subs_hint, subs_warn):
+            messages = safe_get_messages(message.chat.id)
             """Create hints only for emojis that are actually used in the menu"""
             hints = []
             
             # Always show format change hint (📼) - this is always available
-            hints.append(f"{get_messages_instance().ALWAYS_ASK_CHANGE_VIDEO_EXT_MSG}")
+            hints.append(f"{safe_get_messages(user_id).ALWAYS_ASK_CHANGE_VIDEO_EXT_MSG}")
             
             # Quality hint (📹) - always shown unless NSFW
             if is_nsfw and is_private_chat:
-                hints.append(f"{get_messages_instance().ALWAYS_ASK_NSFW_IS_PAID_MSG}")
+                hints.append(f"{safe_get_messages(user_id).ALWAYS_ASK_NSFW_IS_PAID_MSG}")
             else:
-                hints.append(f"{get_messages_instance().ALWAYS_ASK_CHOOSE_DOWNLOAD_QUALITY_MSG}")
+                hints.append(f"{safe_get_messages(user_id).ALWAYS_ASK_CHOOSE_DOWNLOAD_QUALITY_MSG}")
             
             # Repost hint (🚀) - only if show_repost_hint is True
             if show_repost_hint:
-                hints.append(f"{get_messages_instance().ALWAYS_ASK_INSTANT_REPOST_MSG}")
+                hints.append(f"{safe_get_messages(user_id).ALWAYS_ASK_INSTANT_REPOST_MSG}")
             
             # Watch hint (👁) - only for YouTube
             if is_youtube_url(url):
-                hints.append(f"{get_messages_instance().ALWAYS_ASK_WATCH_VIDEO_MSG}")
+                hints.append(f"{safe_get_messages(user_id).ALWAYS_ASK_WATCH_VIDEO_MSG}")
             
             # Link hint (🔗) - always present
-            hints.append(f"{get_messages_instance().ALWAYS_ASK_GET_DIRECT_LINK_MSG}")
+            hints.append(f"{safe_get_messages(user_id).ALWAYS_ASK_GET_DIRECT_LINK_MSG}")
             
             # List hint (📃) - always present
-            hints.append(f"{get_messages_instance().ALWAYS_ASK_SHOW_AVAILABLE_FORMATS_MSG}")
+            hints.append(f"{safe_get_messages(user_id).ALWAYS_ASK_SHOW_AVAILABLE_FORMATS_MSG}")
             
             # Image hint (🖼) - only if no quality keys found
             if not found_quality_keys:
-                hints.append(f"{get_messages_instance().ALWAYS_ASK_DOWNLOAD_IMAGE_MSG}")
+                hints.append(f"{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOAD_IMAGE_MSG}")
             
             # Subs hints
             if subs_hint:
@@ -4512,7 +4643,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
             
             # Dubs hint (🗣) - only if available
             if get_filters(user_id).get("has_dubs"):
-                hints.append(f"{get_messages_instance().ALWAYS_ASK_CHOOSE_AUDIO_LANGUAGE_MSG}")
+                hints.append(f"{safe_get_messages(user_id).ALWAYS_ASK_CHOOSE_AUDIO_LANGUAGE_MSG}")
             
             return "\n".join(hints)
         
@@ -4521,7 +4652,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         # but we'll replace it after action_buttons are created
         # Temporary hint for now - will be replaced later
         temp_hint = (
-            f"<pre language=\"info\">{get_messages_instance().ALWAYS_ASK_CHANGE_VIDEO_EXT_MSG}"
+            f"<pre language=\"info\">{safe_get_messages(user_id).ALWAYS_ASK_CHANGE_VIDEO_EXT_MSG}"
             + paid_hint
             + repost_line
             + watch_hint
@@ -4543,7 +4674,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 h = f.get('height')
                 filesize = f.get('filesize') or f.get('filesize_approx')
                 if filesize:
-                    if filesize >= 1024*1024*1024:
+                    if filesize and filesize >= 1024*1024*1024:
                         size_str = f"{round(filesize/1024/1024/1024, 2)}GB"
                     else:
                         size_str = f"{round(filesize/1024/1024, 1)}MB"
@@ -4553,7 +4684,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 scissors = ""
                 if get_user_split_size(user_id) and filesize:
                     video_bytes = filesize
-                    if video_bytes > get_user_split_size(user_id):
+                    if video_bytes and video_bytes > get_user_split_size(user_id):
                         n_parts = (video_bytes + get_user_split_size(user_id) - 1) // get_user_split_size(user_id)
                         scissors = f" ✂️{n_parts}"
                 # Check the availability of subtitles for this quality
@@ -4598,7 +4729,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
                     total = len(indices)
                     icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
-                    postfix = f" ({n_cached}/{total})" if total > 1 else ""
+                    postfix = f" ({n_cached}/{total})" if total and total > 1 else ""
                     button_text = f"{icon}{quality_key}{subs_available}{postfix}"
                 else:
                     # Check if we're in Always Ask mode
@@ -4625,7 +4756,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 scissors = ""
                 if get_user_split_size(user_id) and size_val:
                     video_bytes = size_val * 1024 * 1024
-                    if video_bytes > get_user_split_size(user_id):
+                    if video_bytes and video_bytes > get_user_split_size(user_id):
                         n_parts = (video_bytes + get_user_split_size(user_id) - 1) // get_user_split_size(user_id)
                         scissors = f" ✂️{n_parts}"
 
@@ -4634,34 +4765,34 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
                     total = len(indices)
                     icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
-                    postfix = f" ({n_cached}/{total})" if total > 1 else ""
+                    postfix = f" ({n_cached}/{total})" if total and total > 1 else ""
                     button_text = f"{icon}{quality_key}{postfix}"
                 else:
                     icon = "🚀" if (quality_key in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     button_text = f"{icon}{quality_key}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
 
-        # Always add Best Quality button
+        # Always add {safe_get_messages(user_id).ALWAYS_ASK_BEST_BUTTON_MSG} Quality button
         quality_key = "best"
         if is_playlist and playlist_range:
             indices = list(range(playlist_range[0], playlist_range[1]+1))
             n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
             total = len(indices)
             icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
-            postfix = f" ({n_cached}/{total})" if total > 1 else ""
-            button_text = f"{icon}Best{postfix}"
+            postfix = f" ({n_cached}/{total})" if total and total > 1 else ""
+            button_text = f"{icon}{safe_get_messages(user_id).ALWAYS_ASK_BEST_BUTTON_MSG}{postfix}"
         else:
             icon = "🚀" if (quality_key in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
-            button_text = f"{icon}Best"
+            button_text = f"{icon}{safe_get_messages(user_id).ALWAYS_ASK_BEST_BUTTON_MSG}"
         buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         
         # Always add Other Qualities button
-        other_label = f"{get_messages_instance().ALWAYS_ASK_OTHER_LABEL_MSG}" if not is_nsfw else f"{get_messages_instance().ALWAYS_ASK_OTHER_LABEL_MSG}"
+        other_label = f"{safe_get_messages(user_id).ALWAYS_ASK_OTHER_LABEL_MSG}" if not is_nsfw else f"{safe_get_messages(user_id).ALWAYS_ASK_OTHER_LABEL_MSG}"
         buttons.append(InlineKeyboardButton(other_label, callback_data=f"askq|other_qualities"))
         
         if not found_quality_keys:
             # Add explanation when automatic quality detection fails
-            autodiscovery_note = get_messages_instance().QUALITIES_NOT_AUTO_DETECTED_NOTE
+            autodiscovery_note = safe_get_messages(user_id).QUALITIES_NOT_AUTO_DETECTED_NOTE
             cap += f"\n{autodiscovery_note}\n"
 
         # --- Form rows of 3 buttons ---
@@ -4678,15 +4809,15 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         
         # Add LINK button - always available
         logger.info(f"Adding LINK button for user {user_id}")
-        action_buttons.append(InlineKeyboardButton("🔗Link", callback_data="askq|link"))
+        action_buttons.append(InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_LINK_BUTTON_MSG, callback_data="askq|link"))
         # Add LIST button - always available
-        action_buttons.append(InlineKeyboardButton(get_messages_instance().LIST_BUTTON_TEXT, callback_data="askq|list"))
+        action_buttons.append(InlineKeyboardButton(safe_get_messages(user_id).LIST_BUTTON_TEXT, callback_data="askq|list"))
         # Add IMAGE button only if qualities were NOT auto-detected
         if not found_quality_keys:
-            action_buttons.append(InlineKeyboardButton(get_messages_instance().IMAGE_BUTTON_TEXT, callback_data="askq|image"))        
+            action_buttons.append(InlineKeyboardButton(safe_get_messages(user_id).IMAGE_BUTTON_TEXT, callback_data="askq|image"))        
         # Add Quick Embed button for supported services (but not for ranges)
         if (is_instagram_url(url) or is_twitter_url(url) or is_reddit_url(url)) and not is_playlist_with_range(original_text):
-            action_buttons.append(InlineKeyboardButton("🚀Embed", callback_data="askq|quick_embed"))
+            action_buttons.append(InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_EMBED_BUTTON_MSG, callback_data="askq|quick_embed"))
         
         # Smart grouping of quality buttons - prefer 3 per row, then 2, avoid single buttons
         if buttons:
@@ -4719,10 +4850,10 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 except Exception:
                     is_group = False
                 if is_group:
-                    action_buttons.append(InlineKeyboardButton("👁Watch", url=piped_url))
+                    action_buttons.append(InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_WATCH_BUTTON_MSG, url=piped_url))
                 else:
                     wa = WebAppInfo(url=piped_url)
-                    action_buttons.append(InlineKeyboardButton("👁Watch", web_app=wa))
+                    action_buttons.append(InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_WATCH_BUTTON_MSG, web_app=wa))
                 logger.info(f"Added WATCH button to action_buttons for user {user_id}")
         except Exception as e:
             logger.error(f"Error adding WATCH button for user {user_id}: {e}")
@@ -4743,10 +4874,10 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
             
             if need_subs:
-                action_buttons.append(InlineKeyboardButton(get_messages_instance().ALWAYS_ASK_SUB_ONLY_BUTTON_MSG, callback_data="askq|subs_only"))
+                action_buttons.append(InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_SUB_ONLY_BUTTON_MSG, callback_data="askq|subs_only"))
         
         # Smart grouping of action buttons - prefer 3 buttons per row, then 2, avoid single buttons
-        logger.info(f"{get_messages_instance().ALWAYS_ASK_SMART_GROUPING_MSG} {len(action_buttons)} action buttons for user {user_id}")
+        logger.info(f"{safe_get_messages(user_id).ALWAYS_ASK_SMART_GROUPING_MSG} {len(action_buttons)} action buttons for user {user_id}")
         if action_buttons:
             # Calculate optimal grouping
             total_buttons = len(action_buttons)
@@ -4755,17 +4886,17 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 for i in range(0, total_buttons, 3):
                     row = action_buttons[i:i+3]
                     keyboard_rows.append(row)
-                    logger.info(f"{get_messages_instance().ALWAYS_ASK_ADDED_ACTION_BUTTON_ROW_3_MSG}: {[btn.text for btn in row]}")
+                    logger.info(f"{safe_get_messages(user_id).ALWAYS_ASK_ADDED_ACTION_BUTTON_ROW_3_MSG}: {[btn.text for btn in row]}")
             elif total_buttons % 3 == 1 and total_buttons > 1:
                 # Group by 3, then take 2 from last group to make 2+2
                 for i in range(0, total_buttons - 4, 3):
                     row = action_buttons[i:i+3]
                     keyboard_rows.append(row)
-                    logger.info(f"{get_messages_instance().ALWAYS_ASK_ADDED_ACTION_BUTTON_ROW_3_MSG}: {[btn.text for btn in row]}")
+                    logger.info(f"{safe_get_messages(user_id).ALWAYS_ASK_ADDED_ACTION_BUTTON_ROW_3_MSG}: {[btn.text for btn in row]}")
                 # Last two rows with 2 buttons each
                 keyboard_rows.append(action_buttons[-4:-2])
                 keyboard_rows.append(action_buttons[-2:])
-                logger.info(f"{get_messages_instance().ALWAYS_ASK_ADDED_ACTION_BUTTON_ROWS_2_2_MSG}: {[btn.text for btn in action_buttons[-4:-2]]}, {[btn.text for btn in action_buttons[-2:]]}")
+                logger.info(f"{safe_get_messages(user_id).ALWAYS_ASK_ADDED_ACTION_BUTTON_ROWS_2_2_MSG}: {[btn.text for btn in action_buttons[-4:-2]]}, {[btn.text for btn in action_buttons[-2:]]}")
             else:
                 # Group by 3, last group might be 1 or 2
                 for i in range(0, total_buttons, 3):
@@ -4776,19 +4907,19 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         # Smart grouping for bottom row - try to combine with action buttons if possible
         bottom_buttons = []
         if bool(filters_state.get('visible', False)):
-            bottom_buttons = [InlineKeyboardButton(get_messages_instance().BACK_BUTTON_TEXT, callback_data="askf|toggle|off"), InlineKeyboardButton(get_messages_instance().CLOSE_BUTTON_TEXT, callback_data="askq|close")]
+            bottom_buttons = [InlineKeyboardButton(safe_get_messages(user_id).BACK_BUTTON_TEXT, callback_data="askf|toggle|off"), InlineKeyboardButton(safe_get_messages(user_id).CLOSE_BUTTON_TEXT, callback_data="askq|close")]
         else:
-            bottom_buttons = [InlineKeyboardButton(get_messages_instance().CLOSE_BUTTON_TEXT, callback_data="askq|close")]
+            bottom_buttons = [InlineKeyboardButton(safe_get_messages(user_id).CLOSE_BUTTON_TEXT, callback_data="askq|close")]
         
         # Try to add bottom buttons to last action row if it has space
         if keyboard_rows and len(keyboard_rows[-1]) < 3 and len(bottom_buttons) <= (3 - len(keyboard_rows[-1])):
             # Add to existing row
             keyboard_rows[-1].extend(bottom_buttons)
-            logger.info(f"{get_messages_instance().ALWAYS_ASK_ADDED_BOTTOM_BUTTONS_TO_EXISTING_ROW_MSG}: {[btn.text for btn in bottom_buttons]}")
+            logger.info(f"{safe_get_messages(user_id).ALWAYS_ASK_ADDED_BOTTOM_BUTTONS_TO_EXISTING_ROW_MSG}: {[btn.text for btn in bottom_buttons]}")
         else:
             # Create new row
             keyboard_rows.append(bottom_buttons)
-            logger.info(f"{get_messages_instance().ALWAYS_ASK_CREATED_NEW_BOTTOM_ROW_MSG}: {[btn.text for btn in bottom_buttons]}")
+            logger.info(f"{safe_get_messages(user_id).ALWAYS_ASK_CREATED_NEW_BOTTOM_ROW_MSG}: {[btn.text for btn in bottom_buttons]}")
         
         # Log final keyboard structure
         logger.info(f"Final keyboard structure for user {user_id}: {len(keyboard_rows)} rows")
@@ -4834,40 +4965,40 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         dynamic_hints = []
         
         # Always show format change hint (📼) - this is always available
-        dynamic_hints.append("📼 — Сhange video ext/codec")
+        dynamic_hints.append(safe_get_messages(user_id).ALWAYS_ASK_CHANGE_VIDEO_EXT_MSG)
         
         # Quality hint (📹) - always sh
         # own unless NSFW
         if is_nsfw and is_private_chat:
-            dynamic_hints.append("⭐️ — 🔞NSFW is paid (⭐️$0.02)")
+            dynamic_hints.append(safe_get_messages(user_id).ALWAYS_ASK_NSFW_PAID_MSG)
         else:
-            dynamic_hints.append("📹 — Choose download quality")
+            dynamic_hints.append(safe_get_messages(user_id).ALWAYS_ASK_CHOOSE_DOWNLOAD_QUALITY_MSG)
         
         # Repost hint (🚀) - only if show_repost_hint is True AND there are cached qualities
         # Also check if any button has rocket emoji (including Other button)
         has_rocket_button = "🚀" in used_emojis
         if show_repost_hint and cached_qualities and has_rocket_button:
-            dynamic_hints.append("🚀 — Instant repost from cache")
+            dynamic_hints.append(safe_get_messages(user_id).ALWAYS_ASK_INSTANT_REPOST_MSG)
         
         # Watch hint (👁) - only for YouTube and if button is present
         if is_youtube_url(url) and "👁" in used_emojis:
-            dynamic_hints.append("👁 — Watch video in poketube")
+            dynamic_hints.append(safe_get_messages(user_id).ALWAYS_ASK_WATCH_VIDEO_MSG)
         
         # Link hint (🔗) - always present
         if "🔗" in used_emojis:
-            dynamic_hints.append("🔗 — Get direct link to video")
+            dynamic_hints.append(safe_get_messages(user_id).ALWAYS_ASK_GET_DIRECT_LINK_MSG)
         
         # List hint (📃) - always present
         if "📃" in used_emojis:
-            dynamic_hints.append("📃 — Show available formats list")
+            dynamic_hints.append(safe_get_messages(user_id).ALWAYS_ASK_SHOW_AVAILABLE_FORMATS_MSG)
         
         # Image hint (🖼) - only if no quality keys found and button is present
         if not found_quality_keys and "🖼" in used_emojis:
-            dynamic_hints.append("🖼 — Download image (gallery-dl)")
+            dynamic_hints.append(safe_get_messages(user_id).ALWAYS_ASK_DOWNLOAD_IMAGE_MSG)
         
         # Audio hint (🎧) - if audio button is present
         if "🎧" in used_emojis:
-            dynamic_hints.append("🎧 — Extract only audio")
+            dynamic_hints.append(safe_get_messages(user_id).ALWAYS_ASK_EXTRACT_AUDIO_MSG)
         
         # Subs hints
         if subs_hint:
@@ -4877,7 +5008,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         
         # Dubs hint (🗣) - only if available and button is present
         if get_filters(user_id).get("has_dubs") and "🗣" in used_emojis:
-            dynamic_hints.append("🗣 — Choose audio language")
+            dynamic_hints.append(safe_get_messages(user_id).ALWAYS_ASK_CHOOSE_AUDIO_LANGUAGE_MSG)
         
         # Replace the old hint in cap with dynamic one
         dynamic_hint_text = "<pre language=\"info\">" + "\n".join(dynamic_hints) + "</pre>"
@@ -4963,7 +5094,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                     )
                 else:
                     app.send_message(user_id, cap, parse_mode=enums.ParseMode.HTML, reply_parameters=ReplyParameters(message_id=message.id))
-        send_to_logger(message, get_messages_instance().ALWAYS_ASK_MENU_SENT_LOG_MSG.format(url=url))
+        send_to_logger(message, safe_get_messages(user_id).ALWAYS_ASK_MENU_SENT_LOG_MSG.format(url=url))
     except FloodWait as e:
         wait_time = e.value
         user_dir = os.path.join("users", str(user_id))
@@ -4975,7 +5106,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         minutes = (wait_time % 3600) // 60
         seconds = wait_time % 60
         time_str = f"{hours}h {minutes}m {seconds}s"
-        flood_msg = get_messages_instance().AA_FLOOD_WAIT_MSG.format(time_str=time_str)
+        flood_msg = safe_get_messages(user_id).AA_FLOOD_WAIT_MSG.format(time_str=time_str)
         if proc_msg:
             try:
                 app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=flood_msg)
@@ -4993,17 +5124,36 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 logger.warning(f"Failed to send flood notice: {e}")
         return
     except Exception as e:
-        logger.error(f"Error retrieving video information for user {user_id}: {e}")
+        import traceback
+        logger.error(f"Error retrieving video information for user {user_id}: {str(e)}")
+        logger.error(f"Full traceback:\n{traceback.format_exc()}")
+        # ГЛОБАЛЬНАЯ ЗАЩИТА: messages уже инициализирована в начале функции
+        # Если по какой-то причине она не инициализирована, используем safe_get_messages
+        if 'messages' not in locals():
+            try:
+                messages = safe_get_messages(user_id)
+            except Exception:
+                # Если все не удается, создаем минимальную защиту
+                # Используем правильную систему переводов
+                messages = safe_get_messages(user_id)
+        
+        # ДОПОЛНИТЕЛЬНАЯ ЗАЩИТА: Убедимся, что messages инициализирована
+        try:
+            _ = safe_get_messages(user_id).ALWAYS_ASK_NO_VIDEOS_FOUND_IN_PLAYLIST_MSG
+        except (NameError, AttributeError):
+            # Если messages все еще не инициализирована, создаем экстренную версию
+            # Используем правильную систему переводов
+            messages = safe_get_messages(user_id)
         # If this looks like a non-video URL, try gallery-dl fallback first
         try:
             emsg = str(e)
             if (
-                get_messages_instance().ALWAYS_ASK_NO_VIDEOS_FOUND_IN_PLAYLIST_MSG in emsg
-                or get_messages_instance().ALWAYS_ASK_UNSUPPORTED_URL_MSG in emsg
-                or get_messages_instance().ALWAYS_ASK_NO_VIDEO_COULD_BE_FOUND_MSG in emsg
-                or get_messages_instance().ALWAYS_ASK_NO_VIDEO_FOUND_MSG in emsg
-                or get_messages_instance().ALWAYS_ASK_NO_MEDIA_FOUND_MSG in emsg
-                or get_messages_instance().ALWAYS_ASK_THIS_TWEET_DOES_NOT_CONTAIN_MSG in emsg
+                safe_get_messages(user_id).ALWAYS_ASK_NO_VIDEOS_FOUND_IN_PLAYLIST_MSG in emsg
+                or safe_get_messages(user_id).ALWAYS_ASK_UNSUPPORTED_URL_MSG in emsg
+                or safe_get_messages(user_id).ALWAYS_ASK_NO_VIDEO_COULD_BE_FOUND_MSG in emsg
+                or safe_get_messages(user_id).ALWAYS_ASK_NO_VIDEO_FOUND_MSG in emsg
+                or safe_get_messages(user_id).ALWAYS_ASK_NO_MEDIA_FOUND_MSG in emsg
+                or safe_get_messages(user_id).ALWAYS_ASK_THIS_TWEET_DOES_NOT_CONTAIN_MSG in emsg
             ):
                 try:
                     from COMMANDS.image_cmd import image_command
@@ -5013,7 +5163,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 else:
                     try:
                         safe_edit_message_text(user_id, proc_msg.id if proc_msg else None,
-                            get_messages_instance().AA_NO_VIDEO_FORMATS_FOUND_MSG)
+                            safe_get_messages(user_id).AA_NO_VIDEO_FORMATS_FOUND_MSG)
                     except Exception:
                         pass
                     try:
@@ -5082,7 +5232,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
             logger.info(f"Attempting to create menu from cached qualities for user {user_id}")
             if create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, original_text, is_playlist, playlist_range):
                 logger.info(f"Successfully created cached qualities menu for user {user_id}")
-                send_to_logger(message, get_messages_instance().CACHED_QUALITIES_MENU_CREATED_LOG_MSG.format(user_id=user_id, error=str(e)))
+                send_to_logger(message, safe_get_messages(user_id).CACHED_QUALITIES_MENU_CREATED_LOG_MSG.format(user_id=user_id, error=str(e)))
                 return
             else:
                 logger.info(f"No cached qualities available for user {user_id}, showing error message")
@@ -5090,7 +5240,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
             logger.error(f"Error creating cached qualities menu: {cache_error}")
         
         # Если кэшированных качеств нет, показываем ошибку
-        error_text = f"{get_messages_instance().ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_MSG}\n<blockquote>{e}</blockquote>\n\n{get_messages_instance().ALWAYS_ASK_TRY_CLEAN_COMMAND_MSG}"
+        error_text = f"{safe_get_messages(user_id).ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_MSG}\n<blockquote>Ошибка получения информации о видео</blockquote>\n\n{safe_get_messages(user_id).ALWAYS_ASK_TRY_CLEAN_COMMAND_MSG}"
         
         # Try to edit the processing message to show error first
         try:
@@ -5098,27 +5248,28 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 result = app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=error_text, parse_mode=enums.ParseMode.HTML)
                 if result is not None:
                     # Successfully edited the processing message, now log to channel
-                    log_error_to_channel(message, get_messages_instance().ALWAYS_ASK_MENU_ERROR_LOG_MSG.format(url=url, error=str(e)), url)
+                    log_error_to_channel(message, safe_get_messages(user_id).ALWAYS_ASK_MENU_ERROR_LOG_MSG.format(url=url, error="Ошибка получения информации о видео"), url)
                     return
         except Exception as e2:
             logger.error(f"Error editing processing message: {e2}")
         
         # If editing failed or no proc_msg, send new message to user
-        logger.error(f"Always Ask menu error for user {user_id}: {e}")
+        logger.error(f"Always Ask menu error for user {user_id}: Ошибка получения информации о видео")
         from HELPERS.safe_messeger import safe_send_message
         safe_send_message(user_id, error_text, parse_mode=enums.ParseMode.HTML, message=message)
-        log_error_to_channel(message, get_messages_instance().ALWAYS_ASK_MENU_ERROR_LOG_MSG.format(url=url, error=str(e)), url)
+        log_error_to_channel(message, safe_get_messages(user_id).ALWAYS_ASK_MENU_ERROR_LOG_MSG.format(url=url, error="Ошибка получения информации о видео"), url)
         return
 
 def askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs, proc_msg=None):
     user_id = callback_query.from_user.id
+    messages = safe_get_messages(user_id)
     tags = tags_text.split() if tags_text else []
     
     # Check if LINK mode is enabled
     if get_link_mode(user_id):
         # Get direct link instead of downloading
         try:
-            callback_query.answer(get_messages_instance().ALWAYS_ASK_GETTING_DIRECT_LINK_MSG)
+            callback_query.answer(safe_get_messages(user_id).ALWAYS_ASK_GETTING_DIRECT_LINK_MSG)
         except Exception:
             pass
         
@@ -5141,20 +5292,20 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
             format_spec = result.get('format', 'best')
             
             # Form response
-            response = f"{get_messages_instance().ALWAYS_ASK_DIRECT_LINK_OBTAINED_MSG}\n\n"
-            response += f"{get_messages_instance().ALWAYS_ASK_TITLE_MSG} {title}\n"
-            if duration > 0:
-                response += f"{get_messages_instance().ALWAYS_ASK_DURATION_SEC_MSG} {duration} sec\n"
-            response += f"{get_messages_instance().ALWAYS_ASK_FORMAT_CODE_MSG} <code>{format_spec}</code>\n\n"
+            response = f"{safe_get_messages(user_id).ALWAYS_ASK_DIRECT_LINK_OBTAINED_MSG}\n\n"
+            response += f"{safe_get_messages(user_id).ALWAYS_ASK_TITLE_MSG} {title}\n"
+            if duration and duration > 0:
+                response += f"{safe_get_messages(user_id).ALWAYS_ASK_DURATION_SEC_MSG} {duration} sec\n"
+            response += f"{safe_get_messages(user_id).ALWAYS_ASK_FORMAT_CODE_MSG} <code>{format_spec}</code>\n\n"
             
             if video_url:
-                response += f"{get_messages_instance().ALWAYS_ASK_VIDEO_STREAM_MSG}\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
+                response += f"{safe_get_messages(user_id).ALWAYS_ASK_VIDEO_STREAM_MSG}\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
             
             if audio_url:
-                response += f"{get_messages_instance().ALWAYS_ASK_AUDIO_STREAM_MSG}\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
+                response += f"{safe_get_messages(user_id).ALWAYS_ASK_AUDIO_STREAM_MSG}\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
             
             if not video_url and not audio_url:
-                response += f"{get_messages_instance().ALWAYS_ASK_FAILED_TO_GET_STREAM_LINKS_MSG}"
+                response += f"{safe_get_messages(user_id).ALWAYS_ASK_FAILED_TO_GET_STREAM_LINKS_MSG}"
             
             # Send response
             app.send_message(
@@ -5164,18 +5315,18 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
                 parse_mode=enums.ParseMode.HTML
             )
             
-            send_to_logger(original_message, get_messages_instance().DIRECT_LINK_EXTRACTED_ALWAYS_ASK_LOG_MSG.format(user_id=user_id, url=url))
+            send_to_logger(original_message, safe_get_messages(user_id).DIRECT_LINK_EXTRACTED_ALWAYS_ASK_LOG_MSG.format(user_id=user_id, url=url))
             
         else:
             error_msg = result.get('error', 'Unknown error')
             app.send_message(
                 user_id,
-                get_messages_instance().AA_ERROR_GETTING_LINK_MSG.format(error_msg=error_msg),
+                safe_get_messages(user_id).AA_ERROR_GETTING_LINK_MSG.format(error_msg=error_msg),
                 reply_parameters=ReplyParameters(message_id=original_message.id),
                 parse_mode=enums.ParseMode.HTML
             )
             
-            log_error_to_channel(original_message, get_messages_instance().DIRECT_LINK_FAILED_ALWAYS_ASK_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
+            log_error_to_channel(original_message, safe_get_messages(user_id).DIRECT_LINK_FAILED_ALWAYS_ASK_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
         
         return
     # Read current filters to build correct format strings and container override
@@ -5219,10 +5370,10 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
     # Logic for forming the format with the real height
     if data == "best":
         try:
-            callback_query.answer("📥 Downloading best quality...")
+            callback_query.answer(safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_BEST_QUALITY_MSG)
         except Exception:
             pass
-        # Use format with AVC codec and MP4 container priority for Best quality
+        # Use format with AVC codec and MP4 container priority for {safe_get_messages(user_id).ALWAYS_ASK_BEST_BUTTON_MSG} quality
         # with fallback to bv+ba/best if no AVC+MP4 available
         audio_filter = f"[language^={sel_audio_lang}]" if sel_audio_lang else ""
         fmt = f"bv*[vcodec*={sel_codec}][ext={sel_ext}]+ba{audio_filter}/bv*[vcodec*={sel_codec}]+ba{audio_filter}/bv*[ext={sel_ext}]+ba{audio_filter}/bv+ba/best"
@@ -5248,21 +5399,21 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
                 quality_str = data.replace('p', '')
                 quality_val = int(quality_str)
                 # choose previous rung for lower bound
-                if quality_val >= 4320:
+                if quality_val and quality_val >= 4320:
                     prev = 2160
-                elif quality_val >= 2160:
+                elif quality_val and quality_val >= 2160:
                     prev = 1440
-                elif quality_val >= 1440:
+                elif quality_val and quality_val >= 1440:
                     prev = 1080
-                elif quality_val >= 1080:
+                elif quality_val and quality_val >= 1080:
                     prev = 720
-                elif quality_val >= 720:
+                elif quality_val and quality_val >= 720:
                     prev = 480
-                elif quality_val >= 480:
+                elif quality_val and quality_val >= 480:
                     prev = 360
-                elif quality_val >= 360:
+                elif quality_val and quality_val >= 360:
                     prev = 240
-                elif quality_val >= 240:
+                elif quality_val and quality_val >= 240:
                     prev = 144
                 else:
                     prev = 0
@@ -5276,21 +5427,21 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
                 if data != min_side_quality:
                     quality_str = data.replace('p', '')
                     quality_val = int(quality_str)
-                    if quality_val >= 4320:
+                    if quality_val and quality_val >= 4320:
                         prev = 2160
-                    elif quality_val >= 2160:
+                    elif quality_val and quality_val >= 2160:
                         prev = 1440
-                    elif quality_val >= 1440:
+                    elif quality_val and quality_val >= 1440:
                         prev = 1080
-                    elif quality_val >= 1080:
+                    elif quality_val and quality_val >= 1080:
                         prev = 720
-                    elif quality_val >= 720:
+                    elif quality_val and quality_val >= 720:
                         prev = 480
-                    elif quality_val >= 480:
+                    elif quality_val and quality_val >= 480:
                         prev = 360
-                    elif quality_val >= 360:
+                    elif quality_val and quality_val >= 360:
                         prev = 240
-                    elif quality_val >= 240:
+                    elif quality_val and quality_val >= 240:
                         prev = 144
                     else:
                         prev = 0
@@ -5301,21 +5452,21 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
                     real_height = get_real_height_for_quality(data, max_width, max_height)
                     quality_str = data.replace('p', '')
                     quality_val = int(quality_str)
-                    if quality_val >= 4320:
+                    if quality_val and quality_val >= 4320:
                         prev = 2160
-                    elif quality_val >= 2160:
+                    elif quality_val and quality_val >= 2160:
                         prev = 1440
-                    elif quality_val >= 1440:
+                    elif quality_val and quality_val >= 1440:
                         prev = 1080
-                    elif quality_val >= 1080:
+                    elif quality_val and quality_val >= 1080:
                         prev = 720
-                    elif quality_val >= 720:
+                    elif quality_val and quality_val >= 720:
                         prev = 480
-                    elif quality_val >= 480:
+                    elif quality_val and quality_val >= 480:
                         prev = 360
-                    elif quality_val >= 360:
+                    elif quality_val and quality_val >= 360:
                         prev = 240
-                    elif quality_val >= 240:
+                    elif quality_val and quality_val >= 240:
                         prev = 144
                     else:
                         prev = 0
@@ -5324,7 +5475,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
             
             quality_key = data
             try:
-                callback_query.answer(f"{get_messages_instance().ALWAYS_ASK_DOWNLOADING_QUALITY_MSG} {data}...")
+                callback_query.answer(f"{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_QUALITY_MSG} {data}...")
             except Exception:
                 pass
         except ValueError:
@@ -5383,7 +5534,7 @@ def get_complementary_audio_format(video_format_info, all_formats):
             if audio_height == video_height and audio_width == video_width:
                 quality_score += 1000
             
-            if quality_score > best_quality:
+            if quality_score and quality_score > best_quality:
                 best_quality = quality_score
                 best_audio = f
     
@@ -5392,6 +5543,7 @@ def get_complementary_audio_format(video_format_info, all_formats):
 # --- an auxiliary function for downloading with the format ---
 # @reply_with_keyboard
 def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None, proc_msg=None):
+    messages = safe_get_messages(message.chat.id)
     user_id = message.chat.id
 
     # We extract the range and other parameters from the original user message
@@ -5401,7 +5553,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None,
     # This mistake should have already been caught earlier, but for safety
     if tag_error:
         wrong, example = tag_error
-        error_msg = get_messages_instance().AA_TAG_FORBIDDEN_CHARS_MSG.format(wrong=wrong, example=example)
+        error_msg = safe_get_messages(user_id).AA_TAG_FORBIDDEN_CHARS_MSG.format(wrong=wrong, example=example)
         app.send_message(message.chat.id, error_msg, reply_parameters=ReplyParameters(message_id=message.id))
         log_error_to_channel(message, error_msg, url)
         return
@@ -5436,20 +5588,20 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None,
                 format_spec = result.get('format', 'best')
                 
                 # Form response
-                response = f"{get_messages_instance().ALWAYS_ASK_DIRECT_LINK_OBTAINED_MSG}\n\n"
-                response += f"{get_messages_instance().ALWAYS_ASK_TITLE_MSG} {title}\n"
-                if duration > 0:
-                    response += f"{get_messages_instance().ALWAYS_ASK_DURATION_SEC_MSG} {duration} sec\n"
-                response += f"{get_messages_instance().ALWAYS_ASK_FORMAT_CODE_MSG} <code>{format_spec}</code>\n\n"
+                response = f"{safe_get_messages(user_id).ALWAYS_ASK_DIRECT_LINK_OBTAINED_MSG}\n\n"
+                response += f"{safe_get_messages(user_id).ALWAYS_ASK_TITLE_MSG} {title}\n"
+                if duration and duration > 0:
+                    response += f"{safe_get_messages(user_id).ALWAYS_ASK_DURATION_SEC_MSG} {duration} sec\n"
+                response += f"{safe_get_messages(user_id).ALWAYS_ASK_FORMAT_CODE_MSG} <code>{format_spec}</code>\n\n"
                 
                 if video_url:
-                    response += f"{get_messages_instance().ALWAYS_ASK_VIDEO_STREAM_MSG}\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
+                    response += f"{safe_get_messages(user_id).ALWAYS_ASK_VIDEO_STREAM_MSG}\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
                 
                 if audio_url:
-                    response += f"{get_messages_instance().ALWAYS_ASK_AUDIO_STREAM_MSG}\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
+                    response += f"{safe_get_messages(user_id).ALWAYS_ASK_AUDIO_STREAM_MSG}\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
                 
                 if not video_url and not audio_url:
-                    response += f"{get_messages_instance().ALWAYS_ASK_FAILED_TO_GET_STREAM_LINKS_MSG}"
+                    response += f"{safe_get_messages(user_id).ALWAYS_ASK_FAILED_TO_GET_STREAM_LINKS_MSG}"
                 
                 # Send response
                 app.send_message(
@@ -5459,7 +5611,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None,
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                send_to_logger(message, get_messages_instance().DIRECT_LINK_EXTRACTED_DOWN_UP_LOG_MSG.format(user_id=user_id, url=url))
+                send_to_logger(message, safe_get_messages(user_id).DIRECT_LINK_EXTRACTED_DOWN_UP_LOG_MSG.format(user_id=user_id, url=url))
                 
             else:
                 error_msg = result.get('error', 'Unknown error')
@@ -5470,7 +5622,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None,
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                log_error_to_channel(message, get_messages_instance().DIRECT_LINK_FAILED_DOWN_UP_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
+                log_error_to_channel(message, safe_get_messages(user_id).DIRECT_LINK_FAILED_DOWN_UP_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
             
             return
     except Exception as e:

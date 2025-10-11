@@ -2,7 +2,7 @@ import re
 import os
 import tldextract
 from urllib.parse import urlparse
-from CONFIG.config import Config
+# from CONFIG.config import Config  # Unused import
 from URL_PARSERS.tiktok import is_tiktok_url, extract_tiktok_profile, get_clean_url_for_tagging
 from HELPERS.filesystem_hlp import create_directory
 from HELPERS.porn import is_porn_domain, extract_domain_parts, SUPPORTED_SITES, unwrap_redirect_url
@@ -11,6 +11,78 @@ from HELPERS.logger import logger
 def sanitize_autotag(tag: str) -> str:
     # Leave only letters (any language), numbers and _
     return '#' + re.sub(r'[^\w\d_]', '_', tag.lstrip('#'), flags=re.UNICODE)
+
+def sanitize_uid_for_telegram(uid: str) -> str:
+    """Очищает UID для использования в Telegram тегах"""
+    if not uid:
+        return uid
+    
+    # Убираем символы @
+    uid = uid.replace('@', '')
+    
+    # Заменяем пробелы на подчеркивания
+    uid = uid.replace(' ', '_')
+    
+    # Заменяем точки на подчеркивания
+    uid = uid.replace('.', '_')
+    
+    # Заменяем недопустимые символы на подчеркивания
+    # В Telegram тегах разрешены: буквы, цифры, подчеркивания
+    uid = re.sub(r'[^\w\d_]', '_', uid, flags=re.UNICODE)
+    
+    # Убираем множественные подчеркивания
+    uid = re.sub(r'_+', '_', uid)
+    
+    # Убираем подчеркивания в начале и конце
+    uid = uid.strip('_')
+    
+    return uid
+
+def _extract_uids_from_info(info_dict):
+    """Внутренняя функция для извлечения всех UID из метаданных"""
+    if not info_dict:
+        return []
+    
+    # Пробуем различные поля для UID в порядке приоритета
+    # Для Instagram и TikTok приоритет uploader_id и uploader
+    uid_fields = [
+        'uploader_id',  # Instagram, TikTok - постоянный для автора
+        'uploader',     # TikTok, общий - постоянный для автора
+        #'id',           # YouTube, общий - уникальный для каждого поста
+        #'display_id',   # YouTube - уникальный для каждого поста
+        #'video_id',     # TikTok, общий - уникальный для каждого поста
+        #'media_id',     # Instagram - уникальный для каждого поста
+        #'post_id',      # Gallery-dl - уникальный для каждого поста
+        #'item_id',      # Gallery-dl - уникальный для каждого поста
+        #'uid'           # Общий - может быть уникальным для каждого поста
+    ]
+    
+    # Собираем все найденные UID, избегая дублей
+    found_uids = []
+    seen_uids = set()
+    
+    for field in uid_fields:
+        uid = info_dict.get(field)
+        if uid and str(uid).strip():
+            uid_str = str(uid).strip()
+            # Очищаем UID для Telegram тегов
+            cleaned_uid = sanitize_uid_for_telegram(uid_str)
+            if cleaned_uid and cleaned_uid not in seen_uids:
+                found_uids.append(cleaned_uid)
+                seen_uids.add(cleaned_uid)
+    
+    # YouTube ID из URL не добавляем, так как он уникален для каждого видео, а не для автора
+    
+    return found_uids
+
+def extract_uid_from_info(info_dict):
+    """Извлекает первый UID из метаданных yt-dlp или gallery-dl (для обратной совместимости)"""
+    uids = _extract_uids_from_info(info_dict)
+    return uids[0] if uids else None
+
+def extract_all_uids_from_info(info_dict):
+    """Извлекает ВСЕ UID из метаданных yt-dlp или gallery-dl"""
+    return _extract_uids_from_info(info_dict)
 
 def generate_final_tags(url, user_tags, info_dict):
     """Tags now include #nsfw if found by title, description or caption."""
@@ -49,7 +121,14 @@ def generate_final_tags(url, user_tags, info_dict):
             if channel_tag.lower() not in seen:
                 final_tags.append(channel_tag)
                 seen.add(channel_tag.lower())
-    # 4. #nsfw if defined by title, description or caption (keywords)
+    # 4. UID tags (все найденные UID)
+    all_uids = extract_all_uids_from_info(info_dict)
+    for uid in all_uids:
+        uid_tag = f"#{uid}"
+        if uid_tag.lower() not in seen:
+            final_tags.append(uid_tag)
+            seen.add(uid_tag.lower())
+    # 5. #nsfw if defined by title, description or caption (keywords)
     video_title = info_dict.get("title") if info_dict else None
     video_description = info_dict.get("description") if info_dict else None
     video_caption = info_dict.get("caption") if info_dict else None
@@ -59,12 +138,12 @@ def generate_final_tags(url, user_tags, info_dict):
             if '#nsfw' not in seen:
                 final_tags.append('#nsfw')
                 seen.add('#nsfw')
-    except Exception:
-        pass
+    except (ImportError, AttributeError) as e:
+        logger.warning("Error checking NSFW content: %s", e)
     result = ' '.join(final_tags)
     # Check if info_dict is None before accessing it
     title = info_dict.get('title', 'N/A') if info_dict else 'N/A'
-    logger.info(f"Generated final tags for '{title}': \"{result}\"")
+    logger.info("Generated final tags for '%s': \"%s\"", title, result)
     return result
 
 
@@ -117,9 +196,7 @@ def extract_url_range_tags(text: str):
     playlist_match = re.match(r'\*([^\s\*#]+)', after_range)
     if playlist_match:
         playlist_name = playlist_match.group(1)
-        after_playlist = after_range[playlist_match.end():]
-    else:
-        after_playlist = after_range
+        after_range = after_range[playlist_match.end():]
     # New way: Looking for everything #tags throughout the text (multi -line)
     tags = []
     tags_text = ''
@@ -165,7 +242,7 @@ def get_auto_tags(url, user_tags):
     auto_tags = set()
     clean_url = get_clean_url_for_tagging(url)
     url_l = clean_url.lower()
-    domain_parts, main_domain = extract_domain_parts(url_l)
+    domain_parts, _ = extract_domain_parts(url_l)
     parsed = urlparse(clean_url)
     ext = tldextract.extract(clean_url)
     second_level = ext.domain.lower() if ext.domain else ''

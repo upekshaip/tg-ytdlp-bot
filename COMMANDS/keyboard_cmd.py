@@ -4,10 +4,11 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyb
 from pyrogram import enums
 from HELPERS.logger import send_to_all, send_to_logger
 from CONFIG.config import Config
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
 
 def keyboard_command(app, message):
+    messages = safe_get_messages(message.chat.id)
     """Handle keyboard settings command"""
     user_id = str(message.chat.id)
     user_dir = f'./users/{user_id}'
@@ -22,21 +23,21 @@ def keyboard_command(app, message):
         arg = message.command[1].lower()
         if arg in ["off", "1x3", "2x3", "full"]:
             # Apply setting directly
-            with open(keyboard_file, 'w') as f:
+            with open(keyboard_file, 'w', encoding='utf-8') as f:
                 f.write(arg.upper())
             
             # Show confirmation by editing the original message
             result = safe_edit_message_text(
                 message.chat.id,
                 message.id,
-                get_messages_instance().KEYBOARD_UPDATED_MSG.format(setting=arg.upper()),
+                safe_get_messages(user_id).KEYBOARD_UPDATED_MSG.format(setting=arg.upper()),
                 parse_mode=enums.ParseMode.MARKDOWN
             )
             # If editing failed, send new message as fallback
             if result is None:
                 safe_send_message(
                     message.chat.id,
-                    get_messages_instance().KEYBOARD_UPDATED_MSG.format(setting=arg.upper()),
+                    safe_get_messages(user_id).KEYBOARD_UPDATED_MSG.format(setting=arg.upper()),
                     message=message
                 )
             
@@ -44,20 +45,20 @@ def keyboard_command(app, message):
             apply_keyboard_setting(app, message.chat.id, arg.upper())
             
             # Log the action
-            send_to_logger(message, get_messages_instance().KEYBOARD_SET_LOG_MSG.format(user_id=user_id, setting=arg.upper()))
+            send_to_logger(message, safe_get_messages(user_id).KEYBOARD_SET_LOG_MSG.format(user_id=user_id, setting=arg.upper()))
             return
         else:
             result = safe_edit_message_text(
                 message.chat.id,
                 message.id,
-                get_messages_instance().KEYBOARD_INVALID_ARG_MSG,
+                safe_get_messages(user_id).KEYBOARD_INVALID_ARG_MSG,
                 parse_mode=enums.ParseMode.MARKDOWN
             )
             # If editing failed, send new message as fallback
             if result is None:
                 safe_send_message(
                     message.chat.id,
-                    get_messages_instance().KEYBOARD_INVALID_ARG_MSG,
+                    safe_get_messages(user_id).KEYBOARD_INVALID_ARG_MSG,
                     message=message
                 )
             return
@@ -77,12 +78,12 @@ def keyboard_command(app, message):
     
     # Create inline keyboard for options in 2 rows
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton(get_messages_instance().KEYBOARD_OFF_BUTTON_MSG, callback_data="keyboard|OFF"), InlineKeyboardButton(get_messages_instance().KEYBOARD_FULL_BUTTON_MSG, callback_data="keyboard|FULL")],
-        [InlineKeyboardButton(get_messages_instance().KEYBOARD_1X3_BUTTON_MSG, callback_data="keyboard|1x3"), InlineKeyboardButton(get_messages_instance().KEYBOARD_2X3_BUTTON_MSG, callback_data="keyboard|2x3")],
-        [InlineKeyboardButton(get_messages_instance().URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="keyboard|close")]
+        [InlineKeyboardButton(safe_get_messages(user_id).KEYBOARD_OFF_BUTTON_MSG, callback_data="keyboard|OFF"), InlineKeyboardButton(safe_get_messages(user_id).KEYBOARD_FULL_BUTTON_MSG, callback_data="keyboard|FULL")],
+        [InlineKeyboardButton(safe_get_messages(user_id).KEYBOARD_1X3_BUTTON_MSG, callback_data="keyboard|1x3"), InlineKeyboardButton(safe_get_messages(user_id).KEYBOARD_2X3_BUTTON_MSG, callback_data="keyboard|2x3")],
+        [InlineKeyboardButton(safe_get_messages(user_id).URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="keyboard|close")]
     ])
     
-    status_text = get_messages_instance().KEYBOARD_SETTINGS_MSG.format(current=current_setting)
+    status_text = safe_get_messages(user_id).KEYBOARD_SETTINGS_MSG.format(current=current_setting)
     
     # Edit the original message instead of sending new one
     result = safe_edit_message_text(
@@ -109,21 +110,22 @@ def keyboard_command(app, message):
     ]
     
     reply_markup = ReplyKeyboardMarkup(full_keyboard, resize_keyboard=True)
-    safe_send_message(message.chat.id, get_messages_instance().KEYBOARD_ACTIVATED_MSG, reply_markup=reply_markup, message=message)
+    safe_send_message(message.chat.id, safe_get_messages(user_id).KEYBOARD_ACTIVATED_MSG, reply_markup=reply_markup, message=message)
 
 def keyboard_callback_handler(app, callback_query):
     """Handle keyboard setting callbacks"""
     user_id = str(callback_query.from_user.id)
+    messages = safe_get_messages(user_id)
     setting = callback_query.data.split("|")[1]
     
     # Handle close button
     if setting == "close":
         try:
             callback_query.message.delete()
-            callback_query.answer(get_messages_instance().URL_EXTRACTOR_CLOSED_MSG)
+            callback_query.answer(safe_get_messages(user_id).URL_EXTRACTOR_CLOSED_MSG)
             return
         except Exception as e:
-            callback_query.answer(get_messages_instance().URL_EXTRACTOR_ERROR_OCCURRED_MSG, show_alert=True)
+            callback_query.answer(safe_get_messages(user_id).URL_EXTRACTOR_ERROR_OCCURRED_MSG, show_alert=True)
             return
     
     user_dir = f'./users/{user_id}'
@@ -137,11 +139,11 @@ def keyboard_callback_handler(app, callback_query):
     try:
         # Persist modes including FULL
         if setting in ["OFF", "1x3", "2x3", "FULL"]:
-            with open(keyboard_file, 'w') as f:
+            with open(keyboard_file, 'w', encoding='utf-8') as f:
                 f.write(setting)
 
         # Prepare status text
-        status_text = get_messages_instance().KEYBOARD_SETTING_UPDATED_MSG.format(setting=setting)
+        status_text = safe_get_messages(user_id).KEYBOARD_SETTING_UPDATED_MSG.format(setting=setting)
 
         result = safe_edit_message_text(
             callback_query.message.chat.id,
@@ -159,25 +161,25 @@ def keyboard_callback_handler(app, callback_query):
             )
 
         # Answer callback query
-        callback_query.answer(get_messages_instance().KEYBOARD_SET_TO_MSG.format(setting=setting))
+        callback_query.answer(safe_get_messages(user_id).KEYBOARD_SET_TO_MSG.format(setting=setting))
 
         # Apply visual keyboard immediately
         if setting == "OFF":
             try:
                 safe_send_message(
                     callback_query.message.chat.id,
-get_messages_instance().KEYBOARD_HIDDEN_MSG,
+safe_get_messages(user_id).KEYBOARD_HIDDEN_MSG,
                     reply_markup=ReplyKeyboardRemove(selective=False),
                     reply_parameters=ReplyParameters(message_id=callback_query.message.id)
                 )
             except Exception as e:
                 from HELPERS.logger import logger
-                logger.warning(get_messages_instance().KEYBOARD_FAILED_HIDE_MSG.format(error=e))
+                logger.warning(safe_get_messages(user_id).KEYBOARD_FAILED_HIDE_MSG.format(error=e))
         elif setting == "1x3":
             one_by_three = [["/clean", "/cookie", "/settings"]]
             safe_send_message(
                 callback_query.message.chat.id,
-get_messages_instance().KEYBOARD_1X3_ACTIVATED_MSG,
+safe_get_messages(user_id).KEYBOARD_1X3_ACTIVATED_MSG,
                 reply_markup=ReplyKeyboardMarkup(one_by_three, resize_keyboard=True),
                 reply_parameters=ReplyParameters(message_id=callback_query.message.id)
             )
@@ -188,7 +190,7 @@ get_messages_instance().KEYBOARD_1X3_ACTIVATED_MSG,
             ]
             safe_send_message(
                 callback_query.message.chat.id,
-get_messages_instance().KEYBOARD_2X3_ACTIVATED_MSG,
+safe_get_messages(user_id).KEYBOARD_2X3_ACTIVATED_MSG,
                 reply_markup=ReplyKeyboardMarkup(two_by_three, resize_keyboard=True),
                 reply_parameters=ReplyParameters(message_id=callback_query.message.id)
             )
@@ -200,20 +202,21 @@ get_messages_instance().KEYBOARD_2X3_ACTIVATED_MSG,
             ]
             safe_send_message(
                 callback_query.message.chat.id,
-get_messages_instance().KEYBOARD_EMOJI_ACTIVATED_MSG,
+safe_get_messages(user_id).KEYBOARD_EMOJI_ACTIVATED_MSG,
                 reply_markup=ReplyKeyboardMarkup(emoji_keyboard, resize_keyboard=True),
                 reply_parameters=ReplyParameters(message_id=callback_query.message.id)
             )
 
         # Log the action
-        send_to_logger(callback_query.message, get_messages_instance().KEYBOARD_SET_CALLBACK_LOG_MSG.format(user_id=user_id, setting=setting))
+        send_to_logger(callback_query.message, safe_get_messages(user_id).KEYBOARD_SET_CALLBACK_LOG_MSG.format(user_id=user_id, setting=setting))
 
     except Exception as e:
-        callback_query.answer(get_messages_instance().KEYBOARD_ERROR_PROCESSING_MSG, show_alert=True)
+        callback_query.answer(safe_get_messages(user_id).KEYBOARD_ERROR_PROCESSING_MSG, show_alert=True)
         from HELPERS.logger import logger
         logger.error(f"Error processing keyboard setting: {e}")
 
 def apply_keyboard_setting(app, chat_id, setting, message_id=None):
+    messages = safe_get_messages(None)
     """Apply keyboard setting immediately"""
     try:
         if setting == "OFF":
@@ -228,7 +231,7 @@ def apply_keyboard_setting(app, chat_id, setting, message_id=None):
             # Send keyboard change as a separate message since it's a visual change
             safe_send_message(
                 chat_id,
-get_messages_instance().KEYBOARD_1X3_ACTIVATED_MSG,
+safe_get_messages(user_id).KEYBOARD_1X3_ACTIVATED_MSG,
                 reply_markup=ReplyKeyboardMarkup(one_by_three, resize_keyboard=True)
             )
         elif setting == "2x3":
@@ -239,7 +242,7 @@ get_messages_instance().KEYBOARD_1X3_ACTIVATED_MSG,
             # Send keyboard change as a separate message since it's a visual change
             safe_send_message(
                 chat_id,
-get_messages_instance().KEYBOARD_2X3_ACTIVATED_MSG,
+safe_get_messages(user_id).KEYBOARD_2X3_ACTIVATED_MSG,
                 reply_markup=ReplyKeyboardMarkup(two_by_three, resize_keyboard=True)
             )
         elif setting == "FULL":
@@ -251,9 +254,9 @@ get_messages_instance().KEYBOARD_2X3_ACTIVATED_MSG,
             # Send keyboard change as a separate message since it's a visual change
             safe_send_message(
                 chat_id,
-get_messages_instance().KEYBOARD_EMOJI_ACTIVATED_MSG,
+safe_get_messages(user_id).KEYBOARD_EMOJI_ACTIVATED_MSG,
                 reply_markup=ReplyKeyboardMarkup(emoji_keyboard, resize_keyboard=True)
             )
     except Exception as e:
         from HELPERS.logger import logger
-        logger.error(get_messages_instance().KEYBOARD_ERROR_APPLYING_MSG.format(setting=setting, error=e))
+        logger.error(safe_get_messages(user_id).KEYBOARD_ERROR_APPLYING_MSG.format(setting=setting, error=e))

@@ -104,7 +104,7 @@ def _load_cookies_from_file(cookie_path: str) -> requests.cookies.RequestsCookie
                     if expiration != '0':
                         try:
                             exp_time = int(expiration)
-                            if exp_time > 0 and exp_time < int(datetime.now().timestamp()):
+                            if exp_time and exp_time > 0 and exp_time < int(datetime.now().timestamp()):
                                 continue
                         except ValueError:
                             pass
@@ -638,7 +638,7 @@ def _extract_vk_info(url: str, user_id: int = None) -> Tuple[Optional[str], Opti
         if m:
             owner_id = int(m.group(1))
             probe_urls = []
-            if owner_id < 0:
+            if owner_id and owner_id < 0:
                 gid = abs(owner_id)
                 probe_urls = [
                     f"https://vk.com/public{gid}",

@@ -13,7 +13,7 @@ from HELPERS.download_status import get_active_download
 from HELPERS.filesystem_hlp import create_directory
 
 from CONFIG.config import Config
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 
 from URL_PARSERS.tags import extract_url_range_tags, save_user_tags
 
@@ -30,14 +30,15 @@ app = get_app()
 # Keep only the callback handler for help close button
 @app.on_callback_query(filters.regex(r"^help_msg\|"))
 def help_msg_callback(app, callback_query):
+    messages = safe_get_messages(None)
     data = callback_query.data.split("|")[1]
     if data == "close":
         try:
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        callback_query.answer(get_messages_instance().OTHER_HELP_CLOSED_MSG)
-        send_to_logger(callback_query.message, get_messages_instance().HELP_MESSAGE_CLOSED_LOG_MSG)
+        callback_query.answer(safe_get_messages(user_id).OTHER_HELP_CLOSED_MSG)
+        send_to_logger(callback_query.message, safe_get_messages(user_id).HELP_MESSAGE_CLOSED_LOG_MSG)
         return
 
 
@@ -47,9 +48,10 @@ def help_msg_callback(app, callback_query):
 @app.on_message(filters.command("audio") & filters.private)
 # @reply_with_keyboard
 def audio_command_handler(app, message):
+    messages = safe_get_messages(message.chat.id)
     user_id = message.chat.id
     if get_active_download(user_id):
-        safe_send_message(user_id, get_messages_instance().AUDIO_WAIT_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+        safe_send_message(user_id, safe_get_messages(user_id).AUDIO_WAIT_MSG, reply_parameters=ReplyParameters(message_id=message.id))
         return
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
@@ -67,7 +69,7 @@ def audio_command_handler(app, message):
                 start_str, end_str = rng.split('-')
                 start_val = int(start_str)
                 end_val = int(end_str) if end_str != '' else None
-                if start_val >= 1:
+                if start_val and start_val >= 1:
                     url_candidate = ' '.join(parts[2:]).strip()
                     if end_val is not None:
                         text = f"/audio {url_candidate}*{start_val}*{end_val}"
@@ -78,23 +80,23 @@ def audio_command_handler(app, message):
     url, _, _, _, tags, tags_text, tag_error = extract_url_range_tags(text)
     if tag_error:
         wrong, example = tag_error
-        error_msg = get_messages_instance().OTHER_TAG_ERROR_MSG.format(wrong=wrong, example=example)
+        error_msg = safe_get_messages(user_id).OTHER_TAG_ERROR_MSG.format(wrong=wrong, example=example)
         safe_send_message(user_id, error_msg, reply_parameters=ReplyParameters(message_id=message.id))
         from HELPERS.logger import log_error_to_channel
         log_error_to_channel(message, error_msg)
         return
     if not url:
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(get_messages_instance().OTHER_AUDIO_HINT_CLOSE_BUTTON_MSG, callback_data="audio_hint|close")]
+            [InlineKeyboardButton(safe_get_messages(user_id).OTHER_AUDIO_HINT_CLOSE_BUTTON_MSG, callback_data="audio_hint|close")]
         ])
         safe_send_message(
             user_id,
-get_messages_instance().AUDIO_HELP_MSG,
+            safe_get_messages(user_id).AUDIO_HELP_MSG,
             parse_mode=enums.ParseMode.HTML,
             reply_parameters=ReplyParameters(message_id=message.id),
             reply_markup=keyboard
         )
-        send_to_logger(message, get_messages_instance().AUDIO_HELP_SHOWN_LOG_MSG)
+        send_to_logger(message, safe_get_messages(user_id).AUDIO_HELP_SHOWN_LOG_MSG)
         return
     save_user_tags(user_id, tags)
     
@@ -131,51 +133,55 @@ def proxy_command_handler(app, message):
 @app.on_message(filters.command("playlist") & filters.private)
 # @reply_with_keyboard
 def playlist_command(app, message):
+    messages = safe_get_messages(message.chat.id)
     user_id = message.chat.id
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
 
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton(get_messages_instance().OTHER_PLAYLIST_HELP_CLOSE_BUTTON_MSG, callback_data="playlist_help|close")]
+        [InlineKeyboardButton(safe_get_messages(user_id).OTHER_PLAYLIST_HELP_CLOSE_BUTTON_MSG, callback_data="playlist_help|close")]
     ])
-    safe_send_message(user_id, get_messages_instance().PLAYLIST_HELP_MSG, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, message=message)
-    send_to_logger(message, get_messages_instance().PLAYLIST_HELP_REQUESTED_LOG_MSG)
+    safe_send_message(user_id, safe_get_messages(user_id).PLAYLIST_HELP_MSG, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard, message=message)
+    send_to_logger(message, safe_get_messages(user_id).PLAYLIST_HELP_REQUESTED_LOG_MSG)
 
 @app.on_callback_query(filters.regex(r"^playlist_help\|"))
 def playlist_help_callback(app, callback_query):
+    messages = safe_get_messages(None)
     data = callback_query.data.split("|")[1]
     if data == "close":
         try:
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        callback_query.answer(get_messages_instance().PLAYLIST_HELP_CLOSED_MSG)
-        send_to_logger(callback_query.message, get_messages_instance().PLAYLIST_HELP_CLOSED_LOG_MSG)
+        callback_query.answer(safe_get_messages(user_id).PLAYLIST_HELP_CLOSED_MSG)
+        send_to_logger(callback_query.message, safe_get_messages(user_id).PLAYLIST_HELP_CLOSED_LOG_MSG)
         return
 
 
 @app.on_callback_query(filters.regex(r"^userlogs_close\|"))
 def userlogs_close_callback(app, callback_query):
+    messages = safe_get_messages(None)
     data = callback_query.data.split("|")[1]
     if data == "close":
         try:
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        callback_query.answer(get_messages_instance().OTHER_LOGS_MESSAGE_CLOSED_MSG)
-        send_to_logger(callback_query.message, get_messages_instance().USERLOGS_CLOSED_MSG)
+        callback_query.answer(safe_get_messages(user_id).OTHER_LOGS_MESSAGE_CLOSED_MSG)
+        send_to_logger(callback_query.message, safe_get_messages(user_id).USERLOGS_CLOSED_MSG)
         return
 
 @app.on_callback_query(filters.regex(r"^audio_hint\|"))
 def audio_hint_callback(app, callback_query):
+    messages = safe_get_messages(None)
     data = callback_query.data.split("|")[1]
     if data == "close":
         try:
             callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
-        callback_query.answer(get_messages_instance().AUDIO_HELP_CLOSED_MSG)
-        send_to_logger(callback_query.message, get_messages_instance().AUDIO_HINT_CLOSED_LOG_MSG)
+        callback_query.answer(safe_get_messages(user_id).AUDIO_HELP_CLOSED_MSG)
+        send_to_logger(callback_query.message, safe_get_messages(user_id).AUDIO_HINT_CLOSED_LOG_MSG)
         return
 
 

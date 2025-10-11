@@ -37,7 +37,7 @@ def unwrap_redirect_url(url: str) -> str:
     except Exception:
         return url
 from CONFIG.config import Config
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 from CONFIG.domains import DomainsConfig
 import importlib
 import types
@@ -126,8 +126,9 @@ def is_porn_domain(domain_parts):
 def is_porn(url, title, description, caption=None):
     """
     Checks content for pornography by domain and keywords (word-boundary regex search)
-    in title, description and caption. Domain whitelist has highest priority.
+    in title, description, caption and URL. Domain whitelist has highest priority.
     White keywords list can override porn detection for false positive correction.
+    URL keywords are checked with spaces replaced by underscores and dashes.
     """
     # 1. Checking the domain (with redirect unwrapping)
     clean_url = unwrap_redirect_url(url).lower()
@@ -144,16 +145,21 @@ def is_porn(url, title, description, caption=None):
     title_lower       = title.lower()       if title       else ""
     description_lower = description.lower() if description else ""
     caption_lower     = caption.lower()     if caption     else ""
-    if not (title_lower or description_lower or caption_lower):
-        logger.info("is_porn: all text fields empty")
+    
+    # 3. Prepare URL for keyword checking (replace spaces with underscores and dashes)
+    url_lower = clean_url
+    logger.debug(f"is_porn URL for keyword check: '{url_lower}'")
+    
+    if not (title_lower or description_lower or caption_lower or url_lower):
+        logger.info("is_porn: all text fields and URL empty")
         return False
 
-    # 3. We collect a single text for search
-    combined = " ".join([title_lower, description_lower, caption_lower])
+    # 4. We collect a single text for search (including URL)
+    combined = " ".join([title_lower, description_lower, caption_lower, url_lower])
     logger.debug(f"is_porn combined text: '{combined}'")
     logger.debug(f"is_porn keywords: {PORN_KEYWORDS}")
 
-    # 4. Check for white keywords first (override porn detection)
+    # 5. Check for white keywords first (override porn detection)
     white_keywords = getattr(DomainsConfig, 'WHITE_KEYWORDS', [])
     if white_keywords:
         white_kws = [re.escape(kw.lower()) for kw in white_keywords if kw.strip()]
@@ -163,25 +169,43 @@ def is_porn(url, title, description, caption=None):
                 logger.info(f"is_porn: white keyword match found, content considered clean: {white_pattern.pattern}")
                 return False
 
-    # 5. Preparing a regex pattern with a list of keywords
+    # 6. Preparing a regex pattern with a list of keywords
     kws = [re.escape(kw.lower()) for kw in PORN_KEYWORDS if kw.strip()]
     if not kws:
         # There is not a single valid key
         return False
 
-    # The boundaries of words (\ b) + flag ignorecase
-    pattern = re.compile(r"\b(" + "|".join(kws) + r")\b", flags=re.IGNORECASE)
-
-    # 6. We are looking for a coincidence
-    if pattern.search(combined):
-        logger.info(f"is_porn: keyword match (regex): {pattern.pattern}")
+    # 7. Check for keyword matches in text fields (with word boundaries)
+    text_pattern = re.compile(r"\b(" + "|".join(kws) + r")\b", flags=re.IGNORECASE)
+    if text_pattern.search(" ".join([title_lower, description_lower, caption_lower])):
+        logger.info(f"is_porn: keyword match in text fields (regex): {text_pattern.pattern}")
         return True
+
+    # 8. Check for keyword matches in URL (with spaces replaced by underscores and dashes)
+    # Create URL-specific patterns for each keyword
+    for keyword in kws:
+        # Create patterns with spaces replaced by underscores and dashes
+        url_patterns = [
+            keyword,  # original keyword
+            keyword.replace(' ', '_'),  # spaces to underscores
+            keyword.replace(' ', '-'),  # spaces to dashes
+            keyword.replace(' ', '_').replace('-', '_'),  # both underscores and dashes
+            keyword.replace(' ', '-').replace('_', '-'),  # both dashes and underscores
+        ]
+        
+        # Create a pattern that matches any of these variations
+        url_pattern = re.compile("|".join([re.escape(p) for p in url_patterns]), flags=re.IGNORECASE)
+        
+        if url_pattern.search(url_lower):
+            logger.info(f"is_porn: keyword match in URL: {keyword} (patterns: {url_patterns})")
+            return True
 
     logger.info("is_porn: no keyword matches found")
     return False
 
 
 def check_porn_detailed(url, title, description, caption=None):
+    messages = safe_get_messages(None)
     """
     Detailed porn check that returns both result and explanation.
     Returns: (is_porn: bool, explanation: str)
@@ -195,21 +219,22 @@ def check_porn_detailed(url, title, description, caption=None):
     # Check whitelist first
     for dom in Config.WHITELIST:
         if dom in domain_parts:
-            explanation_parts.append(get_messages_instance().PORN_DOMAIN_WHITELIST_MSG.format(domain=dom))
+            explanation_parts.append(messages.PORN_DOMAIN_WHITELIST_MSG.format(domain=dom))
             return False, " | ".join(explanation_parts)
     
     # Check if domain is in porn domains
     if is_porn_domain(domain_parts):
-        explanation_parts.append(get_messages_instance().PORN_DOMAIN_BLACKLIST_MSG.format(domain_parts=domain_parts))
+        explanation_parts.append(messages.PORN_DOMAIN_BLACKLIST_MSG.format(domain_parts=domain_parts))
         return True, " | ".join(explanation_parts)
 
     # 2. Preparation of the text
     title_lower       = title.lower()       if title       else ""
     description_lower = description.lower() if description else ""
     caption_lower     = caption.lower()     if caption     else ""
+    url_lower         = clean_url
     
-    if not (title_lower or description_lower or caption_lower):
-        explanation_parts.append(get_messages_instance().PORN_ALL_TEXT_FIELDS_EMPTY_MSG)
+    if not (title_lower or description_lower or caption_lower or url_lower):
+        explanation_parts.append(messages.PORN_ALL_TEXT_FIELDS_EMPTY_MSG)
         return False, " | ".join(explanation_parts)
 
     # 3. We collect a single text for search
@@ -223,24 +248,47 @@ def check_porn_detailed(url, title, description, caption=None):
             white_pattern = re.compile(r"\b(" + "|".join(white_kws) + r")\b", flags=re.IGNORECASE)
             white_matches = white_pattern.findall(combined)
             if white_matches:
-                explanation_parts.append(get_messages_instance().PORN_WHITELIST_KEYWORDS_MSG.format(keywords=', '.join(set(white_matches))))
+                explanation_parts.append(messages.PORN_WHITELIST_KEYWORDS_MSG.format(keywords=', '.join(set(white_matches))))
                 return False, " | ".join(explanation_parts)
 
-    # 5. Check for porn keywords
+    # 5. Check for porn keywords in text fields
     kws = [re.escape(kw.lower()) for kw in PORN_KEYWORDS if kw.strip()]
     if not kws:
         explanation_parts.append("ℹ️ No porn keywords loaded")
         return False, " | ".join(explanation_parts)
 
-    # The boundaries of words (\ b) + flag ignorecase
-    pattern = re.compile(r"\b(" + "|".join(kws) + r")\b", flags=re.IGNORECASE)
-    porn_matches = pattern.findall(combined)
+    # Check text fields with word boundaries
+    text_pattern = re.compile(r"\b(" + "|".join(kws) + r")\b", flags=re.IGNORECASE)
+    text_matches = text_pattern.findall(combined)
     
-    if porn_matches:
-        explanation_parts.append(get_messages_instance().PORN_KEYWORDS_FOUND_MSG.format(keywords=', '.join(set(porn_matches))))
+    if text_matches:
+        explanation_parts.append(messages.PORN_KEYWORDS_FOUND_MSG.format(keywords=', '.join(set(text_matches))))
         return True, " | ".join(explanation_parts)
 
-    explanation_parts.append(get_messages_instance().PORN_NO_KEYWORDS_FOUND_MSG)
+    # 6. Check for porn keywords in URL (with spaces replaced by underscores and dashes)
+    url_matches = []
+    for keyword in kws:
+        # Create patterns with spaces replaced by underscores and dashes
+        url_patterns = [
+            keyword,  # original keyword
+            keyword.replace(' ', '_'),  # spaces to underscores
+            keyword.replace(' ', '-'),  # spaces to dashes
+            keyword.replace(' ', '_').replace('-', '_'),  # both underscores and dashes
+            keyword.replace(' ', '-').replace('_', '-'),  # both dashes and underscores
+        ]
+        
+        # Create a pattern that matches any of these variations
+        url_pattern = re.compile("|".join([re.escape(p) for p in url_patterns]), flags=re.IGNORECASE)
+        
+        matches = url_pattern.findall(url_lower)
+        if matches:
+            url_matches.extend(matches)
+    
+    if url_matches:
+        explanation_parts.append(f"🔗 NSFW keywords found in URL: {', '.join(set(url_matches))}")
+        return True, " | ".join(explanation_parts)
+
+    explanation_parts.append(messages.PORN_NO_KEYWORDS_FOUND_MSG)
     return False, " | ".join(explanation_parts)
 
 
