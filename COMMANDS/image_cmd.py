@@ -1007,7 +1007,12 @@ def image_command(app, message):
                 start_i, end_i = manual_range
                 if end_i is not None:
                     requested_count = end_i - start_i + 1
-                    if cached_sent >= requested_count:
+                    # Check if we have all requested indices in cache
+                    cached_indices = set(cached_map.keys())
+                    requested_indices = set(range(int(start_i), int(end_i) + 1))
+                    missing_indices = requested_indices - cached_indices
+                    
+                    if not missing_indices:
                         # We have all requested content in cache
                         need_download = False
                         try:
@@ -1022,13 +1027,12 @@ def image_command(app, message):
                         return
                     else:
                         # We have partial content, need to download the rest
-                        logger.info(f"Cache has {cached_sent} items, need {requested_count}, downloading remaining {requested_count - cached_sent}")
-                        # Update manual_range to start from where cache ends
-                        # Find the maximum cached index to continue from there
-                        max_cached_index = max(cached_map.keys()) if cached_map else start_i - 1
-                        remaining_start = max_cached_index + 1
-                        manual_range = (remaining_start, end_i)
-                        logger.info(f"Continuing download from index {remaining_start} (max cached: {max_cached_index}, original range: {start_i}-{end_i})")
+                        logger.info(f"Cache has indices {sorted(cached_indices)}, missing {sorted(missing_indices)}, downloading remaining {len(missing_indices)} items")
+                        # Update manual_range to start from the first missing index
+                        first_missing = min(missing_indices)
+                        last_missing = max(missing_indices)
+                        manual_range = (first_missing, last_missing)
+                        logger.info(f"Continuing download from index {first_missing} to {last_missing} (missing: {sorted(missing_indices)})")
                         try:
                             safe_edit_message_text(
                                 user_id, status_msg.id,
