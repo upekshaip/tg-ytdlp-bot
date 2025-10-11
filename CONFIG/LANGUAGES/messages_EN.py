@@ -1,4 +1,8 @@
 # Messages Configuration
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+# Removed circular import
 
 class Messages(object):
     #######################################################
@@ -299,6 +303,14 @@ Use:
     DOWNLOADING_IMAGE_MSG = "📥 <b>Downloading image...</b>\n\n"
 
     DOWNLOAD_COMPLETE_MSG = "✅ <b>Download complete</b>\n\n"
+    
+    # Download status messages
+    DOWNLOADED_STATUS_MSG = "Downloaded:"
+    SENT_STATUS_MSG = "Sent:"
+    PENDING_TO_SEND_STATUS_MSG = "Pending to send:"
+    TITLE_LABEL_MSG = "Title:"
+    MEDIA_COUNT_LABEL_MSG = "Media count:"
+    AUDIO_DOWNLOAD_FINISHED_PROCESSING_MSG = "Download finished, processing audio..."
     VIDEO_PROCESSING_MSG = "📽 Video is processing..."
     WAITING_HOURGLASS_MSG = "⌛️"
     
@@ -787,6 +799,8 @@ Use:
     IMG_RANGE_LIMIT_EXCEEDED_MSG = "❗️ Range limit exceeded: {range_count} files requested (maximum {max_img_files}).\n\nUse one of these commands to download maximum available files:\n\n<code>/img {start_range}-{end_range} {url}</code>\n\n<code>/img {suggested_command_url_format}</code>"
     COMMAND_IMAGE_HELP_CLOSE_BUTTON_MSG = "🔚Close"
     COMMAND_IMAGE_MEDIA_LIMIT_EXCEEDED_MSG = "❗️ Media limit exceeded: {count} files requested (maximum {max_count}).\n\nUse one of these commands to download maximum available files:\n\n<code>/img {start_range}-{end_range} {url}</code>\n\n<code>/img {suggested_command_url_format}</code>"
+    IMG_FOUND_MEDIA_ITEMS_MSG = "📊 Found <b>{count}</b> media items from the link"
+    IMG_SELECT_DOWNLOAD_RANGE_MSG = "Select download range:"
     
     # Args command parameter descriptions
     ARGS_IMPERSONATE_DESC_MSG = "Browser impersonation"
@@ -1150,6 +1164,7 @@ Use:
     ALWAYS_ASK_VIDEO_TYPE_MSG = "Video"
     ALWAYS_ASK_VIDEO_TITLE_MSG = "Video"
     ALWAYS_ASK_NEXT_BUTTON_MSG = "Next ▶️"
+    ALWAYS_ASK_PREV_BUTTON_MSG = "◀️ Prev"
     SUBTITLES_NEXT_BUTTON_MSG = "Next ➡️"
     PORN_ALL_TEXT_FIELDS_EMPTY_MSG = "ℹ️ All text fields are empty"
     SENDER_VIDEO_DURATION_MSG = "Video duration:"
@@ -1230,6 +1245,12 @@ Use:
     ALWAYS_ASK_GET_DIRECT_LINK_MSG = "🔗 — Get direct link to video"
     ALWAYS_ASK_SHOW_AVAILABLE_FORMATS_MSG = "📃 — Show available formats list"
     ALWAYS_ASK_CHANGE_VIDEO_EXT_MSG = "📼 — Change video ext/codec"
+    ALWAYS_ASK_EMBED_BUTTON_MSG = "🚀Embed"
+    ALWAYS_ASK_EXTRACT_AUDIO_MSG = "🎧 — Extract only audio"
+    ALWAYS_ASK_NSFW_PAID_MSG = "⭐️ — 🔞NSFW is paid (⭐️$0.02)"
+    ALWAYS_ASK_INSTANT_REPOST_MSG = "🚀 — Instant repost from cache"
+    ALWAYS_ASK_WATCH_VIDEO_MSG = "👁 — Watch video in poketube"
+    ALWAYS_ASK_CHOOSE_AUDIO_LANGUAGE_MSG = "🗣 — Choose audio language"
     ALWAYS_ASK_BEST_BUTTON_MSG = "Best"
     ALWAYS_ASK_OTHER_LABEL_MSG = "🎛Other"
     ALWAYS_ASK_SUB_ONLY_BUTTON_MSG = "📝sub only"
@@ -1254,6 +1275,12 @@ Use:
     ALWAYS_ASK_USING_CACHED_QUALITIES_MSG = "⚠️ Using cached qualities - new formats may not be available"
     ALWAYS_ASK_DOWNLOADING_FORMAT_MSG = "📥 Downloading format"
     ALWAYS_ASK_DOWNLOADING_QUALITY_MSG = "📥 Downloading"
+    ALWAYS_ASK_DOWNLOADING_HLS_MSG = "📥 Downloading with progress tracking..."
+    ALWAYS_ASK_DOWNLOADING_FORMAT_USING_MSG = "📥 Downloading using format:"
+    ALWAYS_ASK_DOWNLOADING_AUDIO_FORMAT_USING_MSG = "📥 Downloading audio using format:"
+    ALWAYS_ASK_DOWNLOADING_BEST_QUALITY_MSG = "📥 Downloading best quality..."
+    ALWAYS_ASK_DOWNLOADING_DATABASE_MSG = "📥 Downloading database dump..."
+    ALWAYS_ASK_DOWNLOADING_IMAGES_MSG = "📥 Downloading"
     ALWAYS_ASK_FORMATS_PAGE_FROM_CACHE_MSG = "Formats page"
     ALWAYS_ASK_FROM_CACHE_MSG = "(from cache)"
     ALWAYS_ASK_ERROR_ORIGINAL_MESSAGE_NOT_FOUND_DETAILED_MSG = "❌ Error: Original message not found. It might have been deleted. Please send the link again."
@@ -1298,6 +1325,13 @@ Use:
     
     # Always Ask Menu Messages
     NO_SUBTITLES_DETECTED_MSG = "No subtitles detected"
+    VIDEO_PROGRESS_MSG = "<b>Video:</b> {current} / {total}"
+    AUDIO_PROGRESS_MSG = "<b>Audio:</b> {current} / {total}"
+    
+    # Error messages
+    ERROR_CHECK_SUPPORTED_SITES_MSG = "Check <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>here</a> if your site supported"
+    ERROR_COOKIE_NEEDED_MSG = "You may need <code>cookie</code> for downloading this video. First, clean your workspace via <b>/clean</b> command"
+    ERROR_COOKIE_INSTRUCTIONS_MSG = "For Youtube - get <code>cookie</code> via <b>/cookie</b> command. For any other supported site - send your own cookie (<a href='https://t.me/c/2303231066/18'>guide1</a>) (<a href='https://t.me/c/2303231066/22'>guide2</a>) and after that send your video link again."
     CHOOSE_SUBTITLE_LANGUAGE_MSG = "Choose subtitle language"
     NO_ALTERNATIVE_AUDIO_LANGUAGES_MSG = "No alternative audio languages"
     CHOOSE_AUDIO_LANGUAGE_MSG = "Choose audio language"
@@ -1412,6 +1446,11 @@ Use:
     ARGS_STATUS_FALSE_MSG = "❌"
     ARGS_STATUS_TRUE_DISPLAY_MSG = "✅ True"
     ARGS_STATUS_FALSE_DISPLAY_MSG = "❌ False"
+    ARGS_NOT_SET_MSG = "Not set"
+    
+    # Boolean values for import/export (all possible variations)
+    ARGS_BOOLEAN_TRUE_VALUES = ["True", "true", "1", "yes", "on", "✅"]
+    ARGS_BOOLEAN_FALSE_VALUES = ["False", "false", "0", "no", "off", "❌"]
     
     # Args command status indicators
     ARGS_STATUS_SELECTED_MSG = "✅"
@@ -1753,7 +1792,7 @@ Use:
     CAPTION_VIDEO_URL_LINK_MSG = '<a href="{url}">🔗 Video URL</a>{bot_mention}'
     
     # Database messages
-    DB_DATABASE_URL_MISSING_MSG = "FIREBASE_CONF.databaseURL отсутствует в Config"
+    DB_DATABASE_URL_MISSING_MSG = "FIREBASE_CONF.databaseURL отсутствует в конфигурации"
     DB_FIREBASE_ADMIN_INITIALIZED_MSG = "✅ firebase_admin initialized"
     DB_REST_ID_TOKEN_REFRESHED_MSG = "🔁 REST idToken refreshed"
     DB_LOG_FOR_USER_ADDED_MSG = "Log for user added"
@@ -2012,7 +2051,7 @@ Use:
     KEYBOARD_2X3_BUTTON_MSG = "📱 2x3"
     
     # Image Command Messages
-    IMAGE_URL_CAPTION_MSG = "🔗[Images URL]({url}) @{Config.BOT_NAME}"
+    IMAGE_URL_CAPTION_MSG = "🔗[Images URL]({url})"
     IMAGE_ERROR_MSG = "❌ Error: {str(e)}"
     
     # Format Command Messages
@@ -2050,7 +2089,6 @@ Use:
     ARGS_CURRENT_ARGUMENTS_MSG = "📋 Current yt-dlp Arguments:\n\n"
     ARGS_EXPORT_SETTINGS_BUTTON_MSG = "📤 Export Settings"
     ARGS_SETTINGS_READY_MSG = "Settings ready for export! Forward this message to favorites to save."
-    ARGS_CURRENT_VALUE_MSG = "Current value: <code>{value}</code>"
     ARGS_CURRENT_ARGUMENTS_HEADER_MSG = "📋 Current yt-dlp Arguments:"
     ARGS_FAILED_RECOGNIZE_MSG = "❌ Failed to recognize settings in message. Make sure you sent a correct settings template."
     ARGS_SUCCESSFULLY_IMPORTED_MSG = "✅ Settings successfully imported!\n\nApplied parameters: {applied_count}\n\n"
@@ -2074,5 +2112,20 @@ Use:
     # Always Ask menu button messages
     ALWAYS_ASK_LINK_BUTTON_MSG = "🔗Link"
     ALWAYS_ASK_WATCH_BUTTON_MSG = "👁Watch"
+
+    # Audio upload completion messages
+    AUDIO_PARTIALLY_COMPLETED_MSG = "⚠️ Partially completed - {successful_uploads}/{total_files} audio files uploaded."
+    AUDIO_SUCCESSFULLY_COMPLETED_MSG = "✅ Audio successfully downloaded and sent - {total_files} files uploaded."
+
+    # TikTok private account messages
+    TIKTOK_PRIVATE_ACCOUNT_MSG = (
+        "🔒 <b>Private TikTok Account</b>\n\n"
+        "This TikTok account is private or all videos are private.\n\n"
+        "<b>💡 Solution:</b>\n"
+        "1. Follow the account @{username}\n"
+        "2. Send your cookies to the bot using <code>/cookie</code> command\n"
+        "3. Try again\n\n"
+        "<b>After updating cookies, try again!</b>"
+    )
 
     #######################################################

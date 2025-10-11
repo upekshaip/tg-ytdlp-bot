@@ -2,7 +2,7 @@
 # This file combines all configuration classes into one unified Config class
 
 from CONFIG.commands import CommandsConfig
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 from CONFIG.domains import DomainsConfig
 from CONFIG.limits import LimitsConfig
 
@@ -153,7 +153,7 @@ class Config(object):
     @classmethod
     def get_messages(cls, user_id=None, language_code=None):
         """Get messages instance for user or language"""
-        return get_messages_instance(user_id, language_code)
+        return safe_get_messages(user_id, language_code)
     
     @classmethod
     def get_message(cls, message_key, user_id=None, language_code=None):

@@ -1,4 +1,8 @@
 # Messages Configuration
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+# Removed circular import
 
 class Messages(object):
     #######################################################
@@ -299,6 +303,14 @@ class Messages(object):
     DOWNLOADING_IMAGE_MSG = "📥 <b>تحميل الصورة...</b>\n\n"
 
     DOWNLOAD_COMPLETE_MSG = "✅ <b>اكتمل التحميل</b>\n\n"
+    
+    # Download status messages
+    DOWNLOADED_STATUS_MSG = "تم التحميل:"
+    SENT_STATUS_MSG = "تم الإرسال:"
+    PENDING_TO_SEND_STATUS_MSG = "في انتظار الإرسال:"
+    TITLE_LABEL_MSG = "العنوان:"
+    MEDIA_COUNT_LABEL_MSG = "عدد الوسائط:"
+    AUDIO_DOWNLOAD_FINISHED_PROCESSING_MSG = "اكتمل التنزيل، جاري معالجة الصوت..."
     VIDEO_PROCESSING_MSG = "📽 معالجة الفيديو..."
     WAITING_HOURGLASS_MSG = "⌛️"
     
@@ -787,6 +799,8 @@ class Messages(object):
     IMG_RANGE_LIMIT_EXCEEDED_MSG = "❗️ تم تجاوز حد النطاق: تم طلب {range_count} ملف (الحد الأقصى {max_img_files}).\n\nاستخدم أحد هذه الأوامر لتحميل الحد الأقصى من الملفات المتاحة:\n\n<code>/img {start_range}-{end_range} {url}</code>\n\n<code>/img {suggested_command_url_format}</code>"
     COMMAND_IMAGE_HELP_CLOSE_BUTTON_MSG = "🔚إغلاق"
     COMMAND_IMAGE_MEDIA_LIMIT_EXCEEDED_MSG = "❗️ تم تجاوز حد الوسائط: تم طلب {count} ملف (الحد الأقصى {max_count}).\n\nاستخدم أحد هذه الأوامر لتحميل الحد الأقصى من الملفات المتاحة:\n\n<code>/img {start_range}-{end_range} {url}</code>\n\n<code>/img {suggested_command_url_format}</code>"
+    IMG_FOUND_MEDIA_ITEMS_MSG = "📊 تم العثور على <b>{count}</b> عنصر وسائط من الرابط"
+    IMG_SELECT_DOWNLOAD_RANGE_MSG = "اختر نطاق التحميل:"
     
     # Args command parameter descriptions
     ARGS_IMPERSONATE_DESC_MSG = "انتحال شخصية المتصفح"
@@ -1150,6 +1164,7 @@ class Messages(object):
     ALWAYS_ASK_VIDEO_TYPE_MSG = "فيديو"
     ALWAYS_ASK_VIDEO_TITLE_MSG = "فيديو"
     ALWAYS_ASK_NEXT_BUTTON_MSG = "التالي ▶️"
+    ALWAYS_ASK_PREV_BUTTON_MSG = "◀️ السابق"
     SUBTITLES_NEXT_BUTTON_MSG = "التالي ➡️"
     PORN_ALL_TEXT_FIELDS_EMPTY_MSG = "ℹ️ جميع حقول النص فارغة"
     SENDER_VIDEO_DURATION_MSG = "مدة الفيديو:"
@@ -1168,13 +1183,13 @@ class Messages(object):
     DOWN_UP_FILES_UPLOADED_MSG = "تم رفع الملفات"
     
     # Always Ask Menu Button Messages
-    ALWAYS_ASK_VLC_ANDROID_BUTTON_MSG = "🎬 في إل سي (أندرويد)"
+    ALWAYS_ASK_VLC_ANDROID_BUTTON_MSG = "🎬 VLC (Android)"
     ALWAYS_ASK_CLOSE_BUTTON_MSG = "🔚 إغلاق"
     ALWAYS_ASK_CODEC_BUTTON_MSG = "📼ترميز"
     ALWAYS_ASK_DUBS_BUTTON_MSG = "🗣 دبلجة"
     ALWAYS_ASK_SUBS_BUTTON_MSG = "💬 ترجمات"
     ALWAYS_ASK_BROWSER_BUTTON_MSG = "🌐 المتصفح"
-    ALWAYS_ASK_VLC_IOS_BUTTON_MSG = "🎬 في إل سي (آي أو إس)"
+    ALWAYS_ASK_VLC_IOS_BUTTON_MSG = "🎬 VLC (iOS)"
     
     # Always Ask Menu Callback Messages
     ALWAYS_ASK_GETTING_DIRECT_LINK_MSG = "🔗 جاري الحصول على الرابط المباشر..."
@@ -1230,6 +1245,12 @@ class Messages(object):
     ALWAYS_ASK_GET_DIRECT_LINK_MSG = "🔗 — الحصول على رابط مباشر للفيديو"
     ALWAYS_ASK_SHOW_AVAILABLE_FORMATS_MSG = "📃 — عرض قائمة التنسيقات المتاحة"
     ALWAYS_ASK_CHANGE_VIDEO_EXT_MSG = "📼 — تغيير امتداد/ترميز الفيديو"
+    ALWAYS_ASK_EMBED_BUTTON_MSG = "🚀تضمين"
+    ALWAYS_ASK_EXTRACT_AUDIO_MSG = "🎧 — استخراج الصوت فقط"
+    ALWAYS_ASK_NSFW_PAID_MSG = "⭐️ — 🔞المحتوى للبالغين مدفوع (⭐️$0.02)"
+    ALWAYS_ASK_INSTANT_REPOST_MSG = "🚀 — إعادة نشر فورية من التخزين المؤقت"
+    ALWAYS_ASK_WATCH_VIDEO_MSG = "👁 — مشاهدة الفيديو في poketube"
+    ALWAYS_ASK_CHOOSE_AUDIO_LANGUAGE_MSG = "🗣 — اختيار لغة الصوت"
     ALWAYS_ASK_BEST_BUTTON_MSG = "الأفضل"
     ALWAYS_ASK_OTHER_LABEL_MSG = "🎛أخرى"
     ALWAYS_ASK_SUB_ONLY_BUTTON_MSG = "📝ترجمات فقط"
@@ -1254,6 +1275,12 @@ class Messages(object):
     ALWAYS_ASK_USING_CACHED_QUALITIES_MSG = "⚠️ استخدام الجودات المخزنة - قد لا تكون التنسيقات الجديدة متاحة"
     ALWAYS_ASK_DOWNLOADING_FORMAT_MSG = "📥 جاري تحميل التنسيق"
     ALWAYS_ASK_DOWNLOADING_QUALITY_MSG = "📥 جاري التحميل"
+    ALWAYS_ASK_DOWNLOADING_HLS_MSG = "📥 جاري التحميل مع تتبع التقدم..."
+    ALWAYS_ASK_DOWNLOADING_FORMAT_USING_MSG = "📥 جاري التحميل باستخدام التنسيق:"
+    ALWAYS_ASK_DOWNLOADING_AUDIO_FORMAT_USING_MSG = "📥 جاري تحميل الصوت باستخدام التنسيق:"
+    ALWAYS_ASK_DOWNLOADING_BEST_QUALITY_MSG = "📥 جاري تحميل أفضل جودة..."
+    ALWAYS_ASK_DOWNLOADING_DATABASE_MSG = "📥 جاري تحميل نسخة احتياطية من قاعدة البيانات..."
+    ALWAYS_ASK_DOWNLOADING_IMAGES_MSG = "📥 جاري التحميل"
     ALWAYS_ASK_FORMATS_PAGE_FROM_CACHE_MSG = "صفحة التنسيقات"
     ALWAYS_ASK_FROM_CACHE_MSG = "(من التخزين المؤقت)"
     ALWAYS_ASK_ERROR_ORIGINAL_MESSAGE_NOT_FOUND_DETAILED_MSG = "❌ خطأ: لم يتم العثور على الرسالة الأصلية. ربما تم حذفها. يرجى إرسال الرابط مرة أخرى."
@@ -1298,6 +1325,13 @@ class Messages(object):
     
     # Always Ask Menu Messages
     NO_SUBTITLES_DETECTED_MSG = "لم يتم اكتشاف ترجمات"
+    VIDEO_PROGRESS_MSG = "<b>فيديو:</b> {current} / {total}"
+    AUDIO_PROGRESS_MSG = "<b>صوت:</b> {current} / {total}"
+    
+    # Error messages
+    ERROR_CHECK_SUPPORTED_SITES_MSG = "تحقق <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>هنا</a> إذا كان موقعك مدعوماً"
+    ERROR_COOKIE_NEEDED_MSG = "قد تحتاج <code>cookie</code> لتحميل هذا الفيديو. أولاً، نظف مساحة العمل عبر أمر <b>/clean</b>"
+    ERROR_COOKIE_INSTRUCTIONS_MSG = "لـ YouTube - احصل على <code>cookie</code> عبر أمر <b>/cookie</b>. لأي موقع مدعوم آخر - أرسل ملف cookie الخاص بك (<a href='https://t.me/c/2303231066/18'>دليل1</a>) (<a href='https://t.me/c/2303231066/22'>دليل2</a>) وبعد ذلك أرسل رابط الفيديو مرة أخرى."
     CHOOSE_SUBTITLE_LANGUAGE_MSG = "اختر لغة الترجمة"
     NO_ALTERNATIVE_AUDIO_LANGUAGES_MSG = "لا توجد لغات صوت بديلة"
     CHOOSE_AUDIO_LANGUAGE_MSG = "اختر لغة الصوت"
@@ -1412,6 +1446,11 @@ class Messages(object):
     ARGS_STATUS_FALSE_MSG = "❌"
     ARGS_STATUS_TRUE_DISPLAY_MSG = "✅ صحيح"
     ARGS_STATUS_FALSE_DISPLAY_MSG = "❌ خطأ"
+    ARGS_NOT_SET_MSG = "غير محدد"
+    
+    # Boolean values for import/export (all possible variations)
+    ARGS_BOOLEAN_TRUE_VALUES = ["صحيح", "نعم", "أجل", "True", "true", "1", "yes", "on", "✅"]
+    ARGS_BOOLEAN_FALSE_VALUES = ["خطأ", "لا", "ليس", "False", "false", "0", "no", "off", "❌"]
     
     # Args command status indicators
     ARGS_STATUS_SELECTED_MSG = "✅"
@@ -2012,7 +2051,7 @@ class Messages(object):
     KEYBOARD_2X3_BUTTON_MSG = "📱 2x3"
     
     # Image Command Messages
-    IMAGE_URL_CAPTION_MSG = "🔗[Images URL]({url}) @{Config.BOT_NAME}"
+    IMAGE_URL_CAPTION_MSG = "🔗[رابط الصور]({url})"
     IMAGE_ERROR_MSG = "❌ خطأ: {str(e)}"
     
     # Format Command Messages
@@ -2050,7 +2089,6 @@ class Messages(object):
     ARGS_CURRENT_ARGUMENTS_MSG = "📋 وسائط yt-dlp الحالية:\n\n"
     ARGS_EXPORT_SETTINGS_BUTTON_MSG = "📤 تصدير الإعدادات"
     ARGS_SETTINGS_READY_MSG = "الإعدادات جاهزة للتصدير! أعد توجيه هذه الرسالة إلى المفضلة للحفظ."
-    ARGS_CURRENT_VALUE_MSG = "القيمة الحالية: <code>{value}</code>"
     ARGS_CURRENT_ARGUMENTS_HEADER_MSG = "📋 وسائط yt-dlp الحالية:"
     ARGS_FAILED_RECOGNIZE_MSG = "❌ فشل في التعرف على الإعدادات في الرسالة. تأكد من إرسال قالب إعدادات صحيح."
     ARGS_SUCCESSFULLY_IMPORTED_MSG = "✅ تم استيراد الإعدادات بنجاح!\n\nالمعاملات المطبقة: {applied_count}\n\n"
@@ -2074,5 +2112,20 @@ class Messages(object):
     # Always Ask menu button messages
     ALWAYS_ASK_LINK_BUTTON_MSG = "🔗رابط"
     ALWAYS_ASK_WATCH_BUTTON_MSG = "👁مشاهدة"
+
+    # Audio upload completion messages
+    AUDIO_PARTIALLY_COMPLETED_MSG = "⚠️ مكتمل جزئياً - {successful_uploads}/{total_files} ملف صوتي تم رفعه."
+    AUDIO_SUCCESSFULLY_COMPLETED_MSG = "✅ تم تحميل وإرسال الصوت بنجاح - {total_files} ملف تم رفعه."
+
+    # TikTok private account messages
+    TIKTOK_PRIVATE_ACCOUNT_MSG = (
+        "🔒 <b>حساب TikTok خاص</b>\n\n"
+        "هذا الحساب في TikTok خاص أو جميع الفيديوهات خاصة.\n\n"
+        "<b>💡 الحل:</b>\n"
+        "1. تابع الحساب @{username}\n"
+        "2. أرسل ملفات cookie الخاصة بك للبوت باستخدام أمر <code>/cookie</code>\n"
+        "3. جرب مرة أخرى\n\n"
+        "<b>بعد تحديث cookies، جرب مرة أخرى!</b>"
+    )
 
     #######################################################

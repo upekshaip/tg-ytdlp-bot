@@ -5,7 +5,7 @@ import time
 import os
 import re
 from CONFIG.config import Config
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger
 from HELPERS.safe_messeger import safe_edit_message_text
@@ -88,7 +88,7 @@ def set_active_download(user_id, status):
 
 # Helper function to start the hourglass animation
 def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
-    messages = get_messages_instance(user_id)
+    messages = safe_get_messages(user_id)
     """
     Start an hourglass animation in a separate thread
 
@@ -102,7 +102,7 @@ def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
     """
 
     def animate_hourglass():
-        messages = get_messages_instance(user_id)
+        messages = safe_get_messages(user_id)
         """Animate an hourglass emoji by toggling between two hourglass emojis"""
         counter = 0
         emojis = messages.DOWNLOAD_STATUS_HOURGLASS_EMOJIS
@@ -117,7 +117,7 @@ def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
                 minutes_passed = int(elapsed // 60)
                 
                 # Adaptive animation interval (linear slow-down every 5 minutes)
-                if minutes_passed >= 60:
+                if minutes_passed and minutes_passed >= 60:
                     interval = 90.0  # After 1 hour, update once per 90 seconds
                 else:
                     # 0-4 min: 3s, 5-9: 4s, 10-14: 5s, ... up to 55-59: 14s
@@ -157,7 +157,7 @@ _last_upload_update_ts = {}
 
 # Helper function to start cycle progress animation
 def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_name, cycle_stop, progress_data=None):
-    messages = get_messages_instance(user_id)
+    messages = safe_get_messages(user_id)
     """
     Start a progress animation for HLS downloads
 
@@ -174,7 +174,7 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
     """
 
     def cycle_progress():
-        messages = get_messages_instance(user_id)
+        messages = safe_get_messages(user_id)
         """Show progress animation for HLS downloads"""
         counter = 0
         active = True
@@ -188,7 +188,7 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
                 minutes_passed = int(elapsed // 60)
                 
                 # Adaptive update interval (linear; after 1h fixed 90s)
-                if minutes_passed >= 60:
+                if minutes_passed and minutes_passed >= 60:
                     interval = 90.0
                 else:
                     interval = 3.0 + max(0, minutes_passed // 5)

@@ -14,7 +14,7 @@ import json
 from HELPERS.safe_messeger import safe_forward_messages
 from URL_PARSERS.thumbnail_downloader import download_thumbnail
 from CONFIG.config import Config
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 from CONFIG.limits import LimitsConfig
 import time
 
@@ -23,8 +23,8 @@ app = get_app()
 
 # Import function to get user args
 def get_user_args(user_id: int):
-    messages = get_messages_instance(user_id)
     """Get user's saved args settings"""
+    messages = safe_get_messages(user_id)
     import os
     import json
     user_dir = os.path.join("users", str(user_id))
@@ -37,7 +37,7 @@ def get_user_args(user_id: int):
         with open(args_file, 'r', encoding='utf-8') as f:
             return json.load(f)
     except Exception as e:
-        logger.error(messages.SENDER_ERROR_READING_USER_ARGS_MSG.format(user_id=user_id, error=e))
+        logger.error(safe_get_messages(user_id).SENDER_ERROR_READING_USER_ARGS_MSG.format(user_id=user_id, error=e))
         return {}
 
 def send_videos(
@@ -50,11 +50,11 @@ def send_videos(
     msg_id: int,
     full_video_title: str,
     tags_text: str = '',
-    messages = get_messages_instance(None),
 ):
     import re
     import os
     user_id = message.chat.id
+    messages = safe_get_messages(user_id)
     text = message.text or ""
     m = re.search(r'https?://[^\s\*]+', text)
     video_url = m.group(0) if m else ""
@@ -78,7 +78,7 @@ def send_videos(
         try:
             width, height, _ = get_video_info_ffprobe(video_abs_path)
         except Exception as e:
-            logger.error(messages.SENDER_FFPROBE_BYPASS_ERROR_MSG.format(video_path=video_abs_path, error=e))
+            logger.error(safe_get_messages(user_id).SENDER_FFPROBE_BYPASS_ERROR_MSG.format(video_path=video_abs_path, error=e))
             import traceback
             logger.error(traceback.format_exc())
             width, height = 0, 0
@@ -254,7 +254,7 @@ def send_videos(
                 return _gen_thumb(video_path)
 
         def _try_send_video(caption_text: str):
-            messages = get_messages_instance(user_id)
+            messages = safe_get_messages(user_id)
             nonlocal was_paid
             # Для бесплатных сообщений — внешний превью без паддинга; для платных — обложка 320x320
             local_thumb_free = _gen_free_cover(video_abs_path)
@@ -333,7 +333,7 @@ def send_videos(
                 progress_args=(
                     user_id,
                     msg_id,
-                    f"{info_text}\n<b>{messages.SENDER_VIDEO_DURATION_MSG}</b> <i>{TimeFormatter(duration*1000)}</i>\n\n<i>{messages.SENDER_UPLOADING_VIDEO_MSG}</i>"
+                    f"{info_text}\n<b>{safe_get_messages(user_id).SENDER_VIDEO_DURATION_MSG}</b> <i>{TimeFormatter(duration*1000)}</i>\n\n<i>{safe_get_messages(user_id).SENDER_UPLOADING_VIDEO_MSG}</i>"
                 ),
                 reply_parameters=ReplyParameters(message_id=message.id),
                 parse_mode=enums.ParseMode.HTML
@@ -349,7 +349,7 @@ def send_videos(
             return result
 
         def _fallback_send_document(caption_text: str):
-            messages = get_messages_instance(user_id)
+            messages = safe_get_messages(user_id)
             nonlocal was_paid
             # Для бесплатных документов — внешний превью без паддинга
             local_thumb = _gen_free_cover(video_abs_path) or thumb_file_path
@@ -434,7 +434,7 @@ def send_videos(
                 progress_args=(
                     user_id,
                     msg_id,
-                    f"{info_text}\n<b>{messages.SENDER_VIDEO_DURATION_MSG}</b> <i>{TimeFormatter(duration*1000)}</i>\n\n<i>{messages.SENDER_UPLOADING_FILE_MSG}</i>"
+                    f"{info_text}\n<b>{safe_get_messages(user_id).SENDER_VIDEO_DURATION_MSG}</b> <i>{TimeFormatter(duration*1000)}</i>\n\n<i>{safe_get_messages(user_id).SENDER_UPLOADING_FILE_MSG}</i>"
                 ),
                 reply_parameters=ReplyParameters(message_id=message.id),
                 parse_mode=enums.ParseMode.HTML
@@ -450,7 +450,7 @@ def send_videos(
         try:
             # Check if user wants to send as file
             if send_as_file:
-                logger.info(messages.SENDER_USER_SEND_AS_FILE_ENABLED_MSG.format(user_id=user_id))
+                logger.info(safe_get_messages(user_id).SENDER_USER_SEND_AS_FILE_ENABLED_MSG.format(user_id=user_id))
                 video_msg = _fallback_send_document(cap)
             else:
                 # Первая попытка с полным описанием, с ограничением на количество ретраев по таймауту
@@ -462,8 +462,8 @@ def send_videos(
                     except Exception as e:
                         if "Request timed out" in str(e) or isinstance(e, TimeoutError):
                             attempts_left -= 1
-                            if attempts_left <= 0:
-                                logger.warning(messages.SENDER_SEND_VIDEO_TIMED_OUT_MSG)
+                            if attempts_left and attempts_left <= 0:
+                                logger.warning(safe_get_messages(user_id).SENDER_SEND_VIDEO_TIMED_OUT_MSG)
                                 video_msg = _fallback_send_document(cap)
                                 break
                             time.sleep(2)
@@ -471,7 +471,7 @@ def send_videos(
                         raise
         except Exception as e:
             if "MEDIA_CAPTION_TOO_LONG" in str(e):
-                logger.info(messages.SENDER_CAPTION_TOO_LONG_MSG)
+                logger.info(safe_get_messages(user_id).SENDER_CAPTION_TOO_LONG_MSG)
                 # If the caption is too long, try sending only with the main information
                 minimal_cap = ''
                 if title_html:
@@ -492,15 +492,15 @@ def send_videos(
                             except Exception as e2:
                                 if "Request timed out" in str(e2) or isinstance(e2, TimeoutError):
                                     attempts_left -= 1
-                                    if attempts_left <= 0:
-                                        logger.warning(messages.SENDER_SEND_VIDEO_MINIMAL_CAPTION_TIMED_OUT_MSG)
+                                    if attempts_left and attempts_left <= 0:
+                                        logger.warning(safe_get_messages(user_id).SENDER_SEND_VIDEO_MINIMAL_CAPTION_TIMED_OUT_MSG)
                                         video_msg = _fallback_send_document(minimal_cap)
                                         break
                                     time.sleep(2)
                                     continue
                                 raise
                 except Exception as e:
-                    logger.error(messages.SENDER_ERROR_SENDING_VIDEO_MINIMAL_CAPTION_MSG.format(error=e))
+                    logger.error(safe_get_messages(user_id).SENDER_ERROR_SENDING_VIDEO_MINIMAL_CAPTION_MSG.format(error=e))
                     # Последний фолбэк — без описания, с документом при таймауте
                     try:
                         if send_as_file:
@@ -515,7 +515,7 @@ def send_videos(
             else:
                 # If the error is not related to the length of the caption, log it and pass it further
                 from HELPERS.logger import send_error_to_user
-                send_error_to_user(message, messages.ERROR_SENDING_VIDEO_MSG.format(error=str(e)))
+                send_error_to_user(message, safe_get_messages(user_id).ERROR_SENDING_VIDEO_MSG.format(error=str(e)))
                 raise e
         # Note: Forwarding to log channels is now handled in down_and_up.py
         # to avoid double forwarding and ensure proper channel routing
@@ -528,22 +528,22 @@ def send_videos(
                 user_doc_msg = app.send_document(
                     chat_id=user_id,
                     document=temp_desc_path,
-                    caption=messages.CHANGE_CAPTION_HINT_MSG,
+                    caption=safe_get_messages(user_id).CHANGE_CAPTION_HINT_MSG,
                     reply_parameters=ReplyParameters(message_id=message.id),
                     parse_mode=enums.ParseMode.HTML
                 )
                 # Note: Description file forwarding is handled in down_and_up.py
             except Exception as e:
-                logger.error(messages.SENDER_ERROR_SENDING_FULL_DESCRIPTION_FILE_MSG.format(error=e))
+                logger.error(safe_get_messages(user_id).SENDER_ERROR_SENDING_FULL_DESCRIPTION_FILE_MSG.format(error=e))
                 from HELPERS.logger import send_error_to_user
-                send_error_to_user(message, messages.ERROR_SENDING_DESCRIPTION_FILE_MSG.format(error=str(e)))
+                send_error_to_user(message, safe_get_messages(user_id).ERROR_SENDING_DESCRIPTION_FILE_MSG.format(error=str(e)))
         return video_msg
     finally:
         if os.path.exists(temp_desc_path):
             try:
                 os.remove(temp_desc_path)
             except Exception as e:
-                logger.error(messages.SENDER_ERROR_REMOVING_TEMP_DESCRIPTION_FILE_MSG.format(error=e))
+                logger.error(safe_get_messages(user_id).SENDER_ERROR_REMOVING_TEMP_DESCRIPTION_FILE_MSG.format(error=e))
                 # This is not critical enough to log to LOG_EXCEPTION channel
 
 #####################################################################################

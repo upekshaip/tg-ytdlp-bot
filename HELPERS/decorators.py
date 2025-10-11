@@ -8,7 +8,7 @@ import os
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger
 from HELPERS.safe_messeger import safe_send_message
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 
 def app_handler(func):
     """Decorator to automatically inject app instance"""
@@ -30,7 +30,7 @@ app = get_app()
 reply_keyboard_msg_ids = {}  # user_id: message_id
 
 def get_main_reply_keyboard(mode="2x3"):
-    messages = get_messages_instance(None)
+    messages = safe_get_messages(None)
     """Function for permanent reply-keyboard"""
     from pyrogram.types import ReplyKeyboardMarkup
     

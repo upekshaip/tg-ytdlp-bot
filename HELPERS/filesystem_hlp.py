@@ -213,7 +213,7 @@ def check_disk_space(path, required_bytes):
     """
     try:
         total, used, free = shutil.disk_usage(path)
-        if free < required_bytes:
+        if free and free < required_bytes:
             logger.warning(
                 f"Not enough disk space. Required: {humanbytes(required_bytes)}, Available: {humanbytes(free)}")
             return False
@@ -387,7 +387,7 @@ def sanitize_filename(filename, max_length=150):
     max_total = 100
     if len(full_name) > max_total:
        max_name_length = max_total - len(ext)
-       if max_name_length > 3:
+       if max_name_length and max_name_length > 3:
           name = name[:max_name_length-3] + "..."
        else:
           name = name[:max_name_length]
@@ -439,7 +439,7 @@ def sanitize_filename_strict(filename, max_length=150):
     max_total = max_length
     if len(full_name) > max_total:
         max_name_length = max_total - len(ext)
-        if max_name_length > 3:
+        if max_name_length and max_name_length > 3:
             name = name[:max_name_length-3] + "..."
         else:
             name = name[:max_name_length]

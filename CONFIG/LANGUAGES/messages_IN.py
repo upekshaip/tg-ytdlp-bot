@@ -1,4 +1,8 @@
 # Messages Configuration
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+#from CONFIG.config import Config
 
 class Messages(object):
     #######################################################
@@ -299,6 +303,14 @@ class Messages(object):
     DOWNLOADING_IMAGE_MSG = "📥 <b>छवि डाउनलोड हो रही है...</b>\n\n"
 
     DOWNLOAD_COMPLETE_MSG = "✅ <b>डाउनलोड पूरा</b>\n\n"
+    
+    # Download status messages
+    DOWNLOADED_STATUS_MSG = "डाउनलोड किया गया:"
+    SENT_STATUS_MSG = "भेजा गया:"
+    PENDING_TO_SEND_STATUS_MSG = "भेजने की प्रतीक्षा में:"
+    TITLE_LABEL_MSG = "शीर्षक:"
+    MEDIA_COUNT_LABEL_MSG = "मीडिया की संख्या:"
+    AUDIO_DOWNLOAD_FINISHED_PROCESSING_MSG = "डाउनलोड पूरा हुआ, ऑडियो प्रोसेसिंग..."
     VIDEO_PROCESSING_MSG = "📽 वीडियो प्रसंस्करण में है..."
     WAITING_HOURGLASS_MSG = "⌛️"
     
@@ -787,6 +799,8 @@ class Messages(object):
     IMG_RANGE_LIMIT_EXCEEDED_MSG = "❗️ रेंज सीमा पार हो गई: {range_count} फाइलें अनुरोधित (अधिकतम {max_img_files})।\n\nअधिकतम उपलब्ध फाइलें डाउनलोड करने के लिए इनमें से एक कमांड का उपयोग करें:\n\n<code>/img {start_range}-{end_range} {url}</code>\n\n<code>/img {suggested_command_url_format}</code>"
     COMMAND_IMAGE_HELP_CLOSE_BUTTON_MSG = "🔚बंद करें"
     COMMAND_IMAGE_MEDIA_LIMIT_EXCEEDED_MSG = "❗️ मीडिया सीमा पार हो गई: {count} फाइलें अनुरोधित (अधिकतम {max_count})।\n\nअधिकतम उपलब्ध फाइलें डाउनलोड करने के लिए इनमें से एक कमांड का उपयोग करें:\n\n<code>/img {start_range}-{end_range} {url}</code>\n\n<code>/img {suggested_command_url_format}</code>"
+    IMG_FOUND_MEDIA_ITEMS_MSG = "📊 लिंक से <b>{count}</b> मीडिया आइटम मिले"
+    IMG_SELECT_DOWNLOAD_RANGE_MSG = "डाउनलोड रेंज चुनें:"
     
     # Args command parameter descriptions
     ARGS_IMPERSONATE_DESC_MSG = "ब्राउज़र प्रतिरूपण"
@@ -1150,6 +1164,7 @@ class Messages(object):
     ALWAYS_ASK_VIDEO_TYPE_MSG = "वीडियो"
     ALWAYS_ASK_VIDEO_TITLE_MSG = "वीडियो"
     ALWAYS_ASK_NEXT_BUTTON_MSG = "अगला ▶️"
+    ALWAYS_ASK_PREV_BUTTON_MSG = "◀️ पिछला"
     SUBTITLES_NEXT_BUTTON_MSG = "अगला ➡️"
     PORN_ALL_TEXT_FIELDS_EMPTY_MSG = "ℹ️ सभी टेक्स्ट फील्ड खाली हैं"
     SENDER_VIDEO_DURATION_MSG = "वीडियो अवधि:"
@@ -1168,13 +1183,13 @@ class Messages(object):
     DOWN_UP_FILES_UPLOADED_MSG = "फाइलें अपलोड की गईं"
     
     # Always Ask Menu Button Messages
-    ALWAYS_ASK_VLC_ANDROID_BUTTON_MSG = "🎬 वीएलसी (एंड्रॉइड)"
+    ALWAYS_ASK_VLC_ANDROID_BUTTON_MSG = "🎬 VLC (Android)"
     ALWAYS_ASK_CLOSE_BUTTON_MSG = "🔚 बंद करें"
     ALWAYS_ASK_CODEC_BUTTON_MSG = "📼कोडेक"
     ALWAYS_ASK_DUBS_BUTTON_MSG = "🗣 डब्स"
     ALWAYS_ASK_SUBS_BUTTON_MSG = "💬 सब्स"
     ALWAYS_ASK_BROWSER_BUTTON_MSG = "🌐 ब्राउज़र"
-    ALWAYS_ASK_VLC_IOS_BUTTON_MSG = "🎬 वीएलसी (आईओएस)"
+    ALWAYS_ASK_VLC_IOS_BUTTON_MSG = "🎬 VLC (iOS)"
     
     # Always Ask Menu Callback Messages
     ALWAYS_ASK_GETTING_DIRECT_LINK_MSG = "🔗 डायरेक्ट लिंक प्राप्त कर रहे हैं..."
@@ -1230,6 +1245,12 @@ class Messages(object):
     ALWAYS_ASK_GET_DIRECT_LINK_MSG = "🔗 — वीडियो के लिए प्रत्यक्ष लिंक प्राप्त करें"
     ALWAYS_ASK_SHOW_AVAILABLE_FORMATS_MSG = "📃 — उपलब्ध प्रारूप सूची दिखाएं"
     ALWAYS_ASK_CHANGE_VIDEO_EXT_MSG = "📼 — वीडियो एक्सटेंशन/कोडेक बदलें"
+    ALWAYS_ASK_EMBED_BUTTON_MSG = "🚀एम्बेड"
+    ALWAYS_ASK_EXTRACT_AUDIO_MSG = "🎧 — केवल ऑडियो निकालें"
+    ALWAYS_ASK_NSFW_PAID_MSG = "⭐️ — 🔞NSFW भुगतान योग्य है (⭐️$0.02)"
+    ALWAYS_ASK_INSTANT_REPOST_MSG = "🚀 — कैश से तत्काल रिपोस्ट"
+    ALWAYS_ASK_WATCH_VIDEO_MSG = "👁 — poketube में वीडियो देखें"
+    ALWAYS_ASK_CHOOSE_AUDIO_LANGUAGE_MSG = "🗣 — ऑडियो भाषा चुनें"
     ALWAYS_ASK_BEST_BUTTON_MSG = "सर्वोत्तम"
     ALWAYS_ASK_OTHER_LABEL_MSG = "🎛अन्य"
     ALWAYS_ASK_SUB_ONLY_BUTTON_MSG = "📝केवल उपशीर्षक"
@@ -1254,6 +1275,12 @@ class Messages(object):
     ALWAYS_ASK_USING_CACHED_QUALITIES_MSG = "⚠️ कैश की गई गुणवत्ताओं का उपयोग - नए प्रारूप उपलब्ध नहीं हो सकते"
     ALWAYS_ASK_DOWNLOADING_FORMAT_MSG = "📥 प्रारूप डाउनलोड हो रहा है"
     ALWAYS_ASK_DOWNLOADING_QUALITY_MSG = "📥 डाउनलोड हो रहा है"
+    ALWAYS_ASK_DOWNLOADING_HLS_MSG = "📥 प्रगति ट्रैकिंग के साथ डाउनलोड हो रहा है..."
+    ALWAYS_ASK_DOWNLOADING_FORMAT_USING_MSG = "📥 प्रारूप का उपयोग करके डाउनलोड हो रहा है:"
+    ALWAYS_ASK_DOWNLOADING_AUDIO_FORMAT_USING_MSG = "📥 प्रारूप का उपयोग करके ऑडियो डाउनलोड हो रहा है:"
+    ALWAYS_ASK_DOWNLOADING_BEST_QUALITY_MSG = "📥 सर्वोत्तम गुणवत्ता डाउनलोड हो रही है..."
+    ALWAYS_ASK_DOWNLOADING_DATABASE_MSG = "📥 डेटाबेस डंप डाउनलोड हो रहा है..."
+    ALWAYS_ASK_DOWNLOADING_IMAGES_MSG = "📥 डाउनलोड हो रहा है"
     ALWAYS_ASK_FORMATS_PAGE_FROM_CACHE_MSG = "प्रारूप पृष्ठ"
     ALWAYS_ASK_FROM_CACHE_MSG = "(कैश से)"
     ALWAYS_ASK_ERROR_ORIGINAL_MESSAGE_NOT_FOUND_DETAILED_MSG = "❌ त्रुटि: मूल संदेश नहीं मिला। यह हटा दिया गया हो सकता है। कृपया लिंक फिर से भेजें।"
@@ -1298,6 +1325,13 @@ class Messages(object):
     
     # Always Ask Menu Messages
     NO_SUBTITLES_DETECTED_MSG = "कोई उपशीर्षक नहीं मिला"
+    VIDEO_PROGRESS_MSG = "<b>वीडियो:</b> {current} / {total}"
+    AUDIO_PROGRESS_MSG = "<b>ऑडियो:</b> {current} / {total}"
+    
+    # Error messages
+    ERROR_CHECK_SUPPORTED_SITES_MSG = "यहां <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>जांचें</a> कि क्या आपकी साइट समर्थित है"
+    ERROR_COOKIE_NEEDED_MSG = "इस वीडियो को डाउनलोड करने के लिए आपको <code>cookie</code> की आवश्यकता हो सकती है। पहले <b>/clean</b> कमांड के माध्यम से अपना कार्यक्षेत्र साफ़ करें"
+    ERROR_COOKIE_INSTRUCTIONS_MSG = "YouTube के लिए - <b>/cookie</b> कमांड के माध्यम से <code>cookie</code> प्राप्त करें। किसी अन्य समर्थित साइट के लिए - अपना स्वयं का cookie भेजें (<a href='https://t.me/c/2303231066/18'>गाइड1</a>) (<a href='https://t.me/c/2303231066/22'>गाइड2</a>) और उसके बाद अपना वीडियो लिंक फिर से भेजें।"
     CHOOSE_SUBTITLE_LANGUAGE_MSG = "उपशीर्षक भाषा चुनें"
     NO_ALTERNATIVE_AUDIO_LANGUAGES_MSG = "कोई वैकल्पिक ऑडियो भाषाएं नहीं"
     CHOOSE_AUDIO_LANGUAGE_MSG = "ऑडियो भाषा चुनें"
@@ -1412,6 +1446,11 @@ class Messages(object):
     ARGS_STATUS_FALSE_MSG = "❌"
     ARGS_STATUS_TRUE_DISPLAY_MSG = "✅ सही"
     ARGS_STATUS_FALSE_DISPLAY_MSG = "❌ गलत"
+    ARGS_NOT_SET_MSG = "सेट नहीं"
+    
+    # Boolean values for import/export (all possible variations)
+    ARGS_BOOLEAN_TRUE_VALUES = ["सही", "हाँ", "हां", "True", "true", "1", "yes", "on", "✅"]
+    ARGS_BOOLEAN_FALSE_VALUES = ["गलत", "नहीं", "False", "false", "0", "no", "off", "❌"]
     
     # Args command status indicators
     ARGS_STATUS_SELECTED_MSG = "✅"
@@ -1753,7 +1792,7 @@ class Messages(object):
     CAPTION_VIDEO_URL_LINK_MSG = '<a href="{url}">🔗 वीडियो URL</a>{bot_mention}'
     
     # Database messages
-    DB_DATABASE_URL_MISSING_MSG = "Config में FIREBASE_CONF.databaseURL अनुपस्थित है"
+    DB_DATABASE_URL_MISSING_MSG = "कॉन्फ़िगरेशन में FIREBASE_CONF.databaseURL अनुपस्थित है"
     DB_FIREBASE_ADMIN_INITIALIZED_MSG = "✅ firebase_admin प्रारंभ किया गया"
     DB_REST_ID_TOKEN_REFRESHED_MSG = "🔁 REST idToken रिफ्रेश किया गया"
     DB_LOG_FOR_USER_ADDED_MSG = "उपयोगकर्ता के लिए लॉग जोड़ा गया"
@@ -2012,7 +2051,7 @@ class Messages(object):
     KEYBOARD_2X3_BUTTON_MSG = "📱 2x3"
     
     # Image Command Messages
-    IMAGE_URL_CAPTION_MSG = "🔗[छवियों का URL]({url}) @{Config.BOT_NAME}"
+    IMAGE_URL_CAPTION_MSG = "🔗[छवियों का URL]({url})"
     IMAGE_ERROR_MSG = "❌ त्रुटि: {str(e)}"
     
     # Format Command Messages
@@ -2050,7 +2089,6 @@ class Messages(object):
     ARGS_CURRENT_ARGUMENTS_MSG = "📋 वर्तमान yt-dlp तर्क:\n\n"
     ARGS_EXPORT_SETTINGS_BUTTON_MSG = "📤 सेटिंग्स निर्यात करें"
     ARGS_SETTINGS_READY_MSG = "सेटिंग्स निर्यात के लिए तैयार! सहेजने के लिए इस संदेश को पसंदीदा में फॉरवर्ड करें।"
-    ARGS_CURRENT_VALUE_MSG = "वर्तमान मान: <code>{value}</code>"
     ARGS_CURRENT_ARGUMENTS_HEADER_MSG = "📋 वर्तमान yt-dlp तर्क:"
     ARGS_FAILED_RECOGNIZE_MSG = "❌ संदेश में सेटिंग्स को पहचानने में विफल। सुनिश्चित करें कि आपने सही सेटिंग्स टेम्प्लेट भेजा है।"
     ARGS_SUCCESSFULLY_IMPORTED_MSG = "✅ सेटिंग्स सफलतापूर्वक आयात की गईं!\n\nलागू किए गए पैरामीटर: {applied_count}\n\n"
@@ -2074,5 +2112,20 @@ class Messages(object):
     # Always Ask menu button messages
     ALWAYS_ASK_LINK_BUTTON_MSG = "🔗लिंक"
     ALWAYS_ASK_WATCH_BUTTON_MSG = "👁देखें"
+
+    # Audio upload completion messages
+    AUDIO_PARTIALLY_COMPLETED_MSG = "⚠️ आंशिक रूप से पूर्ण - {successful_uploads}/{total_files} ऑडियो फ़ाइलें अपलोड की गईं।"
+    AUDIO_SUCCESSFULLY_COMPLETED_MSG = "✅ ऑडियो सफलतापूर्वक डाउनलोड और भेजा गया - {total_files} फ़ाइलें अपलोड की गईं।"
+
+    # TikTok private account messages
+    TIKTOK_PRIVATE_ACCOUNT_MSG = (
+        "🔒 <b>निजी TikTok खाता</b>\n\n"
+        "यह TikTok खाता निजी है या सभी वीडियो निजी हैं।\n\n"
+        "<b>💡 समाधान:</b>\n"
+        "1. खाते @{username} को फॉलो करें\n"
+        "2. <code>/cookie</code> कमांड का उपयोग करके बॉट को अपने cookies भेजें\n"
+        "3. फिर से कोशिश करें\n\n"
+        "<b>cookies अपडेट करने के बाद, फिर से कोशिश करें!</b>"
+    )
 
     #######################################################

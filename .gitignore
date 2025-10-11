@@ -99,6 +99,7 @@ README_TEST_FILES.md
 create_test_files.py
 REFACTORING_PROMPT.md
 MULTILANG_SYSTEM_REPORT.md
+bot_debug.log
 
 # Configs with secrets (do not commit)
 CONFIG/config.py

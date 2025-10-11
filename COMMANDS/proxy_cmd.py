@@ -3,7 +3,7 @@ import os
 import tempfile
 from pyrogram import filters
 from CONFIG.config import Config
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 from CONFIG.logger_msg import LoggerMsg
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 
@@ -47,7 +47,7 @@ def safe_write_file(file_path, content):
 
 @app.on_message(filters.command("proxy") & filters.private)
 def proxy_command(app, message):
-    messages = get_messages_instance(message.chat.id)
+    messages = safe_get_messages(message.chat.id)
     user_id = message.chat.id
     logger.info(LoggerMsg.PROXY_CMD_USER_REQUESTED_LOG_MSG.format(user_id=user_id))
     logger.info(LoggerMsg.PROXY_CMD_USER_IS_ADMIN_LOG_MSG.format(user_id=user_id, is_admin=int(user_id) in Config.ADMIN))
@@ -71,11 +71,11 @@ def proxy_command(app, message):
             proxy_file = os.path.join(user_dir, "proxy.txt")
             if arg in ("on", "off"):
                 if safe_write_file(proxy_file, "ON" if arg == "on" else "OFF"):
-                    safe_send_message(user_id, messages.PROXY_ENABLED_MSG.format(status='enabled' if arg=='on' else 'disabled'), message=message)
-                    send_to_logger(message, messages.PROXY_SET_COMMAND_LOG_MSG.format(arg=arg))
+                    safe_send_message(user_id, safe_get_messages(user_id).PROXY_ENABLED_MSG.format(status='enabled' if arg=='on' else 'disabled'), message=message)
+                    send_to_logger(message, safe_get_messages(user_id).PROXY_SET_COMMAND_LOG_MSG.format(arg=arg))
                     return
                 else:
-                    error_msg = messages.PROXY_ERROR_SAVING_MSG
+                    error_msg = safe_get_messages(user_id).PROXY_ERROR_SAVING_MSG
                     safe_send_message(user_id, error_msg, message=message)
                     from HELPERS.logger import log_error_to_channel
                     log_error_to_channel(message, error_msg)
@@ -84,18 +84,18 @@ def proxy_command(app, message):
         pass
     
     buttons = [
-        [InlineKeyboardButton(messages.PROXY_ON_BUTTON_MSG, callback_data="proxy_option|on"), InlineKeyboardButton(messages.PROXY_OFF_BUTTON_MSG, callback_data="proxy_option|off")],
-        [InlineKeyboardButton(messages.PROXY_CLOSE_BUTTON_MSG, callback_data="proxy_option|close")],
+        [InlineKeyboardButton(safe_get_messages(user_id).PROXY_ON_BUTTON_MSG, callback_data="proxy_option|on"), InlineKeyboardButton(safe_get_messages(user_id).PROXY_OFF_BUTTON_MSG, callback_data="proxy_option|off")],
+        [InlineKeyboardButton(safe_get_messages(user_id).PROXY_CLOSE_BUTTON_MSG, callback_data="proxy_option|close")],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
     # Get available proxy count
     configs = get_all_proxy_configs()
     proxy_count = len(configs)
     
-    if proxy_count > 1:
-        proxy_text = messages.PROXY_MENU_TEXT_MULTIPLE_MSG.format(count=proxy_count, method=Config.PROXY_SELECT)
+    if proxy_count and proxy_count > 1:
+        proxy_text = safe_get_messages(user_id).PROXY_MENU_TEXT_MULTIPLE_MSG.format(count=proxy_count, method=Config.PROXY_SELECT)
     else:
-        proxy_text = messages.PROXY_MENU_TEXT_MSG
+        proxy_text = safe_get_messages(user_id).PROXY_MENU_TEXT_MSG
     
     safe_send_message(
         user_id,
@@ -103,14 +103,14 @@ def proxy_command(app, message):
         reply_markup=keyboard,
         message=message
     )
-    send_to_logger(message, messages.PROXY_MENU_OPENED_LOG_MSG)
+    send_to_logger(message, safe_get_messages(user_id).PROXY_MENU_OPENED_LOG_MSG)
 
 
 @app.on_callback_query(filters.regex(r"^proxy_option\|"))
 def proxy_option_callback(app, callback_query):
-    messages = get_messages_instance(callback_query.from_user.id)
-    logger.info(LoggerMsg.PROXY_CMD_CALLBACK_LOG_MSG.format(callback_data=callback_query.data))
     user_id = callback_query.from_user.id
+    messages = safe_get_messages(user_id)
+    logger.info(LoggerMsg.PROXY_CMD_CALLBACK_LOG_MSG.format(callback_data=callback_query.data))
     data = callback_query.data.split("|")[1]
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
@@ -122,16 +122,16 @@ def proxy_option_callback(app, callback_query):
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
         try:
-            callback_query.answer(messages.PROXY_MENU_CLOSED_MSG)
+            callback_query.answer(safe_get_messages(user_id).PROXY_MENU_CLOSED_MSG)
         except Exception:
             pass
-        send_to_logger(callback_query.message, messages.PROXY_MENU_CLOSED_LOG_MSG)
+        send_to_logger(callback_query.message, safe_get_messages(user_id).PROXY_MENU_CLOSED_LOG_MSG)
         return
     
     if data == "on":
         if not safe_write_file(proxy_file, "ON"):
             try:
-                callback_query.answer(messages.PROXY_ERROR_SAVING_CALLBACK_MSG)
+                callback_query.answer(safe_get_messages(user_id).PROXY_ERROR_SAVING_CALLBACK_MSG)
             except Exception:
                 pass
             return
@@ -140,15 +140,15 @@ def proxy_option_callback(app, callback_query):
         configs = get_all_proxy_configs()
         proxy_count = len(configs)
         
-        if proxy_count > 1:
-            message_text = messages.PROXY_ENABLED_MULTIPLE_MSG.format(count=proxy_count, method=Config.PROXY_SELECT)
+        if proxy_count and proxy_count > 1:
+            message_text = safe_get_messages(user_id).PROXY_ENABLED_MULTIPLE_MSG.format(count=proxy_count, method=Config.PROXY_SELECT)
         else:
-            message_text = messages.PROXY_ENABLED_CONFIRM_MSG
+            message_text = safe_get_messages(user_id).PROXY_ENABLED_CONFIRM_MSG
         
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, message_text)
-        send_to_logger(callback_query.message, messages.PROXY_ENABLED_LOG_MSG)
+        send_to_logger(callback_query.message, safe_get_messages(user_id).PROXY_ENABLED_LOG_MSG)
         try:
-            callback_query.answer(messages.PROXY_ENABLED_CALLBACK_MSG)
+            callback_query.answer(safe_get_messages(user_id).PROXY_ENABLED_CALLBACK_MSG)
         except Exception:
             pass
         return
@@ -156,22 +156,22 @@ def proxy_option_callback(app, callback_query):
     if data == "off":
         if not safe_write_file(proxy_file, "OFF"):
             try:
-                callback_query.answer(messages.PROXY_ERROR_SAVING_CALLBACK_MSG)
+                callback_query.answer(safe_get_messages(user_id).PROXY_ERROR_SAVING_CALLBACK_MSG)
             except Exception:
                 pass
             return
         
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, messages.PROXY_DISABLED_MSG)
-        send_to_logger(callback_query.message, messages.PROXY_DISABLED_LOG_MSG)
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, safe_get_messages(user_id).PROXY_DISABLED_MSG)
+        send_to_logger(callback_query.message, safe_get_messages(user_id).PROXY_DISABLED_LOG_MSG)
         try:
-            callback_query.answer(messages.PROXY_DISABLED_CALLBACK_MSG)
+            callback_query.answer(safe_get_messages(user_id).PROXY_DISABLED_CALLBACK_MSG)
         except Exception:
             pass
         return
 
 
 def is_proxy_enabled(user_id):
-    messages = get_messages_instance(user_id)
+    messages = safe_get_messages(user_id)
     """Check if proxy is enabled for user"""
     user_dir = os.path.join("users", str(user_id))
     proxy_file = os.path.join(user_dir, "proxy.txt")
@@ -334,7 +334,7 @@ def select_proxy_for_domain(url):
     return None
 
 def add_proxy_to_ytdl_opts(ytdl_opts, url, user_id=None):
-    messages = get_messages_instance(user_id)
+    messages = safe_get_messages(user_id)
     """Add proxy to yt-dlp options if proxy is enabled for user or domain requires it"""
     logger.info(LoggerMsg.PROXY_CMD_ADD_PROXY_CALLED_LOG_MSG.format(user_id=user_id, url=url))
     

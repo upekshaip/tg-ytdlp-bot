@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 """
 Interactive backup restore tool for tg-ytdlp-bot.
 
@@ -95,8 +95,12 @@ def list_indices(indices: Dict[str, BackupIndex]) -> List[BackupIndex]:
 
 def restore_backup(indices: Dict[str, BackupIndex], ts: str) -> Tuple[int, int]:
     """Restore all files for timestamp ts. Returns (restored, errors)."""
+    # ГЛОБАЛЬНАЯ ЗАЩИТА: Инициализируем messages
+    messages = safe_get_messages(None)
+    
     bi = indices.get(ts)
     if not bi:
+        messages = safe_get_messages()
         print(messages.RESTORE_BACKUP_NOT_FOUND_MSG.format(ts=ts))
         return (0, 1)
     restored = 0
@@ -120,9 +124,11 @@ def restore_backup(indices: Dict[str, BackupIndex], ts: str) -> Tuple[int, int]:
             with open(src, 'rb') as fsrc, open(dest_path, 'wb') as fdst:
                 fdst.write(fsrc.read())
             restored += 1
+            messages = safe_get_messages()
             print(messages.RESTORE_SUCCESS_RESTORED_MSG.format(dest_path=dest_path))
         except Exception as e:
             errors += 1
+            messages = safe_get_messages()
             print(messages.RESTORE_FAILED_RESTORE_MSG.format(src=src, dest_path=dest_path, e=e))
     return (restored, errors)
 
@@ -135,7 +141,7 @@ def curses_menu(stdscr, items: List[BackupIndex]) -> int:
         stdscr.clear()
         h, w = stdscr.getmaxyx()
         # Minimal size check
-        if h < 5 or w < 30:
+        if h and h < 5 or w < 30:
             msg = "Terminal too small. Resize and press any key..."
             stdscr.addstr(0, 0, msg[: max(0, w - 1)])
             stdscr.refresh()
@@ -147,7 +153,7 @@ def curses_menu(stdscr, items: List[BackupIndex]) -> int:
         # Compute visible window for items
         max_rows = h - 3  # rows available for list
         # Ensure current_row is within [scroll, scroll + max_rows)
-        if current_row < scroll:
+        if current_row and current_row < scroll:
             scroll = current_row
         elif current_row >= scroll + max_rows:
             scroll = current_row - max_rows + 1

@@ -17,11 +17,11 @@ from HELPERS.logger import logger, send_to_user, send_error_to_user
 from HELPERS.limitter import check_user, is_user_in_channel
 from HELPERS.safe_messeger import safe_send_message
 from CONFIG.config import Config
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, get_messages_instance, safe_get_messages
 from CONFIG.logger_msg import LoggerMsg
 
 # Initialize messages for global use (will be overridden in functions)
-messages = get_messages_instance(None)
+# Note: This will be overridden in each function with proper user_id
 
 # Get app instance
 app = get_app()
@@ -80,7 +80,6 @@ def start_input_state_timer(user_id: int, thread_id: int = None):
     """Start a 5-minute timer to auto-close input state"""
     def auto_close():
         messages = get_messages_instance(user_id)
-        time.sleep(300)  # 5 minutes = 300 seconds
         # Check if timer still exists (not cancelled)
         if thread_id:
             if (user_id, thread_id) not in input_state_timers_topic:
@@ -114,13 +113,13 @@ def start_input_state_timer(user_id: int, thread_id: int = None):
         existing_timer = input_state_timers_topic.get((user_id, thread_id))
         if existing_timer:
             existing_timer.cancel()
-        timer = threading.Thread(target=auto_close, daemon=True)
+        timer = threading.Timer(300, auto_close)  # 5 minutes = 300 seconds
         input_state_timers_topic[(user_id, thread_id)] = timer
     else:
         existing_timer = input_state_timers_dm.get(user_id)
         if existing_timer:
             existing_timer.cancel()
-        timer = threading.Thread(target=auto_close, daemon=True)
+        timer = threading.Timer(300, auto_close)  # 5 minutes = 300 seconds
         input_state_timers_dm[user_id] = timer
     
     timer.start()
@@ -380,11 +379,12 @@ YTDLP_PARAMS = {
     }
 }
 
-def validate_input(value: str, param_name: str) -> tuple[bool, str]:
+def validate_input(value: str, param_name: str, user_id: int = None) -> tuple[bool, str]:
     """
     Validate user input based on parameter type and constraints
     Returns (is_valid, error_message)
     """
+    messages = get_messages_instance(user_id)
     param_config = YTDLP_PARAMS.get(param_name, {})
     validation_type = param_config.get("validation", "text")
     
@@ -442,7 +442,7 @@ def validate_input(value: str, param_name: str) -> tuple[bool, str]:
             num = float(value)
             min_val = param_config.get("min", 0)
             max_val = param_config.get("max", 999999)
-            if num < min_val or num > max_val:
+            if num and num < min_val or num > max_val:
                 return False, messages.ARGS_NUMBER_RANGE_MSG.format(min_val=min_val, max_val=max_val)
         except ValueError:
             return False, messages.ARGS_INVALID_NUMBER_MSG
@@ -456,11 +456,11 @@ def validate_input(value: str, param_name: str) -> tuple[bool, str]:
                 year = int(value[:4])
                 month = int(value[4:6])
                 day = int(value[6:8])
-                if year < 1900 or year > 2100:
+                if year and year < 1900 or year > 2100:
                     return False, messages.ARGS_YEAR_RANGE_MSG
-                if month < 1 or month > 12:
+                if month and month < 1 or month > 12:
                     return False, messages.ARGS_MONTH_RANGE_MSG
-                if day < 1 or day > 31:
+                if day and day < 1 or day > 31:
                     return False, messages.ARGS_DAY_RANGE_MSG
             except ValueError:
                 return False, messages.ARGS_INVALID_DATE_MSG
@@ -514,6 +514,7 @@ def save_user_args(user_id: int, args: Dict[str, Any]) -> bool:
 
 def get_args_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     """Generate main args menu keyboard with grouped parameters"""
+    messages = get_messages_instance(user_id)
     user_args = get_user_args(user_id)
     
     # Short descriptions for better UI
@@ -705,8 +706,9 @@ def get_args_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     
     return InlineKeyboardMarkup(buttons)
 
-def get_boolean_menu_keyboard(param_name: str, current_value: bool) -> InlineKeyboardMarkup:
+def get_boolean_menu_keyboard(param_name: str, current_value: bool, user_id: int = None) -> InlineKeyboardMarkup:
     """Generate boolean parameter menu keyboard"""
+    messages = get_messages_instance(user_id)
     buttons = [
         [InlineKeyboardButton(
             messages.ARGS_TRUE_BUTTON_MSG,
@@ -720,8 +722,9 @@ def get_boolean_menu_keyboard(param_name: str, current_value: bool) -> InlineKey
     ]
     return InlineKeyboardMarkup(buttons)
 
-def get_select_menu_keyboard(param_name: str, current_value: str) -> InlineKeyboardMarkup:
+def get_select_menu_keyboard(param_name: str, current_value: str, user_id: int = None) -> InlineKeyboardMarkup:
     """Generate select parameter menu keyboard"""
+    messages = get_messages_instance(user_id)
     param_config = YTDLP_PARAMS[param_name]
     options = param_config["options"]
     
@@ -736,8 +739,9 @@ def get_select_menu_keyboard(param_name: str, current_value: str) -> InlineKeybo
     buttons.append([InlineKeyboardButton(messages.ARGS_BACK_BUTTON_MSG, callback_data="args_back")])
     return InlineKeyboardMarkup(buttons)
 
-def get_text_input_message(param_name: str, current_value: str) -> str:
+def get_text_input_message(param_name: str, current_value: str, user_id: int = None) -> str:
     """Generate text input message"""
+    messages = get_messages_instance(user_id)
     param_config = YTDLP_PARAMS[param_name]
     placeholder = param_config.get("placeholder", "")
     
@@ -756,8 +760,9 @@ def get_text_input_message(param_name: str, current_value: str) -> str:
     
     return message
 
-def get_number_input_message(param_name: str, current_value: Any) -> str:
+def get_number_input_message(param_name: str, current_value: Any, user_id: int = None) -> str:
     """Generate number input message"""
+    messages = get_messages_instance(user_id)
     param_config = YTDLP_PARAMS[param_name]
     
     # Special handling for send_as_file parameter
@@ -782,8 +787,9 @@ def get_number_input_message(param_name: str, current_value: Any) -> str:
     
     return message
 
-def get_json_input_message(param_name: str, current_value: str) -> str:
+def get_json_input_message(param_name: str, current_value: str, user_id: int = None) -> str:
     """Generate JSON input message"""
+    messages = get_messages_instance(user_id)
     param_config = YTDLP_PARAMS[param_name]
     placeholder = param_config.get("placeholder", "{}")
     
@@ -802,78 +808,87 @@ def get_json_input_message(param_name: str, current_value: str) -> str:
     
     return message
 
-def format_current_args(user_args: Dict[str, Any]) -> str:
+def format_current_args(user_args: Dict[str, Any], user_id: int = None) -> str:
     """Format current args for display"""
+    messages = get_messages_instance(user_id)
     if not user_args:
         return messages.ARGS_NO_CUSTOM_MSG
     
     message = messages.ARGS_CURRENT_ARGS_MSG
     
+    # Get English parameter names
+    display_names = get_export_display_names()
+    
     for param_name, value in user_args.items():
-        param_config = YTDLP_PARAMS.get(param_name, {})
-        description = param_config.get("description", param_name)
+        display_name = display_names.get(param_name, param_name)
         
         if isinstance(value, bool):
-            display_value = messages.ARGS_STATUS_TRUE_DISPLAY_MSG if value else messages.ARGS_STATUS_FALSE_DISPLAY_MSG
+            display_value = "✅ True" if value else "❌ False"
         elif isinstance(value, (int, float)):
             display_value = str(value)
         else:
             display_value = str(value) if value else "Not set"
         
-        message += f"<b>{description}:</b> <code>{display_value}</code>\n"
+        message += f"<b>{display_name}:</b> <code>{display_value}</code>\n"
     
     return message
 
-def create_export_message(user_args: Dict[str, Any]) -> str:
+def get_export_display_names() -> Dict[str, str]:
+    """Get English parameter names for export (no translations)"""
+    return {
+        "force_ipv6": "force_ipv6",
+        "force_ipv4": "force_ipv4", 
+        "no_live_from_start": "no_live_from_start",
+        "live_from_start": "live_from_start",
+        "no_check_certificates": "no_check_certificates",
+        "check_certificate": "check_certificate",
+        "no_playlist": "no_playlist",
+        "embed_metadata": "embed_metadata",
+        "embed_thumbnail": "embed_thumbnail",
+        "write_thumbnail": "write_thumbnail",
+        "ignore_errors": "ignore_errors",
+        "legacy_server_connect": "legacy_server_connect",
+        "concurrent_fragments": "concurrent_fragments",
+        "xff": "xff",
+        "user_agent": "user_agent",
+        "impersonate": "impersonate",
+        "referer": "referer",
+        "geo_bypass": "geo_bypass",
+        "hls_use_mpegts": "hls_use_mpegts",
+        "no_part": "no_part",
+        "no_continue": "no_continue",
+        "audio_format": "audio_format",
+        "video_format": "video_format",
+        "merge_output_format": "merge_output_format",
+        "send_as_file": "send_as_file",
+        "username": "username",
+        "password": "password",
+        "twofactor": "twofactor",
+        "min_filesize": "min_filesize",
+        "max_filesize": "max_filesize",
+        "playlist_items": "playlist_items",
+        "date": "date",
+        "datebefore": "datebefore",
+        "dateafter": "dateafter",
+        "http_headers": "http_headers",
+        "sleep_interval": "sleep_interval",
+        "max_sleep_interval": "max_sleep_interval",
+        "retries": "retries",
+        "http_chunk_size": "http_chunk_size",
+        "sleep_subtitles": "sleep_subtitles"
+    }
+
+def create_export_message(user_args: Dict[str, Any], user_id: int = None) -> str:
     """Create export message for forwarding to favorites"""
+    messages = get_messages_instance(user_id)
     if not user_args:
         return messages.ARGS_NO_SETTINGS_MSG
     
-    message = messages.ARGS_CURRENT_ARGUMENTS_MSG
+    # Add header with emoji (only one)
+    message = f"{messages.ARGS_CURRENT_ARGUMENTS_HEADER_MSG}\n\n"
     
-    # Mapping of parameter names to their display names for export
-    display_names = {
-        "force_ipv6": "Force IPv6 connections",
-        "force_ipv4": "Force IPv4 connections", 
-        "no_live_from_start": "Do not download live streams from start",
-        "live_from_start": "Download live streams from start",
-        "no_check_certificates": "Suppress HTTPS certificate validation",
-        "check_certificate": "Check SSL certificate",
-        "no_playlist": "Download only single video, not playlist",
-        "embed_metadata": "Embed metadata in video file",
-        "embed_thumbnail": "Embed thumbnail in video file",
-        "write_thumbnail": "Write thumbnail to file",
-        "ignore_errors": "Ignore download errors and continue",
-        "legacy_server_connect": "Allow legacy server connections",
-        "concurrent_fragments": "Number of concurrent fragments to download",
-        "xff": "X-Forwarded-For header strategy",
-        "user_agent": "User-Agent header",
-        "impersonate": "Browser impersonation",
-        "referer": "Referer header",
-        "geo_bypass": "Bypass geographic restrictions",
-        "hls_use_mpegts": "Use MPEG-TS for HLS streams",
-        "no_part": "Do not use .part files",
-        "no_continue": "Do not resume partial downloads",
-        "audio_format": "Audio format preference",
-        "video_format": "Video format preference",
-        "merge_output_format": "Merge output format",
-        "send_as_file": "Send as file instead of video",
-        "username": "Username for authentication",
-        "password": "Password for authentication",
-        "twofactor": "Two-factor authentication code",
-        "min_filesize": "Minimum file size (MB)",
-        "max_filesize": "Maximum file size (MB)",
-        "playlist_items": "Playlist items to download",
-        "date": "Download videos on this date",
-        "datebefore": "Download videos before this date",
-        "dateafter": "Download videos after this date",
-        "http_headers": "Custom HTTP headers",
-        "sleep_interval": "Sleep interval between downloads",
-        "max_sleep_interval": "Maximum sleep interval",
-        "retries": "Number of retries",
-        "http_chunk_size": "HTTP chunk size",
-        "sleep_subtitles": "Sleep interval for subtitles"
-    }
+    # Get English parameter names
+    display_names = get_export_display_names()
     
     # Sort parameters for consistent display
     sorted_params = sorted(user_args.items(), key=lambda x: display_names.get(x[0], x[0]))
@@ -888,60 +903,22 @@ def create_export_message(user_args: Dict[str, Any]) -> str:
         else:
             status = str(value) if value else "Not set"
         
-        message += f"{display_name}: {status}\n"
+        # Make parameter names bold and values monospace
+        message += f"<b>{display_name}:</b> <code>{status}</code>\n"
     
+    #message += "\n-\n\n"
     message += messages.ARGS_FORWARD_TEMPLATE_MSG
     
     return message
 
-def parse_import_message(text: str) -> Dict[str, Any]:
+def parse_import_message(text: str, user_id: int = None) -> Dict[str, Any]:
     """Parse settings from imported message text"""
-    if not text or "📋 Current yt-dlp Arguments:" not in text:
+    messages = get_messages_instance(user_id)
+    if not text or messages.ARGS_CURRENT_ARGUMENTS_HEADER_MSG not in text:
         return {}
     
-    # Reverse mapping of display names to parameter names
-    display_to_param = {
-        "Force IPv6 connections": "force_ipv6",
-        "Force IPv4 connections": "force_ipv4",
-        "Do not download live streams from start": "no_live_from_start",
-        "Download live streams from start": "live_from_start",
-        "Suppress HTTPS certificate validation": "no_check_certificates",
-        "Check SSL certificate": "check_certificate",
-        "Download only single video, not playlist": "no_playlist",
-        "Embed metadata in video file": "embed_metadata",
-        "Embed thumbnail in video file": "embed_thumbnail",
-        "Write thumbnail to file": "write_thumbnail",
-        "Ignore download errors and continue": "ignore_errors",
-        "Allow legacy server connections": "legacy_server_connect",
-        "Number of concurrent fragments to download": "concurrent_fragments",
-        "X-Forwarded-For header strategy": "xff",
-        "User-Agent header": "user_agent",
-        "Browser impersonation": "impersonate",
-        "Referer header": "referer",
-        "Bypass geographic restrictions": "geo_bypass",
-        "Use MPEG-TS for HLS streams": "hls_use_mpegts",
-        "Do not use .part files": "no_part",
-        "Do not resume partial downloads": "no_continue",
-        "Audio format preference": "audio_format",
-        "Video format preference": "video_format",
-        "Merge output format": "merge_output_format",
-        "Send as file instead of video": "send_as_file",
-        "Username for authentication": "username",
-        "Password for authentication": "password",
-        "Two-factor authentication code": "twofactor",
-        "Minimum file size (MB)": "min_filesize",
-        "Maximum file size (MB)": "max_filesize",
-        "Playlist items to download": "playlist_items",
-        "Download videos on this date": "date",
-        "Download videos before this date": "datebefore",
-        "Download videos after this date": "dateafter",
-        "Custom HTTP headers": "http_headers",
-        "Sleep interval between downloads": "sleep_interval",
-        "Maximum sleep interval": "max_sleep_interval",
-        "Number of retries": "retries",
-        "HTTP chunk size": "http_chunk_size",
-        "Sleep interval for subtitles": "sleep_subtitles"
-    }
+    # Get valid parameter names from YTDLP_PARAMS
+    valid_params = set(YTDLP_PARAMS.keys())
     
     parsed_args = {}
     lines = text.split('\n')
@@ -957,15 +934,15 @@ def parse_import_message(text: str) -> Dict[str, Any]:
         if ':' in line:
             parts = line.split(':', 1)
             if len(parts) == 2:
-                display_name = parts[0].strip()
+                param_name = parts[0].strip()
                 value_str = parts[1].strip()
                 
-                # Clean display name from potential HTML tags or extra characters
+                # Clean param name from potential HTML tags
                 import re
-                display_name = re.sub(r'<[^>]+>', '', display_name).strip()
+                param_name = re.sub(r'<[^>]+>', '', param_name).strip()
                 
-                param_name = display_to_param.get(display_name)
-                if param_name and param_name in YTDLP_PARAMS:
+                # Check if it's a valid parameter name directly
+                if param_name in valid_params:
                     param_config = YTDLP_PARAMS[param_name]
                     param_type = param_config.get("type", "text")
                     
@@ -1031,7 +1008,7 @@ def args_command(app, message):
 
 @app.on_callback_query(filters.regex("^args_"))
 def args_callback_handler(app, callback_query):
-    messages = get_messages_instance(message.chat.id)
+    messages = get_messages_instance(callback_query.message.chat.id)
     """Handle args menu callbacks"""
     user_id = callback_query.from_user.id
     data = callback_query.data
@@ -1075,7 +1052,7 @@ def args_callback_handler(app, callback_query):
         
         elif data == "args_view_current":
             user_args = get_user_args(user_id)
-            message = format_current_args(user_args)
+            message = format_current_args(user_args, user_id)
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton(messages.ARGS_EXPORT_SETTINGS_BUTTON_MSG, callback_data="args_export")],
                 [InlineKeyboardButton(messages.ARGS_BACK_BUTTON_MSG, callback_data="args_back")]
@@ -1086,7 +1063,7 @@ def args_callback_handler(app, callback_query):
         
         elif data == "args_export":
             user_args = get_user_args(user_id)
-            export_message = create_export_message(user_args)
+            export_message = create_export_message(user_args, user_id)
             keyboard = InlineKeyboardMarkup([[
                 InlineKeyboardButton(messages.ARGS_BACK_BUTTON_MSG, callback_data="args_view_current")
             ]])
@@ -1108,7 +1085,7 @@ def args_callback_handler(app, callback_query):
         
         elif data.startswith("args_set_"):
             param_name = data.replace("args_set_", "")
-            if param_name not in YTDLP_PARAMS:
+            if not param_name or param_name not in YTDLP_PARAMS:
                 callback_query.answer(messages.ARGS_INVALID_PARAM_MSG, show_alert=True)
                 return
             
@@ -1117,18 +1094,20 @@ def args_callback_handler(app, callback_query):
             current_value = user_args.get(param_name, param_config.get("default", ""))
             
             if param_config["type"] == "boolean" or param_name == "send_as_file":
-                keyboard = get_boolean_menu_keyboard(param_name, current_value)
+                keyboard = get_boolean_menu_keyboard(param_name, current_value, user_id)
+                display_value = messages.ARGS_STATUS_TRUE_DISPLAY_MSG if current_value else messages.ARGS_STATUS_FALSE_DISPLAY_MSG
                 callback_query.edit_message_text(
                     f"<b>⚙️ {get_param_description(param_config, param_name, messages)}</b>\n\n"
-                    f"Current value: {messages.ARGS_STATUS_TRUE_DISPLAY_MSG if current_value else messages.ARGS_STATUS_FALSE_DISPLAY_MSG}",
+                    f"{messages.ARGS_CURRENT_VALUE_MSG.format(current_value=display_value)}",
                     reply_markup=keyboard
                 )
             
             elif param_config["type"] == "select":
-                keyboard = get_select_menu_keyboard(param_name, current_value)
+                keyboard = get_select_menu_keyboard(param_name, current_value, user_id)
+                display_value = f'<code>{current_value}</code>'
                 callback_query.edit_message_text(
                     f"<b>⚙️ {get_param_description(param_config, param_name, messages)}</b>\n\n"
-                    f"Current value: <code>{current_value}</code>",
+                    f"{messages.ARGS_CURRENT_VALUE_MSG.format(current_value=current_value)}",
                     reply_markup=keyboard
                 )
             
@@ -1145,11 +1124,11 @@ def args_callback_handler(app, callback_query):
                     start_input_state_timer(callback_query.from_user.id)
                 
                 if param_config["type"] == "text":
-                    message = get_text_input_message(param_name, current_value)
+                    message = get_text_input_message(param_name, current_value, user_id)
                 elif param_config["type"] == "json":
-                    message = get_json_input_message(param_name, current_value)
+                    message = get_json_input_message(param_name, current_value, user_id)
                 else:  # number
-                    message = get_number_input_message(param_name, current_value)
+                    message = get_number_input_message(param_name, current_value, user_id)
                 
                 keyboard = InlineKeyboardMarkup([[
                     InlineKeyboardButton(messages.ARGS_BACK_BUTTON_MSG, callback_data="args_back")
@@ -1170,6 +1149,11 @@ def args_callback_handler(app, callback_query):
         elif data.startswith("args_bool_"):
             # Parse: args_bool_{param_name}_{true/false}
             remaining = data.replace("args_bool_", "")
+            if not remaining:
+                callback_query.answer(messages.ARGS_INVALID_BOOL_MSG, show_alert=True)
+                return
+                
+            value = None  # Initialize value
             if remaining.endswith("_true"):
                 param_name = remaining[:-5]  # Remove "_true"
                 value = True
@@ -1177,6 +1161,16 @@ def args_callback_handler(app, callback_query):
                 param_name = remaining[:-6]  # Remove "_false"
                 value = False
             else:
+                callback_query.answer(messages.ARGS_INVALID_BOOL_MSG, show_alert=True)
+                return
+            
+            # Validate param_name exists in YTDLP_PARAMS
+            if param_name not in YTDLP_PARAMS:
+                callback_query.answer(messages.ARGS_INVALID_PARAM_MSG, show_alert=True)
+                return
+            
+            # Ensure value is defined
+            if value is None:
                 callback_query.answer(messages.ARGS_INVALID_BOOL_MSG, show_alert=True)
                 return
             
@@ -1213,7 +1207,7 @@ def args_callback_handler(app, callback_query):
                 # Rebuild main menu to reflect paired toggles instantly
                 keyboard = get_args_menu_keyboard(user_id)
                 callback_query.edit_message_text(
-                    messages.ARGS_MENU_TEXT,
+                    messages.ARGS_CONFIG_TITLE_MSG.format(groups_msg=messages.ARGS_MENU_DESCRIPTION_MSG),
                     reply_markup=keyboard
                 )
                 try:
@@ -1231,6 +1225,10 @@ def args_callback_handler(app, callback_query):
         elif data.startswith("args_select_"):
             # Parse: args_select_{param_name}_{value}
             remaining = data.replace("args_select_", "")
+            if not remaining:
+                callback_query.answer(messages.ARGS_INVALID_SELECT_MSG, show_alert=True)
+                return
+                
             # Find the last underscore to separate param_name and value
             last_underscore = remaining.rfind("_")
             if last_underscore == -1:
@@ -1238,6 +1236,15 @@ def args_callback_handler(app, callback_query):
                 return
             param_name = remaining[:last_underscore]
             value = remaining[last_underscore + 1:]
+            
+            if not param_name or not value:
+                callback_query.answer(messages.ARGS_INVALID_SELECT_MSG, show_alert=True)
+                return
+            
+            # Validate param_name exists in YTDLP_PARAMS
+            if param_name not in YTDLP_PARAMS:
+                callback_query.answer(messages.ARGS_INVALID_PARAM_MSG, show_alert=True)
+                return
             
             user_args = get_user_args(user_id)
             current_value = user_args.get(param_name, YTDLP_PARAMS[param_name].get("default", ""))
@@ -1252,7 +1259,7 @@ def args_callback_handler(app, callback_query):
                 # If we changed impersonate, it may affect headers; but keep same screen
                 callback_query.edit_message_text(
                     f"<b>⚙️ {get_param_description(YTDLP_PARAMS[param_name], param_name, messages)}</b>\n\n"
-                    f"{messages.ARGS_CURRENT_VALUE_MSG}",
+                    f"{messages.ARGS_CURRENT_VALUE_MSG.format(current_value=value)}",
                     reply_markup=keyboard
                 )
                 try:
@@ -1267,10 +1274,31 @@ def args_callback_handler(app, callback_query):
                     pass
             return
         
+        else:
+            # Unknown callback_data
+            logger.warning(f"Unknown args callback_data: {data}")
+            callback_query.answer(messages.ERROR_OCCURRED_SHORT_MSG, show_alert=False)
+            return
+        
     except Exception as e:
-        logger.error(LoggerMsg.ARGS_ERROR_CALLBACK_HANDLER_LOG_MSG.format(error=e))
+        import traceback
+        error_trace = traceback.format_exc()
+        logger.error(f"Error in args callback handler: {e}")
+        logger.error(f"Callback data: {data}")
+        logger.error(f"Traceback:\n{error_trace}")
         try:
             callback_query.answer(messages.ERROR_OCCURRED_SHORT_MSG, show_alert=False)
+        except Exception:
+            pass
+        # Clear any input states to prevent further errors
+        try:
+            user_id = callback_query.from_user.id
+            chat_id = callback_query.message.chat.id
+            thread_id = getattr(callback_query.message, 'message_thread_id', None) or 0
+            if thread_id:
+                clear_input_state_timer(chat_id, thread_id)
+            else:
+                clear_input_state_timer(user_id)
         except Exception:
             pass
 
@@ -1387,7 +1415,7 @@ def handle_args_text_input(app, message):
                     min_val = param_config.get("min", 0)
                     max_val = param_config.get("max", 999999)
                     
-                    if value < min_val or value > max_val:
+                    if value and value < min_val or value > max_val:
                         safe_send_message(
                             user_id,
                             messages.ARGS_VALUE_MUST_BE_BETWEEN_MSG.format(min_val=min_val, max_val=max_val),
@@ -1464,7 +1492,7 @@ def args_import_handler(app, message):
             return  # is_user_in_channel already sends subscription message
         
         # Parse settings from message
-        parsed_args = parse_import_message(message.text)
+        parsed_args = parse_import_message(message.text, invoker_id)
         logger.info(f"{LoggerMsg.ARGS_PARSED_SETTINGS_LOG_MSG}")
         
         if not parsed_args:
@@ -1495,23 +1523,21 @@ def args_import_handler(app, message):
         if save_user_args(invoker_id, parsed_args):
             # Show success message with applied settings count
             applied_count = len(parsed_args)
-            success_message = f"{messages.ARGS_SUCCESSFULLY_IMPORTED_MSG}"
+            success_message = f"{messages.ARGS_SUCCESSFULLY_IMPORTED_MSG.format(applied_count=applied_count)}\n\n"
             
-            # Show some key settings that were applied
-            key_settings = []
-            for param_name, value in list(parsed_args.items())[:5]:  # Show first 5 settings
+            # Show ALL settings that were applied (no truncation)
+            all_settings = []
+            for param_name, value in parsed_args.items():
                 param_config = YTDLP_PARAMS.get(param_name, {})
                 description = param_config.get("description", param_name)
                 if isinstance(value, bool):
                     display_value = "✅" if value else "❌"
                 else:
                     display_value = str(value)
-                key_settings.append(f"• {description}: {display_value}")
+                all_settings.append(f"• {description}: {display_value}")
             
-            if key_settings:
-                success_message += messages.ARGS_KEY_SETTINGS_MSG + "\n".join(key_settings)
-                if len(parsed_args) > 5:
-                    success_message += f"\n... and {len(parsed_args) - 5} more parameters"
+            if all_settings:
+                success_message += messages.ARGS_KEY_SETTINGS_MSG + "\n".join(all_settings)
             
             safe_send_message(
                 user_id,

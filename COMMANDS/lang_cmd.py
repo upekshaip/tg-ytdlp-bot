@@ -19,7 +19,6 @@ except ImportError:
     from language_router import language_router, get_messages, set_user_language
 
 def lang_command_handler(update, context):
-    messages = get_messages_instance(user_id)
     """
     Handle /lang command - show language selection menu
     """
@@ -32,16 +31,22 @@ def lang_command_handler(update, context):
     keyboard = []
     available_languages = language_router.get_available_languages()
     
-    # Create buttons for each language
-    for lang_code, lang_name in available_languages.items():
-        keyboard.append([{
-            'text': lang_name,
-            'callback_data': f'lang_select_{lang_code}'
-        }])
+    # Create buttons for each language (2 per row)
+    lang_items = list(available_languages.items())
+    for i in range(0, len(lang_items), 2):
+        row = []
+        for j in range(2):
+            if i + j < len(lang_items):
+                lang_code, lang_name = lang_items[i + j]
+                row.append({
+                    'text': lang_name,
+                    'callback_data': f'lang_select_{lang_code}'
+                })
+        keyboard.append(row)
     
     # Add close button
     keyboard.append([{
-        'text': messages.get('BTN_CLOSE', '🔚Close'),
+        'text': getattr(messages, 'BTN_CLOSE', '🔚Close'),
         'callback_data': 'lang_close'
     }])
     
@@ -50,7 +55,7 @@ def lang_command_handler(update, context):
     }
     
     # Send language selection message
-    lang_selection_msg = messages.get('LANG_SELECTION_MSG', 
+    lang_selection_msg = getattr(messages, 'LANG_SELECTION_MSG', 
         "🌍 <b>Выберите язык / Select Language</b>\n\n"
         "🇺🇸 English\n"
         "🇷🇺 Русский\n" 
@@ -70,24 +75,30 @@ def lang_command(app, message):
     """
     from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     from HELPERS.safe_messeger import safe_send_message
-    from CONFIG.messages import get_messages_instance
+    from CONFIG.messages import safe_get_messages
     from pyrogram import enums
     
     user_id = message.chat.id
     
     # Get messages in current user's language
-    messages = get_messages_instance(user_id)
+    messages = safe_get_messages(user_id)
     
     # Create language selection keyboard
     keyboard = []
     available_languages = language_router.get_available_languages()
     
-    # Create buttons for each language
-    for lang_code, lang_name in available_languages.items():
-        keyboard.append([InlineKeyboardButton(
-            text=lang_name,
-            callback_data=f'lang_select_{lang_code}'
-        )])
+    # Create buttons for each language (2 per row)
+    lang_items = list(available_languages.items())
+    for i in range(0, len(lang_items), 2):
+        row = []
+        for j in range(2):
+            if i + j < len(lang_items):
+                lang_code, lang_name = lang_items[i + j]
+                row.append(InlineKeyboardButton(
+                    text=lang_name,
+                    callback_data=f'lang_select_{lang_code}'
+                ))
+        keyboard.append(row)
     
     # Add close button
     keyboard.append([InlineKeyboardButton(
@@ -115,7 +126,6 @@ def lang_command(app, message):
     )
 
 def lang_callback_handler(update, context):
-    messages = get_messages_instance(user_id)
     """
     Handle language selection callback
     """
@@ -141,7 +151,7 @@ def lang_callback_handler(update, context):
             lang_name = available_languages.get(lang_code, lang_code)
             
             # Send confirmation message
-            confirmation_msg = new_messages.get('LANG_CHANGED_MSG', 
+            confirmation_msg = getattr(new_messages, 'LANG_CHANGED_MSG', 
                 f"✅ Language changed to {lang_name}"
             )
             
@@ -151,14 +161,14 @@ def lang_callback_handler(update, context):
                 parse_mode='HTML'
             )
         else:
-            error_msg = messages.get('LANG_ERROR_MSG', 
+            error_msg = getattr(messages, 'LANG_ERROR_MSG', 
                 "❌ Error changing language"
             )
             query.answer(error_msg)
             
     elif query.data == 'lang_close':
         # Close language selection
-        close_msg = messages.get('LANG_CLOSED_MSG', "Language selection closed")
+        close_msg = getattr(messages, 'LANG_CLOSED_MSG', "Language selection closed")
         query.answer(close_msg)
         query.edit_message_text(close_msg)
 

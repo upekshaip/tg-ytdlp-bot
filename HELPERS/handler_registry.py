@@ -2,18 +2,18 @@
 # This module provides a way to register handlers that will be applied when app is initialized
 
 from HELPERS.app_instance import get_app_lazy
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 
 class HandlerRegistry:
     def __init__(self):
-        messages = get_messages_instance(None)
+        messages = safe_get_messages(None)
         self.handlers = []
     
     def register(self, handler_type, filters=None):
-        messages = get_messages_instance(None)
+        messages = safe_get_messages(None)
         """Register a handler to be applied when app is ready"""
         def decorator(func):
-            messages = get_messages_instance(None)
+            messages = safe_get_messages(None)
             print(messages.HANDLER_REGISTERING_MSG.format(handler_type=handler_type, func_name=func.__name__))
             self.handlers.append((handler_type, filters, func))
             return func

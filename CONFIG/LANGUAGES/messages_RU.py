@@ -1,4 +1,8 @@
 # Messages Configuration
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+#from CONFIG.config import Config
 
 class Messages(object):
     #######################################################
@@ -299,6 +303,14 @@ class Messages(object):
     DOWNLOADING_IMAGE_MSG = "📥 <b>Загрузка изображения...</b>\n\n"
 
     DOWNLOAD_COMPLETE_MSG = "✅ <b>Загрузка завершена</b>\n\n"
+    
+    # Download status messages
+    DOWNLOADED_STATUS_MSG = "Загружено:"
+    SENT_STATUS_MSG = "Отправлено:"
+    PENDING_TO_SEND_STATUS_MSG = "Ожидает отправки:"
+    TITLE_LABEL_MSG = "Название:"
+    MEDIA_COUNT_LABEL_MSG = "Количество медиа:"
+    AUDIO_DOWNLOAD_FINISHED_PROCESSING_MSG = "Загрузка завершена, обработка аудио..."
     VIDEO_PROCESSING_MSG = "📽 Видео обрабатывается..."
     WAITING_HOURGLASS_MSG = "⌛️"
     
@@ -787,6 +799,8 @@ class Messages(object):
     IMG_RANGE_LIMIT_EXCEEDED_MSG = "❗️ Превышен лимит диапазона: запрошено {range_count} файлов (максимум {max_img_files}).\n\nИспользуйте одну из этих команд для загрузки максимально доступных файлов:\n\n<code>/img {start_range}-{end_range} {url}</code>\n\n<code>/img {suggested_command_url_format}</code>"
     COMMAND_IMAGE_HELP_CLOSE_BUTTON_MSG = "🔚Закрыть"
     COMMAND_IMAGE_MEDIA_LIMIT_EXCEEDED_MSG = "❗️ Превышен лимит медиа: запрошено {count} файлов (максимум {max_count}).\n\nИспользуйте одну из этих команд для загрузки максимально доступных файлов:\n\n<code>/img {start_range}-{end_range} {url}</code>\n\n<code>/img {suggested_command_url_format}</code>"
+    IMG_FOUND_MEDIA_ITEMS_MSG = "📊 Найдено <b>{count}</b> медиафайлов по ссылке"
+    IMG_SELECT_DOWNLOAD_RANGE_MSG = "Выберите диапазон загрузки:"
     
     # Args command parameter descriptions
     ARGS_IMPERSONATE_DESC_MSG = "Имитация браузера"
@@ -1150,6 +1164,7 @@ class Messages(object):
     ALWAYS_ASK_VIDEO_TYPE_MSG = "Видео"
     ALWAYS_ASK_VIDEO_TITLE_MSG = "Видео"
     ALWAYS_ASK_NEXT_BUTTON_MSG = "Далее ▶️"
+    ALWAYS_ASK_PREV_BUTTON_MSG = "◀️ Предыд."
     SUBTITLES_NEXT_BUTTON_MSG = "Далее ➡️"
     PORN_ALL_TEXT_FIELDS_EMPTY_MSG = "ℹ️ Все текстовые поля пусты"
     SENDER_VIDEO_DURATION_MSG = "Длительность видео:"
@@ -1168,13 +1183,13 @@ class Messages(object):
     DOWN_UP_FILES_UPLOADED_MSG = "файлов загружено"
     
     # Always Ask Menu Button Messages
-    ALWAYS_ASK_VLC_ANDROID_BUTTON_MSG = "🎬 ВЛК (Андроид)"
+    ALWAYS_ASK_VLC_ANDROID_BUTTON_MSG = "🎬 VLC (Android)"
     ALWAYS_ASK_CLOSE_BUTTON_MSG = "🔚 Закрыть"
     ALWAYS_ASK_CODEC_BUTTON_MSG = "📼КОДЕК"
     ALWAYS_ASK_DUBS_BUTTON_MSG = "🗣 ДУБЛЯЖ"
     ALWAYS_ASK_SUBS_BUTTON_MSG = "💬 СУБТИТРЫ"
     ALWAYS_ASK_BROWSER_BUTTON_MSG = "🌐 Браузер"
-    ALWAYS_ASK_VLC_IOS_BUTTON_MSG = "🎬 ВЛК (iOS)"
+    ALWAYS_ASK_VLC_IOS_BUTTON_MSG = "🎬 VLC (iOS)"
     
     # Always Ask Menu Callback Messages
     ALWAYS_ASK_GETTING_DIRECT_LINK_MSG = "🔗 Получение прямой ссылки..."
@@ -1230,6 +1245,12 @@ class Messages(object):
     ALWAYS_ASK_GET_DIRECT_LINK_MSG = "🔗 — Получить прямую ссылку на видео"
     ALWAYS_ASK_SHOW_AVAILABLE_FORMATS_MSG = "📃 — Показать список доступных форматов"
     ALWAYS_ASK_CHANGE_VIDEO_EXT_MSG = "📼 — Изменить расширение/кодек видео"
+    ALWAYS_ASK_EMBED_BUTTON_MSG = "🚀Встроить"
+    ALWAYS_ASK_EXTRACT_AUDIO_MSG = "🎧 — Извлечь только аудио"
+    ALWAYS_ASK_NSFW_PAID_MSG = "⭐️ — 🔞NSFW платный (⭐️$0.02)"
+    ALWAYS_ASK_INSTANT_REPOST_MSG = "🚀 — Мгновенный репост из кэша"
+    ALWAYS_ASK_WATCH_VIDEO_MSG = "👁 — Смотреть видео в poketube"
+    ALWAYS_ASK_CHOOSE_AUDIO_LANGUAGE_MSG = "🗣 — Выбрать язык аудио"
     ALWAYS_ASK_BEST_BUTTON_MSG = "Лучшее"
     ALWAYS_ASK_OTHER_LABEL_MSG = "🎛Другое"
     ALWAYS_ASK_SUB_ONLY_BUTTON_MSG = "📝только субтитры"
@@ -1254,6 +1275,12 @@ class Messages(object):
     ALWAYS_ASK_USING_CACHED_QUALITIES_MSG = "⚠️ Используются кэшированные качества - новые форматы могут быть недоступны"
     ALWAYS_ASK_DOWNLOADING_FORMAT_MSG = "📥 Скачивание формата"
     ALWAYS_ASK_DOWNLOADING_QUALITY_MSG = "📥 Скачивание"
+    ALWAYS_ASK_DOWNLOADING_HLS_MSG = "📥 Скачивание с отслеживанием прогресса..."
+    ALWAYS_ASK_DOWNLOADING_FORMAT_USING_MSG = "📥 Скачивание с использованием формата:"
+    ALWAYS_ASK_DOWNLOADING_AUDIO_FORMAT_USING_MSG = "📥 Скачивание аудио с использованием формата:"
+    ALWAYS_ASK_DOWNLOADING_BEST_QUALITY_MSG = "📥 Скачивание лучшего качества..."
+    ALWAYS_ASK_DOWNLOADING_DATABASE_MSG = "📥 Скачивание дампа базы данных..."
+    ALWAYS_ASK_DOWNLOADING_IMAGES_MSG = "📥 Скачивание"
     ALWAYS_ASK_FORMATS_PAGE_FROM_CACHE_MSG = "Страница форматов"
     ALWAYS_ASK_FROM_CACHE_MSG = "(из кэша)"
     ALWAYS_ASK_ERROR_ORIGINAL_MESSAGE_NOT_FOUND_DETAILED_MSG = "❌ Ошибка: Исходное сообщение не найдено. Возможно, оно было удалено. Пожалуйста, отправьте ссылку снова."
@@ -1298,6 +1325,13 @@ class Messages(object):
     
     # Always Ask Menu Messages
     NO_SUBTITLES_DETECTED_MSG = "Субтитры не обнаружены"
+    VIDEO_PROGRESS_MSG = "<b>Видео:</b> {current} / {total}"
+    AUDIO_PROGRESS_MSG = "<b>Аудио:</b> {current} / {total}"
+    
+    # Error messages
+    ERROR_CHECK_SUPPORTED_SITES_MSG = "Проверьте <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>здесь</a>, поддерживается ли ваш сайт"
+    ERROR_COOKIE_NEEDED_MSG = "Возможно, вам нужен <code>cookie</code> для скачивания этого видео. Сначала очистите рабочее пространство командой <b>/clean</b>"
+    ERROR_COOKIE_INSTRUCTIONS_MSG = "Для YouTube - получите <code>cookie</code> командой <b>/cookie</b>. Для любого другого поддерживаемого сайта - отправьте свой собственный cookie (<a href='https://t.me/c/2303231066/18'>руководство1</a>) (<a href='https://t.me/c/2303231066/22'>руководство2</a>) и после этого отправьте ссылку на видео снова."
     CHOOSE_SUBTITLE_LANGUAGE_MSG = "Выберите язык субтитров"
     NO_ALTERNATIVE_AUDIO_LANGUAGES_MSG = "Нет альтернативных языков аудио"
     CHOOSE_AUDIO_LANGUAGE_MSG = "Выберите язык аудио"
@@ -1412,6 +1446,11 @@ class Messages(object):
     ARGS_STATUS_FALSE_MSG = "❌"
     ARGS_STATUS_TRUE_DISPLAY_MSG = "✅ Истина"
     ARGS_STATUS_FALSE_DISPLAY_MSG = "❌ Ложь"
+    ARGS_NOT_SET_MSG = "Не установлено"
+    
+    # Boolean values for import/export (all possible variations)
+    ARGS_BOOLEAN_TRUE_VALUES = ["Да", "да", "True", "true", "1", "yes", "on", "✅"]
+    ARGS_BOOLEAN_FALSE_VALUES = ["Нет", "нет", "False", "false", "0", "no", "off", "❌"]
     
     # Args command status indicators
     ARGS_STATUS_SELECTED_MSG = "✅"
@@ -1753,7 +1792,7 @@ class Messages(object):
     CAPTION_VIDEO_URL_LINK_MSG = '<a href="{url}">🔗 URL видео</a>{bot_mention}'
     
     # Database messages
-    DB_DATABASE_URL_MISSING_MSG = "FIREBASE_CONF.databaseURL отсутствует в Config"
+    DB_DATABASE_URL_MISSING_MSG = "FIREBASE_CONF.databaseURL отсутствует в конфигурации"
     DB_FIREBASE_ADMIN_INITIALIZED_MSG = "✅ firebase_admin initialized"
     DB_REST_ID_TOKEN_REFRESHED_MSG = "🔁 REST idToken refreshed"
     DB_LOG_FOR_USER_ADDED_MSG = "Лог для пользователя добавлен"
@@ -1957,8 +1996,8 @@ class Messages(object):
     SUBS_VALID_OPTIONS_MSG = "Допустимые опции:"
     
     # Settings Command Messages
-    SETTINGS_DEV_GITHUB_BUTTON_MSG = "🛠 GitHub разработчика"
-    SETTINGS_CONTR_GITHUB_BUTTON_MSG = "🛠 GitHub вкладчика"
+    SETTINGS_DEV_GITHUB_BUTTON_MSG = "🛠 GitHub автора"
+    SETTINGS_CONTR_GITHUB_BUTTON_MSG = "🛠 GitHub разработчика"
     SETTINGS_CLEAN_BUTTON_MSG = "🧹 ОЧИСТКА"
     SETTINGS_COOKIES_BUTTON_MSG = "🍪 COOKIES"
     SETTINGS_MEDIA_BUTTON_MSG = "🎞 МЕДИА"
@@ -2012,7 +2051,7 @@ class Messages(object):
     KEYBOARD_2X3_BUTTON_MSG = "📱 2x3"
     
     # Image Command Messages
-    IMAGE_URL_CAPTION_MSG = "🔗[URL изображений]({url}) @{Config.BOT_NAME}"
+    IMAGE_URL_CAPTION_MSG = "🔗[URL изображений]({url})"
     IMAGE_ERROR_MSG = "❌ Ошибка: {str(e)}"
     
     # Format Command Messages
@@ -2050,7 +2089,6 @@ class Messages(object):
     ARGS_CURRENT_ARGUMENTS_MSG = "📋 Текущие аргументы yt-dlp:\n\n"
     ARGS_EXPORT_SETTINGS_BUTTON_MSG = "📤 Экспорт настроек"
     ARGS_SETTINGS_READY_MSG = "Настройки готовы к экспорту! Перешлите это сообщение в избранное для сохранения."
-    ARGS_CURRENT_VALUE_MSG = "Текущее значение: <code>{value}</code>"
     ARGS_CURRENT_ARGUMENTS_HEADER_MSG = "📋 Текущие аргументы yt-dlp:"
     ARGS_FAILED_RECOGNIZE_MSG = "❌ Не удалось распознать настройки в сообщении. Убедитесь, что вы отправили правильный шаблон настроек."
     ARGS_SUCCESSFULLY_IMPORTED_MSG = "✅ Настройки успешно импортированы!\n\nПримененные параметры: {applied_count}\n\n"
@@ -2074,5 +2112,20 @@ class Messages(object):
     # Always Ask menu button messages
     ALWAYS_ASK_LINK_BUTTON_MSG = "🔗Ссылка"
     ALWAYS_ASK_WATCH_BUTTON_MSG = "👁Смотреть"
+
+    # Audio upload completion messages
+    AUDIO_PARTIALLY_COMPLETED_MSG = "⚠️ Частично завершено - {successful_uploads}/{total_files} аудио файлов загружено."
+    AUDIO_SUCCESSFULLY_COMPLETED_MSG = "✅ Аудио успешно скачано и отправлено - {total_files} файлов загружено."
+
+    # TikTok private account messages
+    TIKTOK_PRIVATE_ACCOUNT_MSG = (
+        "🔒 <b>Приватный TikTok аккаунт</b>\n\n"
+        "Этот TikTok аккаунт приватный или все видео приватные.\n\n"
+        "<b>💡 Решение:</b>\n"
+        "1. Подпишитесь на аккаунт @{username}\n"
+        "2. Отправьте боту свои cookies через команду <code>/cookie</code>\n"
+        "3. Попробуйте снова\n\n"
+        "<b>После обновления cookies попробуйте снова!</b>"
+    )
 
     #######################################################

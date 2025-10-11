@@ -2,6 +2,28 @@
 ###########################################################
 #        GLOBAL IMPORTS
 ###########################################################
+
+# ГЛОБАЛЬНЫЙ ПАТЧ ДЛЯ ПРЕДОТВРАЩЕНИЯ ОШИБКИ 'name messages is not defined'
+try:
+    from PATCH.GLOBAL_MESSAGES_PATCH import apply_global_messages_patch
+    apply_global_messages_patch()
+except Exception as e:
+    print(f"⚠️  Global messages patch failed: {e}")
+    # Минимальная защита уже встроена в safe_get_messages функции
+
+# ПАТЧ NONE ОТКЛЮЧЕН - ОШИБКА УЖЕ ИСПРАВЛЕНА В КОДЕ
+# try:
+#     from PATCH.FIX_NONE_COMPARISONS_PATCH import apply_patch
+#     apply_patch()
+# except Exception as e:
+#     print(f"⚠️  None comparisons patch failed: {e}")
+
+# DEBUG ПАТЧИ ОТКЛЮЧЕНЫ - ОШИБКА NONE ИСПРАВЛЕНА
+# try:
+#     from PATCH.DEBUG_NONE_COMPARISON import apply_debug_none_comparison
+#     apply_debug_none_comparison()
+# except Exception as e:
+#     print(f"⚠️  Debug None comparison failed: {e}")
 import glob
 try:
     from sdnotify import SystemdNotifier  # optional, used for watchdog
@@ -55,7 +77,7 @@ import chardet
 ###########################################################
 # CONFIG
 from CONFIG.config import Config
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 # from test_config import Config
 
 # HELPERS (только те, что не содержат обработчики)
@@ -128,6 +150,9 @@ from COMMANDS.cookies_cmd import download_cookie
 # DOWN_AND_UP (с обработчиками - импортируем после установки app)
 from DOWN_AND_UP.always_ask_menu import *
 
+# Инициализируем глобальную переменную messages
+messages = safe_get_messages(None)
+
 print(messages.MAGIC_ALL_MODULES_LOADED_MSG)
 
 ###########################################################
@@ -165,7 +190,7 @@ def _wrap_group(fn):
 _allowed_groups = tuple(getattr(Config, 'ALLOWED_GROUP', []))
 
 def _is_allowed_group(message):
-    messages = get_messages_instance(None)
+    messages = safe_get_messages(None)
     try:
         gid = int(getattr(message.chat, 'id', 0))
         allowed = gid in _allowed_groups
@@ -213,7 +238,7 @@ if _allowed_groups:
 #        /vid command (private and groups)
 ###########################################################
 def _vid_handler(app, message):
-    messages = get_messages_instance(message.chat.id)
+    messages = safe_get_messages(message.chat.id)
     # Transform "/vid [url]" into plain URL text for url_distractor
     try:
         txt = (message.text or "").strip()
@@ -276,7 +301,7 @@ if _allowed_groups:
 # Help close handler for /vid
 @app.on_callback_query(filters.regex(r"^vid_help\|"))
 def vid_help_callback(app, callback_query):
-    messages = get_messages_instance(None)
+    messages = safe_get_messages(None)
     data = callback_query.data.split("|")[1]
     if data == "close":
         try:
@@ -305,7 +330,7 @@ starting_point = []
 start_auto_cache_reloader()
 
 def cleanup_on_exit():
-    messages = get_messages_instance(None)
+    messages = safe_get_messages(None)
     """Cleanup function to close Firebase connections and logger on exit"""
     try:
         from DATABASE.cache_db import close_all_firebase_connections
@@ -327,7 +352,7 @@ atexit.register(cleanup_on_exit)
 
 # Register signal handlers for graceful shutdown
 def signal_handler(sig, frame):
-    messages = get_messages_instance(None)
+    messages = safe_get_messages(None)
     """Handle shutdown signals gracefully"""
     print(messages.MAGIC_SIGNAL_RECEIVED_MSG.format(signal=sig))
     cleanup_on_exit()

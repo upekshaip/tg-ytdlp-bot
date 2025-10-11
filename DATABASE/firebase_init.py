@@ -11,7 +11,7 @@ import firebase_admin
 from firebase_admin import credentials, db as admin_db
 
 from CONFIG.config import Config
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 from HELPERS.logger import logger
 from HELPERS.filesystem_hlp import create_directory
 from HELPERS.logger import send_to_all
@@ -21,13 +21,15 @@ starting_point = []
 
 
 def _get_database_url() -> str:
+    # ГЛОБАЛЬНАЯ ЗАЩИТА: Инициализируем messages
+    messages = safe_get_messages(None)
+    
     try:
         database_url_local = Config.FIREBASE_CONF.get("databaseURL")
     except Exception:
         database_url_local = None
     if not database_url_local:
-        messages = messages
-        raise RuntimeError(messages.DB_DATABASE_URL_MISSING_MSG)
+        raise RuntimeError(safe_get_messages().DB_DATABASE_URL_MISSING_MSG)
     return database_url_local
 
 
@@ -62,14 +64,13 @@ def _init_firebase_admin_if_needed() -> bool:
         return False
 
     firebase_admin.initialize_app(cred_obj, {"databaseURL": database_url})
-    messages = messages
-    logger.info(messages.DB_FIREBASE_ADMIN_INITIALIZED_MSG)
+    logger.info(safe_get_messages().DB_FIREBASE_ADMIN_INITIALIZED_MSG)
     return True
 
 
 class _SnapshotChild:
     def __init__(self, key: str, value: Any):
-        messages = get_messages_instance(None)
+        messages = safe_get_messages(None)
         self._key = key
         self._value = value
 
@@ -111,7 +112,7 @@ class FirebaseDBAdapter:
         return FirebaseDBAdapter(path)
 
     def _ref(self):
-        messages = get_messages_instance(None)
+        messages = safe_get_messages(None)
         return admin_db.reference(self._path)
 
     def set(self, data: Any) -> None:
@@ -122,7 +123,7 @@ class FirebaseDBAdapter:
         return _SnapshotCompat(value)
 
     def push(self, data: Any):
-        messages = get_messages_instance(None)
+        messages = safe_get_messages(None)
         # firebase_admin Reference has push in RTDB; return child key-compatible object
         ref = self._ref().push(data)
         return ref
@@ -198,7 +199,7 @@ class RestDBAdapter:
                     self._shared["refresher_started"] = True
 
     def _token_refresher(self):
-        messages = get_messages_instance(None)
+        messages = safe_get_messages(None)
         # Обновляем каждые ~50 минут
         while True:
             time.sleep(3000)
@@ -215,11 +216,9 @@ class RestDBAdapter:
                 with self._shared["lock"]:
                     self._shared["id_token"] = data.get("id_token", self._shared.get("id_token"))
                     self._shared["refresh_token"] = data.get("refresh_token", self._shared.get("refresh_token"))
-                messages = messages
-                logger.info(messages.DB_REST_ID_TOKEN_REFRESHED_MSG)
+                logger.info(safe_get_messages().DB_REST_ID_TOKEN_REFRESHED_MSG)
             except Exception as e:
-                messages = messages
-                logger.error(messages.DB_REST_TOKEN_REFRESH_ERROR_MSG.format(error=e))
+                logger.error(safe_get_messages().DB_REST_TOKEN_REFRESH_ERROR_MSG.format(error=e))
 
     def _auth_params(self) -> Dict[str, str]:
         with self._shared["lock"]:
@@ -273,7 +272,7 @@ class RestDBAdapter:
         return _SnapshotCompat(r.json())
 
     def close(self):
-        messages = get_messages_instance(None)
+        messages = safe_get_messages(None)
         """Закрывает сетевые ресурсы только у корневого адаптера.
         Дети разделяют сессию и не должны её закрывать.
         """
@@ -289,8 +288,7 @@ class RestDBAdapter:
                 self._session.close()
                 logger.info("✅ Firebase session closed successfully (root)")
         except Exception as e:
-            messages = messages
-            logger.error(messages.DB_ERROR_CLOSING_SESSION_MSG.format(error=e))
+            logger.error(safe_get_messages().DB_ERROR_CLOSING_SESSION_MSG.format(error=e))
 
     def __del__(self):
         # Ничего не делаем у детей, чтобы не ломать общую сессию
@@ -377,25 +375,23 @@ def check_user(message):
 
 # Checking user is Blocked or not
 def is_user_blocked(message):
-    messages = get_messages_instance(message.chat.id)
+    messages = safe_get_messages(message.chat.id)
     blocked = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("blocked_users").get().each()
     blocked_users = [int(b_user.key()) for b_user in blocked] if blocked else []
     if int(message.chat.id) in blocked_users:
-        messages = messages
-        send_to_all(message, messages.DB_USER_BANNED_MSG)
+        send_to_all(message, safe_get_messages().DB_USER_BANNED_MSG)
         return True
     else:
         return False
 
 
 def write_logs(message, video_url, video_title):
-    messages = get_messages_instance(message.chat.id)
+    messages = safe_get_messages(message.chat.id)
     ts = str(math.floor(time.time()))
     data = {"ID": str(message.chat.id), "timestamp": ts,
             "name": message.chat.first_name, "urls": str(video_url), "title": video_title}
     db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("logs").child(str(message.chat.id)).child(str(ts)).set(data)
-    messages = messages
-    logger.info(messages.DB_LOG_FOR_USER_ADDED_MSG)
+    logger.info(safe_get_messages().DB_LOG_FOR_USER_ADDED_MSG)
 
 
 # ####################################################################################
@@ -405,12 +401,12 @@ try:
     db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").child("0").set(_format)
     db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("blocked_users").child("0").set(_format)
     db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("unblocked_users").child("0").set(_format)
-    messages = get_messages_instance(None)
-    logger.info(messages.DB_DATABASE_CREATED_MSG)
+    messages = safe_get_messages(None)
+    logger.info(safe_get_messages().DB_DATABASE_CREATED_MSG)
 except Exception as e:
-    messages = get_messages_instance(None)
-    logger.error(messages.DB_ERROR_INITIALIZING_BASE_MSG.format(error=e))
+    messages = safe_get_messages(None)
+    logger.error(safe_get_messages().DB_ERROR_INITIALIZING_BASE_MSG.format(error=e))
 
 starting_point.append(time.time())
-messages = get_messages_instance(None)
-logger.info(messages.DB_BOT_STARTED_MSG)
+messages = safe_get_messages(None)
+logger.info(safe_get_messages().DB_BOT_STARTED_MSG)

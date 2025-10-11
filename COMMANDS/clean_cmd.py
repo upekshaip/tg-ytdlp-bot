@@ -5,7 +5,7 @@ from pyrogram import enums
 from HELPERS.app_instance import get_app
 from HELPERS.safe_messeger import fake_message
 from HELPERS.logger import logger
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 # Lazy import to avoid circular dependency - import url_distractor inside functions
 
 # Get app instance for decorators
@@ -14,10 +14,7 @@ app = get_app()
 @app.on_callback_query(filters.regex(r"^clean_option\|"))
 # @reply_with_keyboard
 def clean_option_callback(app, callback_query):
-    messages = get_messages_instance(user_id)
-    # Lazy import to avoid circular dependency
-    from URL_PARSERS.url_extractor import url_distractor
-    
+    # Get user_id first
     user_id = getattr(callback_query, 'from_user', None)
     if user_id is None:
         user_id = getattr(callback_query, 'user', None)
@@ -26,6 +23,10 @@ def clean_option_callback(app, callback_query):
     user_id = getattr(user_id, 'id', None)
     if user_id is None:
         return
+    
+    messages = safe_get_messages(user_id)
+    # Lazy import to avoid circular dependency
+    from URL_PARSERS.url_extractor import url_distractor
     data = callback_query.data.split("|")[1]
 
     if data == "cookies":

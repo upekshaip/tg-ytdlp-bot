@@ -33,9 +33,8 @@ class Messages(object):
             return super().__getattribute__(name)
         
         # STRICT: Only use language-specific messages, NO fallback to English
-        if hasattr(self, '_messages') and self._messages:
-            if name in self._messages:
-                return self._messages[name]
+        if hasattr(self, '_messages') and self._messages and name in self._messages:
+            return self._messages[name]
         
         # If message not found in selected language, return placeholder
         return f"[{name}]"
@@ -50,5 +49,34 @@ def get_messages_instance(user_id=None, language_code=None):
     """
     return Messages(user_id, language_code)
 
-# Backward compatibility - create default instance
-messages = Messages()
+# GLOBAL PROTECTION: Safe function that NEVER fails
+def safe_get_messages(user_id=None, language_code=None):
+    """
+    SAFE function that NEVER raises NameError for 'messages'
+    This function is GUARANTEED to return a Messages object
+    """
+    try:
+        return get_messages_instance(user_id, language_code)
+    except Exception:
+        # If everything fails, return a minimal Messages object
+        return Messages(None, None)
+
+# GLOBAL PROTECTION: Safe function for any context
+def safe_messages(user_id=None):
+    """
+    ULTRA-SAFE function that works in ANY context
+    """
+    try:
+        return get_messages_instance(user_id)
+    except:
+        try:
+            return get_messages_instance(None)
+        except:
+            # Last resort - return a dummy object
+            class DummyMessages:
+                def __getattr__(self, name):
+                    return f"[{name}]"
+            return DummyMessages()
+
+# Backward compatibility - create default instance with English language
+messages = Messages(None, 'en')

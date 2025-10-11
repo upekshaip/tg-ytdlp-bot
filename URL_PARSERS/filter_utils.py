@@ -48,7 +48,7 @@ def create_smart_match_filter():
                 return None
             
             # Если длительность определена, проверяем лимит
-            if duration > Config.MAX_VIDEO_DURATION:
+            if duration and duration > Config.MAX_VIDEO_DURATION:
                 return f"Video too long: {duration}s > {Config.MAX_VIDEO_DURATION}s"
             
             # Все проверки пройдены

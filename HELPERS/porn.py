@@ -37,7 +37,7 @@ def unwrap_redirect_url(url: str) -> str:
     except Exception:
         return url
 from CONFIG.config import Config
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 from CONFIG.domains import DomainsConfig
 import importlib
 import types
@@ -205,7 +205,7 @@ def is_porn(url, title, description, caption=None):
 
 
 def check_porn_detailed(url, title, description, caption=None):
-    messages = get_messages_instance(None)
+    messages = safe_get_messages(None)
     """
     Detailed porn check that returns both result and explanation.
     Returns: (is_porn: bool, explanation: str)
