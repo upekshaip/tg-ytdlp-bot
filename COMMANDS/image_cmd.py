@@ -973,6 +973,9 @@ def image_command(app, message):
                 else:
                     cached_all = sorted(list(get_cached_image_post_indices(url)))
                     requested_indices = [i for i in cached_all if i >= int(start_i)]
+            else:
+                # No manual range specified, get all cached indices
+                requested_indices = None
             cached_map = get_cached_image_posts(url, requested_indices)
         except Exception as e:
             logger.error(LoggerMsg.IMG_ERROR_GET_CACHED_POSTS_LOG_MSG.format(e=e))
@@ -1064,7 +1067,10 @@ def image_command(app, message):
                     max_cached_index = max(cached_indices)
                     cached_count = len(cached_indices)
                     
-                    logger.info(f"Cache contains {cached_count} indices: {cached_indices}")
+                    # Count total cached images (not just album indices)
+                    total_cached_images = sum(len(ids) for ids in cached_map.values())
+                    
+                    logger.info(f"Cache contains {cached_count} album indices: {cached_indices} with {total_cached_images} total images")
                     
                     # Try to determine the total count to set proper end index
                     total_count = None
@@ -1074,20 +1080,23 @@ def image_command(app, message):
                                 total_count = int(image_info[key])
                                 break
                     
-                    if total_count and total_count > max_cached_index:
-                        # We know the total count, set proper end index
-                        manual_range = (max_cached_index + 1, total_count)
-                        logger.info(f"No manual range specified, continuing from cached index {max_cached_index + 1} to {total_count} (cached: {cached_count}/{total_count})")
+                    if total_count and total_count > total_cached_images:
+                        # We know the total count, set proper end index based on image count
+                        start_from = total_cached_images + 1
+                        manual_range = (start_from, total_count)
+                        logger.info(f"No manual range specified, continuing from image {start_from} to {total_count} (cached: {total_cached_images}/{total_count} images)")
                     else:
                         # Fallback: try to get total count from detected_total_value
                         detected_total_value = locals().get('detected_total', None)
-                        if detected_total_value and detected_total_value > max_cached_index:
-                            manual_range = (max_cached_index + 1, detected_total_value)
-                            logger.info(f"No manual range specified, using detected total {detected_total_value}, continuing from cached index {max_cached_index + 1} to {detected_total_value} (cached: {cached_count}/{detected_total_value})")
+                        if detected_total_value and detected_total_value > total_cached_images:
+                            start_from = total_cached_images + 1
+                            manual_range = (start_from, detected_total_value)
+                            logger.info(f"No manual range specified, using detected total {detected_total_value}, continuing from image {start_from} to {detected_total_value} (cached: {total_cached_images}/{detected_total_value} images)")
                         else:
-                            # Last resort: continue from next index to end
-                            manual_range = (max_cached_index + 1, None)
-                            logger.info(f"No manual range specified, continuing from cached index {max_cached_index + 1} to end (cached: {cached_count} indices)")
+                            # Last resort: continue from next image to end
+                            start_from = total_cached_images + 1
+                            manual_range = (start_from, None)
+                            logger.info(f"No manual range specified, continuing from image {start_from} to end (cached: {total_cached_images} images)")
                 try:
                     safe_edit_message_text(
                         user_id, status_msg.id,
