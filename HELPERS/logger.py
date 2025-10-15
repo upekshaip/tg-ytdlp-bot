@@ -38,7 +38,7 @@ def close_logger():
 if SDNOTIFY_AVAILABLE:
     notifier = SystemdNotifier()
     
-    async def watchdog_loop():
+    def watchdog_loop():
         while True:
             notifier.notify("WATCHDOG=1")
             logger.info("[Watchdog] Sent WATCHDOG=1")
