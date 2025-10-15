@@ -115,8 +115,14 @@ async def clone_repository(temp_dir):
             log(messages.UPDATE_REPOSITORY_CLONED_SUCCESS_MSG)
             return True
         else:
-            messages = safe_get_messages()
-            log(messages.UPDATE_CLONE_ERROR_MSG.format(error=stderr), "ERROR")
+            # Check if stderr contains actual error messages (not just "Cloning into...")
+            error_msg = stderr.decode('utf-8') if stderr else ""
+            if "fatal:" in error_msg or "error:" in error_msg.lower():
+                messages = safe_get_messages()
+                log(messages.UPDATE_CLONE_ERROR_MSG.format(error=error_msg), "ERROR")
+            else:
+                messages = safe_get_messages()
+                log(messages.UPDATE_CLONE_ERROR_MSG.format(error="Repository clone failed"), "ERROR")
             return False
             
     except subprocess.TimeoutExpired:

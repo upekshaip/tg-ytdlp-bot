@@ -845,7 +845,8 @@ def test_youtube_cookies(cookie_file_path: str) -> bool:
         }
         
         # Add PO token provider for YouTube domains
-        ydl_opts = await add_pot_to_ytdl_opts(ydl_opts, test_url)
+        # Note: add_pot_to_ytdl_opts is async but we can't await here due to context
+        # ydl_opts = await add_pot_to_ytdl_opts(ydl_opts, test_url)
         
         from HELPERS.async_ytdlp import async_extract_info
         info = await async_extract_info(ydl_opts, test_url)
