@@ -812,7 +812,7 @@ async def test_youtube_cookies_on_url(cookie_file_path: str, url: str) -> bool:
         logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_USER_URL_LOG_MSG.format(cookie_file_path=cookie_file_path, e=e))
         return False
 
-def test_youtube_cookies(cookie_file_path: str) -> bool:
+async def test_youtube_cookies(cookie_file_path: str) -> bool:
     """
     Тщательно проверяет работоспособность YouTube куки.
     
@@ -845,8 +845,7 @@ def test_youtube_cookies(cookie_file_path: str) -> bool:
         }
         
         # Add PO token provider for YouTube domains
-        # Note: add_pot_to_ytdl_opts is async but we can't await here due to context
-        # ydl_opts = await add_pot_to_ytdl_opts(ydl_opts, test_url)
+        ydl_opts = await add_pot_to_ytdl_opts(ydl_opts, test_url)
         
         from HELPERS.async_ytdlp import async_extract_info
         info = await async_extract_info(ydl_opts, test_url)
