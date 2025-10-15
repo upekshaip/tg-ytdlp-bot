@@ -16,7 +16,7 @@ from HELPERS.limitter import is_user_in_channel
 # Get app instance for decorators
 app = get_app()
 
-def safe_write_file(file_path, content):
+async def safe_write_file(file_path, content):
     """Safely write content to file with atomic operation"""
     try:
         # Create directory if it doesn't exist
@@ -45,14 +45,14 @@ def safe_write_file(file_path, content):
         logger.error(LoggerMsg.PROXY_CMD_UNEXPECTED_ERROR_WRITING_FILE_LOG_MSG.format(file_path=file_path, error=e))
         return False
 
-@app.on_message(filters.command("proxy") & filters.private)
-def proxy_command(app, message):
+# @app.on_message(filters.command("proxy") & filters.private)
+async def proxy_command(app, message):
     messages = safe_get_messages(message.chat.id)
     user_id = message.chat.id
     logger.info(LoggerMsg.PROXY_CMD_USER_REQUESTED_LOG_MSG.format(user_id=user_id))
     logger.info(LoggerMsg.PROXY_CMD_USER_IS_ADMIN_LOG_MSG.format(user_id=user_id, is_admin=int(user_id) in Config.ADMIN))
     
-    is_in_channel = is_user_in_channel(app, message)
+    is_in_channel = await is_user_in_channel(app, message)
     logger.info(LoggerMsg.PROXY_CMD_USER_IS_IN_CHANNEL_LOG_MSG.format(user_id=user_id, is_in_channel=is_in_channel))
     
     if int(user_id) not in Config.ADMIN and not is_in_channel:
@@ -71,14 +71,14 @@ def proxy_command(app, message):
             proxy_file = os.path.join(user_dir, "proxy.txt")
             if arg in ("on", "off"):
                 if safe_write_file(proxy_file, "ON" if arg == "on" else "OFF"):
-                    safe_send_message(user_id, safe_get_messages(user_id).PROXY_ENABLED_MSG.format(status='enabled' if arg=='on' else 'disabled'), message=message)
-                    send_to_logger(message, safe_get_messages(user_id).PROXY_SET_COMMAND_LOG_MSG.format(arg=arg))
+                    await safe_send_message(user_id, safe_get_messages(user_id).PROXY_ENABLED_MSG.format(status='enabled' if arg=='on' else 'disabled'), message=message)
+                    await send_to_logger(message, safe_get_messages(user_id).PROXY_SET_COMMAND_LOG_MSG.format(arg=arg))
                     return
                 else:
                     error_msg = safe_get_messages(user_id).PROXY_ERROR_SAVING_MSG
-                    safe_send_message(user_id, error_msg, message=message)
+                    await safe_send_message(user_id, error_msg, message=message)
                     from HELPERS.logger import log_error_to_channel
-                    log_error_to_channel(message, error_msg)
+                    await log_error_to_channel(message, error_msg)
                     return
     except Exception:
         pass
@@ -97,17 +97,17 @@ def proxy_command(app, message):
     else:
         proxy_text = safe_get_messages(user_id).PROXY_MENU_TEXT_MSG
     
-    safe_send_message(
+    await safe_send_message(
         user_id,
         proxy_text,
         reply_markup=keyboard,
         message=message
     )
-    send_to_logger(message, safe_get_messages(user_id).PROXY_MENU_OPENED_LOG_MSG)
+    await send_to_logger(message, safe_get_messages(user_id).PROXY_MENU_OPENED_LOG_MSG)
 
 
-@app.on_callback_query(filters.regex(r"^proxy_option\|"))
-def proxy_option_callback(app, callback_query):
+# @app.on_callback_query(filters.regex(r"^proxy_option\|"))
+async def proxy_option_callback(app, callback_query):
     user_id = callback_query.from_user.id
     messages = safe_get_messages(user_id)
     logger.info(LoggerMsg.PROXY_CMD_CALLBACK_LOG_MSG.format(callback_data=callback_query.data))
@@ -118,20 +118,20 @@ def proxy_option_callback(app, callback_query):
     
     if callback_query.data == "proxy_option|close":
         try:
-            callback_query.message.delete()
+            await callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
         try:
-            callback_query.answer(safe_get_messages(user_id).PROXY_MENU_CLOSED_MSG)
+            await callback_query.answer(safe_get_messages(user_id).PROXY_MENU_CLOSED_MSG)
         except Exception:
             pass
-        send_to_logger(callback_query.message, safe_get_messages(user_id).PROXY_MENU_CLOSED_LOG_MSG)
+        await send_to_logger(callback_query.message, safe_get_messages(user_id).PROXY_MENU_CLOSED_LOG_MSG)
         return
     
     if data == "on":
         if not safe_write_file(proxy_file, "ON"):
             try:
-                callback_query.answer(safe_get_messages(user_id).PROXY_ERROR_SAVING_CALLBACK_MSG)
+                await callback_query.answer(safe_get_messages(user_id).PROXY_ERROR_SAVING_CALLBACK_MSG)
             except Exception:
                 pass
             return
@@ -145,10 +145,10 @@ def proxy_option_callback(app, callback_query):
         else:
             message_text = safe_get_messages(user_id).PROXY_ENABLED_CONFIRM_MSG
         
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, message_text)
-        send_to_logger(callback_query.message, safe_get_messages(user_id).PROXY_ENABLED_LOG_MSG)
+        await safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, message_text)
+        await send_to_logger(callback_query.message, safe_get_messages(user_id).PROXY_ENABLED_LOG_MSG)
         try:
-            callback_query.answer(safe_get_messages(user_id).PROXY_ENABLED_CALLBACK_MSG)
+            await callback_query.answer(safe_get_messages(user_id).PROXY_ENABLED_CALLBACK_MSG)
         except Exception:
             pass
         return
@@ -156,15 +156,15 @@ def proxy_option_callback(app, callback_query):
     if data == "off":
         if not safe_write_file(proxy_file, "OFF"):
             try:
-                callback_query.answer(safe_get_messages(user_id).PROXY_ERROR_SAVING_CALLBACK_MSG)
+                await callback_query.answer(safe_get_messages(user_id).PROXY_ERROR_SAVING_CALLBACK_MSG)
             except Exception:
                 pass
             return
         
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, safe_get_messages(user_id).PROXY_DISABLED_MSG)
-        send_to_logger(callback_query.message, safe_get_messages(user_id).PROXY_DISABLED_LOG_MSG)
+        await safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, safe_get_messages(user_id).PROXY_DISABLED_MSG)
+        await send_to_logger(callback_query.message, safe_get_messages(user_id).PROXY_DISABLED_LOG_MSG)
         try:
-            callback_query.answer(safe_get_messages(user_id).PROXY_DISABLED_CALLBACK_MSG)
+            await callback_query.answer(safe_get_messages(user_id).PROXY_DISABLED_CALLBACK_MSG)
         except Exception:
             pass
         return

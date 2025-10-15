@@ -13,7 +13,7 @@ from HELPERS.pot_helper import add_pot_to_ytdl_opts
 from CONFIG.limits import LimitsConfig
 from HELPERS.fallback_helper import should_fallback_to_gallery_dl
 
-def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already_checked=False, use_proxy=False):
+async def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already_checked=False, use_proxy=False):
     # ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ДЛЯ ОТЛАДКИ
     logger.info(f"🔍 [DEBUG] get_video_formats вызвана с параметрами:")
     logger.info(f"   url: {url}")
@@ -77,25 +77,26 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
             # Always check existing cookies first on user's URL for maximum speed
             if os.path.exists(user_cookie_path):
                 logger.info(safe_get_messages(user_id).YTDLP_CHECKING_EXISTING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
-                if test_youtube_cookies_on_url(user_cookie_path, url):
+                if await test_youtube_cookies_on_url(user_cookie_path, url):
                     cookie_file = user_cookie_path
                     logger.info(safe_get_messages(user_id).YTDLP_EXISTING_YOUTUBE_COOKIES_WORK_MSG.format(user_id=user_id))
                 else:
                     logger.info(safe_get_messages(user_id).YTDLP_EXISTING_YOUTUBE_COOKIES_FAILED_MSG.format(user_id=user_id))
-                    cookie_urls = get_youtube_cookie_urls()
+                    cookie_urls = await get_youtube_cookie_urls()
                     if cookie_urls:
                         success = False
                         for i, cookie_url in enumerate(cookie_urls, 1):
                             logger.info(safe_get_messages(user_id).YTDLP_TRYING_YOUTUBE_COOKIE_SOURCE_MSG.format(i=i, user_id=user_id))
                             try:
-                                ok, status_code, content, error = _download_content(cookie_url)
+
+                                ok, status_code, content, error = await _download_content(cookie_url)
                             except Exception as download_e:
                                 logger.error(f"Error processing cookie source {i} for user {user_id}: {download_e}")
                                 continue
                             if ok and content and len(content) <= 100 * 1024:
                                 with open(user_cookie_path, "wb") as cf:
                                     cf.write(content)
-                                if test_youtube_cookies_on_url(user_cookie_path, url):
+                                if await test_youtube_cookies_on_url(user_cookie_path, url):
                                     cookie_file = user_cookie_path
                                     logger.info(safe_get_messages(user_id).YTDLP_YOUTUBE_COOKIES_FROM_SOURCE_WORK_MSG.format(i=i, user_id=user_id))
                                     success = True
@@ -113,20 +114,20 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                         cookie_file = None
             else:
                 logger.info(safe_get_messages(user_id).YTDLP_NO_YOUTUBE_COOKIES_FOUND_MSG.format(user_id=user_id))
-                cookie_urls = get_youtube_cookie_urls()
+                cookie_urls = await get_youtube_cookie_urls()
                 if cookie_urls:
                     success = False
                     for i, cookie_url in enumerate(cookie_urls, 1):
                         logger.info(f"Trying YouTube cookie source {i} for format detection for user {user_id}")
                         try:
-                            ok, status_code, content, error = _download_content(cookie_url)
+                            ok, status_code, content, error = await _download_content(cookie_url)
                         except Exception as download_e:
                             logger.error(f"Error processing cookie source {i} for user {user_id}: {download_e}")
                             continue
                         if ok and content and len(content) <= 100 * 1024:
                             with open(user_cookie_path, "wb") as cf:
                                 cf.write(content)
-                            if test_youtube_cookies_on_url(user_cookie_path, url):
+                            if await test_youtube_cookies_on_url(user_cookie_path, url):
                                 cookie_file = user_cookie_path
                                 logger.info(f"YouTube cookies from source {i} work on user's URL for format detection for user {user_id} - saved to user folder")
                                 success = True
@@ -151,20 +152,20 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                 # Cookies were deleted - try to restore them on user's URL
                 logger.info(safe_get_messages(user_id).YTDLP_NO_YOUTUBE_COOKIES_FOUND_ATTEMPTING_RESTORE_MSG.format(user_id=user_id))
                 from COMMANDS.cookies_cmd import get_youtube_cookie_urls, test_youtube_cookies_on_url, _download_content
-                cookie_urls = get_youtube_cookie_urls()
+                cookie_urls = await get_youtube_cookie_urls()
                 if cookie_urls:
                     success = False
                     for i, cookie_url in enumerate(cookie_urls, 1):
                         logger.info(f"Trying YouTube cookie source {i} for format detection for user {user_id}")
                         try:
-                            ok, status_code, content, error = _download_content(cookie_url)
+                            ok, status_code, content, error = await _download_content(cookie_url)
                         except Exception as download_e:
                             logger.error(f"Error processing cookie source {i} for user {user_id}: {download_e}")
                             continue
                         if ok and content and len(content) <= 100 * 1024:
                             with open(user_cookie_path, "wb") as cf:
                                 cf.write(content)
-                            if test_youtube_cookies_on_url(user_cookie_path, url):
+                            if await test_youtube_cookies_on_url(user_cookie_path, url):
                                 cookie_file = user_cookie_path
                                 logger.info(f"YouTube cookies from source {i} work on user's URL for format detection for user {user_id} - saved to user folder")
                                 success = True
@@ -246,13 +247,13 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
         else:
             # Add proxy configuration if needed for this domain
             from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
-            ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url, user_id)
+            ytdl_opts = await add_proxy_to_ytdl_opts(ytdl_opts, url, user_id)
     
     # Add PO token provider for YouTube domains
-    ytdl_opts = add_pot_to_ytdl_opts(ytdl_opts, url)
+    ytdl_opts = await add_pot_to_ytdl_opts(ytdl_opts, url)
     
     # Try with proxy fallback if user proxy is enabled
-    def extract_info_operation(opts):
+    async def extract_info_operation(opts):
         try:
             logger.info(f"🔍 [DEBUG] extract_info_operation: начинаем извлечение информации")
             logger.info(f"   url: {url}")
@@ -303,7 +304,7 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                     logger.info(f"YouTube cookie error detected in get_video_formats for user {user_id}, attempting automatic retry")
                     
                     # Try retry with different cookies
-                    retry_result = retry_download_with_different_cookies(
+                    retry_result = await retry_download_with_different_cookies(
                         user_id, url, extract_info_operation, opts
                     )
                     
@@ -329,8 +330,9 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
             logger.error(f"Error extracting info for {url}: {e}")
             raise e
     
+    # Try with proxy fallback if user proxy is enabled
     from HELPERS.proxy_helper import try_with_proxy_fallback
-    result = try_with_proxy_fallback(ytdl_opts, url, user_id, extract_info_operation)
+    result = await try_with_proxy_fallback(ytdl_opts, url, user_id, extract_info_operation)
     if result is None:
         return {'error': 'Failed to extract video information with all available proxies'}
     return result

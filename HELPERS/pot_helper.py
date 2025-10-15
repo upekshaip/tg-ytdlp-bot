@@ -1,7 +1,8 @@
 # PO Token Helper for YouTube
 # Adds PO token provider support for YouTube domains
 
-import requests
+import asyncio
+from HELPERS.http_client import fetch_json
 import time
 import re
 from CONFIG.config import Config
@@ -16,7 +17,7 @@ _pot_provider_cache = {
     'check_interval': 30  # Проверяем каждые 30 секунд
 }
 
-def check_pot_provider_availability(base_url: str) -> bool:
+async def check_pot_provider_availability(base_url: str) -> bool:
     """
     Проверяет доступность PO token провайдера
     
@@ -36,21 +37,29 @@ def check_pot_provider_availability(base_url: str) -> bool:
     try:
         # Быстрая проверка доступности провайдера
         # PO token провайдер может возвращать 404 для корневого пути, но это означает что сервис работает
-        response = requests.get(base_url, timeout=5)
-        is_available = response.status_code in [200, 404]  # 404 означает что сервис работает, но эндпоинт не найден
+        # Используем HEAD запрос для проверки доступности
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession() as session:
+                async with session.head(base_url, timeout=aiohttp.ClientTimeout(total=5)) as response:
+                    is_available = response.status in [200, 404]  # 404 означает что сервис работает, но эндпоинт не найден
+                    status_code = response.status
+        except Exception:
+            is_available = False
+            status_code = None
         
         # Обновляем кэш
         _pot_provider_cache['available'] = is_available
         _pot_provider_cache['last_check'] = current_time
         
         if is_available:
-            logger.info(f"PO token provider is available at {base_url} (status: {response.status_code})")
+            logger.info(f"PO token provider is available at {base_url} (status: {status_code})")
         else:
-            logger.warning(f"PO token provider returned status {response.status_code} at {base_url}")
+            logger.warning(f"PO token provider returned status {status_code} at {base_url}")
         
         return is_available
         
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
         logger.warning(f"PO token provider is not available at {base_url}: {e}")
         
         # Обновляем кэш
@@ -59,7 +68,7 @@ def check_pot_provider_availability(base_url: str) -> bool:
         
         return False
 
-def add_pot_to_ytdl_opts(ytdl_opts: dict, url: str) -> dict:
+async def add_pot_to_ytdl_opts(ytdl_opts: dict, url: str) -> dict:
     """
     Добавляет PO token аргументы к yt-dlp опциям для YouTube доменов
     
@@ -87,7 +96,7 @@ def add_pot_to_ytdl_opts(ytdl_opts: dict, url: str) -> dict:
     disable_innertube = getattr(Config, 'YOUTUBE_POT_DISABLE_INNERTUBE', False)
     
     # Проверяем доступность PO token провайдера
-    if not check_pot_provider_availability(base_url):
+    if not await check_pot_provider_availability(base_url):
         messages = safe_get_messages()
         logger.warning(messages.HELPER_POT_PROVIDER_NOT_AVAILABLE_MSG.format(base_url=base_url))
         return ytdl_opts

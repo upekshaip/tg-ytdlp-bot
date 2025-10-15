@@ -4,9 +4,9 @@ import threading
 import os
 from typing import Any, Dict, List, Optional
 
+import asyncio
+import aiohttp
 import requests
-from requests import Session
-from requests.adapters import HTTPAdapter
 import firebase_admin
 from firebase_admin import credentials, db as admin_db
 
@@ -151,7 +151,7 @@ class RestDBAdapter:
         path: str = "/",
         *,
         _shared: Optional[dict] = None,
-        _session: Optional[Session] = None,
+        _session: Optional[requests.Session] = None,
         _start_refresher: bool = True,
         _is_child: bool = False,
     ):
@@ -173,19 +173,12 @@ class RestDBAdapter:
 
         # Общая сессия между всеми child-экземплярами
         if _session is None:
-            sess = Session()
+            sess = requests.Session()
             sess.headers.update({
                 'User-Agent': 'tg-ytdlp-bot/1.0',
                 'Connection': 'close'  # минимизируем удержание соединений
             })
-            adapter = HTTPAdapter(
-                pool_connections=3,
-                pool_maxsize=5,
-                max_retries=2,
-                pool_block=False,
-            )
-            sess.mount('http://', adapter)
-            sess.mount('https://', adapter)
+            # aiohttp не нужен HTTPAdapter
             self._session = sess
         else:
             self._session = _session
@@ -194,25 +187,28 @@ class RestDBAdapter:
         if _start_refresher and self._shared.get("refresh_token"):
             with self._shared["lock"]:
                 if not self._shared["refresher_started"]:
-                    thread = threading.Thread(target=self._token_refresher, daemon=True)
+                    def run_async():
+                        asyncio.run(self._token_refresher())
+                    thread = threading.Thread(target=run_async, daemon=True)
                     thread.start()
                     self._shared["refresher_started"] = True
 
-    def _token_refresher(self):
+    async def _token_refresher(self):
         messages = safe_get_messages(None)
         # Обновляем каждые ~50 минут
         while True:
-            time.sleep(3000)
+            await asyncio.sleep(3000)
             try:
                 url = f"https://securetoken.googleapis.com/v1/token?key={self._api_key}"
                 with self._shared["lock"]:
                     refresh_token = self._shared.get("refresh_token")
-                resp = self._session.post(url, data={
-                    "grant_type": "refresh_token",
-                    "refresh_token": refresh_token,
-                }, timeout=30)
-                resp.raise_for_status()
-                data = resp.json()
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, data={
+                        "grant_type": "refresh_token",
+                        "refresh_token": refresh_token,
+                    }, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                        resp.raise_for_status()
+                        data = await resp.json()
                 with self._shared["lock"]:
                     self._shared["id_token"] = data.get("id_token", self._shared.get("id_token"))
                     self._shared["refresh_token"] = data.get("refresh_token", self._shared.get("refresh_token"))
@@ -309,20 +305,11 @@ else:
     if not api_key:
         raise RuntimeError("FIREBASE_CONF.apiKey отсутствует — нужен для REST аутентификации")
     # Sign in via REST using session
-    auth_session = Session()
+    auth_session = requests.Session()
     auth_session.headers.update({
         'User-Agent': 'tg-ytdlp-bot/1.0',
         'Connection': 'keep-alive'
     })
-    # Configure connection pool for auth session
-    auth_adapter = HTTPAdapter(
-        pool_connections=5,   # Number of connection pools to cache
-        pool_maxsize=10,      # Maximum number of connections in each pool
-        max_retries=3,        # Number of retries for failed requests
-        pool_block=False      # Don't block when pool is full
-    )
-    auth_session.mount('http://', auth_adapter)
-    auth_session.mount('https://', auth_adapter)
     try:
         auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
         resp = auth_session.post(auth_url, json={
@@ -349,7 +336,7 @@ def db_child_by_path(db_adapter: FirebaseDBAdapter, path: str) -> FirebaseDBAdap
 
 
 # Cheking Users are in Main User Directory in DB
-def check_user(message):
+async def check_user(message):
     user_id_str = str(message.chat.id)
 
     # Create The User Folder Inside The "Users" Directory
@@ -374,12 +361,12 @@ def check_user(message):
 
 
 # Checking user is Blocked or not
-def is_user_blocked(message):
+async def is_user_blocked(message):
     messages = safe_get_messages(message.chat.id)
     blocked = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("blocked_users").get().each()
     blocked_users = [int(b_user.key()) for b_user in blocked] if blocked else []
     if int(message.chat.id) in blocked_users:
-        send_to_all(message, safe_get_messages().DB_USER_BANNED_MSG)
+        await send_to_all(message, safe_get_messages().DB_USER_BANNED_MSG)
         return True
     else:
         return False

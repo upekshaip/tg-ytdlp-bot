@@ -4,6 +4,7 @@ import threading
 import time
 import os
 import re
+import asyncio
 from CONFIG.config import Config
 from CONFIG.messages import Messages, safe_get_messages
 from HELPERS.app_instance import get_app
@@ -25,6 +26,244 @@ download_start_times_lock = threading.Lock()
 
 # Get app instance for decorators
 app = get_app()
+
+# Class for managing hourglass animations with proper cleanup
+class HourglassManager:
+    def __init__(self, user_id, hourglass_msg_id):
+        self.user_id = user_id
+        self.hourglass_msg_id = hourglass_msg_id
+        self.stop_event = threading.Event()
+        self.thread = None
+        self.messages = safe_get_messages(user_id)
+
+    def start(self):
+        """Start the hourglass animation"""
+        if self.thread and self.thread.is_alive():
+            return
+        self.stop_event.clear()
+        self.thread = threading.Thread(target=self._animate, daemon=True)
+        self.thread.start()
+
+    def stop(self, timeout=2.0):
+        """Stop the hourglass animation and wait for thread to finish"""
+        self.stop_event.set()
+        if self.thread:
+            self.thread.join(timeout=timeout)
+
+# Асинхронная версия для лучшей производительности
+class AsyncHourglassManager:
+    def __init__(self, user_id, hourglass_msg_id):
+        self.user_id = user_id
+        self.hourglass_msg_id = hourglass_msg_id
+        self.stop_event = asyncio.Event()
+        self.task = None
+        self.messages = safe_get_messages(user_id)
+
+    async def start(self):
+        """Start the hourglass animation asynchronously"""
+        if self.task and not self.task.done():
+            return
+        self.stop_event.clear()
+        self.task = asyncio.create_task(self._animate_async())
+
+    async def stop(self):
+        """Stop the hourglass animation"""
+        self.stop_event.set()
+        if self.task and not self.task.done():
+            self.task.cancel()
+            try:
+                await self.task
+            except asyncio.CancelledError:
+                pass
+
+    async def _animate_async(self):
+        """Internal async animation method"""
+        counter = 0
+        emojis = self.messages.DOWNLOAD_STATUS_HOURGLASS_EMOJIS
+        active = True
+        start_time = time.time()
+        last_update = 0
+
+        while active and not self.stop_event.is_set():
+            try:
+                current_time = time.time()
+                elapsed = current_time - start_time
+                minutes_passed = int(elapsed // 60)
+                
+                # Adaptive animation interval (linear slow-down every 5 minutes)
+                if minutes_passed and minutes_passed >= 60:
+                    interval = 90.0  # After 1 hour, update once per 90 seconds
+                else:
+                    # 0-4 min: 3s, 5-9: 4s, 10-14: 5s, ... up to 55-59: 14s
+                    interval = 3.0 + max(0, minutes_passed // 5)
+                
+                if current_time - last_update < interval:
+                    # Use asyncio.sleep() for non-blocking sleep
+                    try:
+                        await asyncio.wait_for(self.stop_event.wait(), timeout=1.0)
+                        break
+                    except asyncio.TimeoutError:
+                        continue
+                
+                emoji = emojis[counter % len(emojis)]
+                # Асинхронное обновление сообщения
+                await safe_edit_message_text(self.user_id, self.hourglass_msg_id, f"{emoji} {self.messages.DOWNLOAD_STATUS_PLEASE_WAIT_MSG}")
+                last_update = current_time
+                counter += 1
+                
+            except Exception as e:
+                logger.error(f"Hourglass animation error: {e}")
+                break
+
+    def _animate(self):
+        """Internal animation method"""
+        counter = 0
+        emojis = self.messages.DOWNLOAD_STATUS_HOURGLASS_EMOJIS
+        active = True
+        start_time = time.time()
+        last_update = 0
+
+        while active and not self.stop_event.is_set():
+            try:
+                current_time = time.time()
+                elapsed = current_time - start_time
+                minutes_passed = int(elapsed // 60)
+                
+                # Adaptive animation interval (linear slow-down every 5 minutes)
+                if minutes_passed and minutes_passed >= 60:
+                    interval = 90.0  # After 1 hour, update once per 90 seconds
+                else:
+                    # 0-4 min: 3s, 5-9: 4s, 10-14: 5s, ... up to 55-59: 14s
+                    interval = 3.0 + max(0, minutes_passed // 5)
+                
+                if current_time - last_update < interval:
+                    # Use Event.wait() instead of time.sleep() for interruptible sleep
+                    if self.stop_event.wait(1.0):
+                        break
+                    continue
+                
+                emoji = emojis[counter % len(emojis)]
+                # Attempt to edit message but don't keep trying if message is invalid
+                result = safe_edit_message_text(self.user_id, self.hourglass_msg_id, f"{emoji} {self.messages.DOWNLOAD_STATUS_PLEASE_WAIT_MSG}")
+
+                # If message edit returns None due to MESSAGE_ID_INVALID, stop animation
+                if result is None and counter > 0:  # Allow first attempt to fail
+                    active = False
+                    break
+
+                counter += 1
+                last_update = current_time
+                # Use Event.wait() instead of time.sleep() for interruptible sleep
+                if self.stop_event.wait(1.0):
+                    break
+            except Exception as e:
+                logger.error(f"Error in hourglass animation: {e}")
+                # Stop animation on error to prevent log spam
+                active = False
+                break
+
+        logger.debug(f"Hourglass animation stopped for message {self.hourglass_msg_id}")
+
+# Class for managing cycle progress animations with proper cleanup
+class CycleProgressManager:
+    def __init__(self, user_id, proc_msg_id, current_total_process, user_dir_name, progress_data=None):
+        self.user_id = user_id
+        self.proc_msg_id = proc_msg_id
+        self.current_total_process = current_total_process
+        self.user_dir_name = user_dir_name
+        self.progress_data = progress_data
+        self.stop_event = threading.Event()
+        self.thread = None
+        self.messages = safe_get_messages(user_id)
+
+    def start(self):
+        """Start the cycle progress animation"""
+        if self.thread and self.thread.is_alive():
+            return
+        self.stop_event.clear()
+        self.thread = threading.Thread(target=self._animate, daemon=True)
+        self.thread.start()
+
+    def stop(self, timeout=2.0):
+        """Stop the cycle progress animation and wait for thread to finish"""
+        self.stop_event.set()
+        if self.thread:
+            self.thread.join(timeout=timeout)
+            self.thread = None
+
+    def _animate(self):
+        """Internal animation method"""
+        counter = 0
+        active = True
+        start_time = time.time()
+        last_update = 0
+
+        while active and not self.stop_event.is_set():
+            try:
+                current_time = time.time()
+                elapsed = current_time - start_time
+                minutes_passed = int(elapsed // 60)
+                
+                # Adaptive update interval (linear; after 1h fixed 90s)
+                if minutes_passed and minutes_passed >= 60:
+                    interval = 90.0
+                else:
+                    interval = 3.0 + max(0, minutes_passed // 5)
+                
+                if current_time - last_update < interval:
+                    # Use Event.wait() instead of time.sleep() for interruptible sleep
+                    if self.stop_event.wait(1.0):
+                        break
+                    continue
+                
+                counter = (counter + 1) % 11
+                
+                # Check for fragment files
+                frag_files = []
+                try:
+                    frag_files = [f for f in os.listdir(self.user_dir_name) if 'Frag' in f]
+                except (FileNotFoundError, PermissionError) as e:
+                    logger.debug(f"Error checking fragment files: {e}")
+
+                if frag_files:
+                    last_frag = sorted(frag_files)[-1]
+                    m = re.search(r'Frag(\d+)', last_frag)
+                    frag_text = f"Frag{m.group(1)}" if m else "Frag?"
+                else:
+                    frag_text = self.messages.DOWNLOAD_STATUS_WAITING_FRAGMENTS_MSG
+
+                # Check if we have real progress data (percentages)
+                if self.progress_data and self.progress_data.get('downloaded_bytes') and self.progress_data.get('total_bytes'):
+                    downloaded = self.progress_data.get('downloaded_bytes', 0)
+                    total = self.progress_data.get('total_bytes', 0)
+                    percent = (downloaded / total * 100) if total else 0
+                    blocks = int(percent // 10)
+                    bar = "🟩" * blocks + "⬜️" * (10 - blocks)
+                    result = safe_edit_message_text(self.user_id, self.proc_msg_id,
+                        f"{self.current_total_process}\n{self.messages.DOWNLOAD_STATUS_DOWNLOADING_HLS_MSG}\n{bar}   {percent:.1f}%")
+                else:
+                    # Fallback to fragment-based animation
+                    bar = "🟩" * counter + "⬜️" * (10 - counter)
+                    result = safe_edit_message_text(self.user_id, self.proc_msg_id,
+                        f"{self.current_total_process}\n{self.messages.DOWNLOAD_STATUS_DOWNLOADING_HLS_MSG} {frag_text}\n{bar}")
+
+                # If message was deleted (returns None), stop animation
+                if result is None and counter > 2:  # Allow first few attempts to fail
+                    active = False
+                    break
+
+                last_update = current_time
+                # Use Event.wait() instead of time.sleep() for interruptible sleep
+                if self.stop_event.wait(1.0):
+                    break
+
+            except Exception as e:
+                logger.warning(f"Cycle progress error: {e}")
+                # Stop animation on consistent errors to prevent log spam
+                active = False
+                break
+
+        logger.debug(f"Cycle progress animation stopped for message {self.proc_msg_id}")
 
 def set_download_start_time(user_id):
     """
@@ -124,7 +363,9 @@ def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
                     interval = 3.0 + max(0, minutes_passed // 5)
                 
                 if current_time - last_update < interval:
-                    time.sleep(1.0)
+                    # Use Event.wait() instead of time.sleep() for interruptible sleep
+                    if stop_anim.wait(1.0):
+                        break
                     continue
                 
                 emoji = emojis[counter % len(emojis)]
@@ -138,7 +379,9 @@ def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
 
                 counter += 1
                 last_update = current_time
-                time.sleep(1.0)  # Check more frequently for stop event
+                # Use Event.wait() instead of time.sleep() for interruptible sleep
+                if stop_anim.wait(1.0):
+                    break
             except Exception as e:
                 logger.error(f"Error in hourglass animation: {e}")
                 # Stop animation on error to prevent log spam
@@ -173,7 +416,7 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
         The animation thread
     """
 
-    def cycle_progress():
+    async def cycle_progress():
         messages = safe_get_messages(user_id)
         """Show progress animation for HLS downloads"""
         counter = 0
@@ -194,7 +437,9 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
                     interval = 3.0 + max(0, minutes_passed // 5)
                 
                 if current_time - last_update < interval:
-                    time.sleep(1.0)
+                    # Use Event.wait() instead of time.sleep() for interruptible sleep
+                    if cycle_stop.wait(1.0):
+                        break
                     continue
                 
                 counter = (counter + 1) % 11
@@ -220,12 +465,12 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
                     percent = (downloaded / total * 100) if total else 0
                     blocks = int(percent // 10)
                     bar = "🟩" * blocks + "⬜️" * (10 - blocks)
-                    result = safe_edit_message_text(user_id, proc_msg_id,
+                    result = await safe_edit_message_text(user_id, proc_msg_id,
                         f"{current_total_process}\n{messages.DOWNLOAD_STATUS_DOWNLOADING_HLS_MSG}\n{bar}   {percent:.1f}%")
                 else:
                     # Fallback to fragment-based animation
                     bar = "🟩" * counter + "⬜️" * (10 - counter)
-                    result = safe_edit_message_text(user_id, proc_msg_id,
+                    result = await safe_edit_message_text(user_id, proc_msg_id,
                         f"{current_total_process}\n{messages.DOWNLOAD_STATUS_DOWNLOADING_HLS_MSG} {frag_text}\n{bar}")
 
                 # If message was deleted (returns None), stop animation
@@ -234,7 +479,9 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
                     break
 
                 last_update = current_time
-                time.sleep(1.0)  # Check more frequently for stop event
+                # Use Event.wait() instead of time.sleep() for interruptible sleep
+                if cycle_stop.wait(1.0):
+                    break
 
             except Exception as e:
                 logger.warning(f"Cycle progress error: {e}")
@@ -244,11 +491,15 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
 
         logger.debug(f"Cycle progress animation stopped for message {proc_msg_id}")
 
-    cycle_thread = threading.Thread(target=cycle_progress, daemon=True)
+    def sync_cycle_progress():
+        import asyncio
+        asyncio.run(cycle_progress())
+    
+    cycle_thread = threading.Thread(target=sync_cycle_progress, daemon=True)
     cycle_thread.start()
     return cycle_thread
 
-def progress_bar(*args):
+async def progress_bar(*args):
     # It is expected that Pyrogram will cause Progress_BAR with five parameters:
     # Current, Total, Speed, ETA, File_SIZE, and then additionally your Progress_args (User_id, Msg_id, Status_text)
     if len(args) < 8:
@@ -266,7 +517,8 @@ def progress_bar(*args):
         blocks = int(percent // 10)
         bar = "🟩" * blocks + "⬜️" * (10 - blocks)
         text = f"{status_text}\n{bar}   {percent:.1f}%"
-        app.edit_message_text(user_id, msg_id, text)
+        # Use safe_edit_message_text instead of direct app.edit_message_text
+        await safe_edit_message_text(user_id, msg_id, text)
         _last_upload_update_ts[key] = now
     except Exception as e:
         logger.error(f"Error updating progress: {e}")

@@ -13,7 +13,7 @@ from CONFIG.messages import Messages, safe_get_messages
 def app_handler(func):
     """Decorator to automatically inject app instance"""
     @wraps(func)
-    def wrapper(*args, **kwargs):
+    async def wrapper(*args, **kwargs):
         # If first argument is not app, inject it
         if args and hasattr(args[0], 'send_message'):
             # First argument is already app
@@ -29,7 +29,7 @@ app = get_app()
 # eternal reply-keyboard and reliable work with files
 reply_keyboard_msg_ids = {}  # user_id: message_id
 
-def get_main_reply_keyboard(mode="2x3"):
+async def get_main_reply_keyboard(mode="2x3"):
     messages = safe_get_messages(None)
     """Function for permanent reply-keyboard"""
     from pyrogram.types import ReplyKeyboardMarkup
@@ -56,14 +56,14 @@ def get_main_reply_keyboard(mode="2x3"):
         one_time_keyboard=False
     )
 
-def send_reply_keyboard_always(user_id, mode="2x3"):
+async def send_reply_keyboard_always(user_id, mode="2x3"):
     """Send persistent reply keyboard to user"""
     global reply_keyboard_msg_ids
     try:
         msg_id = reply_keyboard_msg_ids.get(user_id)
         if msg_id:
             try:
-                app.edit_message_text(user_id, msg_id, "\u2063", reply_markup=get_main_reply_keyboard(mode))
+                await app.edit_message_text(user_id, msg_id, "\u2063", reply_markup=get_main_reply_keyboard(mode))
                 return
             except Exception as e:
                 # Log only if the error is not MESSAGE_ID_INVALID
@@ -72,14 +72,15 @@ def send_reply_keyboard_always(user_id, mode="2x3"):
                 # If it didn't work, we delete the id to avoid getting stuck
                 reply_keyboard_msg_ids.pop(user_id, None)
         # Always after failure or if there is no id - send a new one
-        msg = safe_send_message(user_id, "\u2063", reply_markup=get_main_reply_keyboard(mode))
+        from HELPERS.safe_messeger import safe_send_message_async
+        msg = await safe_send_message_async(user_id, "\u2063", reply_markup=get_main_reply_keyboard(mode))
         # If sending failed (e.g., FloodWait), don't try to access msg.id
         if not msg or not hasattr(msg, "id"):
             return
         # If there was another service msg_id (and it is not equal to the new one), we try to delete the old message
         if msg_id and msg_id != msg.id:
             try:
-                app.delete_messages(user_id, [msg_id])
+                await app.delete_messages(user_id, [msg_id])
             except Exception as e:
                 logger.warning(f"Failed to delete old reply keyboard message: {e}")
         reply_keyboard_msg_ids[user_id] = msg.id
@@ -91,8 +92,12 @@ def send_reply_keyboard_always(user_id, mode="2x3"):
 
 def reply_with_keyboard(func):
     """Wrapper for any custom action that adds reply keyboard"""
-    def wrapper(*args, **kwargs):
-        result = func(*args, **kwargs)
+    import asyncio
+    import functools
+    
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        result = await func(*args, **kwargs)
         # Determine user_id from arguments (Pyrogram message/chat)
         user_id = None
         if 'message' in kwargs:
@@ -132,7 +137,7 @@ def reply_with_keyboard(func):
                     is_keyboard_command = args[1].text == "/keyboard"
                 
                 if not is_keyboard_command:
-                    send_reply_keyboard_always(user_id, keyboard_mode)
+                    await send_reply_keyboard_always(user_id, keyboard_mode)
         
         return result
 

@@ -12,6 +12,10 @@ class Messages(object):
     TO_USE_MSG = "<i>To use this bot you need to subscribe to @tg_ytdlp Telegram channel.</i>\nAfter you join the channel, <b>resend your video link again and bot will download it for you</b> ❤️"
 
     ERROR1 = "Did not found a url link. Please enter a url with <b>https://</b> or <b>http://</b>"
+    
+    # Guard messages
+    GUARD_TIMEOUT_MSG = "⏰ Operation exceeded maximum execution time"
+    GUARD_ERROR_MSG = "❌ An error occurred while performing the operation"
 
     PLAYLIST_HELP_MSG = """
 <blockquote expandable>📋 <b>Playlists (yt-dlp)</b>

@@ -220,12 +220,12 @@ def _generate_paid_cover_image(video_path, existing_thumb=None):
 # Get app instance for decorators
 app = get_app()
 
-def _send_open_copy_to_nsfw_channel(file_path: str, caption: str, user_id: int, message_id: int, is_video: bool = False):
+async def _send_open_copy_to_nsfw_channel(file_path: str, caption: str, user_id: int, message_id: int, is_video: bool = False):
     messages = safe_get_messages(user_id)
     """Send open copy of media to NSFW channel for history"""
     try:
         # Use explicit NSFW channel to avoid any fallback to LOGS_ID
-        log_channel_nsfw = get_log_channel("video", nsfw=True)
+        log_channel_nsfw = await get_log_channel("video", nsfw=True)
         
         if is_video:
             # Send as video
@@ -767,7 +767,7 @@ def get_reply_message_id(message):
     else:
         return message.id
 
-def image_command(app, message):
+async def image_command(app, message):
     messages = safe_get_messages(message.chat.id)
     """Handle /img command for downloading images"""
     user_id = message.from_user.id
@@ -796,7 +796,7 @@ def image_command(app, message):
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(safe_get_messages(user_id).COMMAND_IMAGE_HELP_CLOSE_BUTTON_MSG, callback_data="img_help|close")]
         ])
-        safe_send_message(
+        await safe_send_message(
             chat_id,
             safe_get_messages(user_id).IMG_HELP_MSG + " /audio, /vid, /help, /playlist, /settings",
             reply_markup=keyboard,
@@ -804,7 +804,7 @@ def image_command(app, message):
             reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
             message=message
         )
-        send_to_logger(message, LoggerMsg.IMG_HELP_SHOWN)
+        await send_to_logger(message, LoggerMsg.IMG_HELP_SHOWN)
         return
     
     # Extract optional range and URL from command
@@ -847,7 +847,7 @@ def image_command(app, message):
         user_tags = []
         user_tags_text = ''
     # Normalize tags: remove duplicates while preserving order
-    def _dedupe_tags_text(tags_text: str) -> str:
+    async def _dedupe_tags_text(tags_text: str) -> str:
         try:
             seen = set()
             result = []
@@ -862,7 +862,7 @@ def image_command(app, message):
             return ' '.join(result)
         except Exception:
             return tags_text or ''
-    tags_text_norm = _dedupe_tags_text(user_tags_text)
+    tags_text_norm = await _dedupe_tags_text(user_tags_text)
     # Persist user tags
     try:
         if user_tags:
@@ -874,14 +874,14 @@ def image_command(app, message):
     
     # Basic URL validation
     if not url.startswith(('http://', 'https://')):
-        safe_send_message(
+        await safe_send_message(
             chat_id,
             safe_get_messages(user_id).INVALID_URL_MSG,
             parse_mode=enums.ParseMode.HTML,
             reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
             message=message
         )
-        log_error_to_channel(message, LoggerMsg.INVALID_URL_PROVIDED.format(url=url), url)
+        await log_error_to_channel(message, LoggerMsg.INVALID_URL_PROVIDED.format(url=url), url)
         return
     
     # Check if user is admin
@@ -917,7 +917,7 @@ def image_command(app, message):
                 end_range = start_range + max_img_files - 1
                 suggested_command_url_format = f"{url}*{start_range}*{end_range}"
                 
-                safe_send_message(
+                await safe_send_message(
                     chat_id,
                     safe_get_messages(user_id).IMG_RANGE_LIMIT_EXCEEDED_MSG.format(
                         range_count=range_count,
@@ -938,7 +938,7 @@ def image_command(app, message):
     
     # Send initial message
     logger.info(f"[IMG STATUS] About to send status message to chat_id={chat_id}, message_thread_id={message_thread_id}")
-    status_msg = safe_send_message(
+    status_msg = await safe_send_message(
         chat_id,
         safe_get_messages(user_id).CHECKING_CACHE_MSG.format(url=url),
         parse_mode=enums.ParseMode.HTML,
@@ -948,7 +948,7 @@ def image_command(app, message):
     logger.info(f"[IMG STATUS] Status message sent, ID={status_msg.id if status_msg else 'None'}")
     # Pin the status message for visibility
     try:
-        app.pin_chat_message(user_id, status_msg.id, disable_notification=True)
+        await app.pin_chat_message(user_id, status_msg.id, disable_notification=True)
     except Exception:
         pass
 
@@ -995,7 +995,7 @@ def image_command(app, message):
                     if thread_id:
                         kwargs['message_thread_id'] = thread_id
                     # For cached content, always use regular channel (no NSFW/PAID in cache)
-                    from_chat_id = get_log_channel("image")
+                    from_chat_id = await get_log_channel("image")
                     channel_type = "regular"
                     
                     logger.info(LoggerMsg.IMG_CACHE_REPOSTING_ALBUM_LOG_MSG.format(album_idx=album_idx, from_chat_id=from_chat_id, user_id=user_id, ids=ids))
@@ -1022,14 +1022,14 @@ def image_command(app, message):
                         # We have all requested content in cache
                         need_download = False
                         try:
-                            safe_edit_message_text(
+                            await safe_edit_message_text(
                                 user_id, status_msg.id,
                                 safe_get_messages(user_id).SENT_FROM_CACHE_MSG.format(count=cached_sent),
                                 parse_mode=enums.ParseMode.HTML,
                             )
                         except Exception:
                             pass
-                        send_to_logger(message, LoggerMsg.REPOSTED_CACHED_ALBUMS.format(count=cached_sent, url=url))
+                        await send_to_logger(message, LoggerMsg.REPOSTED_CACHED_ALBUMS.format(count=cached_sent, url=url))
                         return
                     else:
                         # We have partial content, need to download the rest
@@ -1042,7 +1042,7 @@ def image_command(app, message):
                         manual_range = (first_missing, last_missing)
                         logger.info(f"Continuing download from index {first_missing} to {last_missing} (cached: {cached_count}/{requested_count}, missing: {sorted(missing_indices)})")
                         try:
-                            safe_edit_message_text(
+                            await safe_edit_message_text(
                                 user_id, status_msg.id,
                                 safe_get_messages(user_id).CACHE_CONTINUING_DOWNLOAD_MSG.format(cached=cached_sent),
                                 parse_mode=enums.ParseMode.HTML,
@@ -1052,7 +1052,7 @@ def image_command(app, message):
                 else:
                     # Open-ended range, continue downloading
                     try:
-                        safe_edit_message_text(
+                        await safe_edit_message_text(
                             user_id, status_msg.id,
                             safe_get_messages(user_id).CACHE_CONTINUING_DOWNLOAD_MSG.format(cached=cached_sent),
                             parse_mode=enums.ParseMode.HTML,
@@ -1098,7 +1098,7 @@ def image_command(app, message):
                             manual_range = (start_from, None)
                             logger.info(f"No manual range specified, continuing from image {start_from} to end (cached: {total_cached_images} images)")
                 try:
-                    safe_edit_message_text(
+                    await safe_edit_message_text(
                         user_id, status_msg.id,
                         safe_get_messages(user_id).CACHE_CONTINUING_DOWNLOAD_MSG.format(cached=cached_sent),
                         parse_mode=enums.ParseMode.HTML,
@@ -1114,7 +1114,7 @@ def image_command(app, message):
     
     try:
         # Get image information first
-        image_info = get_image_info(url, user_id, use_proxy)
+        image_info = await get_image_info(url, user_id, use_proxy)
         # NSFW detection using domain and metadata
         try:
             info_title = (image_info or {}).get('title') if isinstance(image_info, dict) else None
@@ -1157,7 +1157,7 @@ def image_command(app, message):
                     logger.info(f"[IMG FALLBACK] No image_info and no detected_total, using fallback with max range: {fallback_limit}")
                     
                     # Update status message to show we're proceeding with fallback
-                    safe_edit_message_text(
+                    await safe_edit_message_text(
                         user_id, status_msg.id,
                         safe_get_messages(user_id).FALLBACK_ANALYZE_MEDIA_MSG.format(fallback_limit=fallback_limit),
                         parse_mode=enums.ParseMode.HTML
@@ -1188,7 +1188,7 @@ def image_command(app, message):
         
         # Update status message
         title = image_info.get('title', 'Unknown')
-        safe_edit_message_text(
+        await safe_edit_message_text(
             user_id, status_msg.id,
             safe_get_messages(user_id).DOWNLOADING_IMAGE_MSG +
             f"<b>{safe_get_messages(user_id).TITLE_LABEL_MSG}</b> {title}\n"
@@ -1231,7 +1231,7 @@ def image_command(app, message):
             if total_count is None or total_count <= 0:
                 # Try to get count via gallery-dl (already imported at top of file)
                 try:
-                    count_info = get_image_info(url, user_id, use_proxy)
+                    count_info = await get_image_info(url, user_id, use_proxy)
                     if count_info:
                         for key in ("count", "total", "num", "items", "files", "num_images", "images_count"):
                             if isinstance(count_info.get(key), int) and count_info.get(key) > 0:
@@ -1276,7 +1276,7 @@ def image_command(app, message):
                 logger.info(f"[IMG RANGE DEBUG] Could not determine media count, using fallback with max range: {total_limit}")
                 
                 # Update status message to show we're proceeding with fallback
-                safe_edit_message_text(
+                await safe_edit_message_text(
                     user_id, status_msg.id,
                     safe_get_messages(user_id).FALLBACK_DETERMINE_COUNT_MSG.format(total_limit=total_limit),
                     parse_mode=enums.ParseMode.HTML
@@ -1320,7 +1320,7 @@ def image_command(app, message):
                 # Add cancel button
                 keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data="img_range|cancel")])
                 
-                safe_edit_message_text(
+                await safe_edit_message_text(
                     user_id, status_msg.id,
                     f"{safe_get_messages(user_id).IMG_FOUND_MEDIA_ITEMS_MSG.format(count=total_count)}\n\n"
                     f"{safe_get_messages(user_id).IMG_SELECT_DOWNLOAD_RANGE_MSG}",
@@ -1400,7 +1400,7 @@ def image_command(app, message):
                 
                 suggested_command_url_format = f"{url}*{start_range}*{end_range}"
                 
-                safe_send_message(
+                await safe_send_message(
                     chat_id,
                     safe_get_messages(user_id).COMMAND_IMAGE_MEDIA_LIMIT_EXCEEDED_MSG.format(count=detected_total, max_count=max_img_files, start_range=start_range, end_range=end_range, url=url, suggested_command_url_format=f"/img {start_range}-{end_range} {url}") +
                     f"<code>{suggested_command_url_format}</code>",
@@ -1462,10 +1462,10 @@ def image_command(app, message):
         except Exception:
             pass
 
-        def update_status():
+        async def update_status():
             messages = safe_get_messages(user_id)
             try:
-                safe_edit_message_text(
+                await safe_edit_message_text(
                     user_id,
                     status_msg.id,
                     safe_get_messages(user_id).DOWNLOADING_MSG +
@@ -1508,7 +1508,7 @@ def image_command(app, message):
             
             # Update status message to show we're proceeding with manual range
             try:
-                safe_edit_message_text(
+                await safe_edit_message_text(
                     user_id, status_msg.id,
                     safe_get_messages(user_id).FALLBACK_SPECIFIED_RANGE_MSG.format(
                         start=manual_range[0], 
@@ -1527,7 +1527,7 @@ def image_command(app, message):
         max_inactivity_time = LimitsConfig.MAX_IMG_INACTIVITY_TIME
         
         # helper to run one range and wait for files to appear
-        def run_and_collect(next_end: int):
+        async def run_and_collect(next_end: int):
             messages = safe_get_messages(user_id)
             # For single item or when total is small, use range 1-1 to avoid API issues
             # Only use 1-1 when we're actually starting from 1 and it's a single item
@@ -1538,7 +1538,7 @@ def image_command(app, message):
                     return result
                 if not result:
                     logger.warning(LoggerMsg.IMG_CLI_DOWNLOAD_FAILED_LOG_MSG)
-                    result = download_image_range(url, "1-1", user_id, use_proxy, run_dir)
+                    result = await download_image_range(url, "1-1", user_id, use_proxy, run_dir)
                     if isinstance(result, str):  # 401 Unauthorized error message
                         return result
                     return result
@@ -1551,7 +1551,7 @@ def image_command(app, message):
                     return result
                 if not result:
                     logger.warning(LoggerMsg.IMG_CLI_RANGE_FAILED_LOG_MSG.format(range_expr=range_expr))
-                    result = download_image_range(url, range_expr, user_id, use_proxy, run_dir)
+                    result = await download_image_range(url, range_expr, user_id, use_proxy, run_dir)
                     if isinstance(result, str):  # 401 Unauthorized error message
                         return result
                     return result
@@ -1589,7 +1589,7 @@ def image_command(app, message):
                     
                     # Count files before download
                     files_before = len(seen_files)
-                    result = run_and_collect(next_end)
+                    result = await run_and_collect(next_end)
                     
                     # Debug: Log the result type and content
                     logger.info(f"[IMG DEBUG] run_and_collect result: type={type(result)}, value={result}")
@@ -1619,12 +1619,12 @@ def image_command(app, message):
                             error_msg = f"❌ <b>{error_type}</b>\n\n<b>URL:</b> <code>{url}</code>\n\n<b>Details:</b> {error_details}\n\nDownload stopped due to critical error."
                         
                         logger.info(f"[IMG DEBUG] Updating status message with error: {error_msg[:100]}...")
-                        safe_edit_message_text(
+                        await safe_edit_message_text(
                             status_msg.chat.id, status_msg.id,
                             error_msg,
                             parse_mode=enums.ParseMode.HTML
                         )
-                        log_error_to_channel(message, f"Fatal error in image download: {result}", url)
+                        await log_error_to_channel(message, f"Fatal error in image download: {result}", url)
                         return
                     
                     # Wait for download to complete before processing files
@@ -1741,7 +1741,7 @@ def image_command(app, message):
                         # Send status occasionally
                         now = time.time()
                         if now - last_status_update > 1.5:
-                            update_status()
+                            await update_status()
                             last_status_update = now
 
                         # If we have 10 media for album, send immediately (strict batching)
@@ -1833,7 +1833,7 @@ def image_command(app, message):
                                                 logger.info(f"{LoggerMsg.IMG_PAID_ATTEMPTING_ALBUM_LOG_MSG}")
                                                 logger.info(f"{LoggerMsg.IMG_PAID_ALBUM_DETAILS_LOG_MSG}")
                                                 
-                                                paid_msg = app.send_paid_media(
+                                                paid_msg = await app.send_paid_media(
                                                     user_id,
                                                     media=album_items,
                                                     star_count=LimitsConfig.NSFW_STAR_COST,
@@ -1859,7 +1859,7 @@ def image_command(app, message):
                                                 for i, paid_media in enumerate(album_items):
                                                     try:
                                                         # Use same reply_parameters for all to group them
-                                                        individual_msg = app.send_paid_media(
+                                                        individual_msg = await app.send_paid_media(
                                                             user_id,
                                                             media=[paid_media],
                                                             star_count=LimitsConfig.NSFW_STAR_COST,
@@ -1909,7 +1909,7 @@ def image_command(app, message):
                                                     ))
                                             
                                             # Send open copy as album to NSFW channel
-                                            log_channel_nsfw = get_log_channel("video", nsfw=True)
+                                            log_channel_nsfw = await get_log_channel("video", nsfw=True)
                                             if log_channel_nsfw:
                                                 open_sent = app.send_media_group(
                                                     chat_id=log_channel_nsfw,
@@ -1958,7 +1958,7 @@ def image_command(app, message):
                                                 logger.info(f"[IMG MAIN FALLBACK] Attempting album {album_start//max_album_size + 1} with {len(album_items)} items to user {user_id}")
                                                 logger.info(f"[IMG MAIN FALLBACK] Album details: star_count={LimitsConfig.NSFW_STAR_COST}, payload={Config.STAR_RECEIVER}")
                                                 
-                                                paid_msg = app.send_paid_media(
+                                                paid_msg = await app.send_paid_media(
                                                         user_id,
                                                     media=album_items,
                                                     star_count=LimitsConfig.NSFW_STAR_COST,
@@ -1984,7 +1984,7 @@ def image_command(app, message):
                                                 for i, paid_media in enumerate(album_items):
                                                     try:
                                                         # Use same reply_parameters for all to group them
-                                                        individual_msg = app.send_paid_media(
+                                                        individual_msg = await app.send_paid_media(
                                                         user_id,
                                                             media=[paid_media],
                                                             star_count=LimitsConfig.NSFW_STAR_COST,
@@ -2024,7 +2024,7 @@ def image_command(app, message):
                                                     ))
                                             
                                             # Send open copy as album to NSFW channel
-                                            log_channel_nsfw = get_log_channel("video", nsfw=True)
+                                            log_channel_nsfw = await get_log_channel("video", nsfw=True)
                                             open_sent = app.send_media_group(
                                                 chat_id=log_channel_nsfw,
                                                 media=open_media_group,
@@ -2131,7 +2131,7 @@ def image_command(app, message):
                                     
                                     elif nsfw_flag and not is_private_chat:
                                         # NSFW content in groups -> LOGS_NSFW_ID only - send as album
-                                        log_channel_nsfw = get_log_channel("video", nsfw=True)
+                                        log_channel_nsfw = await get_log_channel("video", nsfw=True)
                                         if log_channel_nsfw:
                                             try:
                                                 # Create media group for NSFW log channel with proper caption
@@ -2177,7 +2177,7 @@ def image_command(app, message):
                                         
                                     else:
                                         # Regular content -> LOGS_IMG_ID and cache - send as album
-                                        log_channel = get_log_channel("image", nsfw=False, paid=False)
+                                        log_channel = await get_log_channel("image", nsfw=False, paid=False)
                                         try:
                                             # Create media group for regular log channel
                                             regular_log_media_group = []
@@ -2254,7 +2254,7 @@ def image_command(app, message):
                                 except Exception as e_copy:
                                     logger.error(f"[IMG CACHE] Unexpected error while copying album to logs: {e_copy}")
                                 # Delete files immediately after sending (strict batching)
-                                def delete_file(path):
+                                async def delete_file(path):
                                     messages = safe_get_messages(user_id)
                                     try:
                                         if os.path.exists(path):
@@ -2267,7 +2267,7 @@ def image_command(app, message):
                                     delete_file(p)
                                     delete_file(orig)
                                 photos_videos_buffer = photos_videos_buffer[batch_size:]
-                                update_status()
+                                await update_status()
                                 # Delete generated special thumbs/covers
                                 try:
                                     for m in media_group:
@@ -2332,7 +2332,7 @@ def image_command(app, message):
                                                 logger.info(f"[IMG FALLBACK PAID] Attempting album {album_start//max_album_size + 1} with {len(album_items)} items to user {user_id}")
                                                 logger.info(f"[IMG FALLBACK PAID] Album details: star_count={LimitsConfig.NSFW_STAR_COST}, payload={Config.STAR_RECEIVER}")
                                                 
-                                                paid_msg = app.send_paid_media(
+                                                paid_msg = await app.send_paid_media(
                                                     user_id,
                                                     media=album_items,
                                                     star_count=LimitsConfig.NSFW_STAR_COST,
@@ -2358,7 +2358,7 @@ def image_command(app, message):
                                                 for i, paid_media in enumerate(album_items):
                                                     try:
                                                         # Use same reply_parameters for all to group them
-                                                        individual_msg = app.send_paid_media(
+                                                        individual_msg = await app.send_paid_media(
                                                             user_id,
                                                             media=[paid_media],
                                                             star_count=LimitsConfig.NSFW_STAR_COST,
@@ -2400,7 +2400,7 @@ def image_command(app, message):
                                                     ))
                                             
                                             # Send open copy as album to NSFW channel
-                                            log_channel_nsfw = get_log_channel("video", nsfw=True)
+                                            log_channel_nsfw = await get_log_channel("video", nsfw=True)
                                             open_sent = app.send_media_group(
                                                 chat_id=log_channel_nsfw,
                                                 media=open_media_group,
@@ -2453,7 +2453,7 @@ def image_command(app, message):
                                             logger.info(f"[IMG FALLBACK PAID] Attempting to send album with {len(paid_media_list)} items to user {user_id}")
                                             logger.info(f"[IMG FALLBACK PAID] Album details: star_count={LimitsConfig.NSFW_STAR_COST}, payload={Config.STAR_RECEIVER}")
                                             
-                                            paid_msg = app.send_paid_media(
+                                            paid_msg = await app.send_paid_media(
                                                 user_id,
                                                 media=paid_media_list,
                                                 star_count=LimitsConfig.NSFW_STAR_COST,
@@ -2481,7 +2481,7 @@ def image_command(app, message):
                                             for i, paid_media in enumerate(paid_media_list):
                                                 try:
                                                     # Use same reply_parameters for all to group them
-                                                    individual_msg = app.send_paid_media(
+                                                    individual_msg = await app.send_paid_media(
                                                         user_id,
                                                         media=[paid_media],
                                                         star_count=LimitsConfig.NSFW_STAR_COST,
@@ -2533,7 +2533,7 @@ def image_command(app, message):
                                                     ))
                                             
                                             # Send open copy as album to NSFW channel
-                                            log_channel_nsfw = get_log_channel("video", nsfw=True)
+                                            log_channel_nsfw = await get_log_channel("video", nsfw=True)
                                             if log_channel_nsfw:
                                                 open_sent = app.send_media_group(
                                                     chat_id=log_channel_nsfw,
@@ -2575,7 +2575,7 @@ def image_command(app, message):
                                                     except:
                                                         paid_media_list.append(InputPaidMediaVideo(media=p))
                                             
-                                            sent_msg = app.send_paid_media(
+                                            sent_msg = await app.send_paid_media(
                                                 user_id,
                                                 media=paid_media_list,
                                                 star_count=LimitsConfig.NSFW_STAR_COST,
@@ -2651,7 +2651,7 @@ def image_command(app, message):
                                                     time.sleep(2.0)
                                                     
                                                     # Send to LOGS_PAID_ID (for paid content) - forward the paid message
-                                                    log_channel_paid = get_log_channel("image", nsfw=False, paid=True)
+                                                    log_channel_paid = await get_log_channel("image", nsfw=False, paid=True)
                                                     try:
                                                         app.forward_messages(chat_id=log_channel_paid, from_chat_id=user_id, message_ids=[_mid])
                                                         time.sleep(0.05)
@@ -2659,7 +2659,7 @@ def image_command(app, message):
                                                         logger.error(f"[IMG LOG] forward_messages (fallback) failed for paid media id={_mid}: {fe}")
                                                     
                                                     # Send to LOGS_NSFW_ID (for history) - send open copy as album
-                                                    log_channel_nsfw = get_log_channel("image", nsfw=True, paid=False)
+                                                    log_channel_nsfw = await get_log_channel("image", nsfw=True, paid=False)
                                                     try:
                                                         # Create media group for NSFW log channel (open copy)
                                                         nsfw_log_media_group = []
@@ -2695,7 +2695,7 @@ def image_command(app, message):
                                                     
                                                 elif nsfw_flag and not is_private_chat:
                                                     # NSFW content in groups -> LOGS_NSFW_ID only - send as album
-                                                    log_channel = get_log_channel("image", nsfw=True, paid=False)
+                                                    log_channel = await get_log_channel("image", nsfw=True, paid=False)
                                                     try:
                                                         # Create media group for NSFW log channel
                                                         nsfw_media_group = []
@@ -2734,7 +2734,7 @@ def image_command(app, message):
                                                     
                                                 else:
                                                     # Regular content -> LOGS_IMG_ID and cache
-                                                    log_channel = get_log_channel("image", nsfw=False, paid=False)
+                                                    log_channel = await get_log_channel("image", nsfw=False, paid=False)
                                                     try:
                                                         # Create media group for regular log channel (open copy)
                                                         regular_log_media_group = []
@@ -2836,7 +2836,7 @@ def image_command(app, message):
                                         raise last_exc
                                 sent_message_ids.append(sent_msg.id)
                                 total_sent += 1
-                                update_status()
+                                await update_status()
                                 # Delete files immediately after sending (strict batching others)
                                 try:
                                     if os.path.exists(p):
@@ -2941,7 +2941,7 @@ def image_command(app, message):
                                     
                                     logger.info(f"[IMG TAIL PAID] Sending paid media album {album_start//max_album_size + 1} with {len(album_items)} items")
                                     try:
-                                        paid_msg = app.send_paid_media(
+                                        paid_msg = await app.send_paid_media(
                                             user_id,
                                             media=album_items,
                                             star_count=LimitsConfig.NSFW_STAR_COST,
@@ -2962,7 +2962,7 @@ def image_command(app, message):
                                         # Fallback: send individually as paid media
                                         for paid_media in album_items:
                                             try:
-                                                individual_msg = app.send_paid_media(
+                                                individual_msg = await app.send_paid_media(
                                                     user_id,
                                                     media=[paid_media],
                                                     star_count=LimitsConfig.NSFW_STAR_COST,
@@ -3009,7 +3009,7 @@ def image_command(app, message):
                                             ))
                                     
                                     # Send open copy as album to NSFW channel
-                                    log_channel_nsfw = get_log_channel("video", nsfw=True)
+                                    log_channel_nsfw = await get_log_channel("video", nsfw=True)
                                     if log_channel_nsfw:
                                         open_sent = app.send_media_group(
                                             chat_id=log_channel_nsfw,
@@ -3027,7 +3027,7 @@ def image_command(app, message):
                                 for m in media_group:
                                     try:
                                         if isinstance(m, InputMediaPhoto):
-                                            paid_msg = app.send_paid_media(
+                                            paid_msg = await app.send_paid_media(
                                                 user_id,
                                                 media=[InputPaidMediaPhoto(media=m.media)],
                                                 star_count=LimitsConfig.NSFW_STAR_COST,
@@ -3039,7 +3039,7 @@ def image_command(app, message):
                                             video_path = m.media if not hasattr(m.media, 'name') else m.media.name
                                             _cover = ensure_paid_cover_embedded(video_path, getattr(m, 'thumb', None))
                                             try:
-                                                paid_msg = app.send_paid_media(
+                                                paid_msg = await app.send_paid_media(
                                                     user_id,
                                                     media=[InputPaidMediaVideo(media=m.media, cover=_cover)],
                                                     star_count=LimitsConfig.NSFW_STAR_COST,
@@ -3047,7 +3047,7 @@ def image_command(app, message):
                                                     reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                 )
                                             except TypeError:
-                                                paid_msg = app.send_paid_media(
+                                                paid_msg = await app.send_paid_media(
                                                     user_id,
                                                     media=[InputPaidMediaVideo(media=m.media)],
                                                     star_count=LimitsConfig.NSFW_STAR_COST,
@@ -3121,7 +3121,7 @@ def image_command(app, message):
                                 time.sleep(2.0)
                                 
                                 # Send to LOGS_PAID_ID (for paid content) - forward the paid messages
-                                log_channel_paid = get_log_channel("image", nsfw=False, paid=True)
+                                log_channel_paid = await get_log_channel("image", nsfw=False, paid=True)
                                 try:
                                     for _mid in orig_ids2:
                                         app.forward_messages(chat_id=log_channel_paid, from_chat_id=user_id, message_ids=[_mid])
@@ -3130,7 +3130,7 @@ def image_command(app, message):
                                     logger.error(f"[IMG LOG] forward_messages (tail) failed for paid media: {fe}")
                                 
                                 # Send to LOGS_NSFW_ID (for history) - send open copy as album
-                                log_channel_nsfw = get_log_channel("image", nsfw=True, paid=False)
+                                log_channel_nsfw = await get_log_channel("image", nsfw=True, paid=False)
                                 try:
                                     # Create media group for NSFW log channel (open copy)
                                     nsfw_log_media_group = []
@@ -3166,7 +3166,7 @@ def image_command(app, message):
                                 
                             elif nsfw_flag and not is_private_chat:
                                 # NSFW content in groups -> LOGS_NSFW_ID only - send as album
-                                log_channel = get_log_channel("image", nsfw=True, paid=False)
+                                log_channel = await get_log_channel("image", nsfw=True, paid=False)
                                 try:
                                     # Create media group for NSFW log channel
                                     nsfw_media_group = []
@@ -3204,7 +3204,7 @@ def image_command(app, message):
                                 
                             else:
                                 # Regular content -> LOGS_IMG_ID and cache
-                                log_channel = get_log_channel("image", nsfw=False, paid=False)
+                                log_channel = await get_log_channel("image", nsfw=False, paid=False)
                                 try:
                                     # Create media group for regular log channel (open copy)
                                     regular_log_media_group = []
@@ -3297,7 +3297,7 @@ def image_command(app, message):
                                         while attempts < 5:
                                             try:
                                                 if nsfw_flag and is_private_chat:
-                                                    sent_msg = app.send_paid_media(
+                                                    sent_msg = await app.send_paid_media(
                                                         user_id,
                                                         media=[InputPaidMediaPhoto(media=f)],
                                                         star_count=LimitsConfig.NSFW_STAR_COST,
@@ -3339,7 +3339,7 @@ def image_command(app, message):
                                                         media_item = InputPaidMediaVideo(media=f, cover=_cover)
                                                     except TypeError:
                                                         media_item = InputPaidMediaVideo(media=f)
-                                                    sent_msg = app.send_paid_media(
+                                                    sent_msg = await app.send_paid_media(
                                                         user_id,
                                                         media=[media_item],
                                                         star_count=LimitsConfig.NSFW_STAR_COST,
@@ -3404,7 +3404,7 @@ def image_command(app, message):
                                     time.sleep(2.0)
                                     
                                     # Send to LOGS_PAID_ID (for paid content) - forward the paid messages
-                                    log_channel_paid = get_log_channel("image", nsfw=False, paid=True)
+                                    log_channel_paid = await get_log_channel("image", nsfw=False, paid=True)
                                     try:
                                         for _mid in tmp_ids2:
                                             app.forward_messages(chat_id=log_channel_paid, from_chat_id=user_id, message_ids=[_mid])
@@ -3413,7 +3413,7 @@ def image_command(app, message):
                                         logger.error(f"[IMG LOG] forward_messages (tail-fallback) failed for paid media: {fe}")
                                     
                                     # Send to LOGS_NSFW_ID (for history) - send open copy as album
-                                    log_channel_nsfw = get_log_channel("image", nsfw=True, paid=False)
+                                    log_channel_nsfw = await get_log_channel("image", nsfw=True, paid=False)
                                     try:
                                         # Create media group for NSFW log channel (open copy)
                                         nsfw_log_media_group = []
@@ -3449,7 +3449,7 @@ def image_command(app, message):
                                     
                                 elif nsfw_flag and not is_private_chat:
                                     # NSFW content in groups -> LOGS_NSFW_ID only - send as album
-                                    log_channel = get_log_channel("image", nsfw=True, paid=False)
+                                    log_channel = await get_log_channel("image", nsfw=True, paid=False)
                                     try:
                                         # Create media group for NSFW log channel
                                         nsfw_media_group = []
@@ -3487,7 +3487,7 @@ def image_command(app, message):
                                     
                                 else:
                                     # Regular content -> LOGS_IMG_ID and cache
-                                    log_channel = get_log_channel("image", nsfw=False, paid=False)
+                                    log_channel = await get_log_channel("image", nsfw=False, paid=False)
                                     try:
                                         # Create media group for regular log channel (open copy)
                                         regular_log_media_group = []
@@ -3569,7 +3569,7 @@ def image_command(app, message):
                 # Final update and replace header to 'Download complete'
                 final_expected = total_expected or min(total_downloaded, total_limit)
                 try:
-                    safe_edit_message_text(
+                    await safe_edit_message_text(
                         user_id,
                         status_msg.id,
                         safe_get_messages(user_id).DOWNLOAD_COMPLETE_MSG +
@@ -3606,7 +3606,7 @@ def image_command(app, message):
         # Update status to show completion
         try:
             final_expected = total_expected or min(total_downloaded, total_limit)
-            safe_edit_message_text(
+            await safe_edit_message_text(
                 user_id,
                 status_msg.id,
                 safe_get_messages(user_id).DOWNLOAD_COMPLETE_MSG +
@@ -3682,7 +3682,7 @@ def image_command(app, message):
                         for _mid in orig_ids:
                             try:
                                 if is_paid_media:
-                                    log_channel_paid = get_log_channel("image", nsfw=False, paid=True)
+                                    log_channel_paid = await get_log_channel("image", nsfw=False, paid=True)
                                     try:
                                         _sent = app.forward_messages(log_channel_paid, user_id, [_mid])
                                         f_ids.append(_sent.id if not isinstance(_sent, list) else _sent[0].id)
@@ -3692,7 +3692,7 @@ def image_command(app, message):
                                         f_ids.append(_mid)
                                         time.sleep(0.05)
                                 else:
-                                    log_channel = get_log_channel("image", nsfw=nsfw_flag, paid=False)
+                                    log_channel = await get_log_channel("image", nsfw=nsfw_flag, paid=False)
                                     try:
                                         _sent = app.forward_messages(log_channel, user_id, [_mid])
                                         f_ids.append(_sent.id if not isinstance(_sent, list) else _sent[0].id)
@@ -3791,7 +3791,7 @@ def image_command(app, message):
         from HELPERS.filesystem_hlp import remove_protection_file
         remove_protection_file(run_dir)
         
-        send_to_logger(message, LoggerMsg.STREAMED_AND_SENT_MEDIA.format(total_sent=total_sent, url=url))
+        await send_to_logger(message, LoggerMsg.STREAMED_AND_SENT_MEDIA.format(total_sent=total_sent, url=url))
             
     except Exception as e:
         logger.error(f"Error in image command: {e}")
@@ -3871,61 +3871,61 @@ def image_command(app, message):
         except Exception as cleanup_final_e:
             logger.warning(f"[IMG CLEANUP ERROR] Failed to perform final cleanup: {cleanup_final_e}")
         
-        safe_edit_message_text(
+        await safe_edit_message_text(
             user_id, status_msg.id,
             safe_get_messages(user_id).ERROR_OCCURRED_MSG.format(url=url, error=str(e)),
             parse_mode=enums.ParseMode.HTML
         )
         from HELPERS.logger import send_error_to_user
         send_error_to_user(message, safe_get_messages(user_id).ERROR_OCCURRED_MSG.format(url=url, error=str(e)))
-        log_error_to_channel(message, LoggerMsg.IMAGE_COMMAND_ERROR.format(url=url, error=e), url)
+        await log_error_to_channel(message, LoggerMsg.IMAGE_COMMAND_ERROR.format(url=url, error=e), url)
 
-@app.on_callback_query(filters.regex(r"^img_help\|"))
-def img_help_callback(app, callback_query: CallbackQuery):
+# @app.on_callback_query(filters.regex(r"^img_help\|"))
+async def img_help_callback(app, callback_query: CallbackQuery):
     messages = safe_get_messages(None)
     """Handle img help callback"""
     data = callback_query.data.split("|")[-1]
     
     if data == "close":
         try:
-            callback_query.message.delete()
+            await callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
         try:
-            callback_query.answer(safe_get_messages(user_id).IMG_HELP_CLOSED_MSG)
+            await callback_query.answer(safe_get_messages(user_id).IMG_HELP_CLOSED_MSG)
         except Exception:
             pass
         return
     
     try:
-        callback_query.answer()
+        await callback_query.answer()
     except Exception:
         pass
 
-@app.on_callback_query(filters.regex(r"^img_range\|"))
-def img_range_callback(app, callback_query: CallbackQuery):
+# @app.on_callback_query(filters.regex(r"^img_range\|"))
+async def img_range_callback(app, callback_query: CallbackQuery):
     messages = safe_get_messages(None)
     """Handle img range selection callback"""
     try:
         data_parts = callback_query.data.split("|")
         
         if len(data_parts) < 2:
-            callback_query.answer("❌ Data error")
+            await callback_query.answer("❌ Data error")
             return
         
         if data_parts[1] == "cancel":
             try:
-                callback_query.message.delete()
+                await callback_query.message.delete()
             except Exception:
                 callback_query.edit_message_reply_markup(reply_markup=None)
             try:
-                callback_query.answer("❌ Cancelled")
+                await callback_query.answer("❌ Cancelled")
             except Exception:
                 pass
             return
         
         if len(data_parts) < 4:
-            callback_query.answer("❌ Invalid data format")
+            await callback_query.answer("❌ Invalid data format")
             return
         
         start = int(data_parts[1])
@@ -3933,7 +3933,7 @@ def img_range_callback(app, callback_query: CallbackQuery):
         url = data_parts[3]
         
         # Answer callback
-        callback_query.answer(f"{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_IMAGES_MSG} {start}-{end}")
+        await callback_query.answer(f"{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_IMAGES_MSG} {start}-{end}")
         
         # Create new message with range command
         range_command = f"/img {start}-{end} {url}"
@@ -3957,6 +3957,6 @@ def img_range_callback(app, callback_query: CallbackQuery):
         
     except Exception as e:
         try:
-            callback_query.answer(f"{safe_get_messages(user_id).IMAGE_ERROR_MSG}")
+            await callback_query.answer(f"{safe_get_messages(user_id).IMAGE_ERROR_MSG}")
         except Exception:
             pass

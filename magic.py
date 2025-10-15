@@ -90,6 +90,8 @@ from HELPERS.logger import *
 from HELPERS.porn import *
 from HELPERS.qualifier import *
 from HELPERS.safe_messeger import *
+from HELPERS.guard import guarded
+from HELPERS.http_client import close_all_sessions
 
 ###########################################################
 #        APP INITIALIZATION
@@ -179,17 +181,17 @@ from COMMANDS import args_cmd
 from COMMANDS.list_cmd import list_command
 from COMMANDS.cookies_cmd import cookies_from_browser
 
-def _wrap_group(fn):
-    def _inner(app, message):
-        if not ensure_group_admin(app, message):
+async def _wrap_group(fn):
+    async def _inner(app, message):
+        if not await ensure_group_admin(app, message):
             return
-        return fn(app, message)
+        return await fn(app, message)
     return _inner
 
 # Register group equivalents where applicable
 _allowed_groups = tuple(getattr(Config, 'ALLOWED_GROUP', []))
 
-def _is_allowed_group(message):
+async def _is_allowed_group(message):
     messages = safe_get_messages(None)
     try:
         gid = int(getattr(message.chat, 'id', 0))
@@ -205,39 +207,127 @@ def _is_allowed_group(message):
         return False
 
 if _allowed_groups:
-    app.on_message(filters.group & filters.command("img"))(_wrap_group(lambda a, m: image_command(a, m) if _is_allowed_group(m) else None))
-    app.on_message(filters.group & filters.command("mediainfo"))(_wrap_group(lambda a, m: mediainfo_command(a, m) if _is_allowed_group(m) else None))
-    app.on_message(filters.group & filters.command("nsfw"))(_wrap_group(lambda a, m: nsfw_command(a, m) if _is_allowed_group(m) else None))
-    app.on_message(filters.group & filters.command("proxy"))(_wrap_group(lambda a, m: proxy_command(a, m) if _is_allowed_group(m) else None))
-    app.on_message(filters.group & filters.command("settings"))(_wrap_group(lambda a, m: settings_command(a, m) if _is_allowed_group(m) else None))
-    app.on_message(filters.group & filters.command("format"))(_wrap_group(lambda a, m: set_format(a, m) if _is_allowed_group(m) else None))
-    app.on_message(filters.group & filters.command("split"))(_wrap_group(lambda a, m: split_command(a, m) if _is_allowed_group(m) else None))
-    app.on_message(filters.group & filters.command("link"))(_wrap_group(lambda a, m: link_command_handler(a, m) if _is_allowed_group(m) else None))
-    app.on_message(filters.group & filters.command("tags"))(_wrap_group(lambda a, m: tags_command(a, m) if _is_allowed_group(m) else None))
-    app.on_message(filters.group & filters.command("audio"))(_wrap_group(lambda a, m: audio_command_handler(a, m) if _is_allowed_group(m) else None))
-    app.on_message(filters.group & filters.command("playlist"))(_wrap_group(lambda a, m: playlist_command(a, m) if _is_allowed_group(m) else None))
-    app.on_message(filters.group & filters.command("subs"))(_wrap_group(lambda a, m: subs_command(a, m) if _is_allowed_group(m) else None))
-    app.on_message(filters.group & filters.command("args"))(_wrap_group(lambda a, m: args_cmd.args_command(a, m) if _is_allowed_group(m) else None))
-    app.on_message(filters.group & filters.command("list"))(_wrap_group(lambda a, m: list_command(a, m) if _is_allowed_group(m) else None))
-    app.on_message(filters.group & filters.command("cookies_from_browser"))(_wrap_group(lambda a, m: cookies_from_browser(a, m) if _is_allowed_group(m) else None))
+    # Group command handlers
+    async def _group_img_handler(a, m):
+        if _is_allowed_group(m):
+            return await image_command(a, m)
+        return None
+    
+    async def _group_mediainfo_handler(a, m):
+        if _is_allowed_group(m):
+            return await mediainfo_command(a, m)
+        return None
+    
+    async def _group_nsfw_handler(a, m):
+        if _is_allowed_group(m):
+            return await nsfw_command(a, m)
+        return None
+    
+    async def _group_proxy_handler(a, m):
+        if _is_allowed_group(m):
+            return await proxy_command(a, m)
+        return None
+    
+    async def _group_settings_handler(a, m):
+        if _is_allowed_group(m):
+            return await settings_command(a, m)
+        return None
+    
+    async def _group_format_handler(a, m):
+        if _is_allowed_group(m):
+            return await set_format(a, m)
+        return None
+    
+    async def _group_split_handler(a, m):
+        if _is_allowed_group(m):
+            return await split_command(a, m)
+        return None
+    
+    async def _group_link_handler(a, m):
+        if _is_allowed_group(m):
+            return await link_command_handler(a, m)
+        return None
+    
+    async def _group_tags_handler(a, m):
+        if _is_allowed_group(m):
+            return await tags_command(a, m)
+        return None
+    
+    async def _group_audio_handler(a, m):
+        if _is_allowed_group(m):
+            return await audio_command_handler(a, m)
+        return None
+    
+    async def _group_playlist_handler(a, m):
+        if _is_allowed_group(m):
+            return await playlist_command(a, m)
+        return None
+    
+    async def _group_subs_handler(a, m):
+        if _is_allowed_group(m):
+            return await subs_command(a, m)
+        return None
+    
+    async def _group_args_handler(a, m):
+        if _is_allowed_group(m):
+            return await args_cmd.args_command(a, m)
+        return None
+    
+    async def _group_list_handler(a, m):
+        if _is_allowed_group(m):
+            return await list_command(a, m)
+        return None
+    
+    async def _group_cookies_handler(a, m):
+        if _is_allowed_group(m):
+            return await cookies_from_browser(a, m)
+        return None
+    
+    app.on_message(filters.group & filters.command("img"))(_wrap_group(_group_img_handler))
+    app.on_message(filters.group & filters.command("mediainfo"))(_wrap_group(_group_mediainfo_handler))
+    app.on_message(filters.group & filters.command("nsfw"))(_wrap_group(_group_nsfw_handler))
+    app.on_message(filters.group & filters.command("proxy"))(_wrap_group(_group_proxy_handler))
+    app.on_message(filters.group & filters.command("settings"))(_wrap_group(_group_settings_handler))
+    app.on_message(filters.group & filters.command("format"))(_wrap_group(_group_format_handler))
+    app.on_message(filters.group & filters.command("split"))(_wrap_group(_group_split_handler))
+    app.on_message(filters.group & filters.command("link"))(_wrap_group(_group_link_handler))
+    app.on_message(filters.group & filters.command("tags"))(_wrap_group(_group_tags_handler))
+    app.on_message(filters.group & filters.command("audio"))(_wrap_group(_group_audio_handler))
+    app.on_message(filters.group & filters.command("playlist"))(_wrap_group(_group_playlist_handler))
+    app.on_message(filters.group & filters.command("subs"))(_wrap_group(_group_subs_handler))
+    app.on_message(filters.group & filters.command("args"))(_wrap_group(_group_args_handler))
+    app.on_message(filters.group & filters.command("list"))(_wrap_group(_group_list_handler))
+    app.on_message(filters.group & filters.command("cookies_from_browser"))(_wrap_group(_group_cookies_handler))
 
     # Text/url handler in allowed groups (topic-aware)
     # Text/url handler in allowed groups (topic-aware) including mentions
-    def _guarded_text(a, m):
+    async def _guarded_text(a, m):
         if _is_allowed_group(m):
-            return url_distractor(a, m)
+            return await url_distractor(a, m)
         # If not allowed, do nothing (deny service silently)
         return None
     app.on_message(filters.group & filters.text)(_wrap_group(_guarded_text))
 
+# Text/url/emoji handler for private chats
+@app.on_message(filters.private & filters.text)
+async def _private_text_handler(app, message):
+    from HELPERS.logger import logger
+    logger.info(f"🎯 Private text handler: {message.text}")
+    await url_distractor(app, message)
+
     # Map basic commands to url_distractor to mimic private behavior
+    async def _group_basic_handler(a, m, cmd):
+        if _is_allowed_group(m):
+            return await url_distractor(a, m)
+        return None
+    
     for _cmd in ("start", "help", "keyboard", "clean", "search", "usage", "check_cookie", "save_as_cookie"):
-        app.on_message(filters.group & filters.command(_cmd))(_wrap_group(lambda a, m, __c=_cmd: url_distractor(a, m) if _is_allowed_group(m) else None))
+        app.on_message(filters.group & filters.command(_cmd))(_wrap_group(_group_basic_handler))
 
 ###########################################################
 #        /vid command (private and groups)
 ###########################################################
-def _vid_handler(app, message):
+async def _vid_handler(app, message):
     messages = safe_get_messages(message.chat.id)
     # Transform "/vid [url]" into plain URL text for url_distractor
     try:
@@ -261,7 +351,7 @@ def _vid_handler(app, message):
         if url:
             # Reuse original message for thread/reply context
             message.text = url
-            return url_distractor(app, message)
+            return await url_distractor(app, message)
         else:
             from HELPERS.safe_messeger import safe_send_message
             from pyrogram import enums
@@ -276,7 +366,7 @@ def _vid_handler(app, message):
                 messages.MAGIC_VID_HELP_EXAMPLE_3_MSG +
                 messages.MAGIC_VID_HELP_ALSO_SEE_MSG
             )
-            safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
+            await safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb)
     except Exception:
         from HELPERS.safe_messeger import safe_send_message
         from pyrogram import enums
@@ -291,28 +381,129 @@ def _vid_handler(app, message):
             messages.MAGIC_VID_HELP_EXAMPLE_3_MSG +
             messages.MAGIC_VID_HELP_ALSO_SEE_MSG
         )
-        safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
+        await safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb)
 
 # Register /vid in private and allowed groups
 app.on_message(filters.command("vid") & filters.private)(_vid_handler)
 if _allowed_groups:
-    app.on_message(filters.group & filters.command("vid"))(_wrap_group(lambda a, m: _vid_handler(a, m) if _is_allowed_group(m) else None))
+    async def _group_vid_handler(a, m):
+        if _is_allowed_group(m):
+            return await _vid_handler(a, m)
+        return None
+    
+    app.on_message(filters.group & filters.command("vid"))(_wrap_group(_group_vid_handler))
+
+# Register private command handlers
+@app.on_message(filters.command("start") & filters.private)
+async def _private_start_handler(app, message):
+    from HELPERS.logger import logger
+    logger.info(f"🎯 /start command received: {message.text}")
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("help") & filters.private)
+async def _private_help_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("settings") & filters.private)
+async def _private_settings_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("audio") & filters.private)
+async def _private_audio_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("format") & filters.private)
+async def _private_format_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("split") & filters.private)
+async def _private_split_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("subs") & filters.private)
+async def _private_subs_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("proxy") & filters.private)
+async def _private_proxy_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("tags") & filters.private)
+async def _private_tags_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("nsfw") & filters.private)
+async def _private_nsfw_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("keyboard") & filters.private)
+async def _private_keyboard_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("clean") & filters.private)
+async def _private_clean_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("img") & filters.private)
+async def _private_img_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("search") & filters.private)
+async def _private_search_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("list") & filters.private)
+async def _private_list_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("check_cookie") & filters.private)
+async def _private_check_cookie_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("save_as_cookie") & filters.private)
+async def _private_save_as_cookie_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("usage") & filters.private)
+async def _private_usage_handler(app, message):
+    await url_distractor(app, message)
+
+# Admin commands
+@app.on_message(filters.command("reload_cache") & filters.private)
+async def _private_reload_cache_handler(app, message):
+    from COMMANDS.admin_cmd import reload_firebase_cache_command
+    await reload_firebase_cache_command(app, message)
+
+@app.on_message(filters.command("update_porn") & filters.private)
+async def _private_update_porn_handler(app, message):
+    from COMMANDS.admin_cmd import update_porn_command
+    await update_porn_command(app, message)
+
+@app.on_message(filters.command("reload_porn") & filters.private)
+async def _private_reload_porn_handler(app, message):
+    from COMMANDS.admin_cmd import reload_porn_command
+    await reload_porn_command(app, message)
+
+@app.on_message(filters.command("check_porn") & filters.private)
+async def _private_check_porn_handler(app, message):
+    from COMMANDS.admin_cmd import check_porn_command
+    await check_porn_command(app, message)
 
 # Help close handler for /vid
 @app.on_callback_query(filters.regex(r"^vid_help\|"))
-def vid_help_callback(app, callback_query):
+async def vid_help_callback(app, callback_query):
     messages = safe_get_messages(None)
     data = callback_query.data.split("|")[1]
     if data == "close":
         try:
-            callback_query.message.delete()
+            await callback_query.message.delete()
         except Exception:
             try:
                 callback_query.edit_message_reply_markup(reply_markup=None)
             except Exception:
                 pass
         try:
-            callback_query.answer(messages.MAGIC_HELP_CLOSED_MSG)
+            await callback_query.answer(messages.MAGIC_HELP_CLOSED_MSG)
         except Exception:
             pass
         return
@@ -331,10 +522,23 @@ start_auto_cache_reloader()
 
 def cleanup_on_exit():
     messages = safe_get_messages(None)
-    """Cleanup function to close Firebase connections and logger on exit"""
+    """Cleanup function to close Firebase connections, HTTP sessions and logger on exit"""
     try:
         from DATABASE.cache_db import close_all_firebase_connections
         close_all_firebase_connections()
+        
+        # Close HTTP sessions
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If loop is running, schedule the cleanup
+                loop.create_task(close_all_sessions())
+            else:
+                # If loop is not running, run it
+                loop.run_until_complete(close_all_sessions())
+        except Exception as e:
+            print(f"Error closing HTTP sessions: {e}")
         
         # Close logger handlers
         try:
@@ -360,5 +564,103 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
+
+# Register search callback handler
+from COMMANDS.search import handle_search_callback
+app.on_callback_query(filters.regex(r"^search_msg\|"))(handle_search_callback)
+
+# Register cookies handlers
+from COMMANDS.cookies_cmd import cookies_from_browser, browser_choice_callback, save_my_cookie, download_cookie_callback, save_as_cookie_hint_callback
+app.on_message(filters.command("cookies_from_browser") & filters.private)(cookies_from_browser)
+app.on_callback_query(filters.regex(r"^browser_choice\|"))(browser_choice_callback)
+app.on_message(filters.document)(save_my_cookie)
+app.on_callback_query(filters.regex(r"^download_cookie\|"))(download_cookie_callback)
+app.on_callback_query(filters.regex(r"^save_as_cookie_hint\|"))(save_as_cookie_hint_callback)
+
+# Register lang handlers
+from COMMANDS.lang_cmd import lang_command, lang_callback_handler
+app.on_message(filters.command("lang") & filters.private)(lang_command)
+app.on_callback_query(filters.regex(r"^lang_select_"))(lang_callback_handler)
+app.on_callback_query(filters.regex(r"^lang_close"))(lang_callback_handler)
+
+# Register subtitles handlers
+from COMMANDS.subtitles_cmd import subs_command, subs_page_callback, subs_lang_callback, subs_auto_callback, subs_always_ask_callback, subs_lang_close_callback
+app.on_message(filters.command("subs") & filters.private)(subs_command)
+app.on_callback_query(filters.regex(r"^subs_page\|"))(subs_page_callback)
+app.on_callback_query(filters.regex(r"^subs_lang\|"))(subs_lang_callback)
+app.on_callback_query(filters.regex(r"^subs_auto\|"))(subs_auto_callback)
+app.on_callback_query(filters.regex(r"^subs_always_ask\|"))(subs_always_ask_callback)
+
+app.on_callback_query(filters.regex(r"^subs_lang_close\|"))(subs_lang_close_callback)
+
+# Register mediainfo handlers
+from COMMANDS.mediainfo_cmd import mediainfo_command, mediainfo_option_callback
+app.on_message(filters.command("mediainfo") & filters.private)(mediainfo_command)
+app.on_callback_query(filters.regex(r"^mediainfo_option\|"))(mediainfo_option_callback)
+
+# Register proxy handlers
+from COMMANDS.proxy_cmd import proxy_command, proxy_option_callback
+app.on_message(filters.command("proxy") & filters.private)(proxy_command)
+app.on_callback_query(filters.regex(r"^proxy_option\|"))(proxy_option_callback)
+
+# Register other handlers
+from COMMANDS.other_handlers import help_msg_callback, audio_command_handler, link_command_handler, proxy_command_handler, playlist_command, playlist_help_callback, userlogs_close_callback, audio_hint_callback
+app.on_callback_query(filters.regex(r"^help_msg\|"))(help_msg_callback)
+app.on_message(filters.command("audio") & filters.private)(audio_command_handler)
+app.on_message(filters.command("link") & filters.private)(link_command_handler)
+app.on_message(filters.command("proxy") & filters.private)(proxy_command_handler)
+app.on_message(filters.command("playlist") & filters.private)(playlist_command)
+app.on_callback_query(filters.regex(r"^playlist_help\|"))(playlist_help_callback)
+app.on_callback_query(filters.regex(r"^userlogs_close\|"))(userlogs_close_callback)
+app.on_callback_query(filters.regex(r"^audio_hint\|"))(audio_hint_callback)
+
+# Register format handlers
+from COMMANDS.format_cmd import set_format, format_option_callback, format_codec_callback, format_container_callback, format_custom_callback
+app.on_message(filters.command("format") & filters.private)(set_format)
+app.on_callback_query(filters.regex(r"^format_option\|"))(format_option_callback)
+app.on_callback_query(filters.regex(r"^format_codec\|"))(format_codec_callback)
+app.on_callback_query(filters.regex(r"^format_container\|"))(format_container_callback)
+app.on_callback_query(filters.regex(r"^format_custom\|"))(format_custom_callback)
+
+# Register split handlers
+from COMMANDS.split_sizer import split_command, split_size_callback
+app.on_message(filters.command("split") & filters.private)(split_command)
+app.on_callback_query(filters.regex(r"^split_size\|"))(split_size_callback)
+
+# Register tag handlers
+from COMMANDS.tag_cmd import tags_command, tags_close_callback
+app.on_message(filters.command("tags") & filters.private)(tags_command)
+app.on_callback_query(filters.regex(r"^tags_close\|"))(tags_close_callback)
+
+# Register settings handlers
+from COMMANDS.settings_cmd import settings_command, settings_menu_callback, settings_cmd_callback, hint_callback
+app.on_message(filters.command("settings") & filters.private)(settings_command)
+app.on_callback_query(filters.regex(r"^settings__menu__"))(settings_menu_callback)
+app.on_callback_query(filters.regex(r"^settings__cmd__"))(settings_cmd_callback)
+app.on_callback_query(filters.regex(r"^(img_hint|link_hint|search_hint|search_msg)\|"))(hint_callback)
+
+# Register nsfw handlers
+from COMMANDS.nsfw_cmd import nsfw_command, nsfw_option_callback
+app.on_message(filters.command("nsfw"))(nsfw_command)
+app.on_callback_query(filters.regex(r"^nsfw_option\|"))(nsfw_option_callback)
+
+# Register image handlers
+from COMMANDS.image_cmd import img_help_callback, img_range_callback
+app.on_callback_query(filters.regex(r"^img_help\|"))(img_help_callback)
+app.on_callback_query(filters.regex(r"^img_range\|"))(img_range_callback)
+
+# Register always ask handlers
+from DOWN_AND_UP.always_ask_menu import ask_filter_callback, askq_callback, fallback_gallery_dl_callback
+app.on_callback_query(filters.regex(r"^askf\|"))(ask_filter_callback)
+app.on_callback_query(filters.regex(r"^askq\|"))(askq_callback)
+app.on_callback_query(filters.regex(r"^fallback_gallery_dl\|"))(fallback_gallery_dl_callback)
+
+# Register url extractor handlers
+from URL_PARSERS.url_extractor import keyboard_callback_handler_wrapper, add_group_msg_callback, audio_hint_callback, link_hint_callback, lang_callback
+app.on_callback_query(filters.regex("^keyboard\\|"))(keyboard_callback_handler_wrapper)
+app.on_callback_query(filters.regex(r"^add_group_msg\|"))(add_group_msg_callback)
+app.on_callback_query(filters.regex(r"^audio_hint\|"))(audio_hint_callback)
+app.on_callback_query(filters.regex(r"^link_hint\|"))(link_hint_callback)
+app.on_callback_query(filters.regex(r"^lang_"))(lang_callback)
 
 app.run()

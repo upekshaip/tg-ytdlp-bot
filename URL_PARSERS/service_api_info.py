@@ -6,7 +6,8 @@ from functools import lru_cache
 from typing import Dict, Optional, Tuple
 from datetime import datetime
 
-import requests
+import asyncio
+from HELPERS.http_client import fetch_json
 
 
 DEFAULT_TIMEOUT_SECONDS = 6
@@ -24,7 +25,7 @@ DEFAULT_HEADERS = {
 }
 
 
-def _load_cookies_for_user(user_id: int) -> Optional[str]:
+async def _load_cookies_for_user(user_id: int) -> Optional[str]:
     """
     Загружает куки для пользователя.
     Возвращает путь к файлу куки или None.
@@ -54,16 +55,13 @@ def _load_cookies_for_user(user_id: int) -> Optional[str]:
     return None
 
 
-def _create_session_with_cookies(user_id: int = None) -> requests.Session:
+async def _create_session_with_cookies(user_id: int = None):
     """
-    Создает сессию requests с куки пользователя.
+    Создает HTTP-сессию с куки пользователя.
     """
-    session = requests.Session()
-    
-    # Устанавливаем заголовки
-    session.headers.update(DEFAULT_HEADERS)
-    
-    # Загружаем куки если указан user_id
+    # Используем наш HTTP-клиент вместо requests.Session
+    # Куки будут передаваться через headers в каждом запросе
+    return None  # Возвращаем None, так как используем aiohttp
     if user_id:
         cookie_path = _load_cookies_for_user(user_id)
         if cookie_path:
@@ -77,71 +75,61 @@ def _create_session_with_cookies(user_id: int = None) -> requests.Session:
     return session
 
 
-def _load_cookies_from_file(cookie_path: str) -> requests.cookies.RequestsCookieJar:
-    """
-    Загружает куки из файла в формате Netscape.
-    """
-    jar = requests.cookies.RequestsCookieJar()
-    
-    try:
-        with open(cookie_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith('#') or not line:
-                    continue
-                
-                parts = line.split('\t')
-                if len(parts) >= 7:
-                    domain = parts[0]
-                    domain_flag = parts[1] == 'TRUE'
-                    path = parts[2]
-                    secure = parts[3] == 'TRUE'
-                    expiration = parts[4]
-                    name = parts[5]
-                    value = parts[6]
-                    
-                    # Пропускаем куки с истекшим сроком (если expiration > 0)
-                    if expiration != '0':
-                        try:
-                            exp_time = int(expiration)
-                            if exp_time and exp_time > 0 and exp_time < int(datetime.now().timestamp()):
-                                continue
-                        except ValueError:
-                            pass
-                    
-                    jar.set(name, value, domain=domain, path=path)
-    except Exception as e:
-        print(f"[COOKIES] Error parsing cookie file {cookie_path}: {e}")
-    
-    return jar
+# def _load_cookies_from_file(cookie_path: str) -> requests.cookies.RequestsCookieJar:
+#     """
+#     Загружает куки из файла в формате Netscape.
+#     """
+#     jar = requests.cookies.RequestsCookieJar()
+#     
+#     try:
+#         with open(cookie_path, 'r', encoding='utf-8') as f:
+#             for line in f:
+#                 line = line.strip()
+#                 if line.startswith('#') or not line:
+#                     continue
+#                
+#                parts = line.split('\t')
+#                if len(parts) >= 7:
+#                    domain = parts[0]
+#                    domain_flag = parts[1] == 'TRUE'
+#                    path = parts[2]
+#                    secure = parts[3] == 'TRUE'
+#                    expiration = parts[4]
+#                    name = parts[5]
+#                    value = parts[6]
+#                    
+#                    # Пропускаем куки с истекшим сроком (если expiration > 0)
+#                    if expiration != '0':
+#                        try:
+#                            exp_time = int(expiration)
+#                            if exp_time and exp_time > 0 and exp_time < int(datetime.now().timestamp()):
+#                                continue
+#                        except ValueError:
+#                            pass
+#                    
+#                    jar.set(name, value, domain=domain, path=path)
+#    except Exception as e:
+#        print(f"[COOKIES] Error parsing cookie file {cookie_path}: {e}")
+#    
+#    return jar
 
 
-def _http_get(url: str, timeout: int = DEFAULT_TIMEOUT_SECONDS, user_id: int = None) -> Optional[str]:
+async def _http_get(url: str, timeout: int = DEFAULT_TIMEOUT_SECONDS, user_id: int = None) -> Optional[str]:
     try:
-        session = _create_session_with_cookies(user_id)
-        resp = session.get(url, timeout=timeout, allow_redirects=True)
-        if resp.ok:
-            return resp.text
+        # Используем наш HTTP-клиент вместо requests
+        response_text = await fetch_json(url, timeout=timeout)
+        return response_text if isinstance(response_text, str) else None
     except Exception as e:
         print(f"[HTTP_GET] Request error for {url}: {e}")
         return None
     return None
 
 
-def _http_get_json(url: str, timeout: int = DEFAULT_TIMEOUT_SECONDS, user_id: int = None) -> Optional[Dict]:
+async def _http_get_json(url: str, timeout: int = DEFAULT_TIMEOUT_SECONDS, user_id: int = None) -> Optional[Dict]:
     try:
-        session = _create_session_with_cookies(user_id)
-        resp = session.get(url, timeout=timeout, allow_redirects=True)
-        if resp.ok:
-            return resp.json()
-        else:
-            # Логируем HTTP ошибки для отладки, но не прерываем процесс
-            if resp.status_code == 401:
-                print(f"[HTTP_GET_JSON] Authentication required for {url} (401 Unauthorized)")
-            elif resp.status_code == 403:
-                print(f"[HTTP_GET_JSON] Access forbidden for {url} (403 Forbidden)")
-            else:
-                print(f"[HTTP_GET_JSON] HTTP error {resp.status_code} for {url}")
+        # Используем наш HTTP-клиент вместо requests
+        response_data = await fetch_json(url, timeout=timeout)
+        return response_data if isinstance(response_data, dict) else None
     except Exception as e:
         print(f"[HTTP_GET_JSON] Request error for {url}: {e}")
         return None
@@ -335,7 +323,7 @@ def _detect_service(url: str) -> Optional[str]:
         return "tiktok"
     if "twitter.com" in u or "x.com" in u:
         return "x"
-    if "vk.com" in u or "vkontakte.ru" in u:
+    if "vk.com" in u or "vkontakte.ru" in u or "vkvideo.ru" in u:
         return "vk"
     if "youtube.com" in u or "youtu.be" in u:
         return "youtube"

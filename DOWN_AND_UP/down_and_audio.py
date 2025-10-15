@@ -27,6 +27,8 @@ from HELPERS.pot_helper import add_pot_to_ytdl_opts
 from CONFIG.limits import LimitsConfig
 from HELPERS.fallback_helper import should_fallback_to_gallery_dl
 import subprocess
+import asyncio
+from HELPERS.guard import async_subprocess
 from PIL import Image
 import io
 from CONFIG.config import Config
@@ -44,7 +46,7 @@ from URL_PARSERS.tags import extract_url_range_tags
 # Get app instance for decorators
 app = get_app()
 
-def create_telegram_thumbnail(cover_path, output_path, size=320):
+async def create_telegram_thumbnail(cover_path, output_path, size=320):
     """Create a Telegram-compliant thumbnail from cover image using center crop (no black bars)."""
     try:
         logger.info(f"Creating Telegram thumbnail: {cover_path} -> {output_path}")
@@ -88,7 +90,7 @@ def create_telegram_thumbnail(cover_path, output_path, size=320):
         logger.error(f"Traceback: {traceback.format_exc()}")
         return False
 
-def embed_cover_mp3(mp3_path, cover_path, title=None, artist=None, album=None):
+async def embed_cover_mp3(mp3_path, cover_path, title=None, artist=None, album=None):
     """Embed cover into MP3 using ID3v2 APIC via ffmpeg."""
     try:
         logger.info(f"Starting cover embedding: MP3={mp3_path}, Cover={cover_path}")
@@ -105,9 +107,7 @@ def embed_cover_mp3(mp3_path, cover_path, title=None, artist=None, album=None):
         if cover_path.lower().endswith(('.webp', '.png')):
             jpeg_path = cover_path.rsplit('.', 1)[0] + '.jpg'
             logger.info(f"Converting cover to JPEG: {cover_path} -> {jpeg_path}")
-            result = subprocess.run([
-                "ffmpeg", "-y", "-i", cover_path, jpeg_path
-            ], check=True, capture_output=True, text=True)
+            await async_subprocess("ffmpeg", "-y", "-i", cover_path, jpeg_path, timeout=60)
             cover_path = jpeg_path
         
         out_path = mp3_path.rsplit('.', 1)[0] + '_tagged.mp3'
@@ -139,11 +139,11 @@ def embed_cover_mp3(mp3_path, cover_path, title=None, artist=None, album=None):
         logger.info(f"Running ffmpeg command: {' '.join(cmd)}")
         
         # Run ffmpeg command
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        stdout, stderr = await async_subprocess(*cmd, timeout=300)
         
-        logger.info(f"FFmpeg stdout: {result.stdout}")
-        if result.stderr:
-            logger.info(f"FFmpeg stderr: {result.stderr}")
+        logger.info(f"FFmpeg completed successfully")
+        if stderr:
+            logger.info(f"FFmpeg stderr: {stderr.decode('utf-8', errors='replace')}")
         
         # Replace original file with tagged version
         if os.path.exists(out_path):
@@ -165,7 +165,7 @@ def embed_cover_mp3(mp3_path, cover_path, title=None, artist=None, album=None):
         return False
 
 # @reply_with_keyboard
-def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None, video_count=1, video_start_with=1, format_override=None, cookies_already_checked=False, use_proxy=False):
+async def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None, video_count=1, video_start_with=1, format_override=None, cookies_already_checked=False, use_proxy=False):
     messages = safe_get_messages(message.chat.id)
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
@@ -236,25 +236,25 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     response += safe_get_messages(user_id).DOWN_UP_FAILED_STREAM_LINKS_MSG
                 
                 # Send response
-                app.send_message(
+                await app.send_message(
                     user_id, 
                     response, 
                     reply_parameters=ReplyParameters(message_id=message.id),
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                send_to_logger(message, safe_get_messages(user_id).DIRECT_LINK_EXTRACTED_DOWN_AUDIO_LOG_MSG.format(user_id=user_id, url=url))
+                await send_to_logger(message, safe_get_messages(user_id).DIRECT_LINK_EXTRACTED_DOWN_AUDIO_LOG_MSG.format(user_id=user_id, url=url))
                 
             else:
                 error_msg = result.get('error', 'Unknown error')
-                app.send_message(
+                await app.send_message(
                     user_id,
                     safe_get_messages(user_id).DOWN_UP_ERROR_GETTING_LINK_MSG.format(error_msg=error_msg),
                     reply_parameters=ReplyParameters(message_id=message.id),
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                log_error_to_channel(message, safe_get_messages(user_id).DIRECT_LINK_FAILED_DOWN_AUDIO_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
+                await log_error_to_channel(message, safe_get_messages(user_id).DIRECT_LINK_FAILED_DOWN_AUDIO_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
             
             return
     except Exception as e:
@@ -305,17 +305,17 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                             
                             # Get the correct log channel for reposting
                             if is_paid:
-                                from_chat_id = get_log_channel("video", paid=True)
+                                from_chat_id = await get_log_channel("video", paid=True)
                             elif is_nsfw:
-                                from_chat_id = get_log_channel("video", nsfw=True)
+                                from_chat_id = await get_log_channel("video", nsfw=True)
                             else:
-                                from_chat_id = get_log_channel("video")
+                                from_chat_id = await get_log_channel("video")
                             
                             # Verify we're reposting from a valid log channel
                             valid_channels = [
-                                get_log_channel("video"),
-                                get_log_channel("video", nsfw=True),
-                                get_log_channel("video", paid=True)
+                                await get_log_channel("video"),
+                                await get_log_channel("video", nsfw=True),
+                                await get_log_channel("video", paid=True)
                             ]
                             if from_chat_id not in valid_channels:
                                 logger.error(f"CRITICAL: Attempting to repost from wrong channel {from_chat_id}")
@@ -332,7 +332,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                                 thread_id = getattr(message, 'message_thread_id', None)
                                 if thread_id:
                                     forward_kwargs['message_thread_id'] = thread_id
-                            app.forward_messages(**forward_kwargs)
+                            await app.forward_messages(**forward_kwargs)
                         except Exception as e:
                             logger.error(f"down_and_audio: error reposting cached audio index={index}: {e}")
             else:
@@ -340,11 +340,11 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 logger.info(f"[AUDIO CACHE] send_as_file enabled for user {user_id}, skipping cache repost for playlist")
                 uncached_indices = requested_indices
             if len(uncached_indices) == 0:
-                app.send_message(user_id, safe_get_messages(user_id).PLAYLIST_CACHE_SENT_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
-                send_to_logger(message, LoggerMsg.PLAYLIST_AUDIO_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
+                await app.send_message(user_id, safe_get_messages(user_id).PLAYLIST_CACHE_SENT_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+                await send_to_logger(message, LoggerMsg.PLAYLIST_AUDIO_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
                 return
             else:
-                app.send_message(user_id, safe_get_messages(user_id).CACHE_PARTIAL_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+                await app.send_message(user_id, safe_get_messages(user_id).CACHE_PARTIAL_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
     elif quality_key and not is_playlist:
         # Check if Always Ask mode is enabled - if yes, skip cache completely
         if not is_subs_always_ask(user_id):
@@ -376,17 +376,17 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     
                     # Get the correct log channel for reposting
                     if is_paid:
-                        from_chat_id = get_log_channel("video", paid=True)
+                        from_chat_id = await get_log_channel("video", paid=True)
                     elif is_nsfw:
-                        from_chat_id = get_log_channel("video", nsfw=True)
+                        from_chat_id = await get_log_channel("video", nsfw=True)
                     else:
-                        from_chat_id = get_log_channel("video")
+                        from_chat_id = await get_log_channel("video")
                     
                     # Verify we're reposting from a valid log channel
                     valid_channels = [
-                        get_log_channel("video"),
-                        get_log_channel("video", nsfw=True),
-                        get_log_channel("video", paid=True)
+                        await get_log_channel("video"),
+                        await get_log_channel("video", nsfw=True),
+                        await get_log_channel("video", paid=True)
                     ]
                     if from_chat_id not in valid_channels:
                         logger.error(f"CRITICAL: Attempting to repost from wrong channel {from_chat_id}")
@@ -403,9 +403,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         thread_id = getattr(message, 'message_thread_id', None)
                         if thread_id:
                             forward_kwargs['message_thread_id'] = thread_id
-                    app.forward_messages(**forward_kwargs)
-                    app.send_message(user_id, safe_get_messages(user_id).AUDIO_SENT_FROM_CACHE_MSG, reply_parameters=ReplyParameters(message_id=message.id))
-                    send_to_logger(message, LoggerMsg.AUDIO_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
+                    await app.forward_messages(**forward_kwargs)
+                    await app.send_message(user_id, safe_get_messages(user_id).AUDIO_SENT_FROM_CACHE_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+                    await send_to_logger(message, LoggerMsg.AUDIO_SENT_FROM_CACHE.format(quality=quality_key, user_id=user_id))
                     return
                 except Exception as e:
                     logger.error(f"Error reposting audio from cache: {e}")
@@ -441,13 +441,13 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 minutes = (wait_time % 3600) // 60
                 seconds = wait_time % 60
                 time_str = f"{hours}h {minutes}m {seconds}s"
-                proc_msg = safe_send_message(user_id, safe_get_messages(user_id).RATE_LIMIT_WITH_TIME_MSG.format(time=time_str), message=message)
+                proc_msg = await safe_send_message(user_id, safe_get_messages(user_id).RATE_LIMIT_WITH_TIME_MSG.format(time=time_str), message=message)
         else:
-            proc_msg = safe_send_message(user_id, safe_get_messages(user_id).RATE_LIMIT_NO_TIME_MSG, message=message)
+            proc_msg = await safe_send_message(user_id, safe_get_messages(user_id).RATE_LIMIT_NO_TIME_MSG, message=message)
 
         # We are trying to replace with "Download started"
         try:
-            app.edit_message_text(
+            await app.edit_message_text(
                 chat_id=user_id,
                 message_id=proc_msg.id,
                 text=safe_get_messages(user_id).DOWNLOAD_STARTED_MSG,
@@ -472,15 +472,15 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             return
 
         # If there is no flood error, send a normal message (only once)
-        proc_msg = app.send_message(user_id, safe_get_messages(user_id).PROCESSING_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+        proc_msg = await app.send_message(user_id, safe_get_messages(user_id).PROCESSING_MSG, reply_parameters=ReplyParameters(message_id=message.id))
         # Pin proc/status message for visibility
         try:
-            app.pin_chat_message(user_id, proc_msg.id, disable_notification=True)
+            await app.pin_chat_message(user_id, proc_msg.id, disable_notification=True)
         except Exception:
             pass
         proc_msg_id = proc_msg.id
-        status_msg = safe_send_message(user_id, safe_get_messages(user_id).AUDIO_PROCESSING_MSG, message=message)
-        hourglass_msg = safe_send_message(user_id, safe_get_messages(user_id).WAITING_HOURGLASS_MSG, message=message)
+        status_msg = await safe_send_message(user_id, safe_get_messages(user_id).AUDIO_PROCESSING_MSG, message=message)
+        hourglass_msg = await safe_send_message(user_id, safe_get_messages(user_id).WAITING_HOURGLASS_MSG, message=message)
         try:
             from HELPERS.safe_messeger import schedule_delete_message
             if status_msg and hasattr(status_msg, 'id'):
@@ -498,7 +498,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         create_directory(user_folder)
 
         if not check_disk_space(user_folder, 500 * 1024 * 1024 * video_count):
-            send_to_user(message, safe_get_messages(user_id).ERROR_NO_DISK_SPACE_MSG)
+            await send_to_user(message, safe_get_messages(user_id).ERROR_NO_DISK_SPACE_MSG)
             return
 
         # Create user directory (subscription already checked in video_extractor)
@@ -584,22 +584,22 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             # Always check existing cookies first on user's URL for maximum speed
             if os.path.exists(user_cookie_path):
                 logger.info(f"Checking existing YouTube cookies on user's URL for user {user_id}")
-                if test_youtube_cookies_on_url(user_cookie_path, url):
+                if await test_youtube_cookies_on_url(user_cookie_path, url):
                     cookie_file = user_cookie_path
                     logger.info(f"Existing YouTube cookies work on user's URL for user {user_id} - using them")
                 else:
                     logger.info(f"Existing YouTube cookies failed on user's URL, trying to get new ones for user {user_id}")
-                    cookie_urls = get_youtube_cookie_urls()
+                    cookie_urls = await get_youtube_cookie_urls()
                     if cookie_urls:
                         success = False
                         for i, cookie_url in enumerate(cookie_urls, 1):
                             try:
                                 logger.info(f"Trying YouTube cookie source {i}/{len(cookie_urls)} for user {user_id}")
-                                ok, status, content, err = _download_content(cookie_url, timeout=30)
+                                ok, status, content, err = await _download_content(cookie_url, timeout=30)
                                 if ok and content and len(content) <= 100 * 1024:
                                     with open(user_cookie_path, "wb") as cf:
                                         cf.write(content)
-                                    if test_youtube_cookies_on_url(user_cookie_path, url):
+                                    if await test_youtube_cookies_on_url(user_cookie_path, url):
                                         cookie_file = user_cookie_path
                                         logger.info(f"YouTube cookies from source {i} work on user's URL for user {user_id} - saved to user folder")
                                         success = True
@@ -618,17 +618,17 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         logger.warning(f"No YouTube cookie sources configured for user {user_id}, will try without cookies")
             else:
                 logger.info(f"No YouTube cookies found for user {user_id}, attempting to get new ones")
-                cookie_urls = get_youtube_cookie_urls()
+                cookie_urls = await get_youtube_cookie_urls()
                 if cookie_urls:
                     success = False
                     for i, cookie_url in enumerate(cookie_urls, 1):
                         try:
                             logger.info(f"Trying YouTube cookie source {i}/{len(cookie_urls)} for user {user_id}")
-                            ok, status, content, err = _download_content(cookie_url, timeout=30)
+                            ok, status, content, err = await _download_content(cookie_url, timeout=30)
                             if ok and content and len(content) <= 100 * 1024:
                                 with open(user_cookie_path, "wb") as cf:
                                     cf.write(content)
-                                if test_youtube_cookies_on_url(user_cookie_path, url):
+                                if await test_youtube_cookies_on_url(user_cookie_path, url):
                                     cookie_file = user_cookie_path
                                     logger.info(f"YouTube cookies from source {i} work on user's URL for user {user_id} - saved to user folder")
                                     success = True
@@ -674,7 +674,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         # This will be updated later based on actual format detection
         is_hls = ("m3u8" in url.lower())
 
-        def progress_hook(d):
+        async def progress_hook(d):
             messages = safe_get_messages(message.chat.id)
             nonlocal last_update, is_hls
             # Check the timeout
@@ -708,21 +708,21 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     progress_hook.progress_data['total_bytes'] = total
                 
                 try:
-                    safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).AUDIO_DOWNLOADING_PROGRESS_MSG.format(process=current_total_process, bar=bar, percent=percent))
+                    await safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).AUDIO_DOWNLOADING_PROGRESS_MSG.format(process=current_total_process, bar=bar, percent=percent))
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "finished":
                 try:
                     full_bar = "🟩" * 10
-                    safe_edit_message_text(user_id, proc_msg_id,
+                    await safe_edit_message_text(user_id, proc_msg_id,
                         f"{current_total_process}\n{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_QUALITY_MSG} audio:\n{full_bar}   100.0%\n{safe_get_messages(user_id).AUDIO_DOWNLOAD_FINISHED_PROCESSING_MSG}")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "error":
                 try:
-                    safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).AUDIO_DOWNLOAD_ERROR_MSG)
+                    await safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).AUDIO_DOWNLOAD_ERROR_MSG)
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
@@ -730,7 +730,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         # One-time retry guards to avoid infinite retry loops across attempts
         # (already initialized at the beginning of the function)
 
-        def try_download_audio(url, current_index):
+        async def try_download_audio(url, current_index):
             messages = safe_get_messages(message.chat.id)
             nonlocal current_total_process, did_cookie_retry, did_proxy_retry, is_hls
             # Use format_override if provided, otherwise use default 'ba'
@@ -790,7 +790,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 ytdl_opts["concurrent_fragment_downloads"] = 1
             
             # Define sanitize_title_for_filename function
-            def sanitize_title_for_filename(title):
+            async def sanitize_title_for_filename(title):
                 messages = safe_get_messages(message.chat.id)
                 """Sanitize title for filename using strict sanitization"""
                 if not title:
@@ -858,10 +858,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             else:
                 # Add proxy configuration if needed for this domain
                 from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
-                ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url, user_id)   
+                ytdl_opts = await add_proxy_to_ytdl_opts(ytdl_opts, url, user_id)   
             
             # Add PO token provider for YouTube domains
-            ytdl_opts = add_pot_to_ytdl_opts(ytdl_opts, url)
+            ytdl_opts = await add_pot_to_ytdl_opts(ytdl_opts, url)
             
             # match_filter will be added later for domain filtering only
             
@@ -902,16 +902,16 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
                 try:
                     if is_hls:
-                        safe_edit_message_text(user_id, proc_msg_id,
+                        await safe_edit_message_text(user_id, proc_msg_id,
                             f"{current_total_process}\n<i>Detected HLS audio stream.\n{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_HLS_MSG}</i>")
                     else:
-                        safe_edit_message_text(user_id, proc_msg_id,
+                        await safe_edit_message_text(user_id, proc_msg_id,
                             f"{current_total_process}\n> <i>{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_AUDIO_FORMAT_USING_MSG} {download_format}...</i>")
                 except Exception as e:
                     logger.error(f"Status update error: {e}")
                 
                 # Try with proxy fallback if user proxy is enabled
-                def download_operation(opts):
+                async def download_operation(opts):
                     messages = safe_get_messages(user_id)
                     with yt_dlp.YoutubeDL(opts) as ydl:
                         if is_hls:
@@ -932,13 +932,13 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     return True
                 
                 from HELPERS.proxy_helper import try_with_proxy_fallback
-                result = try_with_proxy_fallback(ytdl_opts, url, user_id, download_operation)
+                result = await try_with_proxy_fallback(ytdl_opts, url, user_id, download_operation)
                 if result is None:
                     raise Exception("Failed to download audio with all available proxies")
                 
                 try:
                     full_bar = "🟩" * 10
-                    safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).AUDIO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
+                    await safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).AUDIO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
                 except Exception as e:
                     logger.error(f"Final progress update error: {e}")
                 
@@ -958,7 +958,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         "• You can see the final video length\n\n"
                         "Once the stream is completed, you'll be able to download it as a regular video."
                     )
-                    send_error_to_user(message, live_stream_message)
+                    await send_error_to_user(message, live_stream_message)
                     return "LIVE_STREAM"
                 
                 # Check for postprocessing errors
@@ -971,7 +971,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         "• Consider using a different audio source if available\n\n"
                         "The download will be retried automatically with a cleaned filename."
                     )
-                    send_error_to_user(message, postprocessing_message)
+                    await send_error_to_user(message, postprocessing_message)
                     logger.error(f"Postprocessing error: {error_text}")
                     return "POSTPROCESSING_ERROR"
                 
@@ -992,7 +992,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         logger.error(f"Failed to import gallery-dl fallback handlers: {imp_e}")
                     else:
                         try:
-                            safe_edit_message_text(user_id, proc_msg_id,
+                            await safe_edit_message_text(user_id, proc_msg_id,
                                 f"{current_total_process}\n🔄 yt-dlp failed, trying gallery-dl…")
                         except Exception:
                             pass
@@ -1065,7 +1065,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 
                 # Send full error message with instructions immediately (only once)
                 if not getattr(down_and_audio, '_error_message_sent', False):
-                    send_error_to_user(
+                    await send_error_to_user(
                         message,
                         "<blockquote>Check <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>here</a> if your site supported</blockquote>\n"
                         "<blockquote>You may need <code>cookie</code> for downloading this audio. First, clean your workspace via <b>/clean</b> command</blockquote>\n"
@@ -1081,19 +1081,19 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 # Check if this is a "No videos found in playlist" error
                 if "No videos found in playlist" in error_text or "Story might have expired" in error_text:
                     error_message = safe_get_messages(user_id).DOWN_UP_NO_CONTENT_FOUND_MSG.format(index=current_index + video_start_with)
-                    send_error_to_user(message, error_message)
+                    await send_error_to_user(message, error_message)
                     logger.info(f"Skipping item at index {current_index} (no content found)")
                     return "SKIP"
                 
                 # Check if this is a TikTok infinite loop error
                 if "TikTok API keeps sending the same page" in error_text and "infinite loop" in error_text:
                     error_message = safe_get_messages(user_id).AUDIO_TIKTOK_API_ERROR_SKIP_MSG.format(index=current_index + video_start_with)
-                    send_to_user(message, error_message)
+                    await send_to_user(message, error_message)
                     logger.info(f"Skipping TikTok audio at index {current_index} due to API error")
                     return "SKIP"  # Skip this audio and continue with next
                 
                 else:
-                    send_to_user(message, safe_get_messages(user_id).ERROR_UNKNOWN_MSG.format(error=str(e)))
+                    await send_to_user(message, safe_get_messages(user_id).ERROR_UNKNOWN_MSG.format(error=str(e)))
                 return None
 
         # Download thumbnail for embedding (only once for the URL)
@@ -1115,7 +1115,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     
                     if yt_id:
                         youtube_thumb_path = os.path.join(user_folder, f"yt_thumb_{yt_id}.jpg")
-                        download_thumbnail(yt_id, youtube_thumb_path, url)
+                        await download_thumbnail(yt_id, youtube_thumb_path, url)
                         if os.path.exists(youtube_thumb_path):
                             thumbnail_path = youtube_thumb_path
                             logger.info(f"Downloaded thumbnail to download directory: {youtube_thumb_path}")
@@ -1167,7 +1167,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 logger.info(f"Audio download failed for user {user_id}, attempting automatic cookie retry")
                 
                 # Try retry with different cookies
-                retry_result = retry_download_with_different_cookies(
+                retry_result = await retry_download_with_different_cookies(
                     user_id, url, try_download_audio, url, current_index
                 )
                 
@@ -1250,10 +1250,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         
                         # Add proxy configuration
                         from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
-                        ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url, user_id)
+                        ytdl_opts = await add_proxy_to_ytdl_opts(ytdl_opts, url, user_id)
                         
                         # Add PO token provider for YouTube domains
-                        ytdl_opts = add_pot_to_ytdl_opts(ytdl_opts, url)
+                        ytdl_opts = await add_pot_to_ytdl_opts(ytdl_opts, url)
                         
                         # Try download with safe filename
                         with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
@@ -1315,9 +1315,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         "• Try a different quality or format\n"
                         "• If the problem persists, the audio source may be corrupted"
                     )
-                    send_error_to_user(message, postprocessing_message)
+                    await send_error_to_user(message, postprocessing_message)
                 else:
-                    send_to_user(message, safe_get_messages(user_id).AUDIO_EXTRACTION_FAILED_MSG)
+                    await send_to_user(message, safe_get_messages(user_id).AUDIO_EXTRACTION_FAILED_MSG)
                 break
 
             # Get original title for fallback (if MP3 metadata reading fails)
@@ -1347,7 +1347,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             
             if not files:
                 logger.error(f"No audio files found in {user_folder}. Available files: {allfiles}")
-                send_error_to_user(message, safe_get_messages(user_id).AUDIO_UNSUPPORTED_FILE_TYPE_MSG.format(index=idx + video_start_with))
+                await send_error_to_user(message, safe_get_messages(user_id).AUDIO_UNSUPPORTED_FILE_TYPE_MSG.format(index=idx + video_start_with))
                 continue
 
             downloaded_file = files[0]
@@ -1356,7 +1356,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             # File is already sanitized by yt-dlp with our custom outtmpl
             audio_file = os.path.join(user_folder, downloaded_file)
             if not os.path.exists(audio_file):
-                send_to_user(message, safe_get_messages(user_id).AUDIO_FILE_NOT_FOUND_MSG)
+                await send_to_user(message, safe_get_messages(user_id).AUDIO_FILE_NOT_FOUND_MSG)
                 continue
 
             # Embed cover into MP3 file if thumbnail is available
@@ -1398,7 +1398,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     
                     logger.info(f"Metadata - Title: {title_for_metadata}, Artist: {artist}, Album: {album}")
                     
-                    success = embed_cover_mp3(audio_file, cover_path, title=title_for_metadata, artist=artist, album=album)
+                    success = await embed_cover_mp3(audio_file, cover_path, title=title_for_metadata, artist=artist, album=album)
                     if success:
                         logger.info(f"Successfully embedded cover in audio file: {audio_file}")
                     else:
@@ -1416,7 +1416,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
             try:
                 full_bar = "🟩" * 10
-                safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).AUDIO_UPLOADING_MSG.format(process=current_total_process, bar=full_bar))
+                await safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).AUDIO_UPLOADING_MSG.format(process=current_total_process, bar=full_bar))
             except Exception as e:
                 logger.error(f"Error updating upload status: {e}")
 
@@ -1471,7 +1471,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 telegram_thumb = None
                 if cover_path and os.path.exists(cover_path):
                     telegram_thumb_path = os.path.join(user_folder, f"telegram_thumb_{idx}.jpg")
-                    if create_telegram_thumbnail(cover_path, telegram_thumb_path):
+                    if await create_telegram_thumbnail(cover_path, telegram_thumb_path):
                         telegram_thumb = telegram_thumb_path
                         logger.info(f"Using Telegram thumbnail: {telegram_thumb}")
                     else:
@@ -1499,7 +1499,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                             thumb=telegram_thumb if telegram_thumb and os.path.exists(telegram_thumb) else None
                         )
                         
-                        audio_msg = app.send_paid_media(
+                        audio_msg = await app.send_paid_media(
                             chat_id=user_id,
                             media=[paid_audio],
                             star_count=LimitsConfig.NSFW_STAR_COST,
@@ -1574,16 +1574,16 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     # We need to send paid copy to LOGS_PAID_ID and open copy to LOGS_NSWF_ID for history
                     
                     # Send paid copy to LOGS_PAID_ID
-                    log_channel_paid = get_log_channel("video", paid=True)
+                    log_channel_paid = await get_log_channel("video", paid=True)
                     try:
                         # Forward the paid audio to LOGS_PAID_ID
-                        safe_forward_messages(log_channel_paid, user_id, [audio_msg.id])
+                        await safe_forward_messages(log_channel_paid, user_id, [audio_msg.id])
                         logger.info(f"down_and_audio: NSFW audio paid copy sent to PAID channel")
                     except Exception as e:
                         logger.error(f"down_and_audio: failed to send paid copy to PAID channel: {e}")
                     
                     # Send open copy to LOGS_NSWF_ID for history
-                    log_channel_nsfw = get_log_channel("video", nsfw=True)
+                    log_channel_nsfw = await get_log_channel("video", nsfw=True)
                     try:
                         # Create open copy for history (without stars)
                         open_audio_msg = app.send_audio(
@@ -1603,14 +1603,14 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     
                 elif is_nsfw:
                     # NSFW content in groups -> LOGS_NSWF_ID only
-                    log_channel = get_log_channel("video", nsfw=True)
+                    log_channel = await get_log_channel("video", nsfw=True)
                     forwarded_msg = safe_forward_messages(log_channel, user_id, [audio_msg.id])
                     # Don't cache NSFW content
                     logger.info(f"down_and_audio: NSFW audio sent to NSFW channel, not cached")
                     forwarded_msg = None
                 else:
                     # Regular content -> LOGS_VIDEO_ID and cache
-                    log_channel = get_log_channel("video")
+                    log_channel = await get_log_channel("video")
                     forwarded_msg = safe_forward_messages(log_channel, user_id, [audio_msg.id])
                 
                 # Save to cache after sending audio (only for non-NSFW content)
@@ -1637,7 +1637,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     logger.info(f"down_and_audio: skipping cache for NSFW content (url={url})")
             except Exception as send_error:
                 logger.error(f"Error sending audio: {send_error}")
-                send_to_user(message, safe_get_messages(user_id).AUDIO_SEND_FAILED_MSG.format(error=send_error))
+                await send_to_user(message, safe_get_messages(user_id).AUDIO_SEND_FAILED_MSG.format(error=send_error))
                 continue
 
             # Clean up the audio file after sending
@@ -1657,11 +1657,11 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             success_msg = f"{safe_get_messages(user_id).AUDIO_PARTIALLY_COMPLETED_MSG.format(successful_uploads=successful_uploads, total_files=len(indices_to_download))}\n{safe_get_messages(user_id).CREDITS_MSG}"
             
         try:
-            safe_edit_message_text(user_id, proc_msg_id, success_msg)
+            await safe_edit_message_text(user_id, proc_msg_id, success_msg)
         except Exception as e:
             logger.error(f"Error updating final status: {e}")
 
-        send_to_logger(message, success_msg)
+        await send_to_logger(message, success_msg)
         
         # Clean up download subdirectory after successful upload
         try:
@@ -1677,24 +1677,24 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
         if is_playlist and quality_key:
             total_sent = len(cached_videos) + successful_uploads
-            app.send_message(user_id, safe_get_messages(user_id).PLAYLIST_SENT_MSG.format(sent=total_sent, total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
-            send_to_logger(message, safe_get_messages(user_id).PLAYLIST_AUDIO_SENT_LOG_MSG.format(sent=total_sent, total=len(requested_indices), quality=quality_key, user_id=user_id))
+            await app.send_message(user_id, safe_get_messages(user_id).PLAYLIST_SENT_MSG.format(sent=total_sent, total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+            await send_to_logger(message, safe_get_messages(user_id).PLAYLIST_AUDIO_SENT_LOG_MSG.format(sent=total_sent, total=len(requested_indices), quality=quality_key, user_id=user_id))
 
     except Exception as e:
         if "Download timeout exceeded" in str(e):
-            send_to_user(message, safe_get_messages(user_id).DOWNLOAD_TIMEOUT_MSG)
-            log_error_to_channel(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG, url)
+            await send_to_user(message, safe_get_messages(user_id).DOWNLOAD_TIMEOUT_MSG)
+            await log_error_to_channel(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG, url)
         else:
             logger.error(f"Error in audio download: {e}")
-            send_to_user(message, safe_get_messages(user_id).AUDIO_DOWNLOAD_FAILED_MSG.format(error=str(e)))
+            await send_to_user(message, safe_get_messages(user_id).AUDIO_DOWNLOAD_FAILED_MSG.format(error=str(e)))
         # Immediate cleanup on error
         try:
             if status_msg_id:
-                safe_delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
+                await safe_delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
             if hourglass_msg_id:
-                safe_delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
+                await safe_delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
             if download_started_msg_id:
-                safe_delete_messages(chat_id=user_id, message_ids=[download_started_msg_id], revoke=True)
+                await safe_delete_messages(chat_id=user_id, message_ids=[download_started_msg_id], revoke=True)
             stop_anim.set()
         except Exception:
             pass
@@ -1706,9 +1706,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
         try:
             if status_msg_id:
-                safe_delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
+                await safe_delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
             if hourglass_msg_id:
-                safe_delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
+                await safe_delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
         except Exception as e:
             logger.error(f"Error deleting status messages: {e}")
 

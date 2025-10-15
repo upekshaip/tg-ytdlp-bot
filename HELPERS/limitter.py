@@ -66,7 +66,7 @@ def TimeFormatter(milliseconds: int) -> str:
 
 # Check the USAGE of the BOT
 
-def is_user_in_channel(app, message):
+async def is_user_in_channel(app, message):
     messages = safe_get_messages(message.chat.id)
     # Bypass subscription checks for explicitly allowed groups
     try:
@@ -76,7 +76,7 @@ def is_user_in_channel(app, message):
         pass
     try:
         logger.info(LoggerMsg.LIMITTER_CHANNEL_CHECK_MEMBERSHIP_LOG_MSG.format(user_id=message.chat.id, channel=Config.SUBSCRIBE_CHANNEL))
-        cht_member = app.get_chat_member(
+        cht_member = await app.get_chat_member(
             Config.SUBSCRIBE_CHANNEL, message.chat.id)
         logger.info(LoggerMsg.LIMITTER_CHANNEL_CHECK_STATUS_LOG_MSG.format(user_id=message.chat.id, status=cht_member.status))
         if cht_member.status == ChatMemberStatus.MEMBER or cht_member.status == ChatMemberStatus.OWNER or cht_member.status == ChatMemberStatus.ADMINISTRATOR:
@@ -84,6 +84,26 @@ def is_user_in_channel(app, message):
             return True
         else:
             logger.info(LoggerMsg.LIMITTER_CHANNEL_CHECK_NOT_MEMBER_LOG_MSG.format(user_id=message.chat.id))
+            # Send subscription message for non-members
+            text = f"{safe_get_messages(message.chat.id).TO_USE_MSG}\n \n{safe_get_messages(message.chat.id).CREDITS_MSG}"
+            
+            # Create keyboard with channel join button and language selection
+            channel_button = InlineKeyboardButton(
+                safe_get_messages(message.chat.id).CHANNEL_JOIN_BUTTON_MSG, url=Config.SUBSCRIBE_CHANNEL_URL)
+            language_keyboard = create_language_keyboard()
+            
+            # Combine channel button with language buttons
+            keyboard_buttons = [[channel_button]]
+            keyboard_buttons.extend(language_keyboard.inline_keyboard)
+            keyboard = InlineKeyboardMarkup(keyboard_buttons)
+            
+            # Use safe send to avoid FloodWait on texts
+            from HELPERS.safe_messeger import safe_send_message_async
+            await safe_send_message_async(
+                chat_id=message.chat.id,
+                text=text,
+                reply_markup=keyboard
+            )
             return False
 
     except Exception as e:
@@ -101,7 +121,8 @@ def is_user_in_channel(app, message):
         keyboard = InlineKeyboardMarkup(keyboard_buttons)
         
         # Use safe send to avoid FloodWait on texts
-        safe_send_message(
+        from HELPERS.safe_messeger import safe_send_message_async
+        await safe_send_message_async(
             chat_id=message.chat.id,
             text=text,
             reply_markup=keyboard
@@ -122,7 +143,8 @@ def is_user_in_channel(app, message):
     keyboard = InlineKeyboardMarkup(keyboard_buttons)
     
     # Use safe send to avoid FloodWait on texts
-    safe_send_message(
+    from HELPERS.safe_messeger import safe_send_message_async
+    await safe_send_message_async(
         chat_id=message.chat.id,
         text=text,
         reply_markup=keyboard
@@ -130,7 +152,7 @@ def is_user_in_channel(app, message):
     return False
 
 
-def check_user(message):
+async def check_user(message):
     messages = safe_get_messages(message.chat.id)
     """Check if user is in channel and create user directory"""
     user_id_str = str(message.chat.id)
@@ -146,11 +168,11 @@ def check_user(message):
         if app is None:
             logger.error(safe_get_messages(user_id).HELPER_APP_INSTANCE_NONE_MSG)
             return False
-        return is_user_in_channel(app, message)
+        return await is_user_in_channel(app, message)
     return True
 
 
-def ensure_group_admin(app, message):
+async def ensure_group_admin(app, message):
     messages = safe_get_messages(None)
     """
     For allowed groups, ensure the bot has admin rights. If not, ask to grant admin.
@@ -161,12 +183,12 @@ def ensure_group_admin(app, message):
         chat_id = int(getattr(chat, 'id', 0)) if chat else 0
         if chat_id in getattr(Config, 'ALLOWED_GROUP', []):
             try:
-                me = app.get_me()
-                member = app.get_chat_member(chat_id, me.id)
+                me = await app.get_me()
+                member = await app.get_chat_member(chat_id, me.id)
                 status = getattr(member, 'status', None)
                 if status not in (ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER):
                     # Ask to grant admin. Reply in the same topic/thread when possible
-                    safe_send_message(
+                    await safe_send_message(
                         chat_id,
                         safe_get_messages(user_id).HELPER_ADMIN_RIGHTS_REQUIRED_MSG,
                         message=message
@@ -174,7 +196,7 @@ def ensure_group_admin(app, message):
                     return False
             except Exception:
                 # If check failed for any reason, be safe and request admin
-                safe_send_message(
+                await safe_send_message(
                     chat_id,
                     safe_get_messages(user_id).HELPER_ADMIN_RIGHTS_REQUIRED_MSG,
                     message=message
@@ -230,7 +252,7 @@ def check_file_size_limit(info_dict, max_size_bytes=None, message=None):
     return size_bytes <= max_size_bytes
 
     
-def check_subs_limits(info_dict, quality_key=None):
+async def check_subs_limits(info_dict, quality_key=None):
     """
     Checks restrictions for embedding subtitles
     Returns True if subtitles can be built, false if limits are exceeded
@@ -289,7 +311,7 @@ def check_subs_limits(info_dict, quality_key=None):
         logger.error(LoggerMsg.LIMITTER_SUBTITLE_LIMITS_CHECK_ERROR_LOG_MSG.format(error=e))
         return False
 
-def check_playlist_range_limits(url, video_start_with, video_end_with, app, message):
+async def check_playlist_range_limits(url, video_start_with, video_end_with, app, message):
     """
     Checks the limits of the download range for playlists, Tiktok and Instagram.
     For single videos, True always returns.
@@ -335,7 +357,7 @@ def check_playlist_range_limits(url, video_start_with, video_end_with, app, mess
         suggested_command_vid_format = f"/vid {video_start_with}-{video_start_with + max_count - 1} {url}"
         suggested_command_audio_format = f"/audio {video_start_with}-{video_start_with + max_count - 1} {url}"
         
-        safe_send_message(
+        await safe_send_message(
             message.chat.id,
             safe_get_messages(user_id).HELPER_RANGE_LIMIT_EXCEEDED_MSG.format(service=service, count=count, max_count=max_count, suggested_command_url_format=suggested_command_url_format) +
             f"<code>{suggested_command_vid_format}</code>\n\n"
@@ -344,8 +366,8 @@ def check_playlist_range_limits(url, video_start_with, video_end_with, app, mess
             reply_to_message_id=message.id
         )
         # We send a notification to the log channel
-        safe_send_message(
-            get_log_channel("general"),
+        await safe_send_message(
+            await get_log_channel("general"),
             safe_get_messages(user_id).HELPER_RANGE_LIMIT_EXCEEDED_LOG_MSG.format(service=service, count=count, max_count=max_count, user_id=message.chat.id),
         )
         return False

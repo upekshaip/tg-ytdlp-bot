@@ -22,7 +22,7 @@ import hashlib
 app = get_app()
 
 # Called from url_distractor - no decorator needed
-def video_url_extractor(app, message):
+async def video_url_extractor(app, message):
     messages = safe_get_messages(message.chat.id)
     global active_downloads
     user_id = message.chat.id
@@ -51,11 +51,11 @@ def video_url_extractor(app, message):
         if tag_error:
             wrong, example = tag_error
             error_msg = safe_get_messages(user_id).TAG_FORBIDDEN_CHARS_MSG.format(tag=wrong, example=example)
-            app.send_message(user_id, error_msg, reply_parameters=ReplyParameters(message_id=message.id))
+            await app.send_message(user_id, error_msg, reply_parameters=ReplyParameters(message_id=message.id))
             from HELPERS.logger import log_error_to_channel
-            log_error_to_channel(message, error_msg)
+            await log_error_to_channel(message, error_msg)
             return
-        ask_quality_menu(app, message, url, tags, video_start_with)
+        await ask_quality_menu(app, message, url, tags, video_start_with)
         return
 
     # This code is executed only if the user has selected a specific format
@@ -65,7 +65,7 @@ def video_url_extractor(app, message):
             del playlist_errors[key]
             
     if get_active_download(user_id):
-        app.send_message(user_id, safe_get_messages(user_id).VIDEO_EXTRACTOR_WAIT_DOWNLOAD_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+        await app.send_message(user_id, safe_get_messages(user_id).VIDEO_EXTRACTOR_WAIT_DOWNLOAD_MSG, reply_parameters=ReplyParameters(message_id=message.id))
         return
         
     full_string = message.text
@@ -74,21 +74,21 @@ def video_url_extractor(app, message):
     if tag_error:
         wrong, example = tag_error
         error_msg = safe_get_messages(user_id).TAG_FORBIDDEN_CHARS_MSG.format(tag=wrong, example=example)
-        app.send_message(user_id, error_msg, reply_parameters=ReplyParameters(message_id=message.id))
+        await app.send_message(user_id, error_msg, reply_parameters=ReplyParameters(message_id=message.id))
         from HELPERS.logger import log_error_to_channel
-        log_error_to_channel(message, error_msg)
+        await log_error_to_channel(message, error_msg)
         return
     
     # Checking the range limit
-    if not check_playlist_range_limits(url, video_start_with, video_end_with, app, message):
+    if not await check_playlist_range_limits(url, video_start_with, video_end_with, app, message):
         return
     
     if url:
         users_first_name = message.chat.first_name
-        send_to_logger(message, safe_get_messages(user_id).URL_PARSER_USER_ENTERED_URL_LOG_MSG.format(user_name=users_first_name, url=full_string))
+        await send_to_logger(message, safe_get_messages(user_id).URL_PARSER_USER_ENTERED_URL_LOG_MSG.format(user_name=users_first_name, url=full_string))
         for j in range(len(Config.BLACK_LIST)):
             if Config.BLACK_LIST[j] in full_string:
-                send_error_to_user(message, safe_get_messages(user_id).PORN_CONTENT_CANNOT_DOWNLOAD_MSG)
+                await send_error_to_user(message, safe_get_messages(user_id).PORN_CONTENT_CANNOT_DOWNLOAD_MSG)
                 return
         # --- TikTok: auto-tag profile and no title ---
         is_tiktok = is_tiktok_url(url)
@@ -156,8 +156,8 @@ def video_url_extractor(app, message):
         
         # --- Pass title='' for TikTok, otherwise as usual ---
         if is_tiktok:
-            down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full, force_no_title=True, format_override=saved_format, quality_key=quality_key)
+            await down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full, force_no_title=True, format_override=saved_format, quality_key=quality_key)
         else:
-            down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full, format_override=saved_format, quality_key=quality_key)
+            await down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full, format_override=saved_format, quality_key=quality_key)
     else:
-        send_error_to_user(message, safe_get_messages(user_id).URL_PARSER_USER_ENTERED_INVALID_MSG.format(input=full_string, error_msg=safe_get_messages(user_id).ERROR1))
+        await send_error_to_user(message, safe_get_messages(user_id).URL_PARSER_USER_ENTERED_INVALID_MSG.format(input=full_string, error_msg=safe_get_messages(user_id).ERROR1))

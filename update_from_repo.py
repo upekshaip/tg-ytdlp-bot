@@ -10,6 +10,8 @@ import shutil
 import tempfile
 from CONFIG.messages import Messages, safe_get_messages
 import subprocess
+import asyncio
+from HELPERS.guard import async_subprocess
 from pathlib import Path
 from datetime import datetime
 
@@ -75,7 +77,7 @@ def should_update_file(file_path):
     
     return False
 
-def backup_file(file_path):
+async def backup_file(file_path):
     """Create a backup copy of a file"""
     try:
         if os.path.exists(file_path):
@@ -89,7 +91,7 @@ def backup_file(file_path):
         log(f"Error creating backup for {file_path}: {e}", "ERROR")
     return None
 
-def clone_repository(temp_dir):
+async def clone_repository(temp_dir):
     messages = safe_get_messages(None)
     """Clone the repository into the temporary folder"""
     try:
@@ -105,9 +107,9 @@ def clone_repository(temp_dir):
             temp_dir
         ]
         
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        stdout, stderr = await async_subprocess(*cmd, timeout=300)
         
-        if result.returncode == 0:
+        if not stderr:
             messages = safe_get_messages()
             log(messages.UPDATE_REPOSITORY_CLONED_SUCCESS_MSG)
             return True
@@ -141,7 +143,7 @@ def find_python_files(source_dir):
     
     return sorted(files_to_update)
 
-def update_file_from_source(source_file, target_file):
+async def update_file_from_source(source_file, target_file):
     """Update a file from the source repository"""
     try:
         # Create directories if missing (only if file is not in the project root)
@@ -165,13 +167,13 @@ def update_file_from_source(source_file, target_file):
         log(f"Error updating file {target_file}: {e}", "ERROR")
         return False
 
-def move_backups_to_backup_dir():
+async def move_backups_to_backup_dir():
     messages = safe_get_messages(None)
     """Move all *.backup* files into _backup directory, keeping relative paths."""
     try:
         log("📦 Moving backups to _backup/...")
         cmd = "mkdir -p _backup && find . -path './_backup' -prune -o -type f -name \"*.backup*\" -print0 | sed -z 's#^\\./##' | rsync -a --relative --from0 --files-from=- --remove-source-files ./ _backup/"
-        subprocess.run(["bash", "-lc", cmd], check=True)
+        await async_subprocess("bash", "-lc", cmd, timeout=60)
         messages = safe_get_messages()
         log(messages.UPDATE_BACKUPS_MOVED_MSG)
     except Exception as e:

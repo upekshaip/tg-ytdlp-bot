@@ -38,7 +38,7 @@ def close_logger():
 if SDNOTIFY_AVAILABLE:
     notifier = SystemdNotifier()
     
-    def watchdog_loop():
+    async def watchdog_loop():
         while True:
             notifier.notify("WATCHDOG=1")
             logger.info("[Watchdog] Sent WATCHDOG=1")
@@ -54,7 +54,7 @@ else:
     logger.info("[Watchdog] SystemdNotifier not available - watchdog disabled")
 # Utility: pick proper log channel per kind
 
-def get_log_channel(kind: str = "general", nsfw: bool = False, paid: bool = False) -> int:
+async def get_log_channel(kind: str = "general", nsfw: bool = False, paid: bool = False) -> int:
     """Returns the appropriate Telegram chat ID for logs.
 
     kind: "general" | "video" | "image"
@@ -85,26 +85,29 @@ def get_log_channel(kind: str = "general", nsfw: bool = False, paid: bool = Fals
 
 # Send Message to Logger
 
-def send_to_logger(message, msg):
+async def send_to_logger(message, msg):
     user_id = message.chat.id
     msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
     # Print (user_id, "-", msg)
-    safe_send_message(get_log_channel("general"), msg_with_id,
+    from HELPERS.safe_messeger import safe_send_message_async
+    await safe_send_message_async(await get_log_channel("general"), msg_with_id,
                      parse_mode=enums.ParseMode.HTML)
 
 # Send Message to User Only
 
-def send_to_user(message, msg):
+async def send_to_user(message, msg):
     user_id = message.chat.id
-    safe_send_message(user_id, msg, parse_mode=enums.ParseMode.HTML, message=message)
+    from HELPERS.safe_messeger import safe_send_message_async
+    await safe_send_message_async(user_id, msg, parse_mode=enums.ParseMode.HTML, )
 
 # Send Message to All ...
 
-def send_to_all(message, msg, parse_mode=None):
+async def send_to_all(message, msg, parse_mode=None):
     user_id = message.chat.id
     msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
-    safe_send_message(get_log_channel("general"), msg_with_id, parse_mode=enums.ParseMode.HTML)
-    safe_send_message(user_id, msg, parse_mode=parse_mode or enums.ParseMode.HTML, message=message)
+    from HELPERS.safe_messeger import safe_send_message_async
+    await safe_send_message_async(get_log_channel("general"), msg_with_id, parse_mode=enums.ParseMode.HTML)
+    await safe_send_message_async(user_id, msg, parse_mode=parse_mode or enums.ParseMode.HTML, )
 
 # --- Helpers for error logging -------------------------------------------------
 
@@ -120,7 +123,7 @@ def _extract_url_from_message(message) -> str:
         return ""
 
 # Send Error Message to User and LOG_EXCEPTION channel
-def send_error_to_user(message, msg, url: str = None):
+async def send_error_to_user(message, msg, url: str = None):
     """Send error message to user and log it to LOG_EXCEPTION channel.
 
     url: optional explicit URL that caused the error; if not provided, will be
@@ -133,12 +136,13 @@ def send_error_to_user(message, msg, url: str = None):
     else:
         msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
     # Send to LOG_EXCEPTION channel for error tracking
-    safe_send_message(Config.LOG_EXCEPTION, msg_with_id, parse_mode=enums.ParseMode.HTML)
+    from HELPERS.safe_messeger import safe_send_message_async
+    await safe_send_message_async(Config.LOG_EXCEPTION, msg_with_id, parse_mode=enums.ParseMode.HTML)
     # Send to user
-    safe_send_message(user_id, msg, parse_mode=enums.ParseMode.HTML, message=message)
+    await safe_send_message_async(user_id, msg, parse_mode=enums.ParseMode.HTML, )
 
 # Log error message to LOG_EXCEPTION channel (without sending to user)
-def log_error_to_channel(message, msg, url: str = None):
+async def log_error_to_channel(message, msg, url: str = None):
     """Log error message to LOG_EXCEPTION channel only.
 
     url: optional explicit URL that caused the error; if not provided, will be
@@ -151,4 +155,5 @@ def log_error_to_channel(message, msg, url: str = None):
     else:
         msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
     # Send to LOG_EXCEPTION channel for error tracking
-    safe_send_message(Config.LOG_EXCEPTION, msg_with_id, parse_mode=enums.ParseMode.HTML)
+    from HELPERS.safe_messeger import safe_send_message_async
+    await safe_send_message_async(Config.LOG_EXCEPTION, msg_with_id, parse_mode=enums.ParseMode.HTML)

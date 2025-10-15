@@ -13,7 +13,7 @@ app = get_app()
 
 @app.on_callback_query(filters.regex(r"^clean_option\|"))
 # @reply_with_keyboard
-def clean_option_callback(app, callback_query):
+async def clean_option_callback(app, callback_query):
     # Get user_id first
     user_id = getattr(callback_query, 'from_user', None)
     if user_id is None:
@@ -30,56 +30,56 @@ def clean_option_callback(app, callback_query):
     data = callback_query.data.split("|")[1]
 
     if data == "cookies":
-        url_distractor(app, fake_message("/clean cookie", user_id))
-        callback_query.answer(messages.CLEAN_COOKIES_CLEANED_MSG)
+        await url_distractor(app, fake_message("/clean cookie", user_id))
+        await callback_query.answer(messages.CLEAN_COOKIES_CLEANED_MSG)
         return
     elif data == "logs":
-        url_distractor(app, fake_message("/clean logs", user_id))
-        callback_query.answer(messages.CLEAN_LOGS_CLEANED_MSG)
+        await url_distractor(app, fake_message("/clean logs", user_id))
+        await callback_query.answer(messages.CLEAN_LOGS_CLEANED_MSG)
         return
     elif data == "tags":
-        url_distractor(app, fake_message("/clean tags", user_id))
-        callback_query.answer(messages.CLEAN_TAGS_CLEANED_MSG)
+        await url_distractor(app, fake_message("/clean tags", user_id))
+        await callback_query.answer(messages.CLEAN_TAGS_CLEANED_MSG)
         return
     elif data == "format":
-        url_distractor(app, fake_message("/clean format", user_id))
-        callback_query.answer(messages.CLEAN_FORMAT_CLEANED_MSG)
+        await url_distractor(app, fake_message("/clean format", user_id))
+        await callback_query.answer(messages.CLEAN_FORMAT_CLEANED_MSG)
         return
     elif data == "split":
-        url_distractor(app, fake_message("/clean split", user_id))
-        callback_query.answer(messages.CLEAN_SPLIT_CLEANED_MSG)
+        await url_distractor(app, fake_message("/clean split", user_id))
+        await callback_query.answer(messages.CLEAN_SPLIT_CLEANED_MSG)
         return
     elif data == "mediainfo":
-        url_distractor(app, fake_message("/clean mediainfo", user_id))
-        callback_query.answer(messages.CLEAN_MEDIAINFO_CLEANED_MSG)
+        await url_distractor(app, fake_message("/clean mediainfo", user_id))
+        await callback_query.answer(messages.CLEAN_MEDIAINFO_CLEANED_MSG)
         return
     elif data == "subs":
-        url_distractor(app, fake_message("/clean subs", user_id))
-        callback_query.answer(messages.CLEAN_SUBS_CLEANED_MSG)
+        await url_distractor(app, fake_message("/clean subs", user_id))
+        await callback_query.answer(messages.CLEAN_SUBS_CLEANED_MSG)
         return
     elif data == "keyboard":
-        url_distractor(app, fake_message("/clean keyboard", user_id))
-        callback_query.answer(messages.CLEAN_KEYBOARD_CLEANED_MSG)
+        await url_distractor(app, fake_message("/clean keyboard", user_id))
+        await callback_query.answer(messages.CLEAN_KEYBOARD_CLEANED_MSG)
         return
     elif data == "args":
-        url_distractor(app, fake_message("/clean args", user_id))
-        callback_query.answer(messages.CLEAN_ARGS_CLEANED_MSG)
+        await url_distractor(app, fake_message("/clean args", user_id))
+        await callback_query.answer(messages.CLEAN_ARGS_CLEANED_MSG)
         return
     elif data == "nsfw":
-        url_distractor(app, fake_message("/clean nsfw", user_id))
-        callback_query.answer(messages.CLEAN_NSFW_CLEANED_MSG)
+        await url_distractor(app, fake_message("/clean nsfw", user_id))
+        await callback_query.answer(messages.CLEAN_NSFW_CLEANED_MSG)
         return
     elif data == "proxy":
-        url_distractor(app, fake_message("/clean proxy", user_id))
-        callback_query.answer(messages.CLEAN_PROXY_CLEANED_MSG)
+        await url_distractor(app, fake_message("/clean proxy", user_id))
+        await callback_query.answer(messages.CLEAN_PROXY_CLEANED_MSG)
         return
     elif data == "flood_wait":
-        url_distractor(app, fake_message("/clean flood_wait", user_id))
-        callback_query.answer(messages.CLEAN_FLOOD_WAIT_CLEANED_MSG)
+        await url_distractor(app, fake_message("/clean flood_wait", user_id))
+        await callback_query.answer(messages.CLEAN_FLOOD_WAIT_CLEANED_MSG)
         return
     elif data == "all":
-        url_distractor(app, fake_message("/clean all", user_id))
-        callback_query.answer(messages.CLEAN_ALL_CLEANED_MSG)
+        await url_distractor(app, fake_message("/clean all", user_id))
+        await callback_query.answer(messages.CLEAN_ALL_CLEANED_MSG)
         return
     elif data == "back":
         # Back to the cookies menu
@@ -99,5 +99,5 @@ def clean_option_callback(app, callback_query):
             reply_markup=keyboard,
             parse_mode=enums.ParseMode.HTML
         )
-        callback_query.answer()
+        await callback_query.answer()
         return

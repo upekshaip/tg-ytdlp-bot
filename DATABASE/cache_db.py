@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import asyncio
 import threading
 import re
 from datetime import datetime, timedelta
@@ -109,7 +110,7 @@ def get_next_reload_time(interval_hours: int) -> datetime:
     intervals_passed = int(seconds_since_midnight // interval_seconds)
     return midnight + timedelta(seconds=(intervals_passed + 1) * interval_seconds)
 
-def _download_and_reload_cache() -> bool:
+async def _download_and_reload_cache() -> bool:
     """Download dump via REST and reload local JSON into memory."""
     messages = safe_get_messages(None)
     try:
@@ -122,7 +123,7 @@ def _download_and_reload_cache() -> bool:
         print(safe_get_messages().DB_ERROR_DOWNLOAD_RELOAD_CACHE_MSG.format(error=e))
         return False
 
-def auto_reload_firebase_cache():
+async def auto_reload_firebase_cache():
     messages = safe_get_messages(None)
     """Background thread that reloads local cache every N hours by downloading dump first."""
     global auto_cache_enabled
@@ -141,7 +142,7 @@ def auto_reload_firebase_cache():
         # Smart sleep with 1-second granularity, allowing dynamic interval changes or stop
         end_time = time.time() + wait_seconds
         while auto_cache_enabled and time.time() < end_time:
-            time.sleep(min(1, end_time - time.time()))
+            await asyncio.sleep(min(1, end_time - time.time()))
             # If interval changed dynamically, break early to recalc next_exec
             if interval_hours_local != max(1, int(reload_interval_hours)):
                 break
@@ -180,7 +181,7 @@ def auto_reload_firebase_cache():
                 
                 # Import and run the command handler
                 from COMMANDS.admin_cmd import reload_firebase_cache_command
-                reload_firebase_cache_command(get_app(), msg)
+                await reload_firebase_cache_command(get_app(), msg)
                 
                 print("✅ Auto /reload_cache command executed successfully!")
                 break  # Success, exit retry loop
@@ -189,7 +190,7 @@ def auto_reload_firebase_cache():
                 print(safe_get_messages().DB_ERROR_RUNNING_AUTO_RELOAD_MSG.format(attempt=attempt + 1, max_retries=max_retries, error=e))
                 if attempt and attempt < max_retries - 1:
                     print(f"⏳ Retrying in {retry_delay} seconds...")
-                    time.sleep(retry_delay)
+                    await asyncio.sleep(retry_delay)
                 else:
                     print(safe_get_messages().DB_ALL_RETRY_ATTEMPTS_FAILED_MSG)
                     import traceback; traceback.print_exc()
@@ -204,8 +205,10 @@ def start_auto_cache_reloader():
             return auto_cache_thread
             
         if auto_cache_enabled:
+            def run_async():
+                asyncio.run(auto_reload_firebase_cache())
             auto_cache_thread = threading.Thread(
-                target=auto_reload_firebase_cache,
+                target=run_async,
                 daemon=True
             )
             auto_cache_thread.start()
@@ -306,7 +309,7 @@ def close_all_firebase_connections():
     except Exception as e:
         print(f"❌ Error closing Firebase connections: {e}")
 
-def toggle_auto_cache_reloader():
+async def toggle_auto_cache_reloader():
     """Toggle auto-reload mode, returns new state (True/False)."""
     global auto_cache_enabled
     with _thread_lock:
@@ -322,7 +325,7 @@ load_firebase_cache()
 
 # ================= /auto_cache command =================
 
-def auto_cache_command(app, message):
+async def auto_cache_command(app, message):
     messages = safe_get_messages(message.chat.id)
     """Command handler to control automatic Firebase cache loading.
 
@@ -333,7 +336,7 @@ def auto_cache_command(app, message):
     """
     try:
         if int(message.chat.id) not in Config.ADMIN:
-            send_to_user(message, safe_get_messages().DB_AUTO_CACHE_ACCESS_DENIED_MSG)
+            await send_to_user(message, safe_get_messages().DB_AUTO_CACHE_ACCESS_DENIED_MSG)
             return
 
         text = (message.text or "").strip()
@@ -348,7 +351,7 @@ def auto_cache_command(app, message):
                 interval = max(1, int(reload_interval_hours))
                 next_exec = get_next_reload_time(interval)
                 delta_min = int((next_exec - datetime.now()).total_seconds() // 60)
-                send_to_user(
+                await send_to_user(
                     message,
                     safe_get_messages().DB_AUTO_CACHE_RELOADING_UPDATED_MSG.format(
                         status=status,
@@ -357,10 +360,10 @@ def auto_cache_command(app, message):
                         delta_min=delta_min
                     )
                 )
-                send_to_logger(message, safe_get_messages().DB_AUTO_CACHE_RELOAD_ENABLED_LOG_MSG.format(next_exec=next_exec))
+                await send_to_logger(message, safe_get_messages().DB_AUTO_CACHE_RELOAD_ENABLED_LOG_MSG.format(next_exec=next_exec))
             else:
-                send_to_user(message, safe_get_messages().DB_AUTO_CACHE_RELOADING_STOPPED_MSG)
-                send_to_logger(message, safe_get_messages().DB_AUTO_CACHE_RELOAD_DISABLED_LOG_MSG)
+                await send_to_user(message, safe_get_messages().DB_AUTO_CACHE_RELOADING_STOPPED_MSG)
+                await send_to_logger(message, safe_get_messages().DB_AUTO_CACHE_RELOAD_DISABLED_LOG_MSG)
             return
 
         # Try numeric interval
@@ -368,19 +371,19 @@ def auto_cache_command(app, message):
             try:
                 n = int(arg)
             except Exception:
-                send_to_user(message, safe_get_messages().DB_AUTO_CACHE_INVALID_ARGUMENT_MSG)
+                await send_to_user(message, safe_get_messages().DB_AUTO_CACHE_INVALID_ARGUMENT_MSG)
                 return
             if n and n < 1 or n > 168:
-                send_to_user(message, safe_get_messages().DB_AUTO_CACHE_INTERVAL_RANGE_MSG)
+                await send_to_user(message, safe_get_messages().DB_AUTO_CACHE_INTERVAL_RANGE_MSG)
                 return
             ok = set_reload_interval_hours(n)
             if not ok:
-                send_to_user(message, safe_get_messages().DB_AUTO_CACHE_FAILED_SET_INTERVAL_MSG)
+                await send_to_user(message, safe_get_messages().DB_AUTO_CACHE_FAILED_SET_INTERVAL_MSG)
                 return
             interval = max(1, int(reload_interval_hours))
             next_exec = get_next_reload_time(interval)
             delta_min = int((next_exec - datetime.now()).total_seconds() // 60)
-            send_to_user(
+            await send_to_user(
                 message,
                 safe_get_messages().DB_AUTO_CACHE_INTERVAL_UPDATED_MSG.format(
                     status='✅ ENABLED' if auto_cache_enabled else '❌ DISABLED',
@@ -389,7 +392,7 @@ def auto_cache_command(app, message):
                     delta_min=delta_min
                 )
             )
-            send_to_logger(message, safe_get_messages().DB_AUTO_CACHE_INTERVAL_SET_LOG_MSG.format(interval=interval, next_exec=next_exec))
+            await send_to_logger(message, safe_get_messages().DB_AUTO_CACHE_INTERVAL_SET_LOG_MSG.format(interval=interval, next_exec=next_exec))
             return
 
         # No args: toggle legacy behavior
@@ -398,7 +401,7 @@ def auto_cache_command(app, message):
         if new_state:
             next_exec = get_next_reload_time(interval)
             delta_min = int((next_exec - datetime.now()).total_seconds() // 60)
-            send_to_user(
+            await send_to_user(
                 message,
                 safe_get_messages().DB_AUTO_CACHE_RELOADING_STARTED_MSG.format(
                     interval=interval,
@@ -406,10 +409,10 @@ def auto_cache_command(app, message):
                     delta_min=delta_min
                 )
             )
-            send_to_logger(message, safe_get_messages().DB_AUTO_CACHE_RELOAD_STARTED_LOG_MSG.format(next_exec=next_exec))
+            await send_to_logger(message, safe_get_messages().DB_AUTO_CACHE_RELOAD_STARTED_LOG_MSG.format(next_exec=next_exec))
         else:
-            send_to_user(message, safe_get_messages().DB_AUTO_CACHE_RELOADING_STOPPED_BY_ADMIN_MSG)
-            send_to_logger(message, safe_get_messages().DB_AUTO_CACHE_RELOAD_STOPPED_LOG_MSG)
+            await send_to_user(message, safe_get_messages().DB_AUTO_CACHE_RELOADING_STOPPED_BY_ADMIN_MSG)
+            await send_to_logger(message, safe_get_messages().DB_AUTO_CACHE_RELOAD_STOPPED_LOG_MSG)
     except Exception as e:
         logger.error(LoggerMsg.DB_AUTO_CACHE_HANDLER_ERROR_LOG_MSG.format(error=e))
 

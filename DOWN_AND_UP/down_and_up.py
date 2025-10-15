@@ -11,6 +11,8 @@ import subprocess
 import traceback
 import yt_dlp
 import re
+import asyncio
+import aiofiles
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, send_error_to_user, get_log_channel, log_error_to_channel
 from CONFIG.logger_msg import LoggerMsg
@@ -50,7 +52,7 @@ from HELPERS.fallback_helper import should_fallback_to_gallery_dl
 app = get_app()
 
 
-def _handle_quality_key_error(e: Exception, split_msg_ids: list, is_playlist: bool, successful_uploads: int, indices_to_download: list, video_count: int, user_id: int, proc_msg_id: int, message, app, url: str = None, safe_quality_key: str = None):
+async def _handle_quality_key_error(e: Exception, split_msg_ids: list, is_playlist: bool, successful_uploads: int, indices_to_download: list, video_count: int, user_id: int, proc_msg_id: int, message, app, url: str = None, safe_quality_key: str = None):
     messages = safe_get_messages(user_id)
     """Universal handler for quality_key errors that ensures final actions are completed"""
     logger.info(f"quality_key error ignored (non-critical): {e}")
@@ -62,8 +64,8 @@ def _handle_quality_key_error(e: Exception, split_msg_ids: list, is_playlist: bo
     if (successful_uploads == len(indices_to_download)) or (split_msg_ids and not is_playlist):
         logger.info(f"Upload complete condition met after quality_key error, replacing status message")
         success_msg = f"<b>{safe_get_messages(user_id).DOWN_UP_UPLOAD_COMPLETE_MSG}</b> - {video_count} {safe_get_messages(user_id).DOWN_UP_FILES_UPLOADED_MSG}.\n{safe_get_messages(user_id).CREDITS_MSG}"
-        safe_edit_message_text(user_id, proc_msg_id, success_msg)
-        send_to_logger(message, success_msg)
+        await safe_edit_message_text(user_id, proc_msg_id, success_msg)
+        await send_to_logger(message, success_msg)
         
         # Save to cache if we have the necessary data
         if url and safe_quality_key and split_msg_ids and not is_playlist:
@@ -105,7 +107,7 @@ def _save_video_cache_with_logging(url: str, safe_quality_key: str, message_ids:
         logger.error(LoggerMsg.DOWN_UP_SAVE_FAILED_LOG_MSG.format(quality=safe_quality_key, error=e))
 
 
-def determine_need_subs(subs_enabled, found_type, user_id):
+async def determine_need_subs(subs_enabled, found_type, user_id):
     """
     Helper function to determine if subtitles are needed based on user settings and found type.
     Returns True if subtitles should be embedded, False otherwise.
@@ -125,7 +127,7 @@ def determine_need_subs(subs_enabled, found_type, user_id):
         return (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
 
 #@reply_with_keyboard
-def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None, cookies_already_checked=False, use_proxy=False):
+async def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None, cookies_already_checked=False, use_proxy=False):
     messages = safe_get_messages(message.chat.id)
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
@@ -214,25 +216,25 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     response += safe_get_messages(user_id).FAILED_STREAM_LINKS_MSG
                 
                 # Send response
-                app.send_message(
+                await app.send_message(
                     user_id, 
                     response, 
                     reply_parameters=ReplyParameters(message_id=message.id),
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                send_to_logger(message, safe_get_messages(user_id).DIRECT_LINK_EXTRACTED_DOWN_UP_LOG_MSG.format(user_id=user_id, url=url))
+                await send_to_logger(message, safe_get_messages(user_id).DIRECT_LINK_EXTRACTED_DOWN_UP_LOG_MSG.format(user_id=user_id, url=url))
                 
             else:
                 error_msg = result.get('error', 'Unknown error')
-                app.send_message(
+                await app.send_message(
                     user_id,
                     safe_get_messages(user_id).ERROR_GETTING_LINK_MSG.format(error=error_msg),
                     reply_parameters=ReplyParameters(message_id=message.id),
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                log_error_to_channel(message, safe_get_messages(user_id).DIRECT_LINK_FAILED_DOWN_UP_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
+                await log_error_to_channel(message, safe_get_messages(user_id).DIRECT_LINK_FAILED_DOWN_UP_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
             
             return
     except Exception as e:
@@ -242,7 +244,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     if subs_enabled and is_youtube_url(url):
         found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
         # Determine subtitle availability once here
-        need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+        need_subs = await determine_need_subs(subs_enabled, found_type, user_id)
         
         if need_subs:
             available_langs = _subs_check_cache.get(
@@ -255,7 +257,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             subs_path = download_subtitles_ytdlp(url, user_id, video_dir, available_langs)
                                         
             if not subs_path:
-                app.send_message(user_id, safe_get_messages(user_id).SUBTITLES_FAILED_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+                await app.send_message(user_id, safe_get_messages(user_id).SUBTITLES_FAILED_MSG, reply_parameters=ReplyParameters(message_id=message.id))
                 need_subs = False  # Reset if download failed
 
     # We define a playlist not only by the number of videos, but also by the presence of a range in the URL
@@ -291,7 +293,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     if index in cached_videos:
                         try:
                             # For cached content, always use regular channel (no NSFW/PAID in cache)
-                            from_chat_id = get_log_channel("video")
+                            from_chat_id = await get_log_channel("video")
                             channel_type = "regular"
                             
                             logger.info(f"[VIDEO CACHE] Reposting video {index} from channel {from_chat_id} to user {user_id}, message_id={cached_videos[index]}")
@@ -305,7 +307,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 thread_id = getattr(message, 'message_thread_id', None)
                                 if thread_id:
                                     forward_kwargs['message_thread_id'] = thread_id
-                            app.forward_messages(**forward_kwargs)
+                            await app.forward_messages(**forward_kwargs)
                         except Exception as e:
                             logger.error(f"down_and_up: error reposting cached video index={index}: {e}")
             else:
@@ -314,11 +316,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 uncached_indices = requested_indices
             
             if len(uncached_indices) == 0:
-                app.send_message(user_id, safe_get_messages(user_id).PLAYLIST_SENT_FROM_CACHE_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
-                send_to_logger(message, LoggerMsg.PLAYLIST_VIDEOS_SENT_FROM_CACHE.format(quality=safe_quality_key, user_id=user_id))
+                await app.send_message(user_id, safe_get_messages(user_id).PLAYLIST_SENT_FROM_CACHE_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+                await send_to_logger(message, LoggerMsg.PLAYLIST_VIDEOS_SENT_FROM_CACHE.format(quality=safe_quality_key, user_id=user_id))
                 return
             else:
-                app.send_message(user_id, safe_get_messages(user_id).CACHE_PARTIAL_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+                await app.send_message(user_id, safe_get_messages(user_id).CACHE_PARTIAL_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
         else:
             logger.info(f"[VIDEO CACHE] Skipping cache check for playlist because Always Ask mode is enabled: url={url}, quality={safe_quality_key}")
             # Set all indices as uncached when Always Ask mode is enabled
@@ -350,7 +352,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     #found_type = None
                     try:
                         # For cached content, always use regular channel (no NSFW/PAID in cache)
-                        from_chat_id = get_log_channel("video")
+                        from_chat_id = await get_log_channel("video")
                         channel_type = "regular"
                         
                         logger.info(f"[VIDEO CACHE] Reposting video from channel {from_chat_id} to user {user_id}, message_ids={cached_ids}")
@@ -364,9 +366,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             thread_id = getattr(message, 'message_thread_id', None)
                             if thread_id:
                                 forward_kwargs['message_thread_id'] = thread_id
-                        app.forward_messages(**forward_kwargs)
-                        app.send_message(user_id, safe_get_messages(user_id).VIDEO_SENT_FROM_CACHE_MSG, reply_parameters=ReplyParameters(message_id=message.id))
-                        send_to_logger(message, LoggerMsg.VIDEO_SENT_FROM_CACHE.format(quality=safe_quality_key, user_id=user_id))
+                        await app.forward_messages(**forward_kwargs)
+                        await app.send_message(user_id, safe_get_messages(user_id).VIDEO_SENT_FROM_CACHE_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+                        await send_to_logger(message, LoggerMsg.VIDEO_SENT_FROM_CACHE.format(quality=safe_quality_key, user_id=user_id))
                         return
                     except Exception as e:
                         logger.error(f"Error reposting video from cache: {e}")
@@ -408,13 +410,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 minutes = (wait_time % 3600) // 60
                 seconds = wait_time % 60
                 time_str = f"{hours}h {minutes}m {seconds}s"
-                proc_msg = safe_send_message(user_id, safe_get_messages(user_id).RATE_LIMIT_WITH_TIME_MSG.format(time=time_str), message=message)
+                proc_msg = await safe_send_message(user_id, safe_get_messages(user_id).RATE_LIMIT_WITH_TIME_MSG.format(time=time_str), message=message)
         else:
-            proc_msg = safe_send_message(user_id, safe_get_messages(user_id).RATE_LIMIT_NO_TIME_MSG, message=message)
+            proc_msg = await safe_send_message(user_id, safe_get_messages(user_id).RATE_LIMIT_NO_TIME_MSG, message=message)
 
         # We are trying to replace with "Download started"
         try:
-            app.edit_message_text(
+            await app.edit_message_text(
                 chat_id=user_id,
                 message_id=proc_msg.id,
                 text=safe_get_messages(user_id).DOWNLOAD_STARTED_MSG,
@@ -440,14 +442,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             logger.error(f"Error editing message: {e}")
             # Check if error is related to quality_key
             if "'quality_key'" in str(e):
-                _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
+                await _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
             return
 
         # If there is no flood error, send a normal message
-        proc_msg = app.send_message(user_id, safe_get_messages(user_id).PROCESSING_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+        proc_msg = await app.send_message(user_id, safe_get_messages(user_id).PROCESSING_MSG, reply_parameters=ReplyParameters(message_id=message.id))
         # Pin proc/status message for visibility
         try:
-            app.pin_chat_message(user_id, proc_msg.id, disable_notification=True)
+            await app.pin_chat_message(user_id, proc_msg.id, disable_notification=True)
         except Exception:
             pass
         proc_msg_id = proc_msg.id
@@ -467,7 +469,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         required_bytes = 2 * 1024 * 1024 * 1024
         try:
             from DOWN_AND_UP.yt_dlp_hook import get_video_formats
-            info_probe = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked)
+            info_probe = await get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked)
             size = 0
             if isinstance(info_probe, dict):
                 size = info_probe.get('filesize') or info_probe.get('filesize_approx') or 0
@@ -494,7 +496,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             pass
 
         if not check_disk_space(user_dir_name, required_bytes):
-            send_to_user(message, safe_get_messages(user_id).ERROR_NO_DISK_SPACE_MSG)
+            await send_to_user(message, safe_get_messages(user_id).ERROR_NO_DISK_SPACE_MSG)
             return
 
         # Create user directory (subscription already checked in video_extractor)
@@ -612,8 +614,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         {'format': 'best', 'prefer_ffmpeg': False, 'extract_flat': False}
                     ]
 
-        status_msg = safe_send_message(user_id, safe_get_messages(user_id).VIDEO_PROCESSING_MSG, message=message)
-        hourglass_msg = safe_send_message(user_id, safe_get_messages(user_id).PLEASE_WAIT_MSG, message=message)
+        status_msg = await safe_send_message(user_id, safe_get_messages(user_id).VIDEO_PROCESSING_MSG, message=message)
+        hourglass_msg = await safe_send_message(user_id, safe_get_messages(user_id).PLEASE_WAIT_MSG, message=message)
         try:
             from HELPERS.safe_messeger import schedule_delete_message
             if status_msg and hasattr(status_msg, 'id'):
@@ -717,12 +719,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             logger.info(f"[SIZE CHECK] safe_quality_key={safe_quality_key}, size unknown, limit={max_size_gb} GB, allowed={allowed}")
 
         if not allowed:
-            app.send_message(
+            await app.send_message(
                 user_id,
                 safe_get_messages(user_id).ERROR_FILE_SIZE_LIMIT_MSG.format(limit=max_size_gb),
                 reply_parameters=ReplyParameters(message_id=message.id)
             )
-            log_error_to_channel(message, safe_get_messages(user_id).SIZE_LIMIT_EXCEEDED.format(max_size_gb=max_size_gb), url)
+            await log_error_to_channel(message, safe_get_messages(user_id).SIZE_LIMIT_EXCEEDED.format(max_size_gb=max_size_gb), url)
             logger.warning(f"[SIZE CHECK] Download for safe_quality_key={safe_quality_key} was blocked due to size limit.")
             return
         else:
@@ -784,35 +786,41 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             logger.error(f"Error in message cleanup: {e}")
                             # Check if error is related to quality_key
                             if "'quality_key'" in str(e):
-                                _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
+                                # Cannot call async function from sync progress_func
+                                logger.error(f"Quality key error in progress_func: {e}")
                         first_progress_update = False
 
                     progress_text = f"{current_total_process}\n{bar}   {percent:.1f}%"
-                    logger.info(f"Updating progress for user {user_id}, message {proc_msg_id}: {progress_text}")
-                    result = safe_edit_message_text(user_id, proc_msg_id, progress_text)
-                    if result is None:
-                        logger.warning(f"Failed to update progress message {proc_msg_id} for user {user_id} - message may have been deleted")
+                    logger.info(f"Progress: {progress_text}")
+                    # Store progress for async update
+                    if not hasattr(progress_func, 'progress_queue'):
+                        progress_func.progress_queue = []
+                    progress_func.progress_queue.append((user_id, proc_msg_id, progress_text))
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                     # Check if error is related to quality_key
                     if "'quality_key'" in str(e):
-                        _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
+                        # Cannot call async function from sync progress_func
+                        logger.error(f"Quality key error in progress_func: {e}")
             elif d.get("status") == "finished":
                 try:
-                    safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).VIDEO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
+                    # Cannot call async function from sync progress_func
+                    logger.info(f"Download finished for user {user_id}")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                     # Check if error is related to quality_key
                     if "'quality_key'" in str(e):
-                        _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
+                        # Cannot call async function from sync progress_func
+                        logger.error(f"Quality key error in progress_func: {e}")
             elif d.get("status") == "error":
                 logger.error("Error occurred during download.")
-                send_error_to_user(message, safe_get_messages(user_id).DOWNLOAD_ERROR_GENERIC)
+                # Cannot call async function from sync progress_func
+                logger.error(f"Download error for user {user_id}")
             last_update = current_time
 
         successful_uploads = 0
 
-        def try_download(url, attempt_opts):
+        async def try_download(url, attempt_opts):
             messages = safe_get_messages(message.chat.id)
             nonlocal current_total_process, error_message, did_cookie_retry, did_proxy_retry, is_hls, error_message_sent
             
@@ -905,7 +913,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             found = True
                             break
                     if not found:
-                        app.send_message(
+                        await app.send_message(
                             user_id,
                             f"⚠️ Subtitles for {LANGUAGES[subs_lang]['flag']} {LANGUAGES[subs_lang]['name']} not found for this video. Download without subtitles.",
                             reply_parameters=ReplyParameters(message_id=message.id)
@@ -927,22 +935,22 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     # Always check existing cookies first on user's URL for maximum speed
                     if os.path.exists(user_cookie_path):
                         logger.info(f"Checking existing YouTube cookies on user's URL for user {user_id}")
-                        if test_youtube_cookies_on_url(user_cookie_path, url):
+                        if await test_youtube_cookies_on_url(user_cookie_path, url):
                             common_opts['cookiefile'] = user_cookie_path
                             logger.info(f"Existing YouTube cookies work on user's URL for user {user_id} - using them")
                         else:
                             logger.info(f"Existing YouTube cookies failed on user's URL, trying to get new ones for user {user_id}")
-                            cookie_urls = get_youtube_cookie_urls()
+                            cookie_urls = await get_youtube_cookie_urls()
                             if cookie_urls:
                                 success = False
                                 for i, cookie_url in enumerate(cookie_urls, 1):
                                     try:
                                         logger.info(f"Trying YouTube cookie source {i}/{len(cookie_urls)} for user {user_id}")
-                                        ok, status, content, err = _download_content(cookie_url, timeout=30)
+                                        ok, status, content, err = await _download_content(cookie_url, timeout=30)
                                         if ok and content and len(content) <= 100 * 1024:
                                             with open(user_cookie_path, "wb") as cf:
                                                 cf.write(content)
-                                            if test_youtube_cookies_on_url(user_cookie_path, url):
+                                            if await test_youtube_cookies_on_url(user_cookie_path, url):
                                                 common_opts['cookiefile'] = user_cookie_path
                                                 logger.info(f"YouTube cookies from source {i} work on user's URL for user {user_id} - saved to user folder")
                                                 success = True
@@ -961,17 +969,17 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 logger.warning(f"No YouTube cookie sources configured for user {user_id}, will try without cookies")
                     else:
                         logger.info(f"No YouTube cookies found for user {user_id}, attempting to get new ones")
-                        cookie_urls = get_youtube_cookie_urls()
+                        cookie_urls = await get_youtube_cookie_urls()
                         if cookie_urls:
                             success = False
                             for i, cookie_url in enumerate(cookie_urls, 1):
                                 try:
                                     logger.info(f"Trying YouTube cookie source {i}/{len(cookie_urls)} for user {user_id}")
-                                    ok, status, content, err = _download_content(cookie_url, timeout=30)
+                                    ok, status, content, err = await _download_content(cookie_url, timeout=30)
                                     if ok and content and len(content) <= 100 * 1024:
                                         with open(user_cookie_path, "wb") as cf:
                                             cf.write(content)
-                                        if test_youtube_cookies_on_url(user_cookie_path, url):
+                                        if await test_youtube_cookies_on_url(user_cookie_path, url):
                                             common_opts['cookiefile'] = user_cookie_path
                                             logger.info(f"YouTube cookies from source {i} work on user's URL for user {user_id} - saved to user folder")
                                             success = True
@@ -1074,10 +1082,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             else:
                 # Add proxy configuration if needed for this domain
                 from HELPERS.proxy_helper import add_proxy_to_ytdl_opts
-                ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url, user_id)
+                ytdl_opts = await add_proxy_to_ytdl_opts(ytdl_opts, url, user_id)
             
             # Add PO token provider for YouTube domains
-            ytdl_opts = add_pot_to_ytdl_opts(ytdl_opts, url)
+            ytdl_opts = await add_pot_to_ytdl_opts(ytdl_opts, url)
             
             # If MKV is ON, remux to mkv; else to mp4
             if mkv_on:
@@ -1092,7 +1100,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 from DOWN_AND_UP.yt_dlp_hook import get_video_formats
                 
                 logger.info("Checking available formats...")
-                check_info = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked, use_proxy=use_proxy)
+                check_info = await get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked, use_proxy=use_proxy)
                 logger.info("Format check completed")
                 
                 # Check if requested format exists
@@ -1117,7 +1125,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             try:
                                 available_ids = [fmt.get('format_id', 'unknown') for fmt in available_formats[:10]]
                                 logger.info(f"Available format IDs: {available_ids}")
-                                send_error_to_user(
+                                await send_error_to_user(
                                     message,
                                     safe_get_messages(user_id).FORMAT_ID_NOT_FOUND_MSG.format(format_id=requested_id, available_ids=', '.join(available_ids[:10])) +
                                     f"Use /list command to see all available formats."
@@ -1155,7 +1163,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 
                                 formats_text = "\n".join(available_formats_list) if available_formats_list else "• No video formats available"
                                 
-                                safe_edit_message_text(user_id, proc_msg_id, 
+                                await safe_edit_message_text(user_id, proc_msg_id, 
                                     f"{current_total_process}\n{safe_get_messages(user_id).DOWN_UP_AV1_NOT_AVAILABLE_MSG.format(formats_text=formats_text)}")
                             except Exception as e:
                                 logger.error(f"Failed to notify user about format unavailability: {e}")
@@ -1173,14 +1181,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             
                             formats_text = "\n".join(available_formats_list) if available_formats_list else "• No video formats available"
                             
-                            send_to_user(message, 
+                            await send_to_user(message, 
                                 safe_get_messages(user_id).AV1_FORMAT_NOT_AVAILABLE_MSG.format(formats_text=formats_text) +
                                 safe_get_messages(user_id).AV1_NOT_AVAILABLE_FORMAT_SELECT_MSG)
                             
                             return None
                 
                 # Try with proxy fallback if user proxy is enabled
-                def extract_info_operation(opts):
+                async def extract_info_operation(opts):
                     messages = safe_get_messages(message.chat.id)
                     with yt_dlp.YoutubeDL(opts) as ydl:
                         logger.info("yt-dlp instance created, starting extract_info...")
@@ -1189,7 +1197,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         return info_dict
                 
                 from HELPERS.proxy_helper import try_with_proxy_fallback
-                info_dict = try_with_proxy_fallback(ytdl_opts, url, user_id, extract_info_operation)
+                info_dict = await try_with_proxy_fallback(ytdl_opts, url, user_id, extract_info_operation)
                 if info_dict is None:
                     raise Exception("Failed to extract video information with all available proxies")
                 # Normalize info_dict to a dict
@@ -1233,49 +1241,79 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     ytdl_opts["concurrent_fragment_downloads"] = 1
                 try:
                     if is_hls:
-                        safe_edit_message_text(user_id, proc_msg_id,
+                        await safe_edit_message_text(user_id, proc_msg_id,
                             f"{current_total_process}\n<i>Detected HLS stream.\n{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_HLS_MSG}</i>")
                     else:
-                        safe_edit_message_text(user_id, proc_msg_id,
+                        await safe_edit_message_text(user_id, proc_msg_id,
                             f"{current_total_process}\n> <i>{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_FORMAT_USING_MSG} {ytdl_opts.get('format', 'default')}...</i>")
                 except Exception as e:
                     logger.error(f"Status update error: {e}")
                     # Check if error is related to quality_key
                     if "'quality_key'" in str(e):
-                        _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
+                        # Cannot call async function from sync progress_func
+                        logger.error(f"Quality key error in progress_func: {e}")
                 
                 logger.info("Starting download phase...")
-                # Try with proxy fallback if user proxy is enabled
-                def download_operation(opts):
-                    messages = safe_get_messages(user_id)
-                    with yt_dlp.YoutubeDL(opts) as ydl:
-                        if is_hls:
-                            # For HLS, start cycle progress as fallback, but progress_func will override it if percentages are available
-                            cycle_stop = threading.Event()
-                            progress_data = {'downloaded_bytes': 0, 'total_bytes': 0}
-                            cycle_thread = start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_name, cycle_stop, progress_data)
-                            # Pass cycle_stop and progress_data to progress_func so it can update the cycle animation
-                            progress_func.cycle_stop = cycle_stop
-                            progress_func.progress_data = progress_data
+                
+                # Start async progress updater
+                async def progress_updater():
+                    while True:
+                        if hasattr(progress_func, 'progress_queue') and progress_func.progress_queue:
+                            user_id_update, msg_id, progress_text = progress_func.progress_queue.pop(0)
                             try:
+                                await safe_edit_message_text(user_id_update, msg_id, progress_text)
+                            except Exception as e:
+                                logger.error(f"Progress update error: {e}")
+                        await asyncio.sleep(0.5)  # Update every 500ms
+                
+                # Start progress updater task
+                progress_task = asyncio.create_task(progress_updater())
+                
+                # Try with proxy fallback if user proxy is enabled
+                async def download_operation(opts):
+                    messages = safe_get_messages(user_id)
+                    
+                    # Асинхронная загрузка через executor для неблокирующего выполнения
+                    def sync_download():
+                        with yt_dlp.YoutubeDL(opts) as ydl:
+                            if is_hls:
+                                # For HLS, start cycle progress as fallback, but progress_func will override it if percentages are available
+                                cycle_stop = threading.Event()
+                                progress_data = {'downloaded_bytes': 0, 'total_bytes': 0}
+                                cycle_thread = start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_name, cycle_stop, progress_data)
+                                # Pass cycle_stop and progress_data to progress_func so it can update the cycle animation
+                                progress_func.cycle_stop = cycle_stop
+                                progress_func.progress_data = progress_data
+                                try:
+                                    ydl.download([url])
+                                finally:
+                                    cycle_stop.set()
+                                    cycle_thread.join(timeout=1)
+                            else:
                                 ydl.download([url])
-                            finally:
-                                cycle_stop.set()
-                                cycle_thread.join(timeout=1)
-                        else:
-                            ydl.download([url])
-                        return True
+                            return True
+                    
+                    # Запуск в отдельном потоке для неблокирующего выполнения
+                    loop = asyncio.get_event_loop()
+                    return await loop.run_in_executor(None, sync_download)
                 
                 from HELPERS.proxy_helper import try_with_proxy_fallback
-                result = try_with_proxy_fallback(ytdl_opts, url, user_id, download_operation)
+                result = await try_with_proxy_fallback(ytdl_opts, url, user_id, download_operation)
                 if result is None:
                     raise Exception("Failed to download video with all available proxies")
                 try:
-                    safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).VIDEO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
+                    await safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).VIDEO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
                 except Exception as e:
                     logger.error(f"Final progress update error: {e}")
                 
                 logger.info("Download completed successfully")
+                
+                # Stop progress updater task
+                progress_task.cancel()
+                try:
+                    await progress_task
+                except asyncio.CancelledError:
+                    pass
                 
                 # Remove protection file after successful download
                 from HELPERS.filesystem_hlp import remove_protection_file
@@ -1294,7 +1332,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         "• You can see the final video length\n\n"
                         "Once the stream is completed, you'll be able to download it as a regular video."
                     )
-                    send_error_to_user(message, live_stream_message)
+                    await send_error_to_user(message, live_stream_message)
                     return "LIVE_STREAM"
                 
                 # Check for postprocessing errors
@@ -1307,7 +1345,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         "• Consider using a different video source if available\n\n"
                         "The download will be retried automatically with a cleaned filename."
                     )
-                    send_error_to_user(message, postprocessing_message)
+                    await send_error_to_user(message, postprocessing_message)
                     logger.error(f"Postprocessing error: {error_message}")
                     return "POSTPROCESSING_ERROR"
                 
@@ -1332,7 +1370,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         logger.error(f"Failed to import gallery-dl fallback handlers: {imp_e}")
                     else:
                         try:
-                            safe_edit_message_text(user_id, proc_msg_id,
+                            await safe_edit_message_text(user_id, proc_msg_id,
                                 f"{current_total_process}\n🔄 yt-dlp failed, trying gallery-dl…")
                         except Exception:
                             pass
@@ -1378,7 +1416,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             # For groups, preserve original chat_id and message_thread_id
                             original_chat_id = message.chat.id if hasattr(message, 'chat') else user_id
                             message_thread_id = getattr(message, 'message_thread_id', None) if hasattr(message, 'message_thread_id') else None
-                            image_command(app, fake_message(fallback_text, user_id, original_chat_id=original_chat_id, message_thread_id=message_thread_id, original_message=message))
+                            await image_command(app, fake_message(fallback_text, user_id, original_chat_id=original_chat_id, message_thread_id=message_thread_id, original_message=message))
                             logger.info(f"Triggered gallery-dl fallback via /img, is_nsfw={is_nsfw}, range={start_range}-{end_range}")
                             return "IMG"
                         except Exception as call_e:
@@ -1404,7 +1442,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 
                 # Send full error message with instructions immediately (only once)
                 if not error_message_sent:
-                    send_error_to_user(
+                    await send_error_to_user(
                         message,                   
                         f"<blockquote>{safe_get_messages(user_id).ERROR_CHECK_SUPPORTED_SITES_MSG}</blockquote>\n"
                         f"<blockquote>{safe_get_messages(user_id).ERROR_COOKIE_NEEDED_MSG}</blockquote>\n"
@@ -1429,7 +1467,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         logger.error(f"Failed to import gallery-dl fallback handlers (generic): {imp_e}")
                     else:
                         try:
-                            safe_edit_message_text(user_id, proc_msg_id,
+                            await safe_edit_message_text(user_id, proc_msg_id,
                                 f"{current_total_process}\n🔄 yt-dlp failed, trying gallery-dl…")
                         except Exception:
                             pass
@@ -1475,7 +1513,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             # For groups, preserve original chat_id and message_thread_id
                             original_chat_id = message.chat.id if hasattr(message, 'chat') else user_id
                             message_thread_id = getattr(message, 'message_thread_id', None) if hasattr(message, 'message_thread_id') else None
-                            image_command(app, fake_message(fallback_text, user_id, original_chat_id=original_chat_id, message_thread_id=message_thread_id, original_message=message))
+                            await image_command(app, fake_message(fallback_text, user_id, original_chat_id=original_chat_id, message_thread_id=message_thread_id, original_message=message))
                             logger.info(f"Triggered gallery-dl fallback via /img (generic), is_nsfw={is_nsfw}, range={start_range}-{end_range}")
                             return "IMG"
                         except Exception as call_e:
@@ -1484,18 +1522,18 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Check if this is a "No videos found in playlist" error
                 if "No videos found in playlist" in str(e):
                     error_message = safe_get_messages(user_id).DOWN_UP_NO_VIDEOS_PLAYLIST_MSG.format(index=current_index + 1)
-                    send_error_to_user(message, error_message)
+                    await send_error_to_user(message, error_message)
                     logger.info(f"Stopping download: playlist item at index {current_index} (no video found)")
                     return "STOP"  # New special value for full stop
                 
                 # Check if this is a TikTok infinite loop error
                 if "TikTok API keeps sending the same page" in str(e) and "infinite loop" in str(e):
                     error_message = safe_get_messages(user_id).VIDEO_TIKTOK_API_ERROR_SKIP_MSG.format(index=current_index + 1)
-                    send_to_user(message, error_message)
+                    await send_to_user(message, error_message)
                     logger.info(f"Skipping TikTok video at index {current_index} due to API error")
                     return "SKIP"  # Skip this video and continue with next
 
-                send_to_user(message, safe_get_messages(user_id).UNKNOWN_ERROR_MSG.format(error=e))
+                await send_to_user(message, safe_get_messages(user_id).UNKNOWN_ERROR_MSG.format(error=e))
                 return None
 
         if is_playlist and safe_quality_key:
@@ -1533,14 +1571,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             safe_outtmpl = os.path.join(user_dir_name, f"download_{timestamp}.%(ext)s")
             
             for attempt in attempts:
-                result = try_download(url, attempt)
+                result = await try_download(url, attempt)
                 
                 # If download failed and it's a YouTube URL, try automatic cookie retry
                 if result is None and is_youtube_url(url) and not did_cookie_retry:
                     logger.info(f"Video download failed for user {user_id}, attempting automatic cookie retry")
                     
                     # Try retry with different cookies
-                    retry_result = retry_download_with_different_cookies(
+                    retry_result = await retry_download_with_different_cookies(
                         user_id, url, try_download, url, attempt
                     )
                     
@@ -1575,7 +1613,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             # Modify the attempt to use safe filename
                             safe_attempt = attempt.copy()
                             safe_attempt['outtmpl'] = safe_outtmpl
-                            safe_result = try_download(url, safe_attempt)
+                            safe_result = await try_download(url, safe_attempt)
                             if safe_result is not None and isinstance(safe_result, dict):
                                 info_dict = safe_result
                                 break
@@ -1615,7 +1653,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             "• Try a different quality or format\n"
                             "• If the problem persists, the video source may be corrupted"
                         )
-                        send_error_to_user(message, postprocessing_message)
+                        await send_error_to_user(message, postprocessing_message)
                         error_message_sent = True
                     elif "Requested format is not available" in error_message:
                         format_error_message = (
@@ -1630,7 +1668,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             "• Try changing your format preferences in /args settings\n"
                             "• The system will automatically try alternative formats"
                         )
-                        send_error_to_user(message, format_error_message)
+                        await send_error_to_user(message, format_error_message)
                         error_message_sent = True
                 
                 with playlist_errors_lock:
@@ -1676,13 +1714,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 """
 
             try:
-                safe_edit_message_text(user_id, proc_msg_id,
+                await safe_edit_message_text(user_id, proc_msg_id,
                     f"{info_text}\n{full_bar}   100.0%\n<i>{safe_get_messages(user_id).DOWN_UP_DOWNLOADED_VIDEO_MSG}\n{safe_get_messages(user_id).DOWN_UP_PROCESSING_UPLOAD_MSG}</i>")
             except Exception as e:
                 logger.error(f"Status update error after download: {e}")
                 # Check if error is related to quality_key
                 if "'quality_key'" in str(e):
-                    _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
+                    await _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
 
             dir_path = user_dir_name
             allfiles = os.listdir(dir_path)
@@ -1737,7 +1775,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 logger.info(f"Found video files with fallback search: {files}")
             
             if not files:
-                send_error_to_user(message, safe_get_messages(user_id).SKIPPING_UNSUPPORTED_FILE_TYPE_MSG.format(index=idx + video_start_with))
+                await send_error_to_user(message, safe_get_messages(user_id).SKIPPING_UNSUPPORTED_FILE_TYPE_MSG.format(index=idx + video_start_with))
                 continue
 
             downloaded_file = files[0]
@@ -1806,7 +1844,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             user_vid_path = os.path.join(dir_path, final_name)
             if final_name.lower().endswith((".webm", ".ts")):
                 try:
-                    safe_edit_message_text(user_id, proc_msg_id,
+                    await safe_edit_message_text(user_id, proc_msg_id,
                         f"{info_text}\n{full_bar}   100.0%\nConverting video using ffmpeg... ⏳")
                 except Exception as e:
                     logger.error(f"Error updating status before conversion: {e}")
@@ -1818,7 +1856,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 from DOWN_AND_UP.ffmpeg import get_ffmpeg_path
                 ffmpeg_path = get_ffmpeg_path()
                 if not ffmpeg_path:
-                    send_error_to_user(message, safe_get_messages(user_id).FFMPEG_NOT_FOUND_MSG)
+                    await send_error_to_user(message, safe_get_messages(user_id).FFMPEG_NOT_FOUND_MSG)
                     break
                 
                 ffmpeg_cmd = [
@@ -1833,19 +1871,19 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     mp4_file
                 ]
                 try:
-                    result = subprocess.run(ffmpeg_cmd, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
+                    stdout, stderr = await async_subprocess(*ffmpeg_cmd, timeout=300)
                     os.remove(user_vid_path)
                     user_vid_path = mp4_file
                     final_name = mp4_basename
-                except subprocess.CalledProcessError as e:
-                    error_details = f"Return code: {e.returncode}"
-                    if e.stderr:
-                        error_details += f"\nError output: {e.stderr[:500]}"
-                    if e.stdout:
-                        error_details += f"\nStandard output: {e.stdout[:500]}"
+                except Exception as e:
+                    error_details = f"FFmpeg error: {str(e)}"
+                    if stderr:
+                        error_details += f"\nError output: {stderr.decode('utf-8', errors='replace')[:500]}"
+                    if stdout:
+                        error_details += f"\nStandard output: {stdout.decode('utf-8', errors='replace')[:500]}"
                     
                     # Check for specific FFmpeg errors
-                    if "Invalid argument" in str(e.stderr):
+                    if "Invalid argument" in str(stderr):
                         error_message = safe_get_messages(user_id).DOWN_UP_VIDEO_CONVERSION_FAILED_INVALID_MSG
                         error_message += (
                             "**Possible causes:**\n"
@@ -1870,11 +1908,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             f"**Technical details:** {error_details}"
                         )
                     
-                    send_error_to_user(message, error_message)
+                    await send_error_to_user(message, error_message)
                     logger.error(f"FFmpeg conversion failed: {error_details}")
                     break
                 except Exception as e:
-                    send_error_to_user(message, safe_get_messages(user_id).CONVERSION_TO_MP4_FAILED_MSG.format(error=e))
+                    await send_error_to_user(message, safe_get_messages(user_id).CONVERSION_TO_MP4_FAILED_MSG.format(error=e))
                     break
 
             after_rename_abs_path = os.path.abspath(user_vid_path)
@@ -1889,12 +1927,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     yt_id = video_id or None
                     if not yt_id:
                         try:
-                            yt_id = extract_youtube_id(url, user_id)
+                            yt_id = await extract_youtube_id(url, user_id)
                         except Exception:
                             yt_id = None
                     if yt_id:
                         youtube_thumb_path = os.path.join(dir_path, f"yt_thumb_{yt_id}.jpg")
-                        download_thumbnail(yt_id, youtube_thumb_path, url)
+                        await download_thumbnail(yt_id, youtube_thumb_path, url)
                         if os.path.exists(youtube_thumb_path):
                             thumb_dir = youtube_thumb_path
                             logger.info(f"Downloaded thumbnail to download directory: {youtube_thumb_path}")
@@ -1905,7 +1943,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             if not thumb_dir:
                 try:
                     universal_thumb_path = os.path.join(dir_path, "universal_thumb.jpg")
-                    if download_universal_thumbnail(url, universal_thumb_path):
+                    if await download_universal_thumbnail(url, universal_thumb_path):
                         if os.path.exists(universal_thumb_path):
                             thumb_dir = universal_thumb_path
                             logger.info(f"Using universal thumbnail: {universal_thumb_path}")
@@ -1914,7 +1952,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             
             # Get video duration (always needed)
             try:
-                width, height, duration = get_video_info_ffprobe(user_vid_path)
+                width, height, duration = await get_video_info_ffprobe(user_vid_path)
                 if duration == 0:
                     logger.warning("Failed to get video duration via get_video_info_ffprobe, trying direct ffmpeg")
                     # Get FFmpeg path using the common function
@@ -1927,8 +1965,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         ffmpeg_duration_command = [
                             ffmpeg_path, "-i", user_vid_path, "-f", "null", "-"
                         ]
-                        result = subprocess.run(ffmpeg_duration_command, capture_output=True, text=True, timeout=int(30), encoding='utf-8', errors='replace')
-                        output = result.stderr  # ffmpeg outputs info to stderr
+                        stdout, stderr = await async_subprocess(*ffmpeg_duration_command, timeout=30)
+                        output = stderr.decode('utf-8', errors='replace')  # ffmpeg outputs info to stderr
                         duration_match = re.search(r'Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})', output)
                         if duration_match:
                             hours, minutes, seconds, centiseconds = map(int, duration_match.groups())
@@ -1939,7 +1977,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             
             # Use ffmpeg thumbnail only as fallback (when both YouTube/universal thumbnails failed)
             if not thumb_dir:
-                result = get_duration_thumb(message, dir_path, user_vid_path, sanitize_filename_strict(caption_name))
+                result = await get_duration_thumb(message, dir_path, user_vid_path, sanitize_filename_strict(caption_name))
                 if result is None:
                     logger.warning("Failed to create ffmpeg thumbnail fallback")
                     thumb_dir = None
@@ -1953,7 +1991,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             # Check for the existence of a preview and create a default one if needed
             if thumb_dir and not os.path.exists(thumb_dir):
                 logger.warning(f"Thumbnail not found at {thumb_dir}, creating default")
-                create_default_thumbnail(os.path.join(dir_path, "default_thumb.jpg"))
+                await create_default_thumbnail(os.path.join(dir_path, "default_thumb.jpg"))
                 thumb_dir = os.path.join(dir_path, "default_thumb.jpg")
                 if not os.path.exists(thumb_dir):
                     logger.warning("Failed to create default thumbnail, continuing without thumbnail")
@@ -1963,21 +2001,21 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             video_size = humanbytes(int(video_size_in_bytes))
             max_size = get_user_split_size(user_id)  # 1.95 GB - close to Telegram's 2GB limit with 50MB safety margin
             if int(video_size_in_bytes) > max_size:
-                safe_edit_message_text(user_id, proc_msg_id,
+                await safe_edit_message_text(user_id, proc_msg_id,
                     f"{info_text}\n{full_bar}   100.0%\n<i>⚠️ Your video size ({video_size}) is too large.</i>\n<i>Splitting file...</i> ✂️")
-                returned = split_video_2(dir_path, sanitize_filename_strict(caption_name), after_rename_abs_path, int(video_size_in_bytes), max_size, int(duration))
+                returned = await split_video_2(dir_path, sanitize_filename_strict(caption_name), after_rename_abs_path, int(video_size_in_bytes), max_size, int(duration), user_id)
                 caption_lst = returned.get("video")
                 path_lst = returned.get("path")
                 # Accumulate all IDs of split video parts
                 # Note: split_msg_ids is already initialized at function start, don't reset it here
                 for p in range(len(caption_lst) if caption_lst else 0):
                     caption_name = caption_lst[p] if caption_lst and p < len(caption_lst) else f"part_{p+1}"
-                    part_result = get_duration_thumb(message, dir_path, path_lst[p], sanitize_filename_strict(caption_name))
+                    part_result = await get_duration_thumb(message, dir_path, path_lst[p], sanitize_filename_strict(caption_name))
                     if part_result is None:
                         continue
                     part_duration, splited_thumb_dir = part_result
                     # --- TikTok: Don't Pass Title ---
-                    video_msg = send_videos(message, path_lst[p], '' if force_no_title else caption_name, part_duration, splited_thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final)
+                    video_msg = await send_videos(message, path_lst[p], '' if force_no_title else caption_name, part_duration, splited_thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final)
                     if not video_msg:
                         logger.error("send_videos returned None for split part; skipping cache save for this part")
                         continue
@@ -1999,26 +2037,26 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             # Send paid copy to LOGS_PAID_ID and open copy to LOGS_NSFW_ID for history
                             
                             # Send paid copy to LOGS_PAID_ID
-                            log_channel_paid = get_log_channel("video", paid=True)
+                            log_channel_paid = await get_log_channel("video", paid=True)
                             try:
                                 # Forward the paid video to LOGS_PAID_ID
-                                safe_forward_messages(log_channel_paid, user_id, [video_msg.id])
+                                await safe_forward_messages(log_channel_paid, user_id, [video_msg.id])
                                 logger.info(f"down_and_up: NSFW content paid copy sent to PAID channel")
                             except Exception as e:
                                 logger.error(f"down_and_up: failed to send paid copy to PAID channel: {e}")
                             
                             # Send open copy to LOGS_NSFW_ID for history
-                            log_channel_nsfw = get_log_channel("video", nsfw=True)
+                            log_channel_nsfw = await get_log_channel("video", nsfw=True)
                             if log_channel_nsfw and log_channel_nsfw != 0:
                                 try:
                                     # Get video dimensions for proper aspect ratio
                                     try:
-                                        v_w, v_h, v_dur = get_video_info_ffprobe(path_lst[p])
+                                        v_w, v_h, v_dur = await get_video_info_ffprobe(path_lst[p])
                                     except Exception:
                                         v_w, v_h, v_dur = width, height, part_duration
                                     
                                     # Create open copy for history (without stars) - send directly to NSFW channel
-                                    open_video_msg = app.send_video(
+                                    open_video_msg = await app.send_video(
                                         chat_id=log_channel_nsfw,
                                         video=path_lst[p],
                                         caption=caption_lst[p] if caption_lst and p < len(caption_lst) else f"part_{p+1}",
@@ -2044,10 +2082,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             # For split videos, always forward each part to NSFW channel
                             if caption_lst and len(caption_lst) > 1:
                                 # This is a split video - always forward each part
-                                log_channel = get_log_channel("video", nsfw=True)
+                                log_channel = await get_log_channel("video", nsfw=True)
                                 if log_channel and log_channel != 0:
                                     try:
-                                        forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                        forwarded_msgs = await safe_forward_messages(log_channel, user_id, [video_msg.id])
                                         logger.info(f"down_and_up: NSFW content sent to NSFW channel")
                                     except Exception as e:
                                         logger.error(f"down_and_up: failed to forward to NSFW channel: {e}")
@@ -2057,10 +2095,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     forwarded_msgs = None
                             elif not already_forwarded_to_log:
                                 already_forwarded_to_log = True  # Set flag BEFORE forward to prevent duplicates
-                                log_channel = get_log_channel("video", nsfw=True)
+                                log_channel = await get_log_channel("video", nsfw=True)
                                 if log_channel and log_channel != 0:
                                     try:
-                                        forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                        forwarded_msgs = await safe_forward_messages(log_channel, user_id, [video_msg.id])
                                         logger.info(f"down_and_up: NSFW content sent to NSFW channel")
                                     except Exception as e:
                                         logger.error(f"down_and_up: failed to forward to NSFW channel: {e}")
@@ -2080,12 +2118,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             # For split videos, always forward each part to log channel
                             if caption_lst and len(caption_lst) > 1:
                                 # This is a split video - always forward each part
-                                log_channel = get_log_channel("video")
-                                forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                log_channel = await get_log_channel("video")
+                                forwarded_msgs = await safe_forward_messages(log_channel, user_id, [video_msg.id])
                             elif not already_forwarded_to_log:
                                 already_forwarded_to_log = True  # Set flag BEFORE forward to prevent duplicates
-                                log_channel = get_log_channel("video")
-                                forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                log_channel = await get_log_channel("video")
+                                forwarded_msgs = await safe_forward_messages(log_channel, user_id, [video_msg.id])
                             else:
                                 logger.info("down_and_up: skipping forward to LOGS_VIDEO_ID - already forwarded to log")
                                 forwarded_msgs = None
@@ -2125,7 +2163,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 #found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
                                 subs_enabled = is_subs_enabled(user_id)
                                 auto_mode = get_user_subs_auto_mode(user_id)
-                                need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+                                need_subs = await determine_need_subs(subs_enabled, found_type, user_id)
                                 if not need_subs:
                                     save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
                                 else:
@@ -2153,8 +2191,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             actual_video_count = len(split_msg_ids)
                             success_msg = f"<b>{safe_get_messages(user_id).DOWN_UP_UPLOAD_COMPLETE_MSG}</b> - {actual_video_count} {safe_get_messages(user_id).DOWN_UP_FILES_UPLOADED_MSG}.\n{safe_get_messages(user_id).CREDITS_MSG}"
                             logger.info(f"PREVENTIVE FIX: sending final success message for split video: {success_msg}")
-                            safe_edit_message_text(user_id, proc_msg_id, success_msg)
-                            send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
+                            await safe_edit_message_text(user_id, proc_msg_id, success_msg)
+                            await send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
                             break
                         if is_playlist:
                             # For playlists, save to playlist cache with video index
@@ -2162,7 +2200,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             #found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
                             subs_enabled = is_subs_enabled(user_id)
                             auto_mode = get_user_subs_auto_mode(user_id)
-                            need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+                            need_subs = await determine_need_subs(subs_enabled, found_type, user_id)
                             if not need_subs:
                                 save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
                             else:
@@ -2175,13 +2213,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             # Accumulate IDs of parts for split video
                             split_msg_ids.append(video_msg.id)
                             logger.info(f"down_and_up: added video_msg.id to split_msg_ids after error: {video_msg.id}, current split_msg_ids: {split_msg_ids}")
-                            safe_edit_message_text(user_id, proc_msg_id,
+                            await safe_edit_message_text(user_id, proc_msg_id,
                                 f"{info_text}\n{full_bar}   100.0%\n<i>{safe_get_messages(user_id).DOWN_UP_SPLITTED_PART_UPLOADED_MSG.format(part=p + 1)}</i>")
                     if caption_lst and p < len(caption_lst) - 1:
                         pass
                     if os.path.exists(splited_thumb_dir):
                         os.remove(splited_thumb_dir)
-                    send_mediainfo_if_enabled(user_id, path_lst[p], message)
+                    await send_mediainfo_if_enabled(user_id, path_lst[p], message)
                     if os.path.exists(path_lst[p]):
                         os.remove(path_lst[p])
                 
@@ -2201,7 +2239,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
                     subs_enabled = is_subs_enabled(user_id)
                     auto_mode = get_user_subs_auto_mode(user_id)
-                    need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+                    need_subs = await determine_need_subs(subs_enabled, found_type, user_id)
                     
                     # Only save to cache if subtitles are not needed
                     if not need_subs:
@@ -2218,8 +2256,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 actual_video_count = len(split_msg_ids) if split_msg_ids else video_count
                 success_msg = f"<b>{safe_get_messages(user_id).DOWN_UP_UPLOAD_COMPLETE_MSG}</b> - {actual_video_count} {safe_get_messages(user_id).DOWN_UP_FILES_UPLOADED_MSG}.\n{safe_get_messages(user_id).CREDITS_MSG}"
                 logger.info(f"down_and_up: sending final success message for split video: {success_msg}")
-                safe_edit_message_text(user_id, proc_msg_id, success_msg)
-                send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
+                await safe_edit_message_text(user_id, proc_msg_id, success_msg)
+                await send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
                 break
             else:
                 if final_name:
@@ -2235,7 +2273,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     # Check for preview existence before sending
                     if thumb_dir and not os.path.exists(thumb_dir):
                         logger.warning(f"Thumbnail not found before sending, creating default")
-                        create_default_thumbnail(os.path.join(dir_path, "default_thumb.jpg"))
+                        await create_default_thumbnail(os.path.join(dir_path, "default_thumb.jpg"))
                         thumb_dir = os.path.join(dir_path, "default_thumb.jpg")
                         if not os.path.exists(thumb_dir):
                             logger.warning("Failed to create default thumbnail before sending, continuing without thumbnail")
@@ -2250,7 +2288,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             subs_enabled = is_subs_enabled(user_id)
                             # Get the real size of the video
                             try:
-                                width, height, _ = get_video_info_ffprobe(after_rename_abs_path)
+                                width, height, _ = await get_video_info_ffprobe(after_rename_abs_path)
                                 real_file_size = min(width, height)
                             except Exception as e:
                                 logger.error(f"[FFPROBE BYPASS] Error while processing video {after_rename_abs_path}: {e}")
@@ -2261,7 +2299,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             if subs_enabled and is_youtube_url(url) and min(width, height) <= safe_get_messages(user_id).MAX_SUB_QUALITY:
                                 #found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
                                 # Use the helper function to determine subtitle availability
-                                need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+                                need_subs = await determine_need_subs(subs_enabled, found_type, user_id)
                                 if need_subs:
                                     
                                     # First, download the subtitles separately
@@ -2269,7 +2307,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     subs_path = download_subtitles_ytdlp(url, user_id, video_dir, available_langs)
                                     
                                     if not subs_path:
-                                        app.send_message(user_id, safe_get_messages(user_id).SUBTITLES_FAILED_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+                                        await app.send_message(user_id, safe_get_messages(user_id).SUBTITLES_FAILED_MSG, reply_parameters=ReplyParameters(message_id=message.id))
                                         #continue
                                     
                                     # Get the real size of the file after downloading
@@ -2283,14 +2321,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     }
                                     
                                     if check_subs_limits(real_info, safe_quality_key):
-                                        status_msg = app.send_message(user_id, safe_get_messages(user_id).EMBEDDING_SUBTITLES_WARNING_MSG)
-                                        def tg_update_callback(progress, eta):
+                                        status_msg = await app.send_message(user_id, safe_get_messages(user_id).EMBEDDING_SUBTITLES_WARNING_MSG)
+                                        async def tg_update_callback(progress, eta):
                                             messages = safe_get_messages(user_id)
                                             blocks = int(progress * 10)
                                             bar = '🟩' * blocks + '⬜️' * (10 - blocks)
                                             percent = int(progress * 100)
                                             try:
-                                                app.edit_message_text(
+                                                await app.edit_message_text(
                                                     chat_id=user_id,
                                                     message_id=status_msg.id,
                                                     text=f"🔥 Embedding subtitles...\n{bar} {percent}%\nETA: {eta} min"
@@ -2302,10 +2340,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         logger.info(f"File exists check: {os.path.exists(after_rename_abs_path)}")
                                         logger.info(f"Original video path for subtitle search: {original_video_path}")
                                         # Use renamed path for video processing
-                                        embed_result = embed_subs_to_video(after_rename_abs_path, user_id, tg_update_callback, app=app, message=message)
+                                        embed_result = await embed_subs_to_video(after_rename_abs_path, user_id, tg_update_callback, app=app, message=message)
                                         try:
                                             if embed_result:
-                                                app.edit_message_text(
+                                                await app.edit_message_text(
                                                     chat_id=user_id,
                                                     message_id=status_msg.id,
                                                     text="Subtitles successfully embedded! ✅"
@@ -2317,13 +2355,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                                 subs_files = glob.glob(os.path.join(video_dir, f"{video_name}*.srt"))
                                                 
                                                 if not subs_files:
-                                                    app.edit_message_text(
+                                                    await app.edit_message_text(
                                                         chat_id=user_id,
                                                         message_id=status_msg.id,
                                                         text="⚠️ Subtitles not found for this video"
                                                     )
                                                 else:
-                                                    app.edit_message_text(
+                                                    await app.edit_message_text(
                                                         chat_id=user_id,
                                                         message_id=status_msg.id,
                                                         text="⚠️ Subtitles not embedded: exceeded size/duration limits"
@@ -2331,9 +2369,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         except Exception as e:
                                             logger.error(f"Failed to update subtitle progress (final): {e}")
                                     else:
-                                        app.send_message(user_id, safe_get_messages(user_id).SUBTITLES_CANNOT_EMBED_LIMITS_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+                                        await app.send_message(user_id, safe_get_messages(user_id).SUBTITLES_CANNOT_EMBED_LIMITS_MSG, reply_parameters=ReplyParameters(message_id=message.id))
                                 else:
-                                    app.send_message(user_id, safe_get_messages(user_id).SUBTITLES_NOT_AVAILABLE_LANGUAGE_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+                                    await app.send_message(user_id, safe_get_messages(user_id).SUBTITLES_NOT_AVAILABLE_LANGUAGE_MSG, reply_parameters=ReplyParameters(message_id=message.id))
                             
                             # Clean up subtitle files after embedding attempt
                             try:
@@ -2343,7 +2381,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             
                             # Clear
                             clear_subs_check_cache()
-                        video_msg = send_videos(message, after_rename_abs_path, '' if force_no_title else original_video_title, duration, thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final)
+                        video_msg = await send_videos(message, after_rename_abs_path, '' if force_no_title else original_video_title, duration, thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final)
                         if not video_msg:
                             logger.error("send_videos returned None for single video; aborting cache save for this item")
                             continue
@@ -2373,25 +2411,25 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 # Send paid copy to LOGS_PAID_ID and open copy to LOGS_NSFW_ID for history
                                 
                                 # Send paid copy to LOGS_PAID_ID
-                                log_channel_paid = get_log_channel("video", paid=True)
+                                log_channel_paid = await get_log_channel("video", paid=True)
                                 try:
                                     # Forward the paid video to LOGS_PAID_ID
-                                    safe_forward_messages(log_channel_paid, user_id, [video_msg.id])
+                                    await safe_forward_messages(log_channel_paid, user_id, [video_msg.id])
                                     logger.info(f"down_and_up: NSFW content paid copy sent to PAID channel")
                                 except Exception as e:
                                     logger.error(f"down_and_up: failed to send paid copy to PAID channel: {e}")
                                 
                                 # Send open copy to LOGS_NSFW_ID for history
-                                log_channel_nsfw = get_log_channel("video", nsfw=True)
+                                log_channel_nsfw = await get_log_channel("video", nsfw=True)
                                 try:
                                     # Get video dimensions for proper aspect ratio
                                     try:
-                                        v_w, v_h, v_dur = get_video_info_ffprobe(after_rename_abs_path)
+                                        v_w, v_h, v_dur = await get_video_info_ffprobe(after_rename_abs_path)
                                     except Exception:
                                         v_w, v_h, v_dur = width, height, duration
                                     
                                     # Create open copy for history (without stars) - send directly to NSFW channel
-                                    open_video_msg = app.send_video(
+                                    open_video_msg = await app.send_video(
                                         chat_id=log_channel_nsfw,
                                         video=after_rename_abs_path,
                                         caption='' if force_no_title else original_video_title,
@@ -2415,12 +2453,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 # For split videos, always forward each part to NSFW channel
                                 if caption_lst and len(caption_lst) > 1:
                                     # This is a split video - always forward each part
-                                    log_channel = get_log_channel("video", nsfw=True)
-                                    forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                    log_channel = await get_log_channel("video", nsfw=True)
+                                    forwarded_msgs = await safe_forward_messages(log_channel, user_id, [video_msg.id])
                                 elif not already_forwarded_to_log:
                                     already_forwarded_to_log = True  # Set flag BEFORE forward to prevent duplicates
-                                    log_channel = get_log_channel("video", nsfw=True)
-                                    forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                    log_channel = await get_log_channel("video", nsfw=True)
+                                    forwarded_msgs = await safe_forward_messages(log_channel, user_id, [video_msg.id])
                                 else:
                                     logger.info("down_and_up: skipping forward to NSFW channel - already forwarded to log")
                                     forwarded_msgs = None
@@ -2435,11 +2473,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     forwarded_msgs = None
                                 elif caption_lst and len(caption_lst) > 1:
                                     # This is a split video - always forward each part
-                                    log_channel = get_log_channel("video")
-                                    forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                    log_channel = await get_log_channel("video")
+                                    forwarded_msgs = await safe_forward_messages(log_channel, user_id, [video_msg.id])
                                 elif not already_forwarded_to_log:
-                                    log_channel = get_log_channel("video")
-                                    forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                    log_channel = await get_log_channel("video")
+                                    forwarded_msgs = await safe_forward_messages(log_channel, user_id, [video_msg.id])
                                 else:
                                     logger.info("down_and_up: skipping forward to LOGS_VIDEO_ID - already forwarded to log")
                                     forwarded_msgs = None
@@ -2452,7 +2490,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     #found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
                                     subs_enabled = is_subs_enabled(user_id)
                                     auto_mode = get_user_subs_auto_mode(user_id)
-                                    need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+                                    need_subs = await determine_need_subs(subs_enabled, found_type, user_id)
                                     if not need_subs:
                                         save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
                                     else:
@@ -2505,9 +2543,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                             
                                         elif is_nsfw:
                                             # NSFW content in groups -> LOGS_NSFW_ID only
-                                            log_channel = get_log_channel("video", nsfw=True)
+                                            log_channel = await get_log_channel("video", nsfw=True)
                                             try:
-                                                safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                                await safe_forward_messages(log_channel, user_id, [video_msg.id])
                                                 logger.info(f"down_and_up: NSFW content sent to NSFW channel (manual)")
                                             except Exception as e:
                                                 logger.error(f"down_and_up: failed to forward to NSFW channel (manual): {e}")
@@ -2525,11 +2563,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                                 forwarded_msgs = None
                                             elif caption_lst and len(caption_lst) > 1:
                                                 # This is a split video - always forward each part
-                                                log_channel = get_log_channel("video")
-                                                forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                                log_channel = await get_log_channel("video")
+                                                forwarded_msgs = await safe_forward_messages(log_channel, user_id, [video_msg.id])
                                             elif not already_forwarded_to_log:
-                                                log_channel = get_log_channel("video")
-                                                forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                                log_channel = await get_log_channel("video")
+                                                forwarded_msgs = await safe_forward_messages(log_channel, user_id, [video_msg.id])
                                             else:
                                                 logger.info("down_and_up: skipping forward to LOGS_VIDEO_ID - already forwarded to log (manual)")
                                                 forwarded_msgs = None
@@ -2540,7 +2578,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                                 current_video_index = x + video_start_with
                                                 subs_enabled = is_subs_enabled(user_id)
                                                 auto_mode = get_user_subs_auto_mode(user_id)
-                                                need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+                                                need_subs = await determine_need_subs(subs_enabled, found_type, user_id)
                                                 if not need_subs:
                                                     save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
                                                 else:
@@ -2573,8 +2611,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     actual_video_count = len(split_msg_ids)
                                     success_msg = f"<b>{safe_get_messages(user_id).DOWN_UP_UPLOAD_COMPLETE_MSG}</b> - {actual_video_count} {safe_get_messages(user_id).DOWN_UP_FILES_UPLOADED_MSG}.\n{safe_get_messages(user_id).CREDITS_MSG}"
                                     logger.info(f"PREVENTIVE FIX: sending final success message for split video: {success_msg}")
-                                    safe_edit_message_text(user_id, proc_msg_id, success_msg)
-                                    send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
+                                    await safe_edit_message_text(user_id, proc_msg_id, success_msg)
+                                    await send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
                                     break
                             else:
                                 logger.error(f"Error forwarding video to logger: {e}")
@@ -2595,25 +2633,25 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     # Send paid copy to LOGS_PAID_ID and open copy to LOGS_NSFW_ID for history
                                     
                                     # Send paid copy to LOGS_PAID_ID
-                                    log_channel_paid = get_log_channel("video", paid=True)
+                                    log_channel_paid = await get_log_channel("video", paid=True)
                                     try:
                                         # Forward the paid video to LOGS_PAID_ID
-                                        safe_forward_messages(log_channel_paid, user_id, [video_msg.id])
+                                        await safe_forward_messages(log_channel_paid, user_id, [video_msg.id])
                                         logger.info(f"down_and_up: NSFW content paid copy sent to PAID channel (error recovery)")
                                     except Exception as e:
                                         logger.error(f"down_and_up: failed to send paid copy to PAID channel (error recovery): {e}")
                                     
                                     # Send open copy to LOGS_NSFW_ID for history
-                                    log_channel_nsfw = get_log_channel("video", nsfw=True)
+                                    log_channel_nsfw = await get_log_channel("video", nsfw=True)
                                     try:
                                         # Get video dimensions for proper aspect ratio
                                         try:
-                                            v_w, v_h, v_dur = get_video_info_ffprobe(after_rename_abs_path)
+                                            v_w, v_h, v_dur = await get_video_info_ffprobe(after_rename_abs_path)
                                         except Exception:
                                             v_w, v_h, v_dur = width, height, duration
                                         
                                         # Create open copy for history (without stars) - send directly to NSFW channel
-                                        open_video_msg = app.send_video(
+                                        open_video_msg = await app.send_video(
                                             chat_id=log_channel_nsfw,
                                             video=after_rename_abs_path,
                                             caption='' if force_no_title else original_video_title,
@@ -2634,9 +2672,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     
                                 elif is_nsfw:
                                     # NSFW content in groups -> LOGS_NSFW_ID only
-                                    log_channel = get_log_channel("video", nsfw=True)
+                                    log_channel = await get_log_channel("video", nsfw=True)
                                     try:
-                                        safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                        await safe_forward_messages(log_channel, user_id, [video_msg.id])
                                         logger.info(f"down_and_up: NSFW content sent to NSFW channel (error recovery)")
                                     except Exception as e:
                                         logger.error(f"down_and_up: failed to forward to NSFW channel (error recovery): {e}")
@@ -2649,11 +2687,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     # Regular content -> LOGS_VIDEO_ID and cache
                                     if caption_lst and len(caption_lst) > 1:
                                         # This is a split video - always forward each part
-                                        log_channel = get_log_channel("video")
-                                        forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                        log_channel = await get_log_channel("video")
+                                        forwarded_msgs = await safe_forward_messages(log_channel, user_id, [video_msg.id])
                                     elif not already_forwarded_to_log:
-                                        log_channel = get_log_channel("video")
-                                        forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                        log_channel = await get_log_channel("video")
+                                        forwarded_msgs = await safe_forward_messages(log_channel, user_id, [video_msg.id])
                                     else:
                                         logger.info("down_and_up: skipping forward to LOGS_VIDEO_ID - already forwarded to log (error recovery)")
                                         forwarded_msgs = None
@@ -2664,7 +2702,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         current_video_index = x + video_start_with
                                         subs_enabled = is_subs_enabled(user_id)
                                         auto_mode = get_user_subs_auto_mode(user_id)
-                                        need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+                                        need_subs = await determine_need_subs(subs_enabled, found_type, user_id)
                                         if not need_subs:
                                             save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
                                         else:
@@ -2695,14 +2733,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         actual_video_count = len(split_msg_ids)
                                         success_msg = f"<b>{safe_get_messages(user_id).DOWN_UP_UPLOAD_COMPLETE_MSG}</b> - {actual_video_count} {safe_get_messages(user_id).DOWN_UP_FILES_UPLOADED_MSG}.\n{safe_get_messages(user_id).CREDITS_MSG}"
                                         logger.info(f"PREVENTIVE FIX: sending final success message for split video: {success_msg}")
-                                        safe_edit_message_text(user_id, proc_msg_id, success_msg)
-                                        send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
+                                        await safe_edit_message_text(user_id, proc_msg_id, success_msg)
+                                        await send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
                                         break
                                 else:
                                     logger.error(f"Error in manual forward after error: {e2}")
-                        safe_edit_message_text(user_id, proc_msg_id,
+                        await safe_edit_message_text(user_id, proc_msg_id,
                             f"{info_text}\n{full_bar}   100.0%\n<b>{safe_get_messages(user_id).DOWN_UP_VIDEO_DURATION_MSG}</b> <i>{TimeFormatter(duration * 1000)}</i>\n{safe_get_messages(user_id).DOWN_UP_ONE_FILE_UPLOADED_MSG}")
-                        send_mediainfo_if_enabled(user_id, after_rename_abs_path, message)
+                        await send_mediainfo_if_enabled(user_id, after_rename_abs_path, message)
                         
                         # Clean up video file and thumbnail
                         if os.path.exists(after_rename_abs_path):
@@ -2713,12 +2751,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     except Exception as e:
                         logger.error(f"Error sending video: {e}")
                         logger.error(traceback.format_exc())
-                        send_error_to_user(message, safe_get_messages(user_id).ERROR_SENDING_VIDEO_MSG.format(error=str(e)))
+                        await send_error_to_user(message, safe_get_messages(user_id).ERROR_SENDING_VIDEO_MSG.format(error=str(e)))
                         continue
         if successful_uploads == len(indices_to_download):
             success_msg = f"<b>{safe_get_messages(user_id).DOWN_UP_UPLOAD_COMPLETE_MSG}</b> - {video_count} {safe_get_messages(user_id).DOWN_UP_FILES_UPLOADED_MSG}.\n{safe_get_messages(user_id).CREDITS_MSG}"
-            safe_edit_message_text(user_id, proc_msg_id, success_msg)
-            send_to_logger(message, success_msg)
+            await safe_edit_message_text(user_id, proc_msg_id, success_msg)
+            await send_to_logger(message, success_msg)
             
             # Clean up download subdirectory after successful upload
             try:
@@ -2734,13 +2772,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
         if is_playlist and safe_quality_key:
             total_sent = len(cached_videos) + successful_uploads
-            app.send_message(user_id, safe_get_messages(user_id).PLAYLIST_VIDEOS_SENT_MSG.format(sent=total_sent, total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
-            send_to_logger(message, safe_get_messages(user_id).PLAYLIST_VIDEOS_SENT_LOG_MSG.format(sent=total_sent, total=len(requested_indices), quality=safe_quality_key, user_id=user_id))
+            await app.send_message(user_id, safe_get_messages(user_id).PLAYLIST_VIDEOS_SENT_MSG.format(sent=total_sent, total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+            await send_to_logger(message, safe_get_messages(user_id).PLAYLIST_VIDEOS_SENT_LOG_MSG.format(sent=total_sent, total=len(requested_indices), quality=safe_quality_key, user_id=user_id))
 
     except Exception as e:
         if "Download timeout exceeded" in str(e):
-            send_to_user(message, safe_get_messages(user_id).DOWNLOAD_CANCELLED_TIMEOUT_MSG)
-            log_error_to_channel(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG, url)
+            await send_to_user(message, safe_get_messages(user_id).DOWNLOAD_CANCELLED_TIMEOUT_MSG)
+            await log_error_to_channel(message, LoggerMsg.DOWNLOAD_TIMEOUT_LOG, url)
         elif "'quality_key'" in str(e):
             # Quality_key errors are non-critical and should be completely ignored
             logger.info(f"quality_key error ignored (non-critical): {e}")
@@ -2752,20 +2790,20 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 actual_video_count = len(split_msg_ids)
                 success_msg = f"<b>{safe_get_messages(user_id).DOWN_UP_UPLOAD_COMPLETE_MSG}</b> - {actual_video_count} {safe_get_messages(user_id).DOWN_UP_FILES_UPLOADED_MSG}.\n{safe_get_messages(user_id).CREDITS_MSG}"
                 logger.info(f"HARD FIX: sending final success message for split video: {success_msg}")
-                safe_edit_message_text(user_id, proc_msg_id, success_msg)
-                send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
+                await safe_edit_message_text(user_id, proc_msg_id, success_msg)
+                await send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
         else:
             logger.error(f"Error in video download: {e}")
-            send_to_user(message, safe_get_messages(user_id).FAILED_DOWNLOAD_VIDEO_MSG.format(error=e))
+            await send_to_user(message, safe_get_messages(user_id).FAILED_DOWNLOAD_VIDEO_MSG.format(error=e))
         
         # Immediate cleanup of temporary status messages on error
         try:
             if status_msg_id:
-                safe_delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
+                await safe_delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
             if hourglass_msg_id:
-                safe_delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
+                await safe_delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
             if download_started_msg_id:
-                safe_delete_messages(chat_id=user_id, message_ids=[download_started_msg_id], revoke=True)
+                await safe_delete_messages(chat_id=user_id, message_ids=[download_started_msg_id], revoke=True)
             stop_anim.set()
         except Exception:
             pass
@@ -2792,15 +2830,15 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
         try:
             if status_msg_id:
-                safe_delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
+                await safe_delete_messages(chat_id=user_id, message_ids=[status_msg_id], revoke=True)
             if hourglass_msg_id:
-                safe_delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
+                await safe_delete_messages(chat_id=user_id, message_ids=[hourglass_msg_id], revoke=True)
         except Exception as e:
             logger.error(f"Error deleting status messages: {e}")
         # Also try to delete the 'Download started' message if it still exists
         try:
             if download_started_msg_id:
-                safe_delete_messages(chat_id=user_id, message_ids=[download_started_msg_id], revoke=True)
+                await safe_delete_messages(chat_id=user_id, message_ids=[download_started_msg_id], revoke=True)
         except Exception:
             pass
 
@@ -2809,7 +2847,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             #found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
             subs_enabled = is_subs_enabled(user_id)
             auto_mode = get_user_subs_auto_mode(user_id)
-            need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+            need_subs = await determine_need_subs(subs_enabled, found_type, user_id)
             if not need_subs:
                 save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, playlist_indices, playlist_msg_ids, original_text=message.text or message.caption or "")
             else:

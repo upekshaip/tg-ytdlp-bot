@@ -39,15 +39,13 @@ except Exception as e:
     sys.exit(1)
 
 try:
-    import requests
-    from requests import Session
-    from requests.adapters import HTTPAdapter
+    import aiohttp
+    import asyncio
     import firebase_admin
     from firebase_admin import credentials
 except ImportError:
-    requests = None
-    Session = None
-    HTTPAdapter = None
+    aiohttp = None
+    asyncio = None
     firebase_admin = None
     credentials = None
 

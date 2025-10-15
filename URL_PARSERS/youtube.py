@@ -1,7 +1,8 @@
 
 from urllib.parse import urlparse, parse_qs, urlencode
 import re
-import requests
+import asyncio
+from HELPERS.http_client import fetch_bytes
 from CONFIG.config import Config
 from CONFIG.messages import Messages, safe_get_messages
 from HELPERS.logger import logger
@@ -52,7 +53,7 @@ def is_youtube_url(url: str) -> bool:
     return 'youtube.com' in parsed.netloc or 'youtu.be' in parsed.netloc
 
 
-def extract_youtube_id(url: str, user_id=None) -> str:
+async def extract_youtube_id(url: str, user_id=None) -> str:
     """
     It extracts YouTube Video ID from different link formats.
     """
@@ -69,7 +70,7 @@ def extract_youtube_id(url: str, user_id=None) -> str:
     raise ValueError(safe_get_messages(user_id).YOUTUBE_FAILED_EXTRACT_ID_MSG)
 
 
-def download_thumbnail(video_id: str, dest: str, url: str = None) -> None:
+async def download_thumbnail(video_id: str, dest: str, url: str = None) -> None:
     """
     Downloads YouTube (Maxresdefault/Hqdefault) to the disk in the original size.
     URL - it is needed to determine Shorts by link (but now it is not used).
@@ -77,14 +78,17 @@ def download_thumbnail(video_id: str, dest: str, url: str = None) -> None:
     base = f"https://img.youtube.com/vi/{video_id}"
     img_bytes = None
     for name in ("maxresdefault.jpg", "hqdefault.jpg"):
-        r = requests.get(f"{base}/{name}", timeout=10)
-        if r.status_code == 200 and len(r.content) <= 1024 * 1024:
-            with open(dest, "wb") as f:
-                f.write(r.content)
-            img_bytes = r.content
-            break
+        try:
+            img_content = await fetch_bytes(f"{base}/{name}", timeout=10)
+            if len(img_content) <= 1024 * 1024:
+                with open(dest, "wb") as f:
+                    f.write(img_content)
+                img_bytes = img_content
+                break
+        except Exception:
+            continue
     if not img_bytes:
-        raise RuntimeError(safe_get_messages(user_id).YOUTUBE_FAILED_DOWNLOAD_THUMBNAIL_MSG)
+        raise RuntimeError("Failed to download thumbnail")
     # We do nothing else - we keep the original size!
 
 

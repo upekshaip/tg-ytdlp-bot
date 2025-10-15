@@ -173,7 +173,7 @@ class LoggerMsg(object):
     COOKIES_YOUTUBE_FINISHED_NO_WORKING_LOG_MSG = "Finished ensure_working_youtube_cookies for user {user_id} - no working cookies found"
     COOKIES_YOUTUBE_RETRY_PROXY_SUCCESS_LOG_MSG = "Download retry with proxy successful for user {user_id}"
     COOKIES_YOUTUBE_RETRY_PROXY_FAILED_LOG_MSG = "Download retry with proxy failed for user {user_id}"
-    COOKIES_YOUTUBE_RETRY_ATTEMPT_LOG_MSG = "Retry attempt {attempt}/{total} with cookie source {idx} for user {user_id}"
+    COOKIES_YOUTUBE_RETRY_ATTEMPT_LOG_MSG = "Retry attempt {attempt}/{total_attempts} with cookie source {source_index} for user {user_id}"
     COOKIES_YOUTUBE_RETRY_URL_NOT_TXT_LOG_MSG = "Cookie URL {idx} is not .txt file"
     COOKIES_YOUTUBE_RETRY_FILE_TOO_LARGE_LOG_MSG = "Cookie file {idx} is too large: {size} bytes"
     COOKIES_YOUTUBE_RETRY_SOURCE_WORKING_LOG_MSG = "Cookie source {idx} is working, retrying download for user {user_id}"
