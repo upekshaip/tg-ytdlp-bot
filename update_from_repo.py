@@ -109,7 +109,8 @@ async def clone_repository(temp_dir):
         
         stdout, stderr = await async_subprocess(*cmd, timeout=300)
         
-        if not stderr:
+        # Check if the clone was successful by verifying the directory exists and has content
+        if os.path.exists(temp_dir) and os.listdir(temp_dir):
             messages = safe_get_messages()
             log(messages.UPDATE_REPOSITORY_CLONED_SUCCESS_MSG)
             return True
