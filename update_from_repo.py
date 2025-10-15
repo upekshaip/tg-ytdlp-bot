@@ -115,7 +115,7 @@ async def clone_repository(temp_dir):
             return True
         else:
             messages = safe_get_messages()
-            log(messages.UPDATE_CLONE_ERROR_MSG.format(error=result.stderr), "ERROR")
+            log(messages.UPDATE_CLONE_ERROR_MSG.format(error=stderr), "ERROR")
             return False
             
     except subprocess.TimeoutExpired:
@@ -153,7 +153,7 @@ async def update_file_from_source(source_file, target_file):
             log(f"📁 Created directory: {dir_name}")
         
         # Create a backup
-        backup_path = backup_file(target_file)
+        backup_path = await backup_file(target_file)
         
         # Copy the file
         shutil.copy2(source_file, target_file)
@@ -179,7 +179,7 @@ async def move_backups_to_backup_dir():
     except Exception as e:
         log(f"⚠️ Failed to move backups: {e}", "WARNING")
 
-def main():
+async def main():
     messages = safe_get_messages(None)
     """Main update routine"""
     log("🚀 Starting update from GitHub repository")
@@ -212,7 +212,7 @@ def main():
         log(f"📁 Temporary directory created: {temp_dir}")
         
         # Clone repository
-        if not clone_repository(temp_dir):
+        if not await clone_repository(temp_dir):
             return False
         
         # Find files to update
@@ -246,7 +246,7 @@ def main():
             source_file = os.path.join(temp_dir, file_path)
             target_file = file_path
             
-            if update_file_from_source(source_file, target_file):
+            if await update_file_from_source(source_file, target_file):
                 updated_count += 1
             else:
                 failed_count += 1
@@ -259,7 +259,7 @@ def main():
         log(f"📁 Total files: {len(files_to_update)}")
 
         # Move backups into _backup/
-        move_backups_to_backup_dir()
+        await move_backups_to_backup_dir()
         
         if failed_count == 0:
             log("🎉 All files updated successfully!")
@@ -295,5 +295,5 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--show-excluded":
         show_excluded_files()
     else:
-        success = main()
+        success = asyncio.run(main())
         sys.exit(0 if success else 1)
