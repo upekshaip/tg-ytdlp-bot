@@ -7,7 +7,7 @@ from CONFIG.messages import Messages, safe_get_messages
 
 logger = logging.getLogger(__name__)
 
-def get_direct_link_with_proxy(url: str, format_spec: str = "bv+ba/best", user_id: int = None) -> dict:
+async def get_direct_link_with_proxy(url: str, format_spec: str = "bv+ba/best", user_id: int = None) -> dict:
     """
     Get direct stream link using proxy
     

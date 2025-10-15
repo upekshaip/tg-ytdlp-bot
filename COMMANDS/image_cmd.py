@@ -270,10 +270,10 @@ def _save_album_now(url: str, album_index: int, message_ids: list):
     except Exception as e:
         logger.error(LoggerMsg.IMG_CACHE_SAVE_FAILED_LOG_MSG.format(album_index=album_index, e=e))
 
-def extract_profile_name(url):
+async def extract_profile_name(url):
     """Получить имя аккаунта по API/OG для генерации хэштега (без #)."""
     try:
-        info = get_service_account_info(url)
+        info = await get_service_account_info(url)
         _service_tag, account_tag = build_tags(info)
         if account_tag:
             return account_tag.lstrip('#')
@@ -281,10 +281,10 @@ def extract_profile_name(url):
         pass
     return None
 
-def extract_site_name(url):
+async def extract_site_name(url):
     """Получить имя площадки (service) по API/OG для генерации хэштега (без #)."""
     try:
-        info = get_service_account_info(url)
+        info = await get_service_account_info(url)
         service = info.get('service')
         if service:
             return service
@@ -300,7 +300,7 @@ def get_emoji_number(index):
     else:
         return f"{index}."
 
-def get_file_date(file_path, original_url=None, user_id=None):
+async def get_file_date(file_path, original_url=None, user_id=None):
     messages = safe_get_messages(user_id)
     """Get file creation date in DD.MM.YYYY format from EXIF data or filename"""
     try:
@@ -469,7 +469,7 @@ def get_file_date(file_path, original_url=None, user_id=None):
             try:
                 from URL_PARSERS.service_api_info import get_service_date
                 logger.info(f"[FILE_DATE] Trying to get date from service API for URL: {original_url}")
-                api_date = get_service_date(original_url, user_id)
+                api_date = await get_service_date(original_url, user_id)
                 if api_date:
                     logger.info(f"[FILE_DATE] Got date from service API: {api_date}")
                     if is_valid_date(api_date, "api"):
@@ -532,7 +532,7 @@ def create_unique_download_path(user_id, url):
         # Fallback to simple timestamp-based directory
         return os.path.join("users", str(user_id), f"download_{int(time.time() * 1000000)}_{random.randint(1000, 9999)}")
 
-def create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name, user_id=None):
+async def create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name, user_id=None):
     messages = safe_get_messages(user_id)
     """Create album caption with emoji numbers and dates grouped by date"""
     try:
@@ -540,7 +540,7 @@ def create_album_caption_with_dates(media_group, url, tags_text_norm, profile_na
         date_groups = {}
         for i, media in enumerate(media_group, 1):
             file_path = media.media
-            date = get_file_date(file_path, url, user_id)
+            date = await get_file_date(file_path, url, user_id)
             if date:
                 if date not in date_groups:
                     date_groups[date] = []
@@ -2046,9 +2046,9 @@ async def image_command(app, message):
                                                     _exist = getattr(_first, 'caption', None) or ''
                                                     
                                                     # Create user caption with emoji numbers and dates
-                                                    profile_name = extract_profile_name(url)
-                                                    site_name = extract_site_name(url)
-                                                    user_caption = create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name, user_id)
+                                                    profile_name = await extract_profile_name(url)
+                                                    site_name = await extract_site_name(url)
+                                                    user_caption = await create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name, user_id)
                                                     
                                                     _sep = (' ' if _exist and not _exist.endswith('\n') else '')
                                                     # Если у первого уже стоит эта подпись, не дублируем
@@ -3073,9 +3073,9 @@ async def image_command(app, message):
                                             _exist = getattr(_first, 'caption', None) or ''
                                             
                                             # Create user caption with emoji numbers and dates
-                                            profile_name = extract_profile_name(url)
-                                            site_name = extract_site_name(url)
-                                            user_caption = create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name, user_id)
+                                            profile_name = await extract_profile_name(url)
+                                            site_name = await extract_site_name(url)
+                                            user_caption = await create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name, user_id)
                                             
                                             _sep = (' ' if _exist and not _exist.endswith('\n') else '')
                                             _first.caption = (_exist + _sep + user_caption).strip()
@@ -3655,9 +3655,9 @@ async def image_command(app, message):
                         _first = media_group[0]
                         if hasattr(_first, 'caption'):
                             # Create user caption with emoji numbers and dates
-                            profile_name = extract_profile_name(url)
-                            site_name = extract_site_name(url)
-                            user_caption = create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name, user_id)
+                            profile_name = await extract_profile_name(url)
+                            site_name = await extract_site_name(url)
+                            user_caption = await create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name, user_id)
                             _first.caption = user_caption
                         # Clear captions from other items
                         for _itm in media_group[1:]:
@@ -3882,7 +3882,8 @@ async def image_command(app, message):
 
 # @app.on_callback_query(filters.regex(r"^img_help\|"))
 async def img_help_callback(app, callback_query: CallbackQuery):
-    messages = safe_get_messages(None)
+    user_id = callback_query.from_user.id
+    messages = safe_get_messages(user_id)
     """Handle img help callback"""
     data = callback_query.data.split("|")[-1]
     

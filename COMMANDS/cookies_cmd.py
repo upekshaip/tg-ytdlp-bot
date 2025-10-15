@@ -462,7 +462,7 @@ async def checking_cookie_file(app, message):
                         return True
                 return False
             if await _has_youtube_domain(cookie_content):
-                if test_youtube_cookies(file_path):
+                if await test_youtube_cookies(file_path):
                     if initial_msg is not None and hasattr(initial_msg, 'id'):
                         await safe_edit_message_text(message.chat.id, initial_msg.id, safe_get_messages(user_id).COOKIES_YOUTUBE_WORKING_PROPERLY_MSG)
                     await send_to_logger(message, safe_get_messages(user_id).COOKIES_FILE_WORKING_LOG_MSG)
@@ -515,7 +515,7 @@ async def download_cookie(app, message):
                 
                 # Check existing cookies first
                 if os.path.exists(cookie_file_path):
-                    if test_youtube_cookies(cookie_file_path):
+                    if await test_youtube_cookies(cookie_file_path):
                         await send_to_user(message, safe_get_messages(user_id).COOKIES_YOUTUBE_WORKING_MSG)
                         return
                     else:
@@ -1123,7 +1123,7 @@ async def download_and_validate_youtube_cookies(app, message, selected_index: in
             await update_message(safe_get_messages(user_id).COOKIES_DOWNLOADING_TESTING_MSG.format(attempt=attempt_number, total=len(indices)), user_id)
             
             # Check the functionality of cookies
-            if test_youtube_cookies(cookie_file_path):
+            if await test_youtube_cookies(cookie_file_path):
                 await update_message(safe_get_messages(user_id).COOKIES_SUCCESS_VALIDATED_MSG.format(source=idx + 1, total=len(cookie_urls)), user_id)
                 # Safe logging
                 try:
@@ -1254,7 +1254,7 @@ async def ensure_working_youtube_cookies(user_id: int) -> bool:
                 cf.write(content)
             
             # Проверяем работоспособность
-            if test_youtube_cookies(cookie_file_path):
+            if await test_youtube_cookies(cookie_file_path):
                 logger.info(LoggerMsg.COOKIES_YOUTUBE_SOURCE_WORKING_LOG_MSG.format(source_index=i, user_id=user_id))
                 logger.info(LoggerMsg.COOKIES_YOUTUBE_FINISHED_WORKING_FOUND_LOG_MSG.format(user_id=user_id, source_index=i))
                 # Cache the successful result
@@ -1511,7 +1511,7 @@ async def retry_download_with_different_cookies(user_id: int, url: str, download
                     cf.write(content)
                 
                 # Проверяем работоспособность
-                if test_youtube_cookies(cookie_file_path):
+                if await test_youtube_cookies(cookie_file_path):
                     logger.info(LoggerMsg.COOKIES_YOUTUBE_RETRY_SOURCE_WORKING_LOG_MSG.format(source_index=idx + 1, user_id=user_id))
                     
                     # Обновляем кеш

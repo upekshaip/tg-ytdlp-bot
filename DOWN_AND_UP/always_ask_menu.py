@@ -1196,7 +1196,7 @@ async def askq_callback(app, callback_query):
         from HELPERS.proxy_link_helper import get_direct_link_with_proxy
         
         # Get direct link with BV+BA/BEST format using proxy
-        result = get_direct_link_with_proxy(url, "bv+ba/best", user_id)
+        result = await get_direct_link_with_proxy(url, "bv+ba/best", user_id)
         
         if result.get('success'):
             title = result.get('title', 'Unknown')
