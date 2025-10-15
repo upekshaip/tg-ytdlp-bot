@@ -259,8 +259,8 @@ async def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_a
             logger.info(f"   url: {url}")
             logger.info(f"   opts keys: {list(opts.keys())}")
             
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(url, download=False)
+            from HELPERS.async_ytdlp import async_extract_info
+            info = await async_extract_info(opts, url)
             
             logger.info(f"✅ [DEBUG] extract_info_operation: извлечение завершено")
             logger.info(f"   info type: {type(info)}")

@@ -786,8 +786,8 @@ async def test_youtube_cookies_on_url(cookie_file_path: str, url: str) -> bool:
         # Add PO token provider for YouTube domains
         ydl_opts = await add_pot_to_ytdl_opts(ydl_opts, url)
         
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+        from HELPERS.async_ytdlp import async_extract_info
+        info = await async_extract_info(ydl_opts, url)
             
         # Проверяем, что получили информацию о видео
         if not info:
@@ -847,8 +847,8 @@ def test_youtube_cookies(cookie_file_path: str) -> bool:
         # Add PO token provider for YouTube domains
         ydl_opts = add_pot_to_ytdl_opts(ydl_opts, test_url)
         
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(test_url, download=False)
+        from HELPERS.async_ytdlp import async_extract_info
+        info = await async_extract_info(ydl_opts, test_url)
             
         # Проверяем, что получили полную информацию о видео
         required_fields = ['title', 'duration', 'uploader', 'view_count', 'like_count', 'upload_date']

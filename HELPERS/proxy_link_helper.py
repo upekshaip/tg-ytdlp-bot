@@ -203,8 +203,8 @@ def get_direct_link_with_proxy(url: str, format_spec: str = "bv+ba/best", user_i
                 ydl_opts['cookiefile'] = cookie_path
         
         # Extract video info
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+        from HELPERS.async_ytdlp import async_extract_info
+        info = await async_extract_info(ydl_opts, url)
             
         if not info:
             raise Exception("Failed to extract video information")

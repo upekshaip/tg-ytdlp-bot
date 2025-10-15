@@ -646,8 +646,9 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
             elif os.path.exists(user_cookie_path):
                 ydl_opts['cookiefile'] = user_cookie_path
                 logger.info(f"Using cookies from user directory: {user_cookie_path}")
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                pre_info = ydl.extract_info(url, download=False)
+            # Используем асинхронную версию для неблокирующего выполнения
+            from HELPERS.async_ytdlp import async_extract_info
+            pre_info = await async_extract_info(ydl_opts, url)
             # Normalize to dict and check None
             if isinstance(pre_info, list):
                 pre_info = (pre_info[0] if len(pre_info) > 0 else {})
@@ -1190,11 +1191,11 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                 # Try with proxy fallback if user proxy is enabled
                 async def extract_info_operation(opts):
                     messages = safe_get_messages(message.chat.id)
-                    with yt_dlp.YoutubeDL(opts) as ydl:
-                        logger.info("yt-dlp instance created, starting extract_info...")
-                        info_dict = ydl.extract_info(url, download=False)
-                        logger.info("extract_info completed successfully")
-                        return info_dict
+                    from HELPERS.async_ytdlp import async_extract_info
+                    logger.info("yt-dlp instance created, starting extract_info...")
+                    info_dict = await async_extract_info(opts, url)
+                    logger.info("extract_info completed successfully")
+                    return info_dict
                 
                 from HELPERS.proxy_helper import try_with_proxy_fallback
                 info_dict = await try_with_proxy_fallback(ytdl_opts, url, user_id, extract_info_operation)

@@ -663,4 +663,9 @@ app.on_callback_query(filters.regex(r"^audio_hint\|"))(audio_hint_callback)
 app.on_callback_query(filters.regex(r"^link_hint\|"))(link_hint_callback)
 app.on_callback_query(filters.regex(r"^lang_"))(lang_callback)
 
+# Register status command for admins
+from COMMANDS.status_cmd import status_command, status_refresh_callback
+app.on_message(filters.command("status") & filters.private)(status_command)
+app.on_callback_query(filters.regex(r"^status_refresh$"))(status_refresh_callback)
+
 app.run()

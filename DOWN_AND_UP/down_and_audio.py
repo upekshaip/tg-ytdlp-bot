@@ -866,8 +866,8 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
             # match_filter will be added later for domain filtering only
             
             try:
-                with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
-                    info_dict = ydl.extract_info(url, download=False)
+                from HELPERS.async_ytdlp import async_extract_info
+                info_dict = await async_extract_info(ytdl_opts, url)
                 # Normalize info_dict to dict
                 if isinstance(info_dict, list):
                     info_dict = (info_dict[0] if len(info_dict) > 0 else {})
@@ -913,23 +913,19 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                 # Try with proxy fallback if user proxy is enabled
                 async def download_operation(opts):
                     messages = safe_get_messages(user_id)
-                    with yt_dlp.YoutubeDL(opts) as ydl:
-                        if is_hls:
-                            # For HLS audio, start cycle progress as fallback, but progress_hook will override it if percentages are available
-                            cycle_stop = threading.Event()
-                            progress_data = {'downloaded_bytes': 0, 'total_bytes': 0}
-                            cycle_thread = start_cycle_progress(user_id, proc_msg_id, current_total_process, user_folder, cycle_stop, progress_data)
-                            # Pass cycle_stop and progress_data to progress_hook so it can update the cycle animation
-                            progress_hook.cycle_stop = cycle_stop
-                            progress_hook.progress_data = progress_data
-                            try:
-                                ydl.download([url])
-                            finally:
-                                cycle_stop.set()
-                                cycle_thread.join(timeout=1)
-                        else:
-                            ydl.download([url])
-                    return True
+                    from HELPERS.async_ytdlp import async_download_with_progress
+                    # Создаем progress callback для отслеживания прогресса
+                    def progress_callback(d):
+                        if d['status'] == 'downloading':
+                            downloaded = d.get('downloaded_bytes', 0)
+                            total = d.get('total_bytes', 0)
+                            if total > 0:
+                                percent = (downloaded / total) * 100
+                                # Обновляем прогресс через существующий механизм
+                                if hasattr(progress_func, 'update_progress'):
+                                    progress_func.update_progress(percent)
+                    
+                    return await async_download_with_progress(opts, [url], progress_callback)
                 
                 from HELPERS.proxy_helper import try_with_proxy_fallback
                 result = await try_with_proxy_fallback(ytdl_opts, url, user_id, download_operation)
@@ -1256,8 +1252,8 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                         ytdl_opts = await add_pot_to_ytdl_opts(ytdl_opts, url)
                         
                         # Try download with safe filename
-                        with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
-                            info_dict = ydl.extract_info(url, download=False)
+                        from HELPERS.async_ytdlp import async_extract_info
+                        info_dict = await async_extract_info(ytdl_opts, url)
                             if "entries" in info_dict:
                                 entries = info_dict["entries"]
                                 if len(entries) > 1:

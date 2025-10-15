@@ -160,7 +160,7 @@ def _extract_via_oembed(url: str, endpoints: Tuple[str, ...], user_id: int = Non
     for ep in endpoints:
         try:
             full = ep.format(url=url)
-            data = _http_get_json(full, user_id=user_id)
+            data = await _http_get_json(full, user_id=user_id)
             if not data:
                 continue
             author = data.get("author_name") or data.get("author_url") or data.get("title")
@@ -366,7 +366,7 @@ def _detect_service(url: str) -> Optional[str]:
 def _extract_instagram_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     # Try oEmbed first with cookies
     try:
-        data = _http_get_json(f"https://www.instagram.com/oembed/?url={url}", user_id=user_id)
+        data = await _http_get_json(f"https://www.instagram.com/oembed/?url={url}", user_id=user_id)
         if data and isinstance(data, dict):
             author = data.get("author_name")
             provider = data.get("provider_name") or "Instagram"
@@ -376,7 +376,7 @@ def _extract_instagram_info(url: str, user_id: int = None) -> Tuple[Optional[str
         print(f"[INSTAGRAM_INFO] oEmbed error: {e}")
         pass
     # Fallback to OpenGraph
-    html = _http_get(url, user_id=user_id)
+    html = await _http_get(url, user_id=user_id)
     metas = _extract_meta(html or "")
     title = metas.get("og:title") or metas.get("twitter:title")
     site = metas.get("og:site_name") or "Instagram"
@@ -403,7 +403,7 @@ def _extract_instagram_date(url: str, user_id: int = None) -> Optional[str]:
     Возвращает дату в формате DD.MM.YYYY или None.
     """
     try:
-        data = _http_get_json(f"https://www.instagram.com/oembed/?url={url}", user_id=user_id)
+        data = await _http_get_json(f"https://www.instagram.com/oembed/?url={url}", user_id=user_id)
         if data and isinstance(data, dict):
             # oEmbed может содержать дату в разных полях
             date_str = data.get("upload_date") or data.get("created_at") or data.get("date")
@@ -416,7 +416,7 @@ def _extract_instagram_date(url: str, user_id: int = None) -> Optional[str]:
     
     # Fallback: попробуем извлечь из OpenGraph мета-тегов
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         
         # Ищем дату в различных мета-тегах
@@ -449,7 +449,7 @@ def _extract_tiktok_info(url: str, user_id: int = None) -> Tuple[Optional[str], 
     # Try oEmbed with cookies first
     try:
         oembed_url = f"https://www.tiktok.com/oembed?url={url}"
-        data = _http_get_json(oembed_url, user_id=user_id)
+        data = await _http_get_json(oembed_url, user_id=user_id)
         if data and isinstance(data, dict):
             author = data.get("author_name")
             if author:
@@ -472,7 +472,7 @@ def _extract_tiktok_info(url: str, user_id: int = None) -> Tuple[Optional[str], 
     
     # Final fallback to OpenGraph
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         if title:
@@ -492,7 +492,7 @@ def _extract_tiktok_date(url: str, user_id: int = None) -> Optional[str]:
     """Извлекает дату загрузки из TikTok API."""
     # Try with cookies first
     try:
-        data = _http_get_json(f"https://www.tiktok.com/oembed?url={url}", user_id=user_id)
+        data = await _http_get_json(f"https://www.tiktok.com/oembed?url={url}", user_id=user_id)
         if data and isinstance(data, dict):
             date_str = data.get("upload_date") or data.get("created_at") or data.get("date")
             if date_str:
@@ -514,7 +514,7 @@ def _extract_tiktok_date(url: str, user_id: int = None) -> Optional[str]:
     
     # Final fallback to OpenGraph
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         date_str = metas.get("article:published_time") or metas.get("og:updated_time")
         if date_str:
@@ -533,7 +533,7 @@ def _extract_x_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optio
     # Try oEmbed with cookies first
     try:
         oembed_url = f"https://publish.twitter.com/oembed?url={url}"
-        data = _http_get_json(oembed_url, user_id=user_id)
+        data = await _http_get_json(oembed_url, user_id=user_id)
         if data and isinstance(data, dict):
             author = data.get("author_name")
             if author:
@@ -556,7 +556,7 @@ def _extract_x_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optio
     
     # Final fallback: meta twitter:site or title
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         handle = metas.get("twitter:site")
         if handle:
@@ -581,7 +581,7 @@ def _extract_x_date(url: str, user_id: int = None) -> Optional[str]:
     """Извлекает дату публикации из X (Twitter) API."""
     # Try with cookies first
     try:
-        data = _http_get_json(f"https://publish.twitter.com/oembed?url={url}", user_id=user_id)
+        data = await _http_get_json(f"https://publish.twitter.com/oembed?url={url}", user_id=user_id)
         if data and isinstance(data, dict):
             date_str = data.get("upload_date") or data.get("created_at") or data.get("date")
             if date_str:
@@ -603,7 +603,7 @@ def _extract_x_date(url: str, user_id: int = None) -> Optional[str]:
     
     # Final fallback to OpenGraph
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         date_str = metas.get("article:published_time") or metas.get("og:updated_time")
         if date_str:
@@ -638,7 +638,7 @@ def _extract_vk_info(url: str, user_id: int = None) -> Tuple[Optional[str], Opti
                 ]
             for pu in probe_urls:
                 try:
-                    html_p = _http_get(pu, user_id=user_id)
+                    html_p = await _http_get(pu, user_id=user_id)
                     metas_p = _extract_meta(html_p or "")
                     t = metas_p.get("og:title") or metas_p.get("twitter:title")
                     s = metas_p.get("og:site_name") or site
@@ -659,7 +659,7 @@ def _extract_vk_info(url: str, user_id: int = None) -> Tuple[Optional[str], Opti
     
     # Fallback: use current page OG/title heuristics with cookies
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         site = metas.get("og:site_name") or site
@@ -706,7 +706,7 @@ def _extract_youtube_info(url: str, user_id: int = None) -> Tuple[Optional[str],
     
     # Final fallback to OpenGraph
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         channel = metas.get("og:site_name") or metas.get("twitter:title")
         return (channel, "YouTube")
@@ -719,7 +719,7 @@ def _extract_youtube_date(url: str, user_id: int = None) -> Optional[str]:
     """Извлекает дату загрузки из YouTube API."""
     # Try with cookies first
     try:
-        data = _http_get_json(f"https://www.youtube.com/oembed?url={url}", user_id=user_id)
+        data = await _http_get_json(f"https://www.youtube.com/oembed?url={url}", user_id=user_id)
         if data and isinstance(data, dict):
             date_str = data.get("upload_date") or data.get("created_at") or data.get("date")
             if date_str:
@@ -741,7 +741,7 @@ def _extract_youtube_date(url: str, user_id: int = None) -> Optional[str]:
     
     # Final fallback to OpenGraph
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         date_str = metas.get("article:published_time") or metas.get("og:updated_time")
         if date_str:
@@ -781,7 +781,7 @@ def _extract_reddit_info(url: str, user_id: int = None) -> Tuple[Optional[str], 
     
     # Final fallback to OpenGraph
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         return (title, "Reddit")
@@ -796,7 +796,7 @@ def _extract_reddit_info(url: str, user_id: int = None) -> Tuple[Optional[str], 
 def _extract_pinterest_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     # Нет официального публичного oEmbed, используем только OpenGraph
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         site = metas.get("og:site_name") or "Pinterest"
@@ -834,7 +834,7 @@ def _extract_flickr_info(url: str, user_id: int = None) -> Tuple[Optional[str], 
     
     # Final fallback to OpenGraph
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title")
         return (title, "Flickr")
@@ -871,7 +871,7 @@ def _extract_deviantart_info(url: str, user_id: int = None) -> Tuple[Optional[st
     
     # Final fallback to OpenGraph
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         author = metas.get("twitter:creator") or metas.get("og:site_name")
         return (author, "DeviantArt")
@@ -908,7 +908,7 @@ def _extract_imgur_info(url: str, user_id: int = None) -> Tuple[Optional[str], O
     
     # Final fallback to OpenGraph
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         return (title, "Imgur")
@@ -945,7 +945,7 @@ def _extract_tumblr_info(url: str, user_id: int = None) -> Tuple[Optional[str], 
     
     # Final fallback to OpenGraph
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         site = metas.get("og:site_name") or "Tumblr"
@@ -961,7 +961,7 @@ def _extract_tumblr_info(url: str, user_id: int = None) -> Tuple[Optional[str], 
 def _extract_pixiv_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     # Try OpenGraph with cookies first
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         site = metas.get("og:site_name") or "Pixiv"
@@ -1003,7 +1003,7 @@ def _extract_pixiv_info(url: str, user_id: int = None) -> Tuple[Optional[str], O
 def _extract_artstation_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     # ArtStation has OG meta with title/site
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         site = metas.get("og:site_name") or "ArtStation"
@@ -1018,7 +1018,7 @@ def _extract_artstation_info(url: str, user_id: int = None) -> Tuple[Optional[st
 
 def _extract_danbooru_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         return (title, "Danbooru")
@@ -1032,7 +1032,7 @@ def _extract_danbooru_info(url: str, user_id: int = None) -> Tuple[Optional[str]
 
 def _extract_gelbooru_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         return (title, "Gelbooru")
@@ -1046,7 +1046,7 @@ def _extract_gelbooru_info(url: str, user_id: int = None) -> Tuple[Optional[str]
 
 def _extract_yandere_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         return (title, "Yande.re")
@@ -1060,7 +1060,7 @@ def _extract_yandere_info(url: str, user_id: int = None) -> Tuple[Optional[str],
 
 def _extract_sankaku_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         site = metas.get("og:site_name") or "Sankaku"
@@ -1075,7 +1075,7 @@ def _extract_sankaku_info(url: str, user_id: int = None) -> Tuple[Optional[str],
 
 def _extract_e621_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         return (title, "e621")
@@ -1089,7 +1089,7 @@ def _extract_e621_info(url: str, user_id: int = None) -> Tuple[Optional[str], Op
 
 def _extract_rule34_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         return (title, "Rule34")
@@ -1104,7 +1104,7 @@ def _extract_rule34_info(url: str, user_id: int = None) -> Tuple[Optional[str], 
 def _extract_behance_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     # Behance has OG meta; sometimes author is in og:title or profile path
     try:
-        html = _http_get(url, user_id=user_id)
+        html = await _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         site = metas.get("og:site_name") or "Behance"
@@ -1268,7 +1268,7 @@ def get_service_date(url: str, user_id: int = None) -> Optional[str]:
         
         # Fallback: попробуем извлечь из OpenGraph мета-тегов
         try:
-            html = _http_get(url, user_id=user_id)
+            html = await _http_get(url, user_id=user_id)
             metas = _extract_meta(html or "")
             
             # Ищем дату в различных мета-тегах

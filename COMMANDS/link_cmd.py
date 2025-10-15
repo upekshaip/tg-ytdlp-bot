@@ -233,8 +233,8 @@ async def get_direct_link(url, user_id, quality_arg=None, cookies_already_checke
         ytdl_opts = await add_pot_to_ytdl_opts(ytdl_opts, url)
         
         # Get video information
-        with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+        from HELPERS.async_ytdlp import async_extract_info
+        info = await async_extract_info(ytdl_opts, url)
         # Normalize info to a dict
         if isinstance(info, list):
             info = (info[0] if len(info) > 0 else {})

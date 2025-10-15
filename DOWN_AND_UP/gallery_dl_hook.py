@@ -596,7 +596,7 @@ async def get_total_media_count(url: str, user_id=None, use_proxy: bool = False)
             # For VK specifically, --simulate is notoriously slow; jump straight to --get-urls
             if 'vk.com' in url.lower():
                 logger.info("VK domain detected, skipping --simulate and using --get-urls directly")
-                return _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
+                return await _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
             
             # For Instagram, use special method with Instagram-specific config
             if 'instagram.com' in url.lower():
@@ -618,7 +618,7 @@ async def get_total_media_count(url: str, user_id=None, use_proxy: bool = False)
                 stdout, stderr = await async_subprocess(*cmd, timeout=15)
             except asyncio.TimeoutError:
                 logger.warning("--simulate timed out after 15s, falling back to --get-urls")
-                return _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
+                return await _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
 
             if not stderr:
                 # Count lines that contain media info (not just URLs)
@@ -629,11 +629,11 @@ async def get_total_media_count(url: str, user_id=None, use_proxy: bool = False)
                     return media_count
                 else:
                     logger.warning("--simulate returned 0 media items, trying --get-urls fallback")
-                    return _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
+                    return await _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
             else:
                 logger.warning(f"get_total_media_count failed: {result.stderr[:400]}")
                 # Fallback to --get-urls for sites that don't work with --simulate
-                return _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
+                return await _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
         finally:
             try:
                 os.unlink(cfg_path)
@@ -1138,8 +1138,8 @@ async def download_image_range_cli(url: str, range_expr: str, user_id=None, use_
                 
                 return False
             # Log short stdout to confirm ranged downloads occurred
-            if result.stdout:
-                preview = '\n'.join(result.stdout.splitlines()[:5])
+            if stdout:
+                preview = '\n'.join(stdout.splitlines()[:5])
                 logger.info(f"CLI stdout (first lines):\n{preview}")
             return True
         finally:

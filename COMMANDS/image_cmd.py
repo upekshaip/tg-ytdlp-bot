@@ -1533,7 +1533,7 @@ async def image_command(app, message):
             # Only use 1-1 when we're actually starting from 1 and it's a single item
             if (current_start == next_end and current_start == 1) or (detected_total and detected_total <= 10 and current_start == 1):
                 logger.info(LoggerMsg.IMG_DOWNLOADING_RANGE_1_1_LOG_MSG.format(detected_total=detected_total, current_start=current_start, next_end=next_end))
-                result = download_image_range_cli(url, "1-1", user_id, use_proxy, output_dir=run_dir)
+                result = await download_image_range_cli(url, "1-1", user_id, use_proxy, output_dir=run_dir)
                 if isinstance(result, str):  # 401 Unauthorized error message
                     return result
                 if not result:
@@ -1546,7 +1546,7 @@ async def image_command(app, message):
                 range_expr = f"{current_start}-{next_end}"
                 # Prefer CLI to enforce strict range behavior across gallery-dl versions
                 logger.info(LoggerMsg.IMG_PREPARED_RANGE_LOG_MSG.format(range_expr=range_expr))
-                result = download_image_range_cli(url, range_expr, user_id, use_proxy, output_dir=run_dir)
+                result = await download_image_range_cli(url, range_expr, user_id, use_proxy, output_dir=run_dir)
                 if isinstance(result, str):  # 401 Unauthorized error message
                     return result
                 if not result:
@@ -2066,7 +2066,7 @@ async def image_command(app, message):
                                             # message_thread_id already extracted above
                                             logger.info(f"[IMG MEDIA_GROUP] About to send media group to chat_id={chat_id}, message_thread_id={message_thread_id}")
                                             
-                                            sent = app.send_media_group(
+                                            sent = await app.send_media_group(
                                                 chat_id,
                                                 media=media_group,
                                                 reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
@@ -2610,7 +2610,7 @@ async def image_command(app, message):
                                                         has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)
                                                     ))
                                             
-                                            sent_msg = app.send_media_group(
+                                            sent_msg = await app.send_media_group(
                                                 chat_id,
                                                 media=media_group,
                                                 reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
@@ -3085,7 +3085,7 @@ async def image_command(app, message):
                                                     _itm.caption = None
                                     except Exception as _e:
                                         logger.debug(f"{LoggerMsg.IMG_TAIL_ALBUM_CAPTION_NORMALIZATION_SKIPPED_LOG_MSG}")
-                                    sent = app.send_media_group(
+                                    sent = await app.send_media_group(
                                         chat_id,
                                         media=media_group,
                                         reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
@@ -3305,7 +3305,7 @@ async def image_command(app, message):
                                                         reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
                                                     )
                                                 else:
-                                                    sent_msg = app.send_photo(
+                                                    sent_msg = await app.send_photo(
                                                         user_id,
                                                         photo=f,
                                                         caption=(tags_text_norm or ''),
@@ -3664,7 +3664,7 @@ async def image_command(app, message):
                             if hasattr(_itm, 'caption'):
                                 _itm.caption = None
                     
-                    sent = app.send_media_group(
+                    sent = await app.send_media_group(
                         user_id,
                         media=media_group,
                         reply_parameters=ReplyParameters(message_id=get_reply_message_id(message))
@@ -3907,6 +3907,7 @@ async def img_range_callback(app, callback_query: CallbackQuery):
     messages = safe_get_messages(None)
     """Handle img range selection callback"""
     try:
+        user_id = callback_query.from_user.id
         data_parts = callback_query.data.split("|")
         
         if len(data_parts) < 2:
@@ -3953,10 +3954,11 @@ async def img_range_callback(app, callback_query: CallbackQuery):
         )
         
         # Call the image command function
-        image_command(app, mock_message)
+        await image_command(app, mock_message)
         
     except Exception as e:
         try:
+            user_id = callback_query.from_user.id
             await callback_query.answer(f"{safe_get_messages(user_id).IMAGE_ERROR_MSG}")
         except Exception:
             pass

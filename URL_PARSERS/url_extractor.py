@@ -43,10 +43,31 @@ app = get_app()
 
 async def url_distractor(app, message):
     from HELPERS.logger import logger
+    from HELPERS.concurrent_limiter import concurrent_limiter
     user_id = message.chat.id
     is_admin = int(user_id) in Config.ADMIN
     text = message.text.strip()
     logger.info(f"🎯 URL distractor called with: {text}")
+    
+    # Проверяем лимит одновременных загрузок для URL (админы имеют приоритет)
+    if ("https://" in text) or ("http://" in text):
+        # Админы могут обходить лимит, но все равно проверяем
+        if not is_admin and not await concurrent_limiter.acquire(user_id, text):
+            from HELPERS.safe_messeger import safe_send_message
+            from CONFIG.messages import safe_get_messages
+            messages = safe_get_messages(user_id)
+            status = await concurrent_limiter.get_status()
+            await safe_send_message(
+                user_id, 
+                messages.URL_EXTRACTOR_TOO_MANY_DOWNLOADS_MSG.format(
+                    active=status['active_downloads'],
+                    max=status['max_concurrent']
+                )
+            )
+            return
+        elif is_admin:
+            # Админы получают слот принудительно
+            await concurrent_limiter.acquire(user_id, text)
     
     # Import get_messages_instance locally to avoid UnboundLocalError
     from CONFIG.messages import safe_get_messages
@@ -1075,6 +1096,9 @@ async def url_distractor(app, message):
                 await video_url_extractor(app, message)
             except Exception as e:
                 logger.error(LoggerMsg.URL_EXTRACTOR_VIDEO_EXTRACTOR_FAILED_LOG_MSG.format(e=e))
+            finally:
+                # Освобождаем слот загрузки
+                await concurrent_limiter.release(user_id)
                 try:
                     # Create proper /img command from URL
                     from HELPERS.safe_messeger import fake_message
