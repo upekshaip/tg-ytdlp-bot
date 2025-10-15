@@ -242,7 +242,7 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
         # Continue with normal download if LINK mode check fails
     subs_enabled = is_subs_enabled(user_id)
     if subs_enabled and is_youtube_url(url):
-        found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
+        found_type = await check_subs_availability(url, user_id, safe_quality_key, return_type=True)
         # Determine subtitle availability once here
         need_subs = await determine_need_subs(subs_enabled, found_type, user_id)
         
@@ -326,7 +326,7 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
             # Set all indices as uncached when Always Ask mode is enabled
             uncached_indices = requested_indices
     elif safe_quality_key and not is_playlist:
-        #found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
+        #found_type = await check_subs_availability(url, user_id, safe_quality_key, return_type=True)
         subs_enabled = is_subs_enabled(user_id)
         # Use the already determined subtitle availability
         if not need_subs and not is_subs_always_ask(user_id):
@@ -2161,7 +2161,7 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                             if is_playlist:
                                 # For playlists, save to playlist cache with video index
                                 current_video_index = x + video_start_with
-                                #found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
+                                #found_type = await check_subs_availability(url, user_id, safe_quality_key, return_type=True)
                                 subs_enabled = is_subs_enabled(user_id)
                                 auto_mode = get_user_subs_auto_mode(user_id)
                                 need_subs = await determine_need_subs(subs_enabled, found_type, user_id)
@@ -2198,7 +2198,7 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                         if is_playlist:
                             # For playlists, save to playlist cache with video index
                             current_video_index = x + video_start_with
-                            #found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
+                            #found_type = await check_subs_availability(url, user_id, safe_quality_key, return_type=True)
                             subs_enabled = is_subs_enabled(user_id)
                             auto_mode = get_user_subs_auto_mode(user_id)
                             need_subs = await determine_need_subs(subs_enabled, found_type, user_id)
@@ -2237,7 +2237,7 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                         logger.info(f"down_and_up: updated safe_quality_key for split video: {safe_quality_key}")
                     
                     # Check subtitle requirements for split videos
-                    found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
+                    found_type = await check_subs_availability(url, user_id, safe_quality_key, return_type=True)
                     subs_enabled = is_subs_enabled(user_id)
                     auto_mode = get_user_subs_auto_mode(user_id)
                     need_subs = await determine_need_subs(subs_enabled, found_type, user_id)
@@ -2298,7 +2298,7 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                                 real_file_size = 0
                             auto_mode = get_user_subs_auto_mode(user_id)
                             if subs_enabled and is_youtube_url(url) and min(width, height) <= safe_get_messages(user_id).MAX_SUB_QUALITY:
-                                #found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
+                                #found_type = await check_subs_availability(url, user_id, safe_quality_key, return_type=True)
                                 # Use the helper function to determine subtitle availability
                                 need_subs = await determine_need_subs(subs_enabled, found_type, user_id)
                                 if need_subs:
@@ -2488,7 +2488,7 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                                 if is_playlist:
                                     # For playlists, save to playlist cache with video index
                                     current_video_index = x + video_start_with
-                                    #found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
+                                    #found_type = await check_subs_availability(url, user_id, safe_quality_key, return_type=True)
                                     subs_enabled = is_subs_enabled(user_id)
                                     auto_mode = get_user_subs_auto_mode(user_id)
                                     need_subs = await determine_need_subs(subs_enabled, found_type, user_id)
@@ -2845,7 +2845,7 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
 
         # --- ADDED: summary of cache after cycle ---
         if is_playlist and playlist_indices and playlist_msg_ids:
-            #found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
+            #found_type = await check_subs_availability(url, user_id, safe_quality_key, return_type=True)
             subs_enabled = is_subs_enabled(user_id)
             auto_mode = get_user_subs_auto_mode(user_id)
             need_subs = await determine_need_subs(subs_enabled, found_type, user_id)

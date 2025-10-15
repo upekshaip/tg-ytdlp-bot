@@ -611,7 +611,7 @@ async def ask_filter_callback(app, callback_query):
             url = m.group(0) if m else url_text
             try:
                 # warm up cache and collect languages
-                check_subs_availability(url, user_id, return_type=True)
+                await check_subs_availability(url, user_id, return_type=True)
                 normal = get_available_subs_languages(url, user_id, auto_only=False)
                 auto = get_available_subs_languages(url, user_id, auto_only=True)
                 # persist for stable paging
@@ -1613,7 +1613,7 @@ async def askq_callback(app, callback_query):
             try:
                 logger.info(f"{LoggerMsg.ALWAYS_ASK_CHECKING_SUBTITLE_AVAILABILITY_LOG_MSG} {url}")
                 # Check availability and populate cache
-                check_subs_availability(url, user_id, return_type=True)
+                await check_subs_availability(url, user_id, return_type=True)
                 # Get available languages
                 normal = get_available_subs_languages(url, user_id, auto_only=False)
                 auto = get_available_subs_languages(url, user_id, auto_only=True)
@@ -2286,7 +2286,7 @@ async def askq_callback(app, callback_query):
                 await down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=data, cookies_already_checked=True)
             return
     # --- other logic for single files ---
-    found_type = check_subs_availability(url, user_id, data, return_type=True)
+    found_type = await check_subs_availability(url, user_id, data, return_type=True)
     available_langs = _subs_check_cache.get(
         f"{url}_{user_id}_{'auto' if found_type == 'auto' else 'normal'}_langs",
         []
@@ -2393,7 +2393,7 @@ async def askq_callback(app, callback_query):
                 return
             except Exception as e:
                 logger.error(f"Error forwarding cached video: {e}")
-                # found_type = check_subs_availability(url, user_id, data, return_type=True)
+                # found_type = await check_subs_availability(url, user_id, data, return_type=True)
                 subs_enabled = is_subs_enabled(user_id)
                 auto_mode = get_user_subs_auto_mode(user_id)
                 need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
@@ -2615,7 +2615,7 @@ async def show_manual_quality_menu(app, callback_query):
     # Add subtitles only button if enabled
     subs_enabled = is_subs_enabled(user_id)
     if subs_enabled and is_youtube_url(url):
-        found_type = check_subs_availability(url, user_id, return_type=True)
+        found_type = await check_subs_availability(url, user_id, return_type=True)
         auto_mode = get_user_subs_auto_mode(user_id)
         need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
         
@@ -4010,7 +4010,7 @@ async def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=N
                         # Для MKV при включённых субтитрах показываем без ограничений
                         subs_available = "💬"
                     elif is_youtube_url(url) and w is not None and h is not None and min(int(w), int(h)) <= Config.MAX_SUB_QUALITY:
-                        found_type = check_subs_availability(url, user_id, q, return_type=True)
+                        found_type = await check_subs_availability(url, user_id, q, return_type=True)
                         if (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal"):
                             temp_info = {
                                 'duration': info.get('duration'),
@@ -4575,7 +4575,7 @@ async def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=N
         show_repost_hint = True
 
         if subs_enabled and is_youtube_url(url):
-            found_type = check_subs_availability(url, user_id, return_type=True)
+            found_type = await check_subs_availability(url, user_id, return_type=True)
             # Check if we're in Always Ask mode (user will choose language manually)
             is_always_ask_mode = is_subs_always_ask(user_id)
             

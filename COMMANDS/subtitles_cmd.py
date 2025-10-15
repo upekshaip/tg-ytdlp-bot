@@ -518,7 +518,7 @@ def clear_subs_check_cache():
     
     logger.info("Subs check cache cleared")
 
-def check_subs_availability(url, user_id, quality_key=None, return_type=False):
+async def check_subs_availability(url, user_id, quality_key=None, return_type=False):
     messages = safe_get_messages(user_id)
     """
     Checks the availability of subtitles for the language chosen by the user.
