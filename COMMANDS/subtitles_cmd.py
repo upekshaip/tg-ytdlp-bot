@@ -801,7 +801,7 @@ async def get_available_subs_languages(url, user_id=None, auto_only=False):
     def backoff(i):  # short, because the listing itself usually does not meet the limits
         return (3, 5, 10)[min(i, 2)] + random.uniform(0, 2)
 
-    def extract_info_with_cookies():
+    async def extract_info_with_cookies():
         base_opts = {
             'quiet': True,
             'no_warnings': True,
@@ -882,7 +882,7 @@ async def get_available_subs_languages(url, user_id=None, auto_only=False):
 
     for attempt in range(MAX_RETRIES):
         try:
-            info = extract_info_with_cookies()
+            info = await extract_info_with_cookies()
             normal = list(info.get('subtitles', {}).keys())
             auto   = list(info.get('automatic_captions', {}).keys())
             result = list(set(auto if auto_only else normal))

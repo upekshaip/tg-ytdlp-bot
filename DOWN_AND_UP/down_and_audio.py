@@ -1254,16 +1254,16 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                         # Try download with safe filename
                         from HELPERS.async_ytdlp import async_extract_info
                         info_dict = await async_extract_info(ytdl_opts, url)
-                            if "entries" in info_dict:
-                                entries = info_dict["entries"]
-                                if len(entries) > 1:
-                                    actual_index = current_index + video_start_with - 1
-                                    if actual_index and actual_index < len(entries):
-                                        info_dict = entries[actual_index]
-                                    else:
-                                        raise Exception(f"Audio index {actual_index + 1} out of range (total {len(entries)})")
+                        if "entries" in info_dict:
+                            entries = info_dict["entries"]
+                            if len(entries) > 1:
+                                actual_index = current_index + video_start_with - 1
+                                if actual_index and actual_index < len(entries):
+                                    info_dict = entries[actual_index]
                                 else:
-                                    info_dict = entries[0]
+                                    raise Exception(f"Audio index {actual_index + 1} out of range (total {len(entries)})")
+                            else:
+                                info_dict = entries[0]
                             
                             # Download with safe filename
                             ydl.download([url])
