@@ -1965,7 +1965,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             if int(video_size_in_bytes) > max_size:
                 safe_edit_message_text(user_id, proc_msg_id,
                     f"{info_text}\n{full_bar}   100.0%\n<i>⚠️ Your video size ({video_size}) is too large.</i>\n<i>Splitting file...</i> ✂️")
-                returned = split_video_2(dir_path, sanitize_filename_strict(caption_name), after_rename_abs_path, int(video_size_in_bytes), max_size, int(duration))
+                returned = split_video_2(dir_path, sanitize_filename_strict(caption_name), after_rename_abs_path, int(video_size_in_bytes), max_size, int(duration), user_id)
                 caption_lst = returned.get("video")
                 path_lst = returned.get("path")
                 # Accumulate all IDs of split video parts
