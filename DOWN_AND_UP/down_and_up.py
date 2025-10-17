@@ -798,15 +798,23 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                                 logger.error(f"Quality key error in progress_func: {e}")
                         first_progress_update = False
 
-                    progress_text = f"{current_total_process}\n{bar}   {percent:.1f}%"
+                    # Create clean progress text without HTML tags for better display
+                    # Use current_total_process which already contains the progress info
+                    progress_text = f"{current_total_process}\n\n{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_FORMAT_USING_MSG} ...\n\n{bar}   {percent:.1f}%"
                     logger.info(f"Progress: {progress_text}")
                     # Use global progress queue for cross-process communication
                     from HELPERS.progress_queue import progress_queue
                     progress_queue.add_progress(user_id, proc_msg_id, progress_text)
                     logger.info(f"Added progress to global queue for user {user_id}, msg_id {proc_msg_id}, queue size: {progress_queue.get_queue_size(user_id)}")
                     
-                    # Process progress immediately in sync context
-                    progress_queue.process_progress_sync(user_id)
+                    # Start progress updater if not already running
+                    try:
+                        import asyncio
+                        loop = asyncio.get_event_loop()
+                        if not progress_queue._active_updaters.get(user_id):
+                            loop.create_task(progress_queue.start_updater(user_id))
+                    except Exception as e:
+                        logger.error(f"Failed to start progress updater: {e}")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                     # Check if error is related to quality_key
