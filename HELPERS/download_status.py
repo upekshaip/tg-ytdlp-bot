@@ -144,7 +144,14 @@ class AsyncHourglassManager:
                 
                 emoji = emojis[counter % len(emojis)]
                 # Attempt to edit message but don't keep trying if message is invalid
-                result = safe_edit_message_text(self.user_id, self.hourglass_msg_id, f"{emoji} {self.messages.DOWNLOAD_STATUS_PLEASE_WAIT_MSG}")
+                try:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    result = loop.run_until_complete(safe_edit_message_text(self.user_id, self.hourglass_msg_id, f"{emoji} {self.messages.DOWNLOAD_STATUS_PLEASE_WAIT_MSG}"))
+                    loop.close()
+                except Exception as e:
+                    logger.error("Error editing hourglass message: %s", e)
+                    result = None
 
                 # If message edit returns None due to MESSAGE_ID_INVALID, stop animation
                 if result is None and counter > 0:  # Allow first attempt to fail
@@ -239,13 +246,27 @@ class CycleProgressManager:
                     percent = (downloaded / total * 100) if total else 0
                     blocks = int(percent // 10)
                     bar = "🟩" * blocks + "⬜️" * (10 - blocks)
-                    result = safe_edit_message_text(self.user_id, self.proc_msg_id,
-                        f"{self.current_total_process}\n{self.messages.DOWNLOAD_STATUS_DOWNLOADING_HLS_MSG}\n{bar}   {percent:.1f}%")
+                    try:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        result = loop.run_until_complete(safe_edit_message_text(self.user_id, self.proc_msg_id,
+                            f"{self.current_total_process}\n{self.messages.DOWNLOAD_STATUS_DOWNLOADING_HLS_MSG}\n{bar}   {percent:.1f}%"))
+                        loop.close()
+                    except Exception as e:
+                        logger.error("Error editing cycle progress message: %s", e)
+                        result = None
                 else:
                     # Fallback to fragment-based animation
                     bar = "🟩" * counter + "⬜️" * (10 - counter)
-                    result = safe_edit_message_text(self.user_id, self.proc_msg_id,
-                        f"{self.current_total_process}\n{self.messages.DOWNLOAD_STATUS_DOWNLOADING_HLS_MSG} {frag_text}\n{bar}")
+                    try:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        result = loop.run_until_complete(safe_edit_message_text(self.user_id, self.proc_msg_id,
+                            f"{self.current_total_process}\n{self.messages.DOWNLOAD_STATUS_DOWNLOADING_HLS_MSG} {frag_text}\n{bar}"))
+                        loop.close()
+                    except Exception as e:
+                        logger.error("Error editing cycle progress message: %s", e)
+                        result = None
 
                 # If message was deleted (returns None), stop animation
                 if result is None and counter > 2:  # Allow first few attempts to fail
@@ -370,7 +391,14 @@ def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
                 
                 emoji = emojis[counter % len(emojis)]
                 # Attempt to edit message but don't keep trying if message is invalid
-                result = safe_edit_message_text(user_id, hourglass_msg_id, f"{emoji} {messages.DOWNLOAD_STATUS_PLEASE_WAIT_MSG}")
+                try:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    result = loop.run_until_complete(safe_edit_message_text(user_id, hourglass_msg_id, f"{emoji} {messages.DOWNLOAD_STATUS_PLEASE_WAIT_MSG}"))
+                    loop.close()
+                except Exception as e:
+                    logger.error("Error editing hourglass message: %s", e)
+                    result = None
 
                 # If message edit returns None due to MESSAGE_ID_INVALID, stop animation
                 if result is None and counter > 0:  # Allow first attempt to fail

@@ -752,8 +752,21 @@ try:
     async def start_health_monitor():
         await health_monitor.start_monitoring()
     
-    # Start health monitor in background
-    asyncio.create_task(start_health_monitor())
+    # Start health monitor in background after app starts
+    def start_health_monitor_sync():
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(start_health_monitor())
+        except Exception as e:
+            print(f"⚠️  Health monitor failed to start: {e}")
+        finally:
+            loop.close()
+    
+    # Start in background thread
+    import threading
+    health_thread = threading.Thread(target=start_health_monitor_sync, daemon=True)
+    health_thread.start()
     print("✅ Health monitor started")
 except Exception as e:
     print(f"⚠️  Health monitor failed to start: {e}")
