@@ -647,6 +647,14 @@ def cleanup_on_exit():
         except Exception as e:
             print(f"Error shutting down executor pool: {e}")
         
+        # ДОБАВИТЬ SHUTDOWN HEALTH MONITOR
+        try:
+            from HELPERS.health_monitor import health_monitor
+            health_monitor.stop_monitoring()
+            logger.info("Health monitor shutdown completed")
+        except Exception as e:
+            print(f"Error shutting down health monitor: {e}")
+        
         # ДОБАВИТЬ CLOSE ASYNC DB SESSIONS
         try:
             import asyncio
@@ -806,7 +814,7 @@ try:
         try:
             # Wait a bit for the app to start
             import time
-            time.sleep(2)
+            time.sleep(2)  # Keep sync here since it's in a separate thread
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.run_until_complete(start_health_monitor())

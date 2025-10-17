@@ -43,24 +43,26 @@ def _get_file_mb(file_path):
     except Exception:
         return 0.0
 
-def _get_video_duration_seconds(video_path):
+async def _get_video_duration_seconds(video_path):
     try:
-        # Minimal ffprobe to get duration
-        result = subprocess.run([
-            'ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'format=duration', '-of', 'json', video_path
-        ], capture_output=True, text=True, timeout=10)
-        if result.returncode != 0:
+        # Minimal ffprobe to get duration - ASYNC to avoid blocking event loop
+        from HELPERS.guard import async_subprocess
+        stdout, stderr = await async_subprocess(
+            'ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'format=duration', '-of', 'json', video_path,
+            timeout=10
+        )
+        if stderr:
             return 0.0
-        data = json.loads(result.stdout or '{}')
+        data = json.loads(stdout.decode() if stdout else '{}')
         dur = float(data.get('format', {}).get('duration', 0.0))
         return dur if dur and dur > 0 else 0.0
     except Exception:
         return 0.0
 
-def _should_generate_cover(video_path):
+async def _should_generate_cover(video_path):
     """Generate cover unless both duration<60s AND size<10MB (i.e., generate if duration and duration >= 60s OR size>=10MB)."""
     try:
-        duration = _get_video_duration_seconds(video_path)
+        duration = await _get_video_duration_seconds(video_path)
         size_mb = _get_file_mb(video_path)
         return (duration >= 60.0) or (size_mb >= 10.0)
     except Exception:

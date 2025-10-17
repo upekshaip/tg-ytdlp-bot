@@ -172,7 +172,7 @@ async def safe_send_message(chat_id, text, **kwargs):
         # Increase minimum spacing to reduce RANDOM_ID_DUPLICATE in high-throughput chats
         min_spacing = 0.25  # seconds
         if now - last_sent < min_spacing:
-            time.sleep(min_spacing - (now - last_sent))
+            await asyncio.sleep(min_spacing - (now - last_sent))
         _last_message_sent[chat_id] = time.time()
 
     for attempt in range(max_retries):
@@ -206,10 +206,10 @@ async def safe_send_message(chat_id, text, **kwargs):
                 if wait_match:
                     wait_seconds = int(wait_match.group(1))
                     logger.warning(safe_get_messages(chat_id).HELPER_FLOOD_WAIT_DETECTED_SLEEPING_MSG.format(wait_seconds=wait_seconds))
-                    time.sleep(min(wait_seconds + 1, 5))  # short backoff
+                    await asyncio.sleep(min(wait_seconds + 1, 5))  # short backoff
                 else:
                     logger.warning(safe_get_messages(chat_id).HELPER_FLOOD_WAIT_DETECTED_COULDNT_EXTRACT_MSG.format(retry_delay=retry_delay))
-                    time.sleep(retry_delay)
+                    await asyncio.sleep(retry_delay)
                 if attempt and attempt < max_retries - 1:
                     continue
             
@@ -225,7 +225,7 @@ async def safe_send_message(chat_id, text, **kwargs):
                     logger.warning("RANDOM_ID_DUPLICATE detected, backing off briefly and retrying")
                 except Exception:
                     pass
-                time.sleep(0.5)
+                await asyncio.sleep(0.5)
                 if attempt and attempt < max_retries - 1:
                     continue
             logger.error(f"Failed to send message after {max_retries} attempts: {e}")
@@ -507,7 +507,7 @@ async def safe_delete_messages(chat_id, message_ids, **kwargs):
                     time.sleep(min(wait_seconds + 1, 30))  # Wait the required time (max 30 sec)
                 else:
                     logger.warning(safe_get_messages(chat_id).HELPER_FLOOD_WAIT_DETECTED_COULDNT_EXTRACT_MSG.format(retry_delay=retry_delay))
-                    time.sleep(retry_delay)
+                    await asyncio.sleep(retry_delay)
 
                 if attempt and attempt < max_retries - 1:
                     continue

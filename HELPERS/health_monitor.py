@@ -36,15 +36,18 @@ class HealthMonitor:
     
     async def _monitor_loop(self):
         """Основной цикл мониторинга"""
+        logger.info("Health monitor background loop started.")
         while self.is_running:
             try:
                 await self._check_health()
                 await asyncio.sleep(30)  # Проверка каждые 30 секунд
             except asyncio.CancelledError:
+                logger.info("Health monitor loop cancelled")
                 break
             except Exception as e:
                 logger.error(f"Health monitor error: {e}")
                 await asyncio.sleep(30)
+        logger.info("Health monitor background loop stopped.")
     
     async def _check_health(self):
         """Проверить состояние бота"""

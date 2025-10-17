@@ -12,14 +12,21 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from CONFIG.LANGUAGES.language_router import get_message
 
-# Global semaphore to limit concurrent heavy operations (configuration from limits.py)
-from CONFIG.limits import LimitsConfig
-
-SEM = asyncio.Semaphore(LimitsConfig.GUARD_SEMAPHORE_LIMIT)
+# NO GLOBAL SEMAPHORE - removed to allow true parallelism
+# Limiting is now handled by concurrent_limiter per-user
+# from CONFIG.limits import LimitsConfig
+# SEM = asyncio.Semaphore(LimitsConfig.GUARD_SEMAPHORE_LIMIT)  # REMOVED - was blocking all users!
 
 def guarded(timeout=900):
     """
-    Decorator to guard async handlers with timeout and concurrency limits
+    Decorator to guard async handlers with timeout protection (NO GLOBAL SEMAPHORE)
+    
+    This decorator provides:
+    - Timeout protection: operations that take too long are cancelled
+    - Error handling: catches and logs errors gracefully
+    
+    Does NOT use global semaphore to allow true parallelism.
+    Limiting is handled by concurrent_limiter per-user.
     
     Args:
         timeout: Maximum time in seconds for handler execution (default: 15 minutes)
@@ -27,31 +34,32 @@ def guarded(timeout=900):
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            async with SEM:
+            # REMOVED: async with SEM: - this was blocking ALL users globally!
+            # Now handlers run in parallel, limited only by concurrent_limiter
+            try:
+                return await asyncio.wait_for(func(*args, **kwargs), timeout)
+            except asyncio.TimeoutError:
+                logging.error("Handler %s timed out after %ss", func.__name__, timeout)
+                # Try to send timeout message to user if possible
                 try:
-                    return await asyncio.wait_for(func(*args, **kwargs), timeout)
-                except asyncio.TimeoutError:
-                    logging.error("Handler %s timed out after %ss", func.__name__, timeout)
-                    # Try to send timeout message to user if possible
-                    try:
-                        if args and hasattr(args[0], 'reply_text'):
-                            # Get user ID from the message object
-                            user_id = getattr(args[0], 'from_user', {}).get('id') if hasattr(args[0], 'from_user') else None
-                            timeout_msg = get_message('GUARD_TIMEOUT_MSG', user_id)
-                            await args[0].reply_text(timeout_msg)
-                    except (AttributeError, TypeError, ValueError):
-                        pass
-                except (RuntimeError, ValueError, TypeError, AttributeError, KeyError, ImportError) as e:
-                    logging.exception("Handler %s failed: %s", func.__name__, e)
-                    # Try to send error message to user if possible
-                    try:
-                        if args and hasattr(args[0], 'reply_text'):
-                            # Get user ID from the message object
-                            user_id = getattr(args[0], 'from_user', {}).get('id') if hasattr(args[0], 'from_user') else None
-                            error_msg = get_message('GUARD_ERROR_MSG', user_id)
-                            await args[0].reply_text(error_msg)
-                    except (AttributeError, TypeError, ValueError):
-                        pass
+                    if args and hasattr(args[0], 'reply_text'):
+                        # Get user ID from the message object
+                        user_id = getattr(args[0], 'from_user', {}).get('id') if hasattr(args[0], 'from_user') else None
+                        timeout_msg = get_message('GUARD_TIMEOUT_MSG', user_id)
+                        await args[0].reply_text(timeout_msg)
+                except (AttributeError, TypeError, ValueError):
+                    pass
+            except (RuntimeError, ValueError, TypeError, AttributeError, KeyError, ImportError) as e:
+                logging.exception("Handler %s failed: %s", func.__name__, e)
+                # Try to send error message to user if possible
+                try:
+                    if args and hasattr(args[0], 'reply_text'):
+                        # Get user ID from the message object
+                        user_id = getattr(args[0], 'from_user', {}).get('id') if hasattr(args[0], 'from_user') else None
+                        error_msg = get_message('GUARD_ERROR_MSG', user_id)
+                        await args[0].reply_text(error_msg)
+                except (AttributeError, TypeError, ValueError):
+                    pass
         return wrapper
     return decorator
 
