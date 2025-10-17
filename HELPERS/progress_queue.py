@@ -86,6 +86,26 @@ class GlobalProgressQueue:
         """Get queue size for user"""
         with self._lock:
             return len(self._queues[user_id])
+    
+    def process_progress_sync(self, user_id: int):
+        """Process progress updates synchronously (for use in sync contexts)"""
+        try:
+            progress = self.get_progress(user_id)
+            if progress:
+                msg_id, progress_text = progress
+                # Use asyncio.run to handle async function in sync context
+                import asyncio
+                from HELPERS.safe_messeger import safe_edit_message_text
+                try:
+                    asyncio.run(safe_edit_message_text(user_id, msg_id, progress_text))
+                    logger.info("Progress updated for user %s: %s", user_id, progress_text)
+                except Exception as e:
+                    logger.error("Progress update error for user %s: %s", user_id, e)
+                return True
+            return False
+        except Exception as e:
+            logger.error("Sync progress processing error for user %s: %s", user_id, e)
+            return False
 
 # Global instance
 progress_queue = GlobalProgressQueue()

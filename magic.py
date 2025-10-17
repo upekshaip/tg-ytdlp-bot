@@ -711,4 +711,23 @@ from COMMANDS.status_cmd import status_command, status_refresh_callback
 app.on_message(filters.command("status") & filters.private)(status_command)
 app.on_callback_query(filters.regex(r"^status_refresh$"))(status_refresh_callback)
 
+# Register health command for admins
+from COMMANDS.health_cmd import health_command, health_callback
+app.on_message(filters.command("health") & filters.private)(health_command)
+app.on_callback_query(filters.regex(r"^health_"))(health_callback)
+
+# Start health monitoring
+try:
+    from HELPERS.health_monitor import health_monitor
+    import asyncio
+    
+    async def start_health_monitor():
+        await health_monitor.start_monitoring()
+    
+    # Start health monitor in background
+    asyncio.create_task(start_health_monitor())
+    print("✅ Health monitor started")
+except Exception as e:
+    print(f"⚠️  Health monitor failed to start: {e}")
+
 app.run()
