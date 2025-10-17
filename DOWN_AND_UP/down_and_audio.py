@@ -179,6 +179,9 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
     user_id = message.chat.id
     logger.info(f"down_and_audio called: url={url}, quality_key={quality_key}, video_count={video_count}, video_start_with={video_start_with}")
     
+    # Set active download status to prevent multiple downloads
+    set_active_download(user_id, True)
+    
     # ЖЕСТКО: Сохраняем оригинальный текст с диапазоном для фоллбэка
     original_message_text = message.text or message.caption or ""
     logger.info(f"[ORIGINAL TEXT] Saved for fallback: {original_message_text}")
@@ -674,7 +677,7 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
         # This will be updated later based on actual format detection
         is_hls = ("m3u8" in url.lower())
 
-        async def progress_hook(d):
+        def progress_hook(d):
             messages = safe_get_messages(message.chat.id)
             nonlocal last_update, is_hls
             # Check the timeout
@@ -707,29 +710,47 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                     progress_hook.progress_data['downloaded_bytes'] = downloaded
                     progress_hook.progress_data['total_bytes'] = total
                 
-                # Use existing progress_bar function from download_status.py
+                # Use synchronous message editing for progress updates
                 try:
-                    from HELPERS.download_status import progress_bar
-                    
-                    # Use the existing progress_bar function with throttling
-                    await progress_bar(
-                        downloaded, total, 0, 0, 0, user_id, proc_msg_id, 
-                        safe_get_messages(user_id).AUDIO_DOWNLOADING_PROGRESS_MSG.format(process=current_total_process, bar=bar, percent=percent)
-                    )
+                    import asyncio
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # Schedule the coroutine to run in the background
+                        asyncio.create_task(safe_edit_message_text(
+                            user_id, proc_msg_id,
+                            f"{current_total_process}\n{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_QUALITY_MSG} audio:\n{bar}   {percent:.1f}%"
+                        ))
+                    else:
+                        # Run in the current loop
+                        loop.run_until_complete(safe_edit_message_text(
+                            user_id, proc_msg_id,
+                            f"{current_total_process}\n{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_QUALITY_MSG} audio:\n{bar}   {percent:.1f}%"
+                        ))
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "finished":
                 try:
                     full_bar = "🟩" * 10
-                    await safe_edit_message_text(user_id, proc_msg_id,
-                        f"{current_total_process}\n{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_QUALITY_MSG} audio:\n{full_bar}   100.0%\n{safe_get_messages(user_id).AUDIO_DOWNLOAD_FINISHED_PROCESSING_MSG}")
+                    import asyncio
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.create_task(safe_edit_message_text(user_id, proc_msg_id,
+                            f"{current_total_process}\n{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_QUALITY_MSG} audio:\n{full_bar}   100.0%\n{safe_get_messages(user_id).AUDIO_DOWNLOAD_FINISHED_PROCESSING_MSG}"))
+                    else:
+                        loop.run_until_complete(safe_edit_message_text(user_id, proc_msg_id,
+                            f"{current_total_process}\n{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_QUALITY_MSG} audio:\n{full_bar}   100.0%\n{safe_get_messages(user_id).AUDIO_DOWNLOAD_FINISHED_PROCESSING_MSG}"))
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "error":
                 try:
-                    await safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).AUDIO_DOWNLOAD_ERROR_MSG)
+                    import asyncio
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.create_task(safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).AUDIO_DOWNLOAD_ERROR_MSG))
+                    else:
+                        loop.run_until_complete(safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).AUDIO_DOWNLOAD_ERROR_MSG))
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
@@ -901,7 +922,7 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                 logger.info(f"DEBUG: info_dict.get('title') = '{original_title}'")
                 
                 # MANUALLY apply sanitization since match_filter doesn't work with download=False
-                sanitized_title = sanitize_title_for_filename(original_title)
+                sanitized_title = await sanitize_title_for_filename(original_title)
                 
                 # Keep original title in info_dict for metadata, but use sanitized for filename
                 info_dict['original_title'] = original_title  # Save original for caption
@@ -935,8 +956,8 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                             if total > 0:
                                 percent = (downloaded / total) * 100
                                 # Обновляем прогресс через существующий механизм
-                                if hasattr(progress_func, 'update_progress'):
-                                    progress_func.update_progress(percent)
+                                # Убираем ссылку на несуществующую progress_func
+                                pass
                     
                     # ПЕРЕДАТЬ user_id в async_download_with_progress
                     return await async_download_with_progress(opts, [url], user_id, progress_callback)
@@ -1528,7 +1549,7 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                         if file_ext == '.mp3' or file_ext == '.m4a':
                             # Send as audio for supported formats
                             if telegram_thumb and os.path.exists(telegram_thumb):
-                                audio_msg = app.send_audio(
+                                audio_msg = await app.send_audio(
                                     chat_id=user_id, 
                                     audio=audio_file, 
                                     caption=caption_with_link, 
@@ -1536,7 +1557,7 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                                     thumb=telegram_thumb
                                 )
                             else:
-                                audio_msg = app.send_audio(
+                                audio_msg = await app.send_audio(
                                     chat_id=user_id, 
                                     audio=audio_file, 
                                     caption=caption_with_link, 
@@ -1544,7 +1565,7 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                                 )
                         else:
                             # Send as document for unsupported audio formats
-                            audio_msg = app.send_document(
+                            audio_msg = await app.send_document(
                                 chat_id=user_id, 
                                 document=audio_file, 
                                 caption=caption_with_link, 
@@ -1555,7 +1576,7 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                     if file_ext == '.mp3' or file_ext == '.m4a':
                         # Send as audio for supported formats
                         if telegram_thumb and os.path.exists(telegram_thumb):
-                            audio_msg = app.send_audio(
+                            audio_msg = await app.send_audio(
                                 chat_id=user_id, 
                                 audio=audio_file, 
                                 caption=caption_with_link, 
@@ -1564,7 +1585,7 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                             )
                             logger.info(f"Audio sent with Telegram thumbnail: {telegram_thumb}")
                         else:
-                            audio_msg = app.send_audio(
+                            audio_msg = await app.send_audio(
                                 chat_id=user_id, 
                                 audio=audio_file, 
                                 caption=caption_with_link, 
@@ -1573,7 +1594,7 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                             logger.info("Audio sent without thumbnail")
                     else:
                         # Send as document for unsupported audio formats
-                        audio_msg = app.send_document(
+                        audio_msg = await app.send_document(
                             chat_id=user_id, 
                             document=audio_file, 
                             caption=caption_with_link, 
@@ -1601,7 +1622,7 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                     log_channel_nsfw = await get_log_channel("video", nsfw=True)
                     try:
                         # Create open copy for history (without stars)
-                        open_audio_msg = app.send_audio(
+                        open_audio_msg = await app.send_audio(
                             chat_id=log_channel_nsfw,
                             audio=audio_file,
                             caption=caption_with_link,
@@ -1619,14 +1640,14 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                 elif is_nsfw:
                     # NSFW content in groups -> LOGS_NSWF_ID only
                     log_channel = await get_log_channel("video", nsfw=True)
-                    forwarded_msg = safe_forward_messages(log_channel, user_id, [audio_msg.id])
+                    forwarded_msg = await safe_forward_messages(log_channel, user_id, [audio_msg.id])
                     # Don't cache NSFW content
                     logger.info(f"down_and_audio: NSFW audio sent to NSFW channel, not cached")
                     forwarded_msg = None
                 else:
                     # Regular content -> LOGS_VIDEO_ID and cache
                     log_channel = await get_log_channel("video")
-                    forwarded_msg = safe_forward_messages(log_channel, user_id, [audio_msg.id])
+                    forwarded_msg = await safe_forward_messages(log_channel, user_id, [audio_msg.id])
                 
                 # Save to cache after sending audio (only for non-NSFW content)
                 if quality_key and forwarded_msg and not is_nsfw:

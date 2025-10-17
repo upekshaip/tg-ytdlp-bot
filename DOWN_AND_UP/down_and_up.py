@@ -151,6 +151,9 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
     proc_msg_id = None  # Initialize proc_msg_id
     logger.info(f"down_and_up called: url={url}, quality_key={quality_key}, format_override={format_override}, video_count={video_count}, video_start_with={video_start_with}")
     
+    # Set active download status to prevent multiple downloads
+    set_active_download(user_id, True)
+    
     # ЖЕСТКО: Сохраняем оригинальный текст с диапазоном для фоллбэка
     original_message_text = message.text or message.caption or ""
     logger.info(f"[ORIGINAL TEXT] Saved for fallback: {original_message_text}")
