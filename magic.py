@@ -317,30 +317,6 @@ async def _guarded_text(a, m):
 
 app.on_message(filters.group & filters.text)(_wrap_group(_guarded_text))
 
-# Text/url/emoji handler for private chats (NON-COMMAND messages only)
-@app.on_message(filters.private & filters.text & ~filters.command)
-async def _private_text_handler(app, message):
-    from HELPERS.logger import logger
-    logger.info(f"🎯 Private text handler (non-command): {message.text}")
-    
-    # Update health monitor activity
-    try:
-        from HELPERS.health_monitor import health_monitor
-        health_monitor.update_activity()
-    except Exception:
-        pass
-    
-    # Process as URL (this is for non-command messages)
-    await url_distractor(app, message)
-
-    # Map basic commands to url_distractor to mimic private behavior
-    async def _group_basic_handler(a, m, cmd):
-        if _is_allowed_group(m):
-            return await url_distractor(a, m)
-        return None
-    
-    for _cmd in ("start", "help", "keyboard", "clean", "search", "usage", "check_cookie", "save_as_cookie"):
-        app.on_message(filters.group & filters.command(_cmd))(_wrap_group(_group_basic_handler))
 
 ###########################################################
 #        /vid command (private and groups)
@@ -793,5 +769,29 @@ try:
     health_thread.start()
 except Exception as e:
     print(f"⚠️  Health monitor failed to start: {e}")
+
+# Text/url/emoji handler for private chats (NON-COMMAND messages only)
+# This must be LAST to avoid intercepting commands
+@app.on_message(filters.private & filters.text)
+async def _private_text_handler(app, message):
+    from HELPERS.logger import logger
+    
+    # Update health monitor activity
+    try:
+        from HELPERS.health_monitor import health_monitor
+        health_monitor.update_activity()
+    except Exception:
+        pass
+    
+    # Check if it's a command - if so, skip processing
+    text = message.text.strip()
+    if text.startswith('/'):
+        logger.info(f"🎯 Command detected, skipping: {text}")
+        return
+    
+    logger.info(f"🎯 Private text handler (non-command): {message.text}")
+    
+    # Process as URL (this is for non-command messages)
+    await url_distractor(app, message)
 
 app.run()
