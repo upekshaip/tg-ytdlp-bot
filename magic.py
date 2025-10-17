@@ -704,8 +704,7 @@ app.on_callback_query(filters.regex(r"^lang_select_"))(lang_callback_handler)
 app.on_callback_query(filters.regex(r"^lang_close"))(lang_callback_handler)
 
 # Register subtitles handlers
-from COMMANDS.subtitles_cmd import subs_command, subs_page_callback, subs_lang_callback, subs_auto_callback, subs_always_ask_callback, subs_lang_close_callback
-app.on_message(filters.command("subs") & filters.private)(subs_command)
+from COMMANDS.subtitles_cmd import subs_page_callback, subs_lang_callback, subs_auto_callback, subs_always_ask_callback, subs_lang_close_callback
 app.on_callback_query(filters.regex(r"^subs_page\|"))(subs_page_callback)
 app.on_callback_query(filters.regex(r"^subs_lang\|"))(subs_lang_callback)
 app.on_callback_query(filters.regex(r"^subs_auto\|"))(subs_auto_callback)
@@ -719,42 +718,33 @@ app.on_message(filters.command("mediainfo") & filters.private)(mediainfo_command
 app.on_callback_query(filters.regex(r"^mediainfo_option\|"))(mediainfo_option_callback)
 
 # Register proxy handlers
-from COMMANDS.proxy_cmd import proxy_command, proxy_option_callback
-app.on_message(filters.command("proxy") & filters.private)(proxy_command)
+from COMMANDS.proxy_cmd import proxy_option_callback
 app.on_callback_query(filters.regex(r"^proxy_option\|"))(proxy_option_callback)
 
 # Register other handlers
-from COMMANDS.other_handlers import help_msg_callback, audio_command_handler, link_command_handler, proxy_command_handler, playlist_command, playlist_help_callback, userlogs_close_callback, audio_hint_callback
+from COMMANDS.other_handlers import help_msg_callback, playlist_help_callback, userlogs_close_callback, audio_hint_callback
 app.on_callback_query(filters.regex(r"^help_msg\|"))(help_msg_callback)
-app.on_message(filters.command("audio") & filters.private)(audio_command_handler)
-app.on_message(filters.command("link") & filters.private)(link_command_handler)
-app.on_message(filters.command("proxy") & filters.private)(proxy_command_handler)
-app.on_message(filters.command("playlist") & filters.private)(playlist_command)
 app.on_callback_query(filters.regex(r"^playlist_help\|"))(playlist_help_callback)
 app.on_callback_query(filters.regex(r"^userlogs_close\|"))(userlogs_close_callback)
 app.on_callback_query(filters.regex(r"^audio_hint\|"))(audio_hint_callback)
 
 # Register format handlers
-from COMMANDS.format_cmd import set_format, format_option_callback, format_codec_callback, format_container_callback, format_custom_callback
-app.on_message(filters.command("format") & filters.private)(set_format)
+from COMMANDS.format_cmd import format_option_callback, format_codec_callback, format_container_callback, format_custom_callback
 app.on_callback_query(filters.regex(r"^format_option\|"))(format_option_callback)
 app.on_callback_query(filters.regex(r"^format_codec\|"))(format_codec_callback)
 app.on_callback_query(filters.regex(r"^format_container\|"))(format_container_callback)
 app.on_callback_query(filters.regex(r"^format_custom\|"))(format_custom_callback)
 
 # Register split handlers
-from COMMANDS.split_sizer import split_command, split_size_callback
-app.on_message(filters.command("split") & filters.private)(split_command)
+from COMMANDS.split_sizer import split_size_callback
 app.on_callback_query(filters.regex(r"^split_size\|"))(split_size_callback)
 
 # Register tag handlers
-from COMMANDS.tag_cmd import tags_command, tags_close_callback
-app.on_message(filters.command("tags") & filters.private)(tags_command)
+from COMMANDS.tag_cmd import tags_close_callback
 app.on_callback_query(filters.regex(r"^tags_close\|"))(tags_close_callback)
 
 # Register settings handlers
-from COMMANDS.settings_cmd import settings_command, settings_menu_callback, settings_cmd_callback, hint_callback
-app.on_message(filters.command("settings") & filters.private)(settings_command)
+from COMMANDS.settings_cmd import settings_menu_callback, settings_cmd_callback, hint_callback
 app.on_callback_query(filters.regex(r"^settings__menu__"))(settings_menu_callback)
 app.on_callback_query(filters.regex(r"^settings__cmd__"))(settings_cmd_callback)
 app.on_callback_query(filters.regex(r"^(img_hint|link_hint|search_hint|search_msg)\|"))(hint_callback)
