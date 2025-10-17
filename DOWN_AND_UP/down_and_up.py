@@ -936,7 +936,7 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                     # Always check existing cookies first on user's URL for maximum speed
                     if os.path.exists(user_cookie_path):
                         logger.info(f"Checking existing YouTube cookies on user's URL for user {user_id}")
-                        if await test_youtube_cookies_on_url(user_cookie_path, url):
+                        if await test_youtube_cookies_on_url(user_cookie_path, url, user_id):
                             common_opts['cookiefile'] = user_cookie_path
                             logger.info(f"Existing YouTube cookies work on user's URL for user {user_id} - using them")
                         else:
@@ -951,7 +951,7 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                                         if ok and content and len(content) <= 100 * 1024:
                                             with open(user_cookie_path, "wb") as cf:
                                                 cf.write(content)
-                                            if await test_youtube_cookies_on_url(user_cookie_path, url):
+                                            if await test_youtube_cookies_on_url(user_cookie_path, url, user_id):
                                                 common_opts['cookiefile'] = user_cookie_path
                                                 logger.info(f"YouTube cookies from source {i} work on user's URL for user {user_id} - saved to user folder")
                                                 success = True
@@ -980,7 +980,7 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                                     if ok and content and len(content) <= 100 * 1024:
                                         with open(user_cookie_path, "wb") as cf:
                                             cf.write(content)
-                                        if await test_youtube_cookies_on_url(user_cookie_path, url):
+                                        if await test_youtube_cookies_on_url(user_cookie_path, url, user_id):
                                             common_opts['cookiefile'] = user_cookie_path
                                             logger.info(f"YouTube cookies from source {i} work on user's URL for user {user_id} - saved to user folder")
                                             success = True

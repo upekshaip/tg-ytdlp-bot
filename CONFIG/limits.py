@@ -47,25 +47,25 @@ class LimitsConfig(object):
     # Enterprise Scaling Configuration
     #######################################################
     
-    # Main scaling limits (optimized for 4 CPU, 24 GB RAM)
-    MAX_USERS = 2000                     # Maximum concurrent users
-    MAX_PROCESSES = 20                   # Number of processes (optimal for 4 CPU)
-    MAX_THREADS_PER_PROCESS = 100        # Threads per process (optimal for 24 GB RAM)
-    MAX_GLOBAL_WORKERS = 2000            # Total number of threads
+    # Main scaling limits (optimized for Oracle Cloud: 4 vCPU, 24 GB RAM, 4 Gbit/sec)
+    MAX_USERS = 5000                     # Maximum concurrent users (increased for better resources)
+    MAX_PROCESSES = 30                   # Number of processes (optimal for 4 vCPU)
+    MAX_THREADS_PER_PROCESS = 150        # Threads per process (optimal for 24 GB RAM)
+    MAX_GLOBAL_WORKERS = 4500            # Total number of threads (30 * 150)
     
     # Download limits
     MAX_DOWNLOADS_PER_USER = 1          # Downloads per user
-    MAX_CONCURRENT_GLOBAL = 2000        # Total concurrent downloads
+    MAX_CONCURRENT_GLOBAL = 4500        # Total concurrent downloads
     
-    # Priority pools (processes) - optimized for 4 CPU
-    VIP_PROCESSES = 2                    # VIP users (admins)
-    HIGH_PROCESSES = 4                   # HIGH priority (every 100th user)
-    NORMAL_PROCESSES = 10                # NORMAL priority (every 10th user)
-    LOW_PROCESSES = 4                    # LOW priority (others)
+    # Priority pools (processes) - optimized for 4 vCPU
+    VIP_PROCESSES = 3                    # VIP users (admins) - increased
+    HIGH_PROCESSES = 6                   # HIGH priority (every 100th user) - increased
+    NORMAL_PROCESSES = 15                # NORMAL priority (every 10th user) - increased
+    LOW_PROCESSES = 6                    # LOW priority (others) - increased
     
-    # Connection pools - optimized for 24 GB RAM
-    FIREBASE_POOL_SIZE = 200             # Firebase connection pool size
-    TELEGRAM_POOL_SIZE = 200             # Telegram connection pool size
+    # Connection pools - optimized for 24 GB RAM and 4 Gbit/sec network
+    FIREBASE_POOL_SIZE = 500             # Firebase connection pool size (increased for better network)
+    TELEGRAM_POOL_SIZE = 500             # Telegram connection pool size (increased for better network)
     
     # Monitoring and scaling
     RESOURCE_CHECK_INTERVAL = 5         # Resource check interval (seconds)
@@ -75,8 +75,8 @@ class LimitsConfig(object):
     QUEUE_SIZE = 50000                  # Queue size
     QUEUE_TIMEOUT = 300                 # Queue timeout (seconds)
     
-    # Semaphores - optimized for 4 CPU, 24 GB RAM
-    GUARD_SEMAPHORE_LIMIT = 2000        # Semaphore limit in guard.py
+    # Semaphores - optimized for 4 vCPU, 24 GB RAM
+    GUARD_SEMAPHORE_LIMIT = 4500        # Semaphore limit in guard.py (increased for better performance)
     
     #######################################################
     # Predefined configurations for different loads
@@ -132,14 +132,14 @@ class LimitsConfig(object):
         'telegram_pool_size': 2000
     }
     
-    # Configuration for Oracle Cloud (4 CPU, 24 GB RAM, 100 GB HDD)
+    # Configuration for Oracle Cloud (4 vCPU, 24 GB RAM, 200 GB HDD, 4 Gbit/sec)
     ORACLE_CLOUD_CONFIG = {
-        'max_processes': 20,
-        'max_threads_per_process': 100,
-        'max_global_workers': 2000,
-        'max_concurrent_global': 2000,
-        'firebase_pool_size': 200,
-        'telegram_pool_size': 200
+        'max_processes': 30,
+        'max_threads_per_process': 150,
+        'max_global_workers': 4500,
+        'max_concurrent_global': 4500,
+        'firebase_pool_size': 500,
+        'telegram_pool_size': 500
     }
     
     #######################################################
@@ -180,8 +180,8 @@ class LimitsConfig(object):
         'oracle_cloud': {
             'cpu_cores': 4,
             'ram_gb': 24,
-            'disk_gb': 100,
-            'network_mbps': 1000
+            'disk_gb': 200,
+            'network_mbps': 4000
         }
     }
     

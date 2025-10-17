@@ -1088,6 +1088,7 @@ async def url_distractor(app, message):
                 try:
                     # Create proper /img command from URL
                     from HELPERS.safe_messeger import fake_message
+                    from COMMANDS.image_cmd import image_command
                     
                     # Extract URL and range from original message
                     url, video_start_with, video_end_with, playlist_name, tags, tags_text, tag_error = extract_url_range_tags(message.text)

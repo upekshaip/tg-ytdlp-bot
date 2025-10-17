@@ -756,7 +756,7 @@ async def save_as_cookie_file(app, message):
         await send_to_user(message, safe_get_messages(user_id).COOKIES_NOT_VALID_MSG)
         await send_to_logger(message, safe_get_messages(user_id).COOKIES_INVALID_CONTENT_LOG_MSG.format(user_id=user_id))
 
-async def test_youtube_cookies_on_url(cookie_file_path: str, url: str) -> bool:
+async def test_youtube_cookies_on_url(cookie_file_path: str, url: str, user_id: int) -> bool:
     """
     Проверяет работоспособность YouTube куки на конкретном URL пользователя.
     

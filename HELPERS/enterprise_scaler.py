@@ -100,40 +100,13 @@ class EnterpriseScaler:
         """
         Submit user task to priority process
         """
-        process_pool = self.get_process_pool_for_user(user_id)
-        
-        def process_wrapper():
-            """Wrapper for process execution"""
-            try:
-                # Process initialization
-                import sys
-                import os
-                
-                # Add project path
-                project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                if project_root not in sys.path:
-                    sys.path.insert(0, project_root)
-                
-                # Set process priority
-                priority = self.get_user_priority(user_id)
-                self._set_process_priority(priority)
-                
-                # Execute function
-                result = func(*args, **kwargs)
-                return result
-                
-            except Exception as e:
-                logger.error("Process error for user %s: %s", user_id, e)
-                raise
-        
-        # Submit to priority process
-        loop = asyncio.get_event_loop()
-        future = loop.run_in_executor(
-            process_pool, 
-            process_wrapper
-        )
-        
-        return await future
+        # For now, execute directly without multiprocessing to avoid pickle issues
+        # TODO: Implement proper multiprocessing with pickle-safe functions
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            logger.error("Task execution error for user %s: %s", user_id, e)
+            raise
     
     def _set_process_priority(self, priority: UserPriority):
         """Установить приоритет процесса"""

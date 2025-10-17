@@ -77,7 +77,7 @@ async def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_a
             # Always check existing cookies first on user's URL for maximum speed
             if os.path.exists(user_cookie_path):
                 logger.info(safe_get_messages(user_id).YTDLP_CHECKING_EXISTING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
-                if await test_youtube_cookies_on_url(user_cookie_path, url):
+                if await test_youtube_cookies_on_url(user_cookie_path, url, user_id):
                     cookie_file = user_cookie_path
                     logger.info(safe_get_messages(user_id).YTDLP_EXISTING_YOUTUBE_COOKIES_WORK_MSG.format(user_id=user_id))
                 else:
@@ -96,7 +96,7 @@ async def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_a
                             if ok and content and len(content) <= 100 * 1024:
                                 with open(user_cookie_path, "wb") as cf:
                                     cf.write(content)
-                                if await test_youtube_cookies_on_url(user_cookie_path, url):
+                                if await test_youtube_cookies_on_url(user_cookie_path, url, user_id):
                                     cookie_file = user_cookie_path
                                     logger.info(safe_get_messages(user_id).YTDLP_YOUTUBE_COOKIES_FROM_SOURCE_WORK_MSG.format(i=i, user_id=user_id))
                                     success = True
@@ -127,7 +127,7 @@ async def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_a
                         if ok and content and len(content) <= 100 * 1024:
                             with open(user_cookie_path, "wb") as cf:
                                 cf.write(content)
-                            if await test_youtube_cookies_on_url(user_cookie_path, url):
+                            if await test_youtube_cookies_on_url(user_cookie_path, url, user_id):
                                 cookie_file = user_cookie_path
                                 logger.info(f"YouTube cookies from source {i} work on user's URL for format detection for user {user_id} - saved to user folder")
                                 success = True
@@ -165,7 +165,7 @@ async def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_a
                         if ok and content and len(content) <= 100 * 1024:
                             with open(user_cookie_path, "wb") as cf:
                                 cf.write(content)
-                            if await test_youtube_cookies_on_url(user_cookie_path, url):
+                            if await test_youtube_cookies_on_url(user_cookie_path, url, user_id):
                                 cookie_file = user_cookie_path
                                 logger.info(f"YouTube cookies from source {i} work on user's URL for format detection for user {user_id} - saved to user folder")
                                 success = True
