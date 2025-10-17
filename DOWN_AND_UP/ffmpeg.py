@@ -39,7 +39,7 @@ def get_ffmpeg_path():
             ffmpeg_path = os.path.join(project_root, "ffmpeg")
         
         if not os.path.exists(ffmpeg_path):
-            logger.error(safe_get_messages(user_id).FFMPEG_NOT_FOUND_MSG)
+            logger.error(safe_get_messages(None).FFMPEG_NOT_FOUND_MSG)
             return None
     
     return ffmpeg_path
@@ -131,12 +131,12 @@ def get_ytdlp_path():
             ytdlp_path = os.path.join(project_root, "yt-dlp")
         
         if not os.path.exists(ytdlp_path):
-            logger.error(safe_get_messages(user_id).YTDLP_NOT_FOUND_MSG)
+            logger.error(safe_get_messages(None).YTDLP_NOT_FOUND_MSG)
             return None
     
     return ytdlp_path
 
-def split_video_2(dir, video_name, video_path, video_size, max_size, duration):
+def split_video_2(dir, video_name, video_path, video_size, max_size, duration, user_id):
     messages = safe_get_messages(None)
     """
     Split a video into multiple parts
@@ -219,7 +219,7 @@ def get_duration_thumb_(dir, video_path, thumb_name):
         orig_w = width if width and width > 0 else 1920
         orig_h = height if height and height > 0 else 1080
     except Exception as e:
-        logger.error(safe_get_messages(user_id).FFMPEG_FFPROBE_BYPASS_ERROR_MSG.format(video_path=video_path, error=e))
+        logger.error(safe_get_messages(None).FFMPEG_FFPROBE_BYPASS_ERROR_MSG.format(video_path=video_path, error=e))
         import traceback
         logger.error(traceback.format_exc())
         duration = 0
@@ -252,7 +252,7 @@ def get_duration_thumb_(dir, video_path, thumb_name):
         # Get FFmpeg path using the common function
         ffmpeg_path = get_ffmpeg_path()
         if not ffmpeg_path:
-            logger.error(safe_get_messages(user_id).FFMPEG_NOT_FOUND_MSG)
+            logger.error(safe_get_messages(None).FFMPEG_NOT_FOUND_MSG)
             create_default_thumbnail(thumb_dir, thumb_w, thumb_h)
             return duration, thumb_dir
         
@@ -267,14 +267,15 @@ def get_duration_thumb_(dir, video_path, thumb_name):
         ]
         subprocess.run(ffmpeg_command, check=True, capture_output=True, encoding='utf-8', errors='replace')
     except Exception as e:
-        logger.error(safe_get_messages(user_id).FFMPEG_ERROR_CREATING_THUMBNAIL_WITH_FFMPEG_MSG.format(error=e))
+        logger.error(safe_get_messages(None).FFMPEG_ERROR_CREATING_THUMBNAIL_WITH_FFMPEG_MSG.format(error=e))
         # Create default thumbnail as fallback
         create_default_thumbnail(thumb_dir, thumb_w, thumb_h)
     
     return duration, thumb_dir
 
 def get_duration_thumb(message, dir_path, video_path, thumb_name):
-    messages = safe_get_messages(None)
+    user_id = message.chat.id
+    messages = safe_get_messages(user_id)
     """
     Captures a thumbnail at 2 seconds into the video and retrieves video duration.
     Creates thumbnail with same aspect ratio as video (no black bars).
