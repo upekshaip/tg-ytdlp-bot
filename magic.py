@@ -482,6 +482,16 @@ async def _private_cookie_handler(app, message):
 async def _private_add_bot_to_group_handler(app, message):
     await url_distractor(app, message)
 
+@app.on_message(filters.command("playlist") & filters.private)
+@safe_handler(timeout=300)  # 5 minute timeout for playlist command
+async def _private_playlist_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("link") & filters.private)
+@safe_handler(timeout=300)  # 5 minute timeout for link command
+async def _private_link_handler(app, message):
+    await url_distractor(app, message)
+
 @app.on_message(filters.command("args") & filters.private)
 @safe_handler(timeout=60)  # 1 minute timeout for args command
 async def _private_args_handler(app, message):
