@@ -71,12 +71,12 @@ def load_firebase_cache():
         if os.path.exists(cache_file):
             with open(cache_file, "r", encoding="utf-8") as f:
                 firebase_cache = json.load(f)
-            print(safe_get_messages().DB_FIREBASE_CACHE_LOADED_MSG.format(count=len(firebase_cache)))
+            print(safe_get_messages(None).DB_FIREBASE_CACHE_LOADED_MSG.format(count=len(firebase_cache)))
         else:
-            print(safe_get_messages().DB_FIREBASE_CACHE_NOT_FOUND_MSG.format(cache_file=cache_file))
+            print(safe_get_messages(None).DB_FIREBASE_CACHE_NOT_FOUND_MSG.format(cache_file=cache_file))
             firebase_cache = {}
     except Exception as e:
-        print(safe_get_messages().DB_FAILED_LOAD_FIREBASE_CACHE_MSG.format(error=e))
+        print(safe_get_messages(None).DB_FAILED_LOAD_FIREBASE_CACHE_MSG.format(error=e))
         firebase_cache = {}
 
 def reload_firebase_cache():
@@ -88,13 +88,13 @@ def reload_firebase_cache():
         if os.path.exists(cache_file):
             with open(cache_file, "r", encoding="utf-8") as f:
                 firebase_cache = json.load(f)
-            print(safe_get_messages().DB_FIREBASE_CACHE_RELOADED_MSG.format(count=len(firebase_cache)))
+            print(safe_get_messages(None).DB_FIREBASE_CACHE_RELOADED_MSG.format(count=len(firebase_cache)))
             return True
         else:
-            print(safe_get_messages().DB_FIREBASE_CACHE_FILE_NOT_FOUND_MSG.format(cache_file=cache_file))
+            print(safe_get_messages(None).DB_FIREBASE_CACHE_FILE_NOT_FOUND_MSG.format(cache_file=cache_file))
             return False
     except Exception as e:
-        print(safe_get_messages().DB_FAILED_RELOAD_FIREBASE_CACHE_MSG.format(error=e))
+        print(safe_get_messages(None).DB_FAILED_RELOAD_FIREBASE_CACHE_MSG.format(error=e))
         return False
 
 
@@ -116,11 +116,11 @@ async def _download_and_reload_cache() -> bool:
     try:
         ok = download_firebase_dump()
         if not ok:
-            print(safe_get_messages().DB_FAILED_DOWNLOAD_DUMP_REST_MSG)
+            print(safe_get_messages(None).DB_FAILED_DOWNLOAD_DUMP_REST_MSG)
             return False
         return reload_firebase_cache()
     except Exception as e:
-        print(safe_get_messages().DB_ERROR_DOWNLOAD_RELOAD_CACHE_MSG.format(error=e))
+        print(safe_get_messages(None).DB_ERROR_DOWNLOAD_RELOAD_CACHE_MSG.format(error=e))
         return False
 
 async def auto_reload_firebase_cache():
@@ -187,12 +187,12 @@ async def auto_reload_firebase_cache():
                 break  # Success, exit retry loop
                 
             except Exception as e:
-                print(safe_get_messages().DB_ERROR_RUNNING_AUTO_RELOAD_MSG.format(attempt=attempt + 1, max_retries=max_retries, error=e))
+                print(safe_get_messages(None).DB_ERROR_RUNNING_AUTO_RELOAD_MSG.format(attempt=attempt + 1, max_retries=max_retries, error=e))
                 if attempt and attempt < max_retries - 1:
                     print(f"⏳ Retrying in {retry_delay} seconds...")
                     await asyncio.sleep(retry_delay)
                 else:
-                    print(safe_get_messages().DB_ALL_RETRY_ATTEMPTS_FAILED_MSG)
+                    print(safe_get_messages(None).DB_ALL_RETRY_ATTEMPTS_FAILED_MSG)
                     import traceback; traceback.print_exc()
 
 def start_auto_cache_reloader():
@@ -266,7 +266,7 @@ def _persist_reload_interval_in_config(new_hours: int) -> bool:
 
         with open(cfg_path, 'w', encoding='utf-8') as f:
             f.write(new_content)
-        logger.info(safe_get_messages().DB_RELOAD_CACHE_EVERY_PERSISTED_MSG.format(hours=int(new_hours)))
+        logger.info(safe_get_messages(None).DB_RELOAD_CACHE_EVERY_PERSISTED_MSG.format(hours=int(new_hours)))
         return True
     except Exception as e:
         logger.error(LoggerMsg.DB_FAILED_PERSIST_RELOAD_CACHE_EVERY_LOG_MSG.format(error=e))
@@ -336,7 +336,7 @@ async def auto_cache_command(app, message):
     """
     try:
         if int(message.chat.id) not in Config.ADMIN:
-            await send_to_user(message, safe_get_messages().DB_AUTO_CACHE_ACCESS_DENIED_MSG)
+            await send_to_user(message, safe_get_messages(None).DB_AUTO_CACHE_ACCESS_DENIED_MSG)
             return
 
         text = (message.text or "").strip()
@@ -353,17 +353,17 @@ async def auto_cache_command(app, message):
                 delta_min = int((next_exec - datetime.now()).total_seconds() // 60)
                 await send_to_user(
                     message,
-                    safe_get_messages().DB_AUTO_CACHE_RELOADING_UPDATED_MSG.format(
+                    safe_get_messages(None).DB_AUTO_CACHE_RELOADING_UPDATED_MSG.format(
                         status=status,
                         interval=interval,
                         next_exec=next_exec.strftime('%H:%M'),
                         delta_min=delta_min
                     )
                 )
-                await send_to_logger(message, safe_get_messages().DB_AUTO_CACHE_RELOAD_ENABLED_LOG_MSG.format(next_exec=next_exec))
+                await send_to_logger(message, safe_get_messages(None).DB_AUTO_CACHE_RELOAD_ENABLED_LOG_MSG.format(next_exec=next_exec))
             else:
-                await send_to_user(message, safe_get_messages().DB_AUTO_CACHE_RELOADING_STOPPED_MSG)
-                await send_to_logger(message, safe_get_messages().DB_AUTO_CACHE_RELOAD_DISABLED_LOG_MSG)
+                await send_to_user(message, safe_get_messages(None).DB_AUTO_CACHE_RELOADING_STOPPED_MSG)
+                await send_to_logger(message, safe_get_messages(None).DB_AUTO_CACHE_RELOAD_DISABLED_LOG_MSG)
             return
 
         # Try numeric interval
@@ -371,28 +371,28 @@ async def auto_cache_command(app, message):
             try:
                 n = int(arg)
             except Exception:
-                await send_to_user(message, safe_get_messages().DB_AUTO_CACHE_INVALID_ARGUMENT_MSG)
+                await send_to_user(message, safe_get_messages(None).DB_AUTO_CACHE_INVALID_ARGUMENT_MSG)
                 return
             if n and n < 1 or n > 168:
-                await send_to_user(message, safe_get_messages().DB_AUTO_CACHE_INTERVAL_RANGE_MSG)
+                await send_to_user(message, safe_get_messages(None).DB_AUTO_CACHE_INTERVAL_RANGE_MSG)
                 return
             ok = set_reload_interval_hours(n)
             if not ok:
-                await send_to_user(message, safe_get_messages().DB_AUTO_CACHE_FAILED_SET_INTERVAL_MSG)
+                await send_to_user(message, safe_get_messages(None).DB_AUTO_CACHE_FAILED_SET_INTERVAL_MSG)
                 return
             interval = max(1, int(reload_interval_hours))
             next_exec = get_next_reload_time(interval)
             delta_min = int((next_exec - datetime.now()).total_seconds() // 60)
             await send_to_user(
                 message,
-                safe_get_messages().DB_AUTO_CACHE_INTERVAL_UPDATED_MSG.format(
+                safe_get_messages(None).DB_AUTO_CACHE_INTERVAL_UPDATED_MSG.format(
                     status='✅ ENABLED' if auto_cache_enabled else '❌ DISABLED',
                     interval=interval,
                     next_exec=next_exec.strftime('%H:%M'),
                     delta_min=delta_min
                 )
             )
-            await send_to_logger(message, safe_get_messages().DB_AUTO_CACHE_INTERVAL_SET_LOG_MSG.format(interval=interval, next_exec=next_exec))
+            await send_to_logger(message, safe_get_messages(None).DB_AUTO_CACHE_INTERVAL_SET_LOG_MSG.format(interval=interval, next_exec=next_exec))
             return
 
         # No args: toggle legacy behavior
@@ -403,16 +403,16 @@ async def auto_cache_command(app, message):
             delta_min = int((next_exec - datetime.now()).total_seconds() // 60)
             await send_to_user(
                 message,
-                safe_get_messages().DB_AUTO_CACHE_RELOADING_STARTED_MSG.format(
+                safe_get_messages(None).DB_AUTO_CACHE_RELOADING_STARTED_MSG.format(
                     interval=interval,
                     next_exec=next_exec.strftime('%H:%M'),
                     delta_min=delta_min
                 )
             )
-            await send_to_logger(message, safe_get_messages().DB_AUTO_CACHE_RELOAD_STARTED_LOG_MSG.format(next_exec=next_exec))
+            await send_to_logger(message, safe_get_messages(None).DB_AUTO_CACHE_RELOAD_STARTED_LOG_MSG.format(next_exec=next_exec))
         else:
-            await send_to_user(message, safe_get_messages().DB_AUTO_CACHE_RELOADING_STOPPED_BY_ADMIN_MSG)
-            await send_to_logger(message, safe_get_messages().DB_AUTO_CACHE_RELOAD_STOPPED_LOG_MSG)
+            await send_to_user(message, safe_get_messages(None).DB_AUTO_CACHE_RELOADING_STOPPED_BY_ADMIN_MSG)
+            await send_to_logger(message, safe_get_messages(None).DB_AUTO_CACHE_RELOAD_STOPPED_LOG_MSG)
     except Exception as e:
         logger.error(LoggerMsg.DB_AUTO_CACHE_HANDLER_ERROR_LOG_MSG.format(error=e))
 
@@ -465,7 +465,7 @@ def save_to_playlist_cache(playlist_url: str, quality_key: str, video_indices: l
                 already_cached = get_from_local_cache(path_parts_local)
 
                 if already_cached:
-                    logger.info(safe_get_messages().DB_PLAYLIST_PART_ALREADY_CACHED_MSG.format(path_parts=path_parts_local))
+                    logger.info(safe_get_messages(None).DB_PLAYLIST_PART_ALREADY_CACHED_MSG.format(path_parts=path_parts_local))
                     continue
 
                 db_child_by_path(db, "/".join(path_parts)).set(str(msg_id))
@@ -530,7 +530,7 @@ def get_cached_playlist_videos(playlist_url: str, quality_key: str, requested_in
                             f"get_cached_playlist_videos: returning cached videos for indices {list(found.keys())}: {found}")
                         return found
 
-        logger.info(safe_get_messages().DB_GET_CACHED_PLAYLIST_VIDEOS_NO_CACHE_MSG)
+        logger.info(safe_get_messages(None).DB_GET_CACHED_PLAYLIST_VIDEOS_NO_CACHE_MSG)
         return {}
     except Exception as e:
         logger.error(f"Failed to get from playlist cache: {e}")
@@ -613,7 +613,7 @@ def get_cached_playlist_count(playlist_url: str, quality_key: str, indices: list
                     if len(indices) > 100:
                         try:
                             cached_count = sum(1 for index in indices if index and index < len(arr) and arr[index] is not None)
-                            logger.info(safe_get_messages().DB_GET_CACHED_PLAYLIST_COUNT_FAST_COUNT_MSG.format(cached_count=cached_count))
+                            logger.info(safe_get_messages(None).DB_GET_CACHED_PLAYLIST_COUNT_FAST_COUNT_MSG.format(cached_count=cached_count))
                             return cached_count
                         except Exception as e:
                             logger.error(f"get_cached_playlist_count: error in fast count: {e}")
@@ -936,8 +936,8 @@ def get_cached_message_ids(url: str, quality_key: str) -> list:
                     f"get_cached_message_ids: found cached message_ids {result} for URL: {url}, quality: {quality_key}")
                 return result
             else:
-                logger.info(safe_get_messages().DB_GET_CACHED_MESSAGE_IDS_NO_CACHE_MSG.format(url_hash=url_hash, quality_key=quality_key))
-        logger.info(safe_get_messages().DB_GET_CACHED_MESSAGE_IDS_NO_CACHE_ANY_VARIANT_MSG)
+                logger.info(safe_get_messages(None).DB_GET_CACHED_MESSAGE_IDS_NO_CACHE_MSG.format(url_hash=url_hash, quality_key=quality_key))
+        logger.info(safe_get_messages(None).DB_GET_CACHED_MESSAGE_IDS_NO_CACHE_ANY_VARIANT_MSG)
         return None
     except Exception as e:
         logger.error(f"Failed to get from cache: {e}")

@@ -29,7 +29,7 @@ def _get_database_url() -> str:
     except Exception:
         database_url_local = None
     if not database_url_local:
-        raise RuntimeError(safe_get_messages().DB_DATABASE_URL_MISSING_MSG)
+        raise RuntimeError(safe_get_messages(None).DB_DATABASE_URL_MISSING_MSG)
     return database_url_local
 
 
@@ -64,7 +64,7 @@ def _init_firebase_admin_if_needed() -> bool:
         return False
 
     firebase_admin.initialize_app(cred_obj, {"databaseURL": database_url})
-    logger.info(safe_get_messages().DB_FIREBASE_ADMIN_INITIALIZED_MSG)
+    logger.info(safe_get_messages(None).DB_FIREBASE_ADMIN_INITIALIZED_MSG)
     return True
 
 
@@ -216,9 +216,9 @@ class RestDBAdapter:
                 with self._shared["lock"]:
                     self._shared["id_token"] = data.get("id_token", self._shared.get("id_token"))
                     self._shared["refresh_token"] = data.get("refresh_token", self._shared.get("refresh_token"))
-                logger.info(safe_get_messages().DB_REST_ID_TOKEN_REFRESHED_MSG)
+                logger.info(safe_get_messages(None).DB_REST_ID_TOKEN_REFRESHED_MSG)
             except Exception as e:
-                logger.error(safe_get_messages().DB_REST_TOKEN_REFRESH_ERROR_MSG.format(error=e))
+                logger.error(safe_get_messages(None).DB_REST_TOKEN_REFRESH_ERROR_MSG.format(error=e))
 
     def _auth_params(self) -> Dict[str, str]:
         with self._shared["lock"]:
@@ -338,7 +338,7 @@ class RestDBAdapter:
                 self._session.close()
                 logger.info("✅ Firebase session closed successfully (root)")
         except Exception as e:
-            logger.error(safe_get_messages().DB_ERROR_CLOSING_SESSION_MSG.format(error=e))
+            logger.error(safe_get_messages(None).DB_ERROR_CLOSING_SESSION_MSG.format(error=e))
 
     def __del__(self):
         # Ничего не делаем у детей, чтобы не ломать общую сессию
@@ -420,7 +420,7 @@ async def is_user_blocked(message):
     blocked = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("blocked_users").get().each()
     blocked_users = [int(b_user.key()) for b_user in blocked] if blocked else []
     if int(message.chat.id) in blocked_users:
-        await send_to_all(message, safe_get_messages().DB_USER_BANNED_MSG)
+        await send_to_all(message, safe_get_messages(None).DB_USER_BANNED_MSG)
         return True
     else:
         return False
@@ -432,7 +432,7 @@ def write_logs(message, video_url, video_title):
     data = {"ID": str(message.chat.id), "timestamp": ts,
             "name": message.chat.first_name, "urls": str(video_url), "title": video_title}
     db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("logs").child(str(message.chat.id)).child(str(ts)).set(data)
-    logger.info(safe_get_messages().DB_LOG_FOR_USER_ADDED_MSG)
+    logger.info(safe_get_messages(None).DB_LOG_FOR_USER_ADDED_MSG)
 
 
 # ####################################################################################
@@ -443,11 +443,11 @@ try:
     db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("blocked_users").child("0").set(_format)
     db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("unblocked_users").child("0").set(_format)
     messages = safe_get_messages(None)
-    logger.info(safe_get_messages().DB_DATABASE_CREATED_MSG)
+    logger.info(safe_get_messages(None).DB_DATABASE_CREATED_MSG)
 except Exception as e:
     messages = safe_get_messages(None)
-    logger.error(safe_get_messages().DB_ERROR_INITIALIZING_BASE_MSG.format(error=e))
+    logger.error(safe_get_messages(None).DB_ERROR_INITIALIZING_BASE_MSG.format(error=e))
 
 starting_point.append(time.time())
 messages = safe_get_messages(None)
-logger.info(safe_get_messages().DB_BOT_STARTED_MSG)
+logger.info(safe_get_messages(None).DB_BOT_STARTED_MSG)

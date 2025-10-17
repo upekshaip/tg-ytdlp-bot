@@ -302,6 +302,13 @@ if _allowed_groups:
     # Text/url handler in allowed groups (topic-aware)
     # Text/url handler in allowed groups (topic-aware) including mentions
     async def _guarded_text(a, m):
+        # Update health monitor activity
+        try:
+            from HELPERS.health_monitor import health_monitor
+            health_monitor.update_activity()
+        except Exception:
+            pass
+        
         if _is_allowed_group(m):
             return await url_distractor(a, m)
         # If not allowed, do nothing (deny service silently)
@@ -313,6 +320,22 @@ if _allowed_groups:
 async def _private_text_handler(app, message):
     from HELPERS.logger import logger
     logger.info(f"🎯 Private text handler: {message.text}")
+    
+    # Update health monitor activity
+    try:
+        from HELPERS.health_monitor import health_monitor
+        health_monitor.update_activity()
+    except Exception:
+        pass
+    
+    # Check if it's a command first
+    text = message.text.strip()
+    if text.startswith('/'):
+        # It's a command, let other handlers process it
+        logger.info(f"🎯 Command detected: {text}")
+        return
+    
+    # Process as URL
     await url_distractor(app, message)
 
     # Map basic commands to url_distractor to mimic private behavior
@@ -427,6 +450,12 @@ async def _private_subs_handler(app, message):
 @app.on_message(filters.command("proxy") & filters.private)
 async def _private_proxy_handler(app, message):
     await url_distractor(app, message)
+
+# Health command for admins (must be registered early)
+@app.on_message(filters.command("health") & filters.private)
+async def _private_health_handler(app, message):
+    from COMMANDS.health_cmd import health_command
+    await health_command(app, message)
 
 @app.on_message(filters.command("tags") & filters.private)
 async def _private_tags_handler(app, message):
@@ -711,9 +740,8 @@ from COMMANDS.status_cmd import status_command, status_refresh_callback
 app.on_message(filters.command("status") & filters.private)(status_command)
 app.on_callback_query(filters.regex(r"^status_refresh$"))(status_refresh_callback)
 
-# Register health command for admins
-from COMMANDS.health_cmd import health_command, health_callback
-app.on_message(filters.command("health") & filters.private)(health_command)
+# Register health command callbacks
+from COMMANDS.health_cmd import health_callback
 app.on_callback_query(filters.regex(r"^health_"))(health_callback)
 
 # Start health monitoring

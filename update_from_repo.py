@@ -114,26 +114,26 @@ async def clone_repository(temp_dir):
         
         # Check if the clone was successful by verifying the directory exists and has content
         if os.path.exists(temp_dir) and os.listdir(temp_dir):
-            messages = safe_get_messages()
+            messages = safe_get_messages(None)
             log(messages.UPDATE_REPOSITORY_CLONED_SUCCESS_MSG)
             return True
         else:
             # Check if stderr contains actual error messages (not just "Cloning into...")
             error_msg = stderr.decode('utf-8') if stderr else ""
             if "fatal:" in error_msg or "error:" in error_msg.lower():
-                messages = safe_get_messages()
+                messages = safe_get_messages(None)
                 log(messages.UPDATE_CLONE_ERROR_MSG.format(error=error_msg), "ERROR")
             else:
-                messages = safe_get_messages()
+                messages = safe_get_messages(None)
                 log(messages.UPDATE_CLONE_ERROR_MSG.format(error="Repository clone failed"), "ERROR")
             return False
             
     except subprocess.TimeoutExpired:
-        messages = safe_get_messages()
+        messages = safe_get_messages(None)
         log(messages.UPDATE_CLONE_TIMEOUT_MSG, "ERROR")
         return False
     except Exception as e:
-        messages = safe_get_messages()
+        messages = safe_get_messages(None)
         log(messages.UPDATE_CLONE_EXCEPTION_MSG.format(error=e), "ERROR")
         return False
 
@@ -184,7 +184,7 @@ async def move_backups_to_backup_dir():
         log("📦 Moving backups to _backup/...")
         cmd = "mkdir -p _backup && find . -path './_backup' -prune -o -type f -name \"*.backup*\" -print0 | sed -z 's#^\\./##' | rsync -a --relative --from0 --files-from=- --remove-source-files ./ _backup/"
         await async_subprocess("bash", "-lc", cmd, timeout=60)
-        messages = safe_get_messages()
+        messages = safe_get_messages(None)
         log(messages.UPDATE_BACKUPS_MOVED_MSG)
     except Exception as e:
         log(f"⚠️ Failed to move backups: {e}", "WARNING")
@@ -242,7 +242,7 @@ async def main():
         # Ask for confirmation
         response = input("\n🤔 Proceed with update? (y/N): ").strip().lower()
         if response not in ['y', 'yes']:
-            messages = safe_get_messages()
+            messages = safe_get_messages(None)
             log(messages.UPDATE_CANCELED_BY_USER_MSG)
             return False
         
