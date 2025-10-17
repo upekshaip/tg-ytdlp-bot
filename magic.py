@@ -333,7 +333,7 @@ async def _guarded_text(a, m):
 
 app.on_message(filters.group & filters.text)(guarded(timeout=60)(_wrap_group(_guarded_text)))
 
-# Text/url/emoji handler for private chats
+# Text/url/emoji handler for private chats (NON-COMMAND messages only)
 @app.on_message(filters.private & filters.text)
 @guarded(timeout=LimitsConfig.DOWNLOAD_TIMEOUT)  # Use proper download timeout from limits.py
 async def _private_text_handler(app, message):
@@ -347,14 +347,14 @@ async def _private_text_handler(app, message):
     except Exception:
         pass
     
-    # Check if it's a command first
+    # Check if it's a command first - if so, let other handlers process it
     text = message.text.strip()
     if text.startswith('/'):
         # It's a command, let other handlers process it
         logger.info(f"🎯 Command detected: {text}")
         return
     
-    # Process as URL
+    # Process as URL (this is for non-command messages)
     await url_distractor(app, message)
 
     # Map basic commands to url_distractor to mimic private behavior

@@ -8,14 +8,23 @@ async def health_command(app, message):
     """Health check command for admins"""
     user_id = message.chat.id
     
+    # Debug logging
+    logger.info(f"Health command called by user {user_id}")
+    logger.info(f"Admin list: {Config.ADMIN}")
+    logger.info(f"User in admin list: {int(user_id) in Config.ADMIN}")
+    
     # Check if user is admin
     if int(user_id) not in Config.ADMIN:
+        logger.warning(f"Access denied for user {user_id}")
         await safe_send_message(user_id, "❌ Access denied. Admin only.")
         return
     
     try:
+        logger.info("Importing health_monitor...")
         from HELPERS.health_monitor import health_monitor
+        logger.info("Getting health status...")
         status = health_monitor.get_status()
+        logger.info(f"Health status: {status}")
         
         # Format status message
         status_text = f"🏥 **Bot Health Status**\n\n"
@@ -57,6 +66,8 @@ async def health_command(app, message):
         
     except Exception as e:
         logger.error(f"Health command error: {e}")
+        import traceback
+        logger.error(f"Health command traceback: {traceback.format_exc()}")
         await safe_send_message(
             user_id,
             f"❌ Health check failed: {str(e)}",
