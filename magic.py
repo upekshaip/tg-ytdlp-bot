@@ -182,7 +182,7 @@ from COMMANDS import args_cmd
 from COMMANDS.list_cmd import list_command
 from COMMANDS.cookies_cmd import cookies_from_browser
 
-async def _wrap_group(fn):
+def _wrap_group(fn):
     async def _inner(app, message):
         if not await ensure_group_admin(app, message):
             return
@@ -318,10 +318,9 @@ async def _guarded_text(a, m):
 app.on_message(filters.group & filters.text)(_wrap_group(_guarded_text))
 
 # Text/url/emoji handler for private chats (NON-COMMAND messages only)
-@app.on_message(filters.private & filters.text & ~filters.command)
+@app.on_message(filters.private & filters.text)
 async def _private_text_handler(app, message):
     from HELPERS.logger import logger
-    logger.info(f"🎯 Private text handler (non-command): {message.text}")
     
     # Update health monitor activity
     try:
@@ -329,6 +328,14 @@ async def _private_text_handler(app, message):
         health_monitor.update_activity()
     except Exception:
         pass
+    
+    # Check if it's a command - if so, skip processing
+    text = message.text.strip()
+    if text.startswith('/'):
+        logger.info(f"🎯 Command detected, skipping: {text}")
+        return
+    
+    logger.info(f"🎯 Private text handler (non-command): {message.text}")
     
     # Process as URL (this is for non-command messages)
     await url_distractor(app, message)

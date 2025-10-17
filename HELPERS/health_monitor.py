@@ -23,14 +23,10 @@ class HealthMonitor:
         self.monitor_task = asyncio.create_task(self._monitor_loop())
         logger.info("Health monitor started")
     
-    async def stop_monitoring(self):
+    def stop_monitoring(self):
         """Остановить мониторинг"""
         if self.monitor_task:
             self.monitor_task.cancel()
-            try:
-                await self.monitor_task
-            except asyncio.CancelledError:
-                pass
         self.is_running = False
         logger.info("Health monitor stopped")
     
