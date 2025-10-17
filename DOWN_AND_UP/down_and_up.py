@@ -151,11 +151,10 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
     proc_msg_id = None  # Initialize proc_msg_id
     logger.info(f"down_and_up called: url={url}, quality_key={quality_key}, format_override={format_override}, video_count={video_count}, video_start_with={video_start_with}")
     
-    # Check if user already has an active download
-    if get_active_download(user_id):
-        logger.warning(f"⚠️ User {user_id} already has an active download, rejecting new request")
-        await send_to_user(message, safe_get_messages(user_id).DOWNLOAD_ALREADY_IN_PROGRESS_MSG)
-        return
+    # FORCE RESET: Clear any stuck download status first
+    set_active_download(user_id, False)
+    clear_download_start_time(user_id)
+    logger.info(f"🔄 FORCE RESET: Cleared any stuck download status for user {user_id}")
     
     # Set active download status to prevent multiple downloads
     set_active_download(user_id, True)
@@ -2862,9 +2861,14 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
         except Exception as cleanup_error:
             logger.error(f"Error cleaning up temp files after error for user {user_id}: {cleanup_error}")
     finally:
+        # FORCE CLEAR: Ensure download status is always cleared
         set_active_download(user_id, False)
         clear_download_start_time(user_id)  # Clear the download start time
-        logger.info(f"✅ Active download status cleared for user {user_id}")
+        logger.info(f"✅ FORCE CLEAR: Active download status cleared for user {user_id}")
+        
+        # Double-check: Force clear again to be absolutely sure
+        set_active_download(user_id, False)
+        logger.info(f"🔄 DOUBLE CHECK: Active download status force cleared again for user {user_id}")
         if playlist_name:
             with playlist_errors_lock:
                 error_key = f"{user_id}_{playlist_name}"

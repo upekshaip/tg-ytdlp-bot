@@ -179,11 +179,10 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
     user_id = message.chat.id
     logger.info(f"down_and_audio called: url={url}, quality_key={quality_key}, video_count={video_count}, video_start_with={video_start_with}")
     
-    # Check if user already has an active download
-    if get_active_download(user_id):
-        logger.warning(f"⚠️ User {user_id} already has an active download, rejecting new request")
-        await send_to_user(message, safe_get_messages(user_id).DOWNLOAD_ALREADY_IN_PROGRESS_MSG)
-        return
+    # FORCE RESET: Clear any stuck download status first
+    set_active_download(user_id, False)
+    clear_download_start_time(user_id)
+    logger.info(f"🔄 FORCE RESET: Cleared any stuck download status for user {user_id}")
     
     # Set active download status to prevent multiple downloads
     set_active_download(user_id, True)
@@ -1781,9 +1780,14 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
         except Exception as e:
             logger.error(f"Error cleaning up thumbnails: {e}")
 
+        # FORCE CLEAR: Ensure download status is always cleared
         set_active_download(user_id, False)
         clear_download_start_time(user_id)  # Cleaning the start time
-        logger.info(f"✅ Active download status cleared for user {user_id}")
+        logger.info(f"✅ FORCE CLEAR: Active download status cleared for user {user_id}")
+        
+        # Double-check: Force clear again to be absolutely sure
+        set_active_download(user_id, False)
+        logger.info(f"🔄 DOUBLE CHECK: Active download status force cleared again for user {user_id}")
 
         # Clean up temporary files
         try:

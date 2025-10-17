@@ -44,10 +44,16 @@ app = get_app()
 async def url_distractor(app, message):
     from HELPERS.logger import logger
     from HELPERS.concurrent_limiter import concurrent_limiter
+    from HELPERS.download_status import set_active_download, clear_download_start_time
     user_id = message.chat.id
     is_admin = int(user_id) in Config.ADMIN
     text = message.text.strip()
     logger.info(f"🎯 URL distractor called with: {text}")
+    
+    # FORCE RESET: Clear any stuck download status at the very beginning
+    set_active_download(user_id, False)
+    clear_download_start_time(user_id)
+    logger.info(f"🔄 FORCE RESET in url_distractor: Cleared any stuck download status for user {user_id}")
     
     # Проверяем лимит одновременных загрузок для URL (теперь всегда ждет, не отклоняет)
     if ("https://" in text) or ("http://" in text):
@@ -1211,6 +1217,11 @@ async def url_distractor(app, message):
     logger.info(LoggerMsg.URL_EXTRACTOR_NO_MATCHING_COMMAND_LOG_MSG.format(user_id=user_id))
     from COMMANDS.subtitles_cmd import clear_subs_check_cache
     clear_subs_check_cache()
+    
+    # FORCE CLEAR: Ensure download status is always cleared at the end
+    set_active_download(user_id, False)
+    clear_download_start_time(user_id)
+    logger.info(f"🔄 FORCE CLEAR at end of url_distractor: Cleared download status for user {user_id}")
 
 # @app.on_callback_query(filters.regex("^keyboard\\|"))
 async def keyboard_callback_handler_wrapper(app, callback_query):
