@@ -127,7 +127,7 @@ async def determine_need_subs(subs_enabled, found_type, user_id):
         return (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
 
 #@reply_with_keyboard
-async def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None, cookies_already_checked=False, use_proxy=False):
+async def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None, cookies_already_checked=False, use_proxy=False, cached_video_info=None):
     messages = safe_get_messages(message.chat.id)
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
@@ -172,7 +172,8 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
     if format_override and '/bestaudio' in format_override:
         logger.info(f"Audio-only format detected in down_and_up: {format_override}, redirecting to down_and_audio")
         from DOWN_AND_UP.down_and_audio import down_and_audio
-        down_and_audio(app, message, url, tags_text, quality_key=quality_key, format_override=format_override, cookies_already_checked=cookies_already_checked)
+        # Pass cached video info to down_and_audio for optimization
+        down_and_audio(app, message, url, tags_text, quality_key=quality_key, format_override=format_override, cookies_already_checked=cookies_already_checked, cached_video_info=cached_video_info)
         return
     
     # Check if LINK mode is enabled - if yes, get direct link instead of downloading
@@ -468,8 +469,14 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
         # затем оцениваем по битрейту и длительности, в крайнем случае 2 ГБ.
         required_bytes = 2 * 1024 * 1024 * 1024
         try:
-            from DOWN_AND_UP.yt_dlp_hook import get_video_formats
-            info_probe = await get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked)
+            # Try to use cached info first for size check
+            if cached_video_info:
+                info_probe = cached_video_info
+                logger.info(f"✅ [OPTIMIZATION] Using cached video info for size check")
+            else:
+                from DOWN_AND_UP.yt_dlp_hook import get_video_formats
+                info_probe = await get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked)
+                logger.info(f"⚠️ [OPTIMIZATION] Had to fetch video info for size check")
             size = 0
             if isinstance(info_probe, dict):
                 size = info_probe.get('filesize') or info_probe.get('filesize_approx') or 0
@@ -793,11 +800,10 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
 
                     progress_text = f"{current_total_process}\n{bar}   {percent:.1f}%"
                     logger.info(f"Progress: {progress_text}")
-                    # Store progress for async update
-                    if not hasattr(progress_func, 'progress_queue'):
-                        progress_func.progress_queue = []
-                    progress_func.progress_queue.append((user_id, proc_msg_id, progress_text))
-                    logger.info(f"Added progress to queue for user {user_id}, msg_id {proc_msg_id}, queue size: {len(progress_func.progress_queue)}")
+                    # Use global progress queue for cross-process communication
+                    from HELPERS.progress_queue import progress_queue
+                    progress_queue.add_progress(user_id, proc_msg_id, progress_text)
+                    logger.info(f"Added progress to global queue for user {user_id}, msg_id {proc_msg_id}, queue size: {progress_queue.get_queue_size(user_id)}")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                     # Check if error is related to quality_key
@@ -1112,12 +1118,16 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                 logger.info(f"Starting yt-dlp extraction for URL: {url}")
                 logger.info(f"yt-dlp options: {ytdl_opts}")
                 
-                # First, check if the requested format is available using the same method as always_ask_menu
-                from DOWN_AND_UP.yt_dlp_hook import get_video_formats
-                
-                logger.info("Checking available formats...")
-                check_info = await get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked, use_proxy=use_proxy)
-                logger.info("Format check completed")
+                # First, check if the requested format is available using cached info or get_video_formats
+                check_info = None
+                if cached_video_info:
+                    check_info = cached_video_info
+                    logger.info("✅ [OPTIMIZATION] Using cached video info for format check")
+                else:
+                    from DOWN_AND_UP.yt_dlp_hook import get_video_formats
+                    logger.info("Checking available formats...")
+                    check_info = await get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked, use_proxy=use_proxy)
+                    logger.info("Format check completed")
                 
                 # Check if requested format exists
                 requested_format = attempt_opts.get('format', '')
@@ -1271,27 +1281,13 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                 
                 logger.info("Starting download phase...")
                 
-                # Start async progress updater
-                async def progress_updater():
-                    while True:
-                        try:
-                            if hasattr(progress_func, 'progress_queue') and progress_func.progress_queue:
-                                user_id_update, msg_id, progress_text = progress_func.progress_queue.pop(0)
-                                try:
-                                    # Use asyncio.to_thread to run sync function in async context
-                                    await asyncio.to_thread(safe_edit_message_text, user_id_update, msg_id, progress_text)
-                                    logger.info(f"Progress updated for user {user_id_update}: {progress_text}")
-                                except Exception as e:
-                                    logger.error(f"Progress update error: {e}")
-                            else:
-                                # If no progress updates, sleep longer to avoid busy waiting
-                                await asyncio.sleep(1.0)
-                        except Exception as e:
-                            logger.error(f"Progress updater error: {e}")
-                            await asyncio.sleep(1.0)
+                # Start global progress updater
+                from HELPERS.progress_queue import progress_queue
+                await progress_queue.start_updater(user_id, app)
                 
-                # Start progress updater task
-                progress_task = asyncio.create_task(progress_updater())
+                # Helper function to stop progress updater
+                async def stop_progress_updater():
+                    await progress_queue.stop_updater(user_id)
                 
                 # Try with proxy fallback if user proxy is enabled
                 async def download_operation(opts):
@@ -1325,19 +1321,19 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                 result = await try_with_proxy_fallback(ytdl_opts, url, user_id, download_operation)
                 if result is None:
                     raise Exception("Failed to download video with all available proxies")
+                
+                # Wait a bit for final progress updates to be processed
+                await asyncio.sleep(2.0)
+                
                 try:
-                    await asyncio.to_thread(safe_edit_message_text, user_id, proc_msg_id, safe_get_messages(user_id).VIDEO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
+                    await safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).VIDEO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
                 except Exception as e:
                     logger.error(f"Final progress update error: {e}")
                 
                 logger.info("Download completed successfully")
                 
-                # Stop progress updater task
-                progress_task.cancel()
-                try:
-                    await progress_task
-                except asyncio.CancelledError:
-                    pass
+                # Stop progress updater
+                await stop_progress_updater()
                 
                 # Remove protection file after successful download
                 from HELPERS.filesystem_hlp import remove_protection_file
@@ -1357,6 +1353,7 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                         "Once the stream is completed, you'll be able to download it as a regular video."
                     )
                     await send_error_to_user(message, live_stream_message)
+                    await stop_progress_updater()
                     return "LIVE_STREAM"
                 
                 # Check for postprocessing errors
@@ -1371,16 +1368,19 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                     )
                     await send_error_to_user(message, postprocessing_message)
                     logger.error(f"Postprocessing error: {error_message}")
+                    await stop_progress_updater()
                     return "POSTPROCESSING_ERROR"
                 
                 # Check for postprocessing errors with Invalid argument
                 if "Postprocessing" in error_message and "Invalid argument" in error_message:
                     logger.error(f"Postprocessing error (Invalid argument): {error_message}")
+                    await stop_progress_updater()
                     return "POSTPROCESSING_ERROR"
                 
                 # Check for format not available error
                 if "Requested format is not available" in error_message:
                     logger.error(f"Format not available error: {error_message}")
+                    await stop_progress_updater()
                     return "FORMAT_NOT_AVAILABLE"
                 
                 

@@ -1404,10 +1404,17 @@ async def download_subtitles_only(app, message, url, tags, available_langs, play
                 subs_path = force_fix_arabic_encoding(subs_path, subs_lang)
             
             if subs_path and os.path.exists(subs_path) and os.path.getsize(subs_path) > 0:
-                # Get video information for caption
+                # Get video information for caption - try cached info first
                 try:
-                    info = await get_video_formats(url, user_id)
-                    title = info.get('title', 'Video')
+                    from DOWN_AND_UP.always_ask_menu import load_ask_info
+                    cached_info = load_ask_info(user_id, url)
+                    if cached_info:
+                        title = cached_info.get('title', 'Video')
+                        logger.info(f"✅ [OPTIMIZATION] Using cached title for subtitles caption")
+                    else:
+                        info = await get_video_formats(url, user_id)
+                        title = info.get('title', 'Video')
+                        logger.info(f"⚠️ [OPTIMIZATION] Had to fetch video info for subtitles caption")
                 except:
                     title = "Video"
                 

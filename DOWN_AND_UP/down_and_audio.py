@@ -165,7 +165,7 @@ async def embed_cover_mp3(mp3_path, cover_path, title=None, artist=None, album=N
         return False
 
 # @reply_with_keyboard
-async def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None, video_count=1, video_start_with=1, format_override=None, cookies_already_checked=False, use_proxy=False):
+async def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None, video_count=1, video_start_with=1, format_override=None, cookies_already_checked=False, use_proxy=False, cached_video_info=None):
     messages = safe_get_messages(message.chat.id)
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.

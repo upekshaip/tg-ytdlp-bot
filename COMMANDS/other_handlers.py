@@ -109,7 +109,8 @@ async def audio_command_handler(app, message):
     if not await check_playlist_range_limits(url, video_start_with, video_end_with, app, message):
         return
     
-    await down_and_audio(app, message, url, tags, quality_key="mp3", playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with, format_override="ba")
+    # Note: cached_video_info=None for direct calls (no optimization available)
+    await down_and_audio(app, message, url, tags, quality_key="mp3", playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with, format_override="ba", cached_video_info=None)
 
 
 # /Link Command
