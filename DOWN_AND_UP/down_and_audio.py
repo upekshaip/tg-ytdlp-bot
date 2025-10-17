@@ -713,7 +713,7 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                     
                     # Use the existing progress_bar function with throttling
                     await progress_bar(
-                        downloaded, total, speed, eta, file_size, user_id, proc_msg_id, 
+                        downloaded, total, 0, 0, 0, user_id, proc_msg_id, 
                         safe_get_messages(user_id).AUDIO_DOWNLOADING_PROGRESS_MSG.format(process=current_total_process, bar=bar, percent=percent)
                     )
                 except Exception as e:
@@ -1061,7 +1061,7 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                         logger.info(f"YouTube geo-blocked error detected for user {user_id}, attempting retry with proxy")
                         
                         # Пробуем скачать через прокси
-                        retry_result = retry_download_with_proxy(
+                        retry_result = await retry_download_with_proxy(
                             user_id, url, try_download_audio, url, current_index
                         )
                         
@@ -1170,7 +1170,7 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
             did_cookie_retry = False
             did_proxy_retry = False
 
-            result = try_download_audio(url, current_index)
+            result = await try_download_audio(url, current_index)
             
             # If download failed and it's a YouTube URL, try automatic cookie retry
             if result is None and is_youtube_url(url) and not did_cookie_retry:

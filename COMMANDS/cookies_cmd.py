@@ -1357,7 +1357,7 @@ def is_youtube_geo_error(error_message: str) -> bool:
     
     return any(keyword in error_lower for keyword in geo_related_keywords)
 
-def retry_download_with_proxy(user_id: int, url: str, download_func, *args, **kwargs):
+async def retry_download_with_proxy(user_id: int, url: str, download_func, *args, **kwargs):
     """
     Повторяет скачивание через прокси при региональных ошибках.
     
@@ -1415,7 +1415,7 @@ def retry_download_with_proxy(user_id: int, url: str, download_func, *args, **kw
         try:
             # Добавляем параметр use_proxy=True для функции скачивания
             kwargs['use_proxy'] = True
-            result = download_func(*args, **kwargs)
+            result = await download_func(*args, **kwargs)
             if result is not None:
                 logger.info(LoggerMsg.COOKIES_YOUTUBE_RETRY_PROXY_SUCCESS_LOG_MSG.format(user_id=user_id))
                 return result
