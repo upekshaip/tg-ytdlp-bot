@@ -805,42 +805,32 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                     
                     # Use existing throttling system from download_status.py
                     try:
-                        from HELPERS.app_instance import get_app
-                        app = get_app()
-                        if app:
-                            # Use existing throttling system (1 second per message)
-                            now = time.time()
-                            key = (user_id, proc_msg_id)
-                            last_ts = _last_upload_update_ts.get(key, 0)
-                            if now - last_ts < 1.0 and percent < 100:  # 1 second throttle, allow final update
-                                return
-                            
-                            # Use threading to avoid blocking
-                            import threading
-                            def update_message():
-                                try:
-                                    import asyncio
-                                    loop = asyncio.new_event_loop()
-                                    asyncio.set_event_loop(loop)
-                                    loop.run_until_complete(safe_edit_message_text(
-                                        user_id, proc_msg_id, progress_text, parse_mode="HTML"
-                                    ))
-                                    logger.info(f"Progress updated directly for user {user_id}: {percent:.1f}%")
-                                except Exception as e:
-                                    logger.error(f"Direct update error: {e}")
-                                finally:
-                                    try:
-                                        loop.close()
-                                    except:
-                                        pass
-                            
-                            thread = threading.Thread(target=update_message, daemon=True)
-                            thread.start()
-                            
-                            # Update throttling timestamp
-                            _last_upload_update_ts[key] = now
-                        else:
-                            logger.error("App instance not available for progress update")
+                        # Use existing throttling system (1 second per message)
+                        now = time.time()
+                        key = (user_id, proc_msg_id)
+                        last_ts = _last_upload_update_ts.get(key, 0)
+                        if now - last_ts < 1.0 and percent < 100:  # 1 second throttle, allow final update
+                            return
+                        
+                        # Direct update using safe_edit_message_text
+                        try:
+                            import asyncio
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            loop.run_until_complete(safe_edit_message_text(
+                                user_id, proc_msg_id, progress_text, parse_mode="HTML"
+                            ))
+                            logger.info(f"Progress updated directly for user {user_id}: {percent:.1f}%")
+                        except Exception as e:
+                            logger.error(f"Direct update error: {e}")
+                        finally:
+                            try:
+                                loop.close()
+                            except:
+                                pass
+                        
+                        # Update throttling timestamp
+                        _last_upload_update_ts[key] = now
                     except Exception as e:
                         logger.error(f"Failed to update progress: {e}")
                 except Exception as e:

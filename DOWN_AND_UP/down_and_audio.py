@@ -715,7 +715,7 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                     if now - last_ts < 1.0 and percent < 100:  # 1 second throttle, allow final update
                         return
                     
-                    await safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).AUDIO_DOWNLOADING_PROGRESS_MSG.format(process=current_total_process, bar=bar, percent=percent))
+                    await safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).AUDIO_DOWNLOADING_PROGRESS_MSG.format(process=current_total_process, bar=bar, percent=percent), parse_mode="HTML")
                     
                     # Update throttling timestamp
                     _last_upload_update_ts[key] = now
