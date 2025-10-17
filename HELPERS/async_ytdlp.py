@@ -1,14 +1,16 @@
 # Асинхронные обертки для yt-dlp операций
 # Этот модуль обеспечивает неблокирующее выполнение yt-dlp операций
 
-import asyncio
 import yt_dlp
 from typing import Dict, Any, Optional, List
 import logging
 
 logger = logging.getLogger(__name__)
 
-async def async_extract_info(ydl_opts: Dict[str, Any], url: str) -> Optional[Dict[str, Any]]:
+# Импортируем enterprise scaler для масштабирования до 10000+ пользователей
+from HELPERS.enterprise_scaler import enterprise_scaler
+
+async def async_extract_info(ydl_opts: Dict[str, Any], url: str, user_id: int) -> Optional[Dict[str, Any]]:
     """
     Асинхронно извлекает информацию о видео/аудио без блокировки event loop
     """
@@ -17,13 +19,12 @@ async def async_extract_info(ydl_opts: Dict[str, Any], url: str) -> Optional[Dic
             return ydl.extract_info(url, download=False)
     
     try:
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, sync_extract_info)
+        return await enterprise_scaler.submit_user_task(user_id, sync_extract_info)
     except Exception as e:
-        logger.error(f"Error in async_extract_info: {e}")
+        logger.error("Error in async_extract_info: %s", e)
         raise
 
-async def async_download(ydl_opts: Dict[str, Any], urls: List[str]) -> bool:
+async def async_download(ydl_opts: Dict[str, Any], urls: List[str], user_id: int) -> bool:
     """
     Асинхронно загружает видео/аудио без блокировки event loop
     """
@@ -33,13 +34,12 @@ async def async_download(ydl_opts: Dict[str, Any], urls: List[str]) -> bool:
         return True
     
     try:
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, sync_download)
+        return await enterprise_scaler.submit_user_task(user_id, sync_download)
     except Exception as e:
-        logger.error(f"Error in async_download: {e}")
+        logger.error("Error in async_download: %s", e)
         raise
 
-async def async_extract_info_with_progress(ydl_opts: Dict[str, Any], url: str, progress_callback=None) -> Optional[Dict[str, Any]]:
+async def async_extract_info_with_progress(ydl_opts: Dict[str, Any], url: str, user_id: int, progress_callback=None) -> Optional[Dict[str, Any]]:
     """
     Асинхронно извлекает информацию с возможностью отслеживания прогресса
     """
@@ -50,13 +50,12 @@ async def async_extract_info_with_progress(ydl_opts: Dict[str, Any], url: str, p
             return ydl.extract_info(url, download=False)
     
     try:
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, sync_extract_info)
+        return await enterprise_scaler.submit_user_task(user_id, sync_extract_info)
     except Exception as e:
-        logger.error(f"Error in async_extract_info_with_progress: {e}")
+        logger.error("Error in async_extract_info_with_progress: %s", e)
         raise
 
-async def async_download_with_progress(ydl_opts: Dict[str, Any], urls: List[str], progress_callback=None) -> bool:
+async def async_download_with_progress(ydl_opts: Dict[str, Any], urls: List[str], user_id: int, progress_callback=None) -> bool:
     """
     Асинхронно загружает с возможностью отслеживания прогресса
     """
@@ -68,8 +67,7 @@ async def async_download_with_progress(ydl_opts: Dict[str, Any], urls: List[str]
         return True
     
     try:
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, sync_download)
+        return await enterprise_scaler.submit_user_task(user_id, sync_download)
     except Exception as e:
-        logger.error(f"Error in async_download_with_progress: {e}")
+        logger.error("Error in async_download_with_progress: %s", e)
         raise

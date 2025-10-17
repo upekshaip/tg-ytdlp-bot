@@ -547,6 +547,44 @@ def cleanup_on_exit():
         except Exception as e:
             print(messages.MAGIC_ERROR_CLOSING_LOGGER_MSG.format(error=e))
         
+        # ДОБАВИТЬ SHUTDOWN ENTERPRISE SCALER
+        try:
+            from HELPERS.enterprise_scaler import enterprise_scaler
+            enterprise_scaler.shutdown(wait=True)
+            logger.info("Enterprise scaler shutdown completed")
+        except Exception as e:
+            print(f"Error shutting down enterprise scaler: {e}")
+        
+        # ДОБАВИТЬ SHUTDOWN ГИБРИДНЫЙ EXECUTOR (для совместимости)
+        try:
+            from HELPERS.hybrid_executor import hybrid_executor
+            hybrid_executor.shutdown(wait=True)
+            logger.info("Hybrid executor shutdown completed")
+        except Exception as e:
+            print(f"Error shutting down hybrid executor: {e}")
+        
+        # ДОБАВИТЬ SHUTDOWN EXECUTOR POOL (для совместимости)
+        try:
+            from HELPERS.executor_pool import executor_pool
+            executor_pool.shutdown(wait=True)
+            logger.info("Executor pool shutdown completed")
+        except Exception as e:
+            print(f"Error shutting down executor pool: {e}")
+        
+        # ДОБАВИТЬ CLOSE ASYNC DB SESSIONS
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # Schedule cleanup
+                from DATABASE.firebase_init import db
+                if hasattr(db, 'close_aio_session'):
+                    loop.create_task(db.close_aio_session())
+            else:
+                loop.run_until_complete(db.close_aio_session())
+        except Exception as e:
+            print(f"Error closing Firebase async sessions: {e}")
+        
         print(messages.MAGIC_CLEANUP_COMPLETED_MSG)
     except Exception as e:
         print(messages.MAGIC_ERROR_DURING_CLEANUP_MSG.format(error=e))

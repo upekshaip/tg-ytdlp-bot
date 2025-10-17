@@ -49,25 +49,11 @@ async def url_distractor(app, message):
     text = message.text.strip()
     logger.info(f"🎯 URL distractor called with: {text}")
     
-    # Проверяем лимит одновременных загрузок для URL (админы имеют приоритет)
+    # Проверяем лимит одновременных загрузок для URL (теперь всегда ждет, не отклоняет)
     if ("https://" in text) or ("http://" in text):
-        # Админы могут обходить лимит, но все равно проверяем
-        if not is_admin and not await concurrent_limiter.acquire(user_id, text):
-            from HELPERS.safe_messeger import safe_send_message
-            from CONFIG.messages import safe_get_messages
-            messages = safe_get_messages(user_id)
-            status = await concurrent_limiter.get_status()
-            await safe_send_message(
-                user_id, 
-                messages.URL_EXTRACTOR_TOO_MANY_DOWNLOADS_MSG.format(
-                    active=status['active_downloads'],
-                    max=status['max_concurrent']
-                )
-            )
-            return
-        elif is_admin:
-            # Админы получают слот принудительно
-            await concurrent_limiter.acquire(user_id, text)
+        # ТЕПЕРЬ acquire БУДЕТ ЖДАТЬ, А НЕ ОТКЛОНЯТЬ
+        await concurrent_limiter.acquire(user_id, text)
+        # УБРАТЬ ПРОВЕРКУ на False - теперь всегда True (но ждет)
     
     # Import get_messages_instance locally to avoid UnboundLocalError
     from CONFIG.messages import safe_get_messages

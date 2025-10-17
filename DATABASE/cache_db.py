@@ -942,3 +942,92 @@ def get_cached_message_ids(url: str, quality_key: str) -> list:
     except Exception as e:
         logger.error(f"Failed to get from cache: {e}")
         return None
+
+###################################################
+# ASYNC VERSIONS OF CACHE FUNCTIONS
+###################################################
+
+async def async_get_from_local_cache(path_parts):
+    """
+    Async version of get_from_local_cache
+    """
+    global firebase_cache
+    current = firebase_cache
+    for part in path_parts:
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        else:
+            log_firebase_access_attempt(path_parts, success=False)
+            return None
+    
+    log_firebase_access_attempt(path_parts, success=True)
+    return current
+
+async def async_set_to_local_cache(path_parts, value):
+    """
+    Async version of set_to_local_cache
+    """
+    global firebase_cache
+    current = firebase_cache
+    for part in path_parts[:-1]:
+        if part not in current:
+            current[part] = {}
+        current = current[part]
+    current[path_parts[-1]] = value
+    log_firebase_access_attempt(path_parts, success=True)
+
+async def async_get_from_firebase_cache(path_parts):
+    """
+    Async version of get_from_firebase_cache
+    """
+    try:
+        result = await db.async_get()
+        if result and result.val():
+            return result.val()
+        return None
+    except Exception as e:
+        logger.error(f"Error getting from Firebase cache: {e}")
+        return None
+
+async def async_set_to_firebase_cache(path_parts, value):
+    """
+    Async version of set_to_firebase_cache
+    """
+    try:
+        await db.async_set(value)
+        log_firebase_access_attempt(path_parts, success=True)
+    except Exception as e:
+        logger.error(f"Error setting to Firebase cache: {e}")
+        log_firebase_access_attempt(path_parts, success=False)
+
+async def async_get_cached_video_info(url: str, user_id: int = None):
+    """
+    Async version of get_cached_video_info
+    """
+    cache_key = _get_cache_key(url)
+    path_parts = ['Bot', 'Video_cache', cache_key]
+    
+    # Try local cache first
+    cached_data = await async_get_from_local_cache(path_parts)
+    if cached_data:
+        return cached_data
+    
+    # Try Firebase cache
+    cached_data = await async_get_from_firebase_cache(path_parts)
+    if cached_data:
+        # Update local cache
+        await async_set_to_local_cache(path_parts, cached_data)
+        return cached_data
+    
+    return None
+
+async def async_set_cached_video_info(url: str, info: dict, user_id: int = None):
+    """
+    Async version of set_cached_video_info
+    """
+    cache_key = _get_cache_key(url)
+    path_parts = ['Bot', 'Video_cache', cache_key]
+    
+    # Set to both local and Firebase cache
+    await async_set_to_local_cache(path_parts, info)
+    await async_set_to_firebase_cache(path_parts, info)

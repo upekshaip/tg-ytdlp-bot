@@ -1274,7 +1274,7 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                 async def download_operation(opts):
                     messages = safe_get_messages(user_id)
                     
-                    # Асинхронная загрузка через executor для неблокирующего выполнения
+                    # Асинхронная загрузка через изолированный executor для неблокирующего выполнения
                     def sync_download():
                         with yt_dlp.YoutubeDL(opts) as ydl:
                             if is_hls:
@@ -1294,9 +1294,9 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                                 ydl.download([url])
                             return True
                     
-                    # Запуск в отдельном потоке для неблокирующего выполнения
-                    loop = asyncio.get_event_loop()
-                    return await loop.run_in_executor(None, sync_download)
+                    # ИСПОЛЬЗОВАТЬ ENTERPRISE SCALER ДЛЯ 10000+ ПОЛЬЗОВАТЕЛЕЙ
+                    from HELPERS.enterprise_scaler import enterprise_scaler
+                    return await enterprise_scaler.submit_user_task(user_id, sync_download)
                 
                 from HELPERS.proxy_helper import try_with_proxy_fallback
                 result = await try_with_proxy_fallback(ytdl_opts, url, user_id, download_operation)

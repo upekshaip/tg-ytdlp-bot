@@ -27,6 +27,7 @@ BRANCH = "main"
 EXCLUDED_FILES = [
     "CONFIG/domains.py",  # Main configuration file (contains domains data)
     "CONFIG/config.py",  # Main configuration file (contains sensitive data)
+    #"CONFIG/limits.py",  # Scaling configuration (contains custom limits)
     #"requirements.txt", # Dependencies may differ
     ".env",              # Environment variables
     ".bot_pid",          # Bot PID file

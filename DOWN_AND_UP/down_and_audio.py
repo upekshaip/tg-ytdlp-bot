@@ -925,7 +925,8 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                                 if hasattr(progress_func, 'update_progress'):
                                     progress_func.update_progress(percent)
                     
-                    return await async_download_with_progress(opts, [url], progress_callback)
+                    # ПЕРЕДАТЬ user_id в async_download_with_progress
+                    return await async_download_with_progress(opts, [url], user_id, progress_callback)
                 
                 from HELPERS.proxy_helper import try_with_proxy_fallback
                 result = await try_with_proxy_fallback(ytdl_opts, url, user_id, download_operation)

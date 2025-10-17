@@ -39,4 +39,149 @@ class LimitsConfig(object):
     GROUP_MULTIPLIER = 2
     #######################################################
     NSFW_STAR_COST = 1
+    ###############################################################################    
+    ###############################################################################
+    ## DO NOT CHANGE CONFIGURATION BELOW (IF YOU ARE NOT SURE WHAT YOU ARE DOING)##      
+    ###############################################################################
+    ###############################################################################    
+    # Enterprise Scaling Configuration
+    #######################################################
+    
+    # Main scaling limits (optimized for 4 CPU, 24 GB RAM)
+    MAX_USERS = 2000                     # Maximum concurrent users
+    MAX_PROCESSES = 20                   # Number of processes (optimal for 4 CPU)
+    MAX_THREADS_PER_PROCESS = 100        # Threads per process (optimal for 24 GB RAM)
+    MAX_GLOBAL_WORKERS = 2000            # Total number of threads
+    
+    # Download limits
+    MAX_DOWNLOADS_PER_USER = 1          # Downloads per user
+    MAX_CONCURRENT_GLOBAL = 2000        # Total concurrent downloads
+    
+    # Priority pools (processes) - optimized for 4 CPU
+    VIP_PROCESSES = 2                    # VIP users (admins)
+    HIGH_PROCESSES = 4                   # HIGH priority (every 100th user)
+    NORMAL_PROCESSES = 10                # NORMAL priority (every 10th user)
+    LOW_PROCESSES = 4                    # LOW priority (others)
+    
+    # Connection pools - optimized for 24 GB RAM
+    FIREBASE_POOL_SIZE = 200             # Firebase connection pool size
+    TELEGRAM_POOL_SIZE = 200             # Telegram connection pool size
+    
+    # Monitoring and scaling
+    RESOURCE_CHECK_INTERVAL = 5         # Resource check interval (seconds)
+    AUTO_SCALE_THRESHOLD = 80           # Auto-scaling threshold (%)
+    
+    # Queues
+    QUEUE_SIZE = 50000                  # Queue size
+    QUEUE_TIMEOUT = 300                 # Queue timeout (seconds)
+    
+    # Semaphores - optimized for 4 CPU, 24 GB RAM
+    GUARD_SEMAPHORE_LIMIT = 2000        # Semaphore limit in guard.py
+    
+    #######################################################
+    # Predefined configurations for different loads
+    #######################################################
+    
+    # Configuration for small loads (< 100 users)
+    SMALL_SCALE_CONFIG = {
+        'max_processes': 10,
+        'max_threads_per_process': 10,
+        'max_global_workers': 100,
+        'max_concurrent_global': 100,
+        'firebase_pool_size': 50,
+        'telegram_pool_size': 50
+    }
+    
+    # Configuration for medium loads (< 1000 users)
+    MEDIUM_SCALE_CONFIG = {
+        'max_processes': 50,
+        'max_threads_per_process': 20,
+        'max_global_workers': 1000,
+        'max_concurrent_global': 1000,
+        'firebase_pool_size': 200,
+        'telegram_pool_size': 200
+    }
+    
+    # Configuration for large loads (< 5000 users)
+    LARGE_SCALE_CONFIG = {
+        'max_processes': 100,
+        'max_threads_per_process': 50,
+        'max_global_workers': 5000,
+        'max_concurrent_global': 5000,
+        'firebase_pool_size': 500,
+        'telegram_pool_size': 500
+    }
+    
+    # Configuration for enterprise loads (10000+ users)
+    ENTERPRISE_SCALE_CONFIG = {
+        'max_processes': 200,
+        'max_threads_per_process': 50,
+        'max_global_workers': 10000,
+        'max_concurrent_global': 10000,
+        'firebase_pool_size': 1000,
+        'telegram_pool_size': 1000
+    }
+    
+    # Configuration for extreme loads (50000+ users)
+    EXTREME_SCALE_CONFIG = {
+        'max_processes': 500,
+        'max_threads_per_process': 100,
+        'max_global_workers': 50000,
+        'max_concurrent_global': 50000,
+        'firebase_pool_size': 2000,
+        'telegram_pool_size': 2000
+    }
+    
+    # Configuration for Oracle Cloud (4 CPU, 24 GB RAM, 100 GB HDD)
+    ORACLE_CLOUD_CONFIG = {
+        'max_processes': 20,
+        'max_threads_per_process': 100,
+        'max_global_workers': 2000,
+        'max_concurrent_global': 2000,
+        'firebase_pool_size': 200,
+        'telegram_pool_size': 200
+    }
+    
+    #######################################################
+    # System requirements for different configurations
+    #######################################################
+    
+    SYSTEM_REQUIREMENTS = {
+        'small': {
+            'cpu_cores': 2,
+            'ram_gb': 4,
+            'disk_gb': 50,
+            'network_mbps': 50
+        },
+        'medium': {
+            'cpu_cores': 4,
+            'ram_gb': 8,
+            'disk_gb': 200,
+            'network_mbps': 200
+        },
+        'large': {
+            'cpu_cores': 8,
+            'ram_gb': 16,
+            'disk_gb': 500,
+            'network_mbps': 500
+        },
+        'enterprise': {
+            'cpu_cores': 16,
+            'ram_gb': 32,
+            'disk_gb': 1000,
+            'network_mbps': 1000
+        },
+        'extreme': {
+            'cpu_cores': 32,
+            'ram_gb': 64,
+            'disk_gb': 2000,
+            'network_mbps': 2000
+        },
+        'oracle_cloud': {
+            'cpu_cores': 4,
+            'ram_gb': 24,
+            'disk_gb': 100,
+            'network_mbps': 1000
+        }
+    }
     

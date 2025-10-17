@@ -183,6 +183,10 @@ class RestDBAdapter:
         else:
             self._session = _session
 
+        # Асинхронная сессия для неблокирующих операций
+        self._aio_session: Optional[aiohttp.ClientSession] = None
+        self._aio_lock = asyncio.Lock()
+
         # Запускаем рефрешер токена только один раз (и только у корневого адаптера)
         if _start_refresher and self._shared.get("refresh_token"):
             with self._shared["lock"]:
@@ -266,6 +270,56 @@ class RestDBAdapter:
         r = self._session.get(self._url(), params=self._auth_params(), timeout=60)
         r.raise_for_status()
         return _SnapshotCompat(r.json())
+
+    async def _get_aio_session(self):
+        """Получить или создать асинхронную сессию"""
+        if self._aio_session is None or self._aio_session.closed:
+            async with self._aio_lock:
+                if self._aio_session is None or self._aio_session.closed:
+                    self._aio_session = aiohttp.ClientSession(
+                        timeout=aiohttp.ClientTimeout(total=60),
+                        headers={'User-Agent': 'tg-ytdlp-bot/1.0'}
+                    )
+        return self._aio_session
+
+    async def async_set(self, data: Any) -> None:
+        """Асинхронная версия set"""
+        session = await self._get_aio_session()
+        async with session.put(self._url(), params=self._auth_params(), json=data) as resp:
+            resp.raise_for_status()
+
+    async def async_get(self) -> _SnapshotCompat:
+        """Асинхронная версия get"""
+        session = await self._get_aio_session()
+        async with session.get(self._url(), params=self._auth_params()) as resp:
+            resp.raise_for_status()
+            return _SnapshotCompat(await resp.json())
+
+    async def async_update(self, data: Dict[str, Any]) -> None:
+        """Асинхронная версия update"""
+        session = await self._get_aio_session()
+        async with session.patch(self._url(), params=self._auth_params(), json=data) as resp:
+            resp.raise_for_status()
+
+    async def async_remove(self) -> None:
+        """Асинхронная версия remove"""
+        session = await self._get_aio_session()
+        async with session.delete(self._url(), params=self._auth_params()) as resp:
+            resp.raise_for_status()
+
+    async def async_push(self, data: Any):
+        """Асинхронная версия push"""
+        session = await self._get_aio_session()
+        parent_url = f"{self._database_url}{self._path}.json"
+        async with session.post(parent_url, params=self._auth_params(), json=data) as resp:
+            resp.raise_for_status()
+            return await resp.json()
+
+    async def close_aio_session(self):
+        """Закрыть асинхронную сессию"""
+        if self._aio_session and not self._aio_session.closed:
+            await self._aio_session.close()
+            logger.info("✅ Firebase async session closed successfully")
 
     def close(self):
         messages = safe_get_messages(None)

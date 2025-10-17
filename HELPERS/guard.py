@@ -12,8 +12,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from CONFIG.LANGUAGES.language_router import get_message
 
-# Global semaphore to limit concurrent heavy operations
-SEM = asyncio.Semaphore(4)  # Maximum 4 concurrent heavy operations
+# Global semaphore to limit concurrent heavy operations (configuration from limits.py)
+from CONFIG.limits import LimitsConfig
+
+SEM = asyncio.Semaphore(LimitsConfig.GUARD_SEMAPHORE_LIMIT)
 
 async def guarded(timeout=900):
     """
