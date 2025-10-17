@@ -18,7 +18,7 @@ from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, se
 from CONFIG.logger_msg import LoggerMsg
 from CONFIG.messages import Messages, safe_get_messages
 from HELPERS.limitter import TimeFormatter, humanbytes, check_user, check_file_size_limit, check_subs_limits
-from HELPERS.download_status import set_active_download, clear_download_start_time, check_download_timeout, start_hourglass_animation, start_cycle_progress, playlist_errors_lock, playlist_errors
+from HELPERS.download_status import set_active_download, clear_download_start_time, check_download_timeout, start_hourglass_animation, start_cycle_progress, playlist_errors_lock, playlist_errors, _last_upload_update_ts
 from HELPERS.safe_messeger import safe_delete_messages, safe_edit_message_text, safe_forward_messages
 from HELPERS.filesystem_hlp import sanitize_filename, sanitize_filename_strict, cleanup_user_temp_files, cleanup_subtitle_files, create_directory, check_disk_space
 from DOWN_AND_UP.ffmpeg import get_duration_thumb, get_video_info_ffprobe, embed_subs_to_video, create_default_thumbnail, split_video_2
@@ -802,19 +802,50 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                     # Use current_total_process which already contains the progress info
                     progress_text = f"{current_total_process}\n\n{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_FORMAT_USING_MSG} ...\n\n{bar}   {percent:.1f}%"
                     logger.info(f"Progress: {progress_text}")
-                    # Use global progress queue for cross-process communication
-                    from HELPERS.progress_queue import progress_queue
-                    progress_queue.add_progress(user_id, proc_msg_id, progress_text)
-                    logger.info(f"Added progress to global queue for user {user_id}, msg_id {proc_msg_id}, queue size: {progress_queue.get_queue_size(user_id)}")
                     
-                    # Start progress updater if not already running
+                    # Use existing throttling system from download_status.py
                     try:
-                        import asyncio
-                        loop = asyncio.get_event_loop()
-                        if not progress_queue._active_updaters.get(user_id):
-                            loop.create_task(progress_queue.start_updater(user_id))
+                        from HELPERS.app_instance import get_app
+                        app = get_app()
+                        if app:
+                            # Use existing throttling system (1 second per message)
+                            now = time.time()
+                            key = (user_id, proc_msg_id)
+                            last_ts = _last_upload_update_ts.get(key, 0)
+                            if now - last_ts < 1.0 and percent < 100:  # 1 second throttle, allow final update
+                                return
+                            
+                            # Use threading to avoid blocking
+                            import threading
+                            def update_message():
+                                try:
+                                    import asyncio
+                                    loop = asyncio.new_event_loop()
+                                    asyncio.set_event_loop(loop)
+                                    loop.run_until_complete(app.edit_message_text(
+                                        chat_id=user_id,
+                                        message_id=proc_msg_id,
+                                        text=progress_text,
+                                        parse_mode="HTML"
+                                    ))
+                                    logger.info(f"Progress updated directly for user {user_id}: {percent:.1f}%")
+                                except Exception as e:
+                                    logger.error(f"Direct update error: {e}")
+                                finally:
+                                    try:
+                                        loop.close()
+                                    except:
+                                        pass
+                            
+                            thread = threading.Thread(target=update_message, daemon=True)
+                            thread.start()
+                            
+                            # Update throttling timestamp
+                            _last_upload_update_ts[key] = now
+                        else:
+                            logger.error("App instance not available for progress update")
                     except Exception as e:
-                        logger.error(f"Failed to start progress updater: {e}")
+                        logger.error(f"Failed to update progress: {e}")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                     # Check if error is related to quality_key

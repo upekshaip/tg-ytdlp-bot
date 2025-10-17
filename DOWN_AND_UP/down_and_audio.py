@@ -13,7 +13,7 @@ from pyrogram.errors import FloodWait
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, send_error_to_user, log_error_to_channel
 from HELPERS.limitter import TimeFormatter, humanbytes, check_user
-from HELPERS.download_status import set_active_download, clear_download_start_time, check_download_timeout, start_hourglass_animation, start_cycle_progress, playlist_errors, playlist_errors_lock
+from HELPERS.download_status import set_active_download, clear_download_start_time, check_download_timeout, start_hourglass_animation, start_cycle_progress, playlist_errors, playlist_errors_lock, _last_upload_update_ts
 from HELPERS.safe_messeger import safe_delete_messages, safe_edit_message_text, safe_forward_messages
 from HELPERS.filesystem_hlp import sanitize_filename, sanitize_filename_strict, create_directory, check_disk_space, cleanup_user_temp_files
 from DATABASE.firebase_init import write_logs
@@ -707,8 +707,18 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                     progress_hook.progress_data['downloaded_bytes'] = downloaded
                     progress_hook.progress_data['total_bytes'] = total
                 
+                # Use existing throttling system (1 second per message)
                 try:
+                    now = time.time()
+                    key = (user_id, proc_msg_id)
+                    last_ts = _last_upload_update_ts.get(key, 0)
+                    if now - last_ts < 1.0 and percent < 100:  # 1 second throttle, allow final update
+                        return
+                    
                     await safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).AUDIO_DOWNLOADING_PROGRESS_MSG.format(process=current_total_process, bar=bar, percent=percent))
+                    
+                    # Update throttling timestamp
+                    _last_upload_update_ts[key] = now
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
