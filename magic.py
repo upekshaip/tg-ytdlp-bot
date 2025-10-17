@@ -477,6 +477,56 @@ async def _private_cookie_handler(app, message):
     from COMMANDS.cookies_cmd import cookies_from_browser
     await cookies_from_browser(app, message)
 
+@app.on_message(filters.command("add_bot_to_group") & filters.private)
+@safe_handler(timeout=60)  # 1 minute timeout for add_bot_to_group command
+async def _private_add_bot_to_group_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("args") & filters.private)
+@safe_handler(timeout=60)  # 1 minute timeout for args command
+async def _private_args_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("uncache") & filters.private)
+@safe_handler(timeout=60)  # 1 minute timeout for uncache command
+async def _private_uncache_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("auto_cache") & filters.private)
+@safe_handler(timeout=60)  # 1 minute timeout for auto_cache command
+async def _private_auto_cache_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("broadcast") & filters.private)
+@safe_handler(timeout=60)  # 1 minute timeout for broadcast command
+async def _private_broadcast_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("all") & filters.private)
+@safe_handler(timeout=60)  # 1 minute timeout for all command
+async def _private_all_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("log") & filters.private)
+@safe_handler(timeout=60)  # 1 minute timeout for log command
+async def _private_log_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("block_user") & filters.private)
+@safe_handler(timeout=60)  # 1 minute timeout for block_user command
+async def _private_block_user_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("unblock_user") & filters.private)
+@safe_handler(timeout=60)  # 1 minute timeout for unblock_user command
+async def _private_unblock_user_handler(app, message):
+    await url_distractor(app, message)
+
+@app.on_message(filters.command("run_time") & filters.private)
+@safe_handler(timeout=60)  # 1 minute timeout for run_time command
+async def _private_run_time_handler(app, message):
+    await url_distractor(app, message)
+
 @app.on_message(filters.command("usage") & filters.private)
 @safe_handler(timeout=60)  # 1 minute timeout for usage command
 async def _private_usage_handler(app, message):
