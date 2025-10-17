@@ -1082,9 +1082,7 @@ async def url_distractor(app, message):
                 await video_url_extractor(app, message)
             except Exception as e:
                 logger.error(LoggerMsg.URL_EXTRACTOR_VIDEO_EXTRACTOR_FAILED_LOG_MSG.format(e=e))
-            finally:
-                # Освобождаем слот загрузки
-                await concurrent_limiter.release(user_id)
+                # Only fallback to gallery-dl if video_url_extractor failed
                 try:
                     # Create proper /img command from URL
                     from HELPERS.safe_messeger import fake_message
@@ -1118,6 +1116,9 @@ async def url_distractor(app, message):
                         
                 except Exception as e2:
                     logger.error(LoggerMsg.URL_EXTRACTOR_GALLERY_DL_FALLBACK_FAILED_LOG_MSG.format(e2=e2))
+            finally:
+                # Освобождаем слот загрузки
+                await concurrent_limiter.release(user_id)
         return
 
     # ----- Admin Commands -----
