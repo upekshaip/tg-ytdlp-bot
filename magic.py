@@ -530,13 +530,14 @@ def cleanup_on_exit():
         # Close HTTP sessions
         try:
             import asyncio
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
+            # Use modern way to get event loop
+            try:
+                loop = asyncio.get_running_loop()
                 # If loop is running, schedule the cleanup
                 loop.create_task(close_all_sessions())
-            else:
-                # If loop is not running, run it
-                loop.run_until_complete(close_all_sessions())
+            except RuntimeError:
+                # No running loop, create new one
+                asyncio.run(close_all_sessions())
         except Exception as e:
             print(f"Error closing HTTP sessions: {e}")
         
@@ -574,14 +575,18 @@ def cleanup_on_exit():
         # ДОБАВИТЬ CLOSE ASYNC DB SESSIONS
         try:
             import asyncio
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
+            from DATABASE.firebase_init import db
+            
+            # Use modern way to get event loop
+            try:
+                loop = asyncio.get_running_loop()
                 # Schedule cleanup
-                from DATABASE.firebase_init import db
                 if hasattr(db, 'close_aio_session'):
                     loop.create_task(db.close_aio_session())
-            else:
-                loop.run_until_complete(db.close_aio_session())
+            except RuntimeError:
+                # No running loop, create new one
+                if hasattr(db, 'close_aio_session'):
+                    asyncio.run(db.close_aio_session())
         except Exception as e:
             print(f"Error closing Firebase async sessions: {e}")
         

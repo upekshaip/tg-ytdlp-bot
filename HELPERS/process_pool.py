@@ -56,8 +56,7 @@ class ProcessPoolManager:
                 raise
         
         # Отправляем в процесс
-        loop = asyncio.get_event_loop()
-        future = loop.run_in_executor(
+        future = asyncio.get_event_loop().run_in_executor(
             self.process_pool, 
             process_wrapper
         )

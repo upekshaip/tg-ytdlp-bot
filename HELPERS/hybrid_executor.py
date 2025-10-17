@@ -67,8 +67,7 @@ class HybridExecutor:
                 raise
         
         # Отправляем в процесс
-        loop = asyncio.get_event_loop()
-        future = loop.run_in_executor(
+        future = asyncio.get_event_loop().run_in_executor(
             self.process_pool, 
             process_wrapper
         )
@@ -80,8 +79,7 @@ class HybridExecutor:
         Отправить легкую задачу в потоковый пул (для быстрых операций)
         """
         # Используем дефолтный ThreadPoolExecutor для легких задач
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, func, *args, **kwargs)
+        return await asyncio.get_event_loop().run_in_executor(None, func, *args, **kwargs)
     
     def get_status(self) -> Dict:
         """Получить статус executor'а"""

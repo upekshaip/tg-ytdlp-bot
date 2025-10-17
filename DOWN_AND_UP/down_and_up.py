@@ -1279,7 +1279,6 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                                 user_id_update, msg_id, progress_text = progress_func.progress_queue.pop(0)
                                 try:
                                     # Use asyncio.to_thread to run sync function in async context
-                                    import asyncio
                                     await asyncio.to_thread(safe_edit_message_text, user_id_update, msg_id, progress_text)
                                     logger.info(f"Progress updated for user {user_id_update}: {progress_text}")
                                 except Exception as e:
@@ -1327,7 +1326,6 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                 if result is None:
                     raise Exception("Failed to download video with all available proxies")
                 try:
-                    import asyncio
                     await asyncio.to_thread(safe_edit_message_text, user_id, proc_msg_id, safe_get_messages(user_id).VIDEO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
                 except Exception as e:
                     logger.error(f"Final progress update error: {e}")

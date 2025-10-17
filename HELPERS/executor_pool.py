@@ -50,7 +50,6 @@ class UserIsolatedExecutorPool:
             raise RuntimeError("Executor pool is shutting down")
             
         executor = await self.get_user_executor(user_id)
-        loop = asyncio.get_event_loop()
         
         # Генерируем уникальный ID задачи
         task_id = f"{user_id}_{int(time.time() * 1000)}"
@@ -59,7 +58,7 @@ class UserIsolatedExecutorPool:
             self.user_active_tasks[user_id].add(task_id)
         
         try:
-            result = await loop.run_in_executor(executor, lambda: func(*args, **kwargs))
+            result = await asyncio.get_event_loop().run_in_executor(executor, lambda: func(*args, **kwargs))
             return result
         finally:
             async with self.lock:
@@ -73,8 +72,7 @@ class UserIsolatedExecutorPool:
         if self.shutdown_event.is_set():
             raise RuntimeError("Executor pool is shutting down")
             
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(self.global_executor, lambda: func(*args, **kwargs))
+        return await asyncio.get_event_loop().run_in_executor(self.global_executor, lambda: func(*args, **kwargs))
     
     async def get_user_status(self, user_id: int) -> Dict:
         """Получить статус пользователя"""
