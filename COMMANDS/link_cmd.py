@@ -234,7 +234,7 @@ async def get_direct_link(url, user_id, quality_arg=None, cookies_already_checke
         
         # Get video information
         from HELPERS.async_ytdlp import async_extract_info
-        info = await async_extract_info(ytdl_opts, url)
+        info = await async_extract_info(ytdl_opts, url, user_id)
         # Normalize info to a dict
         if isinstance(info, list):
             info = (info[0] if len(info) > 0 else {})

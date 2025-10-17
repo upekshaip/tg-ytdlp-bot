@@ -204,7 +204,7 @@ async def get_direct_link_with_proxy(url: str, format_spec: str = "bv+ba/best", 
         
         # Extract video info
         from HELPERS.async_ytdlp import async_extract_info
-        info = await async_extract_info(ydl_opts, url)
+        info = await async_extract_info(ydl_opts, url, user_id)
             
         if not info:
             raise Exception("Failed to extract video information")

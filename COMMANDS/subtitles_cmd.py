@@ -830,7 +830,7 @@ async def get_available_subs_languages(url, user_id=None, auto_only=False):
                 opts['extractor_args'] = {'youtube': {'player_client': [client]}}
             try:
                 from HELPERS.async_ytdlp import async_extract_info
-                info = await async_extract_info(opts, url)
+                info = await async_extract_info(opts, url, user_id)
             except yt_dlp.utils.DownloadError as e:
                 if 'Requested format is not available' in str(e):
                     continue
@@ -1227,7 +1227,7 @@ async def download_subtitles_ytdlp(url, user_id, video_dir, available_langs):
             info_opts = await add_pot_to_ytdl_opts(info_opts, url)
 
             from HELPERS.async_ytdlp import async_extract_info
-            info = await async_extract_info(info_opts, url)
+            info = await async_extract_info(info_opts, url, user_id)
 
             # Prefer union view: sometimes only one dict is filled depending on client
             subs_dict = {}

@@ -1110,7 +1110,7 @@ async def url_distractor(app, message):
                         fake_msg = fake_message(fallback_text, message.chat.id, original_chat_id=original_chat_id, message_thread_id=message_thread_id, original_message=message)
                         
                         # Execute gallery-dl command
-                        image_command(app, fake_msg)
+                        await image_command(app, fake_msg)
                         logger.info(get_logger_msg().URL_EXTRACTOR_GALLERY_DL_FALLBACK_LOG_MSG.format(fallback_text=fallback_text))
                     else:
                         logger.error("No URL found for gallery-dl fallback")

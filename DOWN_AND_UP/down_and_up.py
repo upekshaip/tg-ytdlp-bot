@@ -648,7 +648,7 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                 logger.info(f"Using cookies from user directory: {user_cookie_path}")
             # Используем асинхронную версию для неблокирующего выполнения
             from HELPERS.async_ytdlp import async_extract_info
-            pre_info = await async_extract_info(ydl_opts, url)
+            pre_info = await async_extract_info(ydl_opts, url, user_id)
             # Normalize to dict and check None
             if isinstance(pre_info, list):
                 pre_info = (pre_info[0] if len(pre_info) > 0 else {})
@@ -1193,7 +1193,7 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                     messages = safe_get_messages(message.chat.id)
                     from HELPERS.async_ytdlp import async_extract_info
                     logger.info("yt-dlp instance created, starting extract_info...")
-                    info_dict = await async_extract_info(opts, url)
+                    info_dict = await async_extract_info(opts, url, user_id)
                     logger.info("extract_info completed successfully")
                     return info_dict
                 

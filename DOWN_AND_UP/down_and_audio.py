@@ -867,7 +867,7 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
             
             try:
                 from HELPERS.async_ytdlp import async_extract_info
-                info_dict = await async_extract_info(ytdl_opts, url)
+                info_dict = await async_extract_info(ytdl_opts, url, user_id)
                 # Normalize info_dict to dict
                 if isinstance(info_dict, list):
                     info_dict = (info_dict[0] if len(info_dict) > 0 else {})
@@ -1036,7 +1036,7 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                             # For groups, preserve original chat_id and message_thread_id
                             original_chat_id = message.chat.id if hasattr(message, 'chat') else user_id
                             message_thread_id = getattr(message, 'message_thread_id', None) if hasattr(message, 'message_thread_id') else None
-                            image_command(app, fake_message(fallback_text, user_id, original_chat_id=original_chat_id, message_thread_id=message_thread_id, original_message=message))
+                            await image_command(app, fake_message(fallback_text, user_id, original_chat_id=original_chat_id, message_thread_id=message_thread_id, original_message=message))
                             logger.info(f"Triggered gallery-dl fallback via /img from audio downloader, is_nsfw={is_nsfw}, range={start_range}-{end_range}")
                             return "IMG"
                         except Exception as call_e:
@@ -1254,7 +1254,7 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                         
                         # Try download with safe filename
                         from HELPERS.async_ytdlp import async_extract_info
-                        info_dict = await async_extract_info(ytdl_opts, url)
+                        info_dict = await async_extract_info(ytdl_opts, url, user_id)
                         if "entries" in info_dict:
                             entries = info_dict["entries"]
                             if len(entries) > 1:
