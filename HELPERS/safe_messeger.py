@@ -24,7 +24,7 @@ def get_app_safe():
     messages = safe_get_messages(None)
     app = get_app()
     if app is None:
-        raise RuntimeError(safe_get_messages(user_id).HELPER_APP_INSTANCE_NOT_AVAILABLE_MSG)
+        raise RuntimeError(safe_get_messages(None).HELPER_APP_INSTANCE_NOT_AVAILABLE_MSG)
     return app
 
 def fake_message(text, user_id, command=None, original_chat_id=None, message_thread_id=None, original_message=None):

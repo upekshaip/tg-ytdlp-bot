@@ -797,6 +797,7 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                     if not hasattr(progress_func, 'progress_queue'):
                         progress_func.progress_queue = []
                     progress_func.progress_queue.append((user_id, proc_msg_id, progress_text))
+                    logger.info(f"Added progress to queue for user {user_id}, msg_id {proc_msg_id}, queue size: {len(progress_func.progress_queue)}")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                     # Check if error is related to quality_key
@@ -845,7 +846,21 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                 'referer': url,
                 'geo_bypass': True,
                 'check_certificate': False,
-                'live_from_start': True
+                'live_from_start': True,
+                # Add timeout and retry settings (minimal)
+                'socket_timeout': 30,  # 30 seconds socket timeout
+                'retries': 1,  # Minimal retries
+                'extractor_retries': 1,  # Minimal extractor retries
+                'fragment_retries': 3,  # Optimal fragment retries
+                'http_chunk_size': 10485760,  # 10MB chunks
+                'retry_sleep_functions': {'http': lambda n: 3},  # Fixed 3 seconds delay
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language': 'en-us,en;q=0.5',
+                    'Sec-Fetch-Mode': 'navigate',
+                    'Connection': 'keep-alive'  # Keep connection alive
+                }
                 #'socket_timeout': 60,  # Increase socket timeout
                 #'retries': 15,  # Increase retries
                 #'fragment_retries': 15,  # Increase fragment retries
@@ -1259,13 +1274,22 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                 # Start async progress updater
                 async def progress_updater():
                     while True:
-                        if hasattr(progress_func, 'progress_queue') and progress_func.progress_queue:
-                            user_id_update, msg_id, progress_text = progress_func.progress_queue.pop(0)
-                            try:
-                                await safe_edit_message_text(user_id_update, msg_id, progress_text)
-                            except Exception as e:
-                                logger.error(f"Progress update error: {e}")
-                        await asyncio.sleep(0.5)  # Update every 500ms
+                        try:
+                            if hasattr(progress_func, 'progress_queue') and progress_func.progress_queue:
+                                user_id_update, msg_id, progress_text = progress_func.progress_queue.pop(0)
+                                try:
+                                    # Use asyncio.to_thread to run sync function in async context
+                                    import asyncio
+                                    await asyncio.to_thread(safe_edit_message_text, user_id_update, msg_id, progress_text)
+                                    logger.info(f"Progress updated for user {user_id_update}: {progress_text}")
+                                except Exception as e:
+                                    logger.error(f"Progress update error: {e}")
+                            else:
+                                # If no progress updates, sleep longer to avoid busy waiting
+                                await asyncio.sleep(1.0)
+                        except Exception as e:
+                            logger.error(f"Progress updater error: {e}")
+                            await asyncio.sleep(1.0)
                 
                 # Start progress updater task
                 progress_task = asyncio.create_task(progress_updater())
@@ -1303,7 +1327,8 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                 if result is None:
                     raise Exception("Failed to download video with all available proxies")
                 try:
-                    await safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).VIDEO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
+                    import asyncio
+                    await asyncio.to_thread(safe_edit_message_text, user_id, proc_msg_id, safe_get_messages(user_id).VIDEO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
                 except Exception as e:
                     logger.error(f"Final progress update error: {e}")
                 

@@ -97,10 +97,12 @@ async def get_direct_link(url, user_id, quality_arg=None, cookies_already_checke
             'geo_bypass': True,
             'check_certificate': False,
             'live_from_start': True,
-            # Add additional stability options
-            'socket_timeout': 60,
-            'retries': 15,
-            'fragment_retries': 15,
+            # Minimal timeout and retry settings
+            'socket_timeout': 30,  # 30 seconds socket timeout
+            'retries': 1,  # Minimal retries
+            'extractor_retries': 1,  # Minimal extractor retries
+            'fragment_retries': 3,  # Optimal fragment retries
+            'retry_sleep_functions': {'http': lambda n: 3},  # Fixed 3 seconds delay
             'http_chunk_size': 5242880,  # 5MB chunks
             'buffersize': 2048,
             'sleep_interval': 2,

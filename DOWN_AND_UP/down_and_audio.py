@@ -765,6 +765,12 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                # outtmpl will be set later with sanitized title
                # Allow Unicode characters in filenames
                'restrictfilenames': False,
+               # Minimal timeout and retry settings
+               'socket_timeout': 30,  # 30 seconds socket timeout
+               'retries': 1,  # Minimal retries
+               'extractor_retries': 1,  # Minimal extractor retries
+               'fragment_retries': 3,  # Optimal fragment retries
+               'retry_sleep_functions': {'http': lambda n: 3},  # Fixed 3 seconds delay
                'progress_hooks': [progress_hook],
                'extractor_args': {
                   'generic': {
@@ -1219,6 +1225,11 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                            'outtmpl': safe_outtmpl,  # Use safe filename
                            'restrictfilenames': False,
                            'progress_hooks': [progress_hook],
+                           # Minimal timeout and retry settings
+                           'socket_timeout': 30,  # 30 seconds socket timeout
+                           'retries': 1,  # Minimal retries
+                           'fragment_retries': 1,  # Minimal fragment retries
+                           'retry_sleep_functions': {'http': lambda n: 3},  # Fixed 3 seconds delay
                            'extractor_args': {
                               'generic': {'impersonate': ['chrome']}
                            },

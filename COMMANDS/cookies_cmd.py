@@ -779,8 +779,12 @@ async def test_youtube_cookies_on_url(cookie_file_path: str, url: str, user_id: 
             'extractor_args': {
                 'youtube': {'player_client': ['tv']}
             },
-            'retries': 2,
-            'extractor_retries': 1,
+            # Minimal timeout and retry settings
+            'socket_timeout': 30,  # 30 seconds socket timeout
+            'retries': 1,  # Minimal retries
+            'extractor_retries': 1,  # Minimal extractor retries
+            'fragment_retries': 3,  # Optimal fragment retries
+            'retry_sleep_functions': {'http': lambda n: 3},  # Fixed 3 seconds delay
         }
         
         # Add PO token provider for YouTube domains
@@ -840,8 +844,12 @@ async def test_youtube_cookies(cookie_file_path: str) -> bool:
             'extractor_args': {
                 'youtube': {'player_client': ['tv']}
             },
-            'retries': 3,
-            'extractor_retries': 2,
+            # Minimal timeout and retry settings
+            'socket_timeout': 30,  # 30 seconds socket timeout
+            'retries': 1,  # Minimal retries
+            'extractor_retries': 1,  # Minimal extractor retries
+            'fragment_retries': 3,  # Optimal fragment retries
+            'retry_sleep_functions': {'http': lambda n: 3},  # Fixed 3 seconds delay
         }
         
         # Add PO token provider for YouTube domains

@@ -30,6 +30,12 @@ async def get_direct_link_with_proxy(url: str, format_spec: str = "bv+ba/best", 
             'extract_flat': False,
             'nocheckcertificate': True,
             'ignoreerrors': False,
+            # Minimal timeout and retry settings
+            'socket_timeout': 30,  # 30 seconds socket timeout
+            'retries': 1,  # Minimal retries
+            'extractor_retries': 1,  # Minimal extractor retries
+            'fragment_retries': 3,  # Optimal fragment retries
+            'retry_sleep_functions': {'http': lambda n: 3},  # Fixed 3 seconds delay
         }
         
         # Add proxy configuration
