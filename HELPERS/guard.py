@@ -17,39 +17,24 @@ from CONFIG.LANGUAGES.language_router import get_message
 # from CONFIG.limits import LimitsConfig
 # SEM = asyncio.Semaphore(LimitsConfig.GUARD_SEMAPHORE_LIMIT)  # REMOVED - was blocking all users!
 
-def guarded(timeout=900):
+def safe_handler(timeout=300):
     """
-    Decorator to guard async handlers with timeout protection (NO GLOBAL SEMAPHORE)
+    Simple decorator for basic error handling without blocking execution
     
     This decorator provides:
-    - Timeout protection: operations that take too long are cancelled
-    - Error handling: catches and logs errors gracefully
-    
-    Does NOT use global semaphore to allow true parallelism.
-    Limiting is handled by concurrent_limiter per-user.
+    - Basic error handling: catches and logs errors gracefully
+    - No timeout protection (to avoid blocking commands)
+    - No global semaphore (concurrent_limiter handles limiting)
     
     Args:
-        timeout: Maximum time in seconds for handler execution (default: 15 minutes)
+        timeout: Not used (kept for compatibility)
     """
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            # REMOVED: async with SEM: - this was blocking ALL users globally!
-            # Now handlers run in parallel, limited only by concurrent_limiter
             try:
-                return await asyncio.wait_for(func(*args, **kwargs), timeout)
-            except asyncio.TimeoutError:
-                logging.error("Handler %s timed out after %ss", func.__name__, timeout)
-                # Try to send timeout message to user if possible
-                try:
-                    if args and hasattr(args[0], 'reply_text'):
-                        # Get user ID from the message object
-                        user_id = getattr(args[0], 'from_user', {}).get('id') if hasattr(args[0], 'from_user') else None
-                        timeout_msg = get_message('GUARD_TIMEOUT_MSG', user_id)
-                        await args[0].reply_text(timeout_msg)
-                except (AttributeError, TypeError, ValueError):
-                    pass
-            except (RuntimeError, ValueError, TypeError, AttributeError, KeyError, ImportError) as e:
+                return await func(*args, **kwargs)
+            except Exception as e:
                 logging.exception("Handler %s failed: %s", func.__name__, e)
                 # Try to send error message to user if possible
                 try:
