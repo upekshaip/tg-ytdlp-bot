@@ -471,6 +471,12 @@ async def _private_check_cookie_handler(app, message):
 async def _private_save_as_cookie_handler(app, message):
     await url_distractor(app, message)
 
+@app.on_message(filters.command("cookie") & filters.private)
+@safe_handler(timeout=60)  # 1 minute timeout for cookie command
+async def _private_cookie_handler(app, message):
+    from COMMANDS.cookies_cmd import cookies_from_browser
+    await cookies_from_browser(app, message)
+
 @app.on_message(filters.command("usage") & filters.private)
 @safe_handler(timeout=60)  # 1 minute timeout for usage command
 async def _private_usage_handler(app, message):
