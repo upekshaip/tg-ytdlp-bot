@@ -17,7 +17,7 @@ from CONFIG.limits import LimitsConfig
 
 SEM = asyncio.Semaphore(LimitsConfig.GUARD_SEMAPHORE_LIMIT)
 
-async def guarded(timeout=900):
+def guarded(timeout=900):
     """
     Decorator to guard async handlers with timeout and concurrency limits
     
