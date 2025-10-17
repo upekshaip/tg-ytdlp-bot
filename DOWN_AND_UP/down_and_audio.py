@@ -13,7 +13,7 @@ from pyrogram.errors import FloodWait
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, send_error_to_user, log_error_to_channel
 from HELPERS.limitter import TimeFormatter, humanbytes, check_user
-from HELPERS.download_status import set_active_download, clear_download_start_time, check_download_timeout, start_hourglass_animation, start_cycle_progress, playlist_errors, playlist_errors_lock
+from HELPERS.download_status import set_active_download, get_active_download, clear_download_start_time, check_download_timeout, start_hourglass_animation, start_cycle_progress, playlist_errors, playlist_errors_lock
 from HELPERS.safe_messeger import safe_delete_messages, safe_edit_message_text, safe_forward_messages
 from HELPERS.filesystem_hlp import sanitize_filename, sanitize_filename_strict, create_directory, check_disk_space, cleanup_user_temp_files
 from DATABASE.firebase_init import write_logs
@@ -179,8 +179,15 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
     user_id = message.chat.id
     logger.info(f"down_and_audio called: url={url}, quality_key={quality_key}, video_count={video_count}, video_start_with={video_start_with}")
     
+    # Check if user already has an active download
+    if get_active_download(user_id):
+        logger.warning(f"⚠️ User {user_id} already has an active download, rejecting new request")
+        await send_to_user(message, safe_get_messages(user_id).DOWNLOAD_ALREADY_IN_PROGRESS_MSG)
+        return
+    
     # Set active download status to prevent multiple downloads
     set_active_download(user_id, True)
+    logger.info(f"🔒 Active download status set to True for user {user_id}")
     
     # ЖЕСТКО: Сохраняем оригинальный текст с диапазоном для фоллбэка
     original_message_text = message.text or message.caption or ""
@@ -710,47 +717,27 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
                     progress_hook.progress_data['downloaded_bytes'] = downloaded
                     progress_hook.progress_data['total_bytes'] = total
                 
-                # Use synchronous message editing for progress updates
+                # Use reliable progress update system
                 try:
-                    import asyncio
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        # Schedule the coroutine to run in the background
-                        asyncio.create_task(safe_edit_message_text(
-                            user_id, proc_msg_id,
-                            f"{current_total_process}\n{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_QUALITY_MSG} audio:\n{bar}   {percent:.1f}%"
-                        ))
-                    else:
-                        # Run in the current loop
-                        loop.run_until_complete(safe_edit_message_text(
-                            user_id, proc_msg_id,
-                            f"{current_total_process}\n{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_QUALITY_MSG} audio:\n{bar}   {percent:.1f}%"
-                        ))
+                    from HELPERS.download_status import update_progress
+                    progress_text = f"{current_total_process}\n{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_QUALITY_MSG} audio:\n{bar}   {percent:.1f}%"
+                    update_progress(user_id, proc_msg_id, progress_text)
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "finished":
                 try:
                     full_bar = "🟩" * 10
-                    import asyncio
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        asyncio.create_task(safe_edit_message_text(user_id, proc_msg_id,
-                            f"{current_total_process}\n{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_QUALITY_MSG} audio:\n{full_bar}   100.0%\n{safe_get_messages(user_id).AUDIO_DOWNLOAD_FINISHED_PROCESSING_MSG}"))
-                    else:
-                        loop.run_until_complete(safe_edit_message_text(user_id, proc_msg_id,
-                            f"{current_total_process}\n{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_QUALITY_MSG} audio:\n{full_bar}   100.0%\n{safe_get_messages(user_id).AUDIO_DOWNLOAD_FINISHED_PROCESSING_MSG}"))
+                    from HELPERS.download_status import update_progress
+                    progress_text = f"{current_total_process}\n{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_QUALITY_MSG} audio:\n{full_bar}   100.0%\n{safe_get_messages(user_id).AUDIO_DOWNLOAD_FINISHED_PROCESSING_MSG}"
+                    update_progress(user_id, proc_msg_id, progress_text)
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "error":
                 try:
-                    import asyncio
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        asyncio.create_task(safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).AUDIO_DOWNLOAD_ERROR_MSG))
-                    else:
-                        loop.run_until_complete(safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).AUDIO_DOWNLOAD_ERROR_MSG))
+                    from HELPERS.download_status import update_progress
+                    update_progress(user_id, proc_msg_id, safe_get_messages(user_id).AUDIO_DOWNLOAD_ERROR_MSG)
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
@@ -1678,7 +1665,7 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
 
             # Clean up the audio file after sending
             try:
-                send_mediainfo_if_enabled(user_id, audio_file, message)
+                await send_mediainfo_if_enabled(user_id, audio_file, message)
                 os.remove(audio_file)
             except Exception as e:
                 logger.error(f"Failed to delete audio file {audio_file}: {e}")
@@ -1796,6 +1783,7 @@ async def down_and_audio(app, message, url, tags, quality_key=None, playlist_nam
 
         set_active_download(user_id, False)
         clear_download_start_time(user_id)  # Cleaning the start time
+        logger.info(f"✅ Active download status cleared for user {user_id}")
 
         # Clean up temporary files
         try:

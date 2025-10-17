@@ -18,7 +18,7 @@ from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, se
 from CONFIG.logger_msg import LoggerMsg
 from CONFIG.messages import Messages, safe_get_messages
 from HELPERS.limitter import TimeFormatter, humanbytes, check_user, check_file_size_limit, check_subs_limits
-from HELPERS.download_status import set_active_download, clear_download_start_time, check_download_timeout, start_hourglass_animation, start_cycle_progress, playlist_errors_lock, playlist_errors, _last_upload_update_ts
+from HELPERS.download_status import set_active_download, get_active_download, clear_download_start_time, check_download_timeout, start_hourglass_animation, start_cycle_progress, playlist_errors_lock, playlist_errors, _last_upload_update_ts
 from HELPERS.safe_messeger import safe_delete_messages, safe_edit_message_text, safe_forward_messages
 from HELPERS.filesystem_hlp import sanitize_filename, sanitize_filename_strict, cleanup_user_temp_files, cleanup_subtitle_files, create_directory, check_disk_space
 from DOWN_AND_UP.ffmpeg import get_duration_thumb, get_video_info_ffprobe, embed_subs_to_video, create_default_thumbnail, split_video_2
@@ -151,8 +151,15 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
     proc_msg_id = None  # Initialize proc_msg_id
     logger.info(f"down_and_up called: url={url}, quality_key={quality_key}, format_override={format_override}, video_count={video_count}, video_start_with={video_start_with}")
     
+    # Check if user already has an active download
+    if get_active_download(user_id):
+        logger.warning(f"⚠️ User {user_id} already has an active download, rejecting new request")
+        await send_to_user(message, safe_get_messages(user_id).DOWNLOAD_ALREADY_IN_PROGRESS_MSG)
+        return
+    
     # Set active download status to prevent multiple downloads
     set_active_download(user_id, True)
+    logger.info(f"🔒 Active download status set to True for user {user_id}")
     
     # ЖЕСТКО: Сохраняем оригинальный текст с диапазоном для фоллбэка
     original_message_text = message.text or message.caption or ""
@@ -806,19 +813,11 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                     progress_text = f"{current_total_process}\n\n{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_FORMAT_USING_MSG} ...\n\n{bar}   {percent:.1f}%"
                     logger.info(f"Progress: {progress_text}")
                     
-                    # Use existing progress_bar function from download_status.py
+                    # Use reliable progress update system
                     try:
-                        from HELPERS.download_status import progress_bar
-                        import asyncio
-                        
-                        # Use the existing progress_bar function with throttling
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        loop.run_until_complete(progress_bar(
-                            downloaded, total, 0, 0, 0, user_id, proc_msg_id, progress_text
-                        ))
-                        loop.close()
-                        logger.info(f"Progress updated using progress_bar for user {user_id}: {percent:.1f}%")
+                        from HELPERS.download_status import update_progress
+                        update_progress(user_id, proc_msg_id, progress_text)
+                        logger.info(f"Progress updated using reliable system for user {user_id}: {percent:.1f}%")
                     except Exception as e:
                         logger.error(f"Failed to update progress: {e}")
                 except Exception as e:
@@ -829,7 +828,11 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                         logger.error(f"Quality key error in progress_func: {e}")
             elif d.get("status") == "finished":
                 try:
-                    # Cannot call async function from sync progress_func
+                    # Use reliable progress update system
+                    from HELPERS.download_status import update_progress
+                    full_bar = "🟩" * 10
+                    progress_text = f"{current_total_process}\n\n{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_FORMAT_USING_MSG} ...\n\n{full_bar}   100.0%\n{safe_get_messages(user_id).VIDEO_DOWNLOAD_COMPLETE_MSG}"
+                    update_progress(user_id, proc_msg_id, progress_text)
                     logger.info(f"Download finished for user {user_id}")
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
@@ -839,8 +842,13 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                         logger.error(f"Quality key error in progress_func: {e}")
             elif d.get("status") == "error":
                 logger.error("Error occurred during download.")
-                # Cannot call async function from sync progress_func
-                logger.error(f"Download error for user {user_id}")
+                # Use reliable progress update system
+                try:
+                    from HELPERS.download_status import update_progress
+                    update_progress(user_id, proc_msg_id, safe_get_messages(user_id).VIDEO_DOWNLOAD_ERROR_MSG)
+                    logger.error(f"Download error for user {user_id}")
+                except Exception as e:
+                    logger.error(f"Error updating progress: {e}")
             last_update = current_time
 
         successful_uploads = 0
@@ -2369,11 +2377,10 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                                             bar = '🟩' * blocks + '⬜️' * (10 - blocks)
                                             percent = int(progress * 100)
                                             try:
-                                                await app.edit_message_text(
-                                                    chat_id=user_id,
-                                                    message_id=status_msg.id,
-                                                    text=f"🔥 Embedding subtitles...\n{bar} {percent}%\nETA: {eta} min"
-                                                )
+                                                # Use reliable progress update system
+                                                from HELPERS.download_status import update_progress
+                                                progress_text = f"🔥 Embedding subtitles...\n{bar} {percent}%\nETA: {eta} min"
+                                                update_progress(user_id, status_msg.id, progress_text)
                                             except Exception as e:
                                                 logger.error(f"Failed to update subtitle progress: {e}")
                                         # Embed subtitles and get the result
@@ -2857,6 +2864,7 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
     finally:
         set_active_download(user_id, False)
         clear_download_start_time(user_id)  # Clear the download start time
+        logger.info(f"✅ Active download status cleared for user {user_id}")
         if playlist_name:
             with playlist_errors_lock:
                 error_key = f"{user_id}_{playlist_name}"

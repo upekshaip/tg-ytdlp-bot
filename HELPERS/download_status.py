@@ -1,5 +1,4 @@
 
-
 import threading
 import time
 import os
@@ -27,6 +26,117 @@ download_start_times_lock = threading.Lock()
 # Get app instance for decorators
 app = get_app()
 
+# Global progress update queue for reliable progress updates
+class ProgressUpdateQueue:
+    def __init__(self):
+        self.queue = {}
+        self.locks = {}
+        self.last_update = {}
+        
+    def add_update(self, user_id, msg_id, text):
+        """Add progress update to queue"""
+        key = (user_id, msg_id)
+        if key not in self.locks:
+            self.locks[key] = threading.Lock()
+        
+        with self.locks[key]:
+            self.queue[key] = text
+            self.last_update[key] = time.time()
+    
+    def get_update(self, user_id, msg_id):
+        """Get latest progress update from queue"""
+        key = (user_id, msg_id)
+        if key not in self.locks:
+            return None
+            
+        with self.locks[key]:
+            return self.queue.get(key)
+    
+    def clear_update(self, user_id, msg_id):
+        """Clear progress update from queue"""
+        key = (user_id, msg_id)
+        if key in self.locks:
+            with self.locks[key]:
+                self.queue.pop(key, None)
+                self.last_update.pop(key, None)
+
+# Global progress update queue instance
+progress_queue = ProgressUpdateQueue()
+
+# Background thread for processing progress updates
+class ProgressUpdateProcessor:
+    def __init__(self):
+        self.running = False
+        self.thread = None
+        self.stop_event = threading.Event()
+        
+    def start(self):
+        """Start the progress update processor"""
+        if self.running:
+            return
+        self.running = True
+        self.stop_event.clear()
+        self.thread = threading.Thread(target=self._process_updates, daemon=True)
+        self.thread.start()
+        
+    def stop(self):
+        """Stop the progress update processor"""
+        self.running = False
+        self.stop_event.set()
+        if self.thread:
+            self.thread.join(timeout=2.0)
+            
+    def _process_updates(self):
+        """Process progress updates in background thread"""
+        while self.running and not self.stop_event.is_set():
+            try:
+                # Process all queued updates
+                updates_to_process = []
+                for key in list(progress_queue.queue.keys()):
+                    user_id, msg_id = key
+                    text = progress_queue.get_update(user_id, msg_id)
+                    if text:
+                        updates_to_process.append((user_id, msg_id, text))
+                        progress_queue.clear_update(user_id, msg_id)
+                
+                # Process updates
+                for user_id, msg_id, text in updates_to_process:
+                    try:
+                        # Create new event loop for this thread
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        
+                        # Update message
+                        result = loop.run_until_complete(
+                            safe_edit_message_text(user_id, msg_id, text)
+                        )
+                        
+                        loop.close()
+                        
+                        # If update failed, stop processing for this message
+                        if result is None:
+                            progress_queue.clear_update(user_id, msg_id)
+                            
+                    except Exception as e:
+                        logger.error(f"Error processing progress update: {e}")
+                        progress_queue.clear_update(user_id, msg_id)
+                
+                # Sleep before next iteration
+                if not self.stop_event.wait(0.5):
+                    continue
+                    
+            except Exception as e:
+                logger.error(f"Error in progress update processor: {e}")
+                break
+                
+        logger.debug("Progress update processor stopped")
+
+# Global progress update processor
+progress_processor = ProgressUpdateProcessor()
+
+# Start the progress update processor
+progress_processor.start()
+
 # Class for managing hourglass animations with proper cleanup
 class HourglassManager:
     def __init__(self, user_id, hourglass_msg_id):
@@ -49,71 +159,6 @@ class HourglassManager:
         self.stop_event.set()
         if self.thread:
             self.thread.join(timeout=timeout)
-
-# Асинхронная версия для лучшей производительности
-class AsyncHourglassManager:
-    def __init__(self, user_id, hourglass_msg_id):
-        self.user_id = user_id
-        self.hourglass_msg_id = hourglass_msg_id
-        self.stop_event = asyncio.Event()
-        self.task = None
-        self.messages = safe_get_messages(user_id)
-
-    async def start(self):
-        """Start the hourglass animation asynchronously"""
-        if self.task and not self.task.done():
-            return
-        self.stop_event.clear()
-        self.task = asyncio.create_task(self._animate_async())
-
-    async def stop(self):
-        """Stop the hourglass animation"""
-        self.stop_event.set()
-        if self.task and not self.task.done():
-            self.task.cancel()
-            try:
-                await self.task
-            except asyncio.CancelledError:
-                pass
-
-    async def _animate_async(self):
-        """Internal async animation method"""
-        counter = 0
-        emojis = self.messages.DOWNLOAD_STATUS_HOURGLASS_EMOJIS
-        active = True
-        start_time = time.time()
-        last_update = 0
-
-        while active and not self.stop_event.is_set():
-            try:
-                current_time = time.time()
-                elapsed = current_time - start_time
-                minutes_passed = int(elapsed // 60)
-                
-                # Adaptive animation interval (linear slow-down every 5 minutes)
-                if minutes_passed and minutes_passed >= 60:
-                    interval = 90.0  # After 1 hour, update once per 90 seconds
-                else:
-                    # 0-4 min: 3s, 5-9: 4s, 10-14: 5s, ... up to 55-59: 14s
-                    interval = 3.0 + max(0, minutes_passed // 5)
-                
-                if current_time - last_update < interval:
-                    # Use asyncio.sleep() for non-blocking sleep
-                    try:
-                        await asyncio.wait_for(self.stop_event.wait(), timeout=1.0)
-                        break
-                    except asyncio.TimeoutError:
-                        continue
-                
-                emoji = emojis[counter % len(emojis)]
-                # Асинхронное обновление сообщения
-                await safe_edit_message_text(self.user_id, self.hourglass_msg_id, f"{emoji} {self.messages.DOWNLOAD_STATUS_PLEASE_WAIT_MSG}")
-                last_update = current_time
-                counter += 1
-                
-            except Exception as e:
-                logger.error(f"Hourglass animation error: {e}")
-                break
 
     def _animate(self):
         """Internal animation method"""
@@ -143,29 +188,18 @@ class AsyncHourglassManager:
                     continue
                 
                 emoji = emojis[counter % len(emojis)]
-                # Attempt to edit message but don't keep trying if message is invalid
-                try:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    result = loop.run_until_complete(safe_edit_message_text(self.user_id, self.hourglass_msg_id, f"{emoji} {self.messages.DOWNLOAD_STATUS_PLEASE_WAIT_MSG}"))
-                    loop.close()
-                except Exception as e:
-                    logger.error("Error editing hourglass message: %s", e)
-                    result = None
-
-                # If message edit returns None due to MESSAGE_ID_INVALID, stop animation
-                if result is None and counter > 0:  # Allow first attempt to fail
-                    active = False
-                    break
-
+                # Use progress queue for reliable updates
+                progress_queue.add_update(
+                    self.user_id, 
+                    self.hourglass_msg_id, 
+                    f"{emoji} {self.messages.DOWNLOAD_STATUS_PLEASE_WAIT_MSG}"
+                )
+                
                 counter += 1
                 last_update = current_time
-                # Use Event.wait() instead of time.sleep() for interruptible sleep
-                if self.stop_event.wait(1.0):
-                    break
+                
             except Exception as e:
                 logger.error(f"Error in hourglass animation: {e}")
-                # Stop animation on error to prevent log spam
                 active = False
                 break
 
@@ -246,41 +280,26 @@ class CycleProgressManager:
                     percent = (downloaded / total * 100) if total else 0
                     blocks = int(percent // 10)
                     bar = "🟩" * blocks + "⬜️" * (10 - blocks)
-                    try:
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        result = loop.run_until_complete(safe_edit_message_text(self.user_id, self.proc_msg_id,
-                            f"{self.current_total_process}\n{self.messages.DOWNLOAD_STATUS_DOWNLOADING_HLS_MSG}\n{bar}   {percent:.1f}%"))
-                        loop.close()
-                    except Exception as e:
-                        logger.error("Error editing cycle progress message: %s", e)
-                        result = None
+                    # Use progress queue for reliable updates
+                    progress_queue.add_update(
+                        self.user_id, 
+                        self.proc_msg_id,
+                        f"{self.current_total_process}\n{self.messages.DOWNLOAD_STATUS_DOWNLOADING_HLS_MSG}\n{bar}   {percent:.1f}%"
+                    )
                 else:
                     # Fallback to fragment-based animation
                     bar = "🟩" * counter + "⬜️" * (10 - counter)
-                    try:
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        result = loop.run_until_complete(safe_edit_message_text(self.user_id, self.proc_msg_id,
-                            f"{self.current_total_process}\n{self.messages.DOWNLOAD_STATUS_DOWNLOADING_HLS_MSG} {frag_text}\n{bar}"))
-                        loop.close()
-                    except Exception as e:
-                        logger.error("Error editing cycle progress message: %s", e)
-                        result = None
-
-                # If message was deleted (returns None), stop animation
-                if result is None and counter > 2:  # Allow first few attempts to fail
-                    active = False
-                    break
+                    # Use progress queue for reliable updates
+                    progress_queue.add_update(
+                        self.user_id, 
+                        self.proc_msg_id,
+                        f"{self.current_total_process}\n{self.messages.DOWNLOAD_STATUS_DOWNLOADING_HLS_MSG} {frag_text}\n{bar}"
+                    )
 
                 last_update = current_time
-                # Use Event.wait() instead of time.sleep() for interruptible sleep
-                if self.stop_event.wait(1.0):
-                    break
-
+                
             except Exception as e:
                 logger.warning(f"Cycle progress error: {e}")
-                # Stop animation on consistent errors to prevent log spam
                 active = False
                 break
 
@@ -390,29 +409,18 @@ def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
                     continue
                 
                 emoji = emojis[counter % len(emojis)]
-                # Attempt to edit message but don't keep trying if message is invalid
-                try:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    result = loop.run_until_complete(safe_edit_message_text(user_id, hourglass_msg_id, f"{emoji} {messages.DOWNLOAD_STATUS_PLEASE_WAIT_MSG}"))
-                    loop.close()
-                except Exception as e:
-                    logger.error("Error editing hourglass message: %s", e)
-                    result = None
-
-                # If message edit returns None due to MESSAGE_ID_INVALID, stop animation
-                if result is None and counter > 0:  # Allow first attempt to fail
-                    active = False
-                    break
-
+                # Use progress queue for reliable updates
+                progress_queue.add_update(
+                    user_id, 
+                    hourglass_msg_id, 
+                    f"{emoji} {messages.DOWNLOAD_STATUS_PLEASE_WAIT_MSG}"
+                )
+                
                 counter += 1
                 last_update = current_time
-                # Use Event.wait() instead of time.sleep() for interruptible sleep
-                if stop_anim.wait(1.0):
-                    break
+                
             except Exception as e:
                 logger.error(f"Error in hourglass animation: {e}")
-                # Stop animation on error to prevent log spam
                 active = False
                 break
 
@@ -444,7 +452,7 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
         The animation thread
     """
 
-    async def cycle_progress():
+    def cycle_progress():
         messages = safe_get_messages(user_id)
         """Show progress animation for HLS downloads"""
         counter = 0
@@ -493,37 +501,32 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
                     percent = (downloaded / total * 100) if total else 0
                     blocks = int(percent // 10)
                     bar = "🟩" * blocks + "⬜️" * (10 - blocks)
-                    result = await safe_edit_message_text(user_id, proc_msg_id,
-                        f"{current_total_process}\n{messages.DOWNLOAD_STATUS_DOWNLOADING_HLS_MSG}\n{bar}   {percent:.1f}%")
+                    # Use progress queue for reliable updates
+                    progress_queue.add_update(
+                        user_id, 
+                        proc_msg_id,
+                        f"{current_total_process}\n{messages.DOWNLOAD_STATUS_DOWNLOADING_HLS_MSG}\n{bar}   {percent:.1f}%"
+                    )
                 else:
                     # Fallback to fragment-based animation
                     bar = "🟩" * counter + "⬜️" * (10 - counter)
-                    result = await safe_edit_message_text(user_id, proc_msg_id,
-                        f"{current_total_process}\n{messages.DOWNLOAD_STATUS_DOWNLOADING_HLS_MSG} {frag_text}\n{bar}")
-
-                # If message was deleted (returns None), stop animation
-                if result is None and counter > 2:  # Allow first few attempts to fail
-                    active = False
-                    break
+                    # Use progress queue for reliable updates
+                    progress_queue.add_update(
+                        user_id, 
+                        proc_msg_id,
+                        f"{current_total_process}\n{messages.DOWNLOAD_STATUS_DOWNLOADING_HLS_MSG} {frag_text}\n{bar}"
+                    )
 
                 last_update = current_time
-                # Use Event.wait() instead of time.sleep() for interruptible sleep
-                if cycle_stop.wait(1.0):
-                    break
-
+                
             except Exception as e:
                 logger.warning(f"Cycle progress error: {e}")
-                # Stop animation on consistent errors to prevent log spam
                 active = False
                 break
 
         logger.debug(f"Cycle progress animation stopped for message {proc_msg_id}")
-
-    def sync_cycle_progress():
-        import asyncio
-        asyncio.run(cycle_progress())
     
-    cycle_thread = threading.Thread(target=sync_cycle_progress, daemon=True)
+    cycle_thread = threading.Thread(target=cycle_progress, daemon=True)
     cycle_thread.start()
     return cycle_thread
 
@@ -545,8 +548,24 @@ async def progress_bar(*args):
         blocks = int(percent // 10)
         bar = "🟩" * blocks + "⬜️" * (10 - blocks)
         text = f"{status_text}\n{bar}   {percent:.1f}%"
-        # Use safe_edit_message_text instead of direct app.edit_message_text
-        await safe_edit_message_text(user_id, msg_id, text)
+        # Use progress queue for reliable updates
+        progress_queue.add_update(user_id, msg_id, text)
         _last_upload_update_ts[key] = now
     except Exception as e:
         logger.error(f"Error updating progress: {e}")
+
+# Helper function to update progress directly
+def update_progress(user_id, msg_id, text):
+    """Update progress message using the reliable queue system"""
+    try:
+        progress_queue.add_update(user_id, msg_id, text)
+    except Exception as e:
+        logger.error(f"Error adding progress update to queue: {e}")
+
+# Helper function to clear progress updates
+def clear_progress_updates(user_id, msg_id):
+    """Clear progress updates for a specific message"""
+    try:
+        progress_queue.clear_update(user_id, msg_id)
+    except Exception as e:
+        logger.error(f"Error clearing progress updates: {e}")
