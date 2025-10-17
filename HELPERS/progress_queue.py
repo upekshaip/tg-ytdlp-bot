@@ -93,21 +93,27 @@ class GlobalProgressQueue:
             progress = self.get_progress(user_id)
             if progress:
                 msg_id, progress_text = progress
-                # Use asyncio.to_thread to handle async function in sync context
-                import asyncio
+                # Use threading to avoid event loop conflicts
+                import threading
                 from HELPERS.safe_messeger import safe_edit_message_text
-                try:
-                    # Run async function in new event loop to avoid conflicts
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
+                
+                def run_async_in_thread():
                     try:
-                        loop.run_until_complete(safe_edit_message_text(user_id, msg_id, progress_text))
-                        logger.info("Progress updated for user %s: %s", user_id, progress_text)
-                    finally:
-                        loop.close()
-                        asyncio.set_event_loop(None)
-                except Exception as e:
-                    logger.error("Progress update error for user %s: %s", user_id, e)
+                        import asyncio
+                        # Create new event loop in thread
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        try:
+                            loop.run_until_complete(safe_edit_message_text(user_id, msg_id, progress_text))
+                            logger.info("Progress updated for user %s: %s", user_id, progress_text)
+                        finally:
+                            loop.close()
+                    except Exception as e:
+                        logger.error("Progress update error for user %s: %s", user_id, e)
+                
+                # Run in background thread
+                thread = threading.Thread(target=run_async_in_thread, daemon=True)
+                thread.start()
                 return True
             return False
         except Exception as e:

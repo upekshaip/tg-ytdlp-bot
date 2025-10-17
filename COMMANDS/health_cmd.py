@@ -1,15 +1,9 @@
 # Health Check Command
-from pyrogram import filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from HELPERS.app_instance import get_app
 from HELPERS.logger import logger
 from HELPERS.safe_messeger import safe_send_message
-from CONFIG.messages import safe_get_messages
 from CONFIG.config import Config
 
-app = get_app()
-
-@app.on_message(filters.command("health") & filters.private)
 async def health_command(app, message):
     """Health check command for admins"""
     user_id = message.chat.id
@@ -69,7 +63,6 @@ async def health_command(app, message):
             message=message
         )
 
-@app.on_callback_query(filters.regex(r"^health_"))
 async def health_callback(app, callback_query):
     """Handle health check callbacks"""
     user_id = callback_query.from_user.id
