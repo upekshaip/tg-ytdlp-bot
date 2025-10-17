@@ -822,11 +822,8 @@ async def down_and_up(app, message, url, playlist_name, video_count, video_start
                                     import asyncio
                                     loop = asyncio.new_event_loop()
                                     asyncio.set_event_loop(loop)
-                                    loop.run_until_complete(app.edit_message_text(
-                                        chat_id=user_id,
-                                        message_id=proc_msg_id,
-                                        text=progress_text,
-                                        parse_mode="HTML"
+                                    loop.run_until_complete(safe_edit_message_text(
+                                        user_id, proc_msg_id, progress_text, parse_mode="HTML"
                                     ))
                                     logger.info(f"Progress updated directly for user {user_id}: {percent:.1f}%")
                                 except Exception as e:
