@@ -5,6 +5,7 @@ import time
 import os
 import re
 from CONFIG.config import Config
+from CONFIG.limits import LimitsConfig
 from CONFIG.messages import Messages, safe_get_messages
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger
@@ -114,6 +115,13 @@ def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
             try:
                 current_time = time.time()
                 elapsed = current_time - start_time
+                
+                # HARD LIMIT: Force stop animation after MAX_ANIMATION_DURATION
+                if elapsed > LimitsConfig.MAX_ANIMATION_DURATION:
+                    logger.warning(f"Hourglass animation force-stopped after {LimitsConfig.MAX_ANIMATION_DURATION}s for user {user_id}")
+                    active = False
+                    break
+                
                 minutes_passed = int(elapsed // 60)
                 
                 # Adaptive animation interval (linear slow-down every 5 minutes)
@@ -185,6 +193,13 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
             try:
                 current_time = time.time()
                 elapsed = current_time - start_time
+                
+                # HARD LIMIT: Force stop animation after MAX_ANIMATION_DURATION
+                if elapsed > LimitsConfig.MAX_ANIMATION_DURATION:
+                    logger.warning(f"Cycle progress animation force-stopped after {LimitsConfig.MAX_ANIMATION_DURATION}s for user {user_id}")
+                    active = False
+                    break
+                
                 minutes_passed = int(elapsed // 60)
                 
                 # Adaptive update interval (linear; after 1h fixed 90s)

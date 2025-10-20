@@ -125,7 +125,7 @@ def determine_need_subs(subs_enabled, found_type, user_id):
         return (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
 
 #@reply_with_keyboard
-def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None, cookies_already_checked=False, use_proxy=False):
+def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None, cookies_already_checked=False, use_proxy=False, cached_video_info=None):
     messages = safe_get_messages(message.chat.id)
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
@@ -170,7 +170,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     if format_override and '/bestaudio' in format_override:
         logger.info(f"Audio-only format detected in down_and_up: {format_override}, redirecting to down_and_audio")
         from DOWN_AND_UP.down_and_audio import down_and_audio
-        down_and_audio(app, message, url, tags_text, quality_key=quality_key, format_override=format_override, cookies_already_checked=cookies_already_checked)
+        # Pass cached video info to down_and_audio for optimization
+        down_and_audio(app, message, url, tags_text, quality_key=quality_key, format_override=format_override, cookies_already_checked=cookies_already_checked, cached_video_info=cached_video_info)
         return
     
     # Check if LINK mode is enabled - if yes, get direct link instead of downloading
@@ -455,8 +456,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         # затем оцениваем по битрейту и длительности, в крайнем случае 2 ГБ.
         required_bytes = 2 * 1024 * 1024 * 1024
         try:
-            from DOWN_AND_UP.yt_dlp_hook import get_video_formats
-            info_probe = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked)
+            # Try to use cached info first for size check
+            if cached_video_info:
+                info_probe = cached_video_info
+                logger.info(f"✅ [OPTIMIZATION] Using cached video info for size check")
+            else:
+                from DOWN_AND_UP.yt_dlp_hook import get_video_formats
+                info_probe = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked)
+                logger.info(f"⚠️ [OPTIMIZATION] Had to fetch video info for size check")
             size = 0
             if isinstance(info_probe, dict):
                 size = info_probe.get('filesize') or info_probe.get('filesize_approx') or 0
@@ -1079,12 +1086,16 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 logger.info(f"Starting yt-dlp extraction for URL: {url}")
                 logger.info(f"yt-dlp options: {ytdl_opts}")
                 
-                # First, check if the requested format is available using the same method as always_ask_menu
-                from DOWN_AND_UP.yt_dlp_hook import get_video_formats
-                
-                logger.info("Checking available formats...")
-                check_info = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked, use_proxy=use_proxy)
-                logger.info("Format check completed")
+                # First, check if the requested format is available using cached info or get_video_formats
+                check_info = None
+                if cached_video_info:
+                    check_info = cached_video_info
+                    logger.info("✅ [OPTIMIZATION] Using cached video info for format check")
+                else:
+                    from DOWN_AND_UP.yt_dlp_hook import get_video_formats
+                    logger.info("Checking available formats...")
+                    check_info = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked, use_proxy=use_proxy)
+                    logger.info("Format check completed")
                 
                 # Check if requested format exists
                 requested_format = attempt_opts.get('format', '')

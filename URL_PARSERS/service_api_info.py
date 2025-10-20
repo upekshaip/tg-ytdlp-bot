@@ -57,8 +57,13 @@ def _load_cookies_for_user(user_id: int) -> Optional[str]:
 def _create_session_with_cookies(user_id: int = None) -> requests.Session:
     """
     Создает сессию requests с куки пользователя.
+    Uses managed session for automatic cleanup.
     """
-    session = requests.Session()
+    from HELPERS.http_manager import get_managed_session
+    
+    session_name = f"api-info-{user_id}" if user_id else "api-info-global"
+    manager = get_managed_session(session_name)
+    session = manager.get_session()
     
     # Устанавливаем заголовки
     session.headers.update(DEFAULT_HEADERS)
