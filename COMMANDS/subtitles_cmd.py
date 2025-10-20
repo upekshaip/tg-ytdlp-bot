@@ -478,7 +478,8 @@ def subs_always_ask_callback(app, callback_query):
 
 @app.on_callback_query(filters.regex(r"^subs_lang_close\|"))
 def subs_lang_close_callback(app, callback_query):
-    messages = safe_get_messages(None)
+    user_id = callback_query.from_user.id
+    messages = safe_get_messages(user_id)
     data = callback_query.data.split("|")[1]
     if data == "close":
         try:
@@ -557,11 +558,6 @@ def check_subs_availability(url, user_id, quality_key=None, return_type=False):
 
         _subs_check_cache[cache_key] = result
         return result
-
-    except Exception as e:
-        logger.error(f"Error checking subtitle availability: {e}")
-        return False if not return_type else None
-
 
     except Exception as e:
         logger.error(f"Error checking subtitle availability: {e}")
@@ -681,8 +677,8 @@ def ensure_utf8_srt(srt_path):
         decoded_text = raw.decode('utf-8', errors='replace')
         successful_encoding = 'utf-8 (force)'
 
-    # We check if there are spray bars in the text (replacement symbols)
-    if '' in decoded_text or '?' in decoded_text:
+    # We check if there are replacement symbols in the text (Unicode replacement char or '?')
+    if '\ufffd' in decoded_text or '?' in decoded_text:
         logger.warning(f"{LoggerMsg.SUBS_REPLACEMENT_CHARACTERS_FOUND_LOG_MSG}")
         
         # We try again with other encodings, ignoring the already tried

@@ -5240,7 +5240,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
             logger.error(f"Error creating cached qualities menu: {cache_error}")
         
         # Если кэшированных качеств нет, показываем ошибку
-        error_text = f"{safe_get_messages(user_id).ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_MSG}\n<blockquote>Ошибка получения информации о видео</blockquote>\n\n{safe_get_messages(user_id).ALWAYS_ASK_TRY_CLEAN_COMMAND_MSG}"
+        error_text = f"{safe_get_messages(user_id).ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_MSG}\n<blockquote>{safe_get_messages(user_id).ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_SHORT_MSG}</blockquote>\n\n{safe_get_messages(user_id).ALWAYS_ASK_TRY_CLEAN_COMMAND_MSG}"
         
         # Try to edit the processing message to show error first
         try:
@@ -5248,16 +5248,16 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 result = app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=error_text, parse_mode=enums.ParseMode.HTML)
                 if result is not None:
                     # Successfully edited the processing message, now log to channel
-                    log_error_to_channel(message, safe_get_messages(user_id).ALWAYS_ASK_MENU_ERROR_LOG_MSG.format(url=url, error="Ошибка получения информации о видео"), url)
+                    log_error_to_channel(message, safe_get_messages(user_id).ALWAYS_ASK_MENU_ERROR_LOG_MSG.format(url=url, error=safe_get_messages(user_id).ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_SHORT_MSG), url)
                     return
         except Exception as e2:
             logger.error(f"Error editing processing message: {e2}")
         
         # If editing failed or no proc_msg, send new message to user
-        logger.error(f"Always Ask menu error for user {user_id}: Ошибка получения информации о видео")
+        logger.error(f"Always Ask menu error for user {user_id}: {safe_get_messages(user_id).ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_SHORT_MSG}")
         from HELPERS.safe_messeger import safe_send_message
         safe_send_message(user_id, error_text, parse_mode=enums.ParseMode.HTML, message=message)
-        log_error_to_channel(message, safe_get_messages(user_id).ALWAYS_ASK_MENU_ERROR_LOG_MSG.format(url=url, error="Ошибка получения информации о видео"), url)
+        log_error_to_channel(message, safe_get_messages(user_id).ALWAYS_ASK_MENU_ERROR_LOG_MSG.format(url=url, error=safe_get_messages(user_id).ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_SHORT_MSG), url)
         return
 
 def askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs, proc_msg=None):

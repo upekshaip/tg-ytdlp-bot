@@ -1270,6 +1270,7 @@ class Messages(object):
     ALWAYS_ASK_NO_MEDIA_FOUND_MSG = "Медиа не найдено"
     ALWAYS_ASK_THIS_TWEET_DOES_NOT_CONTAIN_MSG = "Этот твит не содержит"
     ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_MSG = "❌ <b>Ошибка получения информации о видео:</b>"
+    ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_SHORT_MSG = "Ошибка получения информации о видео"
     ALWAYS_ASK_TRY_CLEAN_COMMAND_MSG = "Попробуйте команду <code>/clean</code> и попробуйте снова. Если ошибка сохраняется, YouTube требует авторизации. Обновите cookies.txt через <code>/cookie</code> или <code>/cookies_from_browser</code> и попробуйте снова."
     ALWAYS_ASK_MENU_CLOSED_MSG = "Меню закрыто."
     ALWAYS_ASK_MANUAL_QUALITY_SELECTION_MSG = "🎛 Ручной выбор качества"

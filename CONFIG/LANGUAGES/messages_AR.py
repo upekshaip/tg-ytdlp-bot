@@ -1270,6 +1270,7 @@ class Messages(object):
     ALWAYS_ASK_NO_MEDIA_FOUND_MSG = "لم يتم العثور على وسائط"
     ALWAYS_ASK_THIS_TWEET_DOES_NOT_CONTAIN_MSG = "هذه التغريدة لا تحتوي على"
     ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_MSG = "❌ <b>خطأ في استرجاع معلومات الفيديو:</b>"
+    ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_SHORT_MSG = "خطأ في استرجاع معلومات الفيديو"
     ALWAYS_ASK_TRY_CLEAN_COMMAND_MSG = "جرب أمر <code>/clean</code> وحاول مرة أخرى. إذا استمر الخطأ، يتطلب YouTube تفويضاً. حدث ملف cookies.txt عبر <code>/cookie</code> أو <code>/cookies_from_browser</code> وحاول مرة أخرى."
     ALWAYS_ASK_MENU_CLOSED_MSG = "تم إغلاق القائمة."
     ALWAYS_ASK_MANUAL_QUALITY_SELECTION_MSG = "🎛 اختيار الجودة اليدوي"
