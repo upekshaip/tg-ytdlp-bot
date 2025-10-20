@@ -169,35 +169,38 @@ def is_porn(url, title, description, caption=None):
                 logger.info(f"is_porn: white keyword match found, content considered clean: {white_pattern.pattern}")
                 return False
 
-    # 6. Preparing a regex pattern with a list of keywords
-    kws = [re.escape(kw.lower()) for kw in PORN_KEYWORDS if kw.strip()]
-    if not kws:
+    # 6. Preparing regex patterns
+    # For text fields we use word boundaries with escaped keywords
+    text_kws = [re.escape(kw.lower()) for kw in PORN_KEYWORDS if kw.strip()]
+    # For URL checks we need raw lowercase keywords to build custom delimiter-aware patterns
+    url_kws = [kw.lower() for kw in PORN_KEYWORDS if kw.strip()]
+    if not text_kws:
         # There is not a single valid key
         return False
 
     # 7. Check for keyword matches in text fields (with word boundaries)
-    text_pattern = re.compile(r"\b(" + "|".join(kws) + r")\b", flags=re.IGNORECASE)
+    text_pattern = re.compile(r"\b(" + "|".join(text_kws) + r")\b", flags=re.IGNORECASE)
     if text_pattern.search(" ".join([title_lower, description_lower, caption_lower])):
         logger.info(f"is_porn: keyword match in text fields (regex): {text_pattern.pattern}")
         return True
 
-    # 8. Check for keyword matches in URL (with spaces replaced by underscores and dashes)
-    # Create URL-specific patterns for each keyword
-    for keyword in kws:
-        # Create patterns with spaces replaced by underscores and dashes
-        url_patterns = [
-            keyword,  # original keyword
-            keyword.replace(' ', '_'),  # spaces to underscores
-            keyword.replace(' ', '-'),  # spaces to dashes
-            keyword.replace(' ', '_').replace('-', '_'),  # both underscores and dashes
-            keyword.replace(' ', '-').replace('_', '-'),  # both dashes and underscores
-        ]
-        
-        # Create a pattern that matches any of these variations
-        url_pattern = re.compile("|".join([re.escape(p) for p in url_patterns]), flags=re.IGNORECASE)
-        
+    # 8. Check for keyword matches in URL with delimiter-aware patterns
+    # We only trigger when keyword is delimited on both sides by non-alphanumeric chars (e.g. _, -, symbols) or string edges.
+    def _compile_url_keyword_regex(raw_keyword: str) -> re.Pattern:
+        words = [re.escape(w) for w in raw_keyword.split() if w]
+        if not words:
+            # Fallback: compile something that never matches
+            return re.compile(r"a^")
+        # allow ANY non-alphanumeric delimiters between words inside URL
+        joiner = r"[^A-Za-z0-9]+"
+        core = joiner.join(words)
+        # Require non-alphanumeric (or start/end) around the whole keyword
+        return re.compile(rf"(?<![A-Za-z0-9])(?:{core})(?![A-Za-z0-9])", flags=re.IGNORECASE)
+
+    for raw_kw in url_kws:
+        url_pattern = _compile_url_keyword_regex(raw_kw)
         if url_pattern.search(url_lower):
-            logger.info(f"is_porn: keyword match in URL: {keyword} (patterns: {url_patterns})")
+            logger.info(f"is_porn: keyword match in URL with delimiters: {raw_kw}")
             return True
 
     logger.info("is_porn: no keyword matches found")
@@ -252,34 +255,32 @@ def check_porn_detailed(url, title, description, caption=None):
                 return False, " | ".join(explanation_parts)
 
     # 5. Check for porn keywords in text fields
-    kws = [re.escape(kw.lower()) for kw in PORN_KEYWORDS if kw.strip()]
-    if not kws:
+    text_kws = [re.escape(kw.lower()) for kw in PORN_KEYWORDS if kw.strip()]
+    if not text_kws:
         explanation_parts.append("ℹ️ No porn keywords loaded")
         return False, " | ".join(explanation_parts)
 
     # Check text fields with word boundaries
-    text_pattern = re.compile(r"\b(" + "|".join(kws) + r")\b", flags=re.IGNORECASE)
+    text_pattern = re.compile(r"\b(" + "|".join(text_kws) + r")\b", flags=re.IGNORECASE)
     text_matches = text_pattern.findall(combined)
     
     if text_matches:
         explanation_parts.append(messages.PORN_KEYWORDS_FOUND_MSG.format(keywords=', '.join(set(text_matches))))
         return True, " | ".join(explanation_parts)
 
-    # 6. Check for porn keywords in URL (with spaces replaced by underscores and dashes)
+    # 6. Check for porn keywords in URL with delimiter-aware patterns
     url_matches = []
-    for keyword in kws:
-        # Create patterns with spaces replaced by underscores and dashes
-        url_patterns = [
-            keyword,  # original keyword
-            keyword.replace(' ', '_'),  # spaces to underscores
-            keyword.replace(' ', '-'),  # spaces to dashes
-            keyword.replace(' ', '_').replace('-', '_'),  # both underscores and dashes
-            keyword.replace(' ', '-').replace('_', '-'),  # both dashes and underscores
-        ]
-        
-        # Create a pattern that matches any of these variations
-        url_pattern = re.compile("|".join([re.escape(p) for p in url_patterns]), flags=re.IGNORECASE)
-        
+    def _compile_url_keyword_regex(raw_keyword: str) -> re.Pattern:
+        words = [re.escape(w) for w in raw_keyword.split() if w]
+        if not words:
+            return re.compile(r"a^")
+        # allow ANY non-alphanumeric delimiters between words inside URL
+        joiner = r"[^A-Za-z0-9]+"
+        core = joiner.join(words)
+        return re.compile(rf"(?<![A-Za-z0-9])(?:{core})(?![A-Za-z0-9])", flags=re.IGNORECASE)
+
+    for raw_kw in [kw.lower() for kw in PORN_KEYWORDS if kw.strip()]:
+        url_pattern = _compile_url_keyword_regex(raw_kw)
         matches = url_pattern.findall(url_lower)
         if matches:
             url_matches.extend(matches)

@@ -169,8 +169,8 @@ class Messages(object):
         "</pre>\n"
         "<blockquote>"
         "<b><u>निर्देश:</u></b>\n"
-        "https://t.me/c/2303231066/18 \n"
-        "https://t.me/c/2303231066/22 "
+        "https://t.me/tg_ytdlp/203 \n"
+        "https://t.me/tg_ytdlp/214 "
         "</blockquote>"
     )
     
@@ -1335,7 +1335,7 @@ class Messages(object):
     # Error messages
     ERROR_CHECK_SUPPORTED_SITES_MSG = "यहां <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>जांचें</a> कि क्या आपकी साइट समर्थित है"
     ERROR_COOKIE_NEEDED_MSG = "इस वीडियो को डाउनलोड करने के लिए आपको <code>cookie</code> की आवश्यकता हो सकती है। पहले <b>/clean</b> कमांड के माध्यम से अपना कार्यक्षेत्र साफ़ करें"
-    ERROR_COOKIE_INSTRUCTIONS_MSG = "YouTube के लिए - <b>/cookie</b> कमांड के माध्यम से <code>cookie</code> प्राप्त करें। किसी अन्य समर्थित साइट के लिए - अपना स्वयं का cookie भेजें (<a href='https://t.me/c/2303231066/18'>गाइड1</a>) (<a href='https://t.me/c/2303231066/22'>गाइड2</a>) और उसके बाद अपना वीडियो लिंक फिर से भेजें।"
+    ERROR_COOKIE_INSTRUCTIONS_MSG = "YouTube के लिए - <b>/cookie</b> कमांड के माध्यम से <code>cookie</code> प्राप्त करें। किसी अन्य समर्थित साइट के लिए - अपना स्वयं का cookie भेजें (<a href='https://t.me/tg_ytdlp/203'>गाइड1</a>) (<a href='https://t.me/tg_ytdlp/214'>गाइड2</a>) और उसके बाद अपना वीडियो लिंक फिर से भेजें।"
     CHOOSE_SUBTITLE_LANGUAGE_MSG = "उपशीर्षक भाषा चुनें"
     NO_ALTERNATIVE_AUDIO_LANGUAGES_MSG = "कोई वैकल्पिक ऑडियो भाषाएं नहीं"
     CHOOSE_AUDIO_LANGUAGE_MSG = "ऑडियो भाषा चुनें"
