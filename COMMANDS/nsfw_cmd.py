@@ -16,8 +16,8 @@ from HELPERS.limitter import is_user_in_channel
 app = get_app()
 
 # Like mediainfo: handle private here; groups are registered/wrapped in magic.py
-# @app.on_message(filters.command("nsfw"))
-async def nsfw_command(app, message):
+@app.on_message(filters.command("nsfw"))
+def nsfw_command(app, message):
     messages = safe_get_messages(message.chat.id)
     chat_id = message.chat.id
     chat_type = getattr(message.chat, "type", None)
@@ -25,14 +25,14 @@ async def nsfw_command(app, message):
     user_id = getattr(message.from_user, "id", None) or chat_id
     storage_id = chat_id
     is_admin = int(user_id) in Config.ADMIN
-    is_in_channel = await is_user_in_channel(app, message)
+    is_in_channel = is_user_in_channel(app, message)
     logger.info(LoggerMsg.NSFW_USER_REQUESTED_COMMAND_LOG_MSG.format(user_id=user_id))
     logger.info(LoggerMsg.NSFW_USER_IS_ADMIN_LOG_MSG.format(user_id=user_id, is_admin=is_admin))
     logger.info(LoggerMsg.NSFW_USER_IS_IN_CHANNEL_LOG_MSG.format(user_id=user_id, is_in_channel=is_in_channel))
     
     # In private chats: require subscription (like mediainfo). In allowed groups: bypass (wrapper in magic.py filters groups).
     if chat_type == enums.ChatType.PRIVATE:
-        if int(user_id) not in Config.ADMIN and not await is_user_in_channel(app, message):
+        if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
             logger.info(f"[NSFW] User {user_id} access denied - not admin and not in channel")
             return
     
@@ -51,14 +51,14 @@ async def nsfw_command(app, message):
                     f.write("ON" if arg == "on" else "OFF")
                 
                 if arg == "on":
-                    await safe_send_message(chat_id, safe_get_messages(user_id).NSFW_ON_MSG, parse_mode=enums.ParseMode.HTML, message=message)
+                    safe_send_message(chat_id, safe_get_messages(user_id).NSFW_ON_MSG, parse_mode=enums.ParseMode.HTML, message=message)
                 else:
-                    await safe_send_message(chat_id, safe_get_messages(user_id).NSFW_OFF_MSG, parse_mode=enums.ParseMode.HTML, message=message)
+                    safe_send_message(chat_id, safe_get_messages(user_id).NSFW_OFF_MSG, parse_mode=enums.ParseMode.HTML, message=message)
                 
-                await send_to_logger(message, safe_get_messages(user_id).NSFW_BLUR_SET_COMMAND_LOG_MSG.format(arg=arg))
+                send_to_logger(message, safe_get_messages(user_id).NSFW_BLUR_SET_COMMAND_LOG_MSG.format(arg=arg))
                 return
             else:
-                await safe_send_message(chat_id, safe_get_messages(user_id).NSFW_INVALID_MSG, parse_mode=enums.ParseMode.HTML, message=message)
+                safe_send_message(chat_id, safe_get_messages(user_id).NSFW_INVALID_MSG, parse_mode=enums.ParseMode.HTML, message=message)
                 return
     except Exception as e:
         logger.error(f"Error processing nsfw command: {e}")
@@ -77,18 +77,18 @@ async def nsfw_command(app, message):
     keyboard = InlineKeyboardMarkup(buttons)
     
     status_text = "currently blurred" if current_setting else "currently not blurred"
-    await safe_send_message(
+    safe_send_message(
         chat_id,
 safe_get_messages(user_id).NSFW_BLUR_SETTINGS_TITLE_MSG.format(status=status_text),
         reply_markup=keyboard,
         parse_mode=enums.ParseMode.HTML,
         message=message
     )
-    await send_to_logger(message, safe_get_messages(user_id).NSFW_MENU_OPENED_LOG_MSG)
+    send_to_logger(message, safe_get_messages(user_id).NSFW_MENU_OPENED_LOG_MSG)
 
 
-# @app.on_callback_query(filters.regex(r"^nsfw_option\|"))
-async def nsfw_option_callback(app, callback_query):
+@app.on_callback_query(filters.regex(r"^nsfw_option\|"))
+def nsfw_option_callback(app, callback_query):
     user_id = callback_query.from_user.id
     messages = safe_get_messages(user_id)
     logger.info(f"[NSFW] callback: {callback_query.data}")
@@ -103,23 +103,23 @@ async def nsfw_option_callback(app, callback_query):
     
     if callback_query.data == "nsfw_option|close":
         try:
-            await callback_query.message.delete()
+            callback_query.message.delete()
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
         try:
-            await callback_query.answer(safe_get_messages(user_id).NSFW_MENU_CLOSED_MSG)
+            callback_query.answer(safe_get_messages(user_id).NSFW_MENU_CLOSED_MSG)
         except Exception:
             pass
-        await send_to_logger(callback_query.message, safe_get_messages(user_id).NSFW_MENU_CLOSED_LOG_MSG)
+        send_to_logger(callback_query.message, safe_get_messages(user_id).NSFW_MENU_CLOSED_LOG_MSG)
         return
     
     if data == "on":
         with open(nsfw_file, "w", encoding="utf-8") as f:
             f.write("ON")
-        await safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, safe_get_messages(user_id).NSFW_ON_MSG, parse_mode=enums.ParseMode.HTML)
-        await send_to_logger(callback_query.message, safe_get_messages(user_id).NSFW_BLUR_DISABLED_MSG)
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, safe_get_messages(user_id).NSFW_ON_MSG, parse_mode=enums.ParseMode.HTML)
+        send_to_logger(callback_query.message, safe_get_messages(user_id).NSFW_BLUR_DISABLED_MSG)
         try:
-            await callback_query.answer(safe_get_messages(user_id).NSFW_BLUR_DISABLED_CALLBACK_MSG)
+            callback_query.answer(safe_get_messages(user_id).NSFW_BLUR_DISABLED_CALLBACK_MSG)
         except Exception:
             pass
         return
@@ -127,10 +127,10 @@ async def nsfw_option_callback(app, callback_query):
     if data == "off":
         with open(nsfw_file, "w", encoding="utf-8") as f:
             f.write("OFF")
-        await safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, safe_get_messages(user_id).NSFW_OFF_MSG, parse_mode=enums.ParseMode.HTML)
-        await send_to_logger(callback_query.message, safe_get_messages(user_id).NSFW_BLUR_ENABLED_MSG)
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, safe_get_messages(user_id).NSFW_OFF_MSG, parse_mode=enums.ParseMode.HTML)
+        send_to_logger(callback_query.message, safe_get_messages(user_id).NSFW_BLUR_ENABLED_MSG)
         try:
-            await callback_query.answer(safe_get_messages(user_id).NSFW_BLUR_ENABLED_CALLBACK_MSG)
+            callback_query.answer(safe_get_messages(user_id).NSFW_BLUR_ENABLED_CALLBACK_MSG)
         except Exception:
             pass
         return

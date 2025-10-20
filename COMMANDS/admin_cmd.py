@@ -27,11 +27,12 @@ starting_point = [time.time()]
 # Get app instance for decorators
 app = get_app()
 
-async def reload_firebase_cache_command(app, message):
+@app.on_message(filters.command("reload_cache") & filters.private)
+def reload_firebase_cache_command(app, message):
     messages = safe_get_messages(message.chat.id)
     """The processor of command for rebooting the local cache Firebase"""
     if int(message.chat.id) not in Config.ADMIN:
-        await safe_send_message_with_auto_delete(message.chat.id, safe_get_messages(message.chat.id).ADMIN_ACCESS_DENIED_AUTO_DELETE_MSG, delete_after_seconds=60)
+        safe_send_message_with_auto_delete(message.chat.id, safe_get_messages(message.chat.id).ADMIN_ACCESS_DENIED_AUTO_DELETE_MSG, delete_after_seconds=60)
         return
     
     # Check if this is a fake message (called programmatically)
@@ -47,16 +48,16 @@ async def reload_firebase_cache_command(app, message):
         # Verify script exists
         if not os.path.exists(script_path):
             error_msg = safe_get_messages(message.chat.id).ADMIN_SCRIPT_NOT_FOUND_MSG.format(script_path=script_path)
-            await safe_send_message_with_auto_delete(message.chat.id, error_msg, delete_after_seconds=60)
-            await send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_SCRIPT_NOT_FOUND_LOG_MSG.format(script_path=script_path))
+            safe_send_message_with_auto_delete(message.chat.id, error_msg, delete_after_seconds=60)
+            send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_SCRIPT_NOT_FOUND_LOG_MSG.format(script_path=script_path))
             return
             
         # Send initial status message (skip for fake_message)
         status_msg = None
         if not is_fake_message:
-            status_msg = await safe_send_message(message.chat.id, safe_get_messages(message.chat.id).ADMIN_DOWNLOADING_MSG.format(script_path=script_path))
+            status_msg = safe_send_message(message.chat.id, safe_get_messages(message.chat.id).ADMIN_DOWNLOADING_MSG.format(script_path=script_path))
             if not status_msg:
-                await send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_FAILED_SEND_STATUS_LOG_MSG)
+                send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_FAILED_SEND_STATUS_LOG_MSG)
                 return
         
         result = subprocess.run([sys.executable, script_path], capture_output=True, text=True, encoding='utf-8', errors='replace', cwd=os.path.dirname(os.path.dirname(script_path)))
@@ -65,19 +66,19 @@ async def reload_firebase_cache_command(app, message):
             if is_fake_message:
                 # Do not send anything to chat on fake_message
                 from HELPERS.logger import log_error_to_channel
-                await log_error_to_channel(message, error_msg)
-                await send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_ERROR_RUNNING_SCRIPT_LOG_MSG.format(script_path=script_path, stdout=result.stdout, stderr=result.stderr))
+                log_error_to_channel(message, error_msg)
+                send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_ERROR_RUNNING_SCRIPT_LOG_MSG.format(script_path=script_path, stdout=result.stdout, stderr=result.stderr))
             else:
-                await safe_edit_message_text(message.chat.id, status_msg.id, error_msg)
+                safe_edit_message_text(message.chat.id, status_msg.id, error_msg)
                 # Schedule deletion after 60 seconds for real messages
-                async def delete_msg():
+                def delete_msg():
                     messages = safe_get_messages(message.chat.id)
                     time.sleep(60)
-                    await safe_delete_messages(message.chat.id, [status_msg.id])
+                    safe_delete_messages(message.chat.id, [status_msg.id])
                 threading.Thread(target=delete_msg, daemon=True).start()
                 from HELPERS.logger import log_error_to_channel
-                await log_error_to_channel(message, error_msg)
-                await send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_ERROR_RUNNING_SCRIPT_LOG_MSG.format(script_path=script_path, stdout=result.stdout, stderr=result.stderr))
+                log_error_to_channel(message, error_msg)
+                send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_ERROR_RUNNING_SCRIPT_LOG_MSG.format(script_path=script_path, stdout=result.stdout, stderr=result.stderr))
             return
         
         # Update status to reloading
@@ -85,7 +86,7 @@ async def reload_firebase_cache_command(app, message):
             # Do not send anything to chat on fake_message
             pass
         else:
-            await safe_edit_message_text(message.chat.id, status_msg.id, safe_get_messages(message.chat.id).ADMIN_RELOADING_CACHE_MSG)
+            safe_edit_message_text(message.chat.id, status_msg.id, safe_get_messages(message.chat.id).ADMIN_RELOADING_CACHE_MSG)
         
         # 2) Reload local cache into memory
         from DATABASE.cache_db import reload_firebase_cache as _reload_local
@@ -94,32 +95,32 @@ async def reload_firebase_cache_command(app, message):
             final_msg = safe_get_messages(message.chat.id).ADMIN_CACHE_RELOADED_MSG
             if is_fake_message:
                 # Only log to channel/logger
-                await send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_CACHE_RELOADED_AUTO_LOG_MSG)
+                send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_CACHE_RELOADED_AUTO_LOG_MSG)
             else:
-                await safe_edit_message_text(message.chat.id, status_msg.id, final_msg)
+                safe_edit_message_text(message.chat.id, status_msg.id, final_msg)
                 # Schedule deletion after 60 seconds for real messages
-                async def delete_msg():
+                def delete_msg():
                     time.sleep(60)
-                    await safe_delete_messages(message.chat.id, [status_msg.id])
+                    safe_delete_messages(message.chat.id, [status_msg.id])
                 threading.Thread(target=delete_msg, daemon=True).start()
-                await send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_CACHE_RELOADED_ADMIN_LOG_MSG)
+                send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_CACHE_RELOADED_ADMIN_LOG_MSG)
         else:
             cache_file = getattr(Config, 'FIREBASE_CACHE_FILE', 'firebase_cache.json')
             final_msg = safe_get_messages(message.chat.id).ADMIN_CACHE_FAILED_MSG.format(cache_file=cache_file)
             if is_fake_message:
                 # Only log to channel/logger
                 from HELPERS.logger import log_error_to_channel
-                await log_error_to_channel(message, final_msg)
-                await send_to_logger(message, final_msg)
+                log_error_to_channel(message, final_msg)
+                send_to_logger(message, final_msg)
             else:
-                await safe_edit_message_text(message.chat.id, status_msg.id, final_msg)
+                safe_edit_message_text(message.chat.id, status_msg.id, final_msg)
                 # Schedule deletion after 60 seconds for real messages
-                async def delete_msg():
+                def delete_msg():
                     time.sleep(60)
-                    await safe_delete_messages(message.chat.id, [status_msg.id])
+                    safe_delete_messages(message.chat.id, [status_msg.id])
                 threading.Thread(target=delete_msg, daemon=True).start()
                 from HELPERS.logger import log_error_to_channel
-                await log_error_to_channel(message, final_msg)
+                log_error_to_channel(message, final_msg)
     except Exception as e:
         # ГЛОБАЛЬНАЯ ЗАЩИТА: Убедимся, что messages инициализирована
         if 'messages' not in locals() or messages is None:
@@ -128,29 +129,29 @@ async def reload_firebase_cache_command(app, message):
             except Exception:
                 # Если все не удается, создаем минимальную защиту
                 class EmergencyMessages:
-                    async def __getattr__(self, name):
+                    def __getattr__(self, name):
                         return f"[{name}]"
                 messages = EmergencyMessages()
         error_msg = safe_get_messages(message.chat.id).ADMIN_ERROR_RELOADING_MSG.format(error=str(e))
         # Try to update the status message if it exists, otherwise send new message
         if 'status_msg' in locals() and status_msg and not is_fake_message:
-            await safe_edit_message_text(message.chat.id, status_msg.id, error_msg)
+            safe_edit_message_text(message.chat.id, status_msg.id, error_msg)
             # Schedule deletion after 60 seconds
-            async def delete_msg():
+            def delete_msg():
                 time.sleep(60)
-                await safe_delete_messages(message.chat.id, [status_msg.id])
+                safe_delete_messages(message.chat.id, [status_msg.id])
             threading.Thread(target=delete_msg, daemon=True).start()
         else:
             # For fake messages, do not send to chat; only log
             if not is_fake_message:
-                await safe_send_message_with_auto_delete(message.chat.id, error_msg, delete_after_seconds=60)
+                safe_send_message_with_auto_delete(message.chat.id, error_msg, delete_after_seconds=60)
         from HELPERS.logger import log_error_to_channel
-        await log_error_to_channel(message, error_msg)
-        await send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_ERROR_RELOADING_CACHE_LOG_MSG.format(error=str(e)))
+        log_error_to_channel(message, error_msg)
+        send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_ERROR_RELOADING_CACHE_LOG_MSG.format(error=str(e)))
 
 # SEND BRODCAST Message to All Users
 
-async def send_promo_message(app, message):
+def send_promo_message(app, message):
     messages = safe_get_messages(message.chat.id)
     # We get a list of users from the base
     user_nodes = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").get().each()
@@ -178,7 +179,7 @@ async def send_promo_message(app, message):
     # If the message is a reference, we get it
     reply = message.reply_to_message if message.reply_to_message else None
 
-    await send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_BROADCAST_INITIATED_LOG_MSG.format(broadcast_text=broadcast_text))
+    send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_BROADCAST_INITIATED_LOG_MSG.format(broadcast_text=broadcast_text))
 
     try:
         # We send a message to all users
@@ -189,9 +190,9 @@ async def send_promo_message(app, message):
                     if reply:
                         try:
                             if reply.text:
-                                await safe_send_message_async(user, reply.text)
+                                safe_send_message(user, reply.text)
                             elif reply.video:
-                                await app.send_video(user, reply.video.file_id, caption=reply.caption)
+                                app.send_video(user, reply.video.file_id, caption=reply.caption)
                             elif reply.photo:
                                 try:
                                     # Use supported API: take the largest available size's file_id
@@ -200,39 +201,39 @@ async def send_promo_message(app, message):
                                 except Exception:
                                     file_id = None
                                 if file_id:
-                                    await app.send_photo(user, file_id, caption=reply.caption)
+                                    app.send_photo(user, file_id, caption=reply.caption)
                                 else:
                                     # Fallback: try to forward original message with photo
                                     try:
-                                        await app.copy_message(chat_id=user, from_chat_id=message.chat.id, message_id=reply.id)
+                                        app.copy_message(chat_id=user, from_chat_id=message.chat.id, message_id=reply.id)
                                     except Exception:
                                         pass
                             elif reply.sticker:
-                                await app.send_sticker(user, reply.sticker.file_id)
+                                app.send_sticker(user, reply.sticker.file_id)
                             elif reply.document:
-                                await app.send_document(user, reply.document.file_id, caption=reply.caption)
+                                app.send_document(user, reply.document.file_id, caption=reply.caption)
                             elif reply.audio:
-                                await app.send_audio(user, reply.audio.file_id, caption=reply.caption)
+                                app.send_audio(user, reply.audio.file_id, caption=reply.caption)
                             elif reply.animation:
-                                await app.send_animation(user, reply.animation.file_id, caption=reply.caption)
+                                app.send_animation(user, reply.animation.file_id, caption=reply.caption)
                         except AttributeError as e:
                             logger.error(safe_get_messages(message.chat.id).ADMIN_ERROR_PROCESSING_REPLY_MSG.format(user=user, error=e))
                             continue
                     # If there is an additional text, we send it
                     if broadcast_text:
-                        await safe_send_message_async(user, broadcast_text)
+                        safe_send_message(user, broadcast_text)
             except Exception as e:
                 logger.error(safe_get_messages(message.chat.id).ADMIN_ERROR_SENDING_BROADCAST_MSG.format(user=user, error=e))
-        await send_to_all(message, safe_get_messages(message.chat.id).ADMIN_PROMO_SENT_MSG)
-        await send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_BROADCAST_SENT_LOG_MSG)
+        send_to_all(message, safe_get_messages(message.chat.id).ADMIN_PROMO_SENT_MSG)
+        send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_BROADCAST_SENT_LOG_MSG)
     except Exception as e:
-        await send_error_to_user(message, safe_get_messages(message.chat.id).ADMIN_CANNOT_SEND_PROMO_MSG)
-        await send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_BROADCAST_FAILED_LOG_MSG.format(error=str(e)))
+        send_error_to_user(message, safe_get_messages(message.chat.id).ADMIN_CANNOT_SEND_PROMO_MSG)
+        send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_BROADCAST_FAILED_LOG_MSG.format(error=str(e)))
 
 
 # Getting the User Logs
 
-async def get_user_log(app, message):
+def get_user_log(app, message):
     messages = safe_get_messages(message.chat.id)
     # Lazy import to avoid cycles
     from DATABASE.cache_db import get_from_local_cache
@@ -242,7 +243,7 @@ async def get_user_log(app, message):
 
     logs_dict = get_from_local_cache(["bot", Config.BOT_NAME_FOR_USERS, "logs", user_id])
     if not logs_dict:
-        await send_to_all(message, safe_get_messages(message.chat.id).ADMIN_USER_NO_DOWNLOADS_MSG)
+        send_to_all(message, safe_get_messages(message.chat.id).ADMIN_USER_NO_DOWNLOADS_MSG)
         return
 
     logs = list(logs_dict.values())
@@ -276,14 +277,14 @@ async def get_user_log(app, message):
         f.write(txt_format)
 
     keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(safe_get_messages(message.chat.id).URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="userlogs_close|close")]])
-    from HELPERS.safe_messeger import safe_send_message_async
-    await safe_send_message_async(message.chat.id, safe_get_messages(message.chat.id).ADMIN_USER_LOGS_TOTAL_MSG.format(total=total, user_id=user_id, format_str=format_str), parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
-    await app.send_document(message.chat.id, log_path, caption=safe_get_messages(message.chat.id).ADMIN_USER_LOGS_CAPTION_MSG.format(user_id=user_id))
+    from HELPERS.safe_messeger import safe_send_message
+    safe_send_message(message.chat.id, safe_get_messages(message.chat.id).ADMIN_USER_LOGS_TOTAL_MSG.format(total=total, user_id=user_id, format_str=format_str), parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+    app.send_document(message.chat.id, log_path, caption=safe_get_messages(message.chat.id).ADMIN_USER_LOGS_CAPTION_MSG.format(user_id=user_id))
     from HELPERS.logger import get_log_channel
-    await app.send_document(get_log_channel("general"), log_path, caption=safe_get_messages(message.chat.id).ADMIN_USER_LOGS_CAPTION_MSG.format(user_id=user_id))
+    app.send_document(get_log_channel("general"), log_path, caption=safe_get_messages(message.chat.id).ADMIN_USER_LOGS_CAPTION_MSG.format(user_id=user_id))
 
 
-async def get_user_usage_stats(app, message):
+def get_user_usage_stats(app, message):
     """Get usage statistics for regular users"""
     # Lazy import to avoid cycles
     from DATABASE.cache_db import get_from_local_cache
@@ -291,7 +292,7 @@ async def get_user_usage_stats(app, message):
 
     logs_dict = get_from_local_cache(["bot", Config.BOT_NAME_FOR_USERS, "logs", user_id])
     if not logs_dict:
-        await send_to_all(message, safe_get_messages(message.chat.id).ADMIN_USER_NO_DOWNLOADS_MSG)
+        send_to_all(message, safe_get_messages(message.chat.id).ADMIN_USER_NO_DOWNLOADS_MSG)
         return
 
     logs = list(logs_dict.values())
@@ -325,14 +326,14 @@ async def get_user_usage_stats(app, message):
         f.write(txt_format)
 
     keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(safe_get_messages(message.chat.id).URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="userlogs_close|close")]])
-    from HELPERS.safe_messeger import safe_send_message_async
-    await safe_send_message_async(message.chat.id, safe_get_messages(message.chat.id).ADMIN_USER_LOGS_TOTAL_MSG.format(total=total, user_id=user_id, format_str=format_str), parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
-    await app.send_document(message.chat.id, log_path, caption=safe_get_messages(message.chat.id).ADMIN_USER_LOGS_CAPTION_MSG.format(user_id=user_id))
+    from HELPERS.safe_messeger import safe_send_message
+    safe_send_message(message.chat.id, safe_get_messages(message.chat.id).ADMIN_USER_LOGS_TOTAL_MSG.format(total=total, user_id=user_id, format_str=format_str), parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
+    app.send_document(message.chat.id, log_path, caption=safe_get_messages(message.chat.id).ADMIN_USER_LOGS_CAPTION_MSG.format(user_id=user_id))
 
 
 # Get All Kinds of Users (Users/ Blocked/ Unblocked)
 
-async def get_user_details(app, message):
+def get_user_details(app, message):
     messages = safe_get_messages(message.chat.id)
     # Lazy import
     from DATABASE.cache_db import get_from_local_cache
@@ -344,12 +345,12 @@ async def get_user_details(app, message):
     }
     path = path_map.get(command)
     if not path:
-        await send_to_all(message, safe_get_messages(message.chat.id).ADMIN_INVALID_COMMAND_MSG)
+        send_to_all(message, safe_get_messages(message.chat.id).ADMIN_INVALID_COMMAND_MSG)
         return
 
     data_dict = get_from_local_cache(["bot", Config.BOT_NAME_FOR_USERS, path])
     if not data_dict:
-        await send_to_all(message, safe_get_messages(message.chat.id).ADMIN_NO_DATA_FOUND_MSG.format(path=path))
+        send_to_all(message, safe_get_messages(message.chat.id).ADMIN_NO_DATA_FOUND_MSG.format(path=path))
         return
 
     # Support both dict and list structures from cache
@@ -397,27 +398,27 @@ async def get_user_details(app, message):
     with open(file, 'w', encoding="utf-8") as f:
         f.write(txt_format)
 
-    await send_to_all(message, mod)
-    await app.send_document(message.chat.id, f"./{file}", caption=safe_get_messages(message.chat.id).ADMIN_BOT_DATA_CAPTION_MSG.format(bot_name=Config.BOT_NAME_FOR_USERS, path=path))
+    send_to_all(message, mod)
+    app.send_document(message.chat.id, f"./{file}", caption=safe_get_messages(message.chat.id).ADMIN_BOT_DATA_CAPTION_MSG.format(bot_name=Config.BOT_NAME_FOR_USERS, path=path))
     from HELPERS.logger import get_log_channel
-    await app.send_document(get_log_channel("general"), f"./{file}", caption=safe_get_messages(message.chat.id).ADMIN_BOT_DATA_CAPTION_MSG.format(bot_name=Config.BOT_NAME_FOR_USERS, path=path))
+    app.send_document(get_log_channel("general"), f"./{file}", caption=safe_get_messages(message.chat.id).ADMIN_BOT_DATA_CAPTION_MSG.format(bot_name=Config.BOT_NAME_FOR_USERS, path=path))
     logger.info(mod)
 
 # Block User
 
-async def block_user(app, message):
+def block_user(app, message):
     messages = safe_get_messages(message.chat.id)
     if int(message.chat.id) in Config.ADMIN:
         dt = math.floor(time.time())
         parts = (message.text or "").strip().split(maxsplit=1)
         if len(parts) < 2:
-            await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_BLOCK_USER_USAGE_MSG)
+            send_to_user(message, safe_get_messages(message.chat.id).ADMIN_BLOCK_USER_USAGE_MSG)
             return
         b_user_id = parts[1].strip()
 
         try:
             if int(b_user_id) in Config.ADMIN:
-                await send_to_all(message, safe_get_messages(message.chat.id).ADMIN_CANNOT_DELETE_ADMIN_MSG)
+                send_to_all(message, safe_get_messages(message.chat.id).ADMIN_CANNOT_DELETE_ADMIN_MSG)
                 return
         except Exception:
             pass
@@ -429,21 +430,21 @@ async def block_user(app, message):
         if b_user_id not in b_users:
             data = {"ID": b_user_id, "timestamp": str(dt)}
             db.child(f"{Config.BOT_DB_PATH}/blocked_users/{b_user_id}").set(data)
-            await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_USER_BLOCKED_MSG.format(user_id=b_user_id, date=datetime.fromtimestamp(dt)))
+            send_to_user(message, safe_get_messages(message.chat.id).ADMIN_USER_BLOCKED_MSG.format(user_id=b_user_id, date=datetime.fromtimestamp(dt)))
         else:
-            await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_USER_ALREADY_BLOCKED_MSG.format(user_id=b_user_id))
+            send_to_user(message, safe_get_messages(message.chat.id).ADMIN_USER_ALREADY_BLOCKED_MSG.format(user_id=b_user_id))
     else:
-        await send_to_all(message, safe_get_messages(message.chat.id).ADMIN_NOT_ADMIN_MSG)
+        send_to_all(message, safe_get_messages(message.chat.id).ADMIN_NOT_ADMIN_MSG)
 
 
 # Unblock User
 
-async def unblock_user(app, message):
+def unblock_user(app, message):
     messages = safe_get_messages(message.chat.id)
     if int(message.chat.id) in Config.ADMIN:
         parts = (message.text or "").strip().split(maxsplit=1)
         if len(parts) < 2:
-            await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_UNBLOCK_USER_USAGE_MSG)
+            send_to_user(message, safe_get_messages(message.chat.id).ADMIN_UNBLOCK_USER_USAGE_MSG)
             return
         ub_user_id = parts[1].strip()
 
@@ -457,29 +458,29 @@ async def unblock_user(app, message):
             data = {"ID": ub_user_id, "timestamp": str(dt)}
             db.child(f"{Config.BOT_DB_PATH}/unblocked_users/{ub_user_id}").set(data)
             db.child(f"{Config.BOT_DB_PATH}/blocked_users/{ub_user_id}").remove()
-            await send_to_user(
+            send_to_user(
                 message, safe_get_messages(message.chat.id).ADMIN_USER_UNBLOCKED_MSG.format(user_id=ub_user_id, date=datetime.fromtimestamp(dt)))
 
         else:
-            await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_USER_ALREADY_UNBLOCKED_MSG.format(user_id=ub_user_id))
+            send_to_user(message, safe_get_messages(message.chat.id).ADMIN_USER_ALREADY_UNBLOCKED_MSG.format(user_id=ub_user_id))
     else:
-        await send_to_all(message, safe_get_messages(message.chat.id).ADMIN_NOT_ADMIN_MSG)
+        send_to_all(message, safe_get_messages(message.chat.id).ADMIN_NOT_ADMIN_MSG)
 
 
 # Check Runtime
 
-async def check_runtime(message):
+def check_runtime(message):
     messages = safe_get_messages(message.chat.id)
     if int(message.chat.id) in Config.ADMIN:
         now = time.time()
         now = math.floor((now - starting_point[0]) * 1000)
         now = TimeFormatter(now)
-        await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_BOT_RUNNING_TIME_MSG.format(time=now))
+        send_to_user(message, safe_get_messages(message.chat.id).ADMIN_BOT_RUNNING_TIME_MSG.format(time=now))
     pass
 
 
 
-async def uncache_command(app, message):
+def uncache_command(app, message):
     messages = safe_get_messages(message.chat.id)
     """
     Admin command to clear cache for a specific URL
@@ -492,11 +493,11 @@ async def uncache_command(app, message):
     user_id = message.chat.id
     text = message.text.strip()
     if len(text.split()) < 2:
-        await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_UNCACHE_USAGE_MSG)
+        send_to_user(message, safe_get_messages(message.chat.id).ADMIN_UNCACHE_USAGE_MSG)
         return
     url = text.split(maxsplit=1)[1].strip()
     if not url.startswith("http://") and not url.startswith("https://"):
-        await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_UNCACHE_INVALID_URL_MSG)
+        send_to_user(message, safe_get_messages(message.chat.id).ADMIN_UNCACHE_INVALID_URL_MSG)
         return
     removed_any = False
     try:
@@ -538,26 +539,27 @@ async def uncache_command(app, message):
                 db_child_by_path(db, f"{Config.VIDEO_CACHE_DB_PATH}/{h}").remove()
                 db_child_by_path(db, f"{Config.PLAYLIST_CACHE_DB_PATH}/{h}").remove()
         if removed_any:
-            await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_CACHE_CLEARED_MSG.format(url=url))
-            await send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_CACHE_CLEARED_LOG_MSG.format(user_id=user_id, url=url))
+            send_to_user(message, safe_get_messages(message.chat.id).ADMIN_CACHE_CLEARED_MSG.format(url=url))
+            send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_CACHE_CLEARED_LOG_MSG.format(user_id=user_id, url=url))
         else:
-            await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_NO_CACHE_FOUND_MSG)
+            send_to_user(message, safe_get_messages(message.chat.id).ADMIN_NO_CACHE_FOUND_MSG)
     except Exception as e:
-        await send_to_all(message, safe_get_messages(message.chat.id).ADMIN_ERROR_CLEARING_CACHE_MSG.format(error=e))
+        send_to_all(message, safe_get_messages(message.chat.id).ADMIN_ERROR_CLEARING_CACHE_MSG.format(error=e))
 
 
-async def update_porn_command(app, message):
+@app.on_message(filters.command("update_porn") & filters.private)
+def update_porn_command(app, message):
     messages = safe_get_messages(message.chat.id)
     """Admin command to run the porn list update script"""
     if int(message.chat.id) not in Config.ADMIN:
-        await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_ACCESS_DENIED_MSG)
+        send_to_user(message, safe_get_messages(message.chat.id).ADMIN_ACCESS_DENIED_MSG)
         return
     
     script_path = getattr(Config, "UPDATE_PORN_SCRIPT_PATH", "./script.sh")
     
     try:
-        await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_UPDATE_PORN_RUNNING_MSG.format(script_path=script_path))
-        await send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_PORN_UPDATE_STARTED_LOG_MSG.format(user_id=message.chat.id, script_path=script_path))
+        send_to_user(message, safe_get_messages(message.chat.id).ADMIN_UPDATE_PORN_RUNNING_MSG.format(script_path=script_path))
+        send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_PORN_UPDATE_STARTED_LOG_MSG.format(user_id=message.chat.id, script_path=script_path))
         
         # Run the script
         result = subprocess.run(
@@ -572,39 +574,40 @@ async def update_porn_command(app, message):
         if result.returncode == 0:
             output = result.stdout.strip()
             if output:
-                await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_SCRIPT_COMPLETED_WITH_OUTPUT_MSG.format(output=output))
+                send_to_user(message, safe_get_messages(message.chat.id).ADMIN_SCRIPT_COMPLETED_WITH_OUTPUT_MSG.format(output=output))
             else:
-                await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_SCRIPT_COMPLETED_MSG)
-            await send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_PORN_UPDATE_COMPLETED_LOG_MSG.format(user_id=message.chat.id))
+                send_to_user(message, safe_get_messages(message.chat.id).ADMIN_SCRIPT_COMPLETED_MSG)
+            send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_PORN_UPDATE_COMPLETED_LOG_MSG.format(user_id=message.chat.id))
         else:
             error_msg = result.stderr.strip() if result.stderr else "Unknown error"
-            await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_SCRIPT_FAILED_MSG.format(returncode=result.returncode, error=error_msg))
-            await send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_PORN_UPDATE_FAILED_LOG_MSG.format(user_id=message.chat.id, error=error_msg))
+            send_to_user(message, safe_get_messages(message.chat.id).ADMIN_SCRIPT_FAILED_MSG.format(returncode=result.returncode, error=error_msg))
+            send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_PORN_UPDATE_FAILED_LOG_MSG.format(user_id=message.chat.id, error=error_msg))
             
     except FileNotFoundError:
-        await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_SCRIPT_NOT_FOUND_MSG.format(script_path=script_path))
-        await send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_SCRIPT_NOT_FOUND_LOG_MSG.format(user_id=message.chat.id, script_path=script_path))
+        send_to_user(message, safe_get_messages(message.chat.id).ADMIN_SCRIPT_NOT_FOUND_MSG.format(script_path=script_path))
+        send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_SCRIPT_NOT_FOUND_LOG_MSG.format(user_id=message.chat.id, script_path=script_path))
     except Exception as e:
-        await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_ERROR_RUNNING_SCRIPT_MSG.format(error=str(e)))
-        await send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_PORN_UPDATE_ERROR_LOG_MSG.format(user_id=message.chat.id, error=str(e)))
+        send_to_user(message, safe_get_messages(message.chat.id).ADMIN_ERROR_RUNNING_SCRIPT_MSG.format(error=str(e)))
+        send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_PORN_UPDATE_ERROR_LOG_MSG.format(user_id=message.chat.id, error=str(e)))
 
 
-async def reload_porn_command(app, message):
+@app.on_message(filters.command("reload_porn") & filters.private)
+def reload_porn_command(app, message):
     messages = safe_get_messages(message.chat.id)
     """Admin command to reload porn domains and keywords cache without restarting the bot"""
     if int(message.chat.id) not in Config.ADMIN:
-        await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_ACCESS_DENIED_MSG)
+        send_to_user(message, safe_get_messages(message.chat.id).ADMIN_ACCESS_DENIED_MSG)
         return
     
     try:
-        await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_RELOADING_PORN_MSG)
-        await send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_PORN_CACHE_RELOAD_STARTED_LOG_MSG.format(user_id=message.chat.id))
+        send_to_user(message, safe_get_messages(message.chat.id).ADMIN_RELOADING_PORN_MSG)
+        send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_PORN_CACHE_RELOAD_STARTED_LOG_MSG.format(user_id=message.chat.id))
         
         # Import and reload all caches (files + CONFIG/domains.py arrays)
         from HELPERS.porn import reload_all_porn_caches
         counts = reload_all_porn_caches()
 
-        await send_to_user(
+        send_to_user(
             message,
             safe_get_messages(message.chat.id).ADMIN_PORN_CACHES_RELOADED_MSG.format(
                 porn_domains=counts.get('porn_domains', 0),
@@ -621,7 +624,7 @@ async def reload_porn_command(app, message):
             )
         )
 
-        await send_to_logger(
+        send_to_logger(
             message,
             safe_get_messages(message.chat.id).ADMIN_PORN_CACHE_RELOADED_MSG.format(
                 admin_id=message.chat.id,
@@ -640,37 +643,38 @@ async def reload_porn_command(app, message):
         )
         
     except Exception as e:
-        await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_ERROR_RELOADING_PORN_MSG.format(error=str(e)))
-        await send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_PORN_CACHE_RELOAD_ERROR_LOG_MSG.format(user_id=message.chat.id, error=str(e)))
+        send_to_user(message, safe_get_messages(message.chat.id).ADMIN_ERROR_RELOADING_PORN_MSG.format(error=str(e)))
+        send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_PORN_CACHE_RELOAD_ERROR_LOG_MSG.format(user_id=message.chat.id, error=str(e)))
 
 
-async def check_porn_command(app, message):
+@app.on_message(filters.command("check_porn") & filters.private)
+def check_porn_command(app, message):
     messages = safe_get_messages(message.chat.id)
     """Admin command to check if a URL is NSFW and get detailed explanation"""
     user_id = message.chat.id
     
     # First check if user is subscribed to channel
-    if not await is_user_in_channel(app, message):
+    if not is_user_in_channel(app, message):
         return
     
     # Then check if user is admin
     if int(user_id) not in Config.ADMIN:
-        await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_ACCESS_DENIED_MSG)
+        send_to_user(message, safe_get_messages(message.chat.id).ADMIN_ACCESS_DENIED_MSG)
         return
     
     text = message.text.strip()
     if len(text.split()) < 2:
-        await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_CHECK_PORN_USAGE_MSG)
+        send_to_user(message, safe_get_messages(message.chat.id).ADMIN_CHECK_PORN_USAGE_MSG)
         return
     
     url = text.split(maxsplit=1)[1].strip()
     if not url.startswith("http://") and not url.startswith("https://"):
-        await send_to_user(message, safe_get_messages(message.chat.id).ADMIN_CHECK_PORN_INVALID_URL_MSG)
+        send_to_user(message, safe_get_messages(message.chat.id).ADMIN_CHECK_PORN_INVALID_URL_MSG)
         return
     
     try:
         # Send initial status message
-        status_msg = await safe_send_message(user_id, safe_get_messages(message.chat.id).ADMIN_CHECKING_URL_MSG.format(url=url), parse_mode=enums.ParseMode.HTML)
+        status_msg = safe_send_message(user_id, safe_get_messages(message.chat.id).ADMIN_CHECKING_URL_MSG.format(url=url), parse_mode=enums.ParseMode.HTML)
         
         # Import the detailed check function
         from HELPERS.porn import check_porn_detailed
@@ -692,18 +696,18 @@ async def check_porn_command(app, message):
         
         # Update the status message with results
         if status_msg:
-            await safe_edit_message_text(message.chat.id, status_msg.id, result_message, parse_mode=enums.ParseMode.HTML)
+            safe_edit_message_text(message.chat.id, status_msg.id, result_message, parse_mode=enums.ParseMode.HTML)
         else:
-            await safe_send_message(user_id, result_message, parse_mode=enums.ParseMode.HTML)
+            safe_send_message(user_id, result_message, parse_mode=enums.ParseMode.HTML)
         
         # Log the check
-        await send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_PORN_CHECK_LOG_MSG.format(user_id=message.chat.id, url=url, status=status_text))
+        send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_PORN_CHECK_LOG_MSG.format(user_id=message.chat.id, url=url, status=status_text))
         
     except Exception as e:
         error_msg = safe_get_messages(message.chat.id).ADMIN_ERROR_CHECKING_URL_MSG.format(error=str(e))
         if 'status_msg' in locals() and status_msg:
-            await safe_edit_message_text(message.chat.id, status_msg.id, error_msg)
+            safe_edit_message_text(message.chat.id, status_msg.id, error_msg)
         else:
-            await safe_send_message(user_id, error_msg, parse_mode=enums.ParseMode.HTML)
-        await send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_CHECK_PORN_ERROR_LOG_MSG.format(admin_id=message.chat.id, error=str(e)))
+            safe_send_message(user_id, error_msg, parse_mode=enums.ParseMode.HTML)
+        send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_CHECK_PORN_ERROR_LOG_MSG.format(admin_id=message.chat.id, error=str(e)))
 

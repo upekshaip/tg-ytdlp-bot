@@ -54,7 +54,7 @@ else:
     logger.info("[Watchdog] SystemdNotifier not available - watchdog disabled")
 # Utility: pick proper log channel per kind
 
-async def get_log_channel(kind: str = "general", nsfw: bool = False, paid: bool = False) -> int:
+def get_log_channel(kind: str = "general", nsfw: bool = False, paid: bool = False) -> int:
     """Returns the appropriate Telegram chat ID for logs.
 
     kind: "general" | "video" | "image"
@@ -85,29 +85,26 @@ async def get_log_channel(kind: str = "general", nsfw: bool = False, paid: bool 
 
 # Send Message to Logger
 
-async def send_to_logger(message, msg):
+def send_to_logger(message, msg):
     user_id = message.chat.id
     msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
     # Print (user_id, "-", msg)
-    from HELPERS.safe_messeger import safe_send_message_async
-    await safe_send_message_async(await get_log_channel("general"), msg_with_id,
+    safe_send_message(get_log_channel("general"), msg_with_id,
                      parse_mode=enums.ParseMode.HTML)
 
 # Send Message to User Only
 
-async def send_to_user(message, msg):
+def send_to_user(message, msg):
     user_id = message.chat.id
-    from HELPERS.safe_messeger import safe_send_message_async
-    await safe_send_message_async(user_id, msg, parse_mode=enums.ParseMode.HTML, )
+    safe_send_message(user_id, msg, parse_mode=enums.ParseMode.HTML, message=message)
 
 # Send Message to All ...
 
-async def send_to_all(message, msg, parse_mode=None):
+def send_to_all(message, msg, parse_mode=None):
     user_id = message.chat.id
     msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
-    from HELPERS.safe_messeger import safe_send_message_async
-    await safe_send_message_async(get_log_channel("general"), msg_with_id, parse_mode=enums.ParseMode.HTML)
-    await safe_send_message_async(user_id, msg, parse_mode=parse_mode or enums.ParseMode.HTML, )
+    safe_send_message(get_log_channel("general"), msg_with_id, parse_mode=enums.ParseMode.HTML)
+    safe_send_message(user_id, msg, parse_mode=parse_mode or enums.ParseMode.HTML, message=message)
 
 # --- Helpers for error logging -------------------------------------------------
 
@@ -123,7 +120,7 @@ def _extract_url_from_message(message) -> str:
         return ""
 
 # Send Error Message to User and LOG_EXCEPTION channel
-async def send_error_to_user(message, msg, url: str = None):
+def send_error_to_user(message, msg, url: str = None):
     """Send error message to user and log it to LOG_EXCEPTION channel.
 
     url: optional explicit URL that caused the error; if not provided, will be
@@ -136,13 +133,12 @@ async def send_error_to_user(message, msg, url: str = None):
     else:
         msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
     # Send to LOG_EXCEPTION channel for error tracking
-    from HELPERS.safe_messeger import safe_send_message_async
-    await safe_send_message_async(Config.LOG_EXCEPTION, msg_with_id, parse_mode=enums.ParseMode.HTML)
+    safe_send_message(Config.LOG_EXCEPTION, msg_with_id, parse_mode=enums.ParseMode.HTML)
     # Send to user
-    await safe_send_message_async(user_id, msg, parse_mode=enums.ParseMode.HTML, )
+    safe_send_message(user_id, msg, parse_mode=enums.ParseMode.HTML, message=message)
 
 # Log error message to LOG_EXCEPTION channel (without sending to user)
-async def log_error_to_channel(message, msg, url: str = None):
+def log_error_to_channel(message, msg, url: str = None):
     """Log error message to LOG_EXCEPTION channel only.
 
     url: optional explicit URL that caused the error; if not provided, will be
@@ -155,5 +151,4 @@ async def log_error_to_channel(message, msg, url: str = None):
     else:
         msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
     # Send to LOG_EXCEPTION channel for error tracking
-    from HELPERS.safe_messeger import safe_send_message_async
-    await safe_send_message_async(Config.LOG_EXCEPTION, msg_with_id, parse_mode=enums.ParseMode.HTML)
+    safe_send_message(Config.LOG_EXCEPTION, msg_with_id, parse_mode=enums.ParseMode.HTML)

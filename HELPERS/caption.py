@@ -11,7 +11,7 @@ from pyrogram import filters
 app = get_app()
 
 # Called from url_distractor - no decorator needed
-async def caption_editor(app, message):
+def caption_editor(app, message):
     messages = safe_get_messages(message.chat.id)
     # Проверяем, что сообщение является ответом на видео
     if not message.reply_to_message or not message.reply_to_message.video:
@@ -24,10 +24,10 @@ async def caption_editor(app, message):
         video_file_id = message.reply_to_message.video.file_id
         info_of_video = safe_get_messages(user_id).CAPTION_INFO_OF_VIDEO_MSG.format(caption=caption, user_id=user_id, users_name=users_name, video_file_id=video_file_id)
         # Sending to logs
-        await send_to_logger(message, info_of_video)
-        await app.send_video(user_id, video_file_id, caption=caption)
+        send_to_logger(message, info_of_video)
+        app.send_video(user_id, video_file_id, caption=caption)
         from HELPERS.logger import get_log_channel
-        await app.send_video(get_log_channel("video"), video_file_id, caption=caption)
+        app.send_video(get_log_channel("video"), video_file_id, caption=caption)
     except AttributeError as e:
         # Логируем ошибку, но не прерываем работу бота
         from HELPERS.logger import logger

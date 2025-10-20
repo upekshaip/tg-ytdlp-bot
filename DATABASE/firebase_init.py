@@ -4,9 +4,9 @@ import threading
 import os
 from typing import Any, Dict, List, Optional
 
-import asyncio
-import aiohttp
 import requests
+from requests import Session
+from requests.adapters import HTTPAdapter
 import firebase_admin
 from firebase_admin import credentials, db as admin_db
 
@@ -29,7 +29,7 @@ def _get_database_url() -> str:
     except Exception:
         database_url_local = None
     if not database_url_local:
-        raise RuntimeError(safe_get_messages(None).DB_DATABASE_URL_MISSING_MSG)
+        raise RuntimeError(safe_get_messages().DB_DATABASE_URL_MISSING_MSG)
     return database_url_local
 
 
@@ -64,7 +64,7 @@ def _init_firebase_admin_if_needed() -> bool:
         return False
 
     firebase_admin.initialize_app(cred_obj, {"databaseURL": database_url})
-    logger.info(safe_get_messages(None).DB_FIREBASE_ADMIN_INITIALIZED_MSG)
+    logger.info(safe_get_messages().DB_FIREBASE_ADMIN_INITIALIZED_MSG)
     return True
 
 
@@ -151,7 +151,7 @@ class RestDBAdapter:
         path: str = "/",
         *,
         _shared: Optional[dict] = None,
-        _session: Optional[requests.Session] = None,
+        _session: Optional[Session] = None,
         _start_refresher: bool = True,
         _is_child: bool = False,
     ):
@@ -173,52 +173,52 @@ class RestDBAdapter:
 
         # Общая сессия между всеми child-экземплярами
         if _session is None:
-            sess = requests.Session()
+            sess = Session()
             sess.headers.update({
                 'User-Agent': 'tg-ytdlp-bot/1.0',
                 'Connection': 'close'  # минимизируем удержание соединений
             })
-            # aiohttp не нужен HTTPAdapter
+            adapter = HTTPAdapter(
+                pool_connections=3,
+                pool_maxsize=5,
+                max_retries=2,
+                pool_block=False,
+            )
+            sess.mount('http://', adapter)
+            sess.mount('https://', adapter)
             self._session = sess
         else:
             self._session = _session
-
-        # Асинхронная сессия для неблокирующих операций
-        self._aio_session: Optional[aiohttp.ClientSession] = None
-        self._aio_lock = asyncio.Lock()
 
         # Запускаем рефрешер токена только один раз (и только у корневого адаптера)
         if _start_refresher and self._shared.get("refresh_token"):
             with self._shared["lock"]:
                 if not self._shared["refresher_started"]:
-                    def run_async():
-                        asyncio.run(self._token_refresher())
-                    thread = threading.Thread(target=run_async, daemon=True)
+                    thread = threading.Thread(target=self._token_refresher, daemon=True)
                     thread.start()
                     self._shared["refresher_started"] = True
 
-    async def _token_refresher(self):
+    def _token_refresher(self):
         messages = safe_get_messages(None)
         # Обновляем каждые ~50 минут
         while True:
-            await asyncio.sleep(3000)
+            time.sleep(3000)
             try:
                 url = f"https://securetoken.googleapis.com/v1/token?key={self._api_key}"
                 with self._shared["lock"]:
                     refresh_token = self._shared.get("refresh_token")
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(url, data={
-                        "grant_type": "refresh_token",
-                        "refresh_token": refresh_token,
-                    }, timeout=aiohttp.ClientTimeout(total=30)) as resp:
-                        resp.raise_for_status()
-                        data = await resp.json()
+                resp = self._session.post(url, data={
+                    "grant_type": "refresh_token",
+                    "refresh_token": refresh_token,
+                }, timeout=30)
+                resp.raise_for_status()
+                data = resp.json()
                 with self._shared["lock"]:
                     self._shared["id_token"] = data.get("id_token", self._shared.get("id_token"))
                     self._shared["refresh_token"] = data.get("refresh_token", self._shared.get("refresh_token"))
-                logger.info(safe_get_messages(None).DB_REST_ID_TOKEN_REFRESHED_MSG)
+                logger.info(safe_get_messages().DB_REST_ID_TOKEN_REFRESHED_MSG)
             except Exception as e:
-                logger.error(safe_get_messages(None).DB_REST_TOKEN_REFRESH_ERROR_MSG.format(error=e))
+                logger.error(safe_get_messages().DB_REST_TOKEN_REFRESH_ERROR_MSG.format(error=e))
 
     def _auth_params(self) -> Dict[str, str]:
         with self._shared["lock"]:
@@ -271,56 +271,6 @@ class RestDBAdapter:
         r.raise_for_status()
         return _SnapshotCompat(r.json())
 
-    async def _get_aio_session(self):
-        """Получить или создать асинхронную сессию"""
-        if self._aio_session is None or self._aio_session.closed:
-            async with self._aio_lock:
-                if self._aio_session is None or self._aio_session.closed:
-                    self._aio_session = aiohttp.ClientSession(
-                        timeout=aiohttp.ClientTimeout(total=60),
-                        headers={'User-Agent': 'tg-ytdlp-bot/1.0'}
-                    )
-        return self._aio_session
-
-    async def async_set(self, data: Any) -> None:
-        """Асинхронная версия set"""
-        session = await self._get_aio_session()
-        async with session.put(self._url(), params=self._auth_params(), json=data) as resp:
-            resp.raise_for_status()
-
-    async def async_get(self) -> _SnapshotCompat:
-        """Асинхронная версия get"""
-        session = await self._get_aio_session()
-        async with session.get(self._url(), params=self._auth_params()) as resp:
-            resp.raise_for_status()
-            return _SnapshotCompat(await resp.json())
-
-    async def async_update(self, data: Dict[str, Any]) -> None:
-        """Асинхронная версия update"""
-        session = await self._get_aio_session()
-        async with session.patch(self._url(), params=self._auth_params(), json=data) as resp:
-            resp.raise_for_status()
-
-    async def async_remove(self) -> None:
-        """Асинхронная версия remove"""
-        session = await self._get_aio_session()
-        async with session.delete(self._url(), params=self._auth_params()) as resp:
-            resp.raise_for_status()
-
-    async def async_push(self, data: Any):
-        """Асинхронная версия push"""
-        session = await self._get_aio_session()
-        parent_url = f"{self._database_url}{self._path}.json"
-        async with session.post(parent_url, params=self._auth_params(), json=data) as resp:
-            resp.raise_for_status()
-            return await resp.json()
-
-    async def close_aio_session(self):
-        """Закрыть асинхронную сессию"""
-        if self._aio_session and not self._aio_session.closed:
-            await self._aio_session.close()
-            logger.info("✅ Firebase async session closed successfully")
-
     def close(self):
         messages = safe_get_messages(None)
         """Закрывает сетевые ресурсы только у корневого адаптера.
@@ -338,7 +288,7 @@ class RestDBAdapter:
                 self._session.close()
                 logger.info("✅ Firebase session closed successfully (root)")
         except Exception as e:
-            logger.error(safe_get_messages(None).DB_ERROR_CLOSING_SESSION_MSG.format(error=e))
+            logger.error(safe_get_messages().DB_ERROR_CLOSING_SESSION_MSG.format(error=e))
 
     def __del__(self):
         # Ничего не делаем у детей, чтобы не ломать общую сессию
@@ -359,11 +309,20 @@ else:
     if not api_key:
         raise RuntimeError("FIREBASE_CONF.apiKey отсутствует — нужен для REST аутентификации")
     # Sign in via REST using session
-    auth_session = requests.Session()
+    auth_session = Session()
     auth_session.headers.update({
         'User-Agent': 'tg-ytdlp-bot/1.0',
         'Connection': 'keep-alive'
     })
+    # Configure connection pool for auth session
+    auth_adapter = HTTPAdapter(
+        pool_connections=5,   # Number of connection pools to cache
+        pool_maxsize=10,      # Maximum number of connections in each pool
+        max_retries=3,        # Number of retries for failed requests
+        pool_block=False      # Don't block when pool is full
+    )
+    auth_session.mount('http://', auth_adapter)
+    auth_session.mount('https://', auth_adapter)
     try:
         auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
         resp = auth_session.post(auth_url, json={
@@ -390,7 +349,7 @@ def db_child_by_path(db_adapter: FirebaseDBAdapter, path: str) -> FirebaseDBAdap
 
 
 # Cheking Users are in Main User Directory in DB
-async def check_user(message):
+def check_user(message):
     user_id_str = str(message.chat.id)
 
     # Create The User Folder Inside The "Users" Directory
@@ -415,12 +374,12 @@ async def check_user(message):
 
 
 # Checking user is Blocked or not
-async def is_user_blocked(message):
+def is_user_blocked(message):
     messages = safe_get_messages(message.chat.id)
     blocked = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("blocked_users").get().each()
     blocked_users = [int(b_user.key()) for b_user in blocked] if blocked else []
     if int(message.chat.id) in blocked_users:
-        await send_to_all(message, safe_get_messages(None).DB_USER_BANNED_MSG)
+        send_to_all(message, safe_get_messages().DB_USER_BANNED_MSG)
         return True
     else:
         return False
@@ -432,7 +391,7 @@ def write_logs(message, video_url, video_title):
     data = {"ID": str(message.chat.id), "timestamp": ts,
             "name": message.chat.first_name, "urls": str(video_url), "title": video_title}
     db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("logs").child(str(message.chat.id)).child(str(ts)).set(data)
-    logger.info(safe_get_messages(None).DB_LOG_FOR_USER_ADDED_MSG)
+    logger.info(safe_get_messages().DB_LOG_FOR_USER_ADDED_MSG)
 
 
 # ####################################################################################
@@ -443,11 +402,11 @@ try:
     db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("blocked_users").child("0").set(_format)
     db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("unblocked_users").child("0").set(_format)
     messages = safe_get_messages(None)
-    logger.info(safe_get_messages(None).DB_DATABASE_CREATED_MSG)
+    logger.info(safe_get_messages().DB_DATABASE_CREATED_MSG)
 except Exception as e:
     messages = safe_get_messages(None)
-    logger.error(safe_get_messages(None).DB_ERROR_INITIALIZING_BASE_MSG.format(error=e))
+    logger.error(safe_get_messages().DB_ERROR_INITIALIZING_BASE_MSG.format(error=e))
 
 starting_point.append(time.time())
 messages = safe_get_messages(None)
-logger.info(safe_get_messages(None).DB_BOT_STARTED_MSG)
+logger.info(safe_get_messages().DB_BOT_STARTED_MSG)

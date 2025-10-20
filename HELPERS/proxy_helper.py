@@ -7,7 +7,7 @@ from CONFIG.messages import Messages, safe_get_messages
 
 logger = logging.getLogger(__name__)
 
-async def get_direct_link_with_proxy(url: str, format_spec: str = "bv+ba/best", user_id: int = None) -> dict:
+def get_direct_link_with_proxy(url: str, format_spec: str = "bv+ba/best", user_id: int = None) -> dict:
     """
     Get direct stream link using proxy
     
@@ -30,12 +30,6 @@ async def get_direct_link_with_proxy(url: str, format_spec: str = "bv+ba/best", 
             'extract_flat': False,
             'nocheckcertificate': True,
             'ignoreerrors': False,
-            # Minimal timeout and retry settings
-            'socket_timeout': 30,  # 30 seconds socket timeout
-            'retries': 1,  # Minimal retries
-            'extractor_retries': 1,  # Minimal extractor retries
-            'fragment_retries': 3,  # Optimal fragment retries
-            'retry_sleep_functions': {'http': lambda n: 3},  # Fixed 3 seconds delay
         }
         
         # Add proxy configuration
@@ -76,8 +70,8 @@ async def get_direct_link_with_proxy(url: str, format_spec: str = "bv+ba/best", 
                 ydl_opts['cookiefile'] = cookie_path
         
         # Extract video info
-        from HELPERS.async_ytdlp import async_extract_info
-        info = await async_extract_info(ydl_opts, url, user_id)
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
             
         if not info:
             raise Exception("Failed to extract video information")
@@ -157,7 +151,7 @@ def build_proxy_url(proxy_config):
         else:
             return f"http://{proxy_config['ip']}:{proxy_config['port']}"
 
-async def add_proxy_to_ytdl_opts(ytdl_opts: dict, url: str, user_id: int = None) -> dict:
+def add_proxy_to_ytdl_opts(ytdl_opts: dict, url: str, user_id: int = None) -> dict:
     """Add proxy to yt-dlp options if proxy is enabled for user or domain requires it"""
     logger.info(f"add_proxy_to_ytdl_opts called: user_id={user_id}, url={url}")
     
@@ -198,7 +192,7 @@ async def add_proxy_to_ytdl_opts(ytdl_opts: dict, url: str, user_id: int = None)
     
     return ytdl_opts
 
-async def try_with_proxy_fallback(ytdl_opts: dict, url: str, user_id: int = None, operation_func=None, *args, **kwargs):
+def try_with_proxy_fallback(ytdl_opts: dict, url: str, user_id: int = None, operation_func=None, *args, **kwargs):
     """
     Try operation with different proxies in case of failure when user proxy is enabled
     
@@ -213,34 +207,29 @@ async def try_with_proxy_fallback(ytdl_opts: dict, url: str, user_id: int = None
         Result of operation_func or None if all proxies failed
     """
     messages = safe_get_messages(user_id)
-    import asyncio
-    
     if not operation_func:
         return None
-    
-    # Check if operation_func is async
-    is_async = asyncio.iscoroutinefunction(operation_func)
     
     # Check if user has proxy enabled
     if not user_id:
         # No user ID, try without proxy fallback
-        return await operation_func(ytdl_opts, *args, **kwargs) if is_async else operation_func(ytdl_opts, *args, **kwargs)
+        return operation_func(ytdl_opts, *args, **kwargs)
     
     try:
         from COMMANDS.proxy_cmd import is_proxy_enabled
         proxy_enabled = is_proxy_enabled(user_id)
         if not proxy_enabled:
             # User proxy is disabled, try without proxy fallback
-            return await operation_func(ytdl_opts, *args, **kwargs) if is_async else operation_func(ytdl_opts, *args, **kwargs)
+            return operation_func(ytdl_opts, *args, **kwargs)
     except Exception as e:
         logger.warning(f"Error checking proxy for user {user_id}: {e}")
-        return await operation_func(ytdl_opts, *args, **kwargs) if is_async else operation_func(ytdl_opts, *args, **kwargs)
+        return operation_func(ytdl_opts, *args, **kwargs)
     
     # User proxy is enabled, get all available proxies
     all_configs = get_all_proxy_configs()
     if not all_configs:
         logger.info(f"No proxies available for {url}, trying without proxy")
-        return await operation_func(ytdl_opts, *args, **kwargs) if is_async else operation_func(ytdl_opts, *args, **kwargs)
+        return operation_func(ytdl_opts, *args, **kwargs)
     
     # Try with each proxy
     for i, proxy_config in enumerate(all_configs):
@@ -251,7 +240,7 @@ async def try_with_proxy_fallback(ytdl_opts: dict, url: str, user_id: int = None
             if proxy_url:
                 current_opts['proxy'] = proxy_url
                 logger.info(f"Trying {url} with proxy {i+1}/{len(all_configs)}: {proxy_url}")
-                result = await operation_func(current_opts, *args, **kwargs) if is_async else operation_func(current_opts, *args, **kwargs)
+                result = operation_func(current_opts, *args, **kwargs)
                 
                 if result is not None:
                     logger.info(f"Success with proxy {i+1}/{len(all_configs)}: {proxy_url}")
@@ -271,7 +260,7 @@ async def try_with_proxy_fallback(ytdl_opts: dict, url: str, user_id: int = None
         current_opts = ytdl_opts.copy()
         if 'proxy' in current_opts:
             del current_opts['proxy']
-        return await operation_func(current_opts, *args, **kwargs) if is_async else operation_func(current_opts, *args, **kwargs)
+        return operation_func(current_opts, *args, **kwargs)
     except Exception as e:
         logger.error(f"Failed without proxy for {url}: {e}")
         return None

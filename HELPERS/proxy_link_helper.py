@@ -166,7 +166,7 @@ def add_proxy_to_ytdl_opts(ytdl_opts, url):
     
     return ytdl_opts
 
-async def get_direct_link_with_proxy(url: str, format_spec: str = "bv+ba/best", user_id: int = None) -> dict:
+def get_direct_link_with_proxy(url: str, format_spec: str = "bv+ba/best", user_id: int = None) -> dict:
     """
     Get direct stream link using proxy
     
@@ -189,12 +189,6 @@ async def get_direct_link_with_proxy(url: str, format_spec: str = "bv+ba/best", 
             'extract_flat': False,
             'nocheckcertificate': True,
             'ignoreerrors': False,
-            # Minimal timeout and retry settings
-            'socket_timeout': 30,  # 30 seconds socket timeout
-            'retries': 1,  # Minimal retries
-            'extractor_retries': 1,  # Minimal extractor retries
-            'fragment_retries': 3,  # Optimal fragment retries
-            'retry_sleep_functions': {'http': lambda n: 3},  # Fixed 3 seconds delay
         }
         
         # Add proxy configuration if enabled for user or domain requires it
@@ -209,8 +203,8 @@ async def get_direct_link_with_proxy(url: str, format_spec: str = "bv+ba/best", 
                 ydl_opts['cookiefile'] = cookie_path
         
         # Extract video info
-        from HELPERS.async_ytdlp import async_extract_info
-        info = await async_extract_info(ydl_opts, url, user_id)
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
             
         if not info:
             raise Exception("Failed to extract video information")

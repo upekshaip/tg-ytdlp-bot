@@ -6,7 +6,7 @@ from CONFIG.domains import DomainsConfig
 from urllib.parse import urlparse
 
 
-async def route_if_gallerydl_only(app, message) -> bool:
+def route_if_gallerydl_only(app, message) -> bool:
     """
     Решает, нужно ли сразу маршрутизировать ссылку в gallery-dl (команда /img),
     минуя yt-dlp. Возвращает True, если обработка полностью выполнена здесь.
@@ -40,7 +40,7 @@ async def route_if_gallerydl_only(app, message) -> bool:
                     original_chat_id = message.chat.id if hasattr(message, 'chat') else message.chat.id
                     message_thread_id = getattr(message, 'message_thread_id', None) if hasattr(message, 'message_thread_id') else None
                     fake_msg = fake_message(fallback_text, message.chat.id, original_chat_id=original_chat_id, message_thread_id=message_thread_id, original_message=message)
-                    await image_command(app, fake_msg)
+                    image_command(app, fake_msg)
                     logger.info(f"[ENGINE_ROUTER] Routed by path to gallery-dl: {path_part} -> {fallback_text}")
                     return True
             except Exception as e:
@@ -64,7 +64,7 @@ async def route_if_gallerydl_only(app, message) -> bool:
                     original_chat_id = message.chat.id if hasattr(message, 'chat') else message.chat.id
                     message_thread_id = getattr(message, 'message_thread_id', None) if hasattr(message, 'message_thread_id') else None
                     fake_msg = fake_message(fallback_text, message.chat.id, original_chat_id=original_chat_id, message_thread_id=message_thread_id, original_message=message)
-                    await image_command(app, fake_msg)
+                    image_command(app, fake_msg)
                     logger.info(f"[ENGINE_ROUTER] Routed by domain list to gallery-dl: {domain} -> {fallback_text}")
                     return True
             except Exception as e:

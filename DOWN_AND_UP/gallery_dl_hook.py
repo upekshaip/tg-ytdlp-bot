@@ -19,8 +19,6 @@ from HELPERS.filesystem_hlp import create_directory
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url
 import subprocess
-import asyncio
-from HELPERS.guard import async_subprocess
 import sys
 import tempfile
 
@@ -156,7 +154,7 @@ def _prepare_user_cookies_and_proxy(url: str, user_id, use_proxy: bool, config: 
     user_gallery_dl_args = get_user_gallery_dl_args(user_id)
     if user_gallery_dl_args:
         # Deep merge user args into config
-        async def deep_merge(target, source, user_id=None):
+        def deep_merge(target, source, user_id=None):
             messages = safe_get_messages(user_id)
             """Recursively merge source dict into target dict"""
             for key, value in source.items():
@@ -334,7 +332,7 @@ def _first_info_from_items(items_iter, user_id=None):
 
 # ---------- Public API ----------
 
-async def get_image_info(url: str, user_id=None, use_proxy: bool = False):
+def get_image_info(url: str, user_id=None, use_proxy: bool = False):
     messages = safe_get_messages(user_id)
     """
     Return first metadata dict for URL (or None).
@@ -401,7 +399,7 @@ async def get_image_info(url: str, user_id=None, use_proxy: bool = False):
 
         # Fallback: use --get-urls count only (no downloads)
         try:
-            total = await get_total_media_count(url, user_id, use_proxy)
+            total = get_total_media_count(url, user_id, use_proxy)
             if isinstance(total, int) and total > 0:
                 logger.info(safe_get_messages(user_id).GALLERY_DL_FALLBACK_METADATA_MSG.format(total=total))
                 return {"total": total, "title": "Unknown"}
@@ -565,7 +563,7 @@ def download_image(url: str, user_id=None, use_proxy: bool = False, output_dir: 
 
 # ---------- Optional progress hook (log only) ----------
 
-async def gallery_dl_hook(extractor, url, info):
+def gallery_dl_hook(extractor, url, info):
     """Hook for progress tracking (log only)."""
     try:
         title = (info or {}).get("title") if isinstance(info, dict) else "Unknown"
@@ -576,7 +574,7 @@ async def gallery_dl_hook(extractor, url, info):
 
 # ---------- New utilities for batching ----------
 
-async def get_total_media_count(url: str, user_id=None, use_proxy: bool = False) -> int | None:
+def get_total_media_count(url: str, user_id=None, use_proxy: bool = False) -> int | None:
     """
     Estimate total media count using gallery-dl extractor to get all media (images + videos).
     Returns integer or None if failed.
@@ -596,7 +594,7 @@ async def get_total_media_count(url: str, user_id=None, use_proxy: bool = False)
             # For VK specifically, --simulate is notoriously slow; jump straight to --get-urls
             if 'vk.com' in url.lower():
                 logger.info("VK domain detected, skipping --simulate and using --get-urls directly")
-                return await _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
+                return _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
             
             # For Instagram, use special method with Instagram-specific config
             if 'instagram.com' in url.lower():
@@ -607,7 +605,7 @@ async def get_total_media_count(url: str, user_id=None, use_proxy: bool = False)
                     return None  # Skip simulation for fallback domains
                 else:
                     logger.info("Instagram domain detected, using Instagram-specific method")
-                    return await _get_instagram_media_count(url, user_id, use_proxy, cfg_path)
+                    return _get_instagram_media_count(url, user_id, use_proxy, cfg_path)
 
             # Use gallery-dl extractor to get all media info (not just URLs)
             logger.info(f"[gallery-dl] cookies for media count: {cfg.get('extractor',{}).get('cookies')}")
@@ -615,25 +613,25 @@ async def get_total_media_count(url: str, user_id=None, use_proxy: bool = False)
             cmd = _add_cookies_to_cmd(cmd, url, user_id)
             logger.info(f"Counting total media via: {' '.join(cmd)}")
             try:
-                stdout, stderr = await async_subprocess(*cmd, timeout=15)
-            except asyncio.TimeoutError:
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            except subprocess.TimeoutExpired:
                 logger.warning("--simulate timed out after 15s, falling back to --get-urls")
-                return await _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
+                return _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
 
-            if not stderr:
+            if result.returncode == 0:
                 # Count lines that contain media info (not just URLs)
-                lines = [ln for ln in stdout.decode('utf-8', errors='replace').splitlines() if ln.strip() and ('"url"' in ln or '"filename"' in ln or '"extension"' in ln)]
+                lines = [ln for ln in result.stdout.splitlines() if ln.strip() and ('"url"' in ln or '"filename"' in ln or '"extension"' in ln)]
                 media_count = len(lines)
                 if media_count and media_count > 0:
                     logger.info(f"Detected {media_count} total media items (images + videos)")
                     return media_count
                 else:
                     logger.warning("--simulate returned 0 media items, trying --get-urls fallback")
-                    return await _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
+                    return _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
             else:
                 logger.warning(f"get_total_media_count failed: {result.stderr[:400]}")
                 # Fallback to --get-urls for sites that don't work with --simulate
-                return await _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
+                return _get_total_media_count_fallback(url, user_id, use_proxy, cfg_path)
         finally:
             try:
                 os.unlink(cfg_path)
@@ -643,7 +641,7 @@ async def get_total_media_count(url: str, user_id=None, use_proxy: bool = False)
         logger.error(f"get_total_media_count error: {e}")
         return None
 
-async def _get_total_media_count_fallback(url: str, user_id, use_proxy: bool, cfg_path: str) -> int | None:
+def _get_total_media_count_fallback(url: str, user_id, use_proxy: bool, cfg_path: str) -> int | None:
     """Fallback method using --get-urls for sites that don't work with --simulate"""
     try:
         # Special handling for Instagram - use different approach
@@ -654,7 +652,7 @@ async def _get_total_media_count_fallback(url: str, user_id, use_proxy: bool, cf
                 logger.info("Instagram domain in GALLERYDL_FALLBACK_DOMAINS, skipping simulation in fallback")
                 return None  # Skip simulation for fallback domains
             else:
-                return await _get_instagram_media_count(url, user_id, use_proxy, cfg_path)
+                return _get_instagram_media_count(url, user_id, use_proxy, cfg_path)
         
         cmd = [sys.executable, "-m", "gallery_dl", "--config", cfg_path, "--get-urls", url]
         cmd = _add_cookies_to_cmd(cmd, url, user_id)
@@ -662,12 +660,12 @@ async def _get_total_media_count_fallback(url: str, user_id, use_proxy: bool, cf
         # VK альбомы могут быть большими – увеличим таймаут для VK
         timeout_sec = 30 if 'vk.com' in url.lower() else 15
         try:
-            stdout, stderr = await async_subprocess(*cmd, timeout=timeout_sec)
-        except asyncio.TimeoutError:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
+        except subprocess.TimeoutExpired:
             logger.warning(f"--get-urls timed out after {timeout_sec}s")
             return None
-        if not stderr:
-            lines = [ln for ln in stdout.decode('utf-8', errors='replace').splitlines() if ln.strip()]
+        if result.returncode == 0:
+            lines = [ln for ln in result.stdout.splitlines() if ln.strip()]
             logger.info(f"Fallback detected {len(lines)} media items")
             # Add warning for VK about video limitation
             if 'vk.com' in url.lower():
@@ -678,13 +676,13 @@ async def _get_total_media_count_fallback(url: str, user_id, use_proxy: bool, cf
             # Try without cookies for problematic sites
             if any(domain in url.lower() for domain in ['vk.com', 'instagram.com', 'tiktok.com']):
                 logger.info(f"Trying {url.split('/')[2]} without cookies...")
-                return await _try_without_cookies(url, cfg_path, user_id)
+                return _try_without_cookies(url, cfg_path, user_id)
             return None
     except Exception as e:
         logger.error(f"Fallback get_total_media_count error: {e}")
         return None
 
-async def _get_instagram_media_count(url: str, user_id, use_proxy: bool, cfg_path: str) -> int | None:
+def _get_instagram_media_count(url: str, user_id, use_proxy: bool, cfg_path: str) -> int | None:
     """Special method for Instagram media count using --simulate with Instagram-specific config"""
     try:
         # Create Instagram-specific config with higher limits
@@ -724,24 +722,24 @@ async def _get_instagram_media_count(url: str, user_id, use_proxy: bool, cfg_pat
             cmd = [sys.executable, "-m", "gallery_dl", "--config", instagram_cfg_path, "--simulate", url]
             logger.info(f"Instagram media count via --simulate: {' '.join(cmd)}")
             
-            stdout, stderr = await async_subprocess(*cmd, timeout=15)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
             
-            if not stderr:
+            if result.returncode == 0:
                 # Count lines that contain media info
-                lines = [ln for ln in stdout.decode('utf-8', errors='replace').splitlines() if ln.strip() and ('"url"' in ln or '"filename"' in ln or '"extension"' in ln)]
+                lines = [ln for ln in result.stdout.splitlines() if ln.strip() and ('"url"' in ln or '"filename"' in ln or '"extension"' in ln)]
                 media_count = len(lines)
                 logger.info(f"Instagram detected {media_count} media items via --simulate")
                 return media_count
             else:
-                logger.warning(f"Instagram --simulate failed: {stderr.decode('utf-8', errors='replace')[:400]}")
+                logger.warning(f"Instagram --simulate failed: {result.stderr[:400]}")
                 # Fallback to --get-urls with Instagram config
                 cmd = [sys.executable, "-m", "gallery_dl", "--config", instagram_cfg_path, "--get-urls", url]
                 cmd = _add_cookies_to_cmd(cmd, url, user_id)
                 logger.info(f"Instagram fallback via --get-urls: {' '.join(cmd)}")
                 
-                stdout, stderr = await async_subprocess(*cmd, timeout=15)
-                if not stderr:
-                    lines = [ln for ln in stdout.decode('utf-8', errors='replace').splitlines() if ln.strip()]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+                if result.returncode == 0:
+                    lines = [ln for ln in result.stdout.splitlines() if ln.strip()]
                     media_count = len(lines)
                     logger.info(f"Instagram detected {media_count} media items via --get-urls")
                     # If still very few items, likely Instagram is blocking - return None to trigger manual input
@@ -761,7 +759,7 @@ async def _get_instagram_media_count(url: str, user_id, use_proxy: bool, cfg_pat
         logger.error(f"Instagram media count error: {e}")
         return None
 
-async def _try_without_cookies(url: str, cfg_path: str, user_id: int = None) -> int | None:
+def _try_without_cookies(url: str, cfg_path: str, user_id: int = None) -> int | None:
     """Try without cookies as fallback for problematic sites"""
     try:
         # Create config without cookies
@@ -780,13 +778,13 @@ async def _try_without_cookies(url: str, cfg_path: str, user_id: int = None) -> 
             cmd = [sys.executable, "-m", "gallery_dl", "--config", no_cookies_cfg_path, "--get-urls", url]
             cmd = _add_cookies_to_cmd(cmd, url, user_id)
             logger.info(f"Without cookies: {' '.join(cmd)}")
-            stdout, stderr = await async_subprocess(*cmd, timeout=15)
-            if not stderr:
-                lines = [ln for ln in stdout.decode('utf-8', errors='replace').splitlines() if ln.strip()]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            if result.returncode == 0:
+                lines = [ln for ln in result.stdout.splitlines() if ln.strip()]
                 logger.info(f"Without cookies detected {len(lines)} media items")
                 return len(lines)
             else:
-                logger.warning(f"Without cookies failed: {stderr.decode('utf-8', errors='replace')[:400]}")
+                logger.warning(f"Without cookies failed: {result.stderr[:400]}")
                 return None
         finally:
             try:
@@ -798,7 +796,7 @@ async def _try_without_cookies(url: str, cfg_path: str, user_id: int = None) -> 
         return None
 
 
-async def download_image_range(url: str, range_expr: str, user_id=None, use_proxy: bool = False, output_dir: str = None) -> bool | str:
+def download_image_range(url: str, range_expr: str, user_id=None, use_proxy: bool = False, output_dir: str = None) -> bool | str:
     """
     Download only a range of items using extractor.range option.
     Returns True on success (status 0), False otherwise, or error message string for 401 Unauthorized.
@@ -842,7 +840,7 @@ async def download_image_range(url: str, range_expr: str, user_id=None, use_prox
             logger.error(f"Fatal error in gallery-dl Python API: {error_response}")
             
             # Log error to exception channel
-            await log_error_to_channel(None, f"Gallery-dl Python API fatal error: {error_response}", url)
+            log_error_to_channel(None, f"Gallery-dl Python API fatal error: {error_response}", url)
             
             return error_response
         
@@ -1070,7 +1068,7 @@ def _get_error_type(stderr_text: str, user_id=None) -> str:
     return safe_get_messages(user_id).GALLERY_DL_UNKNOWN_ERROR_MSG
 
 
-async def download_image_range_cli(url: str, range_expr: str, user_id=None, use_proxy: bool = False, output_dir: str | None = None) -> bool | str:
+def download_image_range_cli(url: str, range_expr: str, user_id=None, use_proxy: bool = False, output_dir: str | None = None) -> bool | str:
     """
     Strict range download using gallery-dl CLI with --range to avoid Python API variances.
     Returns True if exit code 0, False for other errors, or error message string for 401 Unauthorized.
@@ -1110,10 +1108,10 @@ async def download_image_range_cli(url: str, range_expr: str, user_id=None, use_
                 logger.error(f"Safety check failed for command (missing --range): {cmd_pretty}")
                 return False
             logger.info(f"Downloading range via CLI: {cmd_pretty}")
-            stdout, stderr = await async_subprocess(*cmd, timeout=600)
-            if stderr:
-                stderr_text = stderr.decode('utf-8', errors='replace')[:400]
-                logger.warning(f"CLI range download failed: {stderr_text}")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            if result.returncode != 0:
+                stderr_text = result.stderr[:400]
+                logger.warning(f"CLI range download failed [{result.returncode}]: {stderr_text}")
                 
                 # Check for common authentication and access errors
                 if _is_fatal_error(stderr_text):
@@ -1130,7 +1128,7 @@ async def download_image_range_cli(url: str, range_expr: str, user_id=None, use_
                                 self.chat = type('Chat', (), {'id': chat_id, 'first_name': first_name})()
                         
                         minimal_msg = MinimalMessage(-1, "Gallery-dl")
-                        await log_error_to_channel(minimal_msg, f"Gallery-dl fatal error: {error_msg}", url)
+                        log_error_to_channel(minimal_msg, f"Gallery-dl fatal error: {error_msg}", url)
                     except Exception as log_e:
                         logger.error(f"Failed to log gallery-dl error: {log_e}")
                     
@@ -1138,8 +1136,8 @@ async def download_image_range_cli(url: str, range_expr: str, user_id=None, use_
                 
                 return False
             # Log short stdout to confirm ranged downloads occurred
-            if stdout:
-                preview = '\n'.join(stdout.splitlines()[:5])
+            if result.stdout:
+                preview = '\n'.join(result.stdout.splitlines()[:5])
                 logger.info(f"CLI stdout (first lines):\n{preview}")
             return True
         finally:

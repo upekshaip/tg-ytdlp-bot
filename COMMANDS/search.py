@@ -12,7 +12,7 @@ from pyrogram import enums, filters
 # Get app instance
 app = get_app()
 
-async def search_command(app, message):
+def search_command(app, message):
     messages = safe_get_messages(message.chat.id)
     """
     Handle the /search command to activate inline search via @vid bot
@@ -42,7 +42,7 @@ async def search_command(app, message):
     text = safe_get_messages(user_id).SEARCH_MSG
 
     from HELPERS.safe_messeger import safe_send_message
-    await safe_send_message(
+    safe_send_message(
         message.chat.id,
         text,
         parse_mode=enums.ParseMode.HTML,
@@ -51,10 +51,11 @@ async def search_command(app, message):
     )
 
     # Log the action
-    await send_to_logger(message, LoggerMsg.SEARCH_HELPER_OPENED.format(user_id=user_id))
+    send_to_logger(message, LoggerMsg.SEARCH_HELPER_OPENED.format(user_id=user_id))
 
 # Callback handler for search command buttons
-async def handle_search_callback(client, callback_query):
+@app.on_callback_query(filters.regex(r"^search_msg\|"))
+def handle_search_callback(client, callback_query):
     """Handle search command callback queries"""
     user_id = callback_query.from_user.id
     messages = safe_get_messages(user_id)
@@ -64,25 +65,25 @@ async def handle_search_callback(client, callback_query):
         if data == "search_msg|close":
             # Delete the message with search instructions
             try:
-                await client.delete_messages(
+                client.delete_messages(
                     callback_query.message.chat.id,
                     callback_query.message.id
                 )
             except Exception:
                 # If can't delete, just edit to show closed message
-                await client.edit_message_text(
+                client.edit_message_text(
                     callback_query.message.chat.id,
                     callback_query.message.id,
                     safe_get_messages(user_id).SEARCH_HELPER_CLOSED_MSG
                 )
             
             # Answer callback query
-            await callback_query.answer(safe_get_messages(user_id).SEARCH_CLOSED_MSG)
+            callback_query.answer(safe_get_messages(user_id).SEARCH_CLOSED_MSG)
             
             # Log the action (pass message object, not callback_query)
-            await send_to_logger(callback_query.message, LoggerMsg.SEARCH_HELPER_CLOSED.format(user_id=user_id))
+            send_to_logger(callback_query.message, LoggerMsg.SEARCH_HELPER_CLOSED.format(user_id=user_id))
             
     except Exception as e:
         # Log error and answer callback
-        await send_to_logger(callback_query.message, LoggerMsg.SEARCH_CALLBACK_ERROR.format(error=e))
-        await callback_query.answer(safe_get_messages(user_id).ERROR_OCCURRED_SHORT_MSG, show_alert=True)
+        send_to_logger(callback_query.message, LoggerMsg.SEARCH_CALLBACK_ERROR.format(error=e))
+        callback_query.answer(safe_get_messages(user_id).ERROR_OCCURRED_SHORT_MSG, show_alert=True)

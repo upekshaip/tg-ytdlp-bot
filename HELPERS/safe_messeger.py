@@ -1,9 +1,9 @@
 # #############################################################################################################################
 import re
 import time
-import asyncio
 import logging
 import threading
+import asyncio
 from types import SimpleNamespace
 from HELPERS.app_instance import get_app
 from CONFIG.messages import Messages, safe_get_messages
@@ -24,7 +24,7 @@ def get_app_safe():
     messages = safe_get_messages(None)
     app = get_app()
     if app is None:
-        raise RuntimeError(safe_get_messages(None).HELPER_APP_INSTANCE_NOT_AVAILABLE_MSG)
+        raise RuntimeError(safe_get_messages(user_id).HELPER_APP_INSTANCE_NOT_AVAILABLE_MSG)
     return app
 
 def fake_message(text, user_id, command=None, original_chat_id=None, message_thread_id=None, original_message=None):
@@ -92,7 +92,7 @@ def fake_message_with_context(text, user_id, context_message=None, command=None)
         return fake_message(text, user_id, command=command)
 
 # Helper function for safe message sending with flood wait handling
-async def safe_send_message(chat_id, text, **kwargs):
+def safe_send_message(chat_id, text, **kwargs):
     messages = safe_get_messages(None)
     # Normalize reply parameters and preserve topic/thread info
     original_message = kwargs.get('message')
@@ -172,13 +172,13 @@ async def safe_send_message(chat_id, text, **kwargs):
         # Increase minimum spacing to reduce RANDOM_ID_DUPLICATE in high-throughput chats
         min_spacing = 0.25  # seconds
         if now - last_sent < min_spacing:
-            await asyncio.sleep(min_spacing - (now - last_sent))
+            time.sleep(min_spacing - (now - last_sent))
         _last_message_sent[chat_id] = time.time()
 
     for attempt in range(max_retries):
         try:
             app = get_app_safe()
-            return await app.send_message(chat_id, text, **kwargs)
+            return app.send_message(chat_id, text, **kwargs)
         except FloodWait as e:
             # Write FloodWait seconds to per-user file and do not spin retries for huge waits
             try:
@@ -193,7 +193,7 @@ async def safe_send_message(chat_id, text, **kwargs):
             try:
                 if cb is not None:
                     try:
-                        cb.answer(notice or safe_get_messages(chat_id).HELPER_FLOOD_LIMIT_TRY_LATER_MSG, show_alert=False)
+                        cb.answer(notice or safe_get_messages(user_id).HELPER_FLOOD_LIMIT_TRY_LATER_MSG, show_alert=False)
                     except Exception:
                         pass
             except Exception:
@@ -205,17 +205,17 @@ async def safe_send_message(chat_id, text, **kwargs):
                 wait_match = re.search(r'A wait of (\d+) seconds is required', str(e))
                 if wait_match:
                     wait_seconds = int(wait_match.group(1))
-                    logger.warning(safe_get_messages(chat_id).HELPER_FLOOD_WAIT_DETECTED_SLEEPING_MSG.format(wait_seconds=wait_seconds))
-                    await asyncio.sleep(min(wait_seconds + 1, 5))  # short backoff
+                    logger.warning(safe_get_messages(user_id).HELPER_FLOOD_WAIT_DETECTED_SLEEPING_MSG.format(wait_seconds=wait_seconds))
+                    time.sleep(min(wait_seconds + 1, 5))  # short backoff
                 else:
-                    logger.warning(safe_get_messages(chat_id).HELPER_FLOOD_WAIT_DETECTED_COULDNT_EXTRACT_MSG.format(retry_delay=retry_delay))
-                    await asyncio.sleep(retry_delay)
+                    logger.warning(safe_get_messages(user_id).HELPER_FLOOD_WAIT_DETECTED_COULDNT_EXTRACT_MSG.format(retry_delay=retry_delay))
+                    time.sleep(retry_delay)
                 if attempt and attempt < max_retries - 1:
                     continue
             
             # Handle msg_seqno errors
             elif "msg_seqno is too high" in str(e):
-                logger.warning(safe_get_messages(chat_id).HELPER_MSG_SEQNO_ERROR_DETECTED_MSG.format(retry_delay=retry_delay))
+                logger.warning(safe_get_messages(user_id).HELPER_MSG_SEQNO_ERROR_DETECTED_MSG.format(retry_delay=retry_delay))
                 time.sleep(retry_delay)
                 if attempt and attempt < max_retries - 1:
                     continue
@@ -225,75 +225,7 @@ async def safe_send_message(chat_id, text, **kwargs):
                     logger.warning("RANDOM_ID_DUPLICATE detected, backing off briefly and retrying")
                 except Exception:
                     pass
-                await asyncio.sleep(0.5)
-                if attempt and attempt < max_retries - 1:
-                    continue
-            logger.error(f"Failed to send message after {max_retries} attempts: {e}")
-            return None
-
-# Async version of safe_send_message
-async def safe_send_message_async(chat_id, text, **kwargs):
-    """Async version of safe_send_message with asyncio.sleep instead of time.sleep"""
-    messages = safe_get_messages(None)
-    # Normalize reply parameters and preserve topic/thread info
-    original_message = kwargs.get('message')
-    # Peek callback_query (will be popped later) to inherit thread context in topics
-    cb_peek = kwargs.get('_callback_query', None)
-    
-    if original_message and hasattr(original_message, 'message_thread_id'):
-        message_thread_id = original_message.message_thread_id
-    elif cb_peek and hasattr(cb_peek, 'message') and hasattr(cb_peek.message, 'message_thread_id'):
-        message_thread_id = cb_peek.message.message_thread_id
-    else:
-        message_thread_id = None
-    
-    # Add thread_id to kwargs if present
-    if message_thread_id:
-        kwargs['message_thread_id'] = message_thread_id
-    
-    # Extract internal helper kwargs (not supported by pyrogram)
-    cb = kwargs.pop('_callback_query', None)
-    notice = kwargs.pop('_fallback_notice', None)
-    # Drop any other underscored keys just in case
-    for k in list(kwargs.keys()):
-        if isinstance(k, str) and k.startswith('_'):
-            kwargs.pop(k, None)
-
-    # Throttle message sending to prevent msg_seqno issues
-    with _message_send_lock:
-        last_sent = _last_message_sent.get(chat_id, 0)
-        now = time.time()
-        # Increase minimum spacing to reduce RANDOM_ID_DUPLICATE in high-throughput chats
-        min_spacing = 0.25  # seconds
-        if now - last_sent < min_spacing:
-            await asyncio.sleep(min_spacing - (now - last_sent))
-        _last_message_sent[chat_id] = time.time()
-
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            app = get_app_safe()
-            return await app.send_message(chat_id, text, **kwargs)
-        except FloodWait as e:
-            # Write FloodWait seconds to per-user file and do not spin retries for huge waits
-            try:
-                user_dir = os.path.join("users", str(chat_id))
-                os.makedirs(user_dir, exist_ok=True)
-                with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
-                    f.write(str(e.value))
-            except Exception:
-                pass
-            
-            wait_seconds = min(e.value, 30)  # Cap at 30 seconds
-            logger.warning(f"FloodWait: waiting {wait_seconds} seconds before retry")
-            await asyncio.sleep(wait_seconds)
-        except Exception as e:
-            if "RANDOM_ID_DUPLICATE" in str(e):
-                try:
-                    logger.warning("RANDOM_ID_DUPLICATE detected, backing off briefly and retrying")
-                except Exception:
-                    pass
-                await asyncio.sleep(0.5)
+                time.sleep(0.5)
                 if attempt and attempt < max_retries - 1:
                     continue
             logger.error(f"Failed to send message after {max_retries} attempts: {e}")
@@ -327,10 +259,10 @@ def safe_forward_messages(chat_id, from_chat_id, message_ids, **kwargs):
                 wait_match = re.search(r'A wait of (\d+) seconds is required', str(e))
                 if wait_match:
                     wait_seconds = int(wait_match.group(1))
-                    logger.warning(safe_get_messages(chat_id).HELPER_FLOOD_WAIT_DETECTED_SLEEPING_MSG.format(wait_seconds=wait_seconds))
+                    logger.warning(safe_get_messages(user_id).HELPER_FLOOD_WAIT_DETECTED_SLEEPING_MSG.format(wait_seconds=wait_seconds))
                     time.sleep(min(wait_seconds + 1, 30))  # Wait the required time (max 30 sec)
                 else:
-                    logger.warning(safe_get_messages(chat_id).HELPER_FLOOD_WAIT_DETECTED_COULDNT_EXTRACT_MSG.format(retry_delay=retry_delay))
+                    logger.warning(safe_get_messages(user_id).HELPER_FLOOD_WAIT_DETECTED_COULDNT_EXTRACT_MSG.format(retry_delay=retry_delay))
                     time.sleep(retry_delay)
 
                 if attempt and attempt < max_retries - 1:
@@ -340,7 +272,7 @@ def safe_forward_messages(chat_id, from_chat_id, message_ids, **kwargs):
             return None
 
 # Helper function for safely editing message text with flood wait handling
-async def safe_edit_message_text(chat_id, message_id, text, **kwargs):
+def safe_edit_message_text(chat_id, message_id, text, **kwargs):
     messages = safe_get_messages(None)
     """
     Safely edit message text with flood wait handling
@@ -376,7 +308,7 @@ async def safe_edit_message_text(chat_id, message_id, text, **kwargs):
         elapsed = now - last_ts
         if elapsed and elapsed < 5.0:
             try:
-                await asyncio.sleep(5.0 - elapsed)
+                time.sleep(5.0 - elapsed)
             except Exception:
                 pass
         _last_edit_ts_per_chat[chat_id] = time.time()
@@ -384,7 +316,7 @@ async def safe_edit_message_text(chat_id, message_id, text, **kwargs):
     for attempt in range(max_retries):
         try:
             app = get_app_safe()
-            return await app.edit_message_text(chat_id, message_id, text, **kwargs)
+            return app.edit_message_text(chat_id, message_id, text, **kwargs)
         except FloodWait as e:
             # Persist FloodWait info and stop
             try:
@@ -399,7 +331,7 @@ async def safe_edit_message_text(chat_id, message_id, text, **kwargs):
         except Exception as e:
             # If message ID is invalid, it means the message was deleted
             # No need to retry, just return immediately
-            if safe_get_messages(None).HELPER_MESSAGE_ID_INVALID_MSG in str(e):
+            if safe_get_messages().HELPER_MESSAGE_ID_INVALID_MSG in str(e):
                 # We only log this once, not for every retry
                 if attempt == 0:
                     logger.debug(f"Tried to edit message that was already deleted: {message_id}")
@@ -451,15 +383,15 @@ def safe_edit_reply_markup(chat_id, message_id, reply_markup=None, **kwargs):
                 wait_match = re.search(r'A wait of (\d+) seconds is required', str(e))
                 if wait_match:
                     wait_seconds = int(wait_match.group(1))
-                    logger.warning(safe_get_messages(chat_id).HELPER_FLOOD_WAIT_DETECTED_SLEEPING_MSG.format(wait_seconds=wait_seconds))
+                    logger.warning(safe_get_messages(user_id).HELPER_FLOOD_WAIT_DETECTED_SLEEPING_MSG.format(wait_seconds=wait_seconds))
                     time.sleep(min(wait_seconds + 1, 5))
                 else:
-                    logger.warning(safe_get_messages(chat_id).HELPER_FLOOD_WAIT_DETECTED_COULDNT_EXTRACT_MSG.format(retry_delay=retry_delay))
+                    logger.warning(safe_get_messages(user_id).HELPER_FLOOD_WAIT_DETECTED_COULDNT_EXTRACT_MSG.format(retry_delay=retry_delay))
                     time.sleep(retry_delay)
                 if attempt and attempt < max_retries - 1:
                     continue
             elif "msg_seqno is too high" in str(e):
-                logger.warning(safe_get_messages(chat_id).HELPER_MSG_SEQNO_ERROR_DETECTED_MSG.format(retry_delay=retry_delay))
+                logger.warning(safe_get_messages(user_id).HELPER_MSG_SEQNO_ERROR_DETECTED_MSG.format(retry_delay=retry_delay))
                 time.sleep(retry_delay)
                 if attempt and attempt < max_retries - 1:
                     continue
@@ -468,7 +400,7 @@ def safe_edit_reply_markup(chat_id, message_id, reply_markup=None, **kwargs):
             return None
 
 # Helper function for safely deleting messages with flood wait handling
-async def safe_delete_messages(chat_id, message_ids, **kwargs):
+def safe_delete_messages(chat_id, message_ids, **kwargs):
     messages = safe_get_messages(None)
     """
     Safely delete messages with flood wait handling
@@ -487,14 +419,14 @@ async def safe_delete_messages(chat_id, message_ids, **kwargs):
     for attempt in range(max_retries):
         try:
             app = get_app_safe()
-            return await app.delete_messages(chat_id=chat_id, message_ids=message_ids, **kwargs)
+            return app.delete_messages(chat_id=chat_id, message_ids=message_ids, **kwargs)
         except Exception as e:
             # Если сообщение уже удалено/невалидно — не считаем это ошибкой
             try:
                 msg = str(e)
             except Exception:
                 msg = f"{type(e).__name__}"
-            if safe_get_messages(chat_id).HELPER_MESSAGE_ID_INVALID_MSG in msg or safe_get_messages(chat_id).HELPER_MESSAGE_DELETE_FORBIDDEN_MSG in msg:
+            if safe_get_messages(user_id).HELPER_MESSAGE_ID_INVALID_MSG in msg or safe_get_messages(user_id).HELPER_MESSAGE_DELETE_FORBIDDEN_MSG in msg:
                 if attempt == 0:
                     logger.debug(f"Tried to delete non-existent message(s): {message_ids}")
                 return None
@@ -503,11 +435,11 @@ async def safe_delete_messages(chat_id, message_ids, **kwargs):
                 wait_match = re.search(r'A wait of (\d+) seconds is required', str(e))
                 if wait_match:
                     wait_seconds = int(wait_match.group(1))
-                    logger.warning(safe_get_messages(chat_id).HELPER_FLOOD_WAIT_DETECTED_SLEEPING_MSG.format(wait_seconds=wait_seconds))
+                    logger.warning(safe_get_messages(user_id).HELPER_FLOOD_WAIT_DETECTED_SLEEPING_MSG.format(wait_seconds=wait_seconds))
                     time.sleep(min(wait_seconds + 1, 30))  # Wait the required time (max 30 sec)
                 else:
-                    logger.warning(safe_get_messages(chat_id).HELPER_FLOOD_WAIT_DETECTED_COULDNT_EXTRACT_MSG.format(retry_delay=retry_delay))
-                    await asyncio.sleep(retry_delay)
+                    logger.warning(safe_get_messages(user_id).HELPER_FLOOD_WAIT_DETECTED_COULDNT_EXTRACT_MSG.format(retry_delay=retry_delay))
+                    time.sleep(retry_delay)
 
                 if attempt and attempt < max_retries - 1:
                     continue
@@ -517,7 +449,7 @@ async def safe_delete_messages(chat_id, message_ids, **kwargs):
             return None
 
 # Helper function for sending messages with auto-delete functionality
-async def safe_send_message_with_auto_delete(chat_id, text, delete_after_seconds=60, **kwargs):
+def safe_send_message_with_auto_delete(chat_id, text, delete_after_seconds=60, **kwargs):
     """
     Send a message and automatically delete it after specified seconds
     
@@ -531,9 +463,7 @@ async def safe_send_message_with_auto_delete(chat_id, text, delete_after_seconds
         The message object or None if sending failed
     """
     # Send the message first
-    from HELPERS.app_instance import get_app_safe
-    app = get_app_safe()
-    message = await app.send_message(chat_id, text, **kwargs)
+    message = safe_send_message(chat_id, text, **kwargs)
     
     if message and hasattr(message, 'id'):
         # Schedule deletion in a separate thread with better error handling
@@ -542,7 +472,7 @@ async def safe_send_message_with_auto_delete(chat_id, text, delete_after_seconds
                 logger.info(f"[AUTO-DELETE] Scheduling message {message.id} for deletion in {delete_after_seconds} seconds")
                 time.sleep(delete_after_seconds)
                 logger.info(f"[AUTO-DELETE] Attempting to delete message {message.id}")
-                result = asyncio.run(safe_delete_messages(chat_id, [message.id]))
+                result = safe_delete_messages(chat_id, [message.id])
                 if result:
                     logger.info(f"[AUTO-DELETE] Successfully deleted message {message.id}")
                 else:
@@ -578,7 +508,7 @@ def schedule_delete_message(chat_id, message_id, delete_after_seconds=60):
             try:
                 logger.info(f"[AUTO-DELETE] Scheduling message {message_id} for deletion in {delete_after_seconds} seconds")
                 time.sleep(delete_after_seconds)
-                asyncio.run(safe_delete_messages(chat_id, [message_id]))
+                safe_delete_messages(chat_id, [message_id])
             except Exception as e:
                 logger.error(f"[AUTO-DELETE] Error while deleting message {message_id}: {e}")
 

@@ -11,7 +11,7 @@ from HELPERS.limitter import humanbytes, is_user_in_channel
 from CONFIG.messages import Messages, safe_get_messages
 import re
 
-async def parse_size_argument(arg):
+def parse_size_argument(arg):
     """
     Parse size argument and return size in bytes
     
@@ -57,19 +57,19 @@ async def parse_size_argument(arg):
 # Get app instance for decorators
 app = get_app()
 
-# @app.on_message(filters.command("split") & filters.private)
+@app.on_message(filters.command("split") & filters.private)
 # @reply_with_keyboard
-async def split_command(app, message):
+def split_command(app, message):
     messages = safe_get_messages(message.chat.id)
     user_id = message.chat.id
     # Subscription check for non-admines
-    if int(user_id) not in Config.ADMIN and not await is_user_in_channel(app, message):
+    if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
     
     # Check if arguments are provided
     if len(message.command) > 1:
         arg = message.command[1].lower()
-        size = await parse_size_argument(arg)
+        size = parse_size_argument(arg)
         if size:
             # Apply size directly
             user_dir = os.path.join("users", str(user_id))
@@ -78,11 +78,11 @@ async def split_command(app, message):
             with open(split_file, "w", encoding="utf-8") as f:
                 f.write(str(size))
             
-            await safe_send_message(user_id, safe_get_messages(user_id).SPLIT_SIZE_SET_MSG.format(size=humanbytes(size)), message=message)
-            await send_to_logger(message, safe_get_messages(user_id).SPLIT_SIZE_SET_ARGUMENT_LOG_MSG.format(size=size))
+            safe_send_message(user_id, safe_get_messages(user_id).SPLIT_SIZE_SET_MSG.format(size=humanbytes(size)), message=message)
+            send_to_logger(message, safe_get_messages(user_id).SPLIT_SIZE_SET_ARGUMENT_LOG_MSG.format(size=size))
             return
         else:
-            await safe_send_message(user_id, safe_get_messages(user_id).SPLIT_INVALID_SIZE_MSG, message=message)
+            safe_send_message(user_id, safe_get_messages(user_id).SPLIT_INVALID_SIZE_MSG, message=message)
             return
     
     user_dir = os.path.join("users", str(user_id))
@@ -108,23 +108,23 @@ async def split_command(app, message):
         buttons.append(row)
     buttons.append([InlineKeyboardButton(safe_get_messages(user_id).SPLIT_CLOSE_BUTTON_MSG, callback_data="split_size|close")])
     keyboard = InlineKeyboardMarkup(buttons)
-    await safe_send_message(user_id, 
+    safe_send_message(user_id, 
 safe_get_messages(user_id).SPLIT_MENU_TITLE_MSG, 
         reply_markup=keyboard,
         message=message
     )
-    await send_to_logger(message, safe_get_messages(user_id).SPLIT_MENU_OPENED_LOG_MSG)
+    send_to_logger(message, safe_get_messages(user_id).SPLIT_MENU_OPENED_LOG_MSG)
 
-# @app.on_callback_query(filters.regex(r"^split_size\|"))
+@app.on_callback_query(filters.regex(r"^split_size\|"))
 # @reply_with_keyboard
-async def split_size_callback(app, callback_query):
+def split_size_callback(app, callback_query):
     user_id = callback_query.from_user.id
     messages = safe_get_messages(user_id)
     logger.info(f"[SPLIT] callback: {callback_query.data}")
     data = callback_query.data.split("|")[1]
     if data == "close":
         try:
-            await callback_query.message.delete()
+            callback_query.message.delete()
         except Exception:
             # Fallback: clear inline keyboard safely (works in topics)
             try:
@@ -136,23 +136,23 @@ async def split_size_callback(app, callback_query):
                 except Exception:
                     pass
         try:
-            await callback_query.answer(safe_get_messages(user_id).SPLIT_MENU_CLOSED_MSG)
+            callback_query.answer(safe_get_messages(user_id).SPLIT_MENU_CLOSED_MSG)
         except Exception:
             pass
-        await send_to_logger(callback_query.message, safe_get_messages(user_id).SPLIT_SELECTION_CLOSED_LOG_MSG)
+        send_to_logger(callback_query.message, safe_get_messages(user_id).SPLIT_SELECTION_CLOSED_LOG_MSG)
         return
     try:
         size = int(data)
     except Exception:
-        await callback_query.answer(safe_get_messages(user_id).SPLIT_INVALID_SIZE_CALLBACK_MSG)
+        callback_query.answer(safe_get_messages(user_id).SPLIT_INVALID_SIZE_CALLBACK_MSG)
         return
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
     split_file = os.path.join(user_dir, "split.txt")
     with open(split_file, "w", encoding="utf-8") as f:
         f.write(str(size))
-    await safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, safe_get_messages(user_id).SPLIT_SIZE_SET_MSG.format(size=humanbytes(size)))
-    await send_to_logger(callback_query.message, safe_get_messages(user_id).SPLIT_SIZE_SET_CALLBACK_LOG_MSG.format(size=size))
+    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, safe_get_messages(user_id).SPLIT_SIZE_SET_MSG.format(size=humanbytes(size)))
+    send_to_logger(callback_query.message, safe_get_messages(user_id).SPLIT_SIZE_SET_CALLBACK_LOG_MSG.format(size=size))
 
 # --- Function for reading split.txt ---
 def get_user_split_size(user_id):

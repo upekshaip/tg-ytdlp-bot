@@ -7,8 +7,6 @@ import shutil
 import logging
 import time
 import re
-import asyncio
-from HELPERS.guard import async_subprocess
 from moviepy.editor import VideoFileClip
 from moviepy.video.fx.all import resize
 from HELPERS.app_instance import get_app
@@ -45,28 +43,6 @@ def get_ffmpeg_path():
             return None
     
     return ffmpeg_path
-
-async def run_ffmpeg_async(command, timeout=None):
-    """Асинхронный запуск ffmpeg команды"""
-    try:
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        
-        stdout, stderr = await asyncio.wait_for(
-            process.communicate(), 
-            timeout=timeout
-        )
-        
-        return process.returncode, stdout.decode(), stderr.decode()
-    except asyncio.TimeoutError:
-        process.kill()
-        await process.wait()
-        raise Exception(f"FFmpeg command timed out after {timeout} seconds")
-    except Exception as e:
-        raise Exception(f"FFmpeg execution failed: {e}")
 
 def normalize_path_for_ffmpeg(path, for_ffmpeg=True):
     """Normalize path for FFmpeg compatibility across platforms"""
@@ -135,7 +111,7 @@ def test_path_handling():
     
     return True
 
-async def get_ytdlp_path():
+def get_ytdlp_path():
     messages = safe_get_messages(None)
     """Get yt-dlp binary path - first try system PATH, then fallback to local binary.
     This is used only for functions that need the binary directly (like /cookies_from_browser)"""
@@ -160,7 +136,7 @@ async def get_ytdlp_path():
     
     return ytdlp_path
 
-async def split_video_2(dir, video_name, video_path, video_size, max_size, duration, user_id):
+def split_video_2(dir, video_name, video_path, video_size, max_size, duration, user_id):
     messages = safe_get_messages(None)
     """
     Split a video into multiple parts
@@ -201,7 +177,7 @@ async def split_video_2(dir, video_name, video_path, video_size, max_size, durat
             try:
                 # Use progress logging
                 logger.info(safe_get_messages(user_id).FFMPEG_SPLITTING_VIDEO_PART_MSG.format(current=x+1, total=rounds, start_time=start_time, end_time=end_time))
-                await ffmpeg_extract_subclip(video_path, start_time, end_time, targetname=target_name)
+                ffmpeg_extract_subclip(video_path, start_time, end_time, targetname=target_name)
 
                 # Verify the split was successful
                 if not os.path.exists(target_name) or os.path.getsize(target_name) == 0:
@@ -232,7 +208,7 @@ async def split_video_2(dir, video_name, video_path, video_size, max_size, durat
         return split_vid_dict
 
 
-async def get_duration_thumb_(dir, video_path, thumb_name):
+def get_duration_thumb_(dir, video_path, thumb_name):
     messages = safe_get_messages(None)
     # Generate a short unique name for the thumbnail
     thumb_hash = hashlib.md5(thumb_name.encode()).hexdigest()[:10]
@@ -277,7 +253,7 @@ async def get_duration_thumb_(dir, video_path, thumb_name):
         ffmpeg_path = get_ffmpeg_path()
         if not ffmpeg_path:
             logger.error(safe_get_messages(None).FFMPEG_NOT_FOUND_MSG)
-            await create_default_thumbnail(thumb_dir, thumb_w, thumb_h)
+            create_default_thumbnail(thumb_dir, thumb_w, thumb_h)
             return duration, thumb_dir
         
         ffmpeg_command = [
@@ -289,7 +265,7 @@ async def get_duration_thumb_(dir, video_path, thumb_name):
             "-vf", f"scale={thumb_w}:{thumb_h}",  # Scale to exact thumbnail size
             thumb_dir
         ]
-        await async_subprocess(*ffmpeg_command, timeout=60)
+        subprocess.run(ffmpeg_command, check=True, capture_output=True, encoding='utf-8', errors='replace')
     except Exception as e:
         logger.error(safe_get_messages(None).FFMPEG_ERROR_CREATING_THUMBNAIL_WITH_FFMPEG_MSG.format(error=e))
         # Create default thumbnail as fallback
@@ -297,7 +273,7 @@ async def get_duration_thumb_(dir, video_path, thumb_name):
     
     return duration, thumb_dir
 
-async def get_duration_thumb(message, dir_path, video_path, thumb_name):
+def get_duration_thumb(message, dir_path, video_path, thumb_name):
     user_id = message.chat.id
     messages = safe_get_messages(user_id)
     """
@@ -340,7 +316,7 @@ async def get_duration_thumb(message, dir_path, video_path, thumb_name):
         # First check if video file exists
         if not os.path.exists(video_path):
             logger.error(safe_get_messages(user_id).FFMPEG_VIDEO_FILE_NOT_EXISTS_MSG.format(video_path=video_path))
-            await send_to_all(message, safe_get_messages(user_id).VIDEO_FILE_NOT_FOUND_MSG.format(filename=os.path.basename(video_path)))
+            send_to_all(message, safe_get_messages(user_id).VIDEO_FILE_NOT_FOUND_MSG.format(filename=os.path.basename(video_path)))
             return None
 
         # Get video dimensions
@@ -397,9 +373,9 @@ async def get_duration_thumb(message, dir_path, video_path, thumb_name):
         ]
 
         # Run ffmpeg command to create thumbnail
-        stdout, stderr = await async_subprocess(*ffmpeg_command, timeout=60)
-        if stderr:
-            logger.error(safe_get_messages(user_id).FFMPEG_ERROR_CREATING_THUMBNAIL_MSG.format(stderr=stderr.decode('utf-8', errors='replace')))
+        ffmpeg_result = subprocess.run(ffmpeg_command, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
+        if ffmpeg_result.returncode != 0:
+            logger.error(safe_get_messages(user_id).FFMPEG_ERROR_CREATING_THUMBNAIL_MSG.format(stderr=ffmpeg_result.stderr))
 
         # Run ffprobe command to get duration
         try:
@@ -425,19 +401,19 @@ async def get_duration_thumb(message, dir_path, video_path, thumb_name):
         if not os.path.exists(thumb_dir):
             logger.warning(safe_get_messages(user_id).FFMPEG_THUMBNAIL_NOT_CREATED_MSG.format(thumb_dir=thumb_dir))
             # Create a blank thumbnail as fallback
-            await create_default_thumbnail(thumb_dir, thumb_w, thumb_h)
+            create_default_thumbnail(thumb_dir, thumb_w, thumb_h)
 
         return duration, thumb_dir
     except subprocess.CalledProcessError as e:
         logger.error(safe_get_messages(user_id).FFMPEG_COMMAND_EXECUTION_ERROR_MSG.format(error=e.stderr if hasattr(e, 'stderr') else e))
-        await send_to_all(message, safe_get_messages(user_id).VIDEO_PROCESSING_ERROR_MSG.format(error=str(e)))
+        send_to_all(message, safe_get_messages(user_id).VIDEO_PROCESSING_ERROR_MSG.format(error=str(e)))
         return None
     except Exception as e:
         logger.error(f"Unexpected error processing video: {e}")
-        await send_to_all(message, safe_get_messages(user_id).VIDEO_PROCESSING_ERROR_MSG.format(error=str(e)))
+        send_to_all(message, safe_get_messages(user_id).VIDEO_PROCESSING_ERROR_MSG.format(error=str(e)))
         return None
 
-async def create_default_thumbnail(thumb_path, width=480, height=480):
+def create_default_thumbnail(thumb_path, width=480, height=480):
     """Create a default thumbnail when normal thumbnail creation fails"""
     try:
         # Get FFmpeg path using the common function
@@ -454,7 +430,7 @@ async def create_default_thumbnail(thumb_path, width=480, height=480):
             "-frames:v", "1",
             thumb_path
         ]
-        await async_subprocess(*ffmpeg_cmd, timeout=60)
+        subprocess.run(ffmpeg_cmd, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
         logger.info(f"Created default {width}x{height} thumbnail at {thumb_path}")
     except Exception as e:
         logger.error(f"Failed to create default thumbnail: {e}")
@@ -487,7 +463,7 @@ def ensure_utf8_srt(srt_path):
             return None
 
 
-async def force_fix_arabic_encoding(srt_path, lang):
+def force_fix_arabic_encoding(srt_path, lang):
     """Fix Arabic subtitle encoding issues"""
     try:
         with open(srt_path, 'r', encoding='utf-8') as f:
@@ -506,7 +482,7 @@ async def force_fix_arabic_encoding(srt_path, lang):
         return None
 
 
-async def ffmpeg_extract_subclip(video_path, start_time, end_time, targetname):
+def ffmpeg_extract_subclip(video_path, start_time, end_time, targetname):
     """Extract a subclip from video using FFmpeg"""
     try:
         # Get FFmpeg path using the common function
@@ -539,7 +515,7 @@ async def ffmpeg_extract_subclip(video_path, start_time, end_time, targetname):
         logger.info(f"Original target path: {targetname}")
         logger.info(f"Normalized target path: {normalized_targetname}")
         
-        await async_subprocess(*cmd, timeout=300)
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
         logger.info(f"FFmpeg extract completed successfully for {targetname}")
         logger.info(f"Output file size: {os.path.getsize(targetname) if os.path.exists(targetname) else 'File not found'}")
         return True
@@ -551,18 +527,18 @@ async def ffmpeg_extract_subclip(video_path, start_time, end_time, targetname):
 # ####################################################################################
 # ####################################################################################
 
-async def get_video_info_ffprobe(video_path):
+def get_video_info_ffprobe(video_path):
     import json
     try:
-        stdout, stderr = await async_subprocess(
+        result = subprocess.run([
             'ffprobe', '-v', 'error',
             '-select_streams', 'v:0',
             '-show_entries', 'stream=width,height',
             '-show_entries', 'format=duration',
             '-of', 'json', video_path
-        )
-        if not stderr:
-            data = json.loads(stdout.decode('utf-8', errors='replace'))
+        ], capture_output=True, text=True, encoding='utf-8', errors='replace')
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
             width = data['streams'][0]['width'] if data['streams'] else 0
             height = data['streams'][0]['height'] if data['streams'] else 0
             duration = float(data['format']['duration']) if 'format' in data and 'duration' in data['format'] else 0
@@ -573,7 +549,7 @@ async def get_video_info_ffprobe(video_path):
 
 
 
-async def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, message=None):
+def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, message=None):
     messages = safe_get_messages(user_id)
     """
     Burning (hardcode) subtitles in a video file, if there is any .SRT file and subs.txt
@@ -642,7 +618,7 @@ async def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=
 
             try:
                 logger.info(f"Running ffmpeg soft-mux (MKV): {' '.join(cmd)}")
-                await async_subprocess(*cmd, timeout=300)
+                subprocess.run(cmd, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
             except Exception as e:
                 logger.error(f"FFmpeg soft-mux failed: {e}")
                 return False
@@ -728,16 +704,16 @@ async def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=
         output_path = os.path.join(video_dir, f"{video_base}_with_subs_temp.mp4")
         
         # We get the duration of the video via FFPRobe
-        async def get_duration(path):
+        def get_duration(path):
             messages = safe_get_messages(user_id)
             try:
                 import json
-                stdout, stderr = await async_subprocess(
+                result = subprocess.run([
                     'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
                     '-of', 'json', path
-                )
-                if not stderr:
-                    data = json.loads(stdout.decode('utf-8', errors='replace'))
+                ], capture_output=True, text=True)
+                if result.returncode == 0:
+                    data = json.loads(result.stdout)
                     return float(data['format']['duration'])
             except Exception as e:
                 logger.error(f"ffprobe error: {e}")
@@ -815,7 +791,7 @@ async def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=
             return False
         
         # We are waiting a little so that the file will definitely complete the recording
-        await asyncio.sleep(1)
+        time.sleep(1)
         
         output_size = os.path.getsize(output_path)
         original_size = os.path.getsize(video_path)
@@ -852,7 +828,7 @@ async def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=
         if os.path.exists(subs_path):
             try:
                 if app is not None and message is not None:
-                    sent_msg = await app.send_document(
+                    sent_msg = app.send_document(
                         chat_id=user_id,
                         document=subs_path,
                         caption="<blockquote>💬 Subtitles SRT-file</blockquote>",
@@ -860,8 +836,8 @@ async def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=
                         parse_mode=enums.ParseMode.HTML
                     )
                     from HELPERS.logger import get_log_channel
-                    await safe_forward_messages(await get_log_channel("video"), user_id, [sent_msg.id])
-                    await send_to_logger(message, safe_get_messages(user_id).SUBS_SENT_MSG) 
+                    safe_forward_messages(get_log_channel("video"), user_id, [sent_msg.id])
+                    send_to_logger(message, safe_get_messages(user_id).SUBS_SENT_MSG) 
             except Exception as e:
                 logger.error(f"Error sending srt file: {e}")
             try:

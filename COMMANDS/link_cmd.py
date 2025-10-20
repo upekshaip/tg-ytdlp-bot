@@ -58,7 +58,7 @@ def parse_quality_argument(quality_arg):
     except ValueError:
         return "best"
 
-async def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=False, use_proxy=False):
+def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=False, use_proxy=False):
     messages = safe_get_messages(user_id)
     """
     Gets direct link to video using yt-dlp
@@ -97,12 +97,10 @@ async def get_direct_link(url, user_id, quality_arg=None, cookies_already_checke
             'geo_bypass': True,
             'check_certificate': False,
             'live_from_start': True,
-            # Minimal timeout and retry settings
-            'socket_timeout': 30,  # 30 seconds socket timeout
-            'retries': 1,  # Minimal retries
-            'extractor_retries': 1,  # Minimal extractor retries
-            'fragment_retries': 3,  # Optimal fragment retries
-            'retry_sleep_functions': {'http': lambda n: 3},  # Fixed 3 seconds delay
+            # Add additional stability options
+            'socket_timeout': 60,
+            'retries': 15,
+            'fragment_retries': 15,
             'http_chunk_size': 5242880,  # 5MB chunks
             'buffersize': 2048,
             'sleep_interval': 2,
@@ -126,7 +124,7 @@ async def get_direct_link(url, user_id, quality_arg=None, cookies_already_checke
         
         # For YouTube URL check cookies
         if is_youtube_url(url) and not cookies_already_checked:
-            has_working_cookies = await ensure_working_youtube_cookies(user_id)
+            has_working_cookies = ensure_working_youtube_cookies(user_id)
             if has_working_cookies and os.path.exists(user_cookie_path):
                 ytdl_opts['cookiefile'] = user_cookie_path
                 logger.info(safe_get_messages(user_id).LINK_USING_WORKING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
@@ -232,11 +230,11 @@ async def get_direct_link(url, user_id, quality_arg=None, cookies_already_checke
         ytdl_opts = add_proxy_to_ytdl_opts(ytdl_opts, url, user_id)
         
         # Add PO token provider for YouTube domains
-        ytdl_opts = await add_pot_to_ytdl_opts(ytdl_opts, url)
+        ytdl_opts = add_pot_to_ytdl_opts(ytdl_opts, url)
         
         # Get video information
-        from HELPERS.async_ytdlp import async_extract_info
-        info = await async_extract_info(ytdl_opts, url, user_id)
+        with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
         # Normalize info to a dict
         if isinstance(info, list):
             info = (info[0] if len(info) > 0 else {})
@@ -363,7 +361,7 @@ async def get_direct_link(url, user_id, quality_arg=None, cookies_already_checke
         logger.error(f"Error in link extraction: {error_text}")
         return {'error': f'Error: {error_text}'}
 
-async def link_command(app, message):
+def link_command(app, message):
     """
     Handler for /link command
     """
@@ -372,7 +370,7 @@ async def link_command(app, message):
         messages = safe_get_messages(user_id)
         
         # Subscription check for non-admins
-        if not await is_user_in_channel(app, message):
+        if not is_user_in_channel(app, message):
             return  # is_user_in_channel already sends subscription message
         
         # Create user directory after subscription check
@@ -392,7 +390,7 @@ async def link_command(app, message):
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton(safe_get_messages(user_id).URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="link_hint|close")]
             ])
-            await safe_send_message(message.chat.id, safe_get_messages(user_id).LINK_USAGE_MSG, reply_markup=keyboard)
+            safe_send_message(message.chat.id, safe_get_messages(user_id).LINK_USAGE_MSG, reply_markup=keyboard, message=message)
             return
         
         # Determine URL and quality
@@ -407,15 +405,15 @@ async def link_command(app, message):
         
         # Check if this is a URL
         if not url.startswith(('http://', 'https://')):
-            await send_to_user(message, safe_get_messages(user_id).LINK_INVALID_URL_MSG)
+            send_to_user(message, safe_get_messages(user_id).LINK_INVALID_URL_MSG)
             return
         
         # Send processing start message
         from HELPERS.safe_messeger import safe_send_message
-        status_msg = await safe_send_message(user_id, safe_get_messages(user_id).LINK_PROCESSING_MSG, reply_to_message_id=message.id)
+        status_msg = safe_send_message(user_id, safe_get_messages(user_id).LINK_PROCESSING_MSG, reply_to_message_id=message.id, message=message)
         
         # Get direct link - use the same mechanisms as Always Ask Menu
-        result = await get_direct_link(url, user_id, quality_arg, cookies_already_checked=True, use_proxy=True)
+        result = get_direct_link(url, user_id, quality_arg, cookies_already_checked=True, use_proxy=True)
         
         if result.get('success'):
             title = result.get('title', 'Unknown')
@@ -451,7 +449,7 @@ async def link_command(app, message):
                 ])
                 
                 # Update message with keyboard
-                await app.edit_message_text(
+                app.edit_message_text(
                     chat_id=user_id,
                     message_id=status_msg.id,
                     text=response,
@@ -460,7 +458,7 @@ async def link_command(app, message):
                 )
             else:
                 # Fallback if no direct URL
-                await app.edit_message_text(
+                app.edit_message_text(
                     chat_id=user_id,
                     message_id=status_msg.id,
                     text=response,
@@ -474,7 +472,7 @@ async def link_command(app, message):
                     [InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_VLC_IOS_BUTTON_MSG, url=player_urls['vlc_ios'])],
                     [InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_CLOSE_BUTTON_MSG, callback_data="askq|close")]
                 ])
-                await app.send_message(
+                app.send_message(
                     user_id,
                     safe_get_messages(user_id).AA_VLC_IOS_MSG,
                     reply_parameters=ReplyParameters(message_id=message.id),
@@ -489,7 +487,7 @@ async def link_command(app, message):
                     [InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_VLC_ANDROID_BUTTON_MSG, url=player_urls['vlc_android'])],
                     [InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_CLOSE_BUTTON_MSG, callback_data="askq|close")]
                 ])
-                await app.send_message(
+                app.send_message(
                     user_id,
                     safe_get_messages(user_id).AA_VLC_ANDROID_MSG,
                     reply_parameters=ReplyParameters(message_id=message.id),
@@ -497,21 +495,21 @@ async def link_command(app, message):
                     parse_mode=enums.ParseMode.HTML
                 )
             
-            await send_to_logger(message, safe_get_messages(user_id).LINK_EXTRACTED_LOG_MSG.format(user_id=user_id, url=url))
+            send_to_logger(message, safe_get_messages(user_id).LINK_EXTRACTED_LOG_MSG.format(user_id=user_id, url=url))
             
         else:
             error_msg = result.get('error', 'Unknown error')
-            await app.edit_message_text(
+            app.edit_message_text(
                 chat_id=user_id,
                 message_id=status_msg.id,
                 text=safe_get_messages(user_id).LINK_ERROR_GETTING_MSG.format(error_msg=error_msg),
                 parse_mode=enums.ParseMode.HTML
             )
             
-            await send_to_logger(message, safe_get_messages(user_id).LINK_EXTRACTION_FAILED_LOG_MSG.format(user_id=user_id, url=url, error=error_msg))
+            send_to_logger(message, safe_get_messages(user_id).LINK_EXTRACTION_FAILED_LOG_MSG.format(user_id=user_id, url=url, error=error_msg))
             
     except Exception as e:
         logger.error(f"Error in link command: {e}")
         from HELPERS.logger import send_error_to_user
-        await send_error_to_user(message, safe_get_messages(user_id).LINK_ERROR_OCCURRED_MSG.format(error=str(e)))
-        await send_to_logger(message, safe_get_messages(user_id).LINK_COMMAND_ERROR_LOG_MSG.format(user_id=message.chat.id, error=str(e)))
+        send_error_to_user(message, safe_get_messages(user_id).LINK_ERROR_OCCURRED_MSG.format(error=str(e)))
+        send_to_logger(message, safe_get_messages(user_id).LINK_COMMAND_ERROR_LOG_MSG.format(user_id=message.chat.id, error=str(e)))

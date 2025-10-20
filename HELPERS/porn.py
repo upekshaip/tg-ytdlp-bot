@@ -181,8 +181,8 @@ def is_porn(url, title, description, caption=None):
         logger.info(f"is_porn: keyword match in text fields (regex): {text_pattern.pattern}")
         return True
 
-    # 8. Check for keyword matches in URL (with word boundaries using separators)
-    # Create URL-specific patterns for each keyword with proper word boundaries
+    # 8. Check for keyword matches in URL (with spaces replaced by underscores and dashes)
+    # Create URL-specific patterns for each keyword
     for keyword in kws:
         # Create patterns with spaces replaced by underscores and dashes
         url_patterns = [
@@ -193,22 +193,11 @@ def is_porn(url, title, description, caption=None):
             keyword.replace(' ', '-').replace('_', '-'),  # both dashes and underscores
         ]
         
-        # Create patterns that match keywords only when separated by word boundaries
-        # Use negative lookbehind and lookahead to ensure keyword is not part of a larger word
-        url_word_boundary_patterns = []
-        for pattern in url_patterns:
-            # Escape the pattern for regex
-            escaped_pattern = re.escape(pattern)
-            # Create pattern that matches only when keyword is separated by word boundaries
-            # Use negative lookbehind and lookahead to ensure keyword is not part of a larger word
-            boundary_pattern = r'(?<![a-zA-Z0-9])' + escaped_pattern + r'(?![a-zA-Z0-9])'
-            url_word_boundary_patterns.append(boundary_pattern)
-        
-        # Create a pattern that matches any of these variations with word boundaries
-        url_pattern = re.compile("|".join(url_word_boundary_patterns), flags=re.IGNORECASE)
+        # Create a pattern that matches any of these variations
+        url_pattern = re.compile("|".join([re.escape(p) for p in url_patterns]), flags=re.IGNORECASE)
         
         if url_pattern.search(url_lower):
-            logger.info(f"is_porn: keyword match in URL with word boundaries: {keyword} (patterns: {url_word_boundary_patterns})")
+            logger.info(f"is_porn: keyword match in URL: {keyword} (patterns: {url_patterns})")
             return True
 
     logger.info("is_porn: no keyword matches found")
@@ -276,7 +265,7 @@ def check_porn_detailed(url, title, description, caption=None):
         explanation_parts.append(messages.PORN_KEYWORDS_FOUND_MSG.format(keywords=', '.join(set(text_matches))))
         return True, " | ".join(explanation_parts)
 
-    # 6. Check for porn keywords in URL (with word boundaries using separators)
+    # 6. Check for porn keywords in URL (with spaces replaced by underscores and dashes)
     url_matches = []
     for keyword in kws:
         # Create patterns with spaces replaced by underscores and dashes
@@ -288,19 +277,8 @@ def check_porn_detailed(url, title, description, caption=None):
             keyword.replace(' ', '-').replace('_', '-'),  # both dashes and underscores
         ]
         
-        # Create patterns that match keywords only when separated by word boundaries
-        # Use negative lookbehind and lookahead to ensure keyword is not part of a larger word
-        url_word_boundary_patterns = []
-        for pattern in url_patterns:
-            # Escape the pattern for regex
-            escaped_pattern = re.escape(pattern)
-            # Create pattern that matches only when keyword is separated by word boundaries
-            # Use negative lookbehind and lookahead to ensure keyword is not part of a larger word
-            boundary_pattern = r'(?<![a-zA-Z0-9])' + escaped_pattern + r'(?![a-zA-Z0-9])'
-            url_word_boundary_patterns.append(boundary_pattern)
-        
-        # Create a pattern that matches any of these variations with word boundaries
-        url_pattern = re.compile("|".join(url_word_boundary_patterns), flags=re.IGNORECASE)
+        # Create a pattern that matches any of these variations
+        url_pattern = re.compile("|".join([re.escape(p) for p in url_patterns]), flags=re.IGNORECASE)
         
         matches = url_pattern.findall(url_lower)
         if matches:

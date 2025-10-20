@@ -11,13 +11,11 @@ from DOWN_AND_UP.ffmpeg import get_video_info_ffprobe
 import os
 import subprocess
 import json
-import asyncio
 from HELPERS.safe_messeger import safe_forward_messages
 from URL_PARSERS.thumbnail_downloader import download_thumbnail
 from CONFIG.config import Config
 from CONFIG.messages import Messages, safe_get_messages
 from CONFIG.limits import LimitsConfig
-from HELPERS.guard import async_subprocess, cpu_bound
 import time
 
 # Get app instance for decorators
@@ -42,7 +40,7 @@ def get_user_args(user_id: int):
         logger.error(safe_get_messages(user_id).SENDER_ERROR_READING_USER_ARGS_MSG.format(user_id=user_id, error=e))
         return {}
 
-async def send_videos(
+def send_videos(
     message,
     video_abs_path: str,
     caption: str,
@@ -78,7 +76,7 @@ async def send_videos(
     else:
         # For the rest - define the size of the video dynamically
         try:
-            width, height, _ = await get_video_info_ffprobe(video_abs_path)
+            width, height, _ = get_video_info_ffprobe(video_abs_path)
         except Exception as e:
             logger.error(safe_get_messages(user_id).SENDER_FFPROBE_BYPASS_ERROR_MSG.format(video_path=video_abs_path, error=e))
             import traceback
@@ -114,7 +112,7 @@ async def send_videos(
             cap += tags_block
         cap += link_block
 
-        async def _should_generate_cover(video_path: str, duration_seconds: int) -> bool:
+        def _should_generate_cover(video_path: str, duration_seconds: int) -> bool:
             try:
                 size_mb = os.path.getsize(video_path) / (1024 * 1024)
             except Exception:
@@ -126,9 +124,9 @@ async def send_videos(
             # Generate unless both duration<60 and size<10
             return (dur >= 60.0) or (size_mb >= 10.0)
 
-        async def _gen_thumb(video_path: str) -> str | None:
+        def _gen_thumb(video_path: str) -> str | None:
             try:
-                if not await _should_generate_cover(video_path, duration):
+                if not _should_generate_cover(video_path, duration):
                     return None
                 base_dir = os.path.dirname(video_path)
                 base_name = os.path.splitext(os.path.basename(video_path))[0]
@@ -136,30 +134,28 @@ async def send_videos(
                 if os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0:
                     return thumb_path
                 middle_sec = max(1, int(duration) // 2 if isinstance(duration, int) else 1)
-                await async_subprocess(
+                subprocess.run([
                     'ffmpeg','-y','-ss', str(middle_sec), '-i', video_abs_path,
-                    '-vframes','1','-vf','scale=320:-1', thumb_path,
-                    timeout=30
-                )
+                    '-vframes','1','-vf','scale=320:-1', thumb_path
+                ], capture_output=True, text=True, timeout=30)
                 return thumb_path if os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0 else None
             except Exception:
                 return None
 
-        async def _resize_to_cover(src_path: str, dest_path: str) -> bool:
+        def _resize_to_cover(src_path: str, dest_path: str) -> bool:
             try:
-                await async_subprocess(
+                subprocess.run([
                     'ffmpeg','-y','-i', src_path,
                     '-vf','scale=if(gte(a,1),320,-2):if(gte(a,1),-2,320),pad=320:320:(320-iw)/2:(320-ih)/2:color=black',
-                    '-vframes','1','-q:v','4', dest_path,
-                    timeout=30
-                )
+                    '-vframes','1','-q:v','4', dest_path
+                ], capture_output=True, text=True, timeout=30)
                 return os.path.exists(dest_path) and os.path.getsize(dest_path) > 0
             except Exception:
                 return False
 
-        async def _gen_paid_cover(video_path: str) -> str | None:
+        def _gen_paid_cover(video_path: str) -> str | None:
             try:
-                if not await _should_generate_cover(video_path, duration):
+                if not _should_generate_cover(video_path, duration):
                     return None
                 base_dir = os.path.dirname(video_path)
                 base_name = os.path.splitext(os.path.basename(video_path))[0]
@@ -170,8 +166,8 @@ async def send_videos(
                 try:
                     tmp_dl = os.path.join(base_dir, base_name + '.__ext_thumb.jpg')
                     if video_url:
-                        if await download_thumbnail(video_url, tmp_dl):
-                            if await _resize_to_cover(tmp_dl, cover_path):
+                        if download_thumbnail(video_url, tmp_dl):
+                            if _resize_to_cover(tmp_dl, cover_path):
                                 try:
                                     if os.path.exists(tmp_dl):
                                         os.remove(tmp_dl)
@@ -190,13 +186,12 @@ async def send_videos(
                 try:
                     tmp_frame = os.path.join(base_dir, base_name + '.__frame.jpg')
                     middle_sec = max(1, int(duration) // 2 if isinstance(duration, int) else 1)
-                    await async_subprocess(
+                    subprocess.run([
                         'ffmpeg','-y','-ss', str(middle_sec), '-i', video_path,
-                        '-vframes','1','-q:v','4', tmp_frame,
-                        timeout=30
-                    )
+                        '-vframes','1','-q:v','4', tmp_frame
+                    ], capture_output=True, text=True, timeout=30)
                     if os.path.exists(tmp_frame) and os.path.getsize(tmp_frame) > 0:
-                        if await _resize_to_cover(tmp_frame, cover_path):
+                        if _resize_to_cover(tmp_frame, cover_path):
                             try:
                                 if os.path.exists(tmp_frame):
                                     os.remove(tmp_frame)
@@ -214,22 +209,21 @@ async def send_videos(
             except Exception:
                 return None
 
-        async def _resize_to_thumb_free(src_path: str, dest_path: str) -> bool:
+        def _resize_to_thumb_free(src_path: str, dest_path: str) -> bool:
             try:
-                await async_subprocess(
+                subprocess.run([
                     'ffmpeg','-y','-i', src_path,
                     '-vf','scale=320:-1',
-                    '-vframes','1','-q:v','4', dest_path,
-                    timeout=30
-                )
+                    '-vframes','1','-q:v','4', dest_path
+                ], capture_output=True, text=True, timeout=30)
                 return os.path.exists(dest_path) and os.path.getsize(dest_path) > 0
             except Exception:
                 return False
 
-        async def _gen_free_cover(video_path: str) -> str | None:
+        def _gen_free_cover(video_path: str) -> str | None:
             try:
                 # Встраиваем миниатюру только если файл >10MB или длительность >=60 сек
-                if not await _should_generate_cover(video_path, duration):
+                if not _should_generate_cover(video_path, duration):
                     return None
                 base_dir = os.path.dirname(video_path)
                 base_name = os.path.splitext(os.path.basename(video_path))[0]
@@ -239,8 +233,8 @@ async def send_videos(
                 # 1) Попробовать скачать внешнюю миниатюру (без паддинга, только масштаб до 640 по ширине)
                 try:
                     tmp_dl = os.path.join(base_dir, base_name + '.__ext_thumb.jpg')
-                    if video_url and await download_thumbnail(video_url, tmp_dl):
-                        if await _resize_to_thumb_free(tmp_dl, cover_path):
+                    if video_url and download_thumbnail(video_url, tmp_dl):
+                        if _resize_to_thumb_free(tmp_dl, cover_path):
                             try:
                                 if os.path.exists(tmp_dl):
                                     os.remove(tmp_dl)
@@ -255,15 +249,15 @@ async def send_videos(
                 except Exception:
                     pass
                 # 2) Фолбэк: кадр из видео (как и раньше)
-                return await _gen_thumb(video_path)
+                return _gen_thumb(video_path)
             except Exception:
-                return await _gen_thumb(video_path)
+                return _gen_thumb(video_path)
 
-        async def _try_send_video(caption_text: str):
+        def _try_send_video(caption_text: str):
             messages = safe_get_messages(user_id)
             nonlocal was_paid
             # Для бесплатных сообщений — внешний превью без паддинга; для платных — обложка 320x320
-            local_thumb_free = await _gen_free_cover(video_abs_path)
+            local_thumb_free = _gen_free_cover(video_abs_path)
             # Paid media only in private chats; in groups/channels send regular video
             try:
                 chat_type = getattr(message.chat, "type", None)
@@ -274,7 +268,7 @@ async def send_videos(
                 try:
                     # Пробиваем метаданные и добавляем корректный cover и параметры
                     try:
-                        v_w, v_h, v_dur = await get_video_info_ffprobe(video_abs_path)
+                        v_w, v_h, v_dur = get_video_info_ffprobe(video_abs_path)
                     except Exception:
                         v_w, v_h, v_dur = width, height, duration
                     # duration для paid должен быть float и >0
@@ -293,7 +287,7 @@ async def send_videos(
                         safe_h = 360
                     paid_media = InputPaidMediaVideo(
                         media=video_abs_path,
-                        cover=await _gen_paid_cover(video_abs_path),
+                        cover=_gen_paid_cover(video_abs_path),
                         width=safe_w,
                         height=safe_h,
                         duration=safe_paid_dur,
@@ -305,7 +299,7 @@ async def send_videos(
                     )
                 was_paid = True
                 allow_broadcast = getattr(message.chat, "type", None) != enums.ChatType.PRIVATE
-                result = await app.send_paid_media(
+                result = app.send_paid_media(
                     chat_id=user_id,
                     media=[paid_media],
                     star_count=LimitsConfig.NSFW_STAR_COST,
@@ -322,10 +316,10 @@ async def send_videos(
                     return result
             # Для бесплатных тоже удерживаем правильные метаданные и мини-обложку по правилу
             try:
-                v_w2, v_h2, v_dur2 = await get_video_info_ffprobe(video_abs_path)
+                v_w2, v_h2, v_dur2 = get_video_info_ffprobe(video_abs_path)
             except Exception:
                 v_w2, v_h2, v_dur2 = width, height, duration
-            result = await app.send_video(
+            result = app.send_video(
                 chat_id=user_id,
                 video=video_abs_path,
                 caption=caption_text,
@@ -354,22 +348,21 @@ async def send_videos(
                 pass
             return result
 
-        async def _fallback_send_document(caption_text: str):
+        def _fallback_send_document(caption_text: str):
             messages = safe_get_messages(user_id)
             nonlocal was_paid
             # Для бесплатных документов — внешний превью без паддинга
-            local_thumb = await _gen_free_cover(video_abs_path) or thumb_file_path
+            local_thumb = _gen_free_cover(video_abs_path) or thumb_file_path
             try:
                 if not local_thumb or not os.path.exists(local_thumb):
                     local_thumb = os.path.join(os.path.dirname(video_abs_path), os.path.splitext(os.path.basename(video_abs_path))[0] + ".jpg")
                     import subprocess
                     try:
                         middle_sec = max(1, int(duration) // 2 if isinstance(duration, int) else 1)
-                        await async_subprocess(
+                        subprocess.run([
                             'ffmpeg','-y','-ss', str(middle_sec), '-i', video_abs_path,
-                            '-vframes','1','-vf','scale=320:-1', local_thumb,
-                            timeout=30
-                        )
+                            '-vframes','1','-vf','scale=320:-1', local_thumb
+                        ], capture_output=True, text=True, timeout=30)
                         if not os.path.exists(local_thumb):
                             local_thumb = None
                     except Exception:
@@ -384,7 +377,7 @@ async def send_videos(
             if is_spoiler and is_private_chat:
                 try:
                     try:
-                        v_w, v_h, v_dur = await get_video_info_ffprobe(video_abs_path)
+                        v_w, v_h, v_dur = get_video_info_ffprobe(video_abs_path)
                     except Exception:
                         v_w, v_h, v_dur = width, height, duration
                     # duration для paid должен быть float и >0
@@ -403,7 +396,7 @@ async def send_videos(
                         safe_h = 360
                     paid_media = InputPaidMediaVideo(
                         media=video_abs_path,
-                        cover=await _gen_paid_cover(video_abs_path),
+                        cover=_gen_paid_cover(video_abs_path),
                         width=safe_w,
                         height=safe_h,
                         duration=safe_paid_dur,
@@ -415,7 +408,7 @@ async def send_videos(
                     )
                 was_paid = True
                 allow_broadcast = getattr(message.chat, "type", None) != enums.ChatType.PRIVATE
-                result = await app.send_paid_media(
+                result = app.send_paid_media(
                     chat_id=user_id,
                     media=[paid_media],
                     star_count=LimitsConfig.NSFW_STAR_COST,
@@ -431,7 +424,7 @@ async def send_videos(
                     return result
             # Get original filename for document
             original_filename = os.path.basename(video_abs_path)
-            result = await app.send_document(
+            result = app.send_document(
                 chat_id=user_id,
                 document=video_abs_path,
                 file_name=original_filename,
@@ -458,22 +451,22 @@ async def send_videos(
             # Check if user wants to send as file
             if send_as_file:
                 logger.info(safe_get_messages(user_id).SENDER_USER_SEND_AS_FILE_ENABLED_MSG.format(user_id=user_id))
-                video_msg = await _fallback_send_document(cap)
+                video_msg = _fallback_send_document(cap)
             else:
                 # Первая попытка с полным описанием, с ограничением на количество ретраев по таймауту
                 attempts_left = 3
                 while True:
                     try:
-                        video_msg = await _try_send_video(cap)
+                        video_msg = _try_send_video(cap)
                         break
                     except Exception as e:
                         if "Request timed out" in str(e) or isinstance(e, TimeoutError):
                             attempts_left -= 1
                             if attempts_left and attempts_left <= 0:
                                 logger.warning(safe_get_messages(user_id).SENDER_SEND_VIDEO_TIMED_OUT_MSG)
-                                video_msg = await _fallback_send_document(cap)
+                                video_msg = _fallback_send_document(cap)
                                 break
-                            await asyncio.sleep(2)
+                            time.sleep(2)
                             continue
                         raise
         except Exception as e:
@@ -488,22 +481,22 @@ async def send_videos(
                 try:
                     if send_as_file:
                         # If send_as_file is enabled, always use document
-                        video_msg = await _fallback_send_document(minimal_cap)
+                        video_msg = _fallback_send_document(minimal_cap)
                     else:
                         # Попытка с коротким описанием и ограниченными ретраями по таймауту
                         attempts_left = 2
                         while True:
                             try:
-                                video_msg = await _try_send_video(minimal_cap)
+                                video_msg = _try_send_video(minimal_cap)
                                 break
                             except Exception as e2:
                                 if "Request timed out" in str(e2) or isinstance(e2, TimeoutError):
                                     attempts_left -= 1
                                     if attempts_left and attempts_left <= 0:
                                         logger.warning(safe_get_messages(user_id).SENDER_SEND_VIDEO_MINIMAL_CAPTION_TIMED_OUT_MSG)
-                                        video_msg = await _fallback_send_document(minimal_cap)
+                                        video_msg = _fallback_send_document(minimal_cap)
                                         break
-                                    await asyncio.sleep(2)
+                                    time.sleep(2)
                                     continue
                                 raise
                 except Exception as e:
@@ -511,18 +504,18 @@ async def send_videos(
                     # Последний фолбэк — без описания, с документом при таймауте
                     try:
                         if send_as_file:
-                            video_msg = await _fallback_send_document("")
+                            video_msg = _fallback_send_document("")
                         else:
-                            video_msg = await _try_send_video("")
+                            video_msg = _try_send_video("")
                     except Exception as e3:
                         if "Request timed out" in str(e3) or isinstance(e3, TimeoutError):
-                            video_msg = await _fallback_send_document("")
+                            video_msg = _fallback_send_document("")
                         else:
                             raise
             else:
                 # If the error is not related to the length of the caption, log it and pass it further
                 from HELPERS.logger import send_error_to_user
-                await send_error_to_user(message, safe_get_messages(user_id).ERROR_SENDING_VIDEO_MSG.format(error=str(e)))
+                send_error_to_user(message, safe_get_messages(user_id).ERROR_SENDING_VIDEO_MSG.format(error=str(e)))
                 raise e
         # Note: Forwarding to log channels is now handled in down_and_up.py
         # to avoid double forwarding and ensure proper channel routing
@@ -532,7 +525,7 @@ async def send_videos(
                 f.write(full_video_title)
         if was_truncated and os.path.exists(temp_desc_path):
             try:
-                user_doc_msg = await app.send_document(
+                user_doc_msg = app.send_document(
                     chat_id=user_id,
                     document=temp_desc_path,
                     caption=safe_get_messages(user_id).CHANGE_CAPTION_HINT_MSG,
@@ -543,7 +536,7 @@ async def send_videos(
             except Exception as e:
                 logger.error(safe_get_messages(user_id).SENDER_ERROR_SENDING_FULL_DESCRIPTION_FILE_MSG.format(error=e))
                 from HELPERS.logger import send_error_to_user
-                await send_error_to_user(message, safe_get_messages(user_id).ERROR_SENDING_DESCRIPTION_FILE_MSG.format(error=str(e)))
+                send_error_to_user(message, safe_get_messages(user_id).ERROR_SENDING_DESCRIPTION_FILE_MSG.format(error=str(e)))
         return video_msg
     finally:
         if os.path.exists(temp_desc_path):

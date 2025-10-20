@@ -1,8 +1,7 @@
 # PO Token Helper for YouTube
 # Adds PO token provider support for YouTube domains
 
-import asyncio
-from HELPERS.http_client import fetch_json
+import requests
 import time
 import re
 from CONFIG.config import Config
@@ -17,7 +16,7 @@ _pot_provider_cache = {
     'check_interval': 30  # Проверяем каждые 30 секунд
 }
 
-async def check_pot_provider_availability(base_url: str) -> bool:
+def check_pot_provider_availability(base_url: str) -> bool:
     """
     Проверяет доступность PO token провайдера
     
@@ -37,29 +36,21 @@ async def check_pot_provider_availability(base_url: str) -> bool:
     try:
         # Быстрая проверка доступности провайдера
         # PO token провайдер может возвращать 404 для корневого пути, но это означает что сервис работает
-        # Используем HEAD запрос для проверки доступности
-        try:
-            import aiohttp
-            async with aiohttp.ClientSession() as session:
-                async with session.head(base_url, timeout=aiohttp.ClientTimeout(total=5)) as response:
-                    is_available = response.status in [200, 404]  # 404 означает что сервис работает, но эндпоинт не найден
-                    status_code = response.status
-        except Exception:
-            is_available = False
-            status_code = None
+        response = requests.get(base_url, timeout=5)
+        is_available = response.status_code in [200, 404]  # 404 означает что сервис работает, но эндпоинт не найден
         
         # Обновляем кэш
         _pot_provider_cache['available'] = is_available
         _pot_provider_cache['last_check'] = current_time
         
         if is_available:
-            logger.info(f"PO token provider is available at {base_url} (status: {status_code})")
+            logger.info(f"PO token provider is available at {base_url} (status: {response.status_code})")
         else:
-            logger.warning(f"PO token provider returned status {status_code} at {base_url}")
+            logger.warning(f"PO token provider returned status {response.status_code} at {base_url}")
         
         return is_available
         
-    except Exception as e:
+    except requests.exceptions.RequestException as e:
         logger.warning(f"PO token provider is not available at {base_url}: {e}")
         
         # Обновляем кэш
@@ -68,7 +59,7 @@ async def check_pot_provider_availability(base_url: str) -> bool:
         
         return False
 
-async def add_pot_to_ytdl_opts(ytdl_opts: dict, url: str) -> dict:
+def add_pot_to_ytdl_opts(ytdl_opts: dict, url: str) -> dict:
     """
     Добавляет PO token аргументы к yt-dlp опциям для YouTube доменов
     
@@ -81,13 +72,13 @@ async def add_pot_to_ytdl_opts(ytdl_opts: dict, url: str) -> dict:
     """
     # Проверяем, включен ли PO token провайдер
     if not getattr(Config, 'YOUTUBE_POT_ENABLED', False):
-        messages = safe_get_messages(None)
+        messages = safe_get_messages()
         logger.info(messages.HELPER_POT_PROVIDER_DISABLED_MSG)
         return ytdl_opts
     
     # Проверяем, является ли URL YouTube доменом
     if not is_youtube_url(url):
-        messages = safe_get_messages(None)
+        messages = safe_get_messages()
         logger.info(messages.HELPER_POT_URL_NOT_YOUTUBE_MSG.format(url=url))
         return ytdl_opts
     
@@ -96,8 +87,8 @@ async def add_pot_to_ytdl_opts(ytdl_opts: dict, url: str) -> dict:
     disable_innertube = getattr(Config, 'YOUTUBE_POT_DISABLE_INNERTUBE', False)
     
     # Проверяем доступность PO token провайдера
-    if not await check_pot_provider_availability(base_url):
-        messages = safe_get_messages(None)
+    if not check_pot_provider_availability(base_url):
+        messages = safe_get_messages()
         logger.warning(messages.HELPER_POT_PROVIDER_NOT_AVAILABLE_MSG.format(base_url=base_url))
         return ytdl_opts
 
@@ -166,7 +157,7 @@ def clear_pot_provider_cache():
     global _pot_provider_cache
     _pot_provider_cache['available'] = None
     _pot_provider_cache['last_check'] = 0
-    messages = safe_get_messages(None)
+    messages = safe_get_messages()
     logger.info(messages.HELPER_POT_PROVIDER_CACHE_CLEARED_MSG)
 
 def is_pot_provider_available() -> bool:
@@ -224,7 +215,7 @@ def create_pot_debug_hook():
         
         elif d['status'] == 'finished':
             # Логируем успешное завершение с PO токенами
-            messages = safe_get_messages(None)
+            messages = safe_get_messages()
             logger.info(messages.HELPER_DOWNLOAD_FINISHED_PO_MSG)
             
     return pot_debug_hook
@@ -267,7 +258,7 @@ def build_cli_extractor_args(url: str) -> list[str]:
             pot_segment += ";disable_innertube=1"
 
         # Дополнительные extractor-args (через запятую между неймспейсами)
-        messages = safe_get_messages(None)
+        messages = safe_get_messages()
         generic_args = messages.HELPER_POT_GENERIC_ARGS_MSG
         value = ",".join([pot_segment, generic_args])
         logger.info(f"🧱 CLI extractor-args built for POT: {value}")

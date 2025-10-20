@@ -1,5 +1,3 @@
-
-
 #!/usr/bin/env python3
 """
 Script to automatically update code from a GitHub repository.
@@ -12,22 +10,19 @@ import shutil
 import tempfile
 from CONFIG.messages import Messages, safe_get_messages
 import subprocess
-import asyncio
-from HELPERS.guard import async_subprocess
 from pathlib import Path
 from datetime import datetime
 
 # Configuration
 REPO_URL = "https://github.com/chelaxian/tg-ytdlp-bot.git"
 # Use explicit branch
-BRANCH = "newdesign2"
-#BRANCH = "main"
+# BRANCH = "newdesign2"
+BRANCH = "main"
 
 # Files and directories that MUST NOT be updated
 EXCLUDED_FILES = [
     "CONFIG/domains.py",  # Main configuration file (contains domains data)
     "CONFIG/config.py",  # Main configuration file (contains sensitive data)
-    #"CONFIG/limits.py",  # Scaling configuration (contains custom limits)
     #"requirements.txt", # Dependencies may differ
     ".env",              # Environment variables
     ".bot_pid",          # Bot PID file
@@ -80,7 +75,7 @@ def should_update_file(file_path):
     
     return False
 
-async def backup_file(file_path):
+def backup_file(file_path):
     """Create a backup copy of a file"""
     try:
         if os.path.exists(file_path):
@@ -94,7 +89,7 @@ async def backup_file(file_path):
         log(f"Error creating backup for {file_path}: {e}", "ERROR")
     return None
 
-async def clone_repository(temp_dir):
+def clone_repository(temp_dir):
     messages = safe_get_messages(None)
     """Clone the repository into the temporary folder"""
     try:
@@ -110,30 +105,23 @@ async def clone_repository(temp_dir):
             temp_dir
         ]
         
-        stdout, stderr = await async_subprocess(*cmd, timeout=300)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
         
-        # Check if the clone was successful by verifying the directory exists and has content
-        if os.path.exists(temp_dir) and os.listdir(temp_dir):
-            messages = safe_get_messages(None)
+        if result.returncode == 0:
+            messages = safe_get_messages()
             log(messages.UPDATE_REPOSITORY_CLONED_SUCCESS_MSG)
             return True
         else:
-            # Check if stderr contains actual error messages (not just "Cloning into...")
-            error_msg = stderr.decode('utf-8') if stderr else ""
-            if "fatal:" in error_msg or "error:" in error_msg.lower():
-                messages = safe_get_messages(None)
-                log(messages.UPDATE_CLONE_ERROR_MSG.format(error=error_msg), "ERROR")
-            else:
-                messages = safe_get_messages(None)
-                log(messages.UPDATE_CLONE_ERROR_MSG.format(error="Repository clone failed"), "ERROR")
+            messages = safe_get_messages()
+            log(messages.UPDATE_CLONE_ERROR_MSG.format(error=result.stderr), "ERROR")
             return False
             
     except subprocess.TimeoutExpired:
-        messages = safe_get_messages(None)
+        messages = safe_get_messages()
         log(messages.UPDATE_CLONE_TIMEOUT_MSG, "ERROR")
         return False
     except Exception as e:
-        messages = safe_get_messages(None)
+        messages = safe_get_messages()
         log(messages.UPDATE_CLONE_EXCEPTION_MSG.format(error=e), "ERROR")
         return False
 
@@ -153,7 +141,7 @@ def find_python_files(source_dir):
     
     return sorted(files_to_update)
 
-async def update_file_from_source(source_file, target_file):
+def update_file_from_source(source_file, target_file):
     """Update a file from the source repository"""
     try:
         # Create directories if missing (only if file is not in the project root)
@@ -163,7 +151,7 @@ async def update_file_from_source(source_file, target_file):
             log(f"📁 Created directory: {dir_name}")
         
         # Create a backup
-        backup_path = await backup_file(target_file)
+        backup_path = backup_file(target_file)
         
         # Copy the file
         shutil.copy2(source_file, target_file)
@@ -177,19 +165,19 @@ async def update_file_from_source(source_file, target_file):
         log(f"Error updating file {target_file}: {e}", "ERROR")
         return False
 
-async def move_backups_to_backup_dir():
+def move_backups_to_backup_dir():
     messages = safe_get_messages(None)
     """Move all *.backup* files into _backup directory, keeping relative paths."""
     try:
         log("📦 Moving backups to _backup/...")
         cmd = "mkdir -p _backup && find . -path './_backup' -prune -o -type f -name \"*.backup*\" -print0 | sed -z 's#^\\./##' | rsync -a --relative --from0 --files-from=- --remove-source-files ./ _backup/"
-        await async_subprocess("bash", "-lc", cmd, timeout=60)
-        messages = safe_get_messages(None)
+        subprocess.run(["bash", "-lc", cmd], check=True)
+        messages = safe_get_messages()
         log(messages.UPDATE_BACKUPS_MOVED_MSG)
     except Exception as e:
         log(f"⚠️ Failed to move backups: {e}", "WARNING")
 
-async def main():
+def main():
     messages = safe_get_messages(None)
     """Main update routine"""
     log("🚀 Starting update from GitHub repository")
@@ -222,7 +210,7 @@ async def main():
         log(f"📁 Temporary directory created: {temp_dir}")
         
         # Clone repository
-        if not await clone_repository(temp_dir):
+        if not clone_repository(temp_dir):
             return False
         
         # Find files to update
@@ -242,7 +230,7 @@ async def main():
         # Ask for confirmation
         response = input("\n🤔 Proceed with update? (y/N): ").strip().lower()
         if response not in ['y', 'yes']:
-            messages = safe_get_messages(None)
+            messages = safe_get_messages()
             log(messages.UPDATE_CANCELED_BY_USER_MSG)
             return False
         
@@ -256,7 +244,7 @@ async def main():
             source_file = os.path.join(temp_dir, file_path)
             target_file = file_path
             
-            if await update_file_from_source(source_file, target_file):
+            if update_file_from_source(source_file, target_file):
                 updated_count += 1
             else:
                 failed_count += 1
@@ -269,7 +257,7 @@ async def main():
         log(f"📁 Total files: {len(files_to_update)}")
 
         # Move backups into _backup/
-        await move_backups_to_backup_dir()
+        move_backups_to_backup_dir()
         
         if failed_count == 0:
             log("🎉 All files updated successfully!")
@@ -305,5 +293,5 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--show-excluded":
         show_excluded_files()
     else:
-        success = asyncio.run(main())
+        success = main()
         sys.exit(0 if success else 1)

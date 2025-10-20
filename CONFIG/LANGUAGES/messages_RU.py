@@ -12,10 +12,6 @@ class Messages(object):
     TO_USE_MSG = "<i>Для использования этого бота вам нужно подписаться на Telegram канал @tg_ytdlp.</i>\nПосле того как вы присоединитесь к каналу, <b>отправьте ссылку на видео снова и бот скачает её для вас</b> ❤️"
 
     ERROR1 = "Ссылка не найдена. Пожалуйста, введите URL с <b>https://</b> или <b>http://</b>"
-    
-    # Guard messages
-    GUARD_TIMEOUT_MSG = "⏰ Операция превысила максимальное время выполнения"
-    GUARD_ERROR_MSG = "❌ Произошла ошибка при выполнении операции"
 
     PLAYLIST_HELP_MSG = """
 <blockquote expandable>📋 <b>Плейлисты (yt-dlp)</b>
@@ -1929,7 +1925,6 @@ class Messages(object):
     URL_EXTRACTOR_VID_HELP_EXAMPLE_1_MSG = "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code>"
     URL_EXTRACTOR_VID_HELP_ALSO_SEE_MSG = "Также смотрите: /audio, /img, /help, /playlist, /settings"
     URL_EXTRACTOR_ADD_GROUP_USER_CLOSED_MSG = "User {user_id} closed add_bot_to_group command"
-    URL_EXTRACTOR_TOO_MANY_DOWNLOADS_MSG = "⏳ Слишком много одновременных загрузок! Активных загрузок: {active}/{max}. Попробуйте позже."
 
     # YouTube messages
     YOUTUBE_FAILED_EXTRACT_ID_MSG = "Не удалось извлечь YouTube ID"

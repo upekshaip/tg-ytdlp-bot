@@ -123,28 +123,28 @@ def set_session_mkv_override(user_id, value):
     messages = safe_get_messages(user_id)
     _SESSION_MKV_OVERRIDE[str(user_id)] = bool(value)
 
-async def clear_session_mkv_override(user_id):
+def clear_session_mkv_override(user_id):
     messages = safe_get_messages(user_id)
     _SESSION_MKV_OVERRIDE.pop(str(user_id), None)
 
 # Get app instance for decorators
 app = get_app()
 
-# @app.on_message(filters.command("format") & filters.private)
+@app.on_message(filters.command("format") & filters.private)
 # @reply_with_keyboard
-async def set_format(app, message):
+def set_format(app, message):
     messages = safe_get_messages(message.chat.id)
     user_id = message.chat.id
     # For non-admins, we check the subscription
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
         return
 
-    await send_to_logger(message, safe_get_messages(user_id).FORMAT_CHANGE_REQUESTED_LOG_MSG)
+    send_to_logger(message, safe_get_messages(user_id).FORMAT_CHANGE_REQUESTED_LOG_MSG)
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)  # Ensure The User's Folder Exists
 
     # If the additional text is transmitted, we save it as Custom Format or Quality
-    if message.command and len(message.command) > 1:
+    if len(message.command) > 1:
         arg = message.text.split(" ", 1)[1].strip()
         
         # Check for special arguments
@@ -152,15 +152,15 @@ async def set_format(app, message):
             # Set to Always Ask mode
             with open(os.path.join(user_dir, "format.txt"), "w", encoding="utf-8") as f:
                 f.write("ALWAYS_ASK")
-            await safe_send_message(user_id, safe_get_messages(user_id).FORMAT_ALWAYS_ASK_SET_MSG)
-            await send_to_logger(message, safe_get_messages(user_id).FORMAT_ALWAYS_ASK_SET_LOG_MSG)
+            safe_send_message(user_id, safe_get_messages(user_id).FORMAT_ALWAYS_ASK_SET_MSG, message=message)
+            send_to_logger(message, safe_get_messages(user_id).FORMAT_ALWAYS_ASK_SET_LOG_MSG)
             return
         elif arg.lower() == "best":
             # Set to best format with AVC codec and MP4 container priority
             # with fallback to bv+ba/best if no AVC+MP4 available
             custom_format = "bv*[vcodec*=avc1][ext=mp4]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/bv*[ext=mp4]+ba/bv+ba/best"
-            await safe_send_message(user_id, safe_get_messages(user_id).FORMAT_BEST_UPDATED_MSG.format(format=custom_format))
-            await send_to_logger(message, safe_get_messages(user_id).FORMAT_UPDATED_BEST_LOG_MSG.format(format=custom_format))
+            safe_send_message(user_id, safe_get_messages(user_id).FORMAT_BEST_UPDATED_MSG.format(format=custom_format), message=message)
+            send_to_logger(message, safe_get_messages(user_id).FORMAT_UPDATED_BEST_LOG_MSG.format(format=custom_format))
         # Check if it's a format ID (e.g., "id 401", "id401")
         elif re.match(r'^id\s*\d+$', arg, re.IGNORECASE):
             # Extract the ID number
@@ -178,14 +178,14 @@ async def set_format(app, message):
                 
                 # Check if we can determine if it's audio-only by looking at recent URL
                 # This is a simplified approach - in a real scenario, you might want to store the last URL
-                await safe_send_message(user_id, safe_get_messages(user_id).FORMAT_ID_UPDATED_MSG.format(id=format_id, format=custom_format))
-                await send_to_logger(message, safe_get_messages(user_id).FORMAT_UPDATED_ID_LOG_MSG.format(format_id=format_id, format=custom_format))
+                safe_send_message(user_id, safe_get_messages(user_id).FORMAT_ID_UPDATED_MSG.format(id=format_id, format=custom_format), message=message)
+                send_to_logger(message, safe_get_messages(user_id).FORMAT_UPDATED_ID_LOG_MSG.format(format_id=format_id, format=custom_format))
                 
             except Exception as e:
                 # Fallback to original behavior
                 custom_format = f"{format_id}+bestaudio/bv+ba/best"
-                await safe_send_message(user_id, safe_get_messages(user_id).FORMAT_ID_UPDATED_MSG.format(id=format_id, format=custom_format))
-                await send_to_logger(message, safe_get_messages(user_id).FORMAT_UPDATED_ID_LOG_MSG.format(format_id=format_id, format=custom_format))
+                safe_send_message(user_id, safe_get_messages(user_id).FORMAT_ID_UPDATED_MSG.format(id=format_id, format=custom_format), message=message)
+                send_to_logger(message, safe_get_messages(user_id).FORMAT_UPDATED_ID_LOG_MSG.format(format_id=format_id, format=custom_format))
         
         # Check if it's a format ID with audio flag (e.g., "id 140 audio", "id140 audio")
         elif re.match(r'^id\s*\d+\s+audio$', arg, re.IGNORECASE):
@@ -195,20 +195,20 @@ async def set_format(app, message):
             # Use format ID with bestaudio fallback for audio-only formats
             custom_format = f"{format_id}/bestaudio"
             
-            await safe_send_message(user_id, safe_get_messages(user_id).FORMAT_ID_AUDIO_UPDATED_MSG.format(id=format_id, format=custom_format))
-            await send_to_logger(message, safe_get_messages(user_id).FORMAT_UPDATED_ID_AUDIO_LOG_MSG.format(format_id=format_id, format=custom_format))
+            safe_send_message(user_id, safe_get_messages(user_id).FORMAT_ID_AUDIO_UPDATED_MSG.format(id=format_id, format=custom_format), message=message)
+            send_to_logger(message, safe_get_messages(user_id).FORMAT_UPDATED_ID_AUDIO_LOG_MSG.format(format_id=format_id, format=custom_format))
         
         # Check if it's a quality argument (number, number+p, 4k, 8k)
         elif re.match(r'^(\d+p?|4k|8k|4K|8K)$', arg, re.IGNORECASE):
             # It's a quality argument, convert to format
             custom_format = parse_quality_argument(arg)
-            await safe_send_message(user_id, safe_get_messages(user_id).FORMAT_QUALITY_UPDATED_MSG.format(quality=arg, format=custom_format))
-            await send_to_logger(message, safe_get_messages(user_id).FORMAT_UPDATED_QUALITY_LOG_MSG.format(quality=arg, format=custom_format))
+            safe_send_message(user_id, safe_get_messages(user_id).FORMAT_QUALITY_UPDATED_MSG.format(quality=arg, format=custom_format), message=message)
+            send_to_logger(message, safe_get_messages(user_id).FORMAT_UPDATED_QUALITY_LOG_MSG.format(quality=arg, format=custom_format))
         else:
             # It's a custom format string
             custom_format = arg
-            await safe_send_message(user_id, safe_get_messages(user_id).FORMAT_CUSTOM_UPDATED_MSG.format(format=custom_format))
-            await send_to_logger(message, safe_get_messages(user_id).FORMAT_UPDATED_CUSTOM_LOG_MSG.format(format=custom_format))
+            safe_send_message(user_id, safe_get_messages(user_id).FORMAT_CUSTOM_UPDATED_MSG.format(format=custom_format), message=message)
+            send_to_logger(message, safe_get_messages(user_id).FORMAT_UPDATED_CUSTOM_LOG_MSG.format(format=custom_format))
         
         with open(os.path.join(user_dir, "format.txt"), "w", encoding="utf-8") as f:
             f.write(custom_format)
@@ -224,9 +224,9 @@ async def set_format(app, message):
             [InlineKeyboardButton(safe_get_messages(user_id).FORMAT_CUSTOM_BUTTON_MSG, callback_data="format_option|custom")],
             [InlineKeyboardButton(safe_get_messages(user_id).URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="format_option|close")]
         ])
-        await safe_send_message(
+        safe_send_message(
             user_id,
-            safe_get_messages(user_id).FORMAT_MENU_MSG + "\n"
+safe_get_messages(user_id).FORMAT_MENU_MSG + "\n"
             + safe_get_messages(user_id).FORMAT_CUSTOM_FORMAT_MSG + "\n"
             + safe_get_messages(user_id).FORMAT_720P_MSG + "\n"
             + safe_get_messages(user_id).FORMAT_4K_MSG + "\n"
@@ -234,15 +234,16 @@ async def set_format(app, message):
             + safe_get_messages(user_id).FORMAT_ID_MSG + "\n"
             + safe_get_messages(user_id).FORMAT_ASK_MSG + "\n"
             + safe_get_messages(user_id).FORMAT_BEST_MSG,
-            reply_markup=main_keyboard
+            reply_markup=main_keyboard,
+            message=message
         )
-        await send_to_logger(message, safe_get_messages(user_id).FORMAT_MENU_SENT_LOG_MSG)
+        send_to_logger(message, safe_get_messages(user_id).FORMAT_MENU_SENT_LOG_MSG)
 
 
 # Callbackquery Handler for /Format Menu Selection
-# @app.on_callback_query(filters.regex(r"^format_option\|"))
+@app.on_callback_query(filters.regex(r"^format_option\|"))
 # @reply_with_keyboard
-async def format_option_callback(app, callback_query):
+def format_option_callback(app, callback_query):
     user_id = callback_query.from_user.id
     messages = safe_get_messages(user_id)
     logger.info(LoggerMsg.FORMAT_CALLBACK_LOG_MSG.format(callback_data=callback_query.data))
@@ -251,11 +252,11 @@ async def format_option_callback(app, callback_query):
     # If you press the close button
     if data == "close":
         try:
-            await callback_query.message.delete()
+            callback_query.message.delete()
         except Exception:
-            await callback_query.edit_message_reply_markup(reply_markup=None)
-        await callback_query.answer(safe_get_messages(user_id).FORMAT_CHOICE_UPDATED_MSG)
-        await send_to_logger(callback_query.message, safe_get_messages(user_id).FORMAT_SELECTION_CLOSED_LOG_MSG)
+            callback_query.edit_message_reply_markup(reply_markup=None)
+        callback_query.answer(safe_get_messages(user_id).FORMAT_CHOICE_UPDATED_MSG)
+        send_to_logger(callback_query.message, safe_get_messages(user_id).FORMAT_SELECTION_CLOSED_LOG_MSG)
         return
 
     # If the Custom button is pressed
@@ -264,14 +265,14 @@ async def format_option_callback(app, callback_query):
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(safe_get_messages(user_id).URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="format_custom|close")]
         ])
-        await safe_send_message(
+        safe_send_message(
             user_id,
 safe_get_messages(user_id).FORMAT_CUSTOM_HINT_MSG,
             reply_parameters=ReplyParameters(message_id=callback_query.message.id),
             reply_markup=keyboard
         )
-        await callback_query.answer(safe_get_messages(user_id).FORMAT_HINT_SENT_MSG)
-        await send_to_logger(callback_query.message, safe_get_messages(user_id).FORMAT_CUSTOM_HINT_SENT_LOG_MSG)
+        callback_query.answer(safe_get_messages(user_id).FORMAT_HINT_SENT_MSG)
+        send_to_logger(callback_query.message, safe_get_messages(user_id).FORMAT_CUSTOM_HINT_SENT_LOG_MSG)
         return
 
     # If the Others button is pressed - we display the second set of options
@@ -309,12 +310,12 @@ safe_get_messages(user_id).FORMAT_CUSTOM_HINT_MSG,
             ],
             [InlineKeyboardButton(safe_get_messages(user_id).FORMAT_BACK_BUTTON_MSG, callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton(safe_get_messages(user_id).URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="format_option|close")]
         ])
-        await safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, safe_get_messages(user_id).FORMAT_RESOLUTION_MENU_MSG, reply_markup=full_res_keyboard)
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, safe_get_messages(user_id).FORMAT_RESOLUTION_MENU_MSG, reply_markup=full_res_keyboard)
         try:
-            await callback_query.answer()
+            callback_query.answer()
         except Exception:
             pass
-        await send_to_logger(callback_query.message, safe_get_messages(user_id).FORMAT_RESOLUTION_MENU_SENT_LOG_MSG)
+        send_to_logger(callback_query.message, safe_get_messages(user_id).FORMAT_RESOLUTION_MENU_SENT_LOG_MSG)
         return
 
     # If the Back button is pressed - we return to the main menu
@@ -329,12 +330,12 @@ safe_get_messages(user_id).FORMAT_CUSTOM_HINT_MSG,
             [InlineKeyboardButton(safe_get_messages(user_id).FORMAT_CUSTOM_BUTTON_MSG, callback_data="format_option|custom")],
             [InlineKeyboardButton(safe_get_messages(user_id).URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="format_option|close")]
         ])
-        await safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, safe_get_messages(user_id).FORMAT_MENU_MSG + "\n" + safe_get_messages(user_id).FORMAT_MENU_ADDITIONAL_MSG + "\n" + safe_get_messages(user_id).FORMAT_8K_QUALITY_MSG, reply_markup=main_keyboard)
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, safe_get_messages(user_id).FORMAT_MENU_MSG + "\n" + safe_get_messages(user_id).FORMAT_MENU_ADDITIONAL_MSG + "\n" + safe_get_messages(user_id).FORMAT_8K_QUALITY_MSG, reply_markup=main_keyboard)
         try:
-            await callback_query.answer()
+            callback_query.answer()
         except Exception:
             pass
-        await send_to_logger(callback_query.message, safe_get_messages(user_id).FORMAT_RETURNED_MAIN_MENU_LOG_MSG)
+        send_to_logger(callback_query.message, safe_get_messages(user_id).FORMAT_RETURNED_MAIN_MENU_LOG_MSG)
         return
 
     # Get user's codec preference
@@ -426,33 +427,33 @@ safe_get_messages(user_id).FORMAT_CUSTOM_HINT_MSG,
     create_directory(user_dir)
     with open(os.path.join(user_dir, "format.txt"), "w", encoding="utf-8") as f:
         f.write(chosen_format)
-    await safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, safe_get_messages(user_id).FORMAT_UPDATED_MSG.format(format=chosen_format))
+    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, safe_get_messages(user_id).FORMAT_UPDATED_MSG.format(format=chosen_format))
     try:
-        await callback_query.answer(safe_get_messages(user_id).FORMAT_SAVED_MSG)
+        callback_query.answer(safe_get_messages(user_id).FORMAT_SAVED_MSG)
     except Exception:
         pass
-    await send_to_logger(callback_query.message, safe_get_messages(user_id).FORMAT_UPDATED_CALLBACK_LOG_MSG.format(format=chosen_format))
+    send_to_logger(callback_query.message, safe_get_messages(user_id).FORMAT_UPDATED_CALLBACK_LOG_MSG.format(format=chosen_format))
 
     if data == "alwaysask":
         user_dir = os.path.join("users", str(user_id))
         create_directory(user_dir)
         with open(os.path.join(user_dir, "format.txt"), "w", encoding="utf-8") as f:
             f.write("ALWAYS_ASK")
-        await safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
+        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id,
                                safe_get_messages(user_id).FORMAT_ALWAYS_ASK_CONFIRM_MSG)
-        await send_to_logger(callback_query.message, safe_get_messages(user_id).FORMAT_ALWAYS_ASK_SET_CALLBACK_LOG_MSG)
+        send_to_logger(callback_query.message, safe_get_messages(user_id).FORMAT_ALWAYS_ASK_SET_CALLBACK_LOG_MSG)
         return
 
 # Callback processor for codec selection
-# @app.on_callback_query(filters.regex(r"^format_codec\|"))
-async def format_codec_callback(app, callback_query):
+@app.on_callback_query(filters.regex(r"^format_codec\|"))
+def format_codec_callback(app, callback_query):
     user_id = callback_query.from_user.id
     messages = safe_get_messages(user_id)
     data = callback_query.data.split("|")[1]
     
     if data in ["avc1", "av01", "vp9"]:
         set_user_codec_preference(user_id, data)
-        await callback_query.answer(safe_get_messages(user_id).FORMAT_CODEC_SET_MSG.format(codec=data.upper()))
+        callback_query.answer(safe_get_messages(user_id).FORMAT_CODEC_SET_MSG.format(codec=data.upper()))
         
         # Refresh the menu to show updated codec selection
         current_codec = get_user_codec_preference(user_id)
@@ -486,13 +487,13 @@ async def format_codec_callback(app, callback_query):
             [InlineKeyboardButton(safe_get_messages(user_id).FORMAT_BACK_BUTTON_MSG, callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton(safe_get_messages(user_id).URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="format_option|close")]
         ])
         try:
-            await callback_query.edit_message_reply_markup(reply_markup=full_res_keyboard)
+            callback_query.edit_message_reply_markup(reply_markup=full_res_keyboard)
         except Exception:
             pass
-        await send_to_logger(callback_query.message, safe_get_messages(user_id).FORMAT_CODEC_SET_LOG_MSG.format(codec=data))
+        send_to_logger(callback_query.message, safe_get_messages(user_id).FORMAT_CODEC_SET_LOG_MSG.format(codec=data))
 
-# @app.on_callback_query(filters.regex(r"^format_container\|"))
-async def format_container_callback(app, callback_query):
+@app.on_callback_query(filters.regex(r"^format_container\|"))
+def format_container_callback(app, callback_query):
     user_id = callback_query.from_user.id
     messages = safe_get_messages(user_id)
     data = callback_query.data.split("|")[1]
@@ -512,28 +513,28 @@ async def format_container_callback(app, callback_query):
             [InlineKeyboardButton(safe_get_messages(user_id).FORMAT_BACK_BUTTON_MSG, callback_data="format_option|back"), InlineKeyboardButton(mkv_button, callback_data="format_container|mkv_toggle"), InlineKeyboardButton(safe_get_messages(user_id).URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG, callback_data="format_option|close")]
         ])
         try:
-            await callback_query.edit_message_reply_markup(reply_markup=full_res_keyboard)
+            callback_query.edit_message_reply_markup(reply_markup=full_res_keyboard)
         except Exception:
             pass
         try:
-            await callback_query.answer(safe_get_messages(user_id).FORMAT_MKV_TOGGLE_MSG.format(status='ON' if mkv_on else 'OFF'))
+            callback_query.answer(safe_get_messages(user_id).FORMAT_MKV_TOGGLE_MSG.format(status='ON' if mkv_on else 'OFF'))
         except Exception:
             pass
 
 # Callback processor to close the message
-# @app.on_callback_query(filters.regex(r"^format_custom\|"))
-async def format_custom_callback(app, callback_query):
+@app.on_callback_query(filters.regex(r"^format_custom\|"))
+def format_custom_callback(app, callback_query):
     messages = safe_get_messages(callback_query.from_user.id)
     data = callback_query.data.split("|")[1]
     if data == "close":
         try:
-            await callback_query.message.delete()
+            callback_query.message.delete()
         except Exception:
-            await callback_query.edit_message_reply_markup(reply_markup=None)
+            callback_query.edit_message_reply_markup(reply_markup=None)
         try:
-            await callback_query.answer(messages.FORMAT_CUSTOM_MENU_CLOSED_MSG)
+            callback_query.answer(safe_get_messages(user_id).FORMAT_CUSTOM_MENU_CLOSED_MSG)
         except Exception:
             pass
-        await send_to_logger(callback_query.message, messages.FORMAT_CUSTOM_MENU_CLOSED_LOG_MSG)
+        send_to_logger(callback_query.message, safe_get_messages(user_id).FORMAT_CUSTOM_MENU_CLOSED_LOG_MSG)
         return
 # ####################################################################################

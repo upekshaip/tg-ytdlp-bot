@@ -6,8 +6,7 @@ from functools import lru_cache
 from typing import Dict, Optional, Tuple
 from datetime import datetime
 
-import asyncio
-from HELPERS.http_client import fetch_json
+import requests
 
 
 DEFAULT_TIMEOUT_SECONDS = 6
@@ -25,7 +24,7 @@ DEFAULT_HEADERS = {
 }
 
 
-async def _load_cookies_for_user(user_id: int) -> Optional[str]:
+def _load_cookies_for_user(user_id: int) -> Optional[str]:
     """
     Загружает куки для пользователя.
     Возвращает путь к файлу куки или None.
@@ -55,13 +54,16 @@ async def _load_cookies_for_user(user_id: int) -> Optional[str]:
     return None
 
 
-async def _create_session_with_cookies(user_id: int = None):
+def _create_session_with_cookies(user_id: int = None) -> requests.Session:
     """
-    Создает HTTP-сессию с куки пользователя.
+    Создает сессию requests с куки пользователя.
     """
-    # Используем наш HTTP-клиент вместо requests.Session
-    # Куки будут передаваться через headers в каждом запросе
-    return None  # Возвращаем None, так как используем aiohttp
+    session = requests.Session()
+    
+    # Устанавливаем заголовки
+    session.headers.update(DEFAULT_HEADERS)
+    
+    # Загружаем куки если указан user_id
     if user_id:
         cookie_path = _load_cookies_for_user(user_id)
         if cookie_path:
@@ -75,61 +77,71 @@ async def _create_session_with_cookies(user_id: int = None):
     return session
 
 
-# def _load_cookies_from_file(cookie_path: str) -> requests.cookies.RequestsCookieJar:
-#     """
-#     Загружает куки из файла в формате Netscape.
-#     """
-#     jar = requests.cookies.RequestsCookieJar()
-#     
-#     try:
-#         with open(cookie_path, 'r', encoding='utf-8') as f:
-#             for line in f:
-#                 line = line.strip()
-#                 if line.startswith('#') or not line:
-#                     continue
-#                
-#                parts = line.split('\t')
-#                if len(parts) >= 7:
-#                    domain = parts[0]
-#                    domain_flag = parts[1] == 'TRUE'
-#                    path = parts[2]
-#                    secure = parts[3] == 'TRUE'
-#                    expiration = parts[4]
-#                    name = parts[5]
-#                    value = parts[6]
-#                    
-#                    # Пропускаем куки с истекшим сроком (если expiration > 0)
-#                    if expiration != '0':
-#                        try:
-#                            exp_time = int(expiration)
-#                            if exp_time and exp_time > 0 and exp_time < int(datetime.now().timestamp()):
-#                                continue
-#                        except ValueError:
-#                            pass
-#                    
-#                    jar.set(name, value, domain=domain, path=path)
-#    except Exception as e:
-#        print(f"[COOKIES] Error parsing cookie file {cookie_path}: {e}")
-#    
-#    return jar
-
-
-async def _http_get(url: str, timeout: int = DEFAULT_TIMEOUT_SECONDS, user_id: int = None) -> Optional[str]:
+def _load_cookies_from_file(cookie_path: str) -> requests.cookies.RequestsCookieJar:
+    """
+    Загружает куки из файла в формате Netscape.
+    """
+    jar = requests.cookies.RequestsCookieJar()
+    
     try:
-        # Используем наш HTTP-клиент вместо requests
-        response_text = await fetch_json(url, timeout=timeout)
-        return response_text if isinstance(response_text, str) else None
+        with open(cookie_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith('#') or not line:
+                    continue
+                
+                parts = line.split('\t')
+                if len(parts) >= 7:
+                    domain = parts[0]
+                    domain_flag = parts[1] == 'TRUE'
+                    path = parts[2]
+                    secure = parts[3] == 'TRUE'
+                    expiration = parts[4]
+                    name = parts[5]
+                    value = parts[6]
+                    
+                    # Пропускаем куки с истекшим сроком (если expiration > 0)
+                    if expiration != '0':
+                        try:
+                            exp_time = int(expiration)
+                            if exp_time and exp_time > 0 and exp_time < int(datetime.now().timestamp()):
+                                continue
+                        except ValueError:
+                            pass
+                    
+                    jar.set(name, value, domain=domain, path=path)
+    except Exception as e:
+        print(f"[COOKIES] Error parsing cookie file {cookie_path}: {e}")
+    
+    return jar
+
+
+def _http_get(url: str, timeout: int = DEFAULT_TIMEOUT_SECONDS, user_id: int = None) -> Optional[str]:
+    try:
+        session = _create_session_with_cookies(user_id)
+        resp = session.get(url, timeout=timeout, allow_redirects=True)
+        if resp.ok:
+            return resp.text
     except Exception as e:
         print(f"[HTTP_GET] Request error for {url}: {e}")
         return None
     return None
 
 
-async def _http_get_json(url: str, timeout: int = DEFAULT_TIMEOUT_SECONDS, user_id: int = None) -> Optional[Dict]:
+def _http_get_json(url: str, timeout: int = DEFAULT_TIMEOUT_SECONDS, user_id: int = None) -> Optional[Dict]:
     try:
-        # Используем наш HTTP-клиент вместо requests
-        response_data = await fetch_json(url, timeout=timeout)
-        return response_data if isinstance(response_data, dict) else None
+        session = _create_session_with_cookies(user_id)
+        resp = session.get(url, timeout=timeout, allow_redirects=True)
+        if resp.ok:
+            return resp.json()
+        else:
+            # Логируем HTTP ошибки для отладки, но не прерываем процесс
+            if resp.status_code == 401:
+                print(f"[HTTP_GET_JSON] Authentication required for {url} (401 Unauthorized)")
+            elif resp.status_code == 403:
+                print(f"[HTTP_GET_JSON] Access forbidden for {url} (403 Forbidden)")
+            else:
+                print(f"[HTTP_GET_JSON] HTTP error {resp.status_code} for {url}")
     except Exception as e:
         print(f"[HTTP_GET_JSON] Request error for {url}: {e}")
         return None
@@ -153,14 +165,14 @@ def _extract_meta(html: str) -> Dict[str, str]:
     return metas
 
 
-async def _extract_via_oembed(url: str, endpoints: Tuple[str, ...], user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
+def _extract_via_oembed(url: str, endpoints: Tuple[str, ...], user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     """
     Пробует стандартные oEmbed endpoints, возвращает (author_name/provider_name, site_label)
     """
     for ep in endpoints:
         try:
             full = ep.format(url=url)
-            data = await _http_get_json(full, user_id=user_id)
+            data = _http_get_json(full, user_id=user_id)
             if not data:
                 continue
             author = data.get("author_name") or data.get("author_url") or data.get("title")
@@ -323,7 +335,7 @@ def _detect_service(url: str) -> Optional[str]:
         return "tiktok"
     if "twitter.com" in u or "x.com" in u:
         return "x"
-    if "vk.com" in u or "vkontakte.ru" in u or "vkvideo.ru" in u:
+    if "vk.com" in u or "vkontakte.ru" in u:
         return "vk"
     if "youtube.com" in u or "youtu.be" in u:
         return "youtube"
@@ -363,10 +375,10 @@ def _detect_service(url: str) -> Optional[str]:
 # -------- Instagram --------
 
 
-async def _extract_instagram_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
+def _extract_instagram_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     # Try oEmbed first with cookies
     try:
-        data = await _http_get_json(f"https://www.instagram.com/oembed/?url={url}", user_id=user_id)
+        data = _http_get_json(f"https://www.instagram.com/oembed/?url={url}", user_id=user_id)
         if data and isinstance(data, dict):
             author = data.get("author_name")
             provider = data.get("provider_name") or "Instagram"
@@ -376,7 +388,7 @@ async def _extract_instagram_info(url: str, user_id: int = None) -> Tuple[Option
         print(f"[INSTAGRAM_INFO] oEmbed error: {e}")
         pass
     # Fallback to OpenGraph
-    html = await _http_get(url, user_id=user_id)
+    html = _http_get(url, user_id=user_id)
     metas = _extract_meta(html or "")
     title = metas.get("og:title") or metas.get("twitter:title")
     site = metas.get("og:site_name") or "Instagram"
@@ -397,13 +409,13 @@ async def _extract_instagram_info(url: str, user_id: int = None) -> Tuple[Option
     return (name, site)
 
 
-async def _extract_instagram_date(url: str, user_id: int = None) -> Optional[str]:
+def _extract_instagram_date(url: str, user_id: int = None) -> Optional[str]:
     """
     Извлекает дату загрузки из Instagram API (oEmbed).
     Возвращает дату в формате DD.MM.YYYY или None.
     """
     try:
-        data = await _http_get_json(f"https://www.instagram.com/oembed/?url={url}", user_id=user_id)
+        data = _http_get_json(f"https://www.instagram.com/oembed/?url={url}", user_id=user_id)
         if data and isinstance(data, dict):
             # oEmbed может содержать дату в разных полях
             date_str = data.get("upload_date") or data.get("created_at") or data.get("date")
@@ -416,7 +428,7 @@ async def _extract_instagram_date(url: str, user_id: int = None) -> Optional[str
     
     # Fallback: попробуем извлечь из OpenGraph мета-тегов
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         
         # Ищем дату в различных мета-тегах
@@ -445,11 +457,11 @@ async def _extract_instagram_date(url: str, user_id: int = None) -> Optional[str
 # -------- TikTok --------
 
 
-async def _extract_tiktok_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
+def _extract_tiktok_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     # Try oEmbed with cookies first
     try:
         oembed_url = f"https://www.tiktok.com/oembed?url={url}"
-        data = await _http_get_json(oembed_url, user_id=user_id)
+        data = _http_get_json(oembed_url, user_id=user_id)
         if data and isinstance(data, dict):
             author = data.get("author_name")
             if author:
@@ -472,7 +484,7 @@ async def _extract_tiktok_info(url: str, user_id: int = None) -> Tuple[Optional[
     
     # Final fallback to OpenGraph
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         if title:
@@ -488,11 +500,11 @@ async def _extract_tiktok_info(url: str, user_id: int = None) -> Tuple[Optional[
     return (None, "TikTok")
 
 
-async def _extract_tiktok_date(url: str, user_id: int = None) -> Optional[str]:
+def _extract_tiktok_date(url: str, user_id: int = None) -> Optional[str]:
     """Извлекает дату загрузки из TikTok API."""
     # Try with cookies first
     try:
-        data = await _http_get_json(f"https://www.tiktok.com/oembed?url={url}", user_id=user_id)
+        data = _http_get_json(f"https://www.tiktok.com/oembed?url={url}", user_id=user_id)
         if data and isinstance(data, dict):
             date_str = data.get("upload_date") or data.get("created_at") or data.get("date")
             if date_str:
@@ -514,7 +526,7 @@ async def _extract_tiktok_date(url: str, user_id: int = None) -> Optional[str]:
     
     # Final fallback to OpenGraph
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         date_str = metas.get("article:published_time") or metas.get("og:updated_time")
         if date_str:
@@ -529,11 +541,11 @@ async def _extract_tiktok_date(url: str, user_id: int = None) -> Optional[str]:
 # -------- X (Twitter) --------
 
 
-async def _extract_x_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
+def _extract_x_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     # Try oEmbed with cookies first
     try:
         oembed_url = f"https://publish.twitter.com/oembed?url={url}"
-        data = await _http_get_json(oembed_url, user_id=user_id)
+        data = _http_get_json(oembed_url, user_id=user_id)
         if data and isinstance(data, dict):
             author = data.get("author_name")
             if author:
@@ -556,7 +568,7 @@ async def _extract_x_info(url: str, user_id: int = None) -> Tuple[Optional[str],
     
     # Final fallback: meta twitter:site or title
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         handle = metas.get("twitter:site")
         if handle:
@@ -577,11 +589,11 @@ async def _extract_x_info(url: str, user_id: int = None) -> Tuple[Optional[str],
     return (None, "X")
 
 
-async def _extract_x_date(url: str, user_id: int = None) -> Optional[str]:
+def _extract_x_date(url: str, user_id: int = None) -> Optional[str]:
     """Извлекает дату публикации из X (Twitter) API."""
     # Try with cookies first
     try:
-        data = await _http_get_json(f"https://publish.twitter.com/oembed?url={url}", user_id=user_id)
+        data = _http_get_json(f"https://publish.twitter.com/oembed?url={url}", user_id=user_id)
         if data and isinstance(data, dict):
             date_str = data.get("upload_date") or data.get("created_at") or data.get("date")
             if date_str:
@@ -603,7 +615,7 @@ async def _extract_x_date(url: str, user_id: int = None) -> Optional[str]:
     
     # Final fallback to OpenGraph
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         date_str = metas.get("article:published_time") or metas.get("og:updated_time")
         if date_str:
@@ -618,7 +630,7 @@ async def _extract_x_date(url: str, user_id: int = None) -> Optional[str]:
 # -------- VK --------
 
 
-async def _extract_vk_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
+def _extract_vk_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     # Try to resolve owner from wall-<owner>_<post>
     site = "VK"
     try:
@@ -638,7 +650,7 @@ async def _extract_vk_info(url: str, user_id: int = None) -> Tuple[Optional[str]
                 ]
             for pu in probe_urls:
                 try:
-                    html_p = await _http_get(pu, user_id=user_id)
+                    html_p = _http_get(pu, user_id=user_id)
                     metas_p = _extract_meta(html_p or "")
                     t = metas_p.get("og:title") or metas_p.get("twitter:title")
                     s = metas_p.get("og:site_name") or site
@@ -659,7 +671,7 @@ async def _extract_vk_info(url: str, user_id: int = None) -> Tuple[Optional[str]
     
     # Fallback: use current page OG/title heuristics with cookies
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         site = metas.get("og:site_name") or site
@@ -681,10 +693,10 @@ async def _extract_vk_info(url: str, user_id: int = None) -> Tuple[Optional[str]
 # -------- YouTube --------
 
 
-async def _extract_youtube_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
+def _extract_youtube_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     # Try oEmbed with cookies first
     try:
-        name, provider = await _extract_via_oembed(url, (
+        name, provider = _extract_via_oembed(url, (
             "https://www.youtube.com/oembed?url={url}",
         ), user_id=user_id)
         if name:
@@ -695,7 +707,7 @@ async def _extract_youtube_info(url: str, user_id: int = None) -> Tuple[Optional
     
     # Fallback to oEmbed without cookies
     try:
-        name, provider = await _extract_via_oembed(url, (
+        name, provider = _extract_via_oembed(url, (
             "https://www.youtube.com/oembed?url={url}",
         ))
         if name:
@@ -706,7 +718,7 @@ async def _extract_youtube_info(url: str, user_id: int = None) -> Tuple[Optional
     
     # Final fallback to OpenGraph
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         channel = metas.get("og:site_name") or metas.get("twitter:title")
         return (channel, "YouTube")
@@ -715,11 +727,11 @@ async def _extract_youtube_info(url: str, user_id: int = None) -> Tuple[Optional
         return (None, "YouTube")
 
 
-async def _extract_youtube_date(url: str, user_id: int = None) -> Optional[str]:
+def _extract_youtube_date(url: str, user_id: int = None) -> Optional[str]:
     """Извлекает дату загрузки из YouTube API."""
     # Try with cookies first
     try:
-        data = await _http_get_json(f"https://www.youtube.com/oembed?url={url}", user_id=user_id)
+        data = _http_get_json(f"https://www.youtube.com/oembed?url={url}", user_id=user_id)
         if data and isinstance(data, dict):
             date_str = data.get("upload_date") or data.get("created_at") or data.get("date")
             if date_str:
@@ -741,7 +753,7 @@ async def _extract_youtube_date(url: str, user_id: int = None) -> Optional[str]:
     
     # Final fallback to OpenGraph
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         date_str = metas.get("article:published_time") or metas.get("og:updated_time")
         if date_str:
@@ -756,10 +768,10 @@ async def _extract_youtube_date(url: str, user_id: int = None) -> Optional[str]:
 # -------- Reddit --------
 
 
-async def _extract_reddit_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
+def _extract_reddit_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     # Try oEmbed with cookies first
     try:
-        name, provider = await _extract_via_oembed(url, (
+        name, provider = _extract_via_oembed(url, (
             "https://www.reddit.com/oembed?url={url}",
         ), user_id=user_id)
         if name:
@@ -770,7 +782,7 @@ async def _extract_reddit_info(url: str, user_id: int = None) -> Tuple[Optional[
     
     # Fallback to oEmbed without cookies
     try:
-        name, provider = await _extract_via_oembed(url, (
+        name, provider = _extract_via_oembed(url, (
             "https://www.reddit.com/oembed?url={url}",
         ))
         if name:
@@ -781,7 +793,7 @@ async def _extract_reddit_info(url: str, user_id: int = None) -> Tuple[Optional[
     
     # Final fallback to OpenGraph
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         return (title, "Reddit")
@@ -793,10 +805,10 @@ async def _extract_reddit_info(url: str, user_id: int = None) -> Tuple[Optional[
 # -------- Pinterest --------
 
 
-async def _extract_pinterest_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
+def _extract_pinterest_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     # Нет официального публичного oEmbed, используем только OpenGraph
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         site = metas.get("og:site_name") or "Pinterest"
@@ -809,10 +821,10 @@ async def _extract_pinterest_info(url: str, user_id: int = None) -> Tuple[Option
 # -------- Flickr --------
 
 
-async def _extract_flickr_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
+def _extract_flickr_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     # Try oEmbed with cookies first
     try:
-        name, provider = await _extract_via_oembed(url, (
+        name, provider = _extract_via_oembed(url, (
             "https://www.flickr.com/services/oembed?format=json&url={url}",
         ), user_id=user_id)
         if name:
@@ -823,7 +835,7 @@ async def _extract_flickr_info(url: str, user_id: int = None) -> Tuple[Optional[
     
     # Fallback to oEmbed without cookies
     try:
-        name, provider = await _extract_via_oembed(url, (
+        name, provider = _extract_via_oembed(url, (
             "https://www.flickr.com/services/oembed?format=json&url={url}",
         ))
         if name:
@@ -834,7 +846,7 @@ async def _extract_flickr_info(url: str, user_id: int = None) -> Tuple[Optional[
     
     # Final fallback to OpenGraph
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title")
         return (title, "Flickr")
@@ -846,10 +858,10 @@ async def _extract_flickr_info(url: str, user_id: int = None) -> Tuple[Optional[
 # -------- DeviantArt --------
 
 
-async def _extract_deviantart_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
+def _extract_deviantart_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     # Try oEmbed with cookies first
     try:
-        name, provider = await _extract_via_oembed(url, (
+        name, provider = _extract_via_oembed(url, (
             "https://backend.deviantart.com/oembed?url={url}",
         ), user_id=user_id)
         if name:
@@ -860,7 +872,7 @@ async def _extract_deviantart_info(url: str, user_id: int = None) -> Tuple[Optio
     
     # Fallback to oEmbed without cookies
     try:
-        name, provider = await _extract_via_oembed(url, (
+        name, provider = _extract_via_oembed(url, (
             "https://backend.deviantart.com/oembed?url={url}",
         ))
         if name:
@@ -871,7 +883,7 @@ async def _extract_deviantart_info(url: str, user_id: int = None) -> Tuple[Optio
     
     # Final fallback to OpenGraph
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         author = metas.get("twitter:creator") or metas.get("og:site_name")
         return (author, "DeviantArt")
@@ -883,10 +895,10 @@ async def _extract_deviantart_info(url: str, user_id: int = None) -> Tuple[Optio
 # -------- Imgur --------
 
 
-async def _extract_imgur_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
+def _extract_imgur_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     # Try oEmbed with cookies first
     try:
-        name, provider = await _extract_via_oembed(url, (
+        name, provider = _extract_via_oembed(url, (
             "https://api.imgur.com/oembed?url={url}",
         ), user_id=user_id)
         if name:
@@ -897,7 +909,7 @@ async def _extract_imgur_info(url: str, user_id: int = None) -> Tuple[Optional[s
     
     # Fallback to oEmbed without cookies
     try:
-        name, provider = await _extract_via_oembed(url, (
+        name, provider = _extract_via_oembed(url, (
             "https://api.imgur.com/oembed?url={url}",
         ))
         if name:
@@ -908,7 +920,7 @@ async def _extract_imgur_info(url: str, user_id: int = None) -> Tuple[Optional[s
     
     # Final fallback to OpenGraph
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         return (title, "Imgur")
@@ -920,10 +932,10 @@ async def _extract_imgur_info(url: str, user_id: int = None) -> Tuple[Optional[s
 # -------- Tumblr --------
 
 
-async def _extract_tumblr_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
+def _extract_tumblr_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     # Try oEmbed with cookies first
     try:
-        name, provider = await _extract_via_oembed(url, (
+        name, provider = _extract_via_oembed(url, (
             "https://www.tumblr.com/oembed/1.0?url={url}",
         ), user_id=user_id)
         if name:
@@ -934,7 +946,7 @@ async def _extract_tumblr_info(url: str, user_id: int = None) -> Tuple[Optional[
     
     # Fallback to oEmbed without cookies
     try:
-        name, provider = await _extract_via_oembed(url, (
+        name, provider = _extract_via_oembed(url, (
             "https://www.tumblr.com/oembed/1.0?url={url}",
         ))
         if name:
@@ -945,7 +957,7 @@ async def _extract_tumblr_info(url: str, user_id: int = None) -> Tuple[Optional[
     
     # Final fallback to OpenGraph
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         site = metas.get("og:site_name") or "Tumblr"
@@ -958,10 +970,10 @@ async def _extract_tumblr_info(url: str, user_id: int = None) -> Tuple[Optional[
 # -------- Pixiv --------
 
 
-async def _extract_pixiv_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
+def _extract_pixiv_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     # Try OpenGraph with cookies first
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         site = metas.get("og:site_name") or "Pixiv"
@@ -1000,10 +1012,10 @@ async def _extract_pixiv_info(url: str, user_id: int = None) -> Tuple[Optional[s
 # -------- ArtStation --------
 
 
-async def _extract_artstation_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
+def _extract_artstation_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     # ArtStation has OG meta with title/site
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         site = metas.get("og:site_name") or "ArtStation"
@@ -1016,9 +1028,9 @@ async def _extract_artstation_info(url: str, user_id: int = None) -> Tuple[Optio
 # -------- Danbooru --------
 
 
-async def _extract_danbooru_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
+def _extract_danbooru_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         return (title, "Danbooru")
@@ -1030,9 +1042,9 @@ async def _extract_danbooru_info(url: str, user_id: int = None) -> Tuple[Optiona
 # -------- Gelbooru --------
 
 
-async def _extract_gelbooru_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
+def _extract_gelbooru_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         return (title, "Gelbooru")
@@ -1044,9 +1056,9 @@ async def _extract_gelbooru_info(url: str, user_id: int = None) -> Tuple[Optiona
 # -------- Yande.re --------
 
 
-async def _extract_yandere_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
+def _extract_yandere_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         return (title, "Yande.re")
@@ -1058,9 +1070,9 @@ async def _extract_yandere_info(url: str, user_id: int = None) -> Tuple[Optional
 # -------- Sankaku --------
 
 
-async def _extract_sankaku_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
+def _extract_sankaku_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         site = metas.get("og:site_name") or "Sankaku"
@@ -1073,9 +1085,9 @@ async def _extract_sankaku_info(url: str, user_id: int = None) -> Tuple[Optional
 # -------- e621 --------
 
 
-async def _extract_e621_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
+def _extract_e621_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         return (title, "e621")
@@ -1087,9 +1099,9 @@ async def _extract_e621_info(url: str, user_id: int = None) -> Tuple[Optional[st
 # -------- Rule34 --------
 
 
-async def _extract_rule34_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
+def _extract_rule34_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         return (title, "Rule34")
@@ -1101,10 +1113,10 @@ async def _extract_rule34_info(url: str, user_id: int = None) -> Tuple[Optional[
 # -------- Behance --------
 
 
-async def _extract_behance_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
+def _extract_behance_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     # Behance has OG meta; sometimes author is in og:title or profile path
     try:
-        html = await _http_get(url, user_id=user_id)
+        html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         title = metas.get("og:title") or metas.get("twitter:title")
         site = metas.get("og:site_name") or "Behance"
@@ -1163,7 +1175,7 @@ SERVICE_DATE_HANDLERS = {
 
 
 @lru_cache(maxsize=512)
-async def get_service_account_info(url: str, user_id: int = None) -> Dict[str, Optional[str]]:
+def get_service_account_info(url: str, user_id: int = None) -> Dict[str, Optional[str]]:
     """
     Возвращает словарь с ключами:
       - service: детектированное имя сервиса
@@ -1181,9 +1193,9 @@ async def get_service_account_info(url: str, user_id: int = None) -> Dict[str, O
         
         # Передаем user_id во все handlers для поддержки куки
         if user_id:
-            name, site_label = await handler(url, user_id)
+            name, site_label = handler(url, user_id)
         else:
-            name, site_label = await handler(url)
+            name, site_label = handler(url)
             
         display = name if name else None
         if not display:
@@ -1215,12 +1227,12 @@ def build_tags(info: Dict[str, Optional[str]]) -> Tuple[str, Optional[str]]:
     return (service_tag, account_tag)
 
 
-async def get_account_tag(url: str, user_id: int = None) -> str:
+def get_account_tag(url: str, user_id: int = None) -> str:
     """
     Удобный интерфейс: возвращает строку хэштегов для сообщения.
     Пример: "#instagram #some_account" или просто "#instagram".
     """
-    info = await get_service_account_info(url, user_id)
+    info = get_service_account_info(url, user_id)
     service_tag, account_tag = build_tags(info)
     if service_tag and account_tag:
         return f"{service_tag} {account_tag}"
@@ -1228,7 +1240,7 @@ async def get_account_tag(url: str, user_id: int = None) -> str:
 
 
 @lru_cache(maxsize=512)
-async def get_service_date(url: str, user_id: int = None) -> Optional[str]:
+def get_service_date(url: str, user_id: int = None) -> Optional[str]:
     """
     Извлекает дату загрузки/публикации из API различных сервисов.
     Возвращает дату в формате DD.MM.YYYY или None.
@@ -1255,9 +1267,9 @@ async def get_service_date(url: str, user_id: int = None) -> Optional[str]:
             try:
                 # Передаем user_id во все date handlers для поддержки куки
                 if user_id:
-                    result = await date_handler(url, user_id)
+                    result = date_handler(url, user_id)
                 else:
-                    result = await date_handler(url)
+                    result = date_handler(url)
                     
                 if result:
                     return result
@@ -1268,7 +1280,7 @@ async def get_service_date(url: str, user_id: int = None) -> Optional[str]:
         
         # Fallback: попробуем извлечь из OpenGraph мета-тегов
         try:
-            html = await _http_get(url, user_id=user_id)
+            html = _http_get(url, user_id=user_id)
             metas = _extract_meta(html or "")
             
             # Ищем дату в различных мета-тегах

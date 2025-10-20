@@ -5,9 +5,7 @@ Universal thumbnail downloader for various video services
 
 import os
 import re
-import asyncio
-import aiohttp
-from HELPERS.http_client import fetch_json, fetch_bytes
+import requests
 from urllib.parse import urlparse
 from typing import Optional, Tuple
 from CONFIG.config import Config
@@ -278,7 +276,7 @@ def extract_service_info(url: str) -> Tuple[str, str]:
                 return 'tidal', match.group(1)
     
     # VK
-    if 'vk.com' in netloc or 'vkvideo.ru' in netloc or 'vkontakte.ru' in netloc:
+    if 'vk.com' in netloc:
         if '/video' in path:
             match = re.search(r'/video(-?\d+_\d+)', path)
             if match:
@@ -324,105 +322,12 @@ def extract_service_info(url: str) -> Tuple[str, str]:
     return 'unknown', ''
 
 
-async def download_vk_thumbnail(video_id: str, dest: str) -> bool:
+def download_vk_thumbnail(video_id: str, dest: str) -> bool:
     """Download VK video thumbnail"""
     try:
-        logger.info("Attempting to download VK thumbnail for video_id: %s", video_id)
-        
-        # VK video ID format: owner_id_video_id (e.g., -123456_789)
-        # We need to extract owner_id and video_id from the combined ID
-        if '_' not in video_id:
-            logger.warning("Invalid VK video ID format: %s", video_id)
-            return False
-            
-        # Split the video ID into owner_id and video_id parts
-        video_id_parts = video_id.split('_', 1)
-        
-        # Try to get video info from VK API
-        # VK API endpoint for video info (requires access token, but we can try without)
-        api_url = "https://api.vk.com/method/video.get"
-        params = {
-            'videos': video_id,
-            'v': '5.131'  # API version
-        }
-        
-        try:
-            data = await fetch_json(api_url, params=params, timeout=10)
-            if data and 'response' in data and data['response']:
-                video_info = data['response'][0]
-                # Try different thumbnail sizes
-                thumbnail_url = None
-                for size in ['photo_1280', 'photo_800', 'photo_640', 'photo_320', 'photo_130']:
-                    if size in video_info and video_info[size]:
-                        thumbnail_url = video_info[size]
-                        break
-                
-                if thumbnail_url:
-                    logger.info("Found VK thumbnail URL: %s", thumbnail_url)
-                    img_content = await fetch_bytes(thumbnail_url, timeout=10)
-                    with open(dest, 'wb') as f:
-                        f.write(img_content)
-                    logger.info("Successfully downloaded VK thumbnail to: %s", dest)
-                    return True
-                else:
-                    logger.warning("No thumbnail URL found in VK video info")
-            else:
-                logger.warning("No video info received from VK API")
-        except Exception as api_error:
-            logger.warning("VK API request failed: %s", api_error)
-        
-        # Fallback: try to get thumbnail from video page HTML
-        try:
-            video_url = "https://vk.com/video" + video_id
-            logger.info("Trying to get thumbnail from VK video page: %s", video_url)
-            
-            # Try to get HTML content and extract thumbnail from meta tags
-            async with aiohttp.ClientSession() as session:
-                async with session.get(video_url, timeout=10) as response:
-                    if response.status == 200:
-                        html_content = await response.text()
-                        
-                        # Look for Open Graph image or Twitter card image
-                        import re
-                        og_image_match = re.search(r'<meta property="og:image" content="([^"]+)"', html_content)
-                        if og_image_match:
-                            thumbnail_url = og_image_match.group(1)
-                            logger.info("Found VK thumbnail from HTML meta tags: %s", thumbnail_url)
-                            
-                            # Download the thumbnail
-                            async with session.get(thumbnail_url, timeout=10) as img_response:
-                                if img_response.status == 200:
-                                    img_content = await img_response.read()
-                                    with open(dest, 'wb') as f:
-                                        f.write(img_content)
-                                    logger.info("Successfully downloaded VK thumbnail from HTML to: %s", dest)
-                                    return True
-                        
-                        # Try Twitter card image as fallback
-                        twitter_image_match = re.search(r'<meta name="twitter:image" content="([^"]+)"', html_content)
-                        if twitter_image_match:
-                            thumbnail_url = twitter_image_match.group(1)
-                            logger.info("Found VK thumbnail from Twitter meta tags: %s", thumbnail_url)
-                            
-                            # Download the thumbnail
-                            async with session.get(thumbnail_url, timeout=10) as img_response:
-                                if img_response.status == 200:
-                                    img_content = await img_response.read()
-                                    with open(dest, 'wb') as f:
-                                        f.write(img_content)
-                                    logger.info("Successfully downloaded VK thumbnail from Twitter meta to: %s", dest)
-                                    return True
-                        
-                        logger.warning("No thumbnail found in VK video page HTML")
-                    else:
-                        logger.warning("Failed to fetch VK video page, status: %s", response.status)
-            
-            return False
-            
-        except Exception as fallback_error:
-            logger.warning("VK fallback method failed: %s", fallback_error)
-            return False
-            
+        # VK doesn't have direct thumbnail URLs, but we can try to get from video info
+        # For now, return False to use fallback
+        return False
     except Exception as e:
         logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_VK_FAILED_LOG_MSG.format(e=e))
         return False
@@ -472,7 +377,7 @@ def download_pornhub_thumbnail(video_id: str, dest: str) -> bool:
         return False
 
 
-async def download_instagram_thumbnail(video_id: str, dest: str) -> bool:
+def download_instagram_thumbnail(video_id: str, dest: str) -> bool:
     """Download Instagram video thumbnail"""
     try:
         logger.info(LoggerMsg.THUMBNAIL_DOWNLOADER_INSTAGRAM_ATTEMPT_LOG_MSG.format(video_id=video_id))
@@ -485,38 +390,44 @@ async def download_instagram_thumbnail(video_id: str, dest: str) -> bool:
         return False
 
 
-async def download_vimeo_thumbnail(video_id: str, dest: str) -> bool:
+def download_vimeo_thumbnail(video_id: str, dest: str) -> bool:
     """Download Vimeo video thumbnail"""
     try:
         # Vimeo API endpoint for video info
         api_url = f"https://vimeo.com/api/v2/video/{video_id}.json"
-        data = await fetch_json(api_url, timeout=10)
-        if data and len(data) > 0:
-            video_info = data[0]
-            thumbnail_url = video_info.get('thumbnail_large') or video_info.get('thumbnail_medium')
-            if thumbnail_url:
-                img_content = await fetch_bytes(thumbnail_url, timeout=10)
-                with open(dest, 'wb') as f:
-                    f.write(img_content)
-                return True
+        response = requests.get(api_url, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if data and len(data) > 0:
+                video_info = data[0]
+                thumbnail_url = video_info.get('thumbnail_large') or video_info.get('thumbnail_medium')
+                if thumbnail_url:
+                    img_response = requests.get(thumbnail_url, timeout=10)
+                    if img_response.status_code == 200:
+                        with open(dest, 'wb') as f:
+                            f.write(img_response.content)
+                        return True
         return False
     except Exception as e:
         logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_VIMEO_FAILED_LOG_MSG.format(e=e))
         return False
 
 
-async def download_dailymotion_thumbnail(video_id: str, dest: str) -> bool:
+def download_dailymotion_thumbnail(video_id: str, dest: str) -> bool:
     """Download Dailymotion video thumbnail"""
     try:
         # Dailymotion API endpoint
         api_url = f"https://api.dailymotion.com/video/{video_id}?fields=thumbnail_large_url"
-        data = await fetch_json(api_url, timeout=10)
-        thumbnail_url = data.get('thumbnail_large_url')
-        if thumbnail_url:
-            img_content = await fetch_bytes(thumbnail_url, timeout=10)
-            with open(dest, 'wb') as f:
-                f.write(img_content)
-            return True
+        response = requests.get(api_url, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            thumbnail_url = data.get('thumbnail_large_url')
+            if thumbnail_url:
+                img_response = requests.get(thumbnail_url, timeout=10)
+                if img_response.status_code == 200:
+                    with open(dest, 'wb') as f:
+                        f.write(img_response.content)
+                    return True
         return False
     except Exception as e:
         logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_DAILYMOTION_FAILED_LOG_MSG.format(e=e))
@@ -611,7 +522,7 @@ def download_google_drive_thumbnail(video_id: str, dest: str) -> bool:
         return False
 
 
-async def download_redtube_thumbnail(video_id: str, dest: str) -> bool:
+def download_redtube_thumbnail(video_id: str, dest: str) -> bool:
     """Download Redtube video thumbnail"""
     try:
         # Redtube thumbnails are usually in video metadata, not direct URLs
@@ -622,7 +533,7 @@ async def download_redtube_thumbnail(video_id: str, dest: str) -> bool:
         return False
 
 
-async def download_youtube_thumbnail(video_id: str, dest: str) -> bool:
+def download_youtube_thumbnail(video_id: str, dest: str) -> bool:
     """Download YouTube video thumbnail"""
     try:
         # YouTube thumbnail URLs
@@ -636,10 +547,10 @@ async def download_youtube_thumbnail(video_id: str, dest: str) -> bool:
         
         for url in thumbnail_urls:
             try:
-                img_content = await fetch_bytes(url, timeout=10)
-                if len(img_content) > 1000:  # Check if image is valid
+                response = requests.get(url, timeout=10)
+                if response.status_code == 200 and len(response.content) > 1000:  # Check if image is valid
                     with open(dest, 'wb') as f:
-                        f.write(img_content)
+                        f.write(response.content)
                     return True
             except Exception:
                 continue
@@ -837,7 +748,7 @@ def download_tidal_thumbnail(video_id: str, dest: str) -> bool:
         return False
 
 
-async def download_thumbnail(url: str, dest: str) -> bool:
+def download_thumbnail(url: str, dest: str) -> bool:
     """
     Universal thumbnail downloader for various video services
     Returns True if thumbnail was downloaded successfully, False otherwise
@@ -858,7 +769,7 @@ async def download_thumbnail(url: str, dest: str) -> bool:
         # Try service-specific thumbnail download
         success = False
         if service == 'vk':
-            success = await download_vk_thumbnail(video_id, dest)
+            success = download_vk_thumbnail(video_id, dest)
         elif service == 'tiktok':
             success = download_tiktok_thumbnail(video_id, dest)
         elif service == 'twitter':
@@ -868,11 +779,11 @@ async def download_thumbnail(url: str, dest: str) -> bool:
         elif service == 'pornhub':
             success = download_pornhub_thumbnail(video_id, dest)
         elif service == 'instagram':
-            success = await download_instagram_thumbnail(video_id, dest)
+            success = download_instagram_thumbnail(video_id, dest)
         elif service == 'vimeo':
-            success = await download_vimeo_thumbnail(video_id, dest)
+            success = download_vimeo_thumbnail(video_id, dest)
         elif service == 'dailymotion':
-            success = await download_dailymotion_thumbnail(video_id, dest)
+            success = download_dailymotion_thumbnail(video_id, dest)
         elif service == 'rutube':
             success = download_rutube_thumbnail(video_id, dest)
         elif service == 'twitch':
@@ -890,9 +801,9 @@ async def download_thumbnail(url: str, dest: str) -> bool:
         elif service == 'google_drive':
             success = download_google_drive_thumbnail(video_id, dest)
         elif service == 'redtube':
-            success = await download_redtube_thumbnail(video_id, dest)
+            success = download_redtube_thumbnail(video_id, dest)
         elif service == 'youtube':
-            success = await download_youtube_thumbnail(video_id, dest)
+            success = download_youtube_thumbnail(video_id, dest)
         elif service == 'bilibili':
             success = download_bilibili_thumbnail(video_id, dest)
         elif service == 'niconico':

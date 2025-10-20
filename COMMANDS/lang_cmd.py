@@ -18,7 +18,7 @@ except ImportError:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'CONFIG', 'LANGUAGES'))
     from language_router import language_router, get_messages, set_user_language
 
-async def lang_command_handler(update, context):
+def lang_command_handler(update, context):
     """
     Handle /lang command - show language selection menu or quick language switch
     """
@@ -124,7 +124,7 @@ async def lang_command_handler(update, context):
         parse_mode='HTML'
     )
 
-async def lang_command(app, message):
+def lang_command(app, message):
     """
     Handle /lang command for pyrogram - show language selection menu or quick language switch
     """
@@ -168,7 +168,7 @@ async def lang_command(app, message):
                 if '{lang_name}' in confirmation_msg:
                     confirmation_msg = confirmation_msg.format(lang_name=lang_name)
                 
-                await safe_send_message(
+                safe_send_message(
                     user_id,
                     confirmation_msg,
                     parse_mode=enums.ParseMode.HTML,
@@ -180,7 +180,7 @@ async def lang_command(app, message):
                 error_msg = getattr(messages, 'LANG_ERROR_MSG', 
                     "❌ Error changing language"
                 )
-                await safe_send_message(user_id, error_msg, message=message)
+                safe_send_message(user_id, error_msg, message=message)
             return
         else:
             # Invalid language code
@@ -188,7 +188,7 @@ async def lang_command(app, message):
             error_msg = getattr(messages, 'LANG_INVALID_ARGUMENT_MSG', 
                 "❌ Invalid language code. Supported: en, ru, ar, in"
             )
-            await safe_send_message(user_id, error_msg, message=message)
+            safe_send_message(user_id, error_msg, message=message)
             return
     
     # No arguments - show language selection menu
@@ -229,7 +229,7 @@ async def lang_command(app, message):
         "🇮🇳 हिन्दी"
     )
     
-    await safe_send_message(
+    safe_send_message(
         message.chat.id,
         lang_selection_msg,
         reply_markup=reply_markup,
@@ -237,20 +237,19 @@ async def lang_command(app, message):
         message=message
     )
 
-async def lang_callback_handler(app, callback_query):
+def lang_callback_handler(update, context):
     """
     Handle language selection callback
     """
-    from pyrogram import enums
-    
-    user_id = callback_query.from_user.id
+    query = update.callback_query
+    user_id = query.from_user.id
     
     # Get current user's language for messages
     messages = get_messages(user_id)
     
-    if callback_query.data.startswith('lang_select_'):
+    if query.data.startswith('lang_select_'):
         # Extract language code
-        lang_code = callback_query.data.replace('lang_select_', '')
+        lang_code = query.data.replace('lang_select_', '')
         
         # Set user language
         success = set_user_language(user_id, lang_code)
@@ -272,22 +271,22 @@ async def lang_callback_handler(app, callback_query):
             if '{lang_name}' in confirmation_msg:
                 confirmation_msg = confirmation_msg.format(lang_name=lang_name)
             
-            await callback_query.answer(confirmation_msg)
-            await callback_query.edit_message_text(
+            query.answer(confirmation_msg)
+            query.edit_message_text(
                 confirmation_msg,
-                parse_mode=enums.ParseMode.HTML
+                parse_mode='HTML'
             )
         else:
             error_msg = getattr(messages, 'LANG_ERROR_MSG', 
                 "❌ Error changing language"
             )
-            await callback_query.answer(error_msg)
+            query.answer(error_msg)
             
-    elif callback_query.data == 'lang_close':
+    elif query.data == 'lang_close':
         # Close language selection
         close_msg = getattr(messages, 'LANG_CLOSED_MSG', "Language selection closed")
-        await callback_query.answer(close_msg)
-        await callback_query.edit_message_text(close_msg)
+        query.answer(close_msg)
+        query.edit_message_text(close_msg)
 
 def register_lang_handlers(application):
     """
