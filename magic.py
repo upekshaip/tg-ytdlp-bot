@@ -331,8 +331,17 @@ start_auto_cache_reloader()
 
 def cleanup_on_exit():
     messages = safe_get_messages(None)
-    """Cleanup function to close Firebase connections and logger on exit"""
+    """Cleanup function to close Firebase connections, HTTP sessions and logger on exit"""
     try:
+        # Close all HTTP sessions first
+        try:
+            from HELPERS.http_manager import close_all_sessions
+            close_all_sessions()
+            print("✅ HTTP sessions closed")
+        except Exception as e:
+            print(f"⚠️ Error closing HTTP sessions: {e}")
+        
+        # Close Firebase connections
         from DATABASE.cache_db import close_all_firebase_connections
         close_all_firebase_connections()
         

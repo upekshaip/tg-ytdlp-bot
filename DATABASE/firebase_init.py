@@ -173,22 +173,13 @@ class RestDBAdapter:
 
         # Общая сессия между всеми child-экземплярами
         if _session is None:
-            sess = Session()
-            sess.headers.update({
-                'User-Agent': 'tg-ytdlp-bot/1.0',
-                'Connection': 'close'  # минимизируем удержание соединений
-            })
-            adapter = HTTPAdapter(
-                pool_connections=3,
-                pool_maxsize=5,
-                max_retries=2,
-                pool_block=False,
-            )
-            sess.mount('http://', adapter)
-            sess.mount('https://', adapter)
-            self._session = sess
+            from HELPERS.http_manager import get_managed_session
+            # Use managed session for automatic cleanup
+            self._session_manager = get_managed_session("firebase")
+            self._session = self._session_manager.get_session()
         else:
             self._session = _session
+            self._session_manager = None
 
         # Запускаем рефрешер токена только один раз (и только у корневого адаптера)
         if _start_refresher and self._shared.get("refresh_token"):
@@ -292,9 +283,9 @@ class RestDBAdapter:
 
     def __del__(self):
         # Ничего не делаем у детей, чтобы не ломать общую сессию
-        if not self._is_child:
+        if not self._is_child and hasattr(self, '_session_manager') and self._session_manager:
             try:
-                self.close()
+                self._session_manager.close()
             except Exception:
                 pass
 
@@ -308,21 +299,10 @@ else:
     api_key = getattr(Config, "FIREBASE_CONF", {}).get("apiKey")
     if not api_key:
         raise RuntimeError("FIREBASE_CONF.apiKey отсутствует — нужен для REST аутентификации")
-    # Sign in via REST using session
-    auth_session = Session()
-    auth_session.headers.update({
-        'User-Agent': 'tg-ytdlp-bot/1.0',
-        'Connection': 'keep-alive'
-    })
-    # Configure connection pool for auth session
-    auth_adapter = HTTPAdapter(
-        pool_connections=5,   # Number of connection pools to cache
-        pool_maxsize=10,      # Maximum number of connections in each pool
-        max_retries=3,        # Number of retries for failed requests
-        pool_block=False      # Don't block when pool is full
-    )
-    auth_session.mount('http://', auth_adapter)
-    auth_session.mount('https://', auth_adapter)
+    # Sign in via REST using managed session
+    from HELPERS.http_manager import get_managed_session
+    auth_manager = get_managed_session("firebase-auth")
+    auth_session = auth_manager.get_session()
     try:
         auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
         resp = auth_session.post(auth_url, json={
@@ -339,7 +319,7 @@ else:
         logger.info("✅ REST Firebase auth successful")
         db = RestDBAdapter(database_url, id_token, refresh_token, api_key, "/")
     finally:
-        auth_session.close()
+        auth_manager.close()
 
 
 def db_child_by_path(db_adapter: FirebaseDBAdapter, path: str) -> FirebaseDBAdapter:

@@ -1434,6 +1434,7 @@ def image_command(app, message):
         files_to_cleanup = []
 
         # We'll not start full download thread; we'll pull ranges to enforce batching
+        completion_sent = False  # Guard to ensure we exit after first completion announcement
 
         batch_size = 10
         # If total is small (<=10), download all at once without batching
@@ -3569,17 +3570,19 @@ def image_command(app, message):
                 # Final update and replace header to 'Download complete'
                 final_expected = total_expected or min(total_downloaded, total_limit)
                 try:
-                    safe_edit_message_text(
-                        user_id,
-                        status_msg.id,
-                        safe_get_messages(user_id).DOWNLOAD_COMPLETE_MSG +
-                        f"{safe_get_messages(user_id).DOWNLOADED_STATUS_MSG} <b>{total_downloaded}</b> / <b>{final_expected}</b>\n"
-                        f"{safe_get_messages(user_id).SENT_STATUS_MSG} <b>{total_sent}</b>",
-                        parse_mode=enums.ParseMode.HTML,
-                    )
+                    if not completion_sent:
+                        safe_edit_message_text(
+                            user_id,
+                            status_msg.id,
+                            safe_get_messages(user_id).DOWNLOAD_COMPLETE_MSG +
+                            f"{safe_get_messages(user_id).DOWNLOADED_STATUS_MSG} <b>{total_downloaded}</b> / <b>{final_expected}</b>\n"
+                            f"{safe_get_messages(user_id).SENT_STATUS_MSG} <b>{total_sent}</b>",
+                            parse_mode=enums.ParseMode.HTML,
+                        )
+                        completion_sent = True
                 except Exception:
                     pass
-                break
+                return
 
             if not is_admin and total_sent >= total_limit:
                 break
@@ -3605,17 +3608,21 @@ def image_command(app, message):
 
         # Update status to show completion
         try:
-            final_expected = total_expected or min(total_downloaded, total_limit)
-            safe_edit_message_text(
-                user_id,
-                status_msg.id,
-                safe_get_messages(user_id).DOWNLOAD_COMPLETE_MSG +
-                f"{safe_get_messages(user_id).DOWNLOADED_STATUS_MSG} <b>{total_downloaded}</b> / <b>{final_expected}</b>\n"
-                f"{safe_get_messages(user_id).SENT_STATUS_MSG} <b>{total_sent}</b>",
-                parse_mode=enums.ParseMode.HTML,
-            )
+            if not completion_sent:
+                final_expected = total_expected or min(total_downloaded, total_limit)
+                safe_edit_message_text(
+                    user_id,
+                    status_msg.id,
+                    safe_get_messages(user_id).DOWNLOAD_COMPLETE_MSG +
+                    f"{safe_get_messages(user_id).DOWNLOADED_STATUS_MSG} <b>{total_downloaded}</b> / <b>{final_expected}</b>\n"
+                    f"{safe_get_messages(user_id).SENT_STATUS_MSG} <b>{total_sent}</b>",
+                    parse_mode=enums.ParseMode.HTML,
+                )
+                completion_sent = True
         except Exception:
             pass
+        if completion_sent:
+            return
 
         # Send remaining files in buffer as final album
         if photos_videos_buffer:

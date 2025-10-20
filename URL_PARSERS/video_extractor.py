@@ -155,9 +155,10 @@ def video_url_extractor(app, message):
         logger.info(LoggerMsg.VIDEO_EXTRACTOR_SAVED_FORMAT_LOG_MSG.format(saved_format=saved_format, quality_key=quality_key))
         
         # --- Pass title='' for TikTok, otherwise as usual ---
+        # Note: cached_video_info=None for direct calls (no optimization available)
         if is_tiktok:
-            down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full, force_no_title=True, format_override=saved_format, quality_key=quality_key)
+            down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full, force_no_title=True, format_override=saved_format, quality_key=quality_key, cached_video_info=None)
         else:
-            down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full, format_override=saved_format, quality_key=quality_key)
+            down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text_full, format_override=saved_format, quality_key=quality_key, cached_video_info=None)
     else:
         send_error_to_user(message, safe_get_messages(user_id).URL_PARSER_USER_ENTERED_INVALID_MSG.format(input=full_string, error_msg=safe_get_messages(user_id).ERROR1))

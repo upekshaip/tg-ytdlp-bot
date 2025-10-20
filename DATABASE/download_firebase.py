@@ -68,22 +68,10 @@ def download_firebase_dump():
         print(safe_get_messages().DB_DEPENDENCY_NOT_AVAILABLE_MSG)
         return False
 
-    # Create session for connection pooling
-    session = Session()
-    session.headers.update({
-        'User-Agent': 'tg-ytdlp-bot/1.0',
-        'Connection': 'keep-alive'
-    })
-    
-    # Configure connection pool to prevent too many open files
-    adapter = HTTPAdapter(
-        pool_connections=5,   # Number of connection pools to cache
-        pool_maxsize=10,      # Maximum number of connections in each pool
-        max_retries=3,        # Number of retries for failed requests
-        pool_block=False      # Don't block when pool is full
-    )
-    session.mount('http://', adapter)
-    session.mount('https://', adapter)
+    # Create managed session for connection pooling
+    from HELPERS.http_manager import get_managed_session
+    session_manager = get_managed_session("firebase-download")
+    session = session_manager.get_session()
     
     try:
         print(safe_get_messages().DB_STARTING_FIREBASE_DUMP_MSG.format(datetime=datetime.now()))
@@ -144,8 +132,8 @@ def download_firebase_dump():
         print(safe_get_messages().DB_ERROR_DOWNLOADING_DUMP_MSG.format(error=e))
         return False
     finally:
-        # Always close the session
-        session.close()
+        # Always close the managed session
+        session_manager.close()
 
 def main():
     messages = safe_get_messages(None)

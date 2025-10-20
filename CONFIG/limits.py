@@ -34,6 +34,18 @@ class LimitsConfig(object):
     # For fast internet and small files: MAX_IMG_RANGE_WAIT_TIME = 600 (10 min), MAX_IMG_TOTAL_WAIT_TIME = 3600 (1 hour)
     # For slow internet and large files: MAX_IMG_RANGE_WAIT_TIME = 3600 (1 hour), MAX_IMG_TOTAL_WAIT_TIME = 28800 (8 hours)
     # For very large accounts: MAX_IMG_TOTAL_WAIT_TIME = 43200 (12 hours)
+    
+    #######################################################
+    # Animation and HTTP connection limits (prevents hanging)
+    #######################################################
+    # Maximum animation duration (4 hours) - after this time animation is forcefully stopped
+    MAX_ANIMATION_DURATION = 14400  # 4 hours
+    
+    # Maximum HTTP connection lifetime (4 hours) - connections are forcefully closed after this time
+    MAX_HTTP_CONNECTION_LIFETIME = 14400  # 4 hours
+    
+    # HTTP session timeout for individual requests
+    HTTP_REQUEST_TIMEOUT = 60  # 60 seconds
     #######################################################
     # Group multipliers (applied in groups/channels) - except quality
     GROUP_MULTIPLIER = 2

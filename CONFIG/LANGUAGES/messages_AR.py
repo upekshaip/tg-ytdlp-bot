@@ -169,8 +169,8 @@ class Messages(object):
         "</pre>\n"
         "<blockquote>"
         "<b><u>التعليمات:</u></b>\n"
-        "https://t.me/c/2303231066/18 \n"
-        "https://t.me/c/2303231066/22 "
+        "https://t.me/tg_ytdlp/203 \n"
+        "https://t.me/tg_ytdlp/214 "
         "</blockquote>"
     )
     
@@ -1270,6 +1270,7 @@ class Messages(object):
     ALWAYS_ASK_NO_MEDIA_FOUND_MSG = "لم يتم العثور على وسائط"
     ALWAYS_ASK_THIS_TWEET_DOES_NOT_CONTAIN_MSG = "هذه التغريدة لا تحتوي على"
     ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_MSG = "❌ <b>خطأ في استرجاع معلومات الفيديو:</b>"
+    ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_SHORT_MSG = "خطأ في استرجاع معلومات الفيديو"
     ALWAYS_ASK_TRY_CLEAN_COMMAND_MSG = "جرب أمر <code>/clean</code> وحاول مرة أخرى. إذا استمر الخطأ، يتطلب YouTube تفويضاً. حدث ملف cookies.txt عبر <code>/cookie</code> أو <code>/cookies_from_browser</code> وحاول مرة أخرى."
     ALWAYS_ASK_MENU_CLOSED_MSG = "تم إغلاق القائمة."
     ALWAYS_ASK_MANUAL_QUALITY_SELECTION_MSG = "🎛 اختيار الجودة اليدوي"
@@ -1335,7 +1336,7 @@ class Messages(object):
     # Error messages
     ERROR_CHECK_SUPPORTED_SITES_MSG = "تحقق <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>هنا</a> إذا كان موقعك مدعوماً"
     ERROR_COOKIE_NEEDED_MSG = "قد تحتاج <code>cookie</code> لتحميل هذا الفيديو. أولاً، نظف مساحة العمل عبر أمر <b>/clean</b>"
-    ERROR_COOKIE_INSTRUCTIONS_MSG = "لـ YouTube - احصل على <code>cookie</code> عبر أمر <b>/cookie</b>. لأي موقع مدعوم آخر - أرسل ملف cookie الخاص بك (<a href='https://t.me/c/2303231066/18'>دليل1</a>) (<a href='https://t.me/c/2303231066/22'>دليل2</a>) وبعد ذلك أرسل رابط الفيديو مرة أخرى."
+    ERROR_COOKIE_INSTRUCTIONS_MSG = "لـ YouTube - احصل على <code>cookie</code> عبر أمر <b>/cookie</b>. لأي موقع مدعوم آخر - أرسل ملف cookie الخاص بك (<a href='https://t.me/tg_ytdlp/203'>دليل1</a>) (<a href='https://t.me/tg_ytdlp/214'>دليل2</a>) وبعد ذلك أرسل رابط الفيديو مرة أخرى."
     CHOOSE_SUBTITLE_LANGUAGE_MSG = "اختر لغة الترجمة"
     NO_ALTERNATIVE_AUDIO_LANGUAGES_MSG = "لا توجد لغات صوت بديلة"
     CHOOSE_AUDIO_LANGUAGE_MSG = "اختر لغة الصوت"

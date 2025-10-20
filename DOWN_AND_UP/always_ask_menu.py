@@ -9,6 +9,13 @@ from pyrogram.errors import FloodWait
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters, WebAppInfo
 import requests
 
+def safe_callback_answer(callback_query, text, show_alert=False):
+    """Safely answer callback query, handling QueryIdInvalid errors"""
+    try:
+        callback_query.answer(text, show_alert=show_alert)
+    except Exception:
+        pass  # Query ID might be invalid after long operation
+
 from HELPERS.app_instance import get_app
 from HELPERS.decorators import get_main_reply_keyboard
 from HELPERS.logger import send_to_logger, logger, send_error_to_user, log_error_to_channel
@@ -599,6 +606,11 @@ def ask_filter_callback(app, callback_query):
 
         # --- SUBS handlers must run BEFORE generic filter rebuild ---
         if kind == "subs" and value == "open":
+            # Check if subtitles are enabled before making requests
+            if not is_subs_enabled(user_id):
+                callback_query.answer(safe_get_messages(user_id).SUBS_DISABLED_MSG, show_alert=True)
+                return
+                
             original_message = callback_query.message.reply_to_message
             if not original_message:
                 callback_query.answer(safe_get_messages(user_id).ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
@@ -608,26 +620,26 @@ def ask_filter_callback(app, callback_query):
             m = _re.search(r'https?://[^\s\*#]+', url_text)
             url = m.group(0) if m else url_text
             try:
-                # warm up cache and collect languages
+                # Warm up once per session: try to load from per-session cache,
+                # otherwise compute a single time and persist for reuse within this download
+                from COMMANDS.subtitles_cmd import get_or_compute_subs_langs
+                normal, auto = get_or_compute_subs_langs(user_id, url)
+                # Also warm in-memory availability cache classification once
                 check_subs_availability(url, user_id, return_type=True)
-                normal = get_available_subs_languages(url, user_id, auto_only=False)
-                auto = get_available_subs_languages(url, user_id, auto_only=True)
-                # persist for stable paging
-                save_subs_langs_cache(user_id, url, normal, auto)
                 langs = sorted(set(normal) | set(auto))
             except Exception:
                 # fallback to local cache if network check failed
                 normal, auto = load_subs_langs_cache(user_id, url)
                 langs = sorted(set(normal) | set(auto))
             if not langs:
-                callback_query.answer(safe_get_messages(user_id).NO_SUBTITLES_DETECTED_MSG, show_alert=True)
+                safe_callback_answer(callback_query, safe_get_messages(user_id).NO_SUBTITLES_DETECTED_MSG, show_alert=True)
                 return
             kb = get_language_keyboard_always_ask(page=0, user_id=user_id, langs_override=langs, per_page_rows=8, normal_langs=normal, auto_langs=auto)
             try:
                 callback_query.edit_message_reply_markup(reply_markup=kb)
             except Exception:
                 pass
-            callback_query.answer(safe_get_messages(user_id).CHOOSE_SUBTITLE_LANGUAGE_MSG)
+            safe_callback_answer(callback_query, safe_get_messages(user_id).CHOOSE_SUBTITLE_LANGUAGE_MSG)
             return
         if kind == "subs_page":
             page = int(value)
@@ -1593,6 +1605,11 @@ def askq_callback(app, callback_query):
             return
         # LINK MENU HANDLER REMOVED - now using direct link approach
         if kind == "subs" and value == "open":
+            # Check if subtitles are enabled before making requests
+            if not is_subs_enabled(user_id):
+                callback_query.answer(safe_get_messages(user_id).SUBS_DISABLED_MSG, show_alert=True)
+                return
+                
             # Open SUBS language menu (Always Ask)
             logger.info(f"{LoggerMsg.ALWAYS_ASK_OPENING_SUBS_MENU_LOG_MSG} {user_id}")
             original_message = callback_query.message.reply_to_message
@@ -1610,10 +1627,11 @@ def askq_callback(app, callback_query):
             try:
                 logger.info(f"{LoggerMsg.ALWAYS_ASK_CHECKING_SUBTITLE_AVAILABILITY_LOG_MSG} {url}")
                 # Check availability and populate cache
+                # Get available languages once per session
+                from COMMANDS.subtitles_cmd import get_or_compute_subs_langs
+                normal, auto = get_or_compute_subs_langs(user_id, url)
+                # Warm availability type once
                 check_subs_availability(url, user_id, return_type=True)
-                # Get available languages
-                normal = get_available_subs_languages(url, user_id, auto_only=False)
-                auto = get_available_subs_languages(url, user_id, auto_only=True)
                 langs = sorted(set(normal) | set(auto))
                 logger.info(f"{LoggerMsg.ALWAYS_ASK_FOUND_LANGUAGES_LOG_MSG}: {normal}, auto: {auto}, total: {langs}")
             except Exception as e:
@@ -1942,7 +1960,7 @@ def askq_callback(app, callback_query):
             video_count = video_end_with - video_start_with + 1
             # Delete processing message before starting download
             delete_processing_message(app, user_id, None)
-            down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=format_id, cookies_already_checked=True)
+            down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=format_id, cookies_already_checked=True, cached_video_info=None, clear_subs_cache_on_start=False)
         else:
             logger.info("Single video, using down_and_up_with_format")
             # Delete processing message before starting download
@@ -1990,7 +2008,7 @@ def askq_callback(app, callback_query):
         elif quality == "mp3":
             # Delete processing message before starting download
             delete_processing_message(app, user_id, proc_msg)
-            down_and_audio(app, original_message, url, tags, quality_key="mp3", format_override="ba", cookies_already_checked=True)
+            down_and_audio(app, original_message, url, tags, quality_key="mp3", format_override="ba", cookies_already_checked=True, cached_video_info=None)
             return
         else:
             try:
@@ -2026,7 +2044,7 @@ def askq_callback(app, callback_query):
             video_count = video_end_with - video_start_with + 1
             # Delete processing message before starting download
             delete_processing_message(app, user_id, proc_msg)
-            down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=quality, cookies_already_checked=True)
+            down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=quality, cookies_already_checked=True, cached_video_info=None, clear_subs_cache_on_start=False)
         else:
             # Delete processing message before starting download
             delete_processing_message(app, user_id, proc_msg)
@@ -2199,7 +2217,7 @@ def askq_callback(app, callback_query):
                 if data == "mp3":
                     # Delete processing message before starting download
                     delete_processing_message(app, user_id, proc_msg)
-                    down_and_audio(app, original_message, url, tags, quality_key=used_quality_key, playlist_name=playlist_name, video_count=new_count, video_start_with=new_start, format_override="ba", cookies_already_checked=True)
+                    down_and_audio(app, original_message, url, tags, quality_key=used_quality_key, playlist_name=playlist_name, video_count=new_count, video_start_with=new_start, format_override="ba", cookies_already_checked=True, cached_video_info=None)
                 else:
                     try:
                         # Form the correct format for the missing videos
@@ -2233,7 +2251,7 @@ def askq_callback(app, callback_query):
                     
                     # Delete processing message before starting download
                     delete_processing_message(app, user_id, proc_msg)
-                    down_and_up(app, original_message, url, playlist_name, new_count, new_start, tags_text, force_no_title=False, format_override=format_override, quality_key=used_quality_key, cookies_already_checked=True)
+                    down_and_up(app, original_message, url, playlist_name, new_count, new_start, tags_text, force_no_title=False, format_override=format_override, quality_key=used_quality_key, cookies_already_checked=True, cached_video_info=None, clear_subs_cache_on_start=False)
             else:
                 # All videos were in the cache
                 app.send_message(target_chat_id, safe_get_messages(user_id).PLAYLIST_CACHE_SENT_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=original_message.id))
@@ -2247,7 +2265,7 @@ def askq_callback(app, callback_query):
             if data == "mp3":
                 # Delete processing message before starting download
                 delete_processing_message(app, user_id, proc_msg)
-                down_and_audio(app, original_message, url, tags, quality_key=data, playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with, format_override="ba", cookies_already_checked=True)
+                down_and_audio(app, original_message, url, tags, quality_key=data, playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with, format_override="ba", cookies_already_checked=True, cached_video_info=None)
             else:
                 try:
                     # Form the correct format for the new download
@@ -2280,7 +2298,7 @@ def askq_callback(app, callback_query):
                 
                 # Delete processing message before starting download
                 delete_processing_message(app, user_id, proc_msg)
-                down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=data, cookies_already_checked=True)
+                down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=data, cookies_already_checked=True, cached_video_info=None, clear_subs_cache_on_start=False)
             return
     # --- other logic for single files ---
     found_type = check_subs_availability(url, user_id, data, return_type=True)
@@ -2627,11 +2645,18 @@ def show_manual_quality_menu(app, callback_query):
     
     keyboard = InlineKeyboardMarkup(keyboard_rows)
     
-    # Get video title for caption
+    # Get video title for caption - try cached info first
     try:
-        info = get_video_formats(url, user_id, cookies_already_checked=True)
-        title = info.get('title', 'Video')
-        video_title = title
+        cached_info = load_ask_info(user_id, url)
+        if cached_info:
+            title = cached_info.get('title', 'Video')
+            video_title = title
+            logger.info(f"✅ [OPTIMIZATION] Using cached title for caption")
+        else:
+            info = get_video_formats(url, user_id, cookies_already_checked=True)
+            title = info.get('title', 'Video')
+            video_title = title
+            logger.info(f"⚠️ [OPTIMIZATION] Had to fetch video info for title")
     except:
         video_title = safe_get_messages(user_id).ALWAYS_ASK_VIDEO_TITLE_MSG
     
@@ -2799,11 +2824,18 @@ def show_other_qualities_menu(app, callback_query, page=0):
     original_text = original_message.text or original_message.caption or ""
     is_playlist = is_playlist_with_range(original_text)
     
-    # Get video title for caption
+    # Get video title for caption - try cached info first
     try:
-        info = get_video_formats(url, user_id, cookies_already_checked=True)
-        title = info.get('title', 'Video')
-        video_title = title
+        cached_info = load_ask_info(user_id, url)
+        if cached_info:
+            title = cached_info.get('title', 'Video')
+            video_title = title
+            logger.info(f"✅ [OPTIMIZATION] Using cached title for caption")
+        else:
+            info = get_video_formats(url, user_id, cookies_already_checked=True)
+            title = info.get('title', 'Video')
+            video_title = title
+            logger.info(f"⚠️ [OPTIMIZATION] Had to fetch video info for title")
     except:
         video_title = safe_get_messages(user_id).ALWAYS_ASK_VIDEO_TITLE_MSG
     
@@ -3099,11 +3131,18 @@ def show_formats_from_cache(app, callback_query, format_lines, page, url):
     user_id = callback_query.from_user.id
     logger.info(f"Showing formats from cache for user {user_id}, page {page}, {len(format_lines)} formats")
     
-    # Get video title for caption
+    # Get video title for caption - try cached info first
     try:
-        info = get_video_formats(url, user_id, cookies_already_checked=True)
-        title = info.get('title', 'Video')
-        video_title = title
+        cached_info = load_ask_info(user_id, url)
+        if cached_info:
+            title = cached_info.get('title', 'Video')
+            video_title = title
+            logger.info(f"✅ [OPTIMIZATION] Using cached title for caption")
+        else:
+            info = get_video_formats(url, user_id, cookies_already_checked=True)
+            title = info.get('title', 'Video')
+            video_title = title
+            logger.info(f"⚠️ [OPTIMIZATION] Had to fetch video info for title")
     except:
         video_title = safe_get_messages(user_id).ALWAYS_ASK_VIDEO_TITLE_MSG
     
@@ -4473,16 +4512,16 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         if table_block:
             cap += f"<blockquote>{table_block}</blockquote>\n"
         
-        # --- Add subtitles and dubs count info if Always Ask mode is enabled ---
+        # --- Add subtitles and dubs count info ---
         subs_count_info = ""
         dubs_count_info = ""
         
-        # Check if Always Ask mode is enabled for subs
-        if is_subs_always_ask(user_id):
+        # Check if subtitles are enabled and Always Ask mode is enabled for subs
+        if is_subs_enabled(user_id) and is_subs_always_ask(user_id):
             try:
-                # Get available subtitles count
-                normal_subs = get_available_subs_languages(url, user_id, auto_only=False)
-                auto_subs = get_available_subs_languages(url, user_id, auto_only=True)
+                # Get available subtitles count (single-check/cached within session)
+                from COMMANDS.subtitles_cmd import get_or_compute_subs_langs
+                normal_subs, auto_subs = get_or_compute_subs_langs(user_id, url)
                 total_subs = len(set(normal_subs) | set(auto_subs))
                 if total_subs and total_subs > 0:
                     subs_count_info = f"{safe_get_messages(user_id).ALWAYS_ASK_SUBTITLES_MSG}: {total_subs} available\n"
@@ -4495,9 +4534,15 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         if len(available_dubs) > 1:  # More than 1 language means dubs are available
             dubs_count_info = f"{safe_get_messages(user_id).ALWAYS_ASK_DUBBED_AUDIO_MSG}: {len(available_dubs)} languages"
         
-        # Add the info to caption if any is available
-        if subs_count_info or dubs_count_info:
-            cap += f"<blockquote>{subs_count_info}{dubs_count_info}</blockquote>\n"
+        # Add the info to caption - each type independently
+        info_parts = []
+        if subs_count_info:
+            info_parts.append(subs_count_info)
+        if dubs_count_info:
+            info_parts.append(dubs_count_info)
+        
+        if info_parts:
+            cap += f"<blockquote>{''.join(info_parts)}</blockquote>\n"
         # --- tags ---
         if tags_text:
             cap += f"{tags_text}"
@@ -5240,7 +5285,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
             logger.error(f"Error creating cached qualities menu: {cache_error}")
         
         # Если кэшированных качеств нет, показываем ошибку
-        error_text = f"{safe_get_messages(user_id).ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_MSG}\n<blockquote>Ошибка получения информации о видео</blockquote>\n\n{safe_get_messages(user_id).ALWAYS_ASK_TRY_CLEAN_COMMAND_MSG}"
+        error_text = f"{safe_get_messages(user_id).ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_MSG}\n<blockquote>{safe_get_messages(user_id).ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_SHORT_MSG}</blockquote>\n\n{safe_get_messages(user_id).ALWAYS_ASK_TRY_CLEAN_COMMAND_MSG}"
         
         # Try to edit the processing message to show error first
         try:
@@ -5248,16 +5293,16 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 result = app.edit_message_text(chat_id=user_id, message_id=proc_msg.id, text=error_text, parse_mode=enums.ParseMode.HTML)
                 if result is not None:
                     # Successfully edited the processing message, now log to channel
-                    log_error_to_channel(message, safe_get_messages(user_id).ALWAYS_ASK_MENU_ERROR_LOG_MSG.format(url=url, error="Ошибка получения информации о видео"), url)
+                    log_error_to_channel(message, safe_get_messages(user_id).ALWAYS_ASK_MENU_ERROR_LOG_MSG.format(url=url, error=safe_get_messages(user_id).ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_SHORT_MSG), url)
                     return
         except Exception as e2:
             logger.error(f"Error editing processing message: {e2}")
         
         # If editing failed or no proc_msg, send new message to user
-        logger.error(f"Always Ask menu error for user {user_id}: Ошибка получения информации о видео")
+        logger.error(f"Always Ask menu error for user {user_id}: {safe_get_messages(user_id).ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_SHORT_MSG}")
         from HELPERS.safe_messeger import safe_send_message
         safe_send_message(user_id, error_text, parse_mode=enums.ParseMode.HTML, message=message)
-        log_error_to_channel(message, safe_get_messages(user_id).ALWAYS_ASK_MENU_ERROR_LOG_MSG.format(url=url, error="Ошибка получения информации о видео"), url)
+        log_error_to_channel(message, safe_get_messages(user_id).ALWAYS_ASK_MENU_ERROR_LOG_MSG.format(url=url, error=safe_get_messages(user_id).ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_SHORT_MSG), url)
         return
 
 def askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs, proc_msg=None):
@@ -5352,7 +5397,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
         video_count = video_end_with - video_start_with + 1
         # Delete processing message before starting download
         delete_processing_message(app, user_id, proc_msg)
-        down_and_audio(app, original_message, url, tags, quality_key="mp3", playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with, format_override="ba", cookies_already_checked=True)
+        down_and_audio(app, original_message, url, tags, quality_key="mp3", playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with, format_override="ba", cookies_already_checked=True, cached_video_info=None)
         return
     
     if data == "subs_only":
@@ -5380,8 +5425,14 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
         quality_key = "best"
     else:
         try:
-            # Get information about the video to determine the sizes
-            info = get_video_formats(url, user_id, cookies_already_checked=True)
+            # Get information about the video to determine the sizes - try cached info first
+            cached_info = load_ask_info(user_id, url)
+            if cached_info:
+                info = cached_info
+                logger.info(f"✅ [OPTIMIZATION] Using cached video info for size determination")
+            else:
+                info = get_video_formats(url, user_id, cookies_already_checked=True)
+                logger.info(f"⚠️ [OPTIMIZATION] Had to fetch video info for size determination")
             formats = info.get('formats', [])
             
             # Find the format with the highest quality to determine the sizes
@@ -5635,7 +5686,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None,
         logger.info(f"Audio-only format detected: {fmt}, redirecting to down_and_audio")
         # Delete processing message before starting download
         delete_processing_message(app, user_id, proc_msg)
-        down_and_audio(app, message, url, tags_text, quality_key=quality_key, format_override=fmt, cookies_already_checked=True)
+        down_and_audio(app, message, url, tags_text, quality_key=quality_key, format_override=fmt, cookies_already_checked=True, cached_video_info=None)
         return
 
     # Analyze the format to determine if it's audio-only, video-only, or full
@@ -5645,7 +5696,14 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None,
     try:
         # Get video info to analyze the selected format
         user_id = message.chat.id
-        info = get_video_formats(url, user_id, cookies_already_checked=True)
+        # Try to load cached info first to avoid redundant API calls
+        cached_info = load_ask_info(user_id, url)
+        if cached_info:
+            info = cached_info
+            logger.info(f"✅ [OPTIMIZATION] Using cached video info for format analysis")
+        else:
+            info = get_video_formats(url, user_id, cookies_already_checked=True)
+            logger.info(f"⚠️ [OPTIMIZATION] Had to fetch video info again - consider improving caching")
         
         if quality_key and 'formats' in info:
             # Find the selected format
@@ -5664,7 +5722,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None,
                     # Pass cookies_already_checked=True since we already checked cookies in get_video_formats
                     # Delete processing message before starting download
                     delete_processing_message(app, user_id, proc_msg)
-                    down_and_audio(app, message, url, tags_text, quality_key=quality_key, format_override=fmt, cookies_already_checked=True)
+                    down_and_audio(app, message, url, tags_text, quality_key=quality_key, format_override=fmt, cookies_already_checked=True, cached_video_info=info)
                     return
                 
                 # If it's video-only, find complementary audio
@@ -5689,9 +5747,10 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None,
 
     # We call the main function of loading with the correct parameters of the playlist
     # Pass cookies_already_checked=True since we already checked cookies in get_video_formats
+    # Pass cached video info to avoid redundant API calls
     # Delete processing message before starting download
     delete_processing_message(app, user_id, proc_msg)
-    down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=is_tiktok, format_override=fmt, quality_key=quality_key, cookies_already_checked=True)
+    down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=is_tiktok, format_override=fmt, quality_key=quality_key, cookies_already_checked=True, cached_video_info=info)
     # Cleanup temp subs languages cache after we kicked off download
     try:
         delete_subs_langs_cache(message.chat.id, url)

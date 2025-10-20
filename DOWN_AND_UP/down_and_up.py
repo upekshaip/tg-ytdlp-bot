@@ -64,6 +64,14 @@ def _handle_quality_key_error(e: Exception, split_msg_ids: list, is_playlist: bo
         success_msg = f"<b>{safe_get_messages(user_id).DOWN_UP_UPLOAD_COMPLETE_MSG}</b> - {video_count} {safe_get_messages(user_id).DOWN_UP_FILES_UPLOADED_MSG}.\n{safe_get_messages(user_id).CREDITS_MSG}"
         safe_edit_message_text(user_id, proc_msg_id, success_msg)
         send_to_logger(message, success_msg)
+        try:
+            from COMMANDS.subtitles_cmd import clear_subs_cache_for
+            from DOWN_AND_UP.always_ask_menu import delete_subs_langs_cache
+            delete_subs_langs_cache(user_id, url)
+            cleared = clear_subs_cache_for(user_id, url)
+            logger.info(f"[SUBS] End of task: cleared {cleared} subtitle cache entries for user={user_id}")
+        except Exception as _e:
+            logger.debug(f"[SUBS] Failed to clear end cache: {_e}")
         
         # Save to cache if we have the necessary data
         if url and safe_quality_key and split_msg_ids and not is_playlist:
@@ -125,7 +133,7 @@ def determine_need_subs(subs_enabled, found_type, user_id):
         return (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
 
 #@reply_with_keyboard
-def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None, cookies_already_checked=False, use_proxy=False):
+def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None, cookies_already_checked=False, use_proxy=False, cached_video_info=None, clear_subs_cache_on_start=True):
     messages = safe_get_messages(message.chat.id)
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
@@ -144,6 +152,16 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     caption_lst = []  # Initialize caption_lst for split videos
     last_video_msg_id = None  # Initialize last_video_msg_id for caching
     user_id = message.chat.id
+    # Ensure fresh subtitle state at the start of a task even for direct calls (bypassing Always Ask)
+    if clear_subs_cache_on_start:
+        try:
+            from COMMANDS.subtitles_cmd import clear_subs_cache_for
+            from DOWN_AND_UP.always_ask_menu import delete_subs_langs_cache
+            delete_subs_langs_cache(user_id, url)
+            cleared = clear_subs_cache_for(user_id, url)
+            logger.info(f"[SUBS] Start of task (direct): cleared {cleared} subtitle cache entries for user={user_id}")
+        except Exception:
+            pass
     successful_uploads = 0  # Initialize successful_uploads counter
     indices_to_download = []  # Initialize indices_to_download list
     proc_msg_id = None  # Initialize proc_msg_id
@@ -170,7 +188,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     if format_override and '/bestaudio' in format_override:
         logger.info(f"Audio-only format detected in down_and_up: {format_override}, redirecting to down_and_audio")
         from DOWN_AND_UP.down_and_audio import down_and_audio
-        down_and_audio(app, message, url, tags_text, quality_key=quality_key, format_override=format_override, cookies_already_checked=cookies_already_checked)
+        # Pass cached video info to down_and_audio for optimization
+        down_and_audio(app, message, url, tags_text, quality_key=quality_key, format_override=format_override, cookies_already_checked=cookies_already_checked, cached_video_info=cached_video_info)
         return
     
     # Check if LINK mode is enabled - if yes, get direct link instead of downloading
@@ -239,24 +258,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         logger.error(f"Error checking LINK mode for user {user_id}: {e}")
         # Continue with normal download if LINK mode check fails
     subs_enabled = is_subs_enabled(user_id)
+    need_subs = False
     if subs_enabled and is_youtube_url(url):
         found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
         # Determine subtitle availability once here
         need_subs = determine_need_subs(subs_enabled, found_type, user_id)
-        
-        if need_subs:
-            available_langs = _subs_check_cache.get(
-                f"{url}_{user_id}_{'auto' if found_type == 'auto' else 'normal'}_langs",
-                []
-            )
-            # First, download the subtitles separately
-            user_dir = os.path.join("users", str(user_id))
-            video_dir = user_dir
-            subs_path = download_subtitles_ytdlp(url, user_id, video_dir, available_langs)
-                                        
-            if not subs_path:
-                app.send_message(user_id, safe_get_messages(user_id).SUBTITLES_FAILED_MSG, reply_parameters=ReplyParameters(message_id=message.id))
-                need_subs = False  # Reset if download failed
 
     # We define a playlist not only by the number of videos, but also by the presence of a range in the URL
     original_text = message.text or message.caption or ""
@@ -381,8 +387,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         else:
             if is_subs_always_ask(user_id):
                 logger.info(f"[VIDEO CACHE] Skipping cache check because Always Ask mode is enabled: url={url}, quality={safe_quality_key}")
+            elif need_subs:
+                logger.info(f"[VIDEO CACHE] Skipping cache check because subtitles are enabled: url={url}, quality={safe_quality_key}")
             else:
-                logger.info(f"[VIDEO CACHE] Skipping cache check because need_subs=True: url={url}, quality={safe_quality_key}")
+                logger.info(f"[VIDEO CACHE] Skipping cache check for other reasons: url={url}, quality={safe_quality_key}")
     else:
         logger.info(f"down_and_up: safe_quality_key is None, skipping cache check")
 
@@ -466,8 +474,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         # затем оцениваем по битрейту и длительности, в крайнем случае 2 ГБ.
         required_bytes = 2 * 1024 * 1024 * 1024
         try:
-            from DOWN_AND_UP.yt_dlp_hook import get_video_formats
-            info_probe = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked)
+            # Try to use cached info first for size check
+            if cached_video_info:
+                info_probe = cached_video_info
+                logger.info(f"✅ [OPTIMIZATION] Using cached video info for size check")
+            else:
+                from DOWN_AND_UP.yt_dlp_hook import get_video_formats
+                info_probe = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked)
+                logger.info(f"⚠️ [OPTIMIZATION] Had to fetch video info for size check")
             size = 0
             if isinstance(info_probe, dict):
                 size = info_probe.get('filesize') or info_probe.get('filesize_approx') or 0
@@ -895,7 +909,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 auto_mode = get_user_subs_auto_mode(user_id)
                 if subs_lang and subs_lang not in ["OFF"]:
                     # Check availability with AUTO mode
-                    #available_langs = get_available_subs_languages(url, user_id, auto_only=auto_mode)
+                    from COMMANDS.subtitles_cmd import get_available_subs_languages
+                    available_langs = get_available_subs_languages(url, user_id, auto_only=auto_mode)
                     # Flexible check: search for an exact match or any language from the group
                     lang_prefix = subs_lang.split('-')[0]
                     found = False
@@ -905,6 +920,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             found = True
                             break
                     if not found:
+                        from COMMANDS.subtitles_cmd import LANGUAGES
                         app.send_message(
                             user_id,
                             f"⚠️ Subtitles for {LANGUAGES[subs_lang]['flag']} {LANGUAGES[subs_lang]['name']} not found for this video. Download without subtitles.",
@@ -1088,12 +1104,16 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 logger.info(f"Starting yt-dlp extraction for URL: {url}")
                 logger.info(f"yt-dlp options: {ytdl_opts}")
                 
-                # First, check if the requested format is available using the same method as always_ask_menu
-                from DOWN_AND_UP.yt_dlp_hook import get_video_formats
-                
-                logger.info("Checking available formats...")
-                check_info = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked, use_proxy=use_proxy)
-                logger.info("Format check completed")
+                # First, check if the requested format is available using cached info or get_video_formats
+                check_info = None
+                if cached_video_info:
+                    check_info = cached_video_info
+                    logger.info("✅ [OPTIMIZATION] Using cached video info for format check")
+                else:
+                    from DOWN_AND_UP.yt_dlp_hook import get_video_formats
+                    logger.info("Checking available formats...")
+                    check_info = get_video_formats(url, user_id, cookies_already_checked=cookies_already_checked, use_proxy=use_proxy)
+                    logger.info("Format check completed")
                 
                 # Check if requested format exists
                 requested_format = attempt_opts.get('format', '')
@@ -2220,7 +2240,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 logger.info(f"down_and_up: sending final success message for split video: {success_msg}")
                 safe_edit_message_text(user_id, proc_msg_id, success_msg)
                 send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
-                break
+                
             else:
                 if final_name:
                     # Read the full name from the file
@@ -2258,7 +2278,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 width, height = 0, 0
                                 real_file_size = 0
                             auto_mode = get_user_subs_auto_mode(user_id)
-                            if subs_enabled and is_youtube_url(url) and min(width, height) <= safe_get_messages(user_id).MAX_SUB_QUALITY:
+                            if subs_enabled and is_youtube_url(url) and min(width, height) <= Config.MAX_SUB_QUALITY:
                                 #found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
                                 # Use the helper function to determine subtitle availability
                                 need_subs = determine_need_subs(subs_enabled, found_type, user_id)
@@ -2266,8 +2286,42 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     
                                     # First, download the subtitles separately
                                     video_dir = os.path.dirname(after_rename_abs_path)
+                                    # Get available languages from cache
+                                    available_langs = _subs_check_cache.get(
+                                        f"{url}_{user_id}_{'auto' if found_type == 'auto' else 'normal'}_langs",
+                                        []
+                                    )
+                                    # Fallback: if cache is empty, recompute available languages (union of normal+auto)
+                                    if not available_langs:
+                                        try:
+                                            logger.info("[SUBS] Cached languages empty, recomputing via availability check...")
+                                            # Warm cache and compute both normal and auto lists
+                                            check_subs_availability(url, user_id, return_type=True)
+                                            from COMMANDS.subtitles_cmd import get_available_subs_languages
+                                            normal_langs = get_available_subs_languages(url, user_id, auto_only=False)
+                                            auto_langs = get_available_subs_languages(url, user_id, auto_only=True)
+                                            available_langs = sorted(set(normal_langs) | set(auto_langs))
+                                            logger.info(f"[SUBS] Recomputed languages: normal={normal_langs}, auto={auto_langs}")
+                                        except Exception as e:
+                                            logger.error(f"[SUBS] Failed to recompute available languages: {e}")
+                                            available_langs = []
+
+                                    # Try to download subtitles with the best-known languages list
                                     subs_path = download_subtitles_ytdlp(url, user_id, video_dir, available_langs)
-                                    
+
+                                    # If failed, one more fallback retry: recompute union and retry once
+                                    if not subs_path:
+                                        try:
+                                            logger.info("[SUBS] First download attempt failed, retrying after forced recompute of languages...")
+                                            from COMMANDS.subtitles_cmd import get_available_subs_languages
+                                            normal_langs = get_available_subs_languages(url, user_id, auto_only=False)
+                                            auto_langs = get_available_subs_languages(url, user_id, auto_only=True)
+                                            retry_langs = sorted(set(normal_langs) | set(auto_langs))
+                                            if retry_langs:
+                                                subs_path = download_subtitles_ytdlp(url, user_id, video_dir, retry_langs)
+                                        except Exception as e:
+                                            logger.error(f"[SUBS] Retry recompute failed: {e}")
+
                                     if not subs_path:
                                         app.send_message(user_id, safe_get_messages(user_id).SUBTITLES_FAILED_MSG, reply_parameters=ReplyParameters(message_id=message.id))
                                         #continue
@@ -2463,12 +2517,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     playlist_msg_ids.extend([m.id for m in forwarded_msgs])
                                 else:
                                     # For single videos, save to regular cache
-                                    # Always save to cache regardless of subtitles or Always Ask mode
-                                    # The cache will be used for display purposes (rocket emoji) but not for reposting
-                                    if not is_nsfw:
+                                    # Only save to cache if subtitles are not needed
+                                    if not is_nsfw and not need_subs:
                                         _save_video_cache_with_logging(url, safe_quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "", user_id=user_id)
-                                    else:
+                                    elif is_nsfw:
                                         logger.info("NSFW content not cached")
+                                    elif need_subs:
+                                        logger.info(f"Video with subtitles is not cached - different users may need different languages")
                             else:
                                 # If forwarding failed, try to forward manually and get log channel IDs
                                 if 'already_forwarded_to_log' in locals() and already_forwarded_to_log:
@@ -2551,12 +2606,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                                 playlist_msg_ids.extend([m.id for m in forwarded_msgs])
                                             else:
                                                 # For single videos, save to regular cache
-                                                # Always save to cache regardless of subtitles or Always Ask mode
-                                                # The cache will be used for display purposes (rocket emoji) but not for reposting
-                                                if not is_nsfw:
+                                                # Only save to cache if subtitles are not needed
+                                                if not is_nsfw and not need_subs:
                                                     _save_video_cache_with_logging(url, safe_quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "", user_id=user_id)
-                                                else:
+                                                elif is_nsfw:
                                                     logger.info("NSFW content not cached (manual)")
+                                                elif need_subs:
+                                                    logger.info(f"Video with subtitles is not cached (manual) - different users may need different languages")
                                         else:
                                             logger.error("Manual forward also failed, cannot cache video")
                                     except Exception as e:
@@ -2575,7 +2631,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     logger.info(f"PREVENTIVE FIX: sending final success message for split video: {success_msg}")
                                     safe_edit_message_text(user_id, proc_msg_id, success_msg)
                                     send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
-                                    break
+                
                             else:
                                 logger.error(f"Error forwarding video to logger: {e}")
                             # Try to forward manually even after error
@@ -2675,12 +2731,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         playlist_msg_ids.extend([m.id for m in forwarded_msgs])
                                     else:
                                         # For single videos, save to regular cache
-                                        # Always save to cache regardless of subtitles or Always Ask mode
-                                        # The cache will be used for display purposes (rocket emoji) but not for reposting
-                                        if not is_nsfw:
+                                        # Only save to cache if subtitles are not needed
+                                        if not is_nsfw and not need_subs:
                                             _save_video_cache_with_logging(url, safe_quality_key, [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "", user_id=user_id)
-                                        else:
+                                        elif is_nsfw:
                                             logger.info("NSFW content not cached (error recovery)")
+                                        elif need_subs:
+                                            logger.info(f"Video with subtitles is not cached (error recovery) - different users may need different languages")
                                 else:
                                     logger.error("Manual forward after error also failed, cannot cache video")
                             except Exception as e2:
@@ -2697,7 +2754,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         logger.info(f"PREVENTIVE FIX: sending final success message for split video: {success_msg}")
                                         safe_edit_message_text(user_id, proc_msg_id, success_msg)
                                         send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
-                                        break
+                # end-of-task subs cache clearing handled in unified success branches below
                                 else:
                                     logger.error(f"Error in manual forward after error: {e2}")
                         safe_edit_message_text(user_id, proc_msg_id,
@@ -2719,6 +2776,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             success_msg = f"<b>{safe_get_messages(user_id).DOWN_UP_UPLOAD_COMPLETE_MSG}</b> - {video_count} {safe_get_messages(user_id).DOWN_UP_FILES_UPLOADED_MSG}.\n{safe_get_messages(user_id).CREDITS_MSG}"
             safe_edit_message_text(user_id, proc_msg_id, success_msg)
             send_to_logger(message, success_msg)
+            try:
+                from COMMANDS.subtitles_cmd import clear_subs_cache_for
+                from DOWN_AND_UP.always_ask_menu import delete_subs_langs_cache
+                delete_subs_langs_cache(user_id, url)
+                cleared = clear_subs_cache_for(user_id, url)
+                logger.info(f"[SUBS] End of task: cleared {cleared} subtitle cache entries for user={user_id}")
+            except Exception as _e:
+                logger.debug(f"[SUBS] Failed to clear end cache: {_e}")
             
             # Clean up download subdirectory after successful upload
             try:
@@ -2754,6 +2819,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 logger.info(f"HARD FIX: sending final success message for split video: {success_msg}")
                 safe_edit_message_text(user_id, proc_msg_id, success_msg)
                 send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
+                try:
+                    from COMMANDS.subtitles_cmd import clear_subs_cache_for
+                    from DOWN_AND_UP.always_ask_menu import delete_subs_langs_cache
+                    delete_subs_langs_cache(user_id, url)
+                    cleared = clear_subs_cache_for(user_id, url)
+                    logger.info(f"[SUBS] End of task: cleared {cleared} subtitle cache entries for user={user_id}")
+                except Exception as _e:
+                    logger.debug(f"[SUBS] Failed to clear end cache: {_e}")
         else:
             logger.error(f"Error in video download: {e}")
             send_to_user(message, safe_get_messages(user_id).FAILED_DOWNLOAD_VIDEO_MSG.format(error=e))
