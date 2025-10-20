@@ -144,14 +144,14 @@ def check_user(message):
     if int(message.chat.id) not in Config.ADMIN and int(message.chat.id) not in getattr(Config, 'ALLOWED_GROUP', []):
         app = get_app()
         if app is None:
-            logger.error(safe_get_messages(user_id).HELPER_APP_INSTANCE_NONE_MSG)
+            logger.error(safe_get_messages(message.chat.id).HELPER_APP_INSTANCE_NONE_MSG)
             return False
         return is_user_in_channel(app, message)
     return True
 
 
 def ensure_group_admin(app, message):
-    messages = safe_get_messages(None)
+    messages = safe_get_messages(getattr(message.chat, 'id', None))
     """
     For allowed groups, ensure the bot has admin rights. If not, ask to grant admin.
     Returns True if ok to proceed, False if should stop.
@@ -166,19 +166,11 @@ def ensure_group_admin(app, message):
                 status = getattr(member, 'status', None)
                 if status not in (ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER):
                     # Ask to grant admin. Reply in the same topic/thread when possible
-                    safe_send_message(
-                        chat_id,
-                        safe_get_messages(user_id).HELPER_ADMIN_RIGHTS_REQUIRED_MSG,
-                        message=message
-                    )
+                    safe_send_message(chat_id, safe_get_messages(chat_id).HELPER_ADMIN_RIGHTS_REQUIRED_MSG, message=message)
                     return False
             except Exception:
                 # If check failed for any reason, be safe and request admin
-                safe_send_message(
-                    chat_id,
-                    safe_get_messages(user_id).HELPER_ADMIN_RIGHTS_REQUIRED_MSG,
-                    message=message
-                )
+                safe_send_message(chat_id, safe_get_messages(chat_id).HELPER_ADMIN_RIGHTS_REQUIRED_MSG, message=message)
                 return False
         return True
     except Exception:
@@ -239,31 +231,23 @@ def check_subs_limits(info_dict, quality_key=None):
     try:
         # Check if info_dict is None
         if info_dict is None:
-            logger.warning(safe_get_messages(user_id).HELPER_CHECK_SUBS_LIMITS_INFO_DICT_NONE_MSG)
+            logger.warning(safe_get_messages(None).HELPER_CHECK_SUBS_LIMITS_INFO_DICT_NONE_MSG)
             return True
             
         # We get the parameters from the config
         max_quality = Config.MAX_SUB_QUALITY
         max_duration = Config.MAX_SUB_DURATION
         max_size = Config.MAX_SUB_SIZE
-        # Apply group multiplier in groups/channels
-        try:
-            if getattr(info_dict, 'message', None) and getattr(info_dict.message.chat, 'type', None) != enums.ChatType.PRIVATE:
-                mult = getattr(LimitsConfig, 'GROUP_MULTIPLIER', 1)
-                max_duration = int(max_duration * mult)
-                max_size = int(max_size * mult)
-                # For groups, allow up to 1080p for subtitles
-                max_quality = 1080
-        except Exception:
-            pass
+        # Note: в этом контексте нет безопасного доступа к message/chat,
+        # поэтому групповые множители не применяются.
         
-        logger.info(safe_get_messages(user_id).HELPER_CHECK_SUBS_LIMITS_CHECKING_LIMITS_MSG.format(max_quality=max_quality, max_duration=max_duration, max_size=max_size))
-        logger.info(safe_get_messages(user_id).HELPER_CHECK_SUBS_LIMITS_INFO_DICT_KEYS_MSG.format(keys=list(info_dict.keys()) if info_dict else 'None'))
+        logger.info(safe_get_messages(None).HELPER_CHECK_SUBS_LIMITS_CHECKING_LIMITS_MSG.format(max_quality=max_quality, max_duration=max_duration, max_size=max_size))
+        logger.info(safe_get_messages(None).HELPER_CHECK_SUBS_LIMITS_INFO_DICT_KEYS_MSG.format(keys=list(info_dict.keys()) if info_dict else 'None'))
         
         # Check the duration
         duration = info_dict.get('duration')
         if duration and duration > max_duration:
-            logger.info(safe_get_messages(user_id).HELPER_SUBTITLE_EMBEDDING_SKIPPED_DURATION_MSG.format(duration=duration, max_duration=max_duration))
+            logger.info(safe_get_messages(None).HELPER_SUBTITLE_EMBEDDING_SKIPPED_DURATION_MSG.format(duration=duration, max_duration=max_duration))
             return False
         
         # Check the file size (only if it is accurately known)
@@ -271,7 +255,7 @@ def check_subs_limits(info_dict, quality_key=None):
         if filesize and filesize > 0:  # Check that the size is larger than 0
             size_mb = filesize / (1024 * 1024)  # Fixed: use division instead of integer division
             if size_mb and size_mb > max_size:
-                logger.info(safe_get_messages(user_id).HELPER_SUBTITLE_EMBEDDING_SKIPPED_SIZE_MSG.format(size_mb=size_mb, max_size=max_size))
+                logger.info(safe_get_messages(None).HELPER_SUBTITLE_EMBEDDING_SKIPPED_SIZE_MSG.format(size_mb=size_mb, max_size=max_size))
                 return False
         
         # Check quality (only if width and height are available)
@@ -280,7 +264,7 @@ def check_subs_limits(info_dict, quality_key=None):
         if width and height:
             min_side = min(width, height)
             if min_side and min_side > max_quality:
-                logger.info(safe_get_messages(user_id).HELPER_SUBTITLE_EMBEDDING_SKIPPED_QUALITY_MSG.format(width=width, height=height, min_side=min_side, max_quality=max_quality))
+                logger.info(safe_get_messages(None).HELPER_SUBTITLE_EMBEDDING_SKIPPED_QUALITY_MSG.format(width=width, height=height, min_side=min_side, max_quality=max_quality))
                 return False
         
         logger.info(LoggerMsg.LIMITTER_SUBTITLE_LIMITS_CHECK_PASSED_LOG_MSG.format(duration=duration, size=filesize, width=width, height=height))
