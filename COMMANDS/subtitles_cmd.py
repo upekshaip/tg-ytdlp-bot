@@ -29,6 +29,52 @@ app = get_app()
 _subs_check_cache = globals().get('_subs_check_cache', {})
 _LAST_TIMEDTEXT_TS = globals().get('_LAST_TIMEDTEXT_TS', 0.0)
 
+# Per-session helpers to manage subtitle cache for a specific user+URL
+def clear_subs_cache_for(user_id: int, url: str) -> int:
+    """Clear subtitle availability cache entries for a specific user and URL.
+    Returns number of removed entries."""
+    global _subs_check_cache
+    try:
+        keys = list(_subs_check_cache.keys())
+        removed = 0
+        prefix = f"{url}_{user_id}"
+        for k in keys:
+            if isinstance(k, str) and k.startswith(prefix):
+                _subs_check_cache.pop(k, None)
+                removed += 1
+        return removed
+    except Exception as e:
+        logger.debug(f"clear_subs_cache_for error: {e}")
+        return 0
+
+def get_or_compute_subs_langs(user_id: int, url: str):
+    """Return (normal_langs, auto_langs) for URL, preferring per-session cache.
+    Falls back to computing via yt-dlp once and persists to per-session cache file."""
+    try:
+        # Try session cache file first (managed by Always Ask)
+        try:
+            from DOWN_AND_UP.always_ask_menu import load_subs_langs_cache, save_subs_langs_cache
+            cached = load_subs_langs_cache(user_id, url)
+        except Exception:
+            cached = None
+        if cached and isinstance(cached, tuple) and len(cached) == 2:
+            normal, auto = cached
+            if (normal or auto):
+                return list(normal or []), list(auto or [])
+
+        # Otherwise compute once and persist
+        normal = get_available_subs_languages(url, user_id, auto_only=False)
+        auto   = get_available_subs_languages(url, user_id, auto_only=True)
+        try:
+            from DOWN_AND_UP.always_ask_menu import save_subs_langs_cache
+            save_subs_langs_cache(user_id, url, normal, auto)
+        except Exception:
+            pass
+        return list(normal or []), list(auto or [])
+    except Exception as e:
+        logger.debug(f"get_or_compute_subs_langs error: {e}")
+        return [], []
+
 # Dictionary of languages with their emoji flags and native names
 LANGUAGES = {
     "ar": {"flag": "🇸🇦", "name": "العربية"},

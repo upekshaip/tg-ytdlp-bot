@@ -620,12 +620,12 @@ def ask_filter_callback(app, callback_query):
             m = _re.search(r'https?://[^\s\*#]+', url_text)
             url = m.group(0) if m else url_text
             try:
-                # warm up cache and collect languages
+                # Warm up once per session: try to load from per-session cache,
+                # otherwise compute a single time and persist for reuse within this download
+                from COMMANDS.subtitles_cmd import get_or_compute_subs_langs
+                normal, auto = get_or_compute_subs_langs(user_id, url)
+                # Also warm in-memory availability cache classification once
                 check_subs_availability(url, user_id, return_type=True)
-                normal = get_available_subs_languages(url, user_id, auto_only=False)
-                auto = get_available_subs_languages(url, user_id, auto_only=True)
-                # persist for stable paging
-                save_subs_langs_cache(user_id, url, normal, auto)
                 langs = sorted(set(normal) | set(auto))
             except Exception:
                 # fallback to local cache if network check failed
@@ -1627,10 +1627,11 @@ def askq_callback(app, callback_query):
             try:
                 logger.info(f"{LoggerMsg.ALWAYS_ASK_CHECKING_SUBTITLE_AVAILABILITY_LOG_MSG} {url}")
                 # Check availability and populate cache
+                # Get available languages once per session
+                from COMMANDS.subtitles_cmd import get_or_compute_subs_langs
+                normal, auto = get_or_compute_subs_langs(user_id, url)
+                # Warm availability type once
                 check_subs_availability(url, user_id, return_type=True)
-                # Get available languages
-                normal = get_available_subs_languages(url, user_id, auto_only=False)
-                auto = get_available_subs_languages(url, user_id, auto_only=True)
                 langs = sorted(set(normal) | set(auto))
                 logger.info(f"{LoggerMsg.ALWAYS_ASK_FOUND_LANGUAGES_LOG_MSG}: {normal}, auto: {auto}, total: {langs}")
             except Exception as e:
@@ -1959,7 +1960,7 @@ def askq_callback(app, callback_query):
             video_count = video_end_with - video_start_with + 1
             # Delete processing message before starting download
             delete_processing_message(app, user_id, None)
-            down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=format_id, cookies_already_checked=True, cached_video_info=None)
+            down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=format_id, cookies_already_checked=True, cached_video_info=None, clear_subs_cache_on_start=False)
         else:
             logger.info("Single video, using down_and_up_with_format")
             # Delete processing message before starting download
@@ -2043,7 +2044,7 @@ def askq_callback(app, callback_query):
             video_count = video_end_with - video_start_with + 1
             # Delete processing message before starting download
             delete_processing_message(app, user_id, proc_msg)
-            down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=quality, cookies_already_checked=True, cached_video_info=None)
+            down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=quality, cookies_already_checked=True, cached_video_info=None, clear_subs_cache_on_start=False)
         else:
             # Delete processing message before starting download
             delete_processing_message(app, user_id, proc_msg)
@@ -2250,7 +2251,7 @@ def askq_callback(app, callback_query):
                     
                     # Delete processing message before starting download
                     delete_processing_message(app, user_id, proc_msg)
-                    down_and_up(app, original_message, url, playlist_name, new_count, new_start, tags_text, force_no_title=False, format_override=format_override, quality_key=used_quality_key, cookies_already_checked=True, cached_video_info=None)
+                    down_and_up(app, original_message, url, playlist_name, new_count, new_start, tags_text, force_no_title=False, format_override=format_override, quality_key=used_quality_key, cookies_already_checked=True, cached_video_info=None, clear_subs_cache_on_start=False)
             else:
                 # All videos were in the cache
                 app.send_message(target_chat_id, safe_get_messages(user_id).PLAYLIST_CACHE_SENT_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=original_message.id))
@@ -2297,7 +2298,7 @@ def askq_callback(app, callback_query):
                 
                 # Delete processing message before starting download
                 delete_processing_message(app, user_id, proc_msg)
-                down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=data, cookies_already_checked=True, cached_video_info=None)
+                down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=data, cookies_already_checked=True, cached_video_info=None, clear_subs_cache_on_start=False)
             return
     # --- other logic for single files ---
     found_type = check_subs_availability(url, user_id, data, return_type=True)
@@ -4518,9 +4519,9 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         # Check if subtitles are enabled and Always Ask mode is enabled for subs
         if is_subs_enabled(user_id) and is_subs_always_ask(user_id):
             try:
-                # Get available subtitles count
-                normal_subs = get_available_subs_languages(url, user_id, auto_only=False)
-                auto_subs = get_available_subs_languages(url, user_id, auto_only=True)
+                # Get available subtitles count (single-check/cached within session)
+                from COMMANDS.subtitles_cmd import get_or_compute_subs_langs
+                normal_subs, auto_subs = get_or_compute_subs_langs(user_id, url)
                 total_subs = len(set(normal_subs) | set(auto_subs))
                 if total_subs and total_subs > 0:
                     subs_count_info = f"{safe_get_messages(user_id).ALWAYS_ASK_SUBTITLES_MSG}: {total_subs} available\n"

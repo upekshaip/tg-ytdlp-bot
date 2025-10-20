@@ -64,6 +64,14 @@ def _handle_quality_key_error(e: Exception, split_msg_ids: list, is_playlist: bo
         success_msg = f"<b>{safe_get_messages(user_id).DOWN_UP_UPLOAD_COMPLETE_MSG}</b> - {video_count} {safe_get_messages(user_id).DOWN_UP_FILES_UPLOADED_MSG}.\n{safe_get_messages(user_id).CREDITS_MSG}"
         safe_edit_message_text(user_id, proc_msg_id, success_msg)
         send_to_logger(message, success_msg)
+        try:
+            from COMMANDS.subtitles_cmd import clear_subs_cache_for
+            from DOWN_AND_UP.always_ask_menu import delete_subs_langs_cache
+            delete_subs_langs_cache(user_id, url)
+            cleared = clear_subs_cache_for(user_id, url)
+            logger.info(f"[SUBS] End of task: cleared {cleared} subtitle cache entries for user={user_id}")
+        except Exception as _e:
+            logger.debug(f"[SUBS] Failed to clear end cache: {_e}")
         
         # Save to cache if we have the necessary data
         if url and safe_quality_key and split_msg_ids and not is_playlist:
@@ -125,7 +133,7 @@ def determine_need_subs(subs_enabled, found_type, user_id):
         return (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
 
 #@reply_with_keyboard
-def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None, cookies_already_checked=False, use_proxy=False, cached_video_info=None):
+def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None, cookies_already_checked=False, use_proxy=False, cached_video_info=None, clear_subs_cache_on_start=True):
     messages = safe_get_messages(message.chat.id)
     """
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
@@ -144,6 +152,16 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     caption_lst = []  # Initialize caption_lst for split videos
     last_video_msg_id = None  # Initialize last_video_msg_id for caching
     user_id = message.chat.id
+    # Ensure fresh subtitle state at the start of a task even for direct calls (bypassing Always Ask)
+    if clear_subs_cache_on_start:
+        try:
+            from COMMANDS.subtitles_cmd import clear_subs_cache_for
+            from DOWN_AND_UP.always_ask_menu import delete_subs_langs_cache
+            delete_subs_langs_cache(user_id, url)
+            cleared = clear_subs_cache_for(user_id, url)
+            logger.info(f"[SUBS] Start of task (direct): cleared {cleared} subtitle cache entries for user={user_id}")
+        except Exception:
+            pass
     successful_uploads = 0  # Initialize successful_uploads counter
     indices_to_download = []  # Initialize indices_to_download list
     proc_msg_id = None  # Initialize proc_msg_id
@@ -2222,7 +2240,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 logger.info(f"down_and_up: sending final success message for split video: {success_msg}")
                 safe_edit_message_text(user_id, proc_msg_id, success_msg)
                 send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
-                break
+                
             else:
                 if final_name:
                     # Read the full name from the file
@@ -2273,8 +2291,37 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         f"{url}_{user_id}_{'auto' if found_type == 'auto' else 'normal'}_langs",
                                         []
                                     )
+                                    # Fallback: if cache is empty, recompute available languages (union of normal+auto)
+                                    if not available_langs:
+                                        try:
+                                            logger.info("[SUBS] Cached languages empty, recomputing via availability check...")
+                                            # Warm cache and compute both normal and auto lists
+                                            check_subs_availability(url, user_id, return_type=True)
+                                            from COMMANDS.subtitles_cmd import get_available_subs_languages
+                                            normal_langs = get_available_subs_languages(url, user_id, auto_only=False)
+                                            auto_langs = get_available_subs_languages(url, user_id, auto_only=True)
+                                            available_langs = sorted(set(normal_langs) | set(auto_langs))
+                                            logger.info(f"[SUBS] Recomputed languages: normal={normal_langs}, auto={auto_langs}")
+                                        except Exception as e:
+                                            logger.error(f"[SUBS] Failed to recompute available languages: {e}")
+                                            available_langs = []
+
+                                    # Try to download subtitles with the best-known languages list
                                     subs_path = download_subtitles_ytdlp(url, user_id, video_dir, available_langs)
-                                    
+
+                                    # If failed, one more fallback retry: recompute union and retry once
+                                    if not subs_path:
+                                        try:
+                                            logger.info("[SUBS] First download attempt failed, retrying after forced recompute of languages...")
+                                            from COMMANDS.subtitles_cmd import get_available_subs_languages
+                                            normal_langs = get_available_subs_languages(url, user_id, auto_only=False)
+                                            auto_langs = get_available_subs_languages(url, user_id, auto_only=True)
+                                            retry_langs = sorted(set(normal_langs) | set(auto_langs))
+                                            if retry_langs:
+                                                subs_path = download_subtitles_ytdlp(url, user_id, video_dir, retry_langs)
+                                        except Exception as e:
+                                            logger.error(f"[SUBS] Retry recompute failed: {e}")
+
                                     if not subs_path:
                                         app.send_message(user_id, safe_get_messages(user_id).SUBTITLES_FAILED_MSG, reply_parameters=ReplyParameters(message_id=message.id))
                                         #continue
@@ -2584,7 +2631,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     logger.info(f"PREVENTIVE FIX: sending final success message for split video: {success_msg}")
                                     safe_edit_message_text(user_id, proc_msg_id, success_msg)
                                     send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
-                                    break
+                
                             else:
                                 logger.error(f"Error forwarding video to logger: {e}")
                             # Try to forward manually even after error
@@ -2707,7 +2754,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         logger.info(f"PREVENTIVE FIX: sending final success message for split video: {success_msg}")
                                         safe_edit_message_text(user_id, proc_msg_id, success_msg)
                                         send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
-                                        break
+                # end-of-task subs cache clearing handled in unified success branches below
                                 else:
                                     logger.error(f"Error in manual forward after error: {e2}")
                         safe_edit_message_text(user_id, proc_msg_id,
@@ -2729,6 +2776,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             success_msg = f"<b>{safe_get_messages(user_id).DOWN_UP_UPLOAD_COMPLETE_MSG}</b> - {video_count} {safe_get_messages(user_id).DOWN_UP_FILES_UPLOADED_MSG}.\n{safe_get_messages(user_id).CREDITS_MSG}"
             safe_edit_message_text(user_id, proc_msg_id, success_msg)
             send_to_logger(message, success_msg)
+            try:
+                from COMMANDS.subtitles_cmd import clear_subs_cache_for
+                from DOWN_AND_UP.always_ask_menu import delete_subs_langs_cache
+                delete_subs_langs_cache(user_id, url)
+                cleared = clear_subs_cache_for(user_id, url)
+                logger.info(f"[SUBS] End of task: cleared {cleared} subtitle cache entries for user={user_id}")
+            except Exception as _e:
+                logger.debug(f"[SUBS] Failed to clear end cache: {_e}")
             
             # Clean up download subdirectory after successful upload
             try:
@@ -2764,6 +2819,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 logger.info(f"HARD FIX: sending final success message for split video: {success_msg}")
                 safe_edit_message_text(user_id, proc_msg_id, success_msg)
                 send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
+                try:
+                    from COMMANDS.subtitles_cmd import clear_subs_cache_for
+                    from DOWN_AND_UP.always_ask_menu import delete_subs_langs_cache
+                    delete_subs_langs_cache(user_id, url)
+                    cleared = clear_subs_cache_for(user_id, url)
+                    logger.info(f"[SUBS] End of task: cleared {cleared} subtitle cache entries for user={user_id}")
+                except Exception as _e:
+                    logger.debug(f"[SUBS] Failed to clear end cache: {_e}")
         else:
             logger.error(f"Error in video download: {e}")
             send_to_user(message, safe_get_messages(user_id).FAILED_DOWNLOAD_VIDEO_MSG.format(error=e))
