@@ -883,6 +883,15 @@ def _is_fatal_error(stderr_text: str) -> bool:
                 print(f"[GALLERY_DL] {platform.title()} unknown error detected, but continuing (non-fatal)")
                 return False
         return True
+
+    # Instagram-specific errors that should be treated as fatal
+    if "instagram" in stderr_lower:
+        # KeyError - 'data' (upstream extractor change)
+        if "keyerror - 'data'" in stderr_lower or "keyerror: 'data'" in stderr_lower:
+            return True
+        # 401 Unauthorized - Instagram requires authentication
+        if "401 unauthorized" in stderr_lower or "401" in stderr_lower:
+            return True
     
     # Other critical errors that should always stop the process
     if any(error in stderr_lower for error in [
@@ -1005,6 +1014,15 @@ def _get_error_type(stderr_text: str, user_id=None) -> str:
             if platform in stderr_lower:
                 return f"{platform.title()} account access error (non-fatal - continuing)"
         return safe_get_messages(user_id).GALLERY_DL_UNKNOWN_ERROR_MSG
+
+    # Instagram-specific errors that should be treated as fatal
+    if "instagram" in stderr_lower:
+        # KeyError - 'data' (upstream extractor change)
+        if "keyerror - 'data'" in stderr_lower or "keyerror: 'data'" in stderr_lower:
+            return safe_get_messages(user_id).GALLERY_DL_UNKNOWN_ERROR_MSG
+        # 401 Unauthorized - Instagram requires authentication
+        if "401 unauthorized" in stderr_lower or "401" in stderr_lower:
+            return safe_get_messages(user_id).GALLERY_DL_INSTAGRAM_AUTH_ERROR_MSG
     
     # Other critical errors that should always stop the process
     if any(error in stderr_lower for error in [

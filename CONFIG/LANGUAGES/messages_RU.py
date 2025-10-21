@@ -1951,6 +1951,7 @@ class Messages(object):
     GALLERY_DL_VERIFICATION_REQUIRED_MSG = "Требуется проверка"
     GALLERY_DL_POLICY_VIOLATION_MSG = "Нарушение политики"
     GALLERY_DL_UNKNOWN_ERROR_MSG = "Неизвестная ошибка"
+    GALLERY_DL_INSTAGRAM_AUTH_ERROR_MSG = "❌ Instagram требует аутентификации.\n\n🔐 <b>Решение:</b>\n1. Войдите в Instagram через браузер\n2. Скопируйте cookies в файл <code>users/{user_id}/cookie.txt</code>\n3. Попробуйте снова\n\n💡 <b>Альтернатива:</b> Используйте публичные посты или истории"
     
     # Download started message (used in both audio and video downloads)
     DOWNLOAD_STARTED_MSG = "<b>▶️ Скачивание началось</b>"
