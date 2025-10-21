@@ -459,6 +459,8 @@ def set_filter(user_id, kind, value):
         f["ext"] = value
     elif kind == "audio_lang":
         f["audio_lang"] = value
+    elif kind == "quality":
+        f["quality"] = value
     elif kind == "toggle":
         f["visible"] = (value == "on")
     _ASK_FILTERS[str(user_id)] = f
@@ -2244,6 +2246,9 @@ def askq_callback(app, callback_query):
                         format_override = f"bv*[vcodec*=avc1][height<={quality_val}][height>{prev}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<={quality_val}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best/bv+ba/best"
                 except ValueError:
                     format_override = "bestvideo+bestaudio/best/bv+ba/best"
+                
+                # Save selected quality to filters
+                set_filter(user_id, "quality", data)
                 
                 # Delete processing message before starting download
                 delete_processing_message(app, user_id, proc_msg)
