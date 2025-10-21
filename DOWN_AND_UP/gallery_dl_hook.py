@@ -854,6 +854,15 @@ def _is_fatal_error(stderr_text: str) -> bool:
     """
     stderr_lower = stderr_text.lower()
     
+    # Instagram-specific errors that should be treated as fatal (handle early)
+    #  - extractor breakage: KeyError - 'data'
+    #  - authentication: 401 Unauthorized
+    if "instagram" in stderr_lower:
+        if "keyerror - 'data'" in stderr_lower or "keyerror: 'data'" in stderr_lower:
+            return True
+        if "401 unauthorized" in stderr_lower or "http 401" in stderr_lower or " 401 " in stderr_lower:
+            return True
+
     # Authentication errors
     if any(error in stderr_lower for error in [
         "401 unauthorized",
@@ -1005,6 +1014,15 @@ def _get_error_type(stderr_text: str, user_id=None) -> str:
             if platform in stderr_lower:
                 return f"{platform.title()} account access error (non-fatal - continuing)"
         return safe_get_messages(user_id).GALLERY_DL_UNKNOWN_ERROR_MSG
+
+    # Instagram-specific errors that should be treated as fatal
+    if "instagram" in stderr_lower:
+        # KeyError - 'data' (upstream extractor change)
+        if "keyerror - 'data'" in stderr_lower or "keyerror: 'data'" in stderr_lower:
+            return safe_get_messages(user_id).GALLERY_DL_UNKNOWN_ERROR_MSG
+        # 401 Unauthorized - Instagram requires authentication
+        if "401 unauthorized" in stderr_lower or "401" in stderr_lower:
+            return safe_get_messages(user_id).GALLERY_DL_INSTAGRAM_AUTH_ERROR_MSG
     
     # Other critical errors that should always stop the process
     if any(error in stderr_lower for error in [

@@ -1413,11 +1413,33 @@ def image_command(app, message):
             total_expected = min(detected_total, max_img_files)
         elif detected_total and detected_total > 0:
             total_expected = detected_total
-        # Pre-cleanup: remove all media files from user directory before starting
+        # Pre-cleanup: remove media files from user directory before starting
+        # IMPORTANT: Preserve user's cookies file if present (Instagram/TikTok auth)
         try:
             logger.info(LoggerMsg.IMG_PRE_CLEANUP_START_LOG_MSG.format(user_id=user_id))
+            # Preserve cookies before cleanup
+            preserved_cookie_path = os.path.join("users", str(user_id), "cookie.txt")
+            preserved_cookie_data = None
+            try:
+                if os.path.exists(preserved_cookie_path):
+                    with open(preserved_cookie_path, "rb") as _cf:
+                        preserved_cookie_data = _cf.read()
+            except Exception:
+                preserved_cookie_data = None
+
             from HELPERS.filesystem_hlp import remove_media
-            remove_media(message)  # This will respect protection files for parallel downloads
+            remove_media(message)  # Should only remove media; some installs could be aggressive
+
+            # Restore cookies if cleanup removed them
+            try:
+                if preserved_cookie_data is not None and not os.path.exists(preserved_cookie_path):
+                    os.makedirs(os.path.dirname(preserved_cookie_path), exist_ok=True)
+                    with open(preserved_cookie_path, "wb") as _cfw:
+                        _cfw.write(preserved_cookie_data)
+                    logger.info("[IMG PRE-CLEANUP] Restored user's cookie.txt after cleanup")
+            except Exception:
+                pass
+
             logger.info(LoggerMsg.IMG_PRE_CLEANUP_COMPLETED_LOG_MSG)
         except Exception as e:
             logger.warning(LoggerMsg.IMG_PRE_CLEANUP_FAILED_LOG_MSG.format(e=e))
