@@ -606,10 +606,8 @@ def ask_filter_callback(app, callback_query):
 
         # --- SUBS handlers must run BEFORE generic filter rebuild ---
         if kind == "subs" and value == "open":
-            # Check if subtitles are enabled before making requests
-            if not is_subs_enabled(user_id):
-                callback_query.answer(safe_get_messages(user_id).SUBS_DISABLED_MSG, show_alert=True)
-                return
+            # In Always Ask mode, allow user to choose from available subtitle languages
+            # regardless of their current subtitle settings
                 
             original_message = callback_query.message.reply_to_message
             if not original_message:
@@ -1604,55 +1602,6 @@ def askq_callback(app, callback_query):
             callback_query.answer(safe_get_messages(user_id).AA_CHOOSE_AUDIO_LANGUAGE_MSG)
             return
         # LINK MENU HANDLER REMOVED - now using direct link approach
-        if kind == "subs" and value == "open":
-            # Check if subtitles are enabled before making requests
-            if not is_subs_enabled(user_id):
-                callback_query.answer(safe_get_messages(user_id).SUBS_DISABLED_MSG, show_alert=True)
-                return
-                
-            # Open SUBS language menu (Always Ask)
-            logger.info(f"{LoggerMsg.ALWAYS_ASK_OPENING_SUBS_MENU_LOG_MSG} {user_id}")
-            original_message = callback_query.message.reply_to_message
-            if not original_message:
-                logger.error(f"{LoggerMsg.ALWAYS_ASK_NO_ORIGINAL_MESSAGE_FOUND_FOR_SUBS_MENU_LOG_MSG}")
-                callback_query.answer(safe_get_messages(user_id).ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
-                return
-            url_text = original_message.text or (original_message.caption or "")
-            import re as _re
-            m = _re.search(r'https?://[^\s\*#]+', url_text)
-            url = m.group(0) if m else url_text
-            logger.info(f"{LoggerMsg.ALWAYS_ASK_EXTRACTED_URL_LOG_MSG}: {url}")
-            
-            # First, check subtitle availability to populate cache
-            try:
-                logger.info(f"{LoggerMsg.ALWAYS_ASK_CHECKING_SUBTITLE_AVAILABILITY_LOG_MSG} {url}")
-                # Check availability and populate cache
-                # Get available languages once per session
-                from COMMANDS.subtitles_cmd import get_or_compute_subs_langs
-                normal, auto = get_or_compute_subs_langs(user_id, url)
-                # Warm availability type once
-                check_subs_availability(url, user_id, return_type=True)
-                langs = sorted(set(normal) | set(auto))
-                logger.info(f"{LoggerMsg.ALWAYS_ASK_FOUND_LANGUAGES_LOG_MSG}: {normal}, auto: {auto}, total: {langs}")
-            except Exception as e:
-                logger.error(f"{LoggerMsg.ALWAYS_ASK_ERROR_CHECKING_SUBTITLES_LOG_MSG}: {e}")
-                normal, auto, langs = [], [], []
-            
-            if not langs:
-                logger.warning(f"{LoggerMsg.ALWAYS_ASK_NO_SUBTITLES_FOUND_LOG_MSG} {url}")
-                callback_query.answer(safe_get_messages(user_id).AA_NO_SUBTITLES_DETECTED_MSG, show_alert=True)
-                return
-                
-            logger.info(f"{LoggerMsg.ALWAYS_ASK_BUILDING_KEYBOARD_WITH_LANGUAGES_LOG_MSG} {len(langs)} languages")
-            kb = get_language_keyboard_always_ask(page=0, user_id=user_id, langs_override=langs, per_page_rows=8, normal_langs=normal, auto_langs=auto)
-            try:
-                callback_query.edit_message_reply_markup(reply_markup=kb)
-                logger.info(f"{LoggerMsg.ALWAYS_ASK_SUCCESSFULLY_UPDATED_MESSAGE_WITH_SUBS_KEYBOARD_LOG_MSG}")
-            except Exception as e:
-                logger.error(f"{LoggerMsg.ALWAYS_ASK_ERROR_UPDATING_MESSAGE_LOG_MSG}: {e}")
-                pass
-            callback_query.answer(safe_get_messages(user_id).AA_CHOOSE_SUBTITLE_LANGUAGE_MSG)
-            return
         if kind == "subs_page":
             # Handle page navigation in Always Ask subtitle menu
             page = int(value)
