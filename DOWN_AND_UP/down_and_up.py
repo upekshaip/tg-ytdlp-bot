@@ -117,20 +117,39 @@ def determine_need_subs(subs_enabled, found_type, user_id):
     """
     Helper function to determine if subtitles are needed based on user settings and found type.
     Returns True if subtitles should be embedded, False otherwise.
-    """
-    if not subs_enabled or found_type is None:
-        return False
     
-    # Check if we're in Always Ask mode
+    Logic:
+    1. If Always Ask mode is ON and user has selected a language in subs.txt -> NEED SUBS
+    2. If Always Ask mode is OFF but subs are enabled and available -> NEED SUBS  
+    3. Otherwise -> NO SUBS
+    """
+    # Check if we're in Always Ask mode first
     is_always_ask_mode = is_subs_always_ask(user_id)
     
     if is_always_ask_mode:
-        # In Always Ask mode, always consider subtitles if found, regardless of auto_mode
-        return True  # True if any subtitles found (auto or normal)
-    else:
-        # In manual mode, respect user's auto_mode setting
-        auto_mode = get_user_subs_auto_mode(user_id)
-        return (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
+        # In Always Ask mode, check if user has selected a subtitle language
+        subs_lang = get_user_subs_language(user_id)
+        if subs_lang and subs_lang not in ["OFF"]:
+            logger.info(f"Always Ask mode: user selected language '{subs_lang}' -> NEED SUBS")
+            return True  # User has selected a subtitle language in Always Ask mode
+        else:
+            logger.info(f"Always Ask mode: no language selected -> NO SUBS")
+            return False
+    
+    # For manual mode, check if subtitles are enabled and available
+    if not subs_enabled:
+        logger.info(f"Manual mode: subtitles disabled -> NO SUBS")
+        return False
+        
+    if found_type is None:
+        logger.info(f"Manual mode: no subtitles available -> NO SUBS")
+        return False
+    
+    # In manual mode, respect user's auto_mode setting
+    auto_mode = get_user_subs_auto_mode(user_id)
+    need_subs = (auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")
+    logger.info(f"Manual mode: auto_mode={auto_mode}, found_type={found_type} -> {'NEED SUBS' if need_subs else 'NO SUBS'}")
+    return need_subs
 
 #@reply_with_keyboard
 def down_and_up(app, message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=None, quality_key=None, cookies_already_checked=False, use_proxy=False, cached_video_info=None, clear_subs_cache_on_start=True):
@@ -259,10 +278,29 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         # Continue with normal download if LINK mode check fails
     subs_enabled = is_subs_enabled(user_id)
     need_subs = False
-    if subs_enabled and is_youtube_url(url):
+    
+    # Check Always Ask mode first - it overrides everything
+    is_always_ask_mode = is_subs_always_ask(user_id)
+    if is_always_ask_mode and is_youtube_url(url):
+        subs_lang = get_user_subs_language(user_id)
+        if subs_lang and subs_lang not in ["OFF"]:
+            need_subs = True
+            logger.info(f"Always Ask mode: user selected language '{subs_lang}' -> FORCE SUBS")
+        else:
+            need_subs = False
+            logger.info(f"Always Ask mode: no language selected -> NO SUBS")
+    elif subs_enabled and is_youtube_url(url):
         found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
         # Determine subtitle availability once here
         need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+        logger.info(f"Manual mode: subs_enabled={subs_enabled}, found_type={found_type}, need_subs={need_subs}, user_id={user_id}")
+    else:
+        logger.info(f"Subtitle check skipped: subs_enabled={subs_enabled}, is_youtube={is_youtube_url(url)}, user_id={user_id}")
+    
+    # Additional debug info
+    if is_youtube_url(url):
+        subs_lang = get_user_subs_language(user_id)
+        logger.info(f"Final debug: is_always_ask_mode={is_always_ask_mode}, subs_lang='{subs_lang}', need_subs={need_subs}, user_id={user_id}")
 
     # We define a playlist not only by the number of videos, but also by the presence of a range in the URL
     original_text = message.text or message.caption or ""
@@ -900,15 +938,23 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             if user_args:
                 common_opts.update(user_args)
             
-            # Log final yt-dlp options for debugging
-            log_ytdlp_options(user_id, common_opts, "video_download")
-            
-            # Check subtitle availability for YouTube videos (but don't download them here)
-            if is_youtube_url(url):
+            # Configure subtitle options based on user settings
+            if need_subs and is_youtube_url(url):
                 subs_lang = get_user_subs_language(user_id)
                 auto_mode = get_user_subs_auto_mode(user_id)
+                
                 if subs_lang and subs_lang not in ["OFF"]:
-                    # Check availability with AUTO mode
+                    # Enable subtitle writing
+                    common_opts['writesubtitles'] = True
+                    common_opts['writeautomaticsub'] = auto_mode
+                    
+                    # Set subtitle language
+                    if subs_lang != "auto":
+                        common_opts['subtitleslangs'] = [subs_lang]
+                    
+                    logger.info(f"Enabled subtitle download for user {user_id}: lang={subs_lang}, auto_mode={auto_mode}")
+                else:
+                    # Check availability and warn user if subtitles not found
                     from COMMANDS.subtitles_cmd import get_available_subs_languages
                     available_langs = get_available_subs_languages(url, user_id, auto_only=auto_mode)
                     # Flexible check: search for an exact match or any language from the group
@@ -926,6 +972,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             f"⚠️ Subtitles for {LANGUAGES[subs_lang]['flag']} {LANGUAGES[subs_lang]['name']} not found for this video. Download without subtitles.",
                             reply_parameters=ReplyParameters(message_id=message.id)
                         )
+            else:
+                # Disable subtitle writing if subtitles are not needed
+                common_opts['writesubtitles'] = False
+                common_opts['writeautomaticsub'] = False
+            
+            # Log final yt-dlp options for debugging
+            log_ytdlp_options(user_id, common_opts, "video_download")
             
             # Check if we need to use --no-cookies for this domain
             if is_no_cookie_domain(url):
@@ -2279,9 +2332,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 real_file_size = 0
                             auto_mode = get_user_subs_auto_mode(user_id)
                             if subs_enabled and is_youtube_url(url) and min(width, height) <= Config.MAX_SUB_QUALITY:
-                                #found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
+                                found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
                                 # Use the helper function to determine subtitle availability
                                 need_subs = determine_need_subs(subs_enabled, found_type, user_id)
+                                logger.info(f"[SUBS EMBED] subs_enabled={subs_enabled}, found_type={found_type}, need_subs={need_subs}, video_size={min(width, height)}, user_id={user_id}")
                                 if need_subs:
                                     
                                     # First, download the subtitles separately
@@ -2307,7 +2361,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                             available_langs = []
 
                                     # Try to download subtitles with the best-known languages list
+                                    logger.info(f"[SUBS DOWNLOAD] Attempting to download subtitles with languages: {available_langs}")
                                     subs_path = download_subtitles_ytdlp(url, user_id, video_dir, available_langs)
+                                    logger.info(f"[SUBS DOWNLOAD] Download result: {subs_path}")
 
                                     # If failed, one more fallback retry: recompute union and retry once
                                     if not subs_path:
