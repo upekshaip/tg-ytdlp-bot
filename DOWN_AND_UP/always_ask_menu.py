@@ -459,6 +459,8 @@ def set_filter(user_id, kind, value):
         f["ext"] = value
     elif kind == "audio_lang":
         f["audio_lang"] = value
+    elif kind == "quality":
+        f["quality"] = value
     elif kind == "toggle":
         f["visible"] = (value == "on")
     _ASK_FILTERS[str(user_id)] = f
@@ -2244,6 +2246,9 @@ def askq_callback(app, callback_query):
                         format_override = f"bv*[vcodec*=avc1][height<={quality_val}][height>{prev}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1][height<={quality_val}]+ba[acodec*=mp4a]/bv*[vcodec*=avc1]+ba/best/bv+ba/best"
                 except ValueError:
                     format_override = "bestvideo+bestaudio/best/bv+ba/best"
+                
+                # Save selected quality to filters
+                set_filter(user_id, "quality", data)
                 
                 # Delete processing message before starting download
                 delete_processing_message(app, user_id, proc_msg)
@@ -5331,6 +5336,16 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
     sel_codec = filters_state.get("codec", "avc1")
     sel_ext = filters_state.get("ext", "mp4")
     sel_audio_lang = filters_state.get("audio_lang")
+    
+    # Get selected subtitle language from filters (for Always Ask mode)
+    selected_subs_lang = filters_state.get("selected_subs_lang")
+    if selected_subs_lang:
+        # Temporarily save the selected subtitle language for this download
+        from COMMANDS.subtitles_cmd import save_user_subs_language, save_user_subs_auto_mode
+        save_user_subs_language(user_id, selected_subs_lang)
+        # If user picks explicit language from SUBS menu – assume manual, not auto
+        save_user_subs_auto_mode(user_id, False)
+        logger.info(f"Using selected subtitle language from Always Ask: {selected_subs_lang}")
     try:
         set_session_mkv_override(user_id, sel_ext == "mkv")
     except Exception:
