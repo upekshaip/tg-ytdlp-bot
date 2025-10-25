@@ -33,6 +33,10 @@ app = get_app()
 # Format: {user_id: {'result': bool, 'timestamp': float, 'cookie_path': str, 'task_id': str, 'active': bool}}
 _youtube_cookie_cache = {}
 
+# Global cache for tracking checked cookie sources per user to prevent infinite loops
+# Format: {user_id: {'checked_sources': set, 'last_reset': float}}
+_checked_cookie_sources = {}
+
 # Cache for non-YouTube cookie validation results
 # Format: {cache_key: {'result': bool, 'timestamp': float, 'cookie_path': str, 'task_id': str, 'active': bool}}
 _non_youtube_cookie_cache = {}
@@ -188,6 +192,49 @@ def cleanup_expired_tasks():
     for cache_key in expired_non_youtube_cache:
         logger.warning(f"Forcefully deactivating expired non-YouTube cookie cache {cache_key}")
         del _non_youtube_cookie_cache[cache_key]
+    
+    # Очищаем истекшие записи о проверенных источниках (старше 1 часа)
+    global _checked_cookie_sources
+    expired_checked_users = []
+    for user_id, checked_data in _checked_cookie_sources.items():
+        if current_time - checked_data.get('last_reset', 0) > 3600:  # 1 hour
+            expired_checked_users.append(user_id)
+    
+    for user_id in expired_checked_users:
+        del _checked_cookie_sources[user_id]
+        logger.info(f"Cleared expired checked cookie sources for user {user_id}")
+
+def get_checked_cookie_sources(user_id: int) -> set:
+    """Получает множество уже проверенных источников куки для пользователя."""
+    global _checked_cookie_sources
+    if user_id not in _checked_cookie_sources:
+        _checked_cookie_sources[user_id] = {'checked_sources': set(), 'last_reset': time.time()}
+    return _checked_cookie_sources[user_id]['checked_sources']
+
+def mark_cookie_source_checked(user_id: int, source_index: int):
+    """Отмечает источник куки как проверенный для пользователя."""
+    global _checked_cookie_sources
+    if user_id not in _checked_cookie_sources:
+        _checked_cookie_sources[user_id] = {'checked_sources': set(), 'last_reset': time.time()}
+    _checked_cookie_sources[user_id]['checked_sources'].add(source_index)
+
+def reset_checked_cookie_sources(user_id: int):
+    """Сбрасывает список проверенных источников куки для пользователя."""
+    global _checked_cookie_sources
+    if user_id in _checked_cookie_sources:
+        _checked_cookie_sources[user_id] = {'checked_sources': set(), 'last_reset': time.time()}
+        logger.info(f"Reset checked cookie sources for user {user_id}")
+
+def get_unchecked_cookie_sources(user_id: int, cookie_urls: list) -> list:
+    """Возвращает список непроверенных источников куки для пользователя."""
+    checked_sources = get_checked_cookie_sources(user_id)
+    unchecked_indices = []
+    
+    for i, url in enumerate(cookie_urls):
+        if i not in checked_sources:
+            unchecked_indices.append(i)
+    
+    return unchecked_indices
 
 @app.on_message(filters.command("cookies_from_browser") & filters.private)
 # @reply_with_keyboard
@@ -1211,17 +1258,27 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
                 return
             logger.error(LoggerMsg.COOKIES_ERROR_UPDATING_MESSAGE_LOG_MSG.format(e=e))
     
-    # Determine the order of attempts
-    indices = list(range(len(cookie_urls)))
+    # Determine the order of attempts - only use unchecked sources
+    unchecked_indices = get_unchecked_cookie_sources(int(user_id), cookie_urls)
+    if not unchecked_indices:
+        update_message(safe_get_messages(user_id).COOKIES_ALL_EXPIRED_MSG, user_id)
+        logger.warning(f"All cookie sources have been checked for user {user_id}, no more sources to try")
+        return False
+    
     global _yt_round_robin_index
     if selected_index is not None:
         # Use a specific 1-based index
         if 1 <= selected_index <= len(cookie_urls):
-            indices = [selected_index - 1]
+            if (selected_index - 1) in unchecked_indices:
+                indices = [selected_index - 1]
+            else:
+                update_message(safe_get_messages(user_id).COOKIES_INVALID_YOUTUBE_INDEX_MSG.format(selected_index=selected_index, total_urls=len(cookie_urls)), user_id)
+                return False
         else:
             update_message(safe_get_messages(user_id).COOKIES_INVALID_YOUTUBE_INDEX_MSG.format(selected_index=selected_index, total_urls=len(cookie_urls)), user_id)
             return False
     else:
+        indices = unchecked_indices.copy()
         order = getattr(Config, 'YOUTUBE_COOKIE_ORDER', 'round_robin')
         if not order:
             order = 'round_robin'
@@ -1243,6 +1300,9 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
         try:
             # Update message about the current attempt
             update_message(safe_get_messages(user_id).COOKIES_DOWNLOADING_CHECKING_MSG.format(attempt=attempt_number, total=len(indices)), user_id)
+            
+            # Отмечаем источник как проверенный
+            mark_cookie_source_checked(int(user_id), idx)
             
             # Download cookies
             ok, status, content, err = _download_content(url, timeout=30)
@@ -1383,26 +1443,41 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
             finish_cookie_task(task_id, False, cookie_file_path)
             return False
     
-        logger.info(LoggerMsg.COOKIES_YOUTUBE_ATTEMPTING_DOWNLOAD_LOG_MSG.format(user_id=user_id, sources_count=len(cookie_urls)))
+        # Получаем только непроверенные источники для этого пользователя
+        unchecked_indices = get_unchecked_cookie_sources(user_id, cookie_urls)
+        if not unchecked_indices:
+            logger.warning(f"All cookie sources have been checked for user {user_id}, no more sources to try")
+            # Удаляем нерабочие куки
+            if os.path.exists(cookie_file_path):
+                os.remove(cookie_file_path)
+            # Завершаем задачу неуспешно
+            finish_cookie_task(task_id, False, cookie_file_path)
+            return False
         
-        for i, url in enumerate(cookie_urls, 1):
+        logger.info(LoggerMsg.COOKIES_YOUTUBE_ATTEMPTING_DOWNLOAD_LOG_MSG.format(user_id=user_id, sources_count=len(unchecked_indices)))
+        
+        for i, idx in enumerate(unchecked_indices, 1):
+            url = cookie_urls[idx]
             try:
-                logger.info(LoggerMsg.COOKIES_YOUTUBE_TRYING_SOURCE_LOG_MSG.format(source_index=i, total_sources=len(cookie_urls), user_id=user_id))
+                logger.info(LoggerMsg.COOKIES_YOUTUBE_TRYING_SOURCE_LOG_MSG.format(source_index=idx + 1, total_sources=len(cookie_urls), user_id=user_id))
+                
+                # Отмечаем источник как проверенный
+                mark_cookie_source_checked(user_id, idx)
                 
                 # Скачиваем куки
                 ok, status, content, err = _download_content(url, timeout=30)
                 if not ok:
-                    logger.warning(LoggerMsg.COOKIES_YOUTUBE_DOWNLOAD_FAILED_LOG_MSG.format(url_index=i, status=status, error=err))
+                    logger.warning(LoggerMsg.COOKIES_YOUTUBE_DOWNLOAD_FAILED_LOG_MSG.format(url_index=idx + 1, status=status, error=err))
                     continue
                 
                 # Проверяем формат и размер
                 if not url.lower().endswith('.txt'):
-                    logger.warning(LoggerMsg.COOKIES_YOUTUBE_URL_NOT_TXT_LOG_MSG.format(url_index=i))
+                    logger.warning(LoggerMsg.COOKIES_YOUTUBE_URL_NOT_TXT_LOG_MSG.format(url_index=idx + 1))
                     continue
                     
                 content_size = len(content or b"")
                 if content_size and content_size > 100 * 1024:
-                    logger.warning(LoggerMsg.COOKIES_YOUTUBE_FILE_TOO_LARGE_LOG_MSG.format(url_index=i, file_size=content_size))
+                    logger.warning(LoggerMsg.COOKIES_YOUTUBE_FILE_TOO_LARGE_LOG_MSG.format(url_index=idx + 1, file_size=content_size))
                     continue
                 
                 # Сохраняем куки
@@ -1411,19 +1486,19 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
                 
                 # Проверяем работоспособность
                 if test_youtube_cookies(cookie_file_path):
-                    logger.info(LoggerMsg.COOKIES_YOUTUBE_SOURCE_WORKING_LOG_MSG.format(source_index=i, user_id=user_id))
-                    logger.info(LoggerMsg.COOKIES_YOUTUBE_FINISHED_WORKING_FOUND_LOG_MSG.format(user_id=user_id, source_index=i))
+                    logger.info(LoggerMsg.COOKIES_YOUTUBE_SOURCE_WORKING_LOG_MSG.format(source_index=idx + 1, user_id=user_id))
+                    logger.info(LoggerMsg.COOKIES_YOUTUBE_FINISHED_WORKING_FOUND_LOG_MSG.format(user_id=user_id, source_index=idx + 1))
                     # Завершаем задачу успешно
                     finish_cookie_task(task_id, True, cookie_file_path)
                     return True
                 else:
-                    logger.warning(LoggerMsg.COOKIES_YOUTUBE_SOURCE_FAILED_VALIDATION_LOG_MSG.format(source_index=i, user_id=user_id))
+                    logger.warning(LoggerMsg.COOKIES_YOUTUBE_SOURCE_FAILED_VALIDATION_LOG_MSG.format(source_index=idx + 1, user_id=user_id))
                     # Удаляем нерабочие куки
                     if os.path.exists(cookie_file_path):
                         os.remove(cookie_file_path)
                         
             except Exception as e:
-                logger.error(LoggerMsg.COOKIES_YOUTUBE_PROCESSING_ERROR_LOG_MSG.format(source_index=i, user_id=user_id, e=e))
+                logger.error(LoggerMsg.COOKIES_YOUTUBE_PROCESSING_ERROR_LOG_MSG.format(source_index=idx + 1, user_id=user_id, e=e))
                 # Удаляем файл в случае ошибки
                 if os.path.exists(cookie_file_path):
                     os.remove(cookie_file_path)
@@ -1613,13 +1688,19 @@ def retry_download_with_different_cookies(user_id: int, url: str, download_func,
             logger.warning(LoggerMsg.COOKIES_YOUTUBE_RETRY_NO_SOURCES_LOG_MSG.format(user_id=user_id))
             return None
         
+        # Получаем только непроверенные источники для этого пользователя
+        unchecked_indices = get_unchecked_cookie_sources(user_id, cookie_urls)
+        if not unchecked_indices:
+            logger.warning(f"All cookie sources have been checked for user {user_id}, no more sources to try")
+            return None
+        
         user_dir = os.path.join("users", str(user_id))
         create_directory(user_dir)
         cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
         cookie_file_path = os.path.join(user_dir, cookie_filename)
         
-        # Определяем порядок попыток
-        indices = list(range(len(cookie_urls)))
+        # Определяем порядок попыток только для непроверенных источников
+        indices = unchecked_indices.copy()
         global _yt_round_robin_index
         order = getattr(Config, 'YOUTUBE_COOKIE_ORDER', 'round_robin')
         if order == 'random':
@@ -1638,6 +1719,9 @@ def retry_download_with_different_cookies(user_id: int, url: str, download_func,
         for attempt, idx in enumerate(indices, 1):
             try:
                 logger.info(LoggerMsg.COOKIES_YOUTUBE_RETRY_ATTEMPT_LOG_MSG.format(attempt=attempt, total_attempts=len(indices), source_index=idx + 1, user_id=user_id))
+                
+                # Отмечаем источник как проверенный
+                mark_cookie_source_checked(user_id, idx)
                 
                 # Скачиваем куки
                 try:
