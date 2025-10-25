@@ -3969,6 +3969,13 @@ def img_range_callback(app, callback_query: CallbackQuery):
         # Answer callback
         callback_query.answer(f"{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_IMAGES_MSG} {start}-{end}")
         
+        # Delete the original message with the buttons immediately
+        try:
+            callback_query.message.delete()
+            logger.info(f"[IMG_RANGE_CALLBACK] Deleted message with ID: {callback_query.message.message_id}")
+        except Exception as e:
+            logger.error(f"[IMG_RANGE_CALLBACK] Failed to delete message: {e}")
+        
         # Create new message with range command
         range_command = f"/img {start}-{end} {url}"
         logger.info(f"[IMG_RANGE_CALLBACK] Created command: {range_command}")
@@ -3991,13 +3998,6 @@ def img_range_callback(app, callback_query: CallbackQuery):
         logger.info(f"[IMG_RANGE_CALLBACK] Calling image_command with mock_message")
         image_command(app, mock_message)
         logger.info(f"[IMG_RANGE_CALLBACK] image_command completed")
-
-        # Delete the original message with the buttons
-        try:
-            callback_query.message.delete()
-            logger.info(f"[IMG_RANGE_CALLBACK] Deleted message with ID: {callback_query.message.message_id}")
-        except Exception as e:
-            logger.error(f"[IMG_RANGE_CALLBACK] Failed to delete message: {e}")
         
     except Exception as e:
         try:
