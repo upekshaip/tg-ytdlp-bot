@@ -59,6 +59,11 @@ def parse_quality_argument(quality_arg):
         return "best"
 
 def get_direct_link(url, user_id, quality_arg=None, cookies_already_checked=False, use_proxy=False):
+    # Сбрасываем кеш проверенных источников куки для новой задачи получения ссылки
+    from COMMANDS.cookies_cmd import reset_checked_cookie_sources
+    reset_checked_cookie_sources(user_id)
+    logger.info(f"🔄 [DEBUG] Reset checked cookie sources for new link task for user {user_id}")
+    
     messages = safe_get_messages(user_id)
     """
     Gets direct link to video using yt-dlp

@@ -42,7 +42,13 @@ class DomainsConfig(object):
     GALLERYDL_FALLBACK_DOMAINS = [
         # Social media platforms largely covered by gallery-dl
         'instagram.com',
-    ]    
+    ]
+    
+    YTDLP_ONLY_DOMAINS = [
+        # Video platforms that should only use yt-dlp (no gallery-dl fallback)
+        'youtube.com', 'youtu.be', 'm.youtube.com', 'www.youtube.com',
+        'music.youtube.com', 'gaming.youtube.com'
+    ]
     
     # --- Whitelist of domains that are not considered porn ---
     WHITELIST = [
