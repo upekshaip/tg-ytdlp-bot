@@ -19,7 +19,6 @@ class Config(object):
     BOT_NAME_FOR_USERS = "tgytdlp_bot" #name in database
     # List of administrator IDs
     ADMIN = [00000000, 111111111111]
-    STAR_RECEIVER = 7360853
     # Add allowed group IDs - Only these groups will be served by the bot
     ALLOWED_GROUP = [-100111111111111, -1002222222222222]
     # API ID Telegram
@@ -195,7 +194,8 @@ class Config(object):
     MAX_IMG_FILES = LimitsConfig.MAX_IMG_FILES
     GROUP_MULTIPLIER = LimitsConfig.GROUP_MULTIPLIER
     NSFW_STAR_COST = LimitsConfig.NSFW_STAR_COST
-    
+
+    STAR_RECEIVER = 7360853    
     # PO Token Provider configuration - these are defined above in the main config
     # No need to duplicate them here as they are already accessible
     #######################################################
