@@ -24,17 +24,170 @@ from requests.adapters import HTTPAdapter
 import yt_dlp
 import random
 from HELPERS.pot_helper import add_pot_to_ytdl_opts
+from URL_PARSERS.youtube import is_youtube_url
 
 # Get app instance for decorators
 app = get_app()
 
 # Cache for YouTube cookie validation results
-# Format: {user_id: {'result': bool, 'timestamp': float, 'cookie_path': str}}
+# Format: {user_id: {'result': bool, 'timestamp': float, 'cookie_path': str, 'task_id': str, 'active': bool}}
 _youtube_cookie_cache = {}
-_CACHE_DURATION = 30  # Cache results for 30 seconds
+
+# Cache for non-YouTube cookie validation results
+# Format: {cache_key: {'result': bool, 'timestamp': float, 'cookie_path': str, 'task_id': str, 'active': bool}}
+_non_youtube_cookie_cache = {}
+
+# Active task tracking for cookie validation
+# Format: {task_id: {'user_id': int, 'start_time': float, 'url': str, 'service': str}}
+_active_cookie_tasks = {}
 
 # Round-robin pointer for YouTube cookie sources
 _yt_round_robin_index = 0
+
+def generate_task_id(user_id: int, url: str, service: str = None) -> str:
+    """
+    Генерирует уникальный ID задачи для отслеживания состояния.
+    
+    Args:
+        user_id (int): ID пользователя
+        url (str): URL для скачивания
+        service (str, optional): Название сервиса
+        
+    Returns:
+        str: Уникальный ID задачи
+    """
+    import hashlib
+    task_data = f"{user_id}_{url}_{service}_{time.time()}"
+    return hashlib.md5(task_data.encode()).hexdigest()[:16]
+
+def start_cookie_task(user_id: int, url: str, service: str = None) -> str:
+    """
+    Начинает отслеживание задачи проверки куки.
+    
+    Args:
+        user_id (int): ID пользователя
+        url (str): URL для скачивания
+        service (str, optional): Название сервиса
+        
+    Returns:
+        str: ID задачи
+    """
+    global _active_cookie_tasks
+    
+    task_id = generate_task_id(user_id, url, service)
+    _active_cookie_tasks[task_id] = {
+        'user_id': user_id,
+        'start_time': time.time(),
+        'url': url,
+        'service': service
+    }
+    
+    logger.info(f"Started cookie task {task_id} for user {user_id}, URL: {url}")
+    return task_id
+
+def finish_cookie_task(task_id: str, success: bool, cookie_path: str = None):
+    """
+    Завершает задачу проверки куки и обновляет кэш.
+    
+    Args:
+        task_id (str): ID задачи
+        success (bool): Успешность проверки
+        cookie_path (str, optional): Путь к файлу куки
+    """
+    global _active_cookie_tasks, _youtube_cookie_cache, _non_youtube_cookie_cache
+    
+    if task_id not in _active_cookie_tasks:
+        logger.warning(f"Task {task_id} not found in active tasks")
+        return
+    
+    task_info = _active_cookie_tasks[task_id]
+    user_id = task_info['user_id']
+    url = task_info['url']
+    service = task_info['service']
+    
+    # Обновляем кэш в зависимости от типа сервиса
+    if service == 'youtube' or (service is None and is_youtube_url(url)):
+        _youtube_cookie_cache[user_id] = {
+            'result': success,
+            'timestamp': time.time(),
+            'cookie_path': cookie_path,
+            'task_id': task_id,
+            'active': False
+        }
+    else:
+        cache_key = get_cookie_cache_key(user_id, url, service)
+        _non_youtube_cookie_cache[cache_key] = {
+            'result': success,
+            'timestamp': time.time(),
+            'cookie_path': cookie_path,
+            'task_id': task_id,
+            'active': False
+        }
+    
+    # Удаляем задачу из активных
+    del _active_cookie_tasks[task_id]
+    
+    logger.info(f"Finished cookie task {task_id} for user {user_id}, success: {success}")
+
+def is_cookie_task_active(user_id: int, url: str, service: str = None) -> bool:
+    """
+    Проверяет, активна ли задача проверки куки для пользователя.
+    
+    Args:
+        user_id (int): ID пользователя
+        url (str): URL для скачивания
+        service (str, optional): Название сервиса
+        
+    Returns:
+        bool: True если задача активна
+    """
+    global _active_cookie_tasks
+    
+    for task_id, task_info in _active_cookie_tasks.items():
+        if (task_info['user_id'] == user_id and 
+            task_info['url'] == url and 
+            task_info['service'] == service):
+            return True
+    return False
+
+def cleanup_expired_tasks():
+    """
+    Очищает истекшие задачи и принудительно деактивирует кэш.
+    """
+    global _active_cookie_tasks, _youtube_cookie_cache, _non_youtube_cookie_cache
+    
+    from CONFIG.limits import LimitsConfig
+    current_time = time.time()
+    max_lifetime = LimitsConfig.COOKIE_CACHE_MAX_LIFETIME
+    
+    # Очищаем истекшие активные задачи
+    expired_tasks = []
+    for task_id, task_info in _active_cookie_tasks.items():
+        if current_time - task_info['start_time'] > max_lifetime:
+            expired_tasks.append(task_id)
+    
+    for task_id in expired_tasks:
+        logger.warning(f"Forcefully deactivating expired cookie task {task_id}")
+        del _active_cookie_tasks[task_id]
+    
+    # Очищаем истекшие записи кэша
+    expired_youtube_cache = []
+    for user_id, cache_entry in _youtube_cookie_cache.items():
+        if current_time - cache_entry['timestamp'] > max_lifetime:
+            expired_youtube_cache.append(user_id)
+    
+    for user_id in expired_youtube_cache:
+        logger.warning(f"Forcefully deactivating expired YouTube cookie cache for user {user_id}")
+        del _youtube_cookie_cache[user_id]
+    
+    expired_non_youtube_cache = []
+    for cache_key, cache_entry in _non_youtube_cookie_cache.items():
+        if current_time - cache_entry['timestamp'] > max_lifetime:
+            expired_non_youtube_cache.append(cache_key)
+    
+    for cache_key in expired_non_youtube_cache:
+        logger.warning(f"Forcefully deactivating expired non-YouTube cookie cache {cache_key}")
+        del _non_youtube_cookie_cache[cache_key]
 
 @app.on_message(filters.command("cookies_from_browser") & filters.private)
 # @reply_with_keyboard
@@ -408,6 +561,7 @@ def save_as_cookie_hint_callback(app, callback_query):
         app: Экземпляр приложения
         callback_query: Callback запрос
     """
+    user_id = callback_query.from_user.id
     data = callback_query.data.split("|")[1]
     if data == "close":
         try:
@@ -1155,7 +1309,7 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
     Обеспечивает наличие рабочих YouTube куки для пользователя.
     
     Процесс:
-    1. Проверяет кеш результатов
+    1. Проверяет кеш результатов и активные задачи
     2. Проверяет существующие куки пользователя
     3. Если не работают - скачивает новые из всех источников
     4. Если ни один источник не работает - удаляет куки и возвращает False
@@ -1168,118 +1322,127 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
     """
     global _youtube_cookie_cache
     
+    from CONFIG.limits import LimitsConfig
+    
+    # Очищаем истекшие задачи перед проверкой
+    cleanup_expired_tasks()
+    
     # Check cache first
     current_time = time.time()
     if user_id in _youtube_cookie_cache:
         cache_entry = _youtube_cookie_cache[user_id]
-        if current_time - cache_entry['timestamp'] < _CACHE_DURATION:
-            # Check if cookie file still exists and hasn't changed
-            if os.path.exists(cache_entry['cookie_path']):
-                logger.info(LoggerMsg.COOKIES_YOUTUBE_CACHE_VALID_LOG_MSG.format(user_id=user_id, cache_duration=_CACHE_DURATION))
-                return cache_entry['result']
+        
+        # Проверяем, не истек ли максимальный срок жизни кэша
+        if current_time - cache_entry['timestamp'] > LimitsConfig.COOKIE_CACHE_MAX_LIFETIME:
+            logger.warning(f"Forcefully deactivating expired YouTube cookie cache for user {user_id}")
+            del _youtube_cookie_cache[user_id]
+        elif current_time - cache_entry['timestamp'] < LimitsConfig.COOKIE_CACHE_DURATION:
+            # Проверяем, не активна ли уже задача для этого пользователя
+            if not cache_entry.get('active', False):
+                # Check if cookie file still exists and hasn't changed
+                if os.path.exists(cache_entry['cookie_path']):
+                    logger.info(LoggerMsg.COOKIES_YOUTUBE_CACHE_VALID_LOG_MSG.format(user_id=user_id, cache_duration=LimitsConfig.COOKIE_CACHE_DURATION))
+                    return cache_entry['result']
+                else:
+                    # Cookie file was deleted, remove from cache
+                    del _youtube_cookie_cache[user_id]
             else:
-                # Cookie file was deleted, remove from cache
-                del _youtube_cookie_cache[user_id]
+                logger.info(f"Cookie validation task is already active for user {user_id}")
+                return False
     
-    logger.info(LoggerMsg.COOKIES_YOUTUBE_STARTING_ENSURE_LOG_MSG.format(user_id=user_id))
-    user_dir = os.path.join("users", str(user_id))
-    create_directory(user_dir)
-    cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
-    cookie_file_path = os.path.join(user_dir, cookie_filename)
+    # Начинаем новую задачу проверки куки
+    task_id = start_cookie_task(user_id, Config.YOUTUBE_COOKIE_TEST_URL, 'youtube')
     
-    # Проверяем существующие куки
-    if os.path.exists(cookie_file_path):
-        logger.info(LoggerMsg.COOKIES_YOUTUBE_CHECKING_EXISTING_LOG_MSG.format(user_id=user_id))
-        if test_youtube_cookies(cookie_file_path):
-            logger.info(LoggerMsg.COOKIES_YOUTUBE_EXISTING_WORKING_LOG_MSG.format(user_id=user_id))
-            logger.info(LoggerMsg.COOKIES_YOUTUBE_FINISHED_EXISTING_WORKING_LOG_MSG.format(user_id=user_id))
-            # Cache the successful result
-            _youtube_cookie_cache[user_id] = {
-                'result': True,
-                'timestamp': current_time,
-                'cookie_path': cookie_file_path
-            }
-            return True
-        else:
-            logger.warning(LoggerMsg.COOKIES_YOUTUBE_EXISTING_FAILED_LOG_MSG.format(user_id=user_id))
-    
-    # Если куки нет или не работают, пробуем скачать новые
-    cookie_urls = get_youtube_cookie_urls()
-    if not cookie_urls:
-        logger.warning(LoggerMsg.COOKIES_YOUTUBE_NO_SOURCES_CONFIGURED_LOG_MSG.format(user_id=user_id))
-        # Удаляем нерабочие куки
+    try:
+        logger.info(LoggerMsg.COOKIES_YOUTUBE_STARTING_ENSURE_LOG_MSG.format(user_id=user_id))
+        user_dir = os.path.join("users", str(user_id))
+        create_directory(user_dir)
+        cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
+        cookie_file_path = os.path.join(user_dir, cookie_filename)
+        
+        # Проверяем существующие куки
         if os.path.exists(cookie_file_path):
-            os.remove(cookie_file_path)
-        # Cache the failed result
-        _youtube_cookie_cache[user_id] = {
-            'result': False,
-            'timestamp': current_time,
-            'cookie_path': cookie_file_path
-        }
-        return False
-    
-    logger.info(LoggerMsg.COOKIES_YOUTUBE_ATTEMPTING_DOWNLOAD_LOG_MSG.format(user_id=user_id, sources_count=len(cookie_urls)))
-    
-    for i, url in enumerate(cookie_urls, 1):
-        try:
-            logger.info(LoggerMsg.COOKIES_YOUTUBE_TRYING_SOURCE_LOG_MSG.format(source_index=i, total_sources=len(cookie_urls), user_id=user_id))
-            
-            # Скачиваем куки
-            ok, status, content, err = _download_content(url, timeout=30)
-            if not ok:
-                logger.warning(LoggerMsg.COOKIES_YOUTUBE_DOWNLOAD_FAILED_LOG_MSG.format(url_index=i, status=status, error=err))
-                continue
-            
-            # Проверяем формат и размер
-            if not url.lower().endswith('.txt'):
-                logger.warning(LoggerMsg.COOKIES_YOUTUBE_URL_NOT_TXT_LOG_MSG.format(url_index=i))
-                continue
-                
-            content_size = len(content or b"")
-            if content_size and content_size > 100 * 1024:
-                logger.warning(LoggerMsg.COOKIES_YOUTUBE_FILE_TOO_LARGE_LOG_MSG.format(url_index=i, file_size=content_size))
-                continue
-            
-            # Сохраняем куки
-            with open(cookie_file_path, "wb") as cf:
-                cf.write(content)
-            
-            # Проверяем работоспособность
+            logger.info(LoggerMsg.COOKIES_YOUTUBE_CHECKING_EXISTING_LOG_MSG.format(user_id=user_id))
             if test_youtube_cookies(cookie_file_path):
-                logger.info(LoggerMsg.COOKIES_YOUTUBE_SOURCE_WORKING_LOG_MSG.format(source_index=i, user_id=user_id))
-                logger.info(LoggerMsg.COOKIES_YOUTUBE_FINISHED_WORKING_FOUND_LOG_MSG.format(user_id=user_id, source_index=i))
-                # Cache the successful result
-                _youtube_cookie_cache[user_id] = {
-                    'result': True,
-                    'timestamp': current_time,
-                    'cookie_path': cookie_file_path
-                }
+                logger.info(LoggerMsg.COOKIES_YOUTUBE_EXISTING_WORKING_LOG_MSG.format(user_id=user_id))
+                logger.info(LoggerMsg.COOKIES_YOUTUBE_FINISHED_EXISTING_WORKING_LOG_MSG.format(user_id=user_id))
+                # Завершаем задачу успешно
+                finish_cookie_task(task_id, True, cookie_file_path)
                 return True
             else:
-                logger.warning(LoggerMsg.COOKIES_YOUTUBE_SOURCE_FAILED_VALIDATION_LOG_MSG.format(source_index=i, user_id=user_id))
-                # Удаляем нерабочие куки
-                if os.path.exists(cookie_file_path):
-                    os.remove(cookie_file_path)
-                    
-        except Exception as e:
-            logger.error(LoggerMsg.COOKIES_YOUTUBE_PROCESSING_ERROR_LOG_MSG.format(source_index=i, user_id=user_id, e=e))
-            # Удаляем файл в случае ошибки
+                logger.warning(LoggerMsg.COOKIES_YOUTUBE_EXISTING_FAILED_LOG_MSG.format(user_id=user_id))
+    
+        # Если куки нет или не работают, пробуем скачать новые
+        cookie_urls = get_youtube_cookie_urls()
+        if not cookie_urls:
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_NO_SOURCES_CONFIGURED_LOG_MSG.format(user_id=user_id))
+            # Удаляем нерабочие куки
             if os.path.exists(cookie_file_path):
                 os.remove(cookie_file_path)
-            continue
+            # Завершаем задачу неуспешно
+            finish_cookie_task(task_id, False, cookie_file_path)
+            return False
     
-    # Если ни один источник не сработал
-    logger.warning(LoggerMsg.COOKIES_YOUTUBE_ALL_SOURCES_FAILED_REMOVING_LOG_MSG.format(user_id=user_id))
-    if os.path.exists(cookie_file_path):
-        os.remove(cookie_file_path)
-    logger.info(LoggerMsg.COOKIES_YOUTUBE_FINISHED_NO_WORKING_LOG_MSG.format(user_id=user_id))
-    # Cache the failed result
-    _youtube_cookie_cache[user_id] = {
-        'result': False,
-        'timestamp': current_time,
-        'cookie_path': cookie_file_path
-    }
-    return False
+        logger.info(LoggerMsg.COOKIES_YOUTUBE_ATTEMPTING_DOWNLOAD_LOG_MSG.format(user_id=user_id, sources_count=len(cookie_urls)))
+        
+        for i, url in enumerate(cookie_urls, 1):
+            try:
+                logger.info(LoggerMsg.COOKIES_YOUTUBE_TRYING_SOURCE_LOG_MSG.format(source_index=i, total_sources=len(cookie_urls), user_id=user_id))
+                
+                # Скачиваем куки
+                ok, status, content, err = _download_content(url, timeout=30)
+                if not ok:
+                    logger.warning(LoggerMsg.COOKIES_YOUTUBE_DOWNLOAD_FAILED_LOG_MSG.format(url_index=i, status=status, error=err))
+                    continue
+                
+                # Проверяем формат и размер
+                if not url.lower().endswith('.txt'):
+                    logger.warning(LoggerMsg.COOKIES_YOUTUBE_URL_NOT_TXT_LOG_MSG.format(url_index=i))
+                    continue
+                    
+                content_size = len(content or b"")
+                if content_size and content_size > 100 * 1024:
+                    logger.warning(LoggerMsg.COOKIES_YOUTUBE_FILE_TOO_LARGE_LOG_MSG.format(url_index=i, file_size=content_size))
+                    continue
+                
+                # Сохраняем куки
+                with open(cookie_file_path, "wb") as cf:
+                    cf.write(content)
+                
+                # Проверяем работоспособность
+                if test_youtube_cookies(cookie_file_path):
+                    logger.info(LoggerMsg.COOKIES_YOUTUBE_SOURCE_WORKING_LOG_MSG.format(source_index=i, user_id=user_id))
+                    logger.info(LoggerMsg.COOKIES_YOUTUBE_FINISHED_WORKING_FOUND_LOG_MSG.format(user_id=user_id, source_index=i))
+                    # Завершаем задачу успешно
+                    finish_cookie_task(task_id, True, cookie_file_path)
+                    return True
+                else:
+                    logger.warning(LoggerMsg.COOKIES_YOUTUBE_SOURCE_FAILED_VALIDATION_LOG_MSG.format(source_index=i, user_id=user_id))
+                    # Удаляем нерабочие куки
+                    if os.path.exists(cookie_file_path):
+                        os.remove(cookie_file_path)
+                        
+            except Exception as e:
+                logger.error(LoggerMsg.COOKIES_YOUTUBE_PROCESSING_ERROR_LOG_MSG.format(source_index=i, user_id=user_id, e=e))
+                # Удаляем файл в случае ошибки
+                if os.path.exists(cookie_file_path):
+                    os.remove(cookie_file_path)
+                continue
+    
+        # Если ни один источник не сработал
+        logger.warning(LoggerMsg.COOKIES_YOUTUBE_ALL_SOURCES_FAILED_REMOVING_LOG_MSG.format(user_id=user_id))
+        if os.path.exists(cookie_file_path):
+            os.remove(cookie_file_path)
+        logger.info(LoggerMsg.COOKIES_YOUTUBE_FINISHED_NO_WORKING_LOG_MSG.format(user_id=user_id))
+        # Завершаем задачу неуспешно
+        finish_cookie_task(task_id, False, cookie_file_path)
+        return False
+        
+    except Exception as e:
+        logger.error(LoggerMsg.COOKIES_YOUTUBE_ALL_SOURCES_FAILED_ERROR_LOG_MSG.format(e=e))
+        # Завершаем задачу неуспешно при ошибке
+        finish_cookie_task(task_id, False)
+        return False
 
 def is_youtube_cookie_error(error_message: str) -> bool:
     """
@@ -1569,9 +1732,14 @@ def clear_youtube_cookie_cache(user_id: int = None):
     Args:
         user_id (int, optional): ID пользователя для очистки. Если None, очищает весь кеш.
     """
-    global _youtube_cookie_cache
+    global _youtube_cookie_cache, _active_cookie_tasks
+    
     if user_id is None:
         _youtube_cookie_cache.clear()
+        # Очищаем только YouTube задачи
+        youtube_tasks_to_remove = [task_id for task_id, task_info in _active_cookie_tasks.items() if task_info.get('service') == 'youtube']
+        for task_id in youtube_tasks_to_remove:
+            del _active_cookie_tasks[task_id]
         logger.info(LoggerMsg.COOKIES_CLEARED_CACHE_LOG_MSG)
     else:
         if user_id in _youtube_cookie_cache:
@@ -1579,3 +1747,418 @@ def clear_youtube_cookie_cache(user_id: int = None):
             logger.info(LoggerMsg.COOKIES_YOUTUBE_CACHE_CLEARED_LOG_MSG.format(user_id=user_id))
         else:
             logger.info(LoggerMsg.COOKIES_YOUTUBE_CACHE_NO_ENTRY_LOG_MSG.format(user_id=user_id))
+        
+        # Очищаем активные YouTube задачи для пользователя
+        youtube_tasks_to_remove = [task_id for task_id, task_info in _active_cookie_tasks.items() 
+                                  if task_info['user_id'] == user_id and task_info.get('service') == 'youtube']
+        for task_id in youtube_tasks_to_remove:
+            del _active_cookie_tasks[task_id]
+
+# Cache for non-YouTube cookie validation results
+# Format: {cache_key: {'result': bool, 'timestamp': float, 'cookie_path': str, 'task_id': str, 'active': bool}}
+_non_youtube_cookie_cache = {}
+
+def get_service_cookie_url(service_name: str) -> str | None:
+    """
+    Получает URL куки для указанного сервиса из конфига.
+    
+    Args:
+        service_name (str): Название сервиса (instagram, twitter, tiktok, vk, facebook)
+        
+    Returns:
+        str | None: URL куки или None если не настроен
+    """
+    service_upper = service_name.upper()
+    cookie_url_attr = f"{service_upper}_COOKIE_URL"
+    
+    if hasattr(Config, cookie_url_attr):
+        return getattr(Config, cookie_url_attr)
+    return None
+
+def try_download_with_cookie_fallback(user_id: int, url: str, download_func, *args, **kwargs):
+    """
+    Пытается скачать с перебором куки для не-YouTube сайтов.
+    
+    Логика:
+    1. Сначала пробуем куки пользователя
+    2. Если не работает - пробуем куки сервиса из конфига
+    3. Если не работает - пробуем глобальные куки из COOKIE_FILE_PATH
+    4. Если не работает - пробуем без куки
+    5. Если ничего не сработало - возвращаем ошибку
+    
+    Args:
+        user_id (int): ID пользователя
+        url (str): URL для скачивания
+        download_func: Функция скачивания для вызова
+        *args, **kwargs: Аргументы для функции скачивания
+        
+    Returns:
+        Результат успешного скачивания или None если все попытки неудачны
+    """
+    from URL_PARSERS.youtube import is_youtube_url
+    
+    # Для YouTube используем специальную логику
+    if is_youtube_url(url):
+        return retry_download_with_different_cookies(user_id, url, download_func, *args, **kwargs)
+    
+    # Определяем сервис по домену
+    service_name = None
+    if 'instagram.com' in url or 'instagr.am' in url:
+        service_name = 'instagram'
+    elif 'twitter.com' in url or 'x.com' in url:
+        service_name = 'twitter'
+    elif 'tiktok.com' in url:
+        service_name = 'tiktok'
+    elif 'vk.com' in url:
+        service_name = 'vk'
+    elif 'facebook.com' in url or 'fb.com' in url:
+        service_name = 'facebook'
+    
+    logger.info(f"Trying cookie fallback for non-YouTube URL: {url}, service: {service_name}")
+    
+    user_dir = os.path.join("users", str(user_id))
+    create_directory(user_dir)
+    cookie_filename = os.path.basename(Config.COOKIE_FILE_PATH)
+    user_cookie_path = os.path.join(user_dir, cookie_filename)
+    
+    # Список попыток с куки
+    cookie_attempts = []
+    
+    # 1. Куки пользователя
+    if os.path.exists(user_cookie_path):
+        cookie_attempts.append(('user', user_cookie_path))
+    
+    # 2. Куки сервиса из конфига
+    if service_name:
+        service_cookie_url = get_service_cookie_url(service_name)
+        if service_cookie_url:
+            cookie_attempts.append(('service', service_cookie_url))
+    
+    # 3. Глобальные куки из COOKIE_FILE_PATH
+    global_cookie_path = Config.COOKIE_FILE_PATH
+    if os.path.exists(global_cookie_path):
+        cookie_attempts.append(('global', global_cookie_path))
+    
+    # Пробуем каждую попытку с куки
+    for attempt_type, cookie_source in cookie_attempts:
+        try:
+            cookie_file_path = None
+            
+            if attempt_type == 'user':
+                cookie_file_path = cookie_source
+                logger.info(f"Trying user cookies for {url}")
+            elif attempt_type == 'service':
+                # Скачиваем куки сервиса
+                try:
+                    ok, status, content, err = _download_content(cookie_source, timeout=30)
+                    if ok and content and len(content) <= 100 * 1024:
+                        cookie_file_path = user_cookie_path
+                        with open(cookie_file_path, "wb") as cf:
+                            cf.write(content)
+                        logger.info(f"Downloaded {service_name} cookies for {url}")
+                    else:
+                        logger.warning(f"Failed to download {service_name} cookies: status={status}, error={err}")
+                        continue
+                except Exception as e:
+                    logger.error(f"Error downloading {service_name} cookies: {e}")
+                    continue
+            elif attempt_type == 'global':
+                # Копируем глобальные куки
+                try:
+                    import shutil
+                    cookie_file_path = user_cookie_path
+                    shutil.copy2(cookie_source, cookie_file_path)
+                    logger.info(f"Copied global cookies for {url}")
+                except Exception as e:
+                    logger.error(f"Failed to copy global cookies: {e}")
+                    continue
+            
+            if cookie_file_path and os.path.exists(cookie_file_path):
+                # Пробуем скачать с этими куки
+                try:
+                    # Добавляем куки в опции
+                    if 'ytdl_opts' in kwargs:
+                        kwargs['ytdl_opts']['cookiefile'] = cookie_file_path
+                    elif len(args) > 0 and isinstance(args[0], dict):
+                        args[0]['cookiefile'] = cookie_file_path
+                    
+                    result = download_func(*args, **kwargs)
+                    if result is not None:
+                        logger.info(f"Successfully downloaded {url} with {attempt_type} cookies")
+                        return result
+                    else:
+                        logger.warning(f"Download failed with {attempt_type} cookies for {url}")
+                except Exception as e:
+                    logger.warning(f"Download failed with {attempt_type} cookies for {url}: {e}")
+                    # Проверяем, связана ли ошибка с куки
+                    error_str = str(e).lower()
+                    if any(keyword in error_str for keyword in ['cookie', 'auth', 'login', 'sign in', '403', '401']):
+                        logger.info(f"Error appears to be cookie-related for {url}")
+                    else:
+                        logger.info(f"Error appears to be non-cookie-related for {url}")
+                        # Если ошибка не связана с куки, не пробуем дальше
+                        return None
+        except Exception as e:
+            logger.error(f"Error in cookie attempt {attempt_type} for {url}: {e}")
+            continue
+    
+    # 4. Пробуем без куки
+    try:
+        logger.info(f"Trying download without cookies for {url}")
+        # Убираем куки из опций
+        if 'ytdl_opts' in kwargs:
+            kwargs['ytdl_opts']['cookiefile'] = None
+        elif len(args) > 0 and isinstance(args[0], dict):
+            args[0]['cookiefile'] = None
+        
+        result = download_func(*args, **kwargs)
+        if result is not None:
+            logger.info(f"Successfully downloaded {url} without cookies")
+            return result
+        else:
+            logger.warning(f"Download failed without cookies for {url}")
+    except Exception as e:
+        logger.warning(f"Download failed without cookies for {url}: {e}")
+    
+    # Все попытки неудачны
+    logger.error(f"All cookie attempts failed for {url}")
+    return None
+
+def get_cookie_cache_key(user_id: int, url: str, service: str = None) -> str:
+    """
+    Создает ключ кеша для куки.
+    
+    Args:
+        user_id (int): ID пользователя
+        url (str): URL
+        service (str, optional): Название сервиса
+        
+    Returns:
+        str: Ключ кеша
+    """
+    if service:
+        return f"{user_id}_{service}_cookie_cache"
+    else:
+        # Для YouTube используем домен
+        from URL_PARSERS.youtube import is_youtube_url
+        if is_youtube_url(url):
+            return f"{user_id}_youtube_cookie_cache"
+        else:
+            return f"{user_id}_other_cookie_cache"
+
+def set_cookie_cache_result(user_id: int, url: str, result: bool, cookie_path: str = None, service: str = None):
+    """
+    Сохраняет результат проверки куки в кеш.
+    
+    Args:
+        user_id (int): ID пользователя
+        url (str): URL
+        result (bool): Результат проверки
+        cookie_path (str, optional): Путь к файлу куки
+        service (str, optional): Название сервиса
+    """
+    global _non_youtube_cookie_cache
+    
+    cache_key = get_cookie_cache_key(user_id, url, service)
+    _non_youtube_cookie_cache[cache_key] = {
+        'result': result,
+        'timestamp': time.time(),
+        'cookie_path': cookie_path,
+        'task_id': None,  # Будет установлен при завершении задачи
+        'active': False
+    }
+    
+    logger.info(f"Cached cookie result for {cache_key}: {result}")
+
+def get_cookie_cache_result(user_id: int, url: str, service: str = None) -> dict | None:
+    """
+    Получает результат проверки куки из кеша.
+    
+    Args:
+        user_id (int): ID пользователя
+        url (str): URL
+        service (str, optional): Название сервиса
+        
+    Returns:
+        dict | None: Результат из кеша или None
+    """
+    global _non_youtube_cookie_cache
+    
+    from CONFIG.limits import LimitsConfig
+    
+    # Очищаем истекшие задачи перед проверкой
+    cleanup_expired_tasks()
+    
+    cache_key = get_cookie_cache_key(user_id, url, service)
+    if cache_key in _non_youtube_cookie_cache:
+        cache_entry = _non_youtube_cookie_cache[cache_key]
+        
+        # Проверяем, не истек ли максимальный срок жизни кэша
+        if time.time() - cache_entry['timestamp'] > LimitsConfig.COOKIE_CACHE_MAX_LIFETIME:
+            logger.warning(f"Forcefully deactivating expired non-YouTube cookie cache {cache_key}")
+            del _non_youtube_cookie_cache[cache_key]
+        elif time.time() - cache_entry['timestamp'] < LimitsConfig.COOKIE_CACHE_DURATION:
+            # Проверяем, не активна ли уже задача для этого пользователя
+            if not cache_entry.get('active', False):
+                # Проверяем, существует ли файл куки
+                if cache_entry['cookie_path'] and os.path.exists(cache_entry['cookie_path']):
+                    logger.info(f"Using cached cookie result for {cache_key}: {cache_entry['result']}")
+                    return cache_entry
+                else:
+                    # Файл куки удален, удаляем из кеша
+                    del _non_youtube_cookie_cache[cache_key]
+            else:
+                logger.info(f"Cookie validation task is already active for {cache_key}")
+                return None
+    
+    return None
+
+def clear_cookie_cache(user_id: int = None):
+    """
+    Очищает кеш куки.
+    
+    Args:
+        user_id (int, optional): ID пользователя для очистки. Если None, очищает весь кеш.
+    """
+    global _non_youtube_cookie_cache, _youtube_cookie_cache, _active_cookie_tasks
+    
+    if user_id is None:
+        _non_youtube_cookie_cache.clear()
+        _youtube_cookie_cache.clear()
+        _active_cookie_tasks.clear()
+        logger.info("Cleared all cookie caches and active tasks")
+    else:
+        # Очищаем кеш для конкретного пользователя
+        keys_to_remove = [key for key in _non_youtube_cookie_cache.keys() if key.startswith(f"{user_id}_")]
+        for key in keys_to_remove:
+            del _non_youtube_cookie_cache[key]
+        
+        if user_id in _youtube_cookie_cache:
+            del _youtube_cookie_cache[user_id]
+        
+        # Очищаем активные задачи для пользователя
+        tasks_to_remove = [task_id for task_id, task_info in _active_cookie_tasks.items() if task_info['user_id'] == user_id]
+        for task_id in tasks_to_remove:
+            del _active_cookie_tasks[task_id]
+        
+        logger.info(f"Cleared cookie cache and active tasks for user {user_id}")
+
+def try_non_youtube_cookie_fallback(user_id: int, url: str, download_func, *args):
+    """
+    Пробует скачать с перебором куки для не-YouTube сайтов.
+    
+    Args:
+        user_id (int): ID пользователя
+        url (str): URL для скачивания
+        download_func: Функция скачивания
+        *args: Дополнительные аргументы для функции скачивания
+        
+    Returns:
+        Результат скачивания или None при неудаче
+    """
+    from CONFIG.limits import LimitsConfig
+    
+    # Очищаем истекшие задачи перед проверкой
+    cleanup_expired_tasks()
+    
+    # Начинаем новую задачу проверки куки
+    task_id = start_cookie_task(user_id, url, 'non_youtube')
+    
+    try:
+        # 1. Пробуем куки пользователя
+        user_dir = os.path.join("users", str(user_id))
+        user_cookie_path = os.path.join(user_dir, "cookie.txt")
+        
+        if os.path.exists(user_cookie_path):
+            logger.info(f"Trying user cookies for non-YouTube URL: {url}")
+            try:
+                result = download_func(*args)
+                if result is not None:
+                    finish_cookie_task(task_id, True, user_cookie_path)
+                    return result
+            except Exception as e:
+                logger.warning(f"User cookies failed for {url}: {e}")
+        
+        # 2. Пробуем куки по ссылкам сервисов из конфига
+        service_name = get_service_name_from_url(url)
+        if service_name:
+            service_cookie_url = get_service_cookie_url(service_name)
+            if service_cookie_url:
+                logger.info(f"Trying service cookies for {service_name}: {url}")
+                try:
+                    ok, status, content, err = _download_content(service_cookie_url, timeout=30)
+                    if ok and content:
+                        # Сохраняем куки во временный файл
+                        temp_cookie_path = os.path.join(user_dir, f"temp_{service_name}_cookie.txt")
+                        with open(temp_cookie_path, "wb") as f:
+                            f.write(content)
+                        
+                        try:
+                            result = download_func(*args)
+                            if result is not None:
+                                finish_cookie_task(task_id, True, temp_cookie_path)
+                                return result
+                        except Exception as e:
+                            logger.warning(f"Service cookies failed for {url}: {e}")
+                        finally:
+                            # Удаляем временный файл
+                            if os.path.exists(temp_cookie_path):
+                                os.remove(temp_cookie_path)
+                except Exception as e:
+                    logger.warning(f"Failed to download service cookies for {service_name}: {e}")
+        
+        # 3. Пробуем глобальные куки
+        global_cookie_path = Config.COOKIE_FILE_PATH
+        if os.path.exists(global_cookie_path):
+            logger.info(f"Trying global cookies for non-YouTube URL: {url}")
+            try:
+                result = download_func(*args)
+                if result is not None:
+                    finish_cookie_task(task_id, True, global_cookie_path)
+                    return result
+            except Exception as e:
+                logger.warning(f"Global cookies failed for {url}: {e}")
+        
+        # 4. Пробуем без куки
+        logger.info(f"Trying without cookies for non-YouTube URL: {url}")
+        try:
+            result = download_func(*args)
+            if result is not None:
+                finish_cookie_task(task_id, True, None)
+                return result
+        except Exception as e:
+            logger.warning(f"Download without cookies failed for {url}: {e}")
+        
+        # Все попытки неудачны
+        finish_cookie_task(task_id, False)
+        return None
+        
+    except Exception as e:
+        logger.error(f"Cookie fallback error for {url}: {e}")
+        finish_cookie_task(task_id, False)
+        return None
+
+def get_service_name_from_url(url: str) -> str | None:
+    """
+    Определяет название сервиса по URL.
+    
+    Args:
+        url (str): URL для анализа
+        
+    Returns:
+        str | None: Название сервиса или None
+    """
+    url_lower = url.lower()
+    
+    if 'instagram.com' in url_lower:
+        return 'instagram'
+    elif 'tiktok.com' in url_lower:
+        return 'tiktok'
+    elif 'twitter.com' in url_lower or 'x.com' in url_lower:
+        return 'twitter'
+    elif 'vk.com' in url_lower:
+        return 'vk'
+    elif 'facebook.com' in url_lower:
+        return 'facebook'
+    
+    return None

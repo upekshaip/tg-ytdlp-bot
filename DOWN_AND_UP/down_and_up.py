@@ -42,6 +42,7 @@ from HELPERS.logger import send_to_all  # Импорт в самом конце 
 from HELPERS.safe_messeger import safe_forward_messages  # Дублирующий импорт для устранения ошибки видимости
 from pyrogram import enums
 from pyrogram.types import ReplyParameters
+from pyrogram.errors import FloodWait
 from HELPERS.safe_messeger import safe_send_message
 from URL_PARSERS.tags import extract_url_range_tags
 from HELPERS.fallback_helper import should_fallback_to_gallery_dl
@@ -1058,25 +1059,23 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             common_opts['cookiefile'] = None
                             logger.warning(f"No YouTube cookie sources configured for user {user_id}, will try without cookies")
                 else:
-                    # For non-YouTube URLs, use existing logic
-                    if os.path.exists(user_cookie_path):
-                        common_opts['cookiefile'] = user_cookie_path
+                    # For non-YouTube URLs, use new cookie fallback system
+                    from COMMANDS.cookies_cmd import get_cookie_cache_result, try_non_youtube_cookie_fallback
+                    cache_result = get_cookie_cache_result(user_id, url)
+                    
+                    if cache_result and cache_result['result']:
+                        # Use cached successful cookies
+                        common_opts['cookiefile'] = cache_result['cookie_path']
+                        logger.info(f"Using cached cookies for non-YouTube URL: {url}")
                     else:
-                        # If not in the user's folder, copy from the global folder
-                        global_cookie_path = safe_get_messages(user_id).COOKIE_FILE_PATH
-                        if os.path.exists(global_cookie_path):
-                            try:
-                                user_dir = os.path.join("users", str(user_id))
-                                create_directory(user_dir)
-                                import shutil
-                                shutil.copy2(global_cookie_path, user_cookie_path)
-                                logger.info(f"Copied global cookie file to user {user_id} folder")
-                                common_opts['cookiefile'] = user_cookie_path
-                            except Exception as e:
-                                logger.error(f"Failed to copy global cookie file for user {user_id}: {e}")
-                                common_opts['cookiefile'] = None
+                        # Try user cookies first
+                        if os.path.exists(user_cookie_path):
+                            common_opts['cookiefile'] = user_cookie_path
+                            logger.info(f"Using user cookies for non-YouTube URL: {url}")
                         else:
+                            # No user cookies, will try fallback during download
                             common_opts['cookiefile'] = None
+                            logger.info(f"No user cookies found for non-YouTube URL: {url}, will try fallback during download")
             
             # If this is not a playlist with a range, add --no-playlist to the URL with the list parameter
             if not is_playlist and 'list=' in url:
@@ -1350,6 +1349,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 
                 logger.info("Download completed successfully")
                 
+                # Cache successful cookie result for future use
+                if not is_youtube_url(url):
+                    from COMMANDS.cookies_cmd import set_cookie_cache_result
+                    cookie_file_path = ytdl_opts.get('cookiefile')
+                    if cookie_file_path and os.path.exists(cookie_file_path):
+                        set_cookie_cache_result(user_id, url, True, cookie_file_path)
+                        logger.info(f"Cached successful cookie result for {url}")
+                
                 # Remove protection file after successful download
                 from HELPERS.filesystem_hlp import remove_protection_file
                 remove_protection_file(user_dir_name)
@@ -1474,15 +1481,70 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         else:
                             logger.warning(f"Download retry with proxy failed for user {user_id}")
                             did_proxy_retry = True
+                else:
+                    # Для не-YouTube сайтов пробуем перебор куки
+                    logger.info(f"Non-YouTube download error detected for user {user_id}, attempting cookie fallback")
+                    
+                    # Проверяем, связана ли ошибка с куки
+                    error_str = error_message.lower()
+                    if any(keyword in error_str for keyword in ['cookie', 'auth', 'login', 'sign in', '403', '401', 'forbidden', 'unauthorized']):
+                        logger.info(f"Error appears to be cookie-related for {url}, trying cookie fallback")
+                        
+                        # Пробуем перебор куки с новой системой
+                        from COMMANDS.cookies_cmd import try_non_youtube_cookie_fallback
+                        retry_result = try_non_youtube_cookie_fallback(
+                            user_id, url, try_download, url, attempt_opts
+                        )
+                        
+                        if retry_result is not None:
+                            logger.info(f"Download retry with cookie fallback successful for user {user_id}")
+                            return retry_result
+                        else:
+                            logger.warning(f"Download retry with cookie fallback failed for user {user_id}")
+                    else:
+                        logger.info(f"Error appears to be non-cookie-related for {url}, skipping cookie fallback")
                 
                 # Send full error message with instructions immediately (only once)
                 if not error_message_sent:
+                    # Extract error code and description from yt-dlp error
+                    error_code = "UNKNOWN_ERROR"
+                    error_description = error_message
+                    
+                    # Try to extract specific error codes
+                    if "HTTP Error 403" in error_message:
+                        error_code = "HTTP_403_FORBIDDEN"
+                        error_description = "Access forbidden - may need cookies or authentication"
+                    elif "HTTP Error 401" in error_message:
+                        error_code = "HTTP_401_UNAUTHORIZED"
+                        error_description = "Authentication required - cookies needed"
+                    elif "Video unavailable" in error_message:
+                        error_code = "VIDEO_UNAVAILABLE"
+                        error_description = "Video is not available or has been removed"
+                    elif "Private video" in error_message:
+                        error_code = "PRIVATE_VIDEO"
+                        error_description = "Video is private and requires authentication"
+                    elif "Sign in to confirm" in error_message:
+                        error_code = "SIGN_IN_REQUIRED"
+                        error_description = "Sign in required - cookies needed"
+                    elif "No video formats found" in error_message:
+                        error_code = "NO_FORMATS"
+                        error_description = "No downloadable formats available"
+                    elif "Unsupported URL" in error_message:
+                        error_code = "UNSUPPORTED_URL"
+                        error_description = "This URL is not supported by yt-dlp"
+                    elif "Network error" in error_message:
+                        error_code = "NETWORK_ERROR"
+                        error_description = "Network connection failed"
+                    
                     send_error_to_user(
                         message,                   
                         f"<blockquote>{safe_get_messages(user_id).ERROR_CHECK_SUPPORTED_SITES_MSG}</blockquote>\n"
                         f"<blockquote>{safe_get_messages(user_id).ERROR_COOKIE_NEEDED_MSG}</blockquote>\n"
                         f"<blockquote>{safe_get_messages(user_id).ERROR_COOKIE_INSTRUCTIONS_MSG}</blockquote>\n"
-                        f"────────────────\n{safe_get_messages(user_id).DOWN_UP_ERROR_DOWNLOADING_MSG.format(error_message=error_message)}"
+                        f"────────────────\n"
+                        f"❌ <b>Error Code:</b> <code>{error_code}</code>\n"
+                        f"📝 <b>Description:</b> {error_description}\n"
+                        f"🔧 <b>Full Error:</b> <code>{error_message}</code>"
                     )
                     error_message_sent = True
                 return None

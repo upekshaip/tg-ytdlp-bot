@@ -47,6 +47,16 @@ class LimitsConfig(object):
     # HTTP session timeout for individual requests
     HTTP_REQUEST_TIMEOUT = 60  # 60 seconds
     #######################################################
+    # Cookie cache configuration
+    #######################################################
+    # Cookie cache duration in seconds (30 seconds for quick operations)
+    COOKIE_CACHE_DURATION = 30
+    # Maximum cookie cache lifetime in seconds (2 hours) - forced deactivation
+    COOKIE_CACHE_MAX_LIFETIME = 7200  # 2 hours
+    # Cookie cache timeout for individual requests in seconds
+    COOKIE_CACHE_REQUEST_TIMEOUT = 60  # 60 seconds
+    
+    #######################################################
     # Group multipliers (applied in groups/channels) - except quality
     GROUP_MULTIPLIER = 2
     #######################################################

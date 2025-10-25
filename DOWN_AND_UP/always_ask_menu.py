@@ -5656,6 +5656,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None,
     # Analyze the format to determine if it's audio-only, video-only, or full
     format_type = None
     complementary_format = None
+    info = None  # Initialize info variable
     
     try:
         # Get video info to analyze the selected format
@@ -5669,7 +5670,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None,
             info = get_video_formats(url, user_id, cookies_already_checked=True)
             logger.info(f"⚠️ [OPTIMIZATION] Had to fetch video info again - consider improving caching")
         
-        if quality_key and 'formats' in info:
+        if quality_key and info and 'formats' in info:
             # Find the selected format
             selected_format = None
             for f in info['formats']:
@@ -5708,6 +5709,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None,
     except Exception as e:
         logger.warning(f"Error analyzing format type: {e}")
         # Continue with original format if analysis fails
+        # info remains None if there was an error
 
     # We call the main function of loading with the correct parameters of the playlist
     # Pass cookies_already_checked=True since we already checked cookies in get_video_formats
@@ -5739,18 +5741,19 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None,
         sel_codec = filters_state.get("codec", "avc1")
         sel_ext = filters_state.get("ext", "mp4")
         
-        # Build quality map from available formats
+        # Build quality map from available formats (only if info is available)
         quality_map = {}
-        for f in info.get('formats', []):
-            if f.get('vcodec', 'none') != 'none' and f.get('height') and f.get('width'):
-                w = f['width']
-                h = f['height']
-                quality_key = get_quality_by_min_side(w, h)
-                if quality_key != "best":
-                    quality_map[quality_key] = f
+        if info and 'formats' in info:
+            for f in info.get('formats', []):
+                if f.get('vcodec', 'none') != 'none' and f.get('height') and f.get('width'):
+                    w = f['width']
+                    h = f['height']
+                    quality_key = get_quality_by_min_side(w, h)
+                    if quality_key != "best":
+                        quality_map[quality_key] = f
         
         payload = {
-            "url": info.get('webpage_url') or url,
+            "url": info.get('webpage_url') if info else url,
             "sel_codec": sel_codec,
             "sel_ext": sel_ext,
             "qualities": sorted(list(quality_map.keys()), key=sort_quality_key)

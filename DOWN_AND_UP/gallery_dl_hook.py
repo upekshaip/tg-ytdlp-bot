@@ -204,25 +204,47 @@ def _prepare_user_cookies_and_proxy(url: str, user_id, use_proxy: bool, config: 
         else:
             logger.info("[GALLERY_DL] Using user's custom User-Agent for Instagram")
 
-    # cookies - use CLI arguments for all sites (more reliable than config)
-    if os.path.exists(user_cookie_path):
-        # For all sites, we'll pass cookies via CLI arguments (more reliable)
-        logger.info(safe_get_messages(user_id).GALLERY_DL_USING_USER_COOKIES_MSG.format(cookie_path=user_cookie_path))
+    # cookies - use new caching system for non-YouTube sites
+    if not is_youtube_url(url):
+        # For non-YouTube URLs, use new cookie fallback system
+        from COMMANDS.cookies_cmd import get_cookie_cache_result, try_non_youtube_cookie_fallback
+        cache_result = get_cookie_cache_result(user_id, url)
         
-        if is_youtube_url(url):
-            logger.info(safe_get_messages(user_id).GALLERY_DL_USING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
+        if cache_result and cache_result['result']:
+            # Use cached successful cookies
+            config['extractor']['cookies'] = cache_result['cookie_path']
+            logger.info(f"Using cached cookies for gallery-dl non-YouTube URL: {url}")
+        elif os.path.exists(user_cookie_path):
+            config['extractor']['cookies'] = user_cookie_path
+            logger.info(safe_get_messages(user_id).GALLERY_DL_USING_USER_COOKIES_MSG.format(cookie_path=user_cookie_path))
+        else:
+            global_cookie_path = Config.COOKIE_FILE_PATH
+            if os.path.exists(global_cookie_path):
+                try:
+                    create_directory(user_dir)
+                    shutil.copy2(global_cookie_path, user_cookie_path)
+                    config['extractor']['cookies'] = user_cookie_path
+                    logger.info(safe_get_messages(user_id).GALLERY_DL_COPIED_GLOBAL_COOKIE_MSG.format(user_id=user_id))
+                    logger.info(safe_get_messages(user_id).GALLERY_DL_USING_COPIED_GLOBAL_COOKIES_MSG.format(cookie_path=user_cookie_path))
+                except Exception as e:
+                    logger.error(safe_get_messages(user_id).GALLERY_DL_FAILED_COPY_GLOBAL_COOKIE_MSG.format(user_id=user_id, error=e))
     else:
-        global_cookie_path = Config.COOKIE_FILE_PATH
-        if os.path.exists(global_cookie_path):
-            try:
-                create_directory(user_dir)
-                shutil.copy2(global_cookie_path, user_cookie_path)
-                logger.info(safe_get_messages(user_id).GALLERY_DL_COPIED_GLOBAL_COOKIE_MSG.format(user_id=user_id))
-                
-                # For all sites, we'll pass cookies via CLI arguments (more reliable)
-                logger.info(safe_get_messages(user_id).GALLERY_DL_USING_COPIED_GLOBAL_COOKIES_MSG.format(cookie_path=user_cookie_path))
-            except Exception as e:
-                logger.error(safe_get_messages(user_id).GALLERY_DL_FAILED_COPY_GLOBAL_COOKIE_MSG.format(user_id=user_id, error=e))
+        # For YouTube URLs, use existing logic
+        if os.path.exists(user_cookie_path):
+            config['extractor']['cookies'] = user_cookie_path
+            logger.info(safe_get_messages(user_id).GALLERY_DL_USING_USER_COOKIES_MSG.format(cookie_path=user_cookie_path))
+            logger.info(safe_get_messages(user_id).GALLERY_DL_USING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
+        else:
+            global_cookie_path = Config.COOKIE_FILE_PATH
+            if os.path.exists(global_cookie_path):
+                try:
+                    create_directory(user_dir)
+                    shutil.copy2(global_cookie_path, user_cookie_path)
+                    config['extractor']['cookies'] = user_cookie_path
+                    logger.info(safe_get_messages(user_id).GALLERY_DL_COPIED_GLOBAL_COOKIE_MSG.format(user_id=user_id))
+                    logger.info(safe_get_messages(user_id).GALLERY_DL_USING_COPIED_GLOBAL_COOKIES_MSG.format(cookie_path=user_cookie_path))
+                except Exception as e:
+                    logger.error(safe_get_messages(user_id).GALLERY_DL_FAILED_COPY_GLOBAL_COOKIE_MSG.format(user_id=user_id, error=e))
 
     # no-cookies domains
     if is_no_cookie_domain(url):
