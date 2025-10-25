@@ -11,11 +11,13 @@ from CONFIG.limits import LimitsConfig
 ###########################################################
 class Config(object):
     #######################################################    
+    # IMPORTANT (REQUIRED) SETTINGS - start filling settings here
+    #######################################################        
     # Your bot name - Required (str)
     BOT_NAME = "tgytdlp_test_bot"
     # A name for users - Required (str)
     BOT_NAME_FOR_USERS = "tgytdlp_bot" #name in database
-    # Список ID администраторов
+    # List of administrator IDs
     ADMIN = [00000000, 111111111111]
     STAR_RECEIVER = 7360853
     # Add allowed group IDs - Only these groups will be served by the bot
@@ -24,21 +26,45 @@ class Config(object):
     API_ID = 00000000000000
     # API HASH Telegram
     API_HASH = "abc0000000000000000000"
-    # Токен бота
+    # Bot token
     BOT_TOKEN = "00000000000:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
     # Mini-app URL
     MINIAPP_URL = "https://t.me/tgytdlp_test_bot/?startapp"
-    # ID канала для логов
-    LOGS_ID = -100111111111111  # ID канала для логов
-    LOGS_VIDEO_ID = -100111111111111  # ID канала для логов видео
-    LOGS_NSFW_ID = -100111111111111  # ID канала для логов видео с тэгами NSWF
-    LOGS_IMG_ID = -100111111111111  # ID канала для логов медиа команды /img     
-    LOGS_PAID_ID = -100111111111111  # ID канала для логов платных медиа
-    LOG_EXCEPTION = -100111111111111  # ID канала для логов исключений
-    # ID канала для подписки
+    # Channel ID for logs (you can use the same 1 channel ID for all LOGS)
+    LOGS_ID = -100111111111111  # Channel ID for logs
+    LOGS_VIDEO_ID = -100111111111111  # Channel ID for video logs
+    LOGS_NSFW_ID = -100111111111111  # Channel ID for video logs with NSWF tags
+    LOGS_IMG_ID = -100111111111111  # Channel ID for media command logs /img 
+    LOGS_PAID_ID = -100111111111111  # Channel ID for paid media logs
+    LOG_EXCEPTION = -100111111111111  # Channel ID for exception logs
+    # Channel ID to subscribe to
     SUBSCRIBE_CHANNEL = -100222222222222222222
     # Add subscription channel - Required (str)
     SUBSCRIBE_CHANNEL_URL = "https://t.me/+abcdef"
+    #######################################################
+    # Firebase initialization
+    # your firebase DB path
+    BOT_DB_PATH = f"bot/{BOT_NAME_FOR_USERS}/"
+    VIDEO_CACHE_DB_PATH = f"bot/video_cache"
+    PLAYLIST_CACHE_DB_PATH = f"bot/video_cache/playlists"
+    IMAGE_CACHE_DB_PATH = f"bot/video_cache/images"    
+    # Firebase Config - Required (str for all)
+    # Firebase settings
+    FIREBASE_USER = "XXX@gmail.com"
+    FIREBASE_PASSWORD = "XXXXXXXXXXXXXXXxx"
+    FIREBASE_CONF = {
+        "apiKey": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+        "authDomain": "XXXXXXXXXXXX.firebaseapp.com",
+        "projectId": "XXXXXXXXXX-0000000000",
+        "storageBucket": "XXXXXXXXXXXXXX-0000000000.firebasestorage.app",
+        "messagingSenderId": "0000000000000000",
+        "appId": "1:0000000000000:web:00000000000000a",
+        "databaseURL": "https://XXXXXXXXXXXXXX-000000000-default-rtdb.europe-west1.firebasedatabase.app"
+    }
+    ########################################################    
+    ########################################################
+    # OPTIONAL (NOT REQUIRED) SETTINGS - you can stop here
+    ########################################################    
     # Cookie file URL
     # EX: "https://path/to/your/cookie-file.txt"
     COOKIE_URL = "https://XXX/cookie.txt"
@@ -53,7 +79,8 @@ class Config(object):
     #YOUTUBE_COOKIE_URL_10 = "https://XXX/cookie10.txt"
     YOUTUBE_COOKIE_ORDER = "round_robin" # random, round_robin
     # YouTube test URL for cookie validation
-    YOUTUBE_COOKIE_TEST_URL = "https://youtu.be/XqZsoesa55w"  # Baby Shark Dance
+    YOUTUBE_COOKIE_TEST_URL = "https://www.youtube.com/watch?v=_GuOjXYl5ew" #youtube official video
+    #YOUTUBE_COOKIE_TEST_URL = "https://youtu.be/XqZsoesa55w"  # Baby Shark Dance
     #YOUTUBE_COOKIE_TEST_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"  # Rick Roll - short video
     #INSTAGRAM_COOKIE_URL = "https://XXX/instagram_cookie.txt"
     TIKTOK_COOKIE_URL = "https://XXX/tiktok_cookie.txt"
@@ -65,7 +92,7 @@ class Config(object):
     # Do not chanege this
     PIC_FILE_PATH = "pic.jpg"
     FIREBASE_CACHE_FILE = "dump.json"
-    RELOAD_CACHE_EVERY = 4 # in hours
+    RELOAD_CACHE_EVERY = 1 # in hours
     DOWNLOAD_FIREBASE_SCRIPT_PATH = "DATABASE/download_firebase.py"
     AUTO_CACHE_RELOAD_ENABLED = True # Enable/disable automatic cache reloading
     ########################################################
@@ -91,27 +118,6 @@ class Config(object):
     YOUTUBE_POT_BASE_URL = "http://127.0.0.1:4416"
     # Disable innertube if tokens stop working
     YOUTUBE_POT_DISABLE_INNERTUBE = False
-    #######################################################
-    # Firebase initialization
-    # your firebase DB path
-    BOT_DB_PATH = f"bot/{BOT_NAME_FOR_USERS}/"
-    VIDEO_CACHE_DB_PATH = f"bot/video_cache"
-    PLAYLIST_CACHE_DB_PATH = f"bot/video_cache/playlists"
-    IMAGE_CACHE_DB_PATH = f"bot/video_cache/images"    
-    # Firebase Config - Required (str for all)
-    # Firebase настройки
-    FIREBASE_USER = "XXX@gmail.com"
-    FIREBASE_PASSWORD = "XXXXXXXXXXXXXXXxx"
-    FIREBASE_CONF = {
-        "apiKey": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-        "authDomain": "XXXXXXXXXXXX.firebaseapp.com",
-        "projectId": "XXXXXXXXXX-0000000000",
-        "storageBucket": "XXXXXXXXXXXXXX-0000000000.firebasestorage.app",
-        "messagingSenderId": "0000000000000000",
-        "appId": "1:0000000000000:web:00000000000000a",
-        "databaseURL": "https://XXXXXXXXXXXXXX-000000000-default-rtdb.europe-west1.firebasedatabase.app"
-    }
-    ###########################################################
     ###########################################################
     #        STOP FILL IN YOUR CUSTOM VALUES HERE
     ###########################################################
