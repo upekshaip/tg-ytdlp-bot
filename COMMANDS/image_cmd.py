@@ -3936,7 +3936,10 @@ def img_range_callback(app, callback_query: CallbackQuery):
     messages = safe_get_messages(None)
     """Handle img range selection callback"""
     try:
+        user_id = callback_query.from_user.id
+        logger.info(f"[IMG_RANGE_CALLBACK] Received callback: {callback_query.data}")
         data_parts = callback_query.data.split("|")
+        logger.info(f"[IMG_RANGE_CALLBACK] Data parts: {data_parts}")
         
         if len(data_parts) < 2:
             callback_query.answer("❌ Data error")
@@ -3961,11 +3964,14 @@ def img_range_callback(app, callback_query: CallbackQuery):
         end = int(data_parts[2])
         url = data_parts[3]
         
+        logger.info(f"[IMG_RANGE_CALLBACK] Parsed: start={start}, end={end}, url={url}")
+        
         # Answer callback
         callback_query.answer(f"{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_IMAGES_MSG} {start}-{end}")
         
         # Create new message with range command
         range_command = f"/img {start}-{end} {url}"
+        logger.info(f"[IMG_RANGE_CALLBACK] Created command: {range_command}")
         
         # Send the command as if user typed it
         from pyrogram.types import Message
@@ -3982,7 +3988,16 @@ def img_range_callback(app, callback_query: CallbackQuery):
         )
         
         # Call the image command function
+        logger.info(f"[IMG_RANGE_CALLBACK] Calling image_command with mock_message")
         image_command(app, mock_message)
+        logger.info(f"[IMG_RANGE_CALLBACK] image_command completed")
+
+        # Delete the original message with the buttons
+        try:
+            callback_query.message.delete()
+            logger.info(f"[IMG_RANGE_CALLBACK] Deleted message with ID: {callback_query.message.message_id}")
+        except Exception as e:
+            logger.error(f"[IMG_RANGE_CALLBACK] Failed to delete message: {e}")
         
     except Exception as e:
         try:
