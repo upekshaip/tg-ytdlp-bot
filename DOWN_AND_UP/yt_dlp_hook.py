@@ -181,24 +181,23 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                     logger.warning(f"No YouTube cookie sources configured for format detection for user {user_id}, will try without cookies")
                     cookie_file = None
         else:
-            # For non-YouTube URLs, use existing logic
-            if os.path.exists(user_cookie_path):
-                cookie_file = user_cookie_path
+            # For non-YouTube URLs, use new cookie fallback system
+            from COMMANDS.cookies_cmd import get_cookie_cache_result, try_non_youtube_cookie_fallback
+            cache_result = get_cookie_cache_result(user_id, url)
+            
+            if cache_result and cache_result['result']:
+                # Use cached successful cookies
+                cookie_file = cache_result['cookie_path']
+                logger.info(f"Using cached cookies for non-YouTube format detection: {url}")
             else:
-                # If not in the user folder, we copy from the global folder
-                global_cookie_path = Config.COOKIE_FILE_PATH
-                if os.path.exists(global_cookie_path):
-                    try:
-                        create_directory(user_dir)
-                        import shutil
-                        shutil.copy2(global_cookie_path, user_cookie_path)
-                        logger.info(safe_get_messages(user_id).YTDLP_COPIED_GLOBAL_COOKIE_FILE_MSG.format(user_id=user_id))
-                        cookie_file = user_cookie_path
-                    except Exception as e:
-                        logger.error(safe_get_messages(user_id).YTDLP_FAILED_COPY_GLOBAL_COOKIE_FILE_MSG.format(user_id=user_id, error=e))
-                        cookie_file = None
+                # Try user cookies first
+                if os.path.exists(user_cookie_path):
+                    cookie_file = user_cookie_path
+                    logger.info(f"Using user cookies for non-YouTube format detection: {url}")
                 else:
+                    # No user cookies, will try fallback during format detection
                     cookie_file = None
+                    logger.info(f"No user cookies found for non-YouTube format detection: {url}, will try fallback")
         
         # We check whether to use —no-Cookies for this domain
         if is_no_cookie_domain(url):
@@ -285,6 +284,14 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                 logger.warning(f"Live stream detected in get_video_formats: {url}")
                 return {'error': 'LIVE_STREAM_DETECTED'}
             
+            # Cache successful cookie result for future use
+            if not is_youtube_url(url) and user_id is not None:
+                from COMMANDS.cookies_cmd import set_cookie_cache_result
+                cookie_file_path = opts.get('cookiefile')
+                if cookie_file_path and os.path.exists(cookie_file_path):
+                    set_cookie_cache_result(user_id, url, True, cookie_file_path)
+                    logger.info(f"Cached successful cookie result for format detection {url}")
+            
             logger.info(f"✅ [DEBUG] extract_info_operation: возвращаем info")
             return info
         except yt_dlp.utils.DownloadError as e:
@@ -312,6 +319,28 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                         return retry_result
                     else:
                         logger.warning(f"All cookie retry attempts failed in get_video_formats for user {user_id}")
+            elif not is_youtube_url(url) and user_id is not None:
+                # For non-YouTube sites, try cookie fallback
+                logger.info(f"Non-YouTube error detected in get_video_formats for user {user_id}, attempting cookie fallback")
+                
+                # Check if error is cookie-related
+                error_str = error_text.lower()
+                if any(keyword in error_str for keyword in ['cookie', 'auth', 'login', 'sign in', '403', '401', 'forbidden', 'unauthorized']):
+                    logger.info(f"Error appears to be cookie-related for {url}, trying cookie fallback")
+                    
+                    # Try cookie fallback with new system
+                    from COMMANDS.cookies_cmd import try_non_youtube_cookie_fallback
+                    retry_result = try_non_youtube_cookie_fallback(
+                        user_id, url, extract_info_operation, opts
+                    )
+                    
+                    if retry_result is not None:
+                        logger.info(f"get_video_formats retry with cookie fallback successful for user {user_id}")
+                        return retry_result
+                    else:
+                        logger.warning(f"get_video_formats retry with cookie fallback failed for user {user_id}")
+                else:
+                    logger.info(f"Error appears to be non-cookie-related for {url}, skipping cookie fallback")
             
             # Check for TikTok private account error
             if "tiktok.com" in url.lower() and "private" in error_text.lower() and "account" in error_text.lower():

@@ -646,24 +646,23 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     cookie_file = None
                     logger.warning(f"No YouTube cookie sources configured for user {user_id}, will try without cookies")
         else:
-            # For non-YouTube URLs, use existing logic
-            if os.path.exists(user_cookie_path):
-                cookie_file = user_cookie_path
+            # For non-YouTube URLs, use new cookie fallback system
+            from COMMANDS.cookies_cmd import get_cookie_cache_result, try_non_youtube_cookie_fallback
+            cache_result = get_cookie_cache_result(user_id, url)
+            
+            if cache_result and cache_result['result']:
+                # Use cached successful cookies
+                cookie_file = cache_result['cookie_path']
+                logger.info(f"Using cached cookies for non-YouTube audio URL: {url}")
             else:
-                # If not in the user's folder, copy from the global folder
-                global_cookie_path = Config.COOKIE_FILE_PATH
-                if os.path.exists(global_cookie_path):
-                    try:
-                        create_directory(user_folder)
-                        import shutil
-                        shutil.copy2(global_cookie_path, user_cookie_path)
-                        logger.info(f"Copied global cookie file to user {user_id} folder for audio download")
-                        cookie_file = user_cookie_path
-                    except Exception as e:
-                        logger.error(f"Failed to copy global cookie file for user {user_id}: {e}")
-                        cookie_file = None
+                # Try user cookies first
+                if os.path.exists(user_cookie_path):
+                    cookie_file = user_cookie_path
+                    logger.info(f"Using user cookies for non-YouTube audio URL: {url}")
                 else:
+                    # No user cookies, will try fallback during download
                     cookie_file = None
+                    logger.info(f"No user cookies found for non-YouTube audio URL: {url}, will try fallback during download")
         last_update = 0
         last_update = 0
         progress_start_time = time.time()
@@ -942,6 +941,14 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 except Exception as e:
                     logger.error(f"Final progress update error: {e}")
                 
+                # Cache successful cookie result for future use
+                if not is_youtube_url(url):
+                    from COMMANDS.cookies_cmd import set_cookie_cache_result
+                    cookie_file_path = ytdl_opts.get('cookiefile')
+                    if cookie_file_path and os.path.exists(cookie_file_path):
+                        set_cookie_cache_result(user_id, url, True, cookie_file_path)
+                        logger.info(f"Cached successful cookie result for audio {url}")
+                
                 # Remove protection file after successful download
                 from HELPERS.filesystem_hlp import remove_protection_file
                 remove_protection_file(user_folder)
@@ -1062,15 +1069,70 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         else:
                             logger.warning(f"Audio download retry with proxy failed for user {user_id}")
                             did_proxy_retry = True
+                else:
+                    # Для не-YouTube сайтов пробуем перебор куки
+                    logger.info(f"Non-YouTube audio download error detected for user {user_id}, attempting cookie fallback")
+                    
+                    # Проверяем, связана ли ошибка с куки
+                    error_str = error_text.lower()
+                    if any(keyword in error_str for keyword in ['cookie', 'auth', 'login', 'sign in', '403', '401', 'forbidden', 'unauthorized']):
+                        logger.info(f"Error appears to be cookie-related for {url}, trying cookie fallback")
+                        
+                        # Пробуем перебор куки с новой системой
+                        from COMMANDS.cookies_cmd import try_non_youtube_cookie_fallback
+                        retry_result = try_non_youtube_cookie_fallback(
+                            user_id, url, try_download_audio, url, current_index
+                        )
+                        
+                        if retry_result is not None:
+                            logger.info(f"Audio download retry with cookie fallback successful for user {user_id}")
+                            return retry_result
+                        else:
+                            logger.warning(f"Audio download retry with cookie fallback failed for user {user_id}")
+                    else:
+                        logger.info(f"Error appears to be non-cookie-related for {url}, skipping cookie fallback")
                 
                 # Send full error message with instructions immediately (only once)
                 if not getattr(down_and_audio, '_error_message_sent', False):
+                    # Extract error code and description from yt-dlp error
+                    error_code = "UNKNOWN_ERROR"
+                    error_description = error_text
+                    
+                    # Try to extract specific error codes
+                    if "HTTP Error 403" in error_text:
+                        error_code = "HTTP_403_FORBIDDEN"
+                        error_description = "Access forbidden - may need cookies or authentication"
+                    elif "HTTP Error 401" in error_text:
+                        error_code = "HTTP_401_UNAUTHORIZED"
+                        error_description = "Authentication required - cookies needed"
+                    elif "Video unavailable" in error_text:
+                        error_code = "VIDEO_UNAVAILABLE"
+                        error_description = "Video is not available or has been removed"
+                    elif "Private video" in error_text:
+                        error_code = "PRIVATE_VIDEO"
+                        error_description = "Video is private and requires authentication"
+                    elif "Sign in to confirm" in error_text:
+                        error_code = "SIGN_IN_REQUIRED"
+                        error_description = "Sign in required - cookies needed"
+                    elif "No video formats found" in error_text:
+                        error_code = "NO_FORMATS"
+                        error_description = "No downloadable formats available"
+                    elif "Unsupported URL" in error_text:
+                        error_code = "UNSUPPORTED_URL"
+                        error_description = "This URL is not supported by yt-dlp"
+                    elif "Network error" in error_text:
+                        error_code = "NETWORK_ERROR"
+                        error_description = "Network connection failed"
+                    
                     send_error_to_user(
                         message,
                         "<blockquote>Check <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>here</a> if your site supported</blockquote>\n"
                         "<blockquote>You may need <code>cookie</code> for downloading this audio. First, clean your workspace via <b>/clean</b> command</blockquote>\n"
                         "<blockquote>For Youtube - get <code>cookie</code> via <b>/cookie</b> command. For any other supported site - send your own cookie (<a href='https://t.me/tg_ytdlp/203'>guide1</a>) (<a href='https://t.me/tg_ytdlp/214'>guide2</a>) and after that send your audio link again.</blockquote>\n"
-                        f"────────────────\n❌ Error downloading: {error_text}"
+                        f"────────────────\n"
+                        f"❌ <b>Error Code:</b> <code>{error_code}</code>\n"
+                        f"📝 <b>Description:</b> {error_description}\n"
+                        f"🔧 <b>Full Error:</b> <code>{error_text}</code>"
                     )
                     down_and_audio._error_message_sent = True
                 return None
