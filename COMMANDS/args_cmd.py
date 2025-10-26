@@ -923,23 +923,7 @@ def get_localized_to_english_mapping() -> Dict[str, str]:
         "HTTP chunk size": "http_chunk_size",
         "Sleep for subtitles": "sleep_subtitles",
         
-        # Old English mappings (for backward compatibility)
-        "Allow legacy server connections": "legacy_server_connect",
-        "Browser impersonation": "impersonate", 
-        "Check SSL certificate": "check_certificate",
-        "Do not download live streams from start": "no_live_from_start",
-        "Download live streams from start": "live_from_start",
-        "Download only single video, not playlist": "no_playlist",
-        "Embed metadata in video file": "embed_metadata",
-        "Embed thumbnail in video file": "embed_thumbnail",
-        "Force IPv4 connections": "force_ipv4",
-        "Force IPv6 connections": "force_ipv6",
-        "Ignore download errors and continue": "ignore_errors",
-        "Number of concurrent fragments to download": "concurrent_fragments",
-        "Suppress HTTPS certificate validation": "no_check_certificates",
-        "User-Agent header": "user_agent",
-        "Write thumbnail to file": "write_thumbnail",
-        "X-Forwarded-For header strategy": "xff",
+        # Old English mappings (for backward compatibility) - removed duplicates
         
         # Russian mappings (if any)
         "Разрешить устаревшие подключения к серверу": "legacy_server_connect",
@@ -998,6 +982,10 @@ def parse_import_message(text: str, user_id: int = None) -> Dict[str, Any]:
     """Parse settings from imported message text"""
     messages = get_messages_instance(user_id)
     
+    if not text:
+        logger.info(f"parse_import_message: No text provided")
+        return {}
+    
     # Check for args header in any supported language
     args_headers = [
         "📋 Current yt-dlp Arguments:",  # English
@@ -1008,9 +996,51 @@ def parse_import_message(text: str, user_id: int = None) -> Dict[str, Any]:
     
     has_args_header = any(header in text for header in args_headers)
     
-    if not text or not has_args_header:
-        logger.info(f"parse_import_message: No text or header not found. Text: {text[:100] if text else 'None'}")
+    if not has_args_header:
+        logger.info(f"parse_import_message: No header found in text. Text: {text[:200] if text else 'None'}")
         return {}
+    
+    # For forwarded messages, try to extract the actual content
+    # Look for the start of the settings section
+    settings_start = -1
+    for header in args_headers:
+        if header in text:
+            settings_start = text.find(header)
+            break
+    
+    if settings_start == -1:
+        logger.info(f"parse_import_message: Could not find settings start position")
+        return {}
+    
+    # Extract the settings part, skipping any forwarded message metadata
+    settings_text = text[settings_start:]
+    
+    # Remove any potential forwarded message metadata that might appear at the beginning
+    lines = settings_text.split('\n')
+    clean_lines = []
+    in_settings = False
+    
+    for line in lines:
+        line = line.strip()
+        # Start processing when we find the header
+        if any(header in line for header in args_headers):
+            in_settings = True
+            clean_lines.append(line)
+        elif in_settings:
+            # Stop if we hit a separator or instruction line
+            if (line.startswith('---') or 
+                'Forward this message' in line or 
+                'Перешлите это сообщение' in line):
+                break
+            clean_lines.append(line)
+    
+    # Reconstruct the clean text
+    clean_text = '\n'.join(clean_lines)
+    logger.info(f"parse_import_message: Cleaned text length: {len(clean_text)}")
+    logger.info(f"parse_import_message: Cleaned text preview: {clean_text[:200]}...")
+    
+    # Use the cleaned text for parsing
+    text = clean_text
     
     # Get valid parameter names from YTDLP_PARAMS
     valid_params = set(YTDLP_PARAMS.keys())
@@ -1027,7 +1057,8 @@ def parse_import_message(text: str, user_id: int = None) -> Dict[str, Any]:
         line = line.strip()
         # Skip empty lines, headers, separators, and HTML tags
         if (not line or line.startswith('📋') or line.startswith('---') or 
-            line.startswith('<i>') or line.startswith('Forward this message')):
+            line.startswith('<i>') or line.startswith('Forward this message') or
+            line.startswith('Перешлите это сообщение')):
             continue
             
         # Parse format: "Display Name: Value"
@@ -1037,9 +1068,15 @@ def parse_import_message(text: str, user_id: int = None) -> Dict[str, Any]:
                 param_name = parts[0].strip()
                 value_str = parts[1].strip()
                 
-                # Clean param name from potential HTML tags
+                # Clean param name from potential HTML tags and extra whitespace
                 import re
                 param_name = re.sub(r'<[^>]+>', '', param_name).strip()
+                # Remove any potential emoji or special characters that might interfere
+                param_name = re.sub(r'^[^\w\s]+', '', param_name).strip()
+                # Remove any potential forwarded message indicators
+                param_name = re.sub(r'^[^\w\s]*', '', param_name).strip()
+                # Clean value string as well
+                value_str = re.sub(r'<[^>]+>', '', value_str).strip()
                 
                 logger.info(f"parse_import_message: Found line '{line}', param_name='{param_name}', value_str='{value_str}'")
                 
@@ -1602,7 +1639,17 @@ def args_import_handler(app, message):
     """Handle import of settings from forwarded message"""
     try:
         # Check if this is a forwarded message with settings template
-        if not message.text or messages.ARGS_CURRENT_ARGUMENTS_HEADER_MSG not in message.text:
+        # Check for headers in all supported languages
+        args_headers = [
+            "📋 Current yt-dlp Arguments:",  # English
+            "📋 Текущие аргументы yt-dlp:",  # Russian
+            "📋 वर्तमान yt-dlp तर्क:",  # Hindi
+            "📋 وسائط yt-dlp الحالية:",  # Arabic
+        ]
+        
+        has_args_header = any(header in message.text for header in args_headers) if message.text else False
+        
+        if not message.text or not has_args_header:
             logger.info(f"args_import_handler: No text or header not found. Text: {message.text[:100] if message.text else 'None'}")
             return
         
