@@ -69,11 +69,24 @@ def url_distractor(app, message):
         return
     
     # Check for args import (flexible recognition for forwarded messages)
-    # Use localized messages for detection
+    # Check for headers in all supported languages
     messages = safe_get_messages(user_id)
-    args_header = safe_get_messages(user_id).ARGS_CURRENT_ARGUMENTS_HEADER_MSG
     
-    if args_header in text:
+    # Debug logging for full message text
+    logger.info(f"Full message text length: {len(text) if text else 0}")
+    logger.info(f"Message text preview: {text[:200] if text else 'None'}...")
+    
+    # Check for args header in any supported language
+    args_headers = [
+        "📋 Current yt-dlp Arguments:",  # English
+        "📋 Текущие аргументы yt-dlp:",  # Russian
+        "📋 वर्तमान yt-dlp तर्क:",  # Hindi
+        "📋 وسائط yt-dlp الحالية:",  # Arabic
+    ]
+    
+    has_args_header = any(header in text for header in args_headers)
+    
+    if has_args_header:
         logger.info(LoggerMsg.URL_EXTRACTOR_FOUND_ARGS_TEMPLATE_LOG_MSG.format(user_id=user_id))
         # Additional checks to ensure it's a settings template
         has_settings_line = any(":" in line and ("✅" in line or "❌" in line or "True" in line or "False" in line or 
@@ -84,7 +97,8 @@ def url_distractor(app, message):
         
         logger.info(LoggerMsg.URL_EXTRACTOR_SETTINGS_CHECK_LOG_MSG.format(has_settings_line=has_settings_line, has_forward_instruction=has_forward_instruction, has_separator=has_separator))
         
-        if has_settings_line and (has_forward_instruction or has_separator):
+        # More flexible detection - if we have the header and any settings lines, try to import
+        if has_settings_line or has_forward_instruction or has_separator:
             logger.info(LoggerMsg.URL_EXTRACTOR_CALLING_ARGS_IMPORT_LOG_MSG.format(user_id=user_id))
             args_import_handler(app, message)
             return
@@ -1094,11 +1108,20 @@ def url_distractor(app, message):
         return
 
     # Final check for args import (in case it wasn't caught earlier)
-    # Use localized messages for detection
+    # Check for headers in all supported languages
     messages = safe_get_messages(user_id)
-    args_header = safe_get_messages(user_id).ARGS_CURRENT_ARGUMENTS_HEADER_MSG
     
-    if args_header in text:
+    # Check for args header in any supported language
+    args_headers = [
+        "📋 Current yt-dlp Arguments:",  # English
+        "📋 Текущие аргументы yt-dlp:",  # Russian
+        "📋 वर्तमान yt-dlp तर्क:",  # Hindi
+        "📋 وسائط yt-dlp الحالية:",  # Arabic
+    ]
+    
+    has_args_header = any(header in text for header in args_headers)
+    
+    if has_args_header:
         logger.info(f"Final check: Found potential args import template in message from user {user_id}")
         # Check for settings lines with English parameter names and status indicators
         has_settings_line = any(":" in line and ("✅" in line or "❌" in line or "True" in line or "False" in line) 
@@ -1108,7 +1131,8 @@ def url_distractor(app, message):
         
         logger.info(f"Final check: has_settings_line={has_settings_line}, has_forward_instruction={has_forward_instruction}, has_separator={has_separator}")
         
-        if has_settings_line and (has_forward_instruction or has_separator):
+        # More flexible detection - if we have the header and any settings lines, try to import
+        if has_settings_line or has_forward_instruction or has_separator:
             logger.info(f"Final check: Calling args_import_handler for user {user_id}")
             args_import_handler(app, message)
             return
