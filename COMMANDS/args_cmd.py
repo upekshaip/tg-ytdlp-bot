@@ -809,15 +809,15 @@ def get_json_input_message(param_name: str, current_value: str, user_id: int = N
     return message
 
 def format_current_args(user_args: Dict[str, Any], user_id: int = None) -> str:
-    """Format current args for display"""
+    """Format current args for display with localized names"""
     messages = get_messages_instance(user_id)
     if not user_args:
         return messages.ARGS_NO_CUSTOM_MSG
     
     message = messages.ARGS_CURRENT_ARGS_MSG
     
-    # Get English parameter names
-    display_names = get_export_display_names()
+    # Get localized parameter names based on user language
+    display_names = get_localized_display_names(user_id)
     
     for param_name, value in user_args.items():
         display_name = display_names.get(param_name, param_name)
@@ -833,59 +833,137 @@ def format_current_args(user_args: Dict[str, Any], user_id: int = None) -> str:
     
     return message
 
+def get_localized_display_names(user_id: int = None) -> Dict[str, str]:
+    """Get localized parameter names for display based on user language"""
+    messages = get_messages_instance(user_id)
+    
+    # Get language-specific parameter names
+    if hasattr(messages, 'ARGS_PARAM_NAMES'):
+        return messages.ARGS_PARAM_NAMES
+    
+    # Fallback to English if no localized names available
+    return get_export_display_names()
+
 def get_export_display_names() -> Dict[str, str]:
-    """Get English parameter names for export (no translations)"""
+    """Get English parameter names for export (human-readable names)"""
     return {
-        "force_ipv6": "force_ipv6",
-        "force_ipv4": "force_ipv4", 
-        "no_live_from_start": "no_live_from_start",
-        "live_from_start": "live_from_start",
-        "no_check_certificates": "no_check_certificates",
-        "check_certificate": "check_certificate",
-        "no_playlist": "no_playlist",
-        "embed_metadata": "embed_metadata",
-        "embed_thumbnail": "embed_thumbnail",
-        "write_thumbnail": "write_thumbnail",
-        "ignore_errors": "ignore_errors",
-        "legacy_server_connect": "legacy_server_connect",
-        "concurrent_fragments": "concurrent_fragments",
-        "xff": "xff",
-        "user_agent": "user_agent",
-        "impersonate": "impersonate",
-        "referer": "referer",
-        "geo_bypass": "geo_bypass",
-        "hls_use_mpegts": "hls_use_mpegts",
-        "no_part": "no_part",
-        "no_continue": "no_continue",
-        "audio_format": "audio_format",
-        "video_format": "video_format",
-        "merge_output_format": "merge_output_format",
-        "send_as_file": "send_as_file",
-        "username": "username",
-        "password": "password",
-        "twofactor": "twofactor",
-        "min_filesize": "min_filesize",
-        "max_filesize": "max_filesize",
-        "playlist_items": "playlist_items",
-        "date": "date",
-        "datebefore": "datebefore",
-        "dateafter": "dateafter",
-        "http_headers": "http_headers",
-        "sleep_interval": "sleep_interval",
-        "max_sleep_interval": "max_sleep_interval",
-        "retries": "retries",
-        "http_chunk_size": "http_chunk_size",
-        "sleep_subtitles": "sleep_subtitles"
+        "force_ipv6": "Force IPv6 connections",
+        "force_ipv4": "Force IPv4 connections", 
+        "no_live_from_start": "Do not download live streams from start",
+        "live_from_start": "Download live streams from start",
+        "no_check_certificates": "Suppress HTTPS certificate validation",
+        "check_certificate": "Check SSL certificate",
+        "no_playlist": "Download only single video, not playlist",
+        "embed_metadata": "Embed metadata in video file",
+        "embed_thumbnail": "Embed thumbnail in video file",
+        "write_thumbnail": "Write thumbnail to file",
+        "ignore_errors": "Ignore download errors and continue",
+        "legacy_server_connect": "Allow legacy server connections",
+        "concurrent_fragments": "Number of concurrent fragments to download",
+        "xff": "X-Forwarded-For header strategy",
+        "user_agent": "User-Agent header",
+        "impersonate": "Browser impersonation",
+        "referer": "Referer header",
+        "geo_bypass": "Bypass geographic restrictions",
+        "hls_use_mpegts": "Use MPEG-TS for HLS",
+        "no_part": "Do not use .part files",
+        "no_continue": "Do not resume partial downloads",
+        "audio_format": "Audio format",
+        "video_format": "Video format",
+        "merge_output_format": "Merge output format",
+        "send_as_file": "Send as file",
+        "username": "Username",
+        "password": "Password",
+        "twofactor": "Two-factor authentication code",
+        "min_filesize": "Minimum file size (MB)",
+        "max_filesize": "Maximum file size (MB)",
+        "playlist_items": "Playlist items",
+        "date": "Date",
+        "datebefore": "Date before",
+        "dateafter": "Date after",
+        "http_headers": "HTTP headers",
+        "sleep_interval": "Sleep interval",
+        "max_sleep_interval": "Maximum sleep interval",
+        "retries": "Number of retries",
+        "http_chunk_size": "HTTP chunk size",
+        "sleep_subtitles": "Sleep for subtitles"
+    }
+
+def get_localized_to_english_mapping() -> Dict[str, str]:
+    """Get mapping from localized parameter names to English parameter names"""
+    return {
+        # New English mappings (from get_export_display_names)
+        "Force IPv6 connections": "force_ipv6",
+        "Force IPv4 connections": "force_ipv4",
+        "Do not download live streams from start": "no_live_from_start",
+        "Download live streams from start": "live_from_start",
+        "Suppress HTTPS certificate validation": "no_check_certificates",
+        "Check SSL certificate": "check_certificate",
+        "Download only single video, not playlist": "no_playlist",
+        "Embed metadata in video file": "embed_metadata",
+        "Embed thumbnail in video file": "embed_thumbnail",
+        "Write thumbnail to file": "write_thumbnail",
+        "Ignore download errors and continue": "ignore_errors",
+        "Allow legacy server connections": "legacy_server_connect",
+        "Number of concurrent fragments to download": "concurrent_fragments",
+        "X-Forwarded-For header strategy": "xff",
+        "User-Agent header": "user_agent",
+        "Browser impersonation": "impersonate",
+        "Referer header": "referer",
+        "Bypass geographic restrictions": "geo_bypass",
+        "Use MPEG-TS for HLS": "hls_use_mpegts",
+        "Do not use .part files": "no_part",
+        "Do not resume partial downloads": "no_continue",
+        "Audio format": "audio_format",
+        "Video format": "video_format",
+        "Merge output format": "merge_output_format",
+        "Send as file": "send_as_file",
+        "Username": "username",
+        "Password": "password",
+        "Two-factor authentication code": "twofactor",
+        "Minimum file size (MB)": "min_filesize",
+        "Maximum file size (MB)": "max_filesize",
+        "Playlist items": "playlist_items",
+        "Date": "date",
+        "Date before": "datebefore",
+        "Date after": "dateafter",
+        "HTTP headers": "http_headers",
+        "Sleep interval": "sleep_interval",
+        "Maximum sleep interval": "max_sleep_interval",
+        "Number of retries": "retries",
+        "HTTP chunk size": "http_chunk_size",
+        "Sleep for subtitles": "sleep_subtitles",
+        
+        # Old English mappings (for backward compatibility) - removed duplicates
+        
+        # Russian mappings (if any)
+        "Разрешить устаревшие подключения к серверу": "legacy_server_connect",
+        "Имитация браузера": "impersonate",
+        "Проверить SSL сертификат": "check_certificate",
+        "Не загружать прямые трансляции с начала": "no_live_from_start",
+        "Загружать прямые трансляции с начала": "live_from_start",
+        "Загружать только одно видео, не плейлист": "no_playlist",
+        "Встроить метаданные в видеофайл": "embed_metadata",
+        "Встроить миниатюру в видеофайл": "embed_thumbnail",
+        "Принудительные IPv4 подключения": "force_ipv4",
+        "Принудительные IPv6 подключения": "force_ipv6",
+        "Игнорировать ошибки загрузки и продолжать": "ignore_errors",
+        "Количество одновременных фрагментов для загрузки": "concurrent_fragments",
+        "Подавить проверку HTTPS сертификата": "no_check_certificates",
+        "Заголовок User-Agent": "user_agent",
+        "Записать миниатюру в файл": "write_thumbnail",
+        "Стратегия заголовка X-Forwarded-For": "xff",
+        
+        # Add more mappings as needed for other languages
     }
 
 def create_export_message(user_args: Dict[str, Any], user_id: int = None) -> str:
-    """Create export message for forwarding to favorites"""
-    messages = get_messages_instance(user_id)
+    """Create export message for forwarding to favorites - always in English"""
     if not user_args:
-        return messages.ARGS_NO_SETTINGS_MSG
+        return "📋 Current yt-dlp Arguments:\n\nNo custom settings configured.\n\n---\n\n<i>Forward this message to your favorites to save these settings as a template.</i> \n\n<i>Forward this message back here to apply these settings.</i>"
     
-    # Add header with emoji (only one)
-    message = f"{messages.ARGS_CURRENT_ARGUMENTS_HEADER_MSG}\n\n"
+    # Always use English header
+    message = "📋 Current yt-dlp Arguments:\n\n"
     
     # Get English parameter names
     display_names = get_export_display_names()
@@ -906,28 +984,92 @@ def create_export_message(user_args: Dict[str, Any], user_id: int = None) -> str
         # Make parameter names bold and values monospace
         message += f"<b>{display_name}:</b> <code>{status}</code>\n"
     
-    #message += "\n-\n\n"
-    message += messages.ARGS_FORWARD_TEMPLATE_MSG
+    # Always use English footer
+    message += "\n---\n\n<i>Forward this message to your favorites to save these settings as a template.</i> \n\n<i>Forward this message back here to apply these settings.</i>"
     
     return message
 
 def parse_import_message(text: str, user_id: int = None) -> Dict[str, Any]:
     """Parse settings from imported message text"""
     messages = get_messages_instance(user_id)
-    if not text or messages.ARGS_CURRENT_ARGUMENTS_HEADER_MSG not in text:
+    
+    if not text:
+        logger.info(f"parse_import_message: No text provided")
         return {}
+    
+    # Check for args header in any supported language
+    args_headers = [
+        "📋 Current yt-dlp Arguments:",  # English
+        "📋 Текущие аргументы yt-dlp:",  # Russian
+        "📋 वर्तमान yt-dlp तर्क:",  # Hindi
+        "📋 وسائط yt-dlp الحالية:",  # Arabic
+    ]
+    
+    has_args_header = any(header in text for header in args_headers)
+    
+    if not has_args_header:
+        logger.info(f"parse_import_message: No header found in text. Text: {text[:200] if text else 'None'}")
+        return {}
+    
+    # For forwarded messages, try to extract the actual content
+    # Look for the start of the settings section
+    settings_start = -1
+    for header in args_headers:
+        if header in text:
+            settings_start = text.find(header)
+            break
+    
+    if settings_start == -1:
+        logger.info(f"parse_import_message: Could not find settings start position")
+        return {}
+    
+    # Extract the settings part, skipping any forwarded message metadata
+    settings_text = text[settings_start:]
+    
+    # Remove any potential forwarded message metadata that might appear at the beginning
+    lines = settings_text.split('\n')
+    clean_lines = []
+    in_settings = False
+    
+    for line in lines:
+        line = line.strip()
+        # Start processing when we find the header
+        if any(header in line for header in args_headers):
+            in_settings = True
+            clean_lines.append(line)
+        elif in_settings:
+            # Stop if we hit a separator or instruction line
+            if (line.startswith('---') or 
+                'Forward this message' in line or 
+                'Перешлите это сообщение' in line):
+                break
+            clean_lines.append(line)
+    
+    # Reconstruct the clean text
+    clean_text = '\n'.join(clean_lines)
+    logger.info(f"parse_import_message: Cleaned text length: {len(clean_text)}")
+    logger.info(f"parse_import_message: Cleaned text preview: {clean_text[:200]}...")
+    
+    # Use the cleaned text for parsing
+    text = clean_text
     
     # Get valid parameter names from YTDLP_PARAMS
     valid_params = set(YTDLP_PARAMS.keys())
     
+    # Get mapping from localized names to English parameter names
+    localized_mapping = get_localized_to_english_mapping()
+    
     parsed_args = {}
     lines = text.split('\n')
+    
+    logger.info(f"parse_import_message: Processing {len(lines)} lines")
     
     for line in lines:
         line = line.strip()
         # Skip empty lines, headers, separators, and HTML tags
         if (not line or line.startswith('📋') or line.startswith('---') or 
-            line.startswith('<i>') or line.startswith('Forward this message')):
+            line.startswith('<i>') or line.startswith('Forward this message') or
+            line.startswith('Перешлите это сообщение')):
             continue
             
         # Parse format: "Display Name: Value"
@@ -937,13 +1079,35 @@ def parse_import_message(text: str, user_id: int = None) -> Dict[str, Any]:
                 param_name = parts[0].strip()
                 value_str = parts[1].strip()
                 
-                # Clean param name from potential HTML tags
+                # Clean param name from potential HTML tags and extra whitespace
                 import re
                 param_name = re.sub(r'<[^>]+>', '', param_name).strip()
+                # Remove any potential emoji or special characters that might interfere
+                param_name = re.sub(r'^[^\w\s]+', '', param_name).strip()
+                # Remove any potential forwarded message indicators
+                param_name = re.sub(r'^[^\w\s]*', '', param_name).strip()
+                # Clean value string as well
+                value_str = re.sub(r'<[^>]+>', '', value_str).strip()
                 
-                # Check if it's a valid parameter name directly
+                logger.info(f"parse_import_message: Found line '{line}', param_name='{param_name}', value_str='{value_str}'")
+                
+                # Try to map localized name to English parameter name
+                english_param_name = None
                 if param_name in valid_params:
-                    param_config = YTDLP_PARAMS[param_name]
+                    # Direct match with English parameter name
+                    english_param_name = param_name
+                    logger.info(f"parse_import_message: Direct match found: {param_name}")
+                elif param_name in localized_mapping:
+                    # Mapped from localized name
+                    english_param_name = localized_mapping[param_name]
+                    logger.info(f"parse_import_message: Mapped '{param_name}' -> '{english_param_name}'")
+                else:
+                    logger.info(f"parse_import_message: Unknown parameter '{param_name}', skipping")
+                    continue
+                
+                # Check if the mapped parameter exists in YTDLP_PARAMS
+                if english_param_name in valid_params:
+                    param_config = YTDLP_PARAMS[english_param_name]
                     param_type = param_config.get("type", "text")
                     
                     # Clean value string from potential HTML tags
@@ -952,9 +1116,11 @@ def parse_import_message(text: str, user_id: int = None) -> Dict[str, Any]:
                     # Parse value based on type
                     if param_type == "boolean":
                         if value_str in ["✅ True", "True", "true", "1", "yes", "on", "✅"]:
-                            parsed_args[param_name] = True
+                            parsed_args[english_param_name] = True
+                            logger.info(f"parse_import_message: Set {english_param_name} = True")
                         elif value_str in ["❌ False", "False", "false", "0", "no", "off", "❌"]:
-                            parsed_args[param_name] = False
+                            parsed_args[english_param_name] = False
+                            logger.info(f"parse_import_message: Set {english_param_name} = False")
                     elif param_type == "number":
                         try:
                             # Extract number from string (handle cases like "16" or "Number: 16")
@@ -962,23 +1128,29 @@ def parse_import_message(text: str, user_id: int = None) -> Dict[str, Any]:
                             numbers = re.findall(r'\d+', value_str)
                             if numbers:
                                 num_value = int(numbers[0])
-                                if param_name in ["min_filesize", "max_filesize"]:
+                                if english_param_name in ["min_filesize", "max_filesize"]:
                                     # These are in MB, convert to int
-                                    parsed_args[param_name] = num_value
+                                    parsed_args[english_param_name] = num_value
                                 else:
-                                    parsed_args[param_name] = num_value
+                                    parsed_args[english_param_name] = num_value
+                                logger.info(f"parse_import_message: Set {english_param_name} = {num_value}")
                         except ValueError:
                             continue
                     elif param_type in ["text", "json"]:
                         if value_str and value_str != "Not set":
-                            parsed_args[param_name] = value_str
+                            parsed_args[english_param_name] = value_str
+                            logger.info(f"parse_import_message: Set {english_param_name} = '{value_str}'")
                     elif param_type == "select":
                         if value_str and value_str != "Not set":
                             # Validate that the value is in the allowed options
                             options = param_config.get("options", [])
                             if value_str in options:
-                                parsed_args[param_name] = value_str
+                                parsed_args[english_param_name] = value_str
+                                logger.info(f"parse_import_message: Set {english_param_name} = '{value_str}'")
+                else:
+                    logger.info(f"parse_import_message: Mapped parameter '{english_param_name}' not found in YTDLP_PARAMS")
     
+    logger.info(f"parse_import_message: Parsed {len(parsed_args)} arguments: {list(parsed_args.keys())}")
     return parsed_args
 
 @app.on_message(filters.command("args"))
@@ -1478,24 +1650,41 @@ def args_import_handler(app, message):
     """Handle import of settings from forwarded message"""
     try:
         # Check if this is a forwarded message with settings template
-        if not message.text or messages.ARGS_CURRENT_ARGUMENTS_HEADER_MSG not in message.text:
+        # Check for headers in all supported languages
+        args_headers = [
+            "📋 Current yt-dlp Arguments:",  # English
+            "📋 Текущие аргументы yt-dlp:",  # Russian
+            "📋 वर्तमान yt-dlp तर्क:",  # Hindi
+            "📋 وسائط yt-dlp الحالية:",  # Arabic
+        ]
+        
+        has_args_header = any(header in message.text for header in args_headers) if message.text else False
+        
+        if not message.text or not has_args_header:
+            logger.info(f"args_import_handler: No text or header not found. Text: {message.text[:100] if message.text else 'None'}")
             return
         
         # Log that we're attempting to import settings
         logger.info(f"{LoggerMsg.ARGS_ATTEMPTING_IMPORT_SETTINGS_LOG_MSG}")
+        logger.info(f"args_import_handler: Full message text: {message.text}")
         
         user_id = message.chat.id
         invoker_id = getattr(message, 'from_user', None).id if getattr(message, 'from_user', None) else user_id
         
+        logger.info(f"args_import_handler: user_id={user_id}, invoker_id={invoker_id}")
+        
         # Subscription check for non-admins
         if int(invoker_id) not in Config.ADMIN and not is_user_in_channel(app, message):
+            logger.info(f"args_import_handler: User {invoker_id} not subscribed, skipping import")
             return  # is_user_in_channel already sends subscription message
         
         # Parse settings from message
         parsed_args = parse_import_message(message.text, invoker_id)
         logger.info(f"{LoggerMsg.ARGS_PARSED_SETTINGS_LOG_MSG}")
+        logger.info(f"args_import_handler: Parsed {len(parsed_args)} settings: {list(parsed_args.keys())}")
         
         if not parsed_args:
+            logger.info(f"args_import_handler: No settings parsed, sending failure message")
             safe_send_message(
                 user_id,
                 messages.ARGS_FAILED_RECOGNIZE_MSG,
