@@ -411,6 +411,50 @@ Use:
     ARGS_HTTP_HEADERS_NOTE_MSG = "<b>Note:</b> These headers will be added to existing Referer and User-Agent headers.\n\n"
     ARGS_CURRENT_ARGS_MSG = "<b>📋 Current yt-dlp Arguments:</b>\n\n"
     ARGS_MENU_DESCRIPTION_MSG = "• ✅/❌ <b>Boolean</b> - True/False switches\n• 📋 <b>Select</b> - Choose from options\n• 🔢 <b>Numeric</b> - Number input\n• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\nThese settings will be applied to all your downloads."
+    
+    # Localized parameter names for display
+    ARGS_PARAM_NAMES = {
+        "force_ipv6": "Force IPv6 connections",
+        "force_ipv4": "Force IPv4 connections", 
+        "no_live_from_start": "Do not download live streams from start",
+        "live_from_start": "Download live streams from start",
+        "no_check_certificates": "Suppress HTTPS certificate validation",
+        "check_certificate": "Check SSL certificate",
+        "no_playlist": "Download only single video, not playlist",
+        "embed_metadata": "Embed metadata in video file",
+        "embed_thumbnail": "Embed thumbnail in video file",
+        "write_thumbnail": "Write thumbnail to file",
+        "ignore_errors": "Ignore download errors and continue",
+        "legacy_server_connect": "Allow legacy server connections",
+        "concurrent_fragments": "Number of concurrent fragments to download",
+        "xff": "X-Forwarded-For header strategy",
+        "user_agent": "User-Agent header",
+        "impersonate": "Browser impersonation",
+        "referer": "Referer header",
+        "geo_bypass": "Bypass geographic restrictions",
+        "hls_use_mpegts": "Use MPEG-TS for HLS",
+        "no_part": "Do not use .part files",
+        "no_continue": "Do not resume partial downloads",
+        "audio_format": "Audio format",
+        "video_format": "Video format",
+        "merge_output_format": "Merge output format",
+        "send_as_file": "Send as file",
+        "username": "Username",
+        "password": "Password",
+        "twofactor": "Two-factor authentication code",
+        "min_filesize": "Minimum file size (MB)",
+        "max_filesize": "Maximum file size (MB)",
+        "playlist_items": "Playlist items",
+        "date": "Date",
+        "datebefore": "Date before",
+        "dateafter": "Date after",
+        "http_headers": "HTTP headers",
+        "sleep_interval": "Sleep interval",
+        "max_sleep_interval": "Maximum sleep interval",
+        "retries": "Number of retries",
+        "http_chunk_size": "HTTP chunk size",
+        "sleep_subtitles": "Sleep for subtitles"
+    }
     ARGS_CONFIG_TITLE_MSG = "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n<blockquote>📋 <b>Groups:</b>\n{groups_msg}"
     ARGS_MENU_TEXT = (
         "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n"

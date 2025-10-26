@@ -809,15 +809,15 @@ def get_json_input_message(param_name: str, current_value: str, user_id: int = N
     return message
 
 def format_current_args(user_args: Dict[str, Any], user_id: int = None) -> str:
-    """Format current args for display"""
+    """Format current args for display with localized names"""
     messages = get_messages_instance(user_id)
     if not user_args:
         return messages.ARGS_NO_CUSTOM_MSG
     
     message = messages.ARGS_CURRENT_ARGS_MSG
     
-    # Get English parameter names
-    display_names = get_export_display_names()
+    # Get localized parameter names based on user language
+    display_names = get_localized_display_names(user_id)
     
     for param_name, value in user_args.items():
         display_name = display_names.get(param_name, param_name)
@@ -832,6 +832,17 @@ def format_current_args(user_args: Dict[str, Any], user_id: int = None) -> str:
         message += f"<b>{display_name}:</b> <code>{display_value}</code>\n"
     
     return message
+
+def get_localized_display_names(user_id: int = None) -> Dict[str, str]:
+    """Get localized parameter names for display based on user language"""
+    messages = get_messages_instance(user_id)
+    
+    # Get language-specific parameter names
+    if hasattr(messages, 'ARGS_PARAM_NAMES'):
+        return messages.ARGS_PARAM_NAMES
+    
+    # Fallback to English if no localized names available
+    return get_export_display_names()
 
 def get_export_display_names() -> Dict[str, str]:
     """Get English parameter names for export (human-readable names)"""
