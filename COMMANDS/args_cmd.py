@@ -1890,7 +1890,7 @@ def log_ytdlp_options(user_id: int, ytdlp_opts: dict, operation: str = "download
         # Format the options nicely
         import json
         opts_str = json.dumps(opts_sanitized, indent=2, ensure_ascii=False)
-        logger.info(f"{LoggerMsg.ARGS_FINAL_YTDLP_OPTIONS_LOG_MSG}")
+        logger.info(LoggerMsg.ARGS_FINAL_YTDLP_OPTIONS_LOG_MSG.format(user_id=user_id, operation=operation, opts_str=opts_str))
         
     except Exception as e:
         logger.error(LoggerMsg.COOKIES_ERROR_LOGGING_LOG_MSG.format(e=e))
