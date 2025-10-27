@@ -56,6 +56,12 @@ class LimitsConfig(object):
     # Cookie cache timeout for individual requests in seconds
     COOKIE_CACHE_REQUEST_TIMEOUT = 60  # 60 seconds
     
+    # YouTube cookie retry limits per user
+    # Maximum number of YouTube cookie retry attempts per user per hour
+    YOUTUBE_COOKIE_RETRY_LIMIT_PER_HOUR = 8  # 8 attempts per hour per user
+    # Time window for retry limit in seconds (1 hour)
+    YOUTUBE_COOKIE_RETRY_WINDOW = 3600  # 1 hour
+    
     #######################################################
     # Group multipliers (applied in groups/channels) - except quality
     GROUP_MULTIPLIER = 2

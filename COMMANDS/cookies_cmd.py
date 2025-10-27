@@ -48,6 +48,10 @@ _active_cookie_tasks = {}
 # Round-robin pointer for YouTube cookie sources
 _yt_round_robin_index = 0
 
+# YouTube cookie retry tracking per user
+# Format: {user_id: {'attempts': [timestamp1, timestamp2, ...], 'last_reset': timestamp}}
+_youtube_cookie_retry_tracking = {}
+
 def generate_task_id(user_id: int, url: str, service: str = None) -> str:
     """
     Генерирует уникальный ID задачи для отслеживания состояния.
@@ -224,6 +228,137 @@ def reset_checked_cookie_sources(user_id: int):
     if user_id in _checked_cookie_sources:
         _checked_cookie_sources[user_id] = {'checked_sources': set(), 'last_reset': time.time()}
         logger.info(f"Reset checked cookie sources for user {user_id}")
+
+def reset_all_checked_cookie_sources():
+    """Сбрасывает список проверенных источников куки для всех пользователей."""
+    global _checked_cookie_sources
+    _checked_cookie_sources.clear()
+    logger.info("Reset checked cookie sources for all users")
+
+def check_youtube_cookie_retry_limit(user_id: int) -> bool:
+    """
+    Проверяет, не превышен ли лимит попыток перебора YouTube куки для пользователя.
+    
+    Args:
+        user_id (int): ID пользователя
+        
+    Returns:
+        bool: True если лимит не превышен, False если превышен
+    """
+    global _youtube_cookie_retry_tracking
+    
+    from CONFIG.limits import LimitsConfig
+    
+    current_time = time.time()
+    
+    # Очищаем старые записи
+    if user_id in _youtube_cookie_retry_tracking:
+        user_data = _youtube_cookie_retry_tracking[user_id]
+        # Удаляем попытки старше окна времени
+        user_data['attempts'] = [
+            attempt_time for attempt_time in user_data['attempts']
+            if current_time - attempt_time < LimitsConfig.YOUTUBE_COOKIE_RETRY_WINDOW
+        ]
+        
+        # Если нет попыток в окне, удаляем запись пользователя
+        if not user_data['attempts']:
+            del _youtube_cookie_retry_tracking[user_id]
+            return True
+    
+    # Проверяем лимит
+    if user_id in _youtube_cookie_retry_tracking:
+        attempts_count = len(_youtube_cookie_retry_tracking[user_id]['attempts'])
+        if attempts_count >= LimitsConfig.YOUTUBE_COOKIE_RETRY_LIMIT_PER_HOUR:
+            logger.warning(f"YouTube cookie retry limit exceeded for user {user_id}: {attempts_count}/{LimitsConfig.YOUTUBE_COOKIE_RETRY_LIMIT_PER_HOUR}")
+            return False
+    
+    return True
+
+def record_youtube_cookie_retry_attempt(user_id: int):
+    """
+    Записывает попытку перебора YouTube куки для пользователя.
+    
+    Args:
+        user_id (int): ID пользователя
+    """
+    global _youtube_cookie_retry_tracking
+    
+    current_time = time.time()
+    
+    if user_id not in _youtube_cookie_retry_tracking:
+        _youtube_cookie_retry_tracking[user_id] = {
+            'attempts': [],
+            'last_reset': current_time
+        }
+    
+    _youtube_cookie_retry_tracking[user_id]['attempts'].append(current_time)
+    logger.info(f"Recorded YouTube cookie retry attempt for user {user_id}")
+
+def get_youtube_cookie_retry_status(user_id: int) -> dict:
+    """
+    Возвращает статус попыток перебора YouTube куки для пользователя.
+    
+    Args:
+        user_id (int): ID пользователя
+        
+    Returns:
+        dict: Статус попыток
+    """
+    global _youtube_cookie_retry_tracking
+    
+    from CONFIG.limits import LimitsConfig
+    
+    current_time = time.time()
+    
+    if user_id in _youtube_cookie_retry_tracking:
+        user_data = _youtube_cookie_retry_tracking[user_id]
+        # Очищаем старые попытки
+        user_data['attempts'] = [
+            attempt_time for attempt_time in user_data['attempts']
+            if current_time - attempt_time < LimitsConfig.YOUTUBE_COOKIE_RETRY_WINDOW
+        ]
+        
+        attempts_count = len(user_data['attempts'])
+        remaining_attempts = max(0, LimitsConfig.YOUTUBE_COOKIE_RETRY_LIMIT_PER_HOUR - attempts_count)
+        
+        return {
+            'user_id': user_id,
+            'attempts_count': attempts_count,
+            'limit': LimitsConfig.YOUTUBE_COOKIE_RETRY_LIMIT_PER_HOUR,
+            'remaining_attempts': remaining_attempts,
+            'window_seconds': LimitsConfig.YOUTUBE_COOKIE_RETRY_WINDOW,
+            'oldest_attempt': user_data['attempts'][0] if user_data['attempts'] else None,
+            'can_retry': remaining_attempts > 0
+        }
+    else:
+        return {
+            'user_id': user_id,
+            'attempts_count': 0,
+            'limit': LimitsConfig.YOUTUBE_COOKIE_RETRY_LIMIT_PER_HOUR,
+            'remaining_attempts': LimitsConfig.YOUTUBE_COOKIE_RETRY_LIMIT_PER_HOUR,
+            'window_seconds': LimitsConfig.YOUTUBE_COOKIE_RETRY_WINDOW,
+            'oldest_attempt': None,
+            'can_retry': True
+        }
+
+def reset_youtube_cookie_retry_tracking(user_id: int = None):
+    """
+    Сбрасывает отслеживание попыток перебора YouTube куки.
+    
+    Args:
+        user_id (int, optional): ID пользователя. Если None, сбрасывает для всех пользователей.
+    """
+    global _youtube_cookie_retry_tracking
+    
+    if user_id is None:
+        _youtube_cookie_retry_tracking.clear()
+        logger.info("Reset YouTube cookie retry tracking for all users")
+    else:
+        if user_id in _youtube_cookie_retry_tracking:
+            del _youtube_cookie_retry_tracking[user_id]
+            logger.info(f"Reset YouTube cookie retry tracking for user {user_id}")
+        else:
+            logger.info(f"No YouTube cookie retry tracking found for user {user_id}")
 
 def get_unchecked_cookie_sources(user_id: int, cookie_urls: list) -> list:
     """Возвращает список непроверенных источников куки для пользователя."""
@@ -1151,10 +1286,11 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
     Скачивает и проверяет YouTube куки из всех доступных источников.
     
     Процесс:
-    1. Скачивает куки из каждого источника по очереди
-    2. Тщательно проверяет их работоспособность через test_youtube_cookies()
-    3. Сохраняет только рабочие куки
-    4. Если ни один источник не работает, сообщает об ошибке
+    1. Проверяет лимит попыток перебора куки для пользователя
+    2. Скачивает куки из каждого источника по очереди
+    3. Тщательно проверяет их работоспособность через test_youtube_cookies()
+    4. Сохраняет только рабочие куки
+    5. Если ни один источник не работает, сообщает об ошибке
     
     Args:
         app: Экземпляр приложения
@@ -1171,6 +1307,67 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
     else:
         logger.error(LoggerMsg.COOKIES_CANNOT_DETERMINE_USER_ID_LOG_MSG)
         return False
+    
+    # Проверяем лимит попыток перебора YouTube куки
+    if not check_youtube_cookie_retry_limit(int(user_id)):
+        # Создаем функцию для отправки сообщения о превышении лимита
+        def send_limit_message():
+            try:
+                from CONFIG.limits import LimitsConfig
+                
+                # Получаем сообщение и форматируем его
+                messages = safe_get_messages(user_id)
+                limit_value = LimitsConfig.YOUTUBE_COOKIE_RETRY_LIMIT_PER_HOUR
+                
+                # Проверяем, что сообщение существует
+                if hasattr(messages, 'COOKIES_YOUTUBE_RETRY_LIMIT_EXCEEDED_MSG'):
+                    limit_message = messages.COOKIES_YOUTUBE_RETRY_LIMIT_EXCEEDED_MSG.format(limit=limit_value)
+                else:
+                    # Fallback если сообщение не найдено
+                    limit_message = f"⚠️ YouTube cookie retry limit exceeded!\n\n🔢 Maximum: {limit_value} attempts per hour\n⏰ Please try again later"
+                
+                # Логируем для отладки
+                logger.info(f"Sending limit message to user {user_id}")
+                logger.info(f"Limit value: {limit_value}")
+                logger.info(f"Raw message: {messages.COOKIES_YOUTUBE_RETRY_LIMIT_EXCEEDED_MSG if hasattr(messages, 'COOKIES_YOUTUBE_RETRY_LIMIT_EXCEEDED_MSG') else 'NOT FOUND'}")
+                logger.info(f"Formatted message: {limit_message}")
+                
+                if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
+                    from HELPERS.logger import send_to_user
+                    send_to_user(message, limit_message)
+                elif hasattr(message, 'from_user') and hasattr(message.from_user, 'id'):
+                    from HELPERS.safe_messeger import safe_send_message
+                    from pyrogram import enums
+                    safe_send_message(message.from_user.id, limit_message, parse_mode=enums.ParseMode.HTML)
+                else:
+                    from HELPERS.safe_messeger import safe_send_message
+                    from pyrogram import enums
+                    safe_send_message(user_id, limit_message, parse_mode=enums.ParseMode.HTML)
+            except Exception as e:
+                logger.error(f"Error sending retry limit message: {e}")
+                # Fallback сообщение без форматирования
+                try:
+                    fallback_message = f"⚠️ YouTube cookie retry limit exceeded!\n\n🔢 Maximum: {LimitsConfig.YOUTUBE_COOKIE_RETRY_LIMIT_PER_HOUR} attempts per hour\n⏰ Please try again later"
+                    if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
+                        from HELPERS.logger import send_to_user
+                        send_to_user(message, fallback_message)
+                    elif hasattr(message, 'from_user') and hasattr(message.from_user, 'id'):
+                        from HELPERS.safe_messeger import safe_send_message
+                        from pyrogram import enums
+                        safe_send_message(message.from_user.id, fallback_message, parse_mode=enums.ParseMode.HTML)
+                    else:
+                        from HELPERS.safe_messeger import safe_send_message
+                        from pyrogram import enums
+                        safe_send_message(user_id, fallback_message, parse_mode=enums.ParseMode.HTML)
+                except Exception as e2:
+                    logger.error(f"Error sending fallback limit message: {e2}")
+        
+        send_limit_message()
+        logger.warning(f"YouTube cookie retry limit exceeded for user {user_id}")
+        return False
+    
+    # Записываем попытку перебора куки
+    record_youtube_cookie_retry_attempt(int(user_id))
     
     # Create a helper function to send messages safely
     def safe_send_to_user(msg):
@@ -1263,6 +1460,9 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
     if not unchecked_indices:
         update_message(safe_get_messages(user_id).COOKIES_ALL_EXPIRED_MSG, user_id)
         logger.warning(f"All cookie sources have been checked for user {user_id}, no more sources to try")
+        # Сбрасываем кэш проверенных источников для этого пользователя
+        reset_checked_cookie_sources(int(user_id))
+        logger.info(f"Reset checked cookie sources for user {user_id} to allow retry in future")
         return False
     
     global _yt_round_robin_index
@@ -1335,7 +1535,7 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
                     if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
                         send_to_logger(message, safe_get_messages(user_id).COOKIES_YOUTUBE_DOWNLOADED_VALIDATED_LOG_MSG.format(user_id=user_id, source=idx + 1))
                     else:
-                        logger.info(LoggerMsg.COOKIES_YOUTUBE_DOWNLOADED_VALIDATED_LOG_MSG.format(user_id=user_id, source_index=idx + 1))
+                        logger.info(LoggerMsg.COOKIES_YOUTUBE_DOWNLOADED_VALIDATED_LOG_MSG.format(user_id=user_id, source=idx + 1))
                 except Exception as e:
                     logger.error(LoggerMsg.COOKIES_ERROR_LOGGING_LOG_MSG.format(e=e))
                 return True
@@ -1369,10 +1569,11 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
     Обеспечивает наличие рабочих YouTube куки для пользователя.
     
     Процесс:
-    1. Проверяет кеш результатов и активные задачи
-    2. Проверяет существующие куки пользователя
-    3. Если не работают - скачивает новые из всех источников
-    4. Если ни один источник не работает - удаляет куки и возвращает False
+    1. Проверяет лимит попыток перебора куки для пользователя
+    2. Проверяет кеш результатов и активные задачи
+    3. Проверяет существующие куки пользователя
+    4. Если не работают - скачивает новые из всех источников
+    5. Если ни один источник не работает - удаляет куки и возвращает False
     
     Args:
         user_id (int): ID пользователя
@@ -1383,6 +1584,11 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
     global _youtube_cookie_cache
     
     from CONFIG.limits import LimitsConfig
+    
+    # Проверяем лимит попыток перебора YouTube куки
+    if not check_youtube_cookie_retry_limit(user_id):
+        logger.warning(f"YouTube cookie retry limit exceeded for user {user_id}")
+        return False
     
     # Очищаем истекшие задачи перед проверкой
     cleanup_expired_tasks()
@@ -1447,6 +1653,9 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
         unchecked_indices = get_unchecked_cookie_sources(user_id, cookie_urls)
         if not unchecked_indices:
             logger.warning(f"All cookie sources have been checked for user {user_id}, no more sources to try")
+            # Сбрасываем кэш проверенных источников для этого пользователя
+            reset_checked_cookie_sources(user_id)
+            logger.info(f"Reset checked cookie sources for user {user_id} to allow retry in future")
             # Удаляем нерабочие куки
             if os.path.exists(cookie_file_path):
                 os.remove(cookie_file_path)
@@ -1455,6 +1664,9 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
             return False
         
         logger.info(LoggerMsg.COOKIES_YOUTUBE_ATTEMPTING_DOWNLOAD_LOG_MSG.format(user_id=user_id, sources_count=len(unchecked_indices)))
+        
+        # Записываем попытку перебора куки только если начинаем скачивание новых
+        record_youtube_cookie_retry_attempt(user_id)
         
         for i, idx in enumerate(unchecked_indices, 1):
             url = cookie_urls[idx]
@@ -1682,6 +1894,11 @@ def retry_download_with_different_cookies(user_id: int, url: str, download_func,
     try:
         logger.info(LoggerMsg.COOKIES_YOUTUBE_RETRY_DIFFERENT_COOKIES_LOG_MSG.format(user_id=user_id))
         
+        # Проверяем лимит попыток перебора YouTube куки
+        if not check_youtube_cookie_retry_limit(user_id):
+            logger.warning(f"YouTube cookie retry limit exceeded for user {user_id}")
+            return None
+        
         # Получаем список источников куков
         cookie_urls = get_youtube_cookie_urls()
         if not cookie_urls:
@@ -1692,6 +1909,9 @@ def retry_download_with_different_cookies(user_id: int, url: str, download_func,
         unchecked_indices = get_unchecked_cookie_sources(user_id, cookie_urls)
         if not unchecked_indices:
             logger.warning(f"All cookie sources have been checked for user {user_id}, no more sources to try")
+            # Сбрасываем кэш проверенных источников для этого пользователя
+            reset_checked_cookie_sources(user_id)
+            logger.info(f"Reset checked cookie sources for user {user_id} to allow retry in future")
             return None
         
         user_dir = os.path.join("users", str(user_id))
@@ -1714,6 +1934,9 @@ def retry_download_with_different_cookies(user_id: int, url: str, download_func,
                 _yt_round_robin_index = (start + 1) % len(indices)
         
         logger.info(LoggerMsg.COOKIES_YOUTUBE_RETRY_SOURCES_ORDER_LOG_MSG.format(indices=[i+1 for i in indices]))
+        
+        # Записываем попытку перебора куки
+        record_youtube_cookie_retry_attempt(user_id)
         
         # Пробуем каждый источник куков
         for attempt, idx in enumerate(indices, 1):
@@ -2246,3 +2469,63 @@ def get_service_name_from_url(url: str) -> str | None:
         return 'facebook'
     
     return None
+
+def force_reset_youtube_cookie_sources(user_id: int = None):
+    """
+    Принудительно сбрасывает кэш проверенных источников YouTube куки.
+    
+    Args:
+        user_id (int, optional): ID пользователя для сброса. Если None, сбрасывает для всех пользователей.
+    """
+    global _checked_cookie_sources
+    
+    if user_id is None:
+        _checked_cookie_sources.clear()
+        logger.info("Force reset checked cookie sources for all users")
+    else:
+        if user_id in _checked_cookie_sources:
+            _checked_cookie_sources[user_id] = {'checked_sources': set(), 'last_reset': time.time()}
+            logger.info(f"Force reset checked cookie sources for user {user_id}")
+        else:
+            logger.info(f"No checked cookie sources found for user {user_id}")
+
+def get_checked_sources_status(user_id: int = None) -> dict:
+    """
+    Возвращает статус проверенных источников куки.
+    
+    Args:
+        user_id (int, optional): ID пользователя. Если None, возвращает статус для всех пользователей.
+        
+    Returns:
+        dict: Статус проверенных источников
+    """
+    global _checked_cookie_sources
+    
+    if user_id is None:
+        return {
+            'total_users': len(_checked_cookie_sources),
+            'users': {
+                uid: {
+                    'checked_count': len(data['checked_sources']),
+                    'checked_sources': list(data['checked_sources']),
+                    'last_reset': data.get('last_reset', 0)
+                }
+                for uid, data in _checked_cookie_sources.items()
+            }
+        }
+    else:
+        if user_id in _checked_cookie_sources:
+            data = _checked_cookie_sources[user_id]
+            return {
+                'user_id': user_id,
+                'checked_count': len(data['checked_sources']),
+                'checked_sources': list(data['checked_sources']),
+                'last_reset': data.get('last_reset', 0)
+            }
+        else:
+            return {
+                'user_id': user_id,
+                'checked_count': 0,
+                'checked_sources': [],
+                'last_reset': 0
+            }
