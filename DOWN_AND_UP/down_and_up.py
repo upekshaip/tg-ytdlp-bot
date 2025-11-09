@@ -311,7 +311,32 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     # We define a playlist not only by the number of videos, but also by the presence of a range in the URL
     original_text = message.text or message.caption or ""
     is_playlist = video_count > 1 or is_playlist_with_range(original_text)
-    requested_indices = list(range(video_start_with, video_start_with + video_count)) if is_playlist else []
+    
+    # Получаем video_end_with из original_text, если он там есть
+    _, parsed_start, parsed_end, _, _, _, _ = extract_url_range_tags(original_text)
+    video_end_with = parsed_end if parsed_end != 1 or parsed_start != 1 else (video_start_with + video_count - 1)
+    
+    # Определяем, нужен ли обратный порядок (когда start > end)
+    # Для отрицательных индексов: -1 > -100 означает обратный порядок
+    is_reverse_order = False
+    if is_playlist and video_start_with is not None and video_end_with is not None:
+        # Если оба отрицательные, сравниваем по абсолютному значению
+        if video_start_with < 0 and video_end_with < 0:
+            is_reverse_order = abs(video_start_with) < abs(video_end_with)
+        # Если start > end, это обратный порядок
+        elif video_start_with > video_end_with:
+            is_reverse_order = True
+    
+    # Формируем список индексов с учетом обратного порядка
+    if is_playlist:
+        if is_reverse_order:
+            # Для обратного порядка: от start до end включительно в обратном порядке
+            requested_indices = list(range(video_start_with, video_end_with - 1, -1))
+        else:
+            # Для прямого порядка: от start до end включительно
+            requested_indices = list(range(video_start_with, video_start_with + video_count))
+    else:
+        requested_indices = []
     cached_videos = {}
     uncached_indices = []
     if safe_quality_key and is_playlist:
@@ -872,14 +897,23 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
         def try_download(url, attempt_opts):
             messages = safe_get_messages(message.chat.id)
-            nonlocal current_total_process, error_message, did_cookie_retry, did_proxy_retry, is_hls, error_message_sent
+            nonlocal current_total_process, error_message, did_cookie_retry, did_proxy_retry, is_hls, error_message_sent, is_reverse_order, use_range_download, playlist_range_str
             
             # Use original filename for first attempt
             original_outtmpl = os.path.join(user_dir_name, "%(title)s.%(ext)s")
             
             # First try with original filename
+            # Для отрицательных индексов используем весь диапазон сразу
+            if use_range_download:
+                playlist_items_str = playlist_range_str
+            elif is_reverse_order and is_playlist:
+                # Для обратного порядка используем формат START:STOP:-1
+                playlist_items_str = f"{current_index}:{current_index}:-1"
+            else:
+                playlist_items_str = str(current_index)
+            
             common_opts = {
-                'playlist_items': str(current_index),
+                'playlist_items': playlist_items_str,
                 'outtmpl': original_outtmpl,
                 'postprocessors': [
                     {'key': 'EmbedThumbnail'},
@@ -1300,7 +1334,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     entries = info_dict["entries"]
                     if not entries:
                         raise Exception(f"No videos found in playlist at index {current_index}")
-                    if len(entries) > 1:  # If the video in the playlist is more than one
+                    # Для диапазона отрицательных индексов обрабатываем все элементы
+                    if use_range_download and len(entries) > 1:
+                        # Обрабатываем все элементы из диапазона
+                        # entries уже содержит все элементы из диапазона
+                        # Обрабатываем их в цикле ниже
+                        pass  # Будем обрабатывать в основном цикле
+                    elif len(entries) > 1:  # If the video in the playlist is more than one
                         if current_index and current_index < len(entries):
                             info_dict = entries[current_index]
                         else:
@@ -1308,6 +1348,23 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     else:
                         # If there is only one video in the playlist, just download it
                         info_dict = entries[0]  # Just take the first video
+
+                # Check if this is a live stream and handle it if detection is disabled
+                if info_dict and isinstance(info_dict, dict) and info_dict.get('is_live', False):
+                    if not LimitsConfig.ENABLE_LIVE_STREAM_BLOCKING:
+                        logger.info(f"Live stream detected but detection is disabled, using live stream downloader for user {user_id}: {url}")
+                        from DOWN_AND_UP.live_stream_downloader import download_live_stream_chunked
+                        result = download_live_stream_chunked(
+                            app, message, url, user_id, user_dir_name, info_dict,
+                            proc_msg_id, current_total_process, tags_text,
+                            cookies_already_checked, use_proxy,
+                            format_override=format_override, quality_key=quality_key
+                        )
+                        if result:
+                            return info_dict
+                        else:
+                            logger.error("Live stream download failed")
+                            return None
 
                 # Detect HLS not only by URL/top-level protocol, but by requested formats too
                 requested_formats = []
@@ -1396,15 +1453,18 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 error_message = str(e)
                 logger.error(f"DownloadError: {error_message}")
                 
-                # Check for live stream detection
+                # Check for live stream detection (only if detection is enabled)
                 if "LIVE_STREAM_DETECTED" in error_message:
-                    live_stream_message = (
-                        safe_get_messages(user_id).LIVE_STREAM_DETECTED_MSG +
-                        "• You can see the final video length\n\n"
-                        "Once the stream is completed, you'll be able to download it as a regular video."
-                    )
-                    send_error_to_user(message, live_stream_message)
-                    return "LIVE_STREAM"
+                    if LimitsConfig.ENABLE_LIVE_STREAM_BLOCKING:
+                        live_stream_message = (
+                            safe_get_messages(user_id).LIVE_STREAM_DETECTED_MSG +
+                            "• You can see the final video length\n\n"
+                            "Once the stream is completed, you'll be able to download it as a regular video."
+                        )
+                        send_error_to_user(message, live_stream_message)
+                        return "LIVE_STREAM"
+                    # If detection is disabled, continue with live stream download
+                    # This will be handled by the live stream download function
                 
                 # Check for postprocessing errors
                 if "Postprocessing" in error_message and "Error opening output files" in error_message:
@@ -1662,10 +1722,25 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 send_to_user(message, safe_get_messages(user_id).UNKNOWN_ERROR_MSG.format(error=e))
                 return None
 
-        if is_playlist and safe_quality_key:
+        # Для отрицательных индексов используем весь диапазон сразу, а не цикл
+        use_range_download = False
+        if is_playlist and video_start_with is not None and video_end_with is not None:
+            if video_start_with < 0 or video_end_with < 0:
+                use_range_download = True
+        
+        if use_range_download:
+            # Для отрицательных индексов используем весь диапазон сразу
+            if is_reverse_order:
+                playlist_range_str = f"{video_start_with}:{video_end_with}:-1"
+            else:
+                playlist_range_str = f"{video_start_with}:{video_end_with}"
+            # Скачиваем весь диапазон сразу
+            indices_to_download = [0]  # Один элемент, но с диапазоном
+        elif is_playlist and safe_quality_key:
             indices_to_download = uncached_indices
         else:
             indices_to_download = range(video_count)
+        
         for idx, current_index in enumerate(indices_to_download):
             x = current_index - video_start_with  # Don't add quality if size is unknown
             messages = safe_get_messages(message.chat.id)

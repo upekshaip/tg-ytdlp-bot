@@ -1908,7 +1908,13 @@ def askq_callback(app, callback_query):
         if is_playlist_with_range(original_text):
             logger.info("Detected playlist, using down_and_up")
             _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(original_text)
-            video_count = video_end_with - video_start_with + 1
+            # Правильное вычисление video_count для отрицательных индексов
+            if video_start_with < 0 and video_end_with < 0:
+                video_count = abs(video_end_with) - abs(video_start_with) + 1
+            elif video_start_with > video_end_with:
+                video_count = abs(video_start_with - video_end_with) + 1
+            else:
+                video_count = video_end_with - video_start_with + 1
             # Delete processing message before starting download
             delete_processing_message(app, user_id, None)
             down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=format_id, cookies_already_checked=True, cached_video_info=None, clear_subs_cache_on_start=False)
@@ -1992,7 +1998,13 @@ def askq_callback(app, callback_query):
         original_text = original_message.text or original_message.caption or ""
         if is_playlist_with_range(original_text):
             _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(original_text)
-            video_count = video_end_with - video_start_with + 1
+            # Правильное вычисление video_count для отрицательных индексов
+            if video_start_with < 0 and video_end_with < 0:
+                video_count = abs(video_end_with) - abs(video_start_with) + 1
+            elif video_start_with > video_end_with:
+                video_count = abs(video_start_with - video_end_with) + 1
+            else:
+                video_count = video_end_with - video_start_with + 1
             # Delete processing message before starting download
             delete_processing_message(app, user_id, proc_msg)
             down_and_up(app, original_message, url, playlist_name, video_count, video_start_with, tags_text, force_no_title=False, format_override=format_override, quality_key=quality, cookies_already_checked=True, cached_video_info=None, clear_subs_cache_on_start=False)
@@ -2033,7 +2045,13 @@ def askq_callback(app, callback_query):
     if is_playlist_with_range(original_text):
         logger.info(f"{LoggerMsg.ALWAYS_ASK_PLAYLIST_WITH_RANGE_DETECTED_LOG_MSG}: {url}")
         _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(original_text)
-        video_count = video_end_with - video_start_with + 1
+        # Правильное вычисление video_count для отрицательных индексов
+        if video_start_with < 0 and video_end_with < 0:
+            video_count = abs(video_end_with) - abs(video_start_with) + 1
+        elif video_start_with > video_end_with:
+            video_count = abs(video_start_with - video_end_with) + 1
+        else:
+            video_count = video_end_with - video_start_with + 1
         requested_indices = list(range(video_start_with, video_start_with + video_count))
         
         # Check if Always Ask mode is enabled - if yes, skip cache completely
@@ -2538,7 +2556,20 @@ def show_manual_quality_menu(app, callback_query):
     
     for quality in manual_qualities:
         if is_playlist and playlist_range:
-            indices = list(range(playlist_range[0], playlist_range[1]+1))
+            # Правильное формирование indices для отрицательных индексов
+            start, end = playlist_range
+            if start < 0 and end < 0:
+                # Для отрицательных индексов в обратном порядке
+                if abs(start) < abs(end):
+                    indices = list(range(start, end - 1, -1))
+                else:
+                    indices = list(range(start, end + 1, 1))
+            elif start > end:
+                # Для обратного порядка
+                indices = list(range(start, end - 1, -1))
+            else:
+                # Для прямого порядка
+                indices = list(range(start, end + 1))
             n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality, indices)
             total = len(indices)
             icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
@@ -2551,7 +2582,17 @@ def show_manual_quality_menu(app, callback_query):
 
     # {safe_get_messages(user_id).ALWAYS_ASK_BEST_BUTTON_MSG} Quality
     if is_playlist and playlist_range:
-        indices = list(range(playlist_range[0], playlist_range[1]+1))
+        # Правильное формирование indices для отрицательных индексов
+        start, end = playlist_range
+        if start < 0 and end < 0:
+            if abs(start) < abs(end):
+                indices = list(range(start, end - 1, -1))
+            else:
+                indices = list(range(start, end + 1, 1))
+        elif start > end:
+            indices = list(range(start, end - 1, -1))
+        else:
+            indices = list(range(start, end + 1))
         n_cached = get_cached_playlist_count(get_clean_playlist_url(url), "best", indices)
         total = len(indices)
         icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
@@ -2570,7 +2611,17 @@ def show_manual_quality_menu(app, callback_query):
     # Add mp3 button
     quality_key = "mp3"
     if is_playlist and playlist_range:
-        indices = list(range(playlist_range[0], playlist_range[1]+1))
+        # Правильное формирование indices для отрицательных индексов
+        start, end = playlist_range
+        if start < 0 and end < 0:
+            if abs(start) < abs(end):
+                indices = list(range(start, end - 1, -1))
+            else:
+                indices = list(range(start, end + 1, 1))
+        elif start > end:
+            indices = list(range(start, end - 1, -1))
+        else:
+            indices = list(range(start, end + 1))
         n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
         total = len(indices)
         icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "🎧")
@@ -3318,7 +3369,17 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         for quality_key in quality_order:
             if quality_key in cached_qualities:
                 if is_playlist and playlist_range:
-                    indices = list(range(playlist_range[0], playlist_range[1]+1))
+                    # Правильное формирование indices для отрицательных индексов
+                    start, end = playlist_range
+                    if start < 0 and end < 0:
+                        if abs(start) < abs(end):
+                            indices = list(range(start, end - 1, -1))
+                        else:
+                            indices = list(range(start, end + 1, 1))
+                    elif start > end:
+                        indices = list(range(start, end - 1, -1))
+                    else:
+                        indices = list(range(start, end + 1))
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
                     total = len(indices)
                     icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
@@ -3332,7 +3393,17 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         # Всегда добавляем {safe_get_messages(user_id).ALWAYS_ASK_BEST_BUTTON_MSG} Quality
         quality_key = "best"
         if is_playlist and playlist_range:
-            indices = list(range(playlist_range[0], playlist_range[1]+1))
+            # Правильное формирование indices для отрицательных индексов
+            start, end = playlist_range
+            if start < 0 and end < 0:
+                if abs(start) < abs(end):
+                    indices = list(range(start, end - 1, -1))
+                else:
+                    indices = list(range(start, end + 1, 1))
+            elif start > end:
+                indices = list(range(start, end - 1, -1))
+            else:
+                indices = list(range(start, end + 1))
             n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
             total = len(indices)
             icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
@@ -3581,6 +3652,13 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         _, video_start_with, video_end_with, _, _, _, _ = extract_url_range_tags(original_text)
         if not check_playlist_range_limits(url, video_start_with, video_end_with, app, message):
             return
+        # Обновляем playlist_start_index из original_text, если там есть диапазон
+        # Это гарантирует, что отрицательные индексы будут правильно обработаны
+        # Проверяем, что есть диапазон (не 1-1) или отрицательные индексы
+        has_range = (video_start_with != 1 or video_end_with != 1) or (video_start_with < 0 or video_end_with < 0)
+        if video_start_with is not None and has_range:
+            playlist_start_index = video_start_with
+            logger.info(f"🔍 [DEBUG] Обновлен playlist_start_index из original_text: {playlist_start_index}, video_end_with: {video_end_with}")
     try:
         # Check if subtitles are included
         subs_enabled = is_subs_enabled(user_id)
@@ -3597,7 +3675,9 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
             # This prevents the menu from being replaced with "🔎 Analyzing..." temporarily
             proc_msg = None
         original_text = message.text or message.caption or ""
+        logger.info(f"🔍 [DEBUG] ask_quality_menu: original_text='{original_text}'")
         is_playlist = is_playlist_with_range(original_text)
+        logger.info(f"🔍 [DEBUG] ask_quality_menu: is_playlist={is_playlist}")
         playlist_range = None
         # Check if user has send_as_file enabled
         user_args = get_user_args(user_id)
@@ -3605,6 +3685,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         
         if is_playlist:
             _, video_start_with, video_end_with, _, _, _, _ = extract_url_range_tags(original_text)
+            logger.info(f"🔍 [DEBUG] ask_quality_menu: после extract_url_range_tags: video_start_with={video_start_with}, video_end_with={video_end_with}")
             playlist_range = (video_start_with, video_end_with)
             cached_qualities = get_cached_playlist_qualities(get_clean_playlist_url(url)) if not send_as_file else set()
         else:
@@ -3618,8 +3699,13 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
             logger.info(f"   playlist_start_index: {playlist_start_index}")
             logger.info(f"   cookies_already_checked: True")
             
+            # Для плейлиста передаем диапазон, иначе только start_index
+            playlist_end_index = None
+            if is_playlist and playlist_range:
+                playlist_end_index = playlist_range[1]
+            
             try:
-                info = get_video_formats(url, user_id, playlist_start_index, cookies_already_checked=True)
+                info = get_video_formats(url, user_id, playlist_start_index, cookies_already_checked=True, playlist_end_index=playlist_end_index)
                 logger.info(f"✅ [DEBUG] get_video_formats выполнен успешно")
                 logger.info(f"   info type: {type(info)}")
                 if isinstance(info, dict):
@@ -3634,20 +3720,22 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 logger.error(f"   Строка ошибки: {str(e)}")
                 raise e
             
-            # Check for live stream detection
+            # Check for live stream detection (only if detection is enabled)
             if isinstance(info, dict) and info.get('error') == 'LIVE_STREAM_DETECTED':
-                logger.warning(f"Live stream detected in ask_quality_menu for user {user_id}: {url}")
-                live_stream_message = (
-                    "🚫 <b>Live Stream Detected</b>\n\n"
-                    "Downloading of ongoing or infinite live streams is not allowed.\n\n"
-                    "<blockquote>Please wait for the stream to end and try downloading again when:\n"
-                    "• The stream duration is known\n"
-                    "• The stream has finished\n"
-                    "• You can see the final video length</blockquote>\n\n"
-                    "Once the stream is completed, you'll be able to download it as a regular video."
-                )
-                send_error_to_user(message, live_stream_message)
-                return
+                from CONFIG.limits import LimitsConfig
+                if LimitsConfig.ENABLE_LIVE_STREAM_BLOCKING:
+                    logger.warning(f"Live stream detected in ask_quality_menu for user {user_id}: {url}")
+                    live_stream_message = (
+                        "🚫 <b>Live Stream Detected</b>\n\n"
+                        "Downloading of ongoing or infinite live streams is not allowed.\n\n"
+                        "<blockquote>Please wait for the stream to end and try downloading again when:\n"
+                        "• The stream duration is known\n"
+                        "• The stream has finished\n"
+                        "• You can see the final video length</blockquote>\n\n"
+                        "Once the stream is completed, you'll be able to download it as a regular video."
+                    )
+                    send_error_to_user(message, live_stream_message)
+                    return
             
             # Check for TikTok private account error
             if isinstance(info, dict) and info.get('error') == 'TIKTOK_PRIVATE_ACCOUNT':
@@ -4011,7 +4099,17 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                     is_cached = False
                     postfix = ""
                 elif is_playlist and playlist_range:
-                    indices = list(range(playlist_range[0], playlist_range[1]+1))
+                    # Правильное формирование indices для отрицательных индексов
+                    start, end = playlist_range
+                    if start < 0 and end < 0:
+                        if abs(start) < abs(end):
+                            indices = list(range(start, end - 1, -1))
+                        else:
+                            indices = list(range(start, end + 1, 1))
+                    elif start > end:
+                        indices = list(range(start, end - 1, -1))
+                    else:
+                        indices = list(range(start, end + 1))
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), q, indices)
                     total = len(indices)
                     postfix = f" ({n_cached}/{total})"
@@ -4724,7 +4822,17 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                     postfix = ""
                     button_text = f"{icon}{quality_key}{subs_available}"
                 elif is_playlist and playlist_range:
-                    indices = list(range(playlist_range[0], playlist_range[1]+1))
+                    # Правильное формирование indices для отрицательных индексов
+                    start, end = playlist_range
+                    if start < 0 and end < 0:
+                        if abs(start) < abs(end):
+                            indices = list(range(start, end - 1, -1))
+                        else:
+                            indices = list(range(start, end + 1, 1))
+                    elif start > end:
+                        indices = list(range(start, end - 1, -1))
+                    else:
+                        indices = list(range(start, end + 1))
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
                     total = len(indices)
                     icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
@@ -4760,7 +4868,17 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                         scissors = f" ✂️{n_parts}"
 
                 if is_playlist and playlist_range:
-                    indices = list(range(playlist_range[0], playlist_range[1]+1))
+                    # Правильное формирование indices для отрицательных индексов
+                    start, end = playlist_range
+                    if start < 0 and end < 0:
+                        if abs(start) < abs(end):
+                            indices = list(range(start, end - 1, -1))
+                        else:
+                            indices = list(range(start, end + 1, 1))
+                    elif start > end:
+                        indices = list(range(start, end - 1, -1))
+                    else:
+                        indices = list(range(start, end + 1))
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
                     total = len(indices)
                     icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
@@ -4774,7 +4892,17 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         # Always add {safe_get_messages(user_id).ALWAYS_ASK_BEST_BUTTON_MSG} Quality button
         quality_key = "best"
         if is_playlist and playlist_range:
-            indices = list(range(playlist_range[0], playlist_range[1]+1))
+            # Правильное формирование indices для отрицательных индексов
+            start, end = playlist_range
+            if start < 0 and end < 0:
+                if abs(start) < abs(end):
+                    indices = list(range(start, end - 1, -1))
+                else:
+                    indices = list(range(start, end + 1, 1))
+            elif start > end:
+                indices = list(range(start, end - 1, -1))
+            else:
+                indices = list(range(start, end + 1))
             n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality_key, indices)
             total = len(indices)
             icon = "🚀" if (n_cached > 0 and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
@@ -5358,7 +5486,13 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
         # Extract playlist parameters from the original message
         full_string = original_message.text or original_message.caption or ""
         _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
-        video_count = video_end_with - video_start_with + 1
+        # Правильное вычисление video_count для отрицательных индексов
+        if video_start_with < 0 and video_end_with < 0:
+            video_count = abs(video_end_with) - abs(video_start_with) + 1
+        elif video_start_with > video_end_with:
+            video_count = abs(video_start_with - video_end_with) + 1
+        else:
+            video_count = video_end_with - video_start_with + 1
         # Delete processing message before starting download
         delete_processing_message(app, user_id, proc_msg)
         down_and_audio(app, original_message, url, tags, quality_key="mp3", playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with, format_override="ba", cookies_already_checked=True, cached_video_info=None)
@@ -5372,7 +5506,13 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
         # Extract playlist parameters from the original message
         full_string = original_message.text or original_message.caption or ""
         _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
-        video_count = video_end_with - video_start_with + 1
+        # Правильное вычисление video_count для отрицательных индексов
+        if video_start_with < 0 and video_end_with < 0:
+            video_count = abs(video_end_with) - abs(video_start_with) + 1
+        elif video_start_with > video_end_with:
+            video_count = abs(video_start_with - video_end_with) + 1
+        else:
+            video_count = video_end_with - video_start_with + 1
         download_subtitles_only(app, original_message, url, tags, available_langs, playlist_name=playlist_name, video_count=video_count, video_start_with=video_start_with)
         return
     
@@ -5573,7 +5713,13 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None,
         log_error_to_channel(message, error_msg, url)
         return
 
-    video_count = video_end_with - video_start_with + 1
+    # Правильное вычисление video_count для отрицательных индексов
+    if video_start_with < 0 and video_end_with < 0:
+        video_count = abs(video_end_with) - abs(video_start_with) + 1
+    elif video_start_with > video_end_with:
+        video_count = abs(video_start_with - video_end_with) + 1
+    else:
+        video_count = video_end_with - video_start_with + 1
     
     # Check if there is a link to Tiktok
     is_tiktok = is_tiktok_url(url)

@@ -46,7 +46,9 @@ def video_url_extractor(app, message):
 
     if should_ask:
         full_string = message.text
-        url, video_start_with, _, _, tags, _, tag_error = extract_url_range_tags(full_string)
+        logger.info(f"🔍 [DEBUG] video_extractor: full_string='{full_string}'")
+        url, video_start_with, video_end_with, _, tags, _, tag_error = extract_url_range_tags(full_string)
+        logger.info(f"🔍 [DEBUG] video_extractor: после extract_url_range_tags: url='{url}', video_start_with={video_start_with}, video_end_with={video_end_with}")
         # Add tag error check
         if tag_error:
             wrong, example = tag_error
@@ -55,7 +57,13 @@ def video_url_extractor(app, message):
             from HELPERS.logger import log_error_to_channel
             log_error_to_channel(message, error_msg)
             return
-        ask_quality_menu(app, message, url, tags, video_start_with)
+        # Если есть диапазон, используем video_start_with из парсинга, иначе 1
+        # ask_quality_menu сам определит диапазон из original_text и обновит playlist_start_index
+        # Для отрицательных индексов проверяем, что хотя бы одно число не равно 1
+        has_range = (video_start_with != 1 or video_end_with != 1) or (video_start_with < 0 or video_end_with < 0)
+        playlist_start_index = video_start_with if has_range else 1
+        logger.info(f"🔍 [DEBUG] video_extractor: video_start_with={video_start_with}, video_end_with={video_end_with}, has_range={has_range}, playlist_start_index={playlist_start_index}")
+        ask_quality_menu(app, message, url, tags, playlist_start_index)
         return
 
     # This code is executed only if the user has selected a specific format
@@ -95,7 +103,16 @@ def video_url_extractor(app, message):
         auto_tags = get_auto_tags(url, tags)
         all_tags = tags + auto_tags
         tags_text_full = ' '.join(all_tags)
-        video_count = video_end_with - video_start_with + 1
+        # Правильное вычисление video_count для отрицательных индексов
+        if video_start_with < 0 and video_end_with < 0:
+            # Для отрицательных индексов: -1 до -7 = 7 элементов (от последнего к 7-му с конца)
+            video_count = abs(video_end_with) - abs(video_start_with) + 1
+        elif video_start_with > video_end_with:
+            # Для обратного порядка: считаем абсолютную разницу
+            video_count = abs(video_start_with - video_end_with) + 1
+        else:
+            # Для прямого порядка: обычная формула
+            video_count = video_end_with - video_start_with + 1
         if playlist_name:
             with playlist_errors_lock:
                 error_key = f"{user_id}_{playlist_name}"

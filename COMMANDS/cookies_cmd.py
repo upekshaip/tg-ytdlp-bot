@@ -1161,8 +1161,9 @@ def test_youtube_cookies(cookie_file_path: str) -> bool:
             'no_warnings': True,
             'skip_download': True,
             'noplaylist': True,
-            'format': 'best',
-            'ignore_no_formats_error': False,  # Changed to False to catch format errors
+            # Don't specify format to avoid "Requested format is not available" errors
+            # We only need to check if info can be extracted, not if formats can be processed
+            'ignore_no_formats_error': True,  # Ignore format errors - we only check if info is extractable
             'cookiefile': cookie_file_path,
             'extractor_args': {
                 'youtube': {'player_client': ['tv']}
@@ -1191,10 +1192,22 @@ def test_youtube_cookies(cookie_file_path: str) -> bool:
             return False
             
         # Проверяем, что есть доступные форматы для скачивания
-        if 'formats' not in info or not info['formats']:
+        # Note: formats might be empty if nsig extraction failed, but that's not necessarily a cookie issue
+        # We check if formats exist, but don't fail if they're empty - we rely on other fields instead
+        formats = info.get('formats', [])
+        if not formats:
+            # If no formats but we have other required fields, cookies might still be working
+            # This can happen if nsig extraction fails (not a cookie issue)
             logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_NO_FORMATS_LOG_MSG.format(cookie_file_path=cookie_file_path))
             logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_INFO_KEYS_LOG_MSG.format(info_keys=list(info.keys())))
-            return False
+            # Don't fail immediately - check if we have enough info to consider cookies valid
+            # If we have title, duration, uploader, etc., cookies are likely working
+            if not all(field in info and info[field] for field in ['title', 'duration', 'uploader']):
+                return False
+            # If we have basic info but no formats, it might be a format extraction issue, not cookie issue
+            # Log warning but don't fail - cookies might still be valid
+            logger.warning(f"Cookies test: No formats available but basic info extracted - might be format extraction issue, not cookie issue")
+            # Continue to check other fields
             
         # Проверяем качество полученной информации
         title = info.get('title', '')
@@ -1211,12 +1224,18 @@ def test_youtube_cookies(cookie_file_path: str) -> bool:
             return False
             
         # Проверяем количество форматов (должно быть достаточно для выбора)
-        formats_count = len(info['formats'])
-        if formats_count and formats_count < 3:  # Минимум 3 формата для выбора
+        # Only check if formats exist - if they don't, we already handled that above
+        formats_count = len(formats) if formats else 0
+        if formats_count > 0 and formats_count < 3:  # Минимум 3 формата для выбора (только если форматы есть)
             logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_TOO_FEW_FORMATS_LOG_MSG.format(formats_count=formats_count, cookie_file_path=cookie_file_path))
-            logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_AVAILABLE_FORMATS_LOG_MSG.format(available_formats=[f.get('format_id', 'unknown') for f in info['formats'][:5]]))
-            logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_ALL_FORMAT_IDS_LOG_MSG.format(all_format_ids=[f.get('format_id', 'unknown') for f in info['formats']]))
-            return False
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_AVAILABLE_FORMATS_LOG_MSG.format(available_formats=[f.get('format_id', 'unknown') for f in formats[:5]]))
+            logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_ALL_FORMAT_IDS_LOG_MSG.format(all_format_ids=[f.get('format_id', 'unknown') for f in formats]))
+            # If we have formats but too few, it might still be a cookie issue
+            # But if we have all required fields, cookies are likely working
+            if not all(field in info and info[field] for field in ['title', 'duration', 'uploader', 'view_count', 'like_count', 'upload_date']):
+                return False
+            # If we have all required fields, cookies are working even if formats are limited
+            logger.info(f"Cookies test: Few formats ({formats_count}) but all required fields present - cookies likely valid")
             
         logger.info(LoggerMsg.COOKIES_YOUTUBE_TEST_PASSED_LOG_MSG.format(cookie_file_path=cookie_file_path, formats_count=formats_count))
         logger.info(LoggerMsg.COOKIES_YOUTUBE_TEST_TITLE_LOG_MSG.format(title=title))
@@ -1225,7 +1244,10 @@ def test_youtube_cookies(cookie_file_path: str) -> bool:
         logger.info(LoggerMsg.COOKIES_YOUTUBE_TEST_VIEW_COUNT_LOG_MSG.format(view_count=info.get('view_count', 'N/A')))
         logger.info(LoggerMsg.COOKIES_YOUTUBE_TEST_UPLOAD_DATE_LOG_MSG.format(upload_date=info.get('upload_date', 'N/A')))
         logger.info(LoggerMsg.COOKIES_YOUTUBE_TEST_LIKE_COUNT_LOG_MSG.format(like_count=info.get('like_count', 'N/A')))
-        logger.info(LoggerMsg.COOKIES_YOUTUBE_TEST_FORMAT_IDS_LOG_MSG.format(format_ids=[f.get('format_id', 'unknown') for f in info['formats'][:10]]))
+        if formats:
+            logger.info(LoggerMsg.COOKIES_YOUTUBE_TEST_FORMAT_IDS_LOG_MSG.format(format_ids=[f.get('format_id', 'unknown') for f in formats[:10]]))
+        else:
+            logger.info("Cookies test: No formats available but all required fields present - cookies are valid")
         return True
             
     except yt_dlp.utils.DownloadError as e:
@@ -1240,10 +1262,42 @@ def test_youtube_cookies(cookie_file_path: str) -> bool:
             return False
         elif any(keyword in error_text for keyword in [
             'sign in', 'login required', 'age restricted', 'cookies', 
-            'authentication', 'format not found', 'no formats found', 'unable to extract'
+            'authentication', 'unable to extract'
         ]):
             logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_AUTH_ERROR_LOG_MSG.format(e=e))
             return False
+        elif 'format not found' in error_text or 'no formats found' in error_text or 'requested format is not available' in error_text:
+            # Format errors might be due to nsig extraction issues, not necessarily cookie issues
+            # Try to extract info without format selection to verify cookies
+            logger.warning(f"Format error detected (might be nsig issue, not cookie issue): {e}")
+            # Try again without format selection
+            try:
+                ydl_opts_no_format = {
+                    'quiet': True,
+                    'no_warnings': True,
+                    'skip_download': True,
+                    'noplaylist': True,
+                    'ignore_no_formats_error': True,
+                    'cookiefile': cookie_file_path,
+                    'extractor_args': {
+                        'youtube': {'player_client': ['tv']}
+                    },
+                    'retries': 2,
+                    'extractor_retries': 1,
+                }
+                ydl_opts_no_format = add_pot_to_ytdl_opts(ydl_opts_no_format, test_url)
+                with yt_dlp.YoutubeDL(ydl_opts_no_format) as ydl:
+                    info_retry = ydl.extract_info(test_url, download=False)
+                # Check if we can get basic info
+                if info_retry and info_retry.get('title') and info_retry.get('duration'):
+                    logger.info(f"Cookies test: Format error but basic info extractable - cookies are valid")
+                    return True
+                else:
+                    logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_AUTH_ERROR_LOG_MSG.format(e=e))
+                    return False
+            except Exception as retry_e:
+                logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_AUTH_ERROR_LOG_MSG.format(e=retry_e))
+                return False
         else:
             # Other errors may not be related to cookies
             logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_OTHER_ERROR_LOG_MSG.format(e=e))

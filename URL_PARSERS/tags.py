@@ -154,11 +154,12 @@ def clean_telegram_tag(tag: str) -> str:
 # --- a function for extracting the URL, the range and tags from the text ---
 def extract_url_range_tags(text: str):
     # This function now always returns the full original download link
+    logger.info(f"🔍 [DEBUG] extract_url_range_tags вызвана с text='{text}'")
     if not isinstance(text, str):
         return None, 1, 1, None, [], '', None
     
-    #  Сначала ищем формат /img start-end URL
-    img_range_match = re.search(r'/img\s+(\d+)-(\d+)\s+(https?://[^\s\*#]+)', text)
+    #  Сначала ищем формат /img start-end URL (поддерживаем отрицательные числа)
+    img_range_match = re.search(r'/img\s+(-?\d+)-(-?\d+)\s+(https?://[^\s\*#]+)', text)
     if img_range_match:
         video_start_with = int(img_range_match.group(1))
         video_end_with = int(img_range_match.group(2))
@@ -166,32 +167,37 @@ def extract_url_range_tags(text: str):
         after_url = text[img_range_match.end():]
         after_range = after_url
     else:
-        # First, try to find URL with range pattern *start*end at the end
-        url_with_range_match = re.search(r'(https?://[^\s\*#]+)\*([0-9]+)\*([0-9]+)', text)
+        # First, try to find URL with range pattern *start*end at the end (поддерживаем отрицательные числа)
+        # Используем более точный regex, который правильно парсит URL с параметрами и диапазоном
+        url_with_range_match = re.search(r'(https?://[^\s\*#]+)\*(-?\d+)\*(-?\d+)', text)
         if url_with_range_match:
             url = url_with_range_match.group(1)
             video_start_with = int(url_with_range_match.group(2))
             video_end_with = int(url_with_range_match.group(3))
             after_url = text[url_with_range_match.end():]
             after_range = after_url
+            logger.info(f"🔍 [DEBUG] extract_url_range_tags: найдено URL с диапазоном: url='{url}', video_start_with={video_start_with}, video_end_with={video_end_with}")
         else:
             # Fallback to original logic
             url_match = re.search(r'https?://[^\s\*#]+', text)
             if not url_match:
+                logger.info(f"🔍 [DEBUG] extract_url_range_tags: URL не найден в тексте: '{text}'")
                 return None, 1, 1, None, [], '', None
             url = url_match.group(0)
 
             after_url = text[url_match.end():]
-            # Range
-            range_match = re.match(r'\*([0-9]+)\*([0-9]+)', after_url)
+            # Range (поддерживаем отрицательные числа)
+            range_match = re.match(r'\*(-?\d+)\*(-?\d+)', after_url)
             if range_match:
                 video_start_with = int(range_match.group(1))
                 video_end_with = int(range_match.group(2))
                 after_range = after_url[range_match.end():]
+                logger.info(f"🔍 [DEBUG] extract_url_range_tags: найдено URL с диапазоном (fallback): url='{url}', video_start_with={video_start_with}, video_end_with={video_end_with}")
             else:
                 video_start_with = 1
                 video_end_with = 1
                 after_range = after_url
+                logger.info(f"🔍 [DEBUG] extract_url_range_tags: диапазон не найден, используем значения по умолчанию: video_start_with={video_start_with}, video_end_with={video_end_with}")
     playlist_name = None
     playlist_match = re.match(r'\*([^\s\*#]+)', after_range)
     if playlist_match:

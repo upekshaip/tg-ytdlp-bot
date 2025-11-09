@@ -304,7 +304,17 @@ def check_playlist_range_limits(url, video_start_with, video_end_with, app, mess
     except Exception:
         pass
 
-    count = video_end_with - video_start_with + 1
+    # Для отрицательных индексов используем абсолютное значение разницы
+    if video_start_with < 0 and video_end_with < 0:
+        # Для отрицательных индексов: -1 до -100 = 100 элементов
+        count = abs(video_start_with) - abs(video_end_with) + 1
+    elif video_start_with > video_end_with:
+        # Для обратного порядка: считаем абсолютную разницу
+        count = abs(video_start_with - video_end_with) + 1
+    else:
+        # Для прямого порядка: обычная формула
+        count = video_end_with - video_start_with + 1
+    
     if count and count > max_count:
         # Determine command type based on URL
         if 'tiktok.com' in url_l:
