@@ -1,7 +1,7 @@
 # Global app instance
 # This module provides a global app instance that can be imported by other modules
 
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 
 app = None
 
@@ -15,11 +15,13 @@ def get_app():
     return app
 
 def get_app_lazy():
+    messages = safe_get_messages(None)
     """Get app instance with lazy loading - returns a proxy that will work when app is set"""
     class AppProxy:
         def __getattr__(self, name):
+            messages = safe_get_messages(None)
             if app is None:
-                raise RuntimeError(get_messages_instance().APP_INSTANCE_NOT_INITIALIZED_MSG.format(name=name))
+                raise RuntimeError(messages.APP_INSTANCE_NOT_INITIALIZED_MSG.format(name=name))
             return getattr(app, name)
     
     return AppProxy() 

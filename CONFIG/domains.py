@@ -1,4 +1,4 @@
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages
 # Domains Configuration
 
 class DomainsConfig(object):
@@ -42,7 +42,13 @@ class DomainsConfig(object):
     GALLERYDL_FALLBACK_DOMAINS = [
         # Social media platforms largely covered by gallery-dl
         'instagram.com',
-    ]    
+    ]
+    
+    YTDLP_ONLY_DOMAINS = [
+        # Video platforms that should only use yt-dlp (no gallery-dl fallback)
+        'youtube.com', 'youtu.be', 'm.youtube.com', 'www.youtube.com',
+        'music.youtube.com', 'gaming.youtube.com'
+    ]
     
     # --- Whitelist of domains that are not considered porn ---
     WHITELIST = [
@@ -76,13 +82,13 @@ class DomainsConfig(object):
         # Other secure domains can be added
     ]
     
-    # Domains that don't work well with match_filter (get_messages_instance().STREAM_get_messages_instance().STREAM_DURATION_MSG.format(duration=duration)_MSG.format(get_messages_instance().STREAM_DURATION_MSG.format(duration=duration)=get_messages_instance().STREAM_DURATION_MSG.format(duration=duration))/live detection issues)
+    # Domains that don't work well with match_filter (messages.STREAM_messages.STREAM_DURATION_MSG.format(duration=duration)_MSG.format(messages.STREAM_DURATION_MSG.format(duration=duration)=messages.STREAM_DURATION_MSG.format(duration=duration))/live detection issues)
     NO_FILTER_DOMAINS = [
         'bashlinker.alenwalak.workers.dev',
         'cdn.indexer.eu.org',
         'a-tushar-82q-fef07c6bf20a.herokuapp.com',
         'file-to-link-632f24ac9728.herokuapp.com'
-        # Add other domains that have issues with get_messages_instance().STREAM_get_messages_instance().STREAM_DURATION_MSG.format(duration=duration)_MSG.format(get_messages_instance().STREAM_DURATION_MSG.format(duration=duration)=get_messages_instance().STREAM_DURATION_MSG.format(duration=duration))/live detection
+        # Add other domains that have issues with messages.STREAM_messages.STREAM_DURATION_MSG.format(duration=duration)_MSG.format(messages.STREAM_DURATION_MSG.format(duration=duration)=messages.STREAM_DURATION_MSG.format(duration=duration))/live detection
     ]
       
     # TikTok Domain List

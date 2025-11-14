@@ -2,7 +2,7 @@
 import re
 from typing import Tuple
 from CONFIG.config import Config
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 from HELPERS.app_instance import get_app
 from HELPERS.logger import send_to_logger
 from pyrogram import filters
@@ -12,6 +12,7 @@ app = get_app()
 
 # Called from url_distractor - no decorator needed
 def caption_editor(app, message):
+    messages = safe_get_messages(message.chat.id)
     # Проверяем, что сообщение является ответом на видео
     if not message.reply_to_message or not message.reply_to_message.video:
         return
@@ -21,7 +22,7 @@ def caption_editor(app, message):
         user_id = message.chat.id
         caption = message.text
         video_file_id = message.reply_to_message.video.file_id
-        info_of_video = get_messages_instance().CAPTION_INFO_OF_VIDEO_MSG.format(caption=caption, user_id=user_id, users_name=users_name, video_file_id=video_file_id)
+        info_of_video = safe_get_messages(user_id).CAPTION_INFO_OF_VIDEO_MSG.format(caption=caption, user_id=user_id, users_name=users_name, video_file_id=video_file_id)
         # Sending to logs
         send_to_logger(message, info_of_video)
         app.send_video(user_id, video_file_id, caption=caption)
@@ -30,12 +31,12 @@ def caption_editor(app, message):
     except AttributeError as e:
         # Логируем ошибку, но не прерываем работу бота
         from HELPERS.logger import logger
-        logger.error(get_messages_instance().CAPTION_ERROR_IN_CAPTION_EDITOR_MSG.format(error=e))
+        logger.error(safe_get_messages(user_id).CAPTION_ERROR_IN_CAPTION_EDITOR_MSG.format(error=e))
         return
     except Exception as e:
         # Логируем любые другие ошибки
         from HELPERS.logger import logger
-        logger.error(get_messages_instance().CAPTION_UNEXPECTED_ERROR_IN_CAPTION_EDITOR_MSG.format(error=e))
+        logger.error(safe_get_messages(user_id).CAPTION_UNEXPECTED_ERROR_IN_CAPTION_EDITOR_MSG.format(error=e))
         return
 
 
@@ -44,11 +45,15 @@ def truncate_caption(
     description: str,
     url: str,
     tags_text: str = '',
-    max_length: int = 1000  # Reduced from 1024 to be safe with encoding issues
+    max_length: int = 1000,  # Reduced from 1024 to be safe with encoding issues
+    user_id: int = None
 ) -> Tuple[str, str, str, str, str, bool]:
     """
     Returns: (title_html, pre_block, blockquote_content, tags_block, link_block, was_truncated)
     """
+    # Get messages instance
+    messages = safe_get_messages(user_id)
+    
     title_html = f'<b>{title}</b>' if title else ''
     # Pattern for finding timestamps at the beginning of a line (00:00, 0:00:00, 0.00, etc.)
     timestamp_pattern = r'^\s*(\d{1,2}:\d{2}(?::\d{2})?|\d{1,2}\.\d{2}(?:\.\d{2})?)\s+.*'
@@ -71,7 +76,7 @@ def truncate_caption(
     # --- Add bot name next to the link ---
     bot_name = getattr(Config, 'BOT_NAME', None) or 'bot'
     bot_mention = f' @{bot_name}' if not bot_name.startswith('@') else f' {bot_name}'
-    link_block = get_messages_instance().CAPTION_VIDEO_URL_LINK_MSG.format(url=url, bot_mention=bot_mention)
+    link_block = safe_get_messages(user_id).CAPTION_VIDEO_URL_LINK_MSG.format(url=url, bot_mention=bot_mention)
     
     was_truncated = False
     
@@ -87,7 +92,7 @@ def truncate_caption(
     blockquote_limit = max_length - overhead - blockquote_overhead
     
     # Ensure we have some space for content
-    if blockquote_limit <= 0:
+    if blockquote_limit and blockquote_limit <= 0:
         # If no space for blockquote, truncate everything except essential parts
         if title_html:
             title_html = title_html[:max_length-10] + '...'
@@ -102,10 +107,10 @@ def truncate_caption(
 
     # Final check and possible truncation of pre_block
     current_length = overhead + len(blockquote_content) + blockquote_overhead
-    if current_length > max_length:
+    if current_length and current_length > max_length:
         # Calculate how much space we can give to pre_block
         pre_block_limit = max_length - (overhead - len(pre_block_str) - 1) - len(blockquote_content) - blockquote_overhead
-        if pre_block_limit > 0 and pre_block_limit < len(pre_block_str):
+        if pre_block_limit and pre_block_limit > 0 and pre_block_limit < len(pre_block_str):
             pre_block_str = pre_block_str[:pre_block_limit-4] + '...'
             was_truncated = True
         else: # if even with truncated pre_block it does not fit, truncate everything

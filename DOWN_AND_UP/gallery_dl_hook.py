@@ -13,7 +13,7 @@ import gallery_dl
 import json
 
 from CONFIG.config import Config
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 from HELPERS.logger import logger, log_error_to_channel
 from HELPERS.filesystem_hlp import create_directory
 from URL_PARSERS.nocookie import is_no_cookie_domain
@@ -121,7 +121,8 @@ def _gdl_set(section: str, key: str, value):
         gallery_dl.config.set((section, key), value)
 
 
-def _apply_config(config: dict):
+def _apply_config(config: dict, user_id=None):
+    messages = safe_get_messages(user_id)
     """
     Apply dict config to gallery-dl config safely.
     Expects shape like:
@@ -133,14 +134,15 @@ def _apply_config(config: dict):
     for section, opts in config.items():
         if not isinstance(opts, dict):
             # Rare case: set a whole section value (not typical in gallery-dl)
-            logger.debug(get_messages_instance().GALLERY_DL_SKIPPING_NON_DICT_CONFIG_MSG.format(section=section, opts=opts))
+            logger.debug(safe_get_messages(user_id).GALLERY_DL_SKIPPING_NON_DICT_CONFIG_MSG.format(section=section, opts=opts))
             continue
         for key, value in opts.items():
-            logger.info(get_messages_instance().GALLERY_DL_SETTING_CONFIG_MSG.format(section=section, key=key, value=value))
+            logger.info(safe_get_messages(user_id).GALLERY_DL_SETTING_CONFIG_MSG.format(section=section, key=key, value=value))
             _gdl_set(section, key, value)
 
 
 def _prepare_user_cookies_and_proxy(url: str, user_id, use_proxy: bool, config: dict):
+    messages = safe_get_messages(user_id)
     """
     Fill cookies/proxy into config['extractor'] according to your logic.
     Also applies user's compatible yt-dlp arguments to gallery-dl.
@@ -152,15 +154,16 @@ def _prepare_user_cookies_and_proxy(url: str, user_id, use_proxy: bool, config: 
     user_gallery_dl_args = get_user_gallery_dl_args(user_id)
     if user_gallery_dl_args:
         # Deep merge user args into config
-        def deep_merge(target, source):
+        def deep_merge(target, source, user_id=None):
+            messages = safe_get_messages(user_id)
             """Recursively merge source dict into target dict"""
             for key, value in source.items():
                 if key in target and isinstance(target[key], dict) and isinstance(value, dict):
-                    deep_merge(target[key], value)
+                    deep_merge(target[key], value, user_id)
                 else:
                     target[key] = value
         
-        deep_merge(config, user_gallery_dl_args)
+        deep_merge(config, user_gallery_dl_args, user_id)
 
     user_dir = os.path.join("users", str(user_id))
     user_cookie_path = os.path.join(user_dir, "cookie.txt")
@@ -201,30 +204,52 @@ def _prepare_user_cookies_and_proxy(url: str, user_id, use_proxy: bool, config: 
         else:
             logger.info("[GALLERY_DL] Using user's custom User-Agent for Instagram")
 
-    # cookies - use CLI arguments for all sites (more reliable than config)
-    if os.path.exists(user_cookie_path):
-        # For all sites, we'll pass cookies via CLI arguments (more reliable)
-        logger.info(get_messages_instance().GALLERY_DL_USING_USER_COOKIES_MSG.format(cookie_path=user_cookie_path))
+    # cookies - use new caching system for non-YouTube sites
+    if not is_youtube_url(url):
+        # For non-YouTube URLs, use new cookie fallback system
+        from COMMANDS.cookies_cmd import get_cookie_cache_result, try_non_youtube_cookie_fallback
+        cache_result = get_cookie_cache_result(user_id, url)
         
-        if is_youtube_url(url):
-            logger.info(get_messages_instance().GALLERY_DL_USING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
+        if cache_result and cache_result['result']:
+            # Use cached successful cookies
+            config['extractor']['cookies'] = cache_result['cookie_path']
+            logger.info(f"Using cached cookies for gallery-dl non-YouTube URL: {url}")
+        elif os.path.exists(user_cookie_path):
+            config['extractor']['cookies'] = user_cookie_path
+            logger.info(safe_get_messages(user_id).GALLERY_DL_USING_USER_COOKIES_MSG.format(cookie_path=user_cookie_path))
+        else:
+            global_cookie_path = Config.COOKIE_FILE_PATH
+            if os.path.exists(global_cookie_path):
+                try:
+                    create_directory(user_dir)
+                    shutil.copy2(global_cookie_path, user_cookie_path)
+                    config['extractor']['cookies'] = user_cookie_path
+                    logger.info(safe_get_messages(user_id).GALLERY_DL_COPIED_GLOBAL_COOKIE_MSG.format(user_id=user_id))
+                    logger.info(safe_get_messages(user_id).GALLERY_DL_USING_COPIED_GLOBAL_COOKIES_MSG.format(cookie_path=user_cookie_path))
+                except Exception as e:
+                    logger.error(safe_get_messages(user_id).GALLERY_DL_FAILED_COPY_GLOBAL_COOKIE_MSG.format(user_id=user_id, error=e))
     else:
-        global_cookie_path = Config.COOKIE_FILE_PATH
-        if os.path.exists(global_cookie_path):
-            try:
-                create_directory(user_dir)
-                shutil.copy2(global_cookie_path, user_cookie_path)
-                logger.info(get_messages_instance().GALLERY_DL_COPIED_GLOBAL_COOKIE_MSG.format(user_id=user_id))
-                
-                # For all sites, we'll pass cookies via CLI arguments (more reliable)
-                logger.info(get_messages_instance().GALLERY_DL_USING_COPIED_GLOBAL_COOKIES_MSG.format(cookie_path=user_cookie_path))
-            except Exception as e:
-                logger.error(get_messages_instance().GALLERY_DL_FAILED_COPY_GLOBAL_COOKIE_MSG.format(user_id=user_id, error=e))
+        # For YouTube URLs, use existing logic
+        if os.path.exists(user_cookie_path):
+            config['extractor']['cookies'] = user_cookie_path
+            logger.info(safe_get_messages(user_id).GALLERY_DL_USING_USER_COOKIES_MSG.format(cookie_path=user_cookie_path))
+            logger.info(safe_get_messages(user_id).GALLERY_DL_USING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
+        else:
+            global_cookie_path = Config.COOKIE_FILE_PATH
+            if os.path.exists(global_cookie_path):
+                try:
+                    create_directory(user_dir)
+                    shutil.copy2(global_cookie_path, user_cookie_path)
+                    config['extractor']['cookies'] = user_cookie_path
+                    logger.info(safe_get_messages(user_id).GALLERY_DL_COPIED_GLOBAL_COOKIE_MSG.format(user_id=user_id))
+                    logger.info(safe_get_messages(user_id).GALLERY_DL_USING_COPIED_GLOBAL_COOKIES_MSG.format(cookie_path=user_cookie_path))
+                except Exception as e:
+                    logger.error(safe_get_messages(user_id).GALLERY_DL_FAILED_COPY_GLOBAL_COOKIE_MSG.format(user_id=user_id, error=e))
 
     # no-cookies domains
     if is_no_cookie_domain(url):
         config['extractor']['cookies'] = None
-        logger.info(get_messages_instance().GALLERY_DL_USING_NO_COOKIES_MSG.format(url=url))
+        logger.info(safe_get_messages(user_id).GALLERY_DL_USING_NO_COOKIES_MSG.format(url=url))
 
     # proxy
     if use_proxy:
@@ -233,7 +258,7 @@ def _prepare_user_cookies_and_proxy(url: str, user_id, use_proxy: bool, config: 
             proxy_config = get_proxy_config()
         except Exception as e:
             proxy_config = None
-            logger.warning(get_messages_instance().GALLERY_DL_PROXY_REQUESTED_FAILED_MSG.format(error=e))
+            logger.warning(safe_get_messages(user_id).GALLERY_DL_PROXY_REQUESTED_FAILED_MSG.format(error=e))
 
         if proxy_config and 'type' in proxy_config and 'ip' in proxy_config and 'port' in proxy_config:
             ptype = proxy_config['type']
@@ -248,9 +273,9 @@ def _prepare_user_cookies_and_proxy(url: str, user_id, use_proxy: bool, config: 
                 proxy_url = f"http://{auth}{proxy_config['ip']}:{proxy_config['port']}"
 
             config['extractor']['proxy'] = proxy_url
-            logger.info(get_messages_instance().GALLERY_DL_FORCE_USING_PROXY_MSG.format(proxy_url=proxy_url))
+            logger.info(safe_get_messages(user_id).GALLERY_DL_FORCE_USING_PROXY_MSG.format(proxy_url=proxy_url))
         else:
-            logger.warning(get_messages_instance().GALLERY_DL_PROXY_CONFIG_INCOMPLETE_MSG)
+            logger.warning(safe_get_messages(user_id).GALLERY_DL_PROXY_CONFIG_INCOMPLETE_MSG)
     else:
         # Domain-based proxy logic from your helper
         try:
@@ -259,12 +284,13 @@ def _prepare_user_cookies_and_proxy(url: str, user_id, use_proxy: bool, config: 
             if new_config is not None:
                 config = new_config
         except Exception as e:
-            logger.warning(get_messages_instance().GALLERY_DL_PROXY_HELPER_FAILED_MSG.format(error=e))
+            logger.warning(safe_get_messages(user_id).GALLERY_DL_PROXY_HELPER_FAILED_MSG.format(error=e))
 
     return config
 
 
-def _first_info_from_items(items_iter):
+def _first_info_from_items(items_iter, user_id=None):
+    messages = safe_get_messages(user_id)
     """
     Parse gallery-dl extractor items() stream and return first meaningful info dict.
     The stream yields tuples like:
@@ -278,12 +304,12 @@ def _first_info_from_items(items_iter):
     info = None
     fallback = {}
 
-    logger.info(get_messages_instance().GALLERY_DL_PARSING_EXTRACTOR_ITEMS_MSG)
+    logger.info(safe_get_messages(user_id).GALLERY_DL_PARSING_EXTRACTOR_ITEMS_MSG)
     item_count = 0
     
     for it in items_iter:
         item_count += 1
-        logger.info(get_messages_instance().GALLERY_DL_ITEM_COUNT_MSG.format(count=item_count, item=it))
+        logger.info(safe_get_messages(user_id).GALLERY_DL_ITEM_COUNT_MSG.format(count=item_count, item=it))
         
         if not isinstance(it, tuple) or not it:
             continue
@@ -292,7 +318,7 @@ def _first_info_from_items(items_iter):
         # Tag 2 = metadata (post info)
         if tag == 2 and len(it) > 1 and isinstance(it[1], dict):
             info = it[1]
-            logger.info(get_messages_instance().GALLERY_DL_FOUND_METADATA_TAG2_MSG.format(info=info))
+            logger.info(safe_get_messages(user_id).GALLERY_DL_FOUND_METADATA_TAG2_MSG.format(info=info))
             break
         # Tag 3 = URL with metadata
         elif tag == 3 and len(it) > 2:
@@ -301,34 +327,35 @@ def _first_info_from_items(items_iter):
             if "url" not in fallback:
                 fallback["url"] = url
                 fallback.update(metadata)
-                logger.info(get_messages_instance().GALLERY_DL_FOUND_URL_TAG3_MSG.format(url=url, metadata=metadata))
+                logger.info(safe_get_messages(user_id).GALLERY_DL_FOUND_URL_TAG3_MSG.format(url=url, metadata=metadata))
         # Legacy string tags for compatibility
         elif tag in ("metadata", "gallery", "result"):
             if len(it) > 1 and isinstance(it[1], dict):
                 info = it[1]
-                logger.info(get_messages_instance().GALLERY_DL_FOUND_METADATA_LEGACY_MSG.format(info=info))
+                logger.info(safe_get_messages(user_id).GALLERY_DL_FOUND_METADATA_LEGACY_MSG.format(info=info))
                 break
         elif tag == "url" and len(it) > 1:
             if "url" not in fallback:
                 fallback["url"] = it[1]
-                logger.info(get_messages_instance().GALLERY_DL_FOUND_URL_LEGACY_MSG.format(url=it[1]))
+                logger.info(safe_get_messages(user_id).GALLERY_DL_FOUND_URL_LEGACY_MSG.format(url=it[1]))
         elif tag == "filename" and len(it) > 1:
             fallback["filename"] = it[1]
-            logger.info(get_messages_instance().GALLERY_DL_FOUND_FILENAME_MSG.format(filename=it[1]))
+            logger.info(safe_get_messages(user_id).GALLERY_DL_FOUND_FILENAME_MSG.format(filename=it[1]))
         elif tag == "directory" and len(it) > 1:
             fallback["directory"] = it[1]
-            logger.info(get_messages_instance().GALLERY_DL_FOUND_DIRECTORY_MSG.format(directory=it[1]))
+            logger.info(safe_get_messages(user_id).GALLERY_DL_FOUND_DIRECTORY_MSG.format(directory=it[1]))
         elif tag == "extension" and len(it) > 1:
             fallback["extension"] = it[1]
-            logger.info(get_messages_instance().GALLERY_DL_FOUND_EXTENSION_MSG.format(extension=it[1]))
+            logger.info(safe_get_messages(user_id).GALLERY_DL_FOUND_EXTENSION_MSG.format(extension=it[1]))
 
-    logger.info(get_messages_instance().GALLERY_DL_PARSED_ITEMS_MSG.format(count=item_count, info=info, fallback=fallback))
+    logger.info(safe_get_messages(user_id).GALLERY_DL_PARSED_ITEMS_MSG.format(count=item_count, info=info, fallback=fallback))
     return info or (fallback if fallback else None)
 
 
 # ---------- Public API ----------
 
 def get_image_info(url: str, user_id=None, use_proxy: bool = False):
+    messages = safe_get_messages(user_id)
     """
     Return first metadata dict for URL (or None).
     Works across gallery-dl versions (Extractor API -> MetadataJob).
@@ -347,69 +374,76 @@ def get_image_info(url: str, user_id=None, use_proxy: bool = False):
     config = _prepare_user_cookies_and_proxy(url, user_id, use_proxy, config)
 
     try:
-        logger.info(get_messages_instance().GALLERY_DL_SETTING_CONFIG_MSG2.format(config=config))
-        _apply_config(config)
+        logger.info(safe_get_messages(user_id).GALLERY_DL_SETTING_CONFIG_MSG2.format(config=config))
+        _apply_config(config, user_id)
 
         # ---- Strategy A: extractor.find + items() (no downloads) ----
         try:
-            logger.info(get_messages_instance().GALLERY_DL_TRYING_STRATEGY_A_MSG)
+            logger.info(safe_get_messages(user_id).GALLERY_DL_TRYING_STRATEGY_A_MSG)
             ex_find = getattr(gallery_dl, "extractor", None)
             if ex_find is None:
-                raise AttributeError(get_messages_instance().GALLERY_DL_EXTRACTOR_MODULE_NOT_FOUND_MSG)
+                raise AttributeError(safe_get_messages(user_id).GALLERY_DL_EXTRACTOR_MODULE_NOT_FOUND_MSG)
 
             find_fn = getattr(ex_find, "find", None)
             if find_fn is None:
-                raise AttributeError(get_messages_instance().GALLERY_DL_EXTRACTOR_FIND_NOT_AVAILABLE_MSG)
+                raise AttributeError(safe_get_messages(user_id).GALLERY_DL_EXTRACTOR_FIND_NOT_AVAILABLE_MSG)
 
-            logger.info(get_messages_instance().GALLERY_DL_CALLING_EXTRACTOR_FIND_MSG.format(url=url))
+            logger.info(safe_get_messages(user_id).GALLERY_DL_CALLING_EXTRACTOR_FIND_MSG.format(url=url))
             extractor = find_fn(url)
             if extractor is None:
-                raise RuntimeError(get_messages_instance().GALLERY_DL_NO_EXTRACTOR_MATCHED_MSG)
+                raise RuntimeError(safe_get_messages(user_id).GALLERY_DL_NO_EXTRACTOR_MATCHED_MSG)
 
             # Try to set cookies on the extractor if it has the attribute
             if hasattr(extractor, 'cookies') and config.get('extractor', {}).get('cookies'):
                 try:
                     cookie_path = config['extractor']['cookies']
                     if os.path.exists(cookie_path):
-                        logger.info(get_messages_instance().GALLERY_DL_SETTING_COOKIES_ON_EXTRACTOR_MSG.format(cookie_path=cookie_path))
+                        logger.info(safe_get_messages(user_id).GALLERY_DL_SETTING_COOKIES_ON_EXTRACTOR_MSG.format(cookie_path=cookie_path))
                         # Try different ways to set cookies
                         if hasattr(extractor, 'set_cookies'):
                             extractor.set_cookies(cookie_path)
                         elif hasattr(extractor, 'cookies'):
                             extractor.cookies = cookie_path
                 except Exception as cookie_e:
-                    logger.warning(get_messages_instance().GALLERY_DL_FAILED_SET_COOKIES_ON_EXTRACTOR_MSG.format(error=cookie_e))
+                    logger.warning(safe_get_messages(user_id).GALLERY_DL_FAILED_SET_COOKIES_ON_EXTRACTOR_MSG.format(error=cookie_e))
 
-            logger.info(get_messages_instance().GALLERY_DL_EXTRACTOR_FOUND_CALLING_ITEMS_MSG)
+            logger.info(safe_get_messages(user_id).GALLERY_DL_EXTRACTOR_FOUND_CALLING_ITEMS_MSG)
             items_iter = extractor.items()
-            info = _first_info_from_items(items_iter)
+            info = _first_info_from_items(items_iter, user_id)
             if info:
-                logger.info(get_messages_instance().GALLERY_DL_STRATEGY_A_SUCCEEDED_MSG.format(info=info))
+                logger.info(safe_get_messages(user_id).GALLERY_DL_STRATEGY_A_SUCCEEDED_MSG.format(info=info))
                 return info
             else:
-                logger.warning(get_messages_instance().GALLERY_DL_STRATEGY_A_NO_VALID_INFO_MSG)
+                logger.warning(safe_get_messages(user_id).GALLERY_DL_STRATEGY_A_NO_VALID_INFO_MSG)
 
         except Exception as inner_e:
-            logger.warning(get_messages_instance().GALLERY_DL_STRATEGY_A_FAILED_MSG.format(error=inner_e))
+            logger.warning(safe_get_messages(user_id).GALLERY_DL_STRATEGY_A_FAILED_MSG.format(error=inner_e))
 
         # Fallback: use --get-urls count only (no downloads)
         try:
             total = get_total_media_count(url, user_id, use_proxy)
             if isinstance(total, int) and total > 0:
-                logger.info(get_messages_instance().GALLERY_DL_FALLBACK_METADATA_MSG.format(total=total))
+                logger.info(safe_get_messages(user_id).GALLERY_DL_FALLBACK_METADATA_MSG.format(total=total))
                 return {"total": total, "title": "Unknown"}
         except Exception as _:
             pass
 
-        logger.error(get_messages_instance().GALLERY_DL_ALL_STRATEGIES_FAILED_MSG)
+        try:
+            logger.error(safe_get_messages(user_id).GALLERY_DL_ALL_STRATEGIES_FAILED_MSG)
+        except Exception as log_e:
+            logger.error(f"All strategies failed to obtain metadata (log error: {log_e})")
         return None
 
     except Exception as e:
-        logger.error(get_messages_instance().GALLERY_DL_FAILED_EXTRACT_IMAGE_INFO_MSG.format(error=e))
+        try:
+            logger.error(safe_get_messages(user_id).GALLERY_DL_FAILED_EXTRACT_IMAGE_INFO_MSG.format(error=e))
+        except Exception as log_e:
+            logger.error(f"Failed to extract image info: {e} (log error: {log_e})")
         return None
 
 
 def download_image(url: str, user_id=None, use_proxy: bool = False, output_dir: str = None):
+    messages = safe_get_messages(user_id)
     """
     Download using gallery-dl DownloadJob, return list of paths to downloaded files or None.
     """
@@ -435,17 +469,17 @@ def download_image(url: str, user_id=None, use_proxy: bool = False, output_dir: 
     config = _prepare_user_cookies_and_proxy(url, user_id, use_proxy, config)
 
     try:
-        logger.info(get_messages_instance().GALLERY_DL_SETTING_CONFIG_MSG2.format(config=config))
-        _apply_config(config)
+        logger.info(safe_get_messages(user_id).GALLERY_DL_SETTING_CONFIG_MSG2.format(config=config))
+        _apply_config(config, user_id)
 
         # Use DownloadJob (CLI-equivalent)
         job_mod = getattr(gallery_dl, "job", None)
         if job_mod is None:
-            raise RuntimeError(get_messages_instance().GALLERY_DL_JOB_MODULE_NOT_FOUND_MSG)
+            raise RuntimeError(safe_get_messages(user_id).GALLERY_DL_JOB_MODULE_NOT_FOUND_MSG)
 
         DownloadJob = getattr(job_mod, "DownloadJob", None)
         if DownloadJob is None:
-            raise RuntimeError(get_messages_instance().GALLERY_DL_DOWNLOAD_JOB_NOT_AVAILABLE_MSG)
+            raise RuntimeError(safe_get_messages(user_id).GALLERY_DL_DOWNLOAD_JOB_NOT_AVAILABLE_MSG)
 
         job = DownloadJob(url)
         status = job.run()
@@ -455,13 +489,13 @@ def download_image(url: str, user_id=None, use_proxy: bool = False, output_dir: 
             # Ищем файлы в указанной папке или в стандартной папке gallery-dl
             downloaded_files = []
             current_time = time.time()
-            logger.info(get_messages_instance().GALLERY_DL_SEARCHING_DOWNLOADED_FILES_MSG)
+            logger.info(safe_get_messages(user_id).GALLERY_DL_SEARCHING_DOWNLOADED_FILES_MSG)
 
             # Сначала пытаемся найти файлы по именам из extractor
             try:
                 extractor = getattr(job, "extractor", None)
                 if extractor is not None:
-                    logger.info(get_messages_instance().GALLERY_DL_TRYING_FIND_FILES_BY_NAMES_MSG)
+                    logger.info(safe_get_messages(user_id).GALLERY_DL_TRYING_FIND_FILES_BY_NAMES_MSG)
                     for item in extractor.items():
                         if isinstance(item, tuple) and len(item) >= 2:
                             tag = item[0]
@@ -530,7 +564,7 @@ def download_image(url: str, user_id=None, use_proxy: bool = False, output_dir: 
                                 time_diff = current_time - file_time
                                 logger.info(f"Gallery-dl file: {file_path}, created: {file_time}, diff: {time_diff}s")
                                 # Check if file was created in the last 0.5 minutes
-                                if time_diff < 30:
+                                if time_diff and time_diff < 30:
                                     downloaded_files.append(file_path)
                                     logger.info(f"Found recently created file in {search_dir}: {file_path}")
 
@@ -610,7 +644,7 @@ def get_total_media_count(url: str, user_id=None, use_proxy: bool = False) -> in
                 # Count lines that contain media info (not just URLs)
                 lines = [ln for ln in result.stdout.splitlines() if ln.strip() and ('"url"' in ln or '"filename"' in ln or '"extension"' in ln)]
                 media_count = len(lines)
-                if media_count > 0:
+                if media_count and media_count > 0:
                     logger.info(f"Detected {media_count} total media items (images + videos)")
                     return media_count
                 else:
@@ -731,7 +765,7 @@ def _get_instagram_media_count(url: str, user_id, use_proxy: bool, cfg_path: str
                     media_count = len(lines)
                     logger.info(f"Instagram detected {media_count} media items via --get-urls")
                     # If still very few items, likely Instagram is blocking - return None to trigger manual input
-                    if media_count < 5:
+                    if media_count and media_count < 5:
                         logger.warning(f"Instagram returned only {media_count} items, likely blocked - suggesting manual input")
                         return None
                     return media_count
@@ -807,7 +841,7 @@ def download_image_range(url: str, range_expr: str, user_id=None, use_proxy: boo
         config["base-directory"] = output_dir
     config = _prepare_user_cookies_and_proxy(url, user_id, use_proxy, config)
     try:
-        _apply_config(config)
+        _apply_config(config, user_id)
         job_mod = getattr(gallery_dl, "job", None)
         if job_mod is None:
             raise RuntimeError("gallery_dl.job module not found (broken install?)")
@@ -823,7 +857,7 @@ def download_image_range(url: str, range_expr: str, user_id=None, use_proxy: boo
         
         # Check for fatal errors in exception message
         if _is_fatal_error(error_msg):
-            error_type = _get_error_type(error_msg)
+            error_type = _get_error_type(error_msg, user_id)
             error_response = f"{error_type}: {error_msg}"
             logger.error(f"Fatal error in gallery-dl Python API: {error_response}")
             
@@ -842,6 +876,15 @@ def _is_fatal_error(stderr_text: str) -> bool:
     """
     stderr_lower = stderr_text.lower()
     
+    # Instagram-specific errors that should be treated as fatal (handle early)
+    #  - extractor breakage: KeyError - 'data'
+    #  - authentication: 401 Unauthorized
+    if "instagram" in stderr_lower:
+        if "keyerror - 'data'" in stderr_lower or "keyerror: 'data'" in stderr_lower:
+            return True
+        if "401 unauthorized" in stderr_lower or "http 401" in stderr_lower or " 401 " in stderr_lower:
+            return True
+
     # Authentication errors
     if any(error in stderr_lower for error in [
         "401 unauthorized",
@@ -965,7 +1008,7 @@ def _is_fatal_error(stderr_text: str) -> bool:
     return False
 
 
-def _get_error_type(stderr_text: str) -> str:
+def _get_error_type(stderr_text: str, user_id=None) -> str:
     """
     Determine the type of error for better user messaging.
     Returns a human-readable error type.
@@ -977,7 +1020,7 @@ def _get_error_type(stderr_text: str) -> str:
         "401 unauthorized", "authentication failed", "login required", "access denied",
         "http redirect to login page", "redirect to login", "login page"
     ]):
-        return get_messages_instance().GALLERY_DL_AUTH_ERROR_MSG
+        return safe_get_messages(user_id).GALLERY_DL_AUTH_ERROR_MSG
     
     # Unknown errors - but NOT for social media platforms
     if "unknown error" in stderr_lower:
@@ -992,68 +1035,77 @@ def _get_error_type(stderr_text: str) -> str:
         for platform in social_media_platforms:
             if platform in stderr_lower:
                 return f"{platform.title()} account access error (non-fatal - continuing)"
-        return get_messages_instance().GALLERY_DL_UNKNOWN_ERROR_MSG
+        return safe_get_messages(user_id).GALLERY_DL_UNKNOWN_ERROR_MSG
+
+    # Instagram-specific errors that should be treated as fatal
+    if "instagram" in stderr_lower:
+        # KeyError - 'data' (upstream extractor change)
+        if "keyerror - 'data'" in stderr_lower or "keyerror: 'data'" in stderr_lower:
+            return safe_get_messages(user_id).GALLERY_DL_UNKNOWN_ERROR_MSG
+        # 401 Unauthorized - Instagram requires authentication
+        if "401 unauthorized" in stderr_lower or "401" in stderr_lower:
+            return safe_get_messages(user_id).GALLERY_DL_INSTAGRAM_AUTH_ERROR_MSG
     
     # Other critical errors that should always stop the process
     if any(error in stderr_lower for error in [
         "fatal error", "critical error", "unexpected error"
     ]):
-        return get_messages_instance().GALLERY_DL_UNKNOWN_ERROR_MSG
+        return safe_get_messages(user_id).GALLERY_DL_UNKNOWN_ERROR_MSG
     
     # Account/Profile errors
     if any(error in stderr_lower for error in [
         "account not found", "profile not found", "user not found", "page not found"
     ]):
-        return get_messages_instance().GALLERY_DL_ACCOUNT_NOT_FOUND_MSG
+        return safe_get_messages(user_id).GALLERY_DL_ACCOUNT_NOT_FOUND_MSG
     
     if any(error in stderr_lower for error in [
         "account suspended", "account banned", "account private", "profile private"
     ]):
-        return get_messages_instance().GALLERY_DL_ACCOUNT_UNAVAILABLE_MSG
+        return safe_get_messages(user_id).GALLERY_DL_ACCOUNT_UNAVAILABLE_MSG
     
     # Rate limiting errors
     if any(error in stderr_lower for error in [
         "rate limit exceeded", "too many requests", "429 too many requests", "quota exceeded"
     ]):
-        return get_messages_instance().GALLERY_DL_RATE_LIMIT_EXCEEDED_MSG
+        return safe_get_messages(user_id).GALLERY_DL_RATE_LIMIT_EXCEEDED_MSG
     
     # Network errors
     if any(error in stderr_lower for error in [
         "connection refused", "connection timeout", "network unreachable", "dns resolution failed"
     ]):
-        return get_messages_instance().GALLERY_DL_NETWORK_ERROR_MSG
+        return safe_get_messages(user_id).GALLERY_DL_NETWORK_ERROR_MSG
     
     # Content not available
     if any(error in stderr_lower for error in [
         "no media found", "no content available", "empty profile", "no posts found"
     ]):
-        return get_messages_instance().GALLERY_DL_CONTENT_UNAVAILABLE_MSG
+        return safe_get_messages(user_id).GALLERY_DL_CONTENT_UNAVAILABLE_MSG
     
     # Blocking/Geographic restrictions
     if any(error in stderr_lower for error in [
         "geoblocked", "region blocked", "country blocked", "ip blocked", "user agent blocked"
     ]):
-        return get_messages_instance().GALLERY_DL_GEOGRAPHIC_RESTRICTIONS_MSG
+        return safe_get_messages(user_id).GALLERY_DL_GEOGRAPHIC_RESTRICTIONS_MSG
     
     # Verification required
     if any(error in stderr_lower for error in [
         "captcha required", "verification required", "age verification required", "nsfw verification required"
     ]):
-        return get_messages_instance().GALLERY_DL_VERIFICATION_REQUIRED_MSG
+        return safe_get_messages(user_id).GALLERY_DL_VERIFICATION_REQUIRED_MSG
     
     # Legal/Policy violations
     if any(error in stderr_lower for error in [
         "terms of service violation", "copyright violation", "dmca takedown", "content removed"
     ]):
-        return get_messages_instance().GALLERY_DL_POLICY_VIOLATION_MSG
+        return safe_get_messages(user_id).GALLERY_DL_POLICY_VIOLATION_MSG
     
     # Account issues
     if any(error in stderr_lower for error in [
         "post deleted", "account deleted", "account terminated"
     ]):
-        return get_messages_instance().GALLERY_DL_ACCOUNT_UNAVAILABLE_MSG
+        return safe_get_messages(user_id).GALLERY_DL_ACCOUNT_UNAVAILABLE_MSG
     
-    return get_messages_instance().GALLERY_DL_UNKNOWN_ERROR_MSG
+    return safe_get_messages(user_id).GALLERY_DL_UNKNOWN_ERROR_MSG
 
 
 def download_image_range_cli(url: str, range_expr: str, user_id=None, use_proxy: bool = False, output_dir: str | None = None) -> bool | str:

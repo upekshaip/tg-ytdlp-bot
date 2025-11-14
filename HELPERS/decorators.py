@@ -8,7 +8,7 @@ import os
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger
 from HELPERS.safe_messeger import safe_send_message
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 
 def app_handler(func):
     """Decorator to automatically inject app instance"""
@@ -30,6 +30,7 @@ app = get_app()
 reply_keyboard_msg_ids = {}  # user_id: message_id
 
 def get_main_reply_keyboard(mode="2x3"):
+    messages = safe_get_messages(None)
     """Function for permanent reply-keyboard"""
     from pyrogram.types import ReplyKeyboardMarkup
     
@@ -39,9 +40,9 @@ def get_main_reply_keyboard(mode="2x3"):
         ]
     elif mode == "FULL":
         keyboard = [
-            [get_messages_instance().CLEAN_EMOJI, get_messages_instance().COOKIE_EMOJI, get_messages_instance().SETTINGS_EMOJI, get_messages_instance().PROXY_EMOJI, get_messages_instance().IMAGE_EMOJI, get_messages_instance().SEARCH_EMOJI, get_messages_instance().ARGS_EMOJI],
-            [get_messages_instance().VIDEO_EMOJI, get_messages_instance().USAGE_EMOJI, get_messages_instance().SPLIT_EMOJI, get_messages_instance().AUDIO_EMOJI, get_messages_instance().SUBTITLE_EMOJI, get_messages_instance().LANGUAGE_EMOJI, get_messages_instance().NSFW_EMOJI],
-            [get_messages_instance().TAG_EMOJI, get_messages_instance().HELP_EMOJI, get_messages_instance().LIST_EMOJI, get_messages_instance().PLAY_EMOJI, get_messages_instance().KEYBOARD_EMOJI, get_messages_instance().LINK_EMOJI, "🧾"]
+            [messages.CLEAN_EMOJI, messages.COOKIE_EMOJI, messages.SETTINGS_EMOJI, messages.PROXY_EMOJI, messages.IMAGE_EMOJI, messages.SEARCH_EMOJI, messages.ARGS_EMOJI],
+            [messages.VIDEO_EMOJI, messages.USAGE_EMOJI, messages.SPLIT_EMOJI, messages.AUDIO_EMOJI, messages.SUBTITLE_EMOJI, messages.LANGUAGE_EMOJI, messages.NSFW_EMOJI],
+            [messages.TAG_EMOJI, messages.HELP_EMOJI, messages.LIST_EMOJI, messages.PLAY_EMOJI, messages.KEYBOARD_EMOJI, messages.LINK_EMOJI, "🧾"]
         ]
     else:  # 2x3 mode (default)
         keyboard = [

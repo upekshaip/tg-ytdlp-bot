@@ -3,7 +3,7 @@ from urllib.parse import urlparse, parse_qs, urlencode
 import re
 import requests
 from CONFIG.config import Config
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 from HELPERS.logger import logger
 
 def youtube_to_short_url(url: str) -> str:
@@ -52,7 +52,7 @@ def is_youtube_url(url: str) -> bool:
     return 'youtube.com' in parsed.netloc or 'youtu.be' in parsed.netloc
 
 
-def extract_youtube_id(url: str) -> str:
+def extract_youtube_id(url: str, user_id=None) -> str:
     """
     It extracts YouTube Video ID from different link formats.
     """
@@ -66,7 +66,7 @@ def extract_youtube_id(url: str) -> str:
         m = re.search(pat, url)
         if m:
             return m.group(1)
-    raise ValueError(get_messages_instance().YOUTUBE_FAILED_EXTRACT_ID_MSG)
+    raise ValueError(safe_get_messages(user_id).YOUTUBE_FAILED_EXTRACT_ID_MSG)
 
 
 def download_thumbnail(video_id: str, dest: str, url: str = None) -> None:
@@ -84,7 +84,7 @@ def download_thumbnail(video_id: str, dest: str, url: str = None) -> None:
             img_bytes = r.content
             break
     if not img_bytes:
-        raise RuntimeError(get_messages_instance().YOUTUBE_FAILED_DOWNLOAD_THUMBNAIL_MSG)
+        raise RuntimeError(safe_get_messages(user_id).YOUTUBE_FAILED_DOWNLOAD_THUMBNAIL_MSG)
     # We do nothing else - we keep the original size!
 
 

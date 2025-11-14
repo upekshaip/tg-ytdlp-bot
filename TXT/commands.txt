@@ -1,4 +1,5 @@
 start - Start the bot
+lang - Change language
 help - Show help instructions
 keyboard - Show keyboard (off/1x3/2x3/full)
 settings - All commands of both

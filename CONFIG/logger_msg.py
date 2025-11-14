@@ -1,4 +1,4 @@
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 
 class LoggerMsg(object):
     # Generic user/admin/access - removed unused variables
@@ -98,7 +98,7 @@ class LoggerMsg(object):
     COOKIES_YOUTUBE_DOWNLOAD_FAILED_LOG_MSG = "Failed to download YouTube cookie from URL {url_index}: status={status}, error={error}"
     COOKIES_YOUTUBE_URL_NOT_TXT_LOG_MSG = "YouTube cookie URL {url_index} is not .txt file"
     COOKIES_YOUTUBE_FILE_TOO_LARGE_LOG_MSG = "YouTube cookie file {url_index} is too large: {file_size} bytes"
-    COOKIES_YOUTUBE_DOWNLOADED_VALIDATED_LOG_MSG = "YouTube cookies downloaded and validated for user {user_id} from source {source_index}"
+    COOKIES_YOUTUBE_DOWNLOADED_VALIDATED_LOG_MSG = "YouTube cookies downloaded and validated for user {user_id} from source {source}"
     # Removed unused COOKIES_YOUTUBE_* variables
     COOKIES_YOUTUBE_CACHE_VALID_LOG_MSG = "Using cached YouTube cookie validation result for user {user_id} (cache valid for {cache_duration}s)"
     COOKIES_YOUTUBE_STARTING_ENSURE_LOG_MSG = "Starting ensure_working_youtube_cookies for user {user_id}"
@@ -114,6 +114,7 @@ class LoggerMsg(object):
     COOKIES_YOUTUBE_SOURCE_FAILED_VALIDATION_LOG_MSG = "YouTube cookies from source {source_index} failed validation for user {user_id}"
     COOKIES_YOUTUBE_PROCESSING_ERROR_LOG_MSG = "Error processing YouTube cookie URL {source_index} for user {user_id}: {e}"
     COOKIES_YOUTUBE_ALL_SOURCES_FAILED_REMOVING_LOG_MSG = "All YouTube cookie sources failed for user {user_id}, removing cookie file"
+    COOKIES_YOUTUBE_ALL_SOURCES_FAILED_LOG_MSG = "All YouTube cookie sources failed for user {user_id}"
     COOKIES_YOUTUBE_FINISHED_NO_WORKING_LOG_MSG = "Finished ensure_working_youtube_cookies for user {user_id} - no working cookies found"
     COOKIES_YOUTUBE_RETRY_PROXY_LOG_MSG = "Attempting to retry download with proxy for user {user_id}"
     COOKIES_YOUTUBE_NO_PROXY_CONFIG_LOG_MSG = "No proxy configuration available for retry for user {user_id}"
@@ -160,28 +161,6 @@ class LoggerMsg(object):
     COOKIES_FINAL_FALLBACK_SEND_FAILED_LOG_MSG = "Final fallback send failed: {e}"
     COOKIES_YOUTUBE_URLS_EMPTY_LOG_MSG = "YouTube cookie URLs are empty for user {user_id}"
     COOKIES_ERROR_UPDATING_MESSAGE_LOG_MSG = "Error updating message: {e}"
-    COOKIES_YOUTUBE_URL_NOT_TXT_LOG_MSG = "YouTube cookie URL {idx} is not .txt file"
-    COOKIES_YOUTUBE_FILE_TOO_LARGE_LOG_MSG = "YouTube cookie file {idx} is too large: {size} bytes"
-    COOKIES_YOUTUBE_DOWNLOADED_VALIDATED_LOG_MSG = "YouTube cookies downloaded and validated for user {user_id} from source {idx}"
-    COOKIES_YOUTUBE_ALL_SOURCES_FAILED_LOG_MSG = "All YouTube cookie sources failed for user {user_id}"
-    COOKIES_YOUTUBE_EXISTING_WORKING_LOG_MSG = "Existing YouTube cookies are working for user {user_id}"
-    COOKIES_YOUTUBE_NO_SOURCES_CONFIGURED_LOG_MSG = "No YouTube cookie sources configured for user {user_id}"
-    COOKIES_YOUTUBE_ATTEMPTING_DOWNLOAD_LOG_MSG = "Attempting to download working YouTube cookies for user {user_id} from {count} sources"
-    COOKIES_YOUTUBE_TRYING_SOURCE_LOG_MSG = "Trying YouTube cookie source {i}/{total} for user {user_id}"
-    COOKIES_YOUTUBE_SOURCE_WORKING_LOG_MSG = "YouTube cookies from source {i} are working for user {user_id}"
-    COOKIES_YOUTUBE_SOURCE_FAILED_VALIDATION_LOG_MSG = "YouTube cookies from source {i} failed validation for user {user_id}"
-    COOKIES_YOUTUBE_FINISHED_NO_WORKING_LOG_MSG = "Finished ensure_working_youtube_cookies for user {user_id} - no working cookies found"
-    COOKIES_YOUTUBE_RETRY_PROXY_SUCCESS_LOG_MSG = "Download retry with proxy successful for user {user_id}"
-    COOKIES_YOUTUBE_RETRY_PROXY_FAILED_LOG_MSG = "Download retry with proxy failed for user {user_id}"
-    COOKIES_YOUTUBE_RETRY_ATTEMPT_LOG_MSG = "Retry attempt {attempt}/{total} with cookie source {idx} for user {user_id}"
-    COOKIES_YOUTUBE_RETRY_URL_NOT_TXT_LOG_MSG = "Cookie URL {idx} is not .txt file"
-    COOKIES_YOUTUBE_RETRY_FILE_TOO_LARGE_LOG_MSG = "Cookie file {idx} is too large: {size} bytes"
-    COOKIES_YOUTUBE_RETRY_SOURCE_WORKING_LOG_MSG = "Cookie source {idx} is working, retrying download for user {user_id}"
-    COOKIES_YOUTUBE_RETRY_SUCCESS_LOG_MSG = "Download retry successful with cookie source {idx} for user {user_id}"
-    COOKIES_YOUTUBE_RETRY_FAILED_ERROR_LOG_MSG = "Download retry failed with cookie source {idx} for user {user_id}: {e}"
-    COOKIES_YOUTUBE_RETRY_ERROR_COOKIE_RELATED_LOG_MSG = "Error is cookie-related, trying next source for user {user_id}"
-    COOKIES_YOUTUBE_RETRY_ALL_SOURCES_FAILED_LOG_MSG = "All cookie sources failed for retry download for user {user_id}"
-    COOKIES_YOUTUBE_CACHE_CLEARED_LOG_MSG = "Cleared all YouTube cookie validation cache"
     
     # Image command specific logs
     IMG_PAID_EMBEDDED_COVER_LOG_MSG = "[IMG PAID] Embedded cover into video: {video_path}"
@@ -373,12 +352,12 @@ class LoggerMsg(object):
     ALWAYS_ASK_PARSED_LOG_MSG = "[ASKF] parsed: kind={kind}, value={value}"
     
     # Down and up logs
-    DOWN_UP_SKIPPING_CACHE_SEND_AS_FILE_LOG_MSG = "[VIDEO CACHE] Skipping cache save for user {user_id} with send_as_file enabled: url={url}, quality={quality_key}"
+    DOWN_UP_SKIPPING_CACHE_SEND_AS_FILE_LOG_MSG = "[VIDEO CACHE] Skipping cache save for user {user_id} with send_as_file enabled: url={url}, quality={quality}"
     DOWN_UP_IS_PORN_CHECK_LOG_MSG = "[FALLBACK] is_porn check for {url}: {is_nsfw}"
-    DOWN_UP_SKIPPING_CACHE_NSFW_LOG_MSG = "[VIDEO CACHE] Skipping cache save for NSFW content: url={url}, quality={quality_key}, channel_type={channel_type}"
-    DOWN_UP_ABOUT_TO_SAVE_VIDEO_LOG_MSG = "[VIDEO CACHE] About to save video: url={url}, quality={quality_key}, message_ids={message_ids}, channel_type={channel_type}"
-    DOWN_UP_SAVE_REQUESTED_LOG_MSG = "[VIDEO CACHE] Save requested for quality={quality_key}, channel_type={channel_type}"
-    DOWN_UP_SAVE_FAILED_LOG_MSG = "[VIDEO CACHE] Save failed for quality={quality_key}: {error}"
+    DOWN_UP_SKIPPING_CACHE_NSFW_LOG_MSG = "[VIDEO CACHE] Skipping cache save for NSFW content: url={url}, quality={quality}, channel_type={channel_type}"
+    DOWN_UP_ABOUT_TO_SAVE_VIDEO_LOG_MSG = "[VIDEO CACHE] About to save video: url={url}, quality={quality}, message_ids={message_ids}, channel_type={channel_type}"
+    DOWN_UP_SAVE_REQUESTED_LOG_MSG = "[VIDEO CACHE] Save requested for quality={quality}, channel_type={channel_type}"
+    DOWN_UP_SAVE_FAILED_LOG_MSG = "[VIDEO CACHE] Save failed for quality={quality}: {error}"
     
     # URL extractor logs
     URL_EXTRACTOR_DISTRACTOR_CALLED_LOG_MSG = "url_distractor called with text: {text}..."
@@ -509,14 +488,30 @@ class LoggerMsg(object):
     
     # NSFW Command Log Messages
     NSFW_USER_REQUESTED_COMMAND_LOG_MSG = "[NSFW] User {user_id} requested nsfw command"
-    NSFW_USER_IS_ADMIN_LOG_MSG = "[NSFW] User {user_id} is admin: {int(user_id) in Config.ADMIN}"
-    NSFW_USER_IS_IN_CHANNEL_LOG_MSG = "[NSFW] User {user_id} is in channel: {is_user_in_channel(app, message)}"
+    NSFW_USER_IS_ADMIN_LOG_MSG = "[NSFW] User {user_id} is admin: {is_admin}"
+    NSFW_USER_IS_IN_CHANNEL_LOG_MSG = "[NSFW] User {user_id} is in channel: {is_in_channel}"
     
     # List Command Log Messages
     LIST_ERROR_IN_HELP_CALLBACK_LOG_MSG = "Error in list help callback: {e}"
     
     # Link Command Log Messages
     LINK_FAILED_COPY_GLOBAL_COOKIE_LOG_MSG = "Failed to copy global cookie file for user {user_id}: {e}"
+    
+    # Emoji Command Log Messages
+    EMOJI_CLEAN_TRIGGERED_LOG_MSG = "🧹 Emoji triggered - cleaning all files and folders for user {user_id}"
+    EMOJI_CLEAN_COMPLETED_LOG_MSG = "🧹 Emoji completed - all files and folders cleaned for user {user_id}"
+    EMOJI_STATS_TRIGGERED_LOG_MSG = "📃 Emoji triggered - showing usage stats for user {user_id}"
+    EMOJI_STATS_COMPLETED_LOG_MSG = "📃 Emoji completed - usage stats shown for user {user_id}"
+    EMOJI_UNKNOWN_COMMAND_LOG_MSG = "Unknown emoji command: {mapped}"
+    
+    # File Operations Log Messages
+    URL_EXTRACTOR_REMOVED_DIRECTORY_LOG_MSG = "Removed directory: {path}"
+    URL_EXTRACTOR_ERROR_SCANNING_DIRECTORY_LOG_MSG = "Error scanning directory {path}: {e}"
+    URL_EXTRACTOR_FAILED_CLEAR_YOUTUBE_CACHE_LOG_MSG = "Failed to clear YouTube cookie cache: {e}"
+    URL_EXTRACTOR_GALLERY_DL_FALLBACK_LOG_MSG = "Gallery-dl fallback executed: {fallback_text}"
+    URL_EXTRACTOR_LANGUAGE_CALLBACK_ERROR_LOG_MSG = "Language callback error: {e}"
+    URL_EXTRACTOR_AUDIO_HINT_CALLBACK_ERROR_LOG_MSG = "Audio hint callback error: {e}"
+    URL_EXTRACTOR_LINK_HINT_CALLBACK_ERROR_LOG_MSG = "Link hint callback error: {e}"
     LINK_USING_DOMAIN_SPECIFIC_PROXY_LOG_MSG = "Using domain-specific proxy for link extraction: {proxy_url}"
     LINK_FAILED_BUILD_PROXY_URL_LOG_MSG = "Failed to build proxy URL for domain-specific proxy"
     LINK_USER_PROXY_DISABLED_LOG_MSG = "User proxy disabled and domain doesn't require proxy - using direct connection for {url}"
@@ -533,4 +528,11 @@ class LoggerMsg(object):
     ARGS_SETTING_REFERER_LOG_MSG = "Setting Referer for all services: {value}"
     ARGS_USER_SELECTED_MERGE_OUTPUT_FORMAT_LOG_MSG = "User {user_id} selected merge_output_format={value}"
     ARGS_FINAL_YTDLP_OPTIONS_LOG_MSG = "User {user_id} - Final yt-dlp options for {operation}:\n{opts_str}"
+
+
+def get_logger_msg():
+    """
+    Get LoggerMsg instance
+    """
+    return LoggerMsg()
 

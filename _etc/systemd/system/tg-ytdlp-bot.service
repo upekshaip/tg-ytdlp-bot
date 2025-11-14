@@ -29,5 +29,9 @@ PrivateTmp=yes
 ProtectSystem=full
 ProtectHome=true
 
+# Resource limits to prevent hanging
+LimitNOFILE=65535
+LimitNPROC=4096
+
 [Install]
 WantedBy=multi-user.target

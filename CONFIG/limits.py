@@ -34,6 +34,36 @@ class LimitsConfig(object):
     # For fast internet and small files: MAX_IMG_RANGE_WAIT_TIME = 600 (10 min), MAX_IMG_TOTAL_WAIT_TIME = 3600 (1 hour)
     # For slow internet and large files: MAX_IMG_RANGE_WAIT_TIME = 3600 (1 hour), MAX_IMG_TOTAL_WAIT_TIME = 28800 (8 hours)
     # For very large accounts: MAX_IMG_TOTAL_WAIT_TIME = 43200 (12 hours)
+    ENABLE_LIVE_STREAM_BLOCKING = False
+    SPLIT_LIVE_STREAM_BY_HOURS = 1
+    MAX_LIVE_STREAM_DURATION = 36000 # 10 hours
+    #######################################################
+    # Animation and HTTP connection limits (prevents hanging)
+    #######################################################
+    # Maximum animation duration (4 hours) - after this time animation is forcefully stopped
+    MAX_ANIMATION_DURATION = 14400  # 4 hours
+    
+    # Maximum HTTP connection lifetime (4 hours) - connections are forcefully closed after this time
+    MAX_HTTP_CONNECTION_LIFETIME = 14400  # 4 hours
+    
+    # HTTP session timeout for individual requests
+    HTTP_REQUEST_TIMEOUT = 60  # 60 seconds
+    #######################################################
+    # Cookie cache configuration
+    #######################################################
+    # Cookie cache duration in seconds (30 seconds for quick operations)
+    COOKIE_CACHE_DURATION = 30
+    # Maximum cookie cache lifetime in seconds (2 hours) - forced deactivation
+    COOKIE_CACHE_MAX_LIFETIME = 7200  # 2 hours
+    # Cookie cache timeout for individual requests in seconds
+    COOKIE_CACHE_REQUEST_TIMEOUT = 60  # 60 seconds
+    
+    # YouTube cookie retry limits per user
+    # Maximum number of YouTube cookie retry attempts per user per hour
+    YOUTUBE_COOKIE_RETRY_LIMIT_PER_HOUR = 8  # 8 attempts per hour per user
+    # Time window for retry limit in seconds (1 hour)
+    YOUTUBE_COOKIE_RETRY_WINDOW = 3600  # 1 hour
+    
     #######################################################
     # Group multipliers (applied in groups/channels) - except quality
     GROUP_MULTIPLIER = 2

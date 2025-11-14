@@ -16,7 +16,7 @@ def get_clean_url_for_tagging(url: str) -> str:
     start_of_real_url_pos = max(last_http_pos, last_https_pos)
 
     # If another http/https is found (not at the very beginning), this is the real link
-    if start_of_real_url_pos > 0:
+    if start_of_real_url_pos and start_of_real_url_pos > 0:
         return url[start_of_real_url_pos:]
     return url
 
