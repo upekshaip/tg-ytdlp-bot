@@ -269,7 +269,33 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     # We define a playlist not only by the number of videos, but also by the presence of a range in the URL
     original_text = message.text or message.caption or ""
     is_playlist = video_count > 1 or is_playlist_with_range(original_text)
-    requested_indices = list(range(video_start_with, video_start_with + video_count)) if is_playlist else []
+    
+    # Получаем video_end_with из original_text, если он там есть
+    from URL_PARSERS.tags import extract_url_range_tags
+    _, parsed_start, parsed_end, _, _, _, _ = extract_url_range_tags(original_text)
+    video_end_with = parsed_end if parsed_end != 1 or parsed_start != 1 else (video_start_with + video_count - 1)
+    
+    # Определяем, нужен ли обратный порядок (когда start > end)
+    # Для отрицательных индексов: -1 > -100 означает обратный порядок
+    is_reverse_order = False
+    if is_playlist and video_start_with is not None and video_end_with is not None:
+        # Если оба отрицательные, сравниваем по абсолютному значению
+        if video_start_with < 0 and video_end_with < 0:
+            is_reverse_order = abs(video_start_with) < abs(video_end_with)
+        # Если start > end, это обратный порядок
+        elif video_start_with > video_end_with:
+            is_reverse_order = True
+    
+    # Формируем список индексов с учетом обратного порядка
+    if is_playlist:
+        if is_reverse_order:
+            # Для обратного порядка: от start до end включительно в обратном порядке
+            requested_indices = list(range(video_start_with, video_end_with - 1, -1))
+        else:
+            # Для прямого порядка: от start до end включительно
+            requested_indices = list(range(video_start_with, video_start_with + video_count))
+    else:
+        requested_indices = []
     cached_videos = {}
     uncached_indices = []
     if quality_key and is_playlist:
@@ -760,7 +786,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
         def try_download_audio(url, current_index):
             messages = safe_get_messages(message.chat.id)
-            nonlocal current_total_process, did_cookie_retry, did_proxy_retry, is_hls
+            nonlocal current_total_process, did_cookie_retry, did_proxy_retry, is_hls, is_reverse_order
             # Use format_override if provided, otherwise use default 'ba'
             download_format = format_override if format_override else 'ba'
             
@@ -789,7 +815,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 ],
                'prefer_ffmpeg': True,
                'extractaudio': True,
-               'playlist_items': str(current_index + video_start_with),
+               # Для обратного порядка используем формат START:STOP:-1, иначе просто номер
+               'playlist_items': f"{current_index + video_start_with}:{current_index + video_start_with}:-1" if is_reverse_order and is_playlist else str(current_index + video_start_with),
                # outtmpl will be set later with sanitized title
                # Allow Unicode characters in filenames
                'restrictfilenames': False,
@@ -911,6 +938,14 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         # If there is only one video in the playlist, just download it
                         info_dict = entries[0]  # Just take the first video
                 
+                # Check if this is a live stream and handle it if detection is disabled
+                # Note: Live stream audio download is not supported, so we skip it for audio
+                if info_dict and isinstance(info_dict, dict) and info_dict.get('is_live', False):
+                    if not LimitsConfig.ENABLE_LIVE_STREAM_BLOCKING:
+                        logger.warning(f"Live stream detected for audio download, but audio live streams are not supported: {url}")
+                        send_error_to_user(message, safe_get_messages(user_id).LIVE_STREAM_DETECTED_MSG + "\n\nNote: Audio extraction from live streams is not supported.")
+                        return "LIVE_STREAM"
+                
                 # Get original title and sanitize it for filename
                 original_title = info_dict.get("title", "audio")
                 logger.info(f"DEBUG: info_dict.get('title') = '{original_title}'")
@@ -987,15 +1022,18 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 error_text = str(e)
                 logger.error(f"DownloadError: {error_text}")
                 
-                # Check for live stream detection
+                # Check for live stream detection (only if detection is enabled)
                 if "LIVE_STREAM_DETECTED" in error_text:
-                    live_stream_message = (
-                        safe_get_messages(user_id).LIVE_STREAM_DETECTED_MSG +
-                        "• You can see the final video length\n\n"
-                        "Once the stream is completed, you'll be able to download it as a regular video."
-                    )
-                    send_error_to_user(message, live_stream_message)
-                    return "LIVE_STREAM"
+                    if LimitsConfig.ENABLE_LIVE_STREAM_BLOCKING:
+                        live_stream_message = (
+                            safe_get_messages(user_id).LIVE_STREAM_DETECTED_MSG +
+                            "• You can see the final video length\n\n"
+                            "Once the stream is completed, you'll be able to download it as a regular video."
+                        )
+                        send_error_to_user(message, live_stream_message)
+                        return "LIVE_STREAM"
+                    # If detection is disabled, continue with live stream download
+                    # This will be handled by the live stream download function
                 
                 # Check for postprocessing errors
                 if "Postprocessing" in error_text and "Error opening output files" in error_text:
@@ -1309,7 +1347,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                            }],
                            'prefer_ffmpeg': True,
                            'extractaudio': True,
-                           'playlist_items': str(current_index + video_start_with),
+                           # Для обратного порядка используем формат START:STOP:-1, иначе просто номер
+                          'playlist_items': f"{current_index + video_start_with}:{current_index + video_start_with}:-1" if is_reverse_order and is_playlist else str(current_index + video_start_with),
                            'outtmpl': safe_outtmpl,  # Use safe filename
                            'restrictfilenames': False,
                            'progress_hooks': [progress_hook],

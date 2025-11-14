@@ -34,7 +34,9 @@ class LimitsConfig(object):
     # For fast internet and small files: MAX_IMG_RANGE_WAIT_TIME = 600 (10 min), MAX_IMG_TOTAL_WAIT_TIME = 3600 (1 hour)
     # For slow internet and large files: MAX_IMG_RANGE_WAIT_TIME = 3600 (1 hour), MAX_IMG_TOTAL_WAIT_TIME = 28800 (8 hours)
     # For very large accounts: MAX_IMG_TOTAL_WAIT_TIME = 43200 (12 hours)
-    
+    ENABLE_LIVE_STREAM_BLOCKING = False
+    SPLIT_LIVE_STREAM_BY_HOURS = 1
+    MAX_LIVE_STREAM_DURATION = 36000 # 10 hours
     #######################################################
     # Animation and HTTP connection limits (prevents hanging)
     #######################################################

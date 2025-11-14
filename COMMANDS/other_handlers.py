@@ -103,7 +103,13 @@ def audio_command_handler(app, message):
     # Extract playlist parameters from the message
     full_string = text or message.caption or ""
     _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
-    video_count = video_end_with - video_start_with + 1
+    # Правильное вычисление video_count для отрицательных индексов
+    if video_start_with < 0 and video_end_with < 0:
+        video_count = abs(video_end_with) - abs(video_start_with) + 1
+    elif video_start_with > video_end_with:
+        video_count = abs(video_start_with - video_end_with) + 1
+    else:
+        video_count = video_end_with - video_start_with + 1
     
     # Checking the range limit
     if not check_playlist_range_limits(url, video_start_with, video_end_with, app, message):

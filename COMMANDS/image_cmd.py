@@ -814,16 +814,17 @@ def image_command(app, message):
     parts = rest.split()
     if len(parts) >= 2:
         rng_candidate = parts[0]
-        if re.fullmatch(r"\d+-\d*", rng_candidate):
+        if re.fullmatch(r"-?\d+-\d*", rng_candidate):
             start_str, end_str = rng_candidate.split('-', 1)
+            # Если первое число отрицательное, добавляем минус ко второму числу: /img -1-7 URL -> (-1, -7)
+            if start_str.startswith("-") and end_str != "":
+                end_str = f"-{end_str}"
             try:
                 start_val = int(start_str)
                 end_val = int(end_str) if end_str != '' else None
-                if start_val and start_val >= 1:
-                    manual_range = (start_val, end_val)
-                    url = ' '.join(parts[1:]).strip()
-                else:
-                    url = rest
+                # Убираем проверку >= 1, так как отрицательные числа тоже валидны
+                manual_range = (start_val, end_val)
+                url = ' '.join(parts[1:]).strip()
             except Exception:
                 url = rest
         else:

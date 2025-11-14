@@ -244,14 +244,39 @@ def _vid_handler(app, message):
         txt = (message.text or "").strip()
         parts = txt.split()
         url = ""
-        # Support syntax: /vid 1-10 https://...  -> append *1*10 to URL
-        if len(parts) >= 3 and re.match(r"^\d+-\d*$", parts[1]):
+        # Support syntax: /vid 1-10 https://...  -> append *1*10 to URL (поддерживаем отрицательные числа)
+        # Если первое число с минусом, то добавляем минус и ко второму числу: /vid -1-7 URL -> URL*-1*-7
+        if len(parts) >= 3 and re.match(r"^-?\d+-\d*$", parts[1]):
             rng = parts[1]
             url = " ".join(parts[2:])
-            a, b = rng.split("-", 1)
-            b = b if b != "" else None
+            # Парсим диапазон: если начинается с минуса, оба числа отрицательные
+            if rng.startswith("-"):
+                # Формат: -1-7 -> *-1*-7
+                # Находим второе число после первого минуса
+                match = re.match(r"^-(\d+)-(\d*)$", rng)
+                if match:
+                    first_num = f"-{match.group(1)}"
+                    second_num = f"-{match.group(2)}" if match.group(2) else None
+                    if url:
+                        if second_num:
+                            url = f"{url}*{first_num}*{second_num}"
+                        else:
+                            url = f"{url}*{first_num}*"
+                else:
+                    # Fallback: обычный парсинг
+                    a, b = rng.split("-", 1)
+                    if b != "":
+                        b = f"-{b}"
+                    if url:
+                        url = f"{url}*{a}*{b}" if b else f"{url}*{a}*"
+            else:
+                # Обычный формат: 1-7 -> *1*7
+                a, b = rng.split("-", 1)
+                b = b if b != "" else None
+                if url:
+                    url = f"{url}*{a}*{b}" if b is not None else f"{url}*{a}*"
             if url:
-                url = f"{url}*{a}*{b}" if b is not None else f"{url}*{a}*"
+                logger.info(f"🔍 [DEBUG] Преобразовано /vid команда: '{message.text}' -> '{url}'")
         else:
             # Fallback: /vid URL
             url = parts[1] if len(parts) > 1 else ""

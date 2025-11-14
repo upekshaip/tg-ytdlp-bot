@@ -114,6 +114,7 @@ class LoggerMsg(object):
     COOKIES_YOUTUBE_SOURCE_FAILED_VALIDATION_LOG_MSG = "YouTube cookies from source {source_index} failed validation for user {user_id}"
     COOKIES_YOUTUBE_PROCESSING_ERROR_LOG_MSG = "Error processing YouTube cookie URL {source_index} for user {user_id}: {e}"
     COOKIES_YOUTUBE_ALL_SOURCES_FAILED_REMOVING_LOG_MSG = "All YouTube cookie sources failed for user {user_id}, removing cookie file"
+    COOKIES_YOUTUBE_ALL_SOURCES_FAILED_LOG_MSG = "All YouTube cookie sources failed for user {user_id}"
     COOKIES_YOUTUBE_FINISHED_NO_WORKING_LOG_MSG = "Finished ensure_working_youtube_cookies for user {user_id} - no working cookies found"
     COOKIES_YOUTUBE_RETRY_PROXY_LOG_MSG = "Attempting to retry download with proxy for user {user_id}"
     COOKIES_YOUTUBE_NO_PROXY_CONFIG_LOG_MSG = "No proxy configuration available for retry for user {user_id}"

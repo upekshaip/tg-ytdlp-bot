@@ -46,7 +46,9 @@ app = get_app()
 def url_distractor(app, message):
     user_id = message.chat.id
     is_admin = int(user_id) in Config.ADMIN
+    logger.info(f"🔍 [DEBUG] url_distractor: message.text в начале функции='{message.text}'")
     text = message.text.strip()
+    logger.info(f"🔍 [DEBUG] url_distractor: text после strip='{text}'")
     
     # Import get_messages_instance locally to avoid UnboundLocalError
     from CONFIG.messages import safe_get_messages
@@ -54,8 +56,7 @@ def url_distractor(app, message):
     from HELPERS.filesystem_hlp import remove_media
     from COMMANDS.cookies_cmd import download_cookie
     
-    # Debug logging
-    from HELPERS.logger import logger
+    # Debug logging (logger already imported globally)
     logger.info(LoggerMsg.URL_EXTRACTOR_DISTRACTOR_CALLED_LOG_MSG.format(text=text[:100]))
     
     # Prevent recursion for emoji commands
@@ -945,50 +946,85 @@ def url_distractor(app, message):
         return
 
     # /vid help & range transformation when handled by the text pipeline
+    range_processed = False
     if text.strip().lower().startswith("/vid"):
-        # Try to transform "/vid A-B URL" -> "URL*A*B" (B may be empty)
+        # Try to transform "/vid A-B URL" -> "URL*A*B" (B may be empty, поддерживаем отрицательные числа)
+        # Если первое число с минусом, то добавляем минус и ко второму числу: /vid -1-7 URL -> URL*-1*-7
         parts_full = text.strip().split(maxsplit=2)
-        if len(parts_full) >= 3 and re.match(r"^\d+-\d*$", parts_full[1]):
-            a, b = parts_full[1].split('-', 1)
+        if len(parts_full) >= 3 and re.match(r"^-?\d+-\d*$", parts_full[1]):
+            rng = parts_full[1]
             url_only = parts_full[2]
-            if b == "":
-                new_text = f"{url_only}*{a}*"
+            # Парсим диапазон: если начинается с минуса, оба числа отрицательные
+            if rng.startswith("-"):
+                # Формат: -1-7 -> *-1*-7
+                # Находим второе число после первого минуса
+                match = re.match(r"^-(\d+)-(\d*)$", rng)
+                if match:
+                    first_num = f"-{match.group(1)}"
+                    second_num = f"-{match.group(2)}" if match.group(2) else None
+                    if second_num:
+                        new_text = f"{url_only}*{first_num}*{second_num}"
+                    else:
+                        new_text = f"{url_only}*{first_num}*"
+                else:
+                    # Fallback: обычный парсинг
+                    a, b = rng.split('-', 1)
+                    if b != "":
+                        b = f"-{b}"
+                    new_text = f"{url_only}*{a}*{b}" if b else f"{url_only}*{a}*"
             else:
-                new_text = f"{url_only}*{a}*{b}"
+                # Обычный формат: 1-7 -> *1*7
+                a, b = rng.split('-', 1)
+                if b == "":
+                    new_text = f"{url_only}*{a}*"
+                else:
+                    new_text = f"{url_only}*{a}*{b}"
             try:
                 message.text = new_text
-            except Exception:
+                range_processed = True
+                logger.info(f"🔍 [DEBUG] Преобразовано /vid команда в url_extractor: '{text}' -> '{new_text}'")
+                logger.info(f"🔍 [DEBUG] message.text после преобразования: '{message.text}'")
+                # После преобразования не нужно дальше обрабатывать /vid команду
+                # Просто переходим к обработке URL
+            except Exception as e:
+                logger.error(f"🔍 [DEBUG] Ошибка при обновлении message.text: {e}")
                 pass
             # fallthrough to standard URL flow below
-        parts = text.strip().split(maxsplit=1)
-        if len(parts) == 1:
-            try:
-                from HELPERS.safe_messeger import safe_send_message
-                # Use top-level imports to avoid shadowing names in function scope
-                kb = InlineKeyboardMarkup([[InlineKeyboardButton(safe_get_messages(user_id).URL_EXTRACTOR_VID_HELP_CLOSE_BUTTON_MSG, callback_data="vid_help|close")]])
-                help_text = (
-                    f"<b>{safe_get_messages(user_id).URL_EXTRACTOR_VID_HELP_TITLE_MSG}</b>\n\n"
-                    f"{safe_get_messages(user_id).URL_EXTRACTOR_VID_HELP_USAGE_MSG}\n\n"
-                    f"<b>{safe_get_messages(user_id).URL_EXTRACTOR_VID_HELP_EXAMPLES_MSG}</b>\n"
-                    f"{safe_get_messages(user_id).URL_EXTRACTOR_VID_HELP_EXAMPLE_1_MSG}\n\n"
-                    f"{safe_get_messages(user_id).URL_EXTRACTOR_VID_HELP_ALSO_SEE_MSG}"
-                )
-                safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
-            except Exception:
-                pass
-            return
         else:
-            # Strip command and reuse the URL handler path when no range was provided
-            try:
-                if len(parts_full) < 3 or not re.match(r"^\d+-\d*$", parts_full[1]):
-                    message.text = parts[1]
-            except Exception:
-                pass
+            # Если диапазон не был обработан, проверяем, нужна ли помощь
+            parts = text.strip().split(maxsplit=1)
+            if len(parts) == 1:
+                try:
+                    from HELPERS.safe_messeger import safe_send_message
+                    # Use top-level imports to avoid shadowing names in function scope
+                    kb = InlineKeyboardMarkup([[InlineKeyboardButton(safe_get_messages(user_id).URL_EXTRACTOR_VID_HELP_CLOSE_BUTTON_MSG, callback_data="vid_help|close")]])
+                    help_text = (
+                        f"<b>{safe_get_messages(user_id).URL_EXTRACTOR_VID_HELP_TITLE_MSG}</b>\n\n"
+                        f"{safe_get_messages(user_id).URL_EXTRACTOR_VID_HELP_USAGE_MSG}\n\n"
+                        f"<b>{safe_get_messages(user_id).URL_EXTRACTOR_VID_HELP_EXAMPLES_MSG}</b>\n"
+                        f"{safe_get_messages(user_id).URL_EXTRACTOR_VID_HELP_EXAMPLE_1_MSG}\n\n"
+                        f"{safe_get_messages(user_id).URL_EXTRACTOR_VID_HELP_ALSO_SEE_MSG}"
+                    )
+                    safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
+                except Exception:
+                    pass
+                return
+            else:
+                # Strip command and reuse the URL handler path when no range was provided
+                # НЕ перезаписываем message.text, если диапазон уже был обработан
+                if not range_processed:
+                    try:
+                        if len(parts_full) < 3 or not re.match(r"^-?\d+-\d*$", parts_full[1]):
+                            message.text = parts[1]
+                    except Exception:
+                        pass
 
     # If the message contains a URL, process without explicit commands:
     # 1) Try yt-dlp flow (video_url_extractor)
     # 2) On failure, fallback to gallery-dl (/img handler)
-    if ("https://" in text) or ("http://" in text):
+    # Используем обновленный message.text, если он был изменен
+    final_text = message.text if hasattr(message, 'text') and message.text else text
+    if ("https://" in final_text) or ("http://" in final_text):
         if not is_user_blocked(message):
             from COMMANDS.subtitles_cmd import clear_subs_check_cache
             clear_subs_check_cache()
@@ -1003,6 +1039,7 @@ def url_distractor(app, message):
             except Exception as route_e:
                 logger.error(LoggerMsg.URL_EXTRACTOR_ENGINE_ROUTER_ERROR_LOG_MSG.format(error=route_e))
             try:
+                logger.info(f"🔍 [DEBUG] url_extractor: перед вызовом video_url_extractor, message.text='{message.text}'")
                 video_url_extractor(app, message)
             except Exception as e:
                 logger.error(LoggerMsg.URL_EXTRACTOR_VIDEO_EXTRACTOR_FAILED_LOG_MSG.format(e=e))

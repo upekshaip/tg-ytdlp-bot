@@ -13,12 +13,13 @@ from HELPERS.pot_helper import add_pot_to_ytdl_opts
 from CONFIG.limits import LimitsConfig
 from HELPERS.fallback_helper import should_fallback_to_gallery_dl
 
-def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already_checked=False, use_proxy=False):
+def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already_checked=False, use_proxy=False, playlist_end_index=None):
     # ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ДЛЯ ОТЛАДКИ
     logger.info(f"🔍 [DEBUG] get_video_formats вызвана с параметрами:")
     logger.info(f"   url: {url}")
     logger.info(f"   user_id: {user_id}")
     logger.info(f"   playlist_start_index: {playlist_start_index}")
+    logger.info(f"   playlist_end_index: {playlist_end_index}")
     logger.info(f"   cookies_already_checked: {cookies_already_checked}")
     logger.info(f"   use_proxy: {use_proxy}")
     
@@ -29,6 +30,27 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
         logger.info(f"🔄 [DEBUG] Reset checked cookie sources for new task for user {user_id}")
     
     messages = safe_get_messages(user_id)
+    
+    # Формируем playlist_items с учетом диапазона
+    if playlist_end_index is not None and playlist_end_index != playlist_start_index:
+        # Для диапазона используем формат START:END или START:END:-1 для обратного порядка
+        if playlist_start_index < 0 or playlist_end_index < 0:
+            # Для отрицательных индексов определяем обратный порядок
+            is_reverse = (playlist_start_index < 0 and playlist_end_index < 0 and abs(playlist_start_index) < abs(playlist_end_index)) or (playlist_start_index > playlist_end_index)
+            if is_reverse:
+                playlist_items_str = f"{playlist_start_index}:{playlist_end_index}:-1"
+            else:
+                playlist_items_str = f"{playlist_start_index}:{playlist_end_index}"
+        elif playlist_start_index > playlist_end_index:
+            # Для обратного порядка с положительными индексами
+            playlist_items_str = f"{playlist_start_index}:{playlist_end_index}:-1"
+        else:
+            # Для прямого порядка
+            playlist_items_str = f"{playlist_start_index}:{playlist_end_index}"
+    else:
+        # Для одного элемента
+        playlist_items_str = str(playlist_start_index)
+    
     ytdl_opts = {
         'quiet': True,
         'skip_download': True,
@@ -36,7 +58,7 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
         'no_warnings': True,
         'extract_flat': False,
         'simulate': True,
-        'playlist_items': str(playlist_start_index),    
+        'playlist_items': playlist_items_str,    
         'extractor_args': {
             'generic': {
                 'impersonate': ['chrome']
@@ -315,8 +337,8 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                     info = entries[0]
                     logger.info(f"🔍 [DEBUG] info содержал entries, взяли первый элемент")
             
-            # Check for live stream after extraction
-            if info and info.get('is_live', False):
+            # Check for live stream after extraction (only if detection is enabled)
+            if info and info.get('is_live', False) and LimitsConfig.ENABLE_LIVE_STREAM_BLOCKING:
                 logger.warning(f"Live stream detected in get_video_formats: {url}")
                 return {'error': 'LIVE_STREAM_DETECTED'}
             
@@ -334,8 +356,8 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
             error_text = str(e)
             logger.error(f"DownloadError in get_video_formats: {error_text}")
             
-            # Check for live stream detection
-            if "LIVE_STREAM_DETECTED" in error_text:
+            # Check for live stream detection (only if detection is enabled)
+            if "LIVE_STREAM_DETECTED" in error_text and LimitsConfig.ENABLE_LIVE_STREAM_BLOCKING:
                 return {'error': 'LIVE_STREAM_DETECTED'}
             
             # Check for YouTube cookie errors and try automatic retry
