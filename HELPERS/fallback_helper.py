@@ -8,6 +8,26 @@ def should_fallback_to_gallery_dl(error_message: str, url: str) -> bool:
     Определяет, нужно ли переключаться на gallery-dl при ошибке yt-dlp.
     Возвращает True если ошибка указывает на то, что yt-dlp не может обработать URL.
     """
+    # Проверяем, не является ли URL доменом только для yt-dlp
+    from CONFIG.domains import DomainsConfig
+    from urllib.parse import urlparse
+    
+    try:
+        parsed_url = urlparse(url)
+        domain = parsed_url.netloc.lower()
+        
+        # Убираем www. префикс для сравнения
+        if domain.startswith('www.'):
+            domain = domain[4:]
+            
+        # Проверяем, не входит ли домен в YTDLP_ONLY_DOMAINS
+        for ytdlp_domain in DomainsConfig.YTDLP_ONLY_DOMAINS:
+            if domain == ytdlp_domain or domain.endswith('.' + ytdlp_domain):
+                return False  # Не переключаемся на gallery-dl для yt-dlp только доменов
+    except Exception:
+        # Если не удалось распарсить URL, продолжаем обычную проверку
+        pass
+    
     error_lower = error_message.lower()
     
     # Ошибки, которые указывают на то, что yt-dlp не может обработать контент

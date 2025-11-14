@@ -11,7 +11,7 @@ from pyrogram import enums
 from pyrogram.errors import FloodWait
 from HELPERS.logger import send_to_logger, logger, get_log_channel, log_error_to_channel
 from CONFIG.logger_msg import LoggerMsg
-from CONFIG.messages import Messages, get_messages_instance
+from CONFIG.messages import Messages, safe_get_messages
 from CONFIG.domains import DomainsConfig
 from HELPERS.app_instance import get_app
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
@@ -58,7 +58,7 @@ def _get_video_duration_seconds(video_path):
         return 0.0
 
 def _should_generate_cover(video_path):
-    """Generate cover unless both duration<60s AND size<10MB (i.e., generate if duration>=60s OR size>=10MB)."""
+    """Generate cover unless both duration<60s AND size<10MB (i.e., generate if duration and duration >= 60s OR size>=10MB)."""
     try:
         duration = _get_video_duration_seconds(video_path)
         size_mb = _get_file_mb(video_path)
@@ -221,10 +221,11 @@ def _generate_paid_cover_image(video_path, existing_thumb=None):
 app = get_app()
 
 def _send_open_copy_to_nsfw_channel(file_path: str, caption: str, user_id: int, message_id: int, is_video: bool = False):
+    messages = safe_get_messages(user_id)
     """Send open copy of media to NSFW channel for history"""
     try:
         # Use explicit NSFW channel to avoid any fallback to LOGS_ID
-        log_channel_nsfw = getattr(Config, "LOGS_NSFW_ID", 0)
+        log_channel_nsfw = get_log_channel("video", nsfw=True)
         
         if is_video:
             # Send as video
@@ -300,6 +301,7 @@ def get_emoji_number(index):
         return f"{index}."
 
 def get_file_date(file_path, original_url=None, user_id=None):
+    messages = safe_get_messages(user_id)
     """Get file creation date in DD.MM.YYYY format from EXIF data or filename"""
     try:
         from datetime import datetime
@@ -489,6 +491,7 @@ def get_file_date(file_path, original_url=None, user_id=None):
         return None
 
 def create_unique_download_path(user_id, url):
+    messages = safe_get_messages(user_id)
     """Create unique download path based on user ID and URL structure"""
     try:
         import time
@@ -530,6 +533,7 @@ def create_unique_download_path(user_id, url):
         return os.path.join("users", str(user_id), f"download_{int(time.time() * 1000000)}_{random.randint(1000, 9999)}")
 
 def create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name, user_id=None):
+    messages = safe_get_messages(user_id)
     """Create album caption with emoji numbers and dates grouped by date"""
     try:
         # Group media by date
@@ -562,6 +566,7 @@ def create_album_caption_with_dates(media_group, url, tags_text_norm, profile_na
         
         # Sort dates chronologically
         def parse_date(date_str):
+            messages = safe_get_messages(user_id)
             try:
                 from datetime import datetime
                 return datetime.strptime(date_str, "%d.%m.%Y")
@@ -596,13 +601,13 @@ def create_album_caption_with_dates(media_group, url, tags_text_norm, profile_na
             caption_lines.append(tags_text_norm)
         
         # Add URL with paperclip emoji
-        caption_lines.append(f"🔗[Images URL]({url}) @{Config.BOT_NAME}")
+        caption_lines.append(f"{safe_get_messages(user_id).IMAGE_URL_CAPTION_MSG.format(url=url)} @{Config.BOT_NAME}")
         
         return "\n".join(caption_lines)
     except Exception as e:
         logger.error(f"Failed to create album caption with dates: {e}")
         # Fallback to simple caption
-        return f"{get_messages_instance().IMAGE_URL_CAPTION_MSG}"
+        return f"{safe_get_messages(user_id).IMAGE_URL_CAPTION_MSG.format(url=url)} @{Config.BOT_NAME}"
 
 def is_image_url(url):
     """Check if URL is likely an image URL"""
@@ -763,10 +768,14 @@ def get_reply_message_id(message):
         return message.id
 
 def image_command(app, message):
+    messages = safe_get_messages(message.chat.id)
     """Handle /img command for downloading images"""
     user_id = message.from_user.id
     chat_id = message.chat.id
     text = message.text.strip()
+    
+    # Initialize image_info to avoid undefined variable errors
+    image_info = None
     
     # Log the command execution
     logger.info(f"image_command called for user {user_id} in chat {chat_id} with text: {text}")
@@ -785,11 +794,11 @@ def image_command(app, message):
     if len(text.split()) < 2:
         # Show help if no URL provided
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(get_messages_instance().COMMAND_IMAGE_HELP_CLOSE_BUTTON_MSG, callback_data="img_help|close")]
+            [InlineKeyboardButton(safe_get_messages(user_id).COMMAND_IMAGE_HELP_CLOSE_BUTTON_MSG, callback_data="img_help|close")]
         ])
         safe_send_message(
             chat_id,
-            get_messages_instance().IMG_HELP_MSG + " /audio, /vid, /help, /playlist, /settings",
+            safe_get_messages(user_id).IMG_HELP_MSG + " /audio, /vid, /help, /playlist, /settings",
             reply_markup=keyboard,
             parse_mode=enums.ParseMode.HTML,
             reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
@@ -805,16 +814,17 @@ def image_command(app, message):
     parts = rest.split()
     if len(parts) >= 2:
         rng_candidate = parts[0]
-        if re.fullmatch(r"\d+-\d*", rng_candidate):
+        if re.fullmatch(r"-?\d+-\d*", rng_candidate):
             start_str, end_str = rng_candidate.split('-', 1)
+            # Если первое число отрицательное, добавляем минус ко второму числу: /img -1-7 URL -> (-1, -7)
+            if start_str.startswith("-") and end_str != "":
+                end_str = f"-{end_str}"
             try:
                 start_val = int(start_str)
                 end_val = int(end_str) if end_str != '' else None
-                if start_val >= 1:
-                    manual_range = (start_val, end_val)
-                    url = ' '.join(parts[1:]).strip()
-                else:
-                    url = rest
+                # Убираем проверку >= 1, так как отрицательные числа тоже валидны
+                manual_range = (start_val, end_val)
+                url = ' '.join(parts[1:]).strip()
             except Exception:
                 url = rest
         else:
@@ -867,7 +877,7 @@ def image_command(app, message):
     if not url.startswith(('http://', 'https://')):
         safe_send_message(
             chat_id,
-            get_messages_instance().INVALID_URL_MSG,
+            safe_get_messages(user_id).INVALID_URL_MSG,
             parse_mode=enums.ParseMode.HTML,
             reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
             message=message
@@ -902,7 +912,7 @@ def image_command(app, message):
             except Exception:
                 pass
             
-            if range_count > max_img_files:
+            if range_count and range_count > max_img_files:
                 # Create alternative commands preserving the original start range
                 start_range = manual_range[0]
                 end_range = start_range + max_img_files - 1
@@ -910,7 +920,7 @@ def image_command(app, message):
                 
                 safe_send_message(
                     chat_id,
-                    get_messages_instance().IMG_RANGE_LIMIT_EXCEEDED_MSG.format(
+                    safe_get_messages(user_id).IMG_RANGE_LIMIT_EXCEEDED_MSG.format(
                         range_count=range_count,
                         max_img_files=max_img_files,
                         start_range=start_range,
@@ -931,7 +941,7 @@ def image_command(app, message):
     logger.info(f"[IMG STATUS] About to send status message to chat_id={chat_id}, message_thread_id={message_thread_id}")
     status_msg = safe_send_message(
         chat_id,
-        get_messages_instance().CHECKING_CACHE_MSG.format(url=url),
+        safe_get_messages(user_id).CHECKING_CACHE_MSG.format(url=url),
         parse_mode=enums.ParseMode.HTML,
         reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
         message=message
@@ -964,6 +974,9 @@ def image_command(app, message):
                 else:
                     cached_all = sorted(list(get_cached_image_post_indices(url)))
                     requested_indices = [i for i in cached_all if i >= int(start_i)]
+            else:
+                # No manual range specified, get all cached indices
+                requested_indices = None
             cached_map = get_cached_image_posts(url, requested_indices)
         except Exception as e:
             logger.error(LoggerMsg.IMG_ERROR_GET_CACHED_POSTS_LOG_MSG.format(e=e))
@@ -1001,13 +1014,18 @@ def image_command(app, message):
                 start_i, end_i = manual_range
                 if end_i is not None:
                     requested_count = end_i - start_i + 1
-                    if cached_sent >= requested_count:
+                    # Check if we have all requested indices in cache
+                    cached_indices = set(cached_map.keys())
+                    requested_indices = set(range(int(start_i), int(end_i) + 1))
+                    missing_indices = requested_indices - cached_indices
+                    
+                    if not missing_indices:
                         # We have all requested content in cache
                         need_download = False
                         try:
                             safe_edit_message_text(
                                 user_id, status_msg.id,
-                                get_messages_instance().SENT_FROM_CACHE_MSG.format(count=cached_sent),
+                                safe_get_messages(user_id).SENT_FROM_CACHE_MSG.format(count=cached_sent),
                                 parse_mode=enums.ParseMode.HTML,
                             )
                         except Exception:
@@ -1016,14 +1034,18 @@ def image_command(app, message):
                         return
                     else:
                         # We have partial content, need to download the rest
-                        logger.info(f"Cache has {cached_sent} items, need {requested_count}, downloading remaining {requested_count - cached_sent}")
-                        # Update manual_range to start from where cache ends
-                        remaining_start = start_i + cached_sent
-                        manual_range = (remaining_start, end_i)
+                        cached_count = len(cached_indices)
+                        missing_count = len(missing_indices)
+                        logger.info(f"Cache has {cached_count} indices {sorted(cached_indices)}, missing {missing_count} indices {sorted(missing_indices)}, downloading remaining {missing_count} items")
+                        # Update manual_range to start from the first missing index
+                        first_missing = min(missing_indices)
+                        last_missing = max(missing_indices)
+                        manual_range = (first_missing, last_missing)
+                        logger.info(f"Continuing download from index {first_missing} to {last_missing} (cached: {cached_count}/{requested_count}, missing: {sorted(missing_indices)})")
                         try:
                             safe_edit_message_text(
                                 user_id, status_msg.id,
-                                f"✅ Sent from cache: {cached_sent}\n🔄 Downloading remaining...",
+                                safe_get_messages(user_id).CACHE_CONTINUING_DOWNLOAD_MSG.format(cached=cached_sent),
                                 parse_mode=enums.ParseMode.HTML,
                             )
                         except Exception:
@@ -1033,17 +1055,53 @@ def image_command(app, message):
                     try:
                         safe_edit_message_text(
                             user_id, status_msg.id,
-                            f"✅ Sent from cache: {cached_sent}\n🔄 Downloading more...",
+                            safe_get_messages(user_id).CACHE_CONTINUING_DOWNLOAD_MSG.format(cached=cached_sent),
                             parse_mode=enums.ParseMode.HTML,
                         )
                     except Exception:
                         pass
             else:
                 # No manual range, we have some cached content, continue downloading
+                # Set manual range to continue from the last cached index
+                if cached_map:
+                    cached_indices = sorted(cached_map.keys())
+                    max_cached_index = max(cached_indices)
+                    cached_count = len(cached_indices)
+                    
+                    # Count total cached images (not just album indices)
+                    total_cached_images = sum(len(ids) for ids in cached_map.values())
+                    
+                    logger.info(f"Cache contains {cached_count} album indices: {cached_indices} with {total_cached_images} total images")
+                    
+                    # Try to determine the total count to set proper end index
+                    total_count = None
+                    if image_info and isinstance(image_info, dict):
+                        for key in ("count", "total", "num", "items", "files", "num_images", "images_count"):
+                            if key in image_info and image_info[key]:
+                                total_count = int(image_info[key])
+                                break
+                    
+                    if total_count and total_count > total_cached_images:
+                        # We know the total count, set proper end index based on image count
+                        start_from = total_cached_images + 1
+                        manual_range = (start_from, total_count)
+                        logger.info(f"No manual range specified, continuing from image {start_from} to {total_count} (cached: {total_cached_images}/{total_count} images)")
+                    else:
+                        # Fallback: try to get total count from detected_total_value
+                        detected_total_value = locals().get('detected_total', None)
+                        if detected_total_value and detected_total_value > total_cached_images:
+                            start_from = total_cached_images + 1
+                            manual_range = (start_from, detected_total_value)
+                            logger.info(f"No manual range specified, using detected total {detected_total_value}, continuing from image {start_from} to {detected_total_value} (cached: {total_cached_images}/{detected_total_value} images)")
+                        else:
+                            # Last resort: continue from next image to end
+                            start_from = total_cached_images + 1
+                            manual_range = (start_from, None)
+                            logger.info(f"No manual range specified, continuing from image {start_from} to end (cached: {total_cached_images} images)")
                 try:
                     safe_edit_message_text(
                         user_id, status_msg.id,
-                        f"✅ Sent from cache: {cached_sent}\n🔄 Downloading more...",
+                        safe_get_messages(user_id).CACHE_CONTINUING_DOWNLOAD_MSG.format(cached=cached_sent),
                         parse_mode=enums.ParseMode.HTML,
                     )
                 except Exception:
@@ -1102,13 +1160,16 @@ def image_command(app, message):
                     # Update status message to show we're proceeding with fallback
                     safe_edit_message_text(
                         user_id, status_msg.id,
-                        f"🔄 Could not analyze media, proceeding with maximum allowed range (1-{fallback_limit})...",
+                        safe_get_messages(user_id).FALLBACK_ANALYZE_MEDIA_MSG.format(fallback_limit=fallback_limit),
                         parse_mode=enums.ParseMode.HTML
                     )
                     
-                    # Set manual range to max allowed range for fallback
-                    manual_range = (1, fallback_limit)
-                    logger.info(f"[IMG FALLBACK] Using manual range for fallback: {manual_range}")
+                    # Set manual range to max allowed range for fallback only if not already set
+                    if manual_range is None:
+                        manual_range = (1, fallback_limit)
+                        logger.info(f"[IMG FALLBACK] Using manual range for fallback: {manual_range}")
+                    else:
+                        logger.info(f"[IMG FALLBACK] Manual range already set from cache: {manual_range}")
                     
                     # Create minimal image_info for fallback
                     image_info = {
@@ -1130,10 +1191,10 @@ def image_command(app, message):
         title = image_info.get('title', 'Unknown')
         safe_edit_message_text(
             user_id, status_msg.id,
-            get_messages_instance().DOWNLOADING_IMAGE_MSG +
-            f"<b>Title:</b> {title}\n"
+            safe_get_messages(user_id).DOWNLOADING_IMAGE_MSG +
+            f"<b>{safe_get_messages(user_id).TITLE_LABEL_MSG}</b> {title}\n"
             f"<b>URL:</b> <code>{url}</code>\n"
-            f"<b>Media count:</b> {detected_total_value if detected_total_value else 'Unknown'}",
+            f"<b>{safe_get_messages(user_id).MEDIA_COUNT_LABEL_MSG}</b> {detected_total_value if detected_total_value else 'Unknown'}",
             parse_mode=enums.ParseMode.HTML
         )
         
@@ -1218,13 +1279,16 @@ def image_command(app, message):
                 # Update status message to show we're proceeding with fallback
                 safe_edit_message_text(
                     user_id, status_msg.id,
-                    f"🔄 Could not determine media count, proceeding with maximum allowed range (1-{total_limit})...",
+                    safe_get_messages(user_id).FALLBACK_DETERMINE_COUNT_MSG.format(total_limit=total_limit),
                     parse_mode=enums.ParseMode.HTML
                 )
                 
-                # Set manual range to max allowed range for fallback
-                manual_range = (1, total_limit)
-                logger.info(f"[IMG FALLBACK] Using manual range for fallback: {manual_range}")
+                # Set manual range to max allowed range for fallback only if not already set
+                if manual_range is None:
+                    manual_range = (1, total_limit)
+                    logger.info(f"[IMG FALLBACK] Using manual range for fallback: {manual_range}")
+                else:
+                    logger.info(f"[IMG FALLBACK] Manual range already set from cache: {manual_range}")
             
             # Create range selection menu only if we have a valid count
             if total_count and total_count > 0:
@@ -1259,8 +1323,8 @@ def image_command(app, message):
                 
                 safe_edit_message_text(
                     user_id, status_msg.id,
-                    f"📊 Found <b>{total_count}</b> media items from the link\n\n"
-                    f"Select download range:",
+                    f"{safe_get_messages(user_id).IMG_FOUND_MEDIA_ITEMS_MSG.format(count=total_count)}\n\n"
+                    f"{safe_get_messages(user_id).IMG_SELECT_DOWNLOAD_RANGE_MSG}",
                     reply_markup=InlineKeyboardMarkup(keyboard),
                     parse_mode=enums.ParseMode.HTML
                 )
@@ -1284,9 +1348,12 @@ def image_command(app, message):
             except Exception:
                 pass
             
-            # Set manual range to max allowed range for fallback
-            manual_range = (1, fallback_limit)
-            logger.info(f"[IMG FALLBACK DOMAIN] Using manual range for fallback: {manual_range}")
+            # Set manual range to max allowed range for fallback only if not already set
+            if manual_range is None:
+                manual_range = (1, fallback_limit)
+                logger.info(f"[IMG FALLBACK DOMAIN] Using manual range for fallback: {manual_range}")
+            else:
+                logger.info(f"[IMG FALLBACK DOMAIN] Manual range already set from cache: {manual_range}")
             
             # Create minimal image_info for fallback
             image_info = {
@@ -1323,7 +1390,7 @@ def image_command(app, message):
                 pass
             
             # If total exceeds limit, show error and suggest manual range
-            if detected_total > max_img_files:
+            if detected_total and detected_total > max_img_files:
                 # Create alternative commands preserving the original start range if manual_range exists
                 if manual_range and manual_range[0] is not None:
                     start_range = manual_range[0]
@@ -1336,7 +1403,7 @@ def image_command(app, message):
                 
                 safe_send_message(
                     chat_id,
-                    get_messages_instance().COMMAND_IMAGE_MEDIA_LIMIT_EXCEEDED_MSG.format(count=detected_total, max_count=max_img_files, start_range=start_range, end_range=end_range, url=url, suggested_command_url_format=f"/img {start_range}-{end_range} {url}") +
+                    safe_get_messages(user_id).COMMAND_IMAGE_MEDIA_LIMIT_EXCEEDED_MSG.format(count=detected_total, max_count=max_img_files, start_range=start_range, end_range=end_range, url=url, suggested_command_url_format=f"/img {start_range}-{end_range} {url}") +
                     f"<code>{suggested_command_url_format}</code>",
                     parse_mode=enums.ParseMode.HTML,
                     reply_parameters=ReplyParameters(message_id=get_reply_message_id(message)),
@@ -1347,11 +1414,33 @@ def image_command(app, message):
             total_expected = min(detected_total, max_img_files)
         elif detected_total and detected_total > 0:
             total_expected = detected_total
-        # Pre-cleanup: remove all media files from user directory before starting
+        # Pre-cleanup: remove media files from user directory before starting
+        # IMPORTANT: Preserve user's cookies file if present (Instagram/TikTok auth)
         try:
             logger.info(LoggerMsg.IMG_PRE_CLEANUP_START_LOG_MSG.format(user_id=user_id))
+            # Preserve cookies before cleanup
+            preserved_cookie_path = os.path.join("users", str(user_id), "cookie.txt")
+            preserved_cookie_data = None
+            try:
+                if os.path.exists(preserved_cookie_path):
+                    with open(preserved_cookie_path, "rb") as _cf:
+                        preserved_cookie_data = _cf.read()
+            except Exception:
+                preserved_cookie_data = None
+
             from HELPERS.filesystem_hlp import remove_media
-            remove_media(message)  # This will respect protection files for parallel downloads
+            remove_media(message)  # Should only remove media; some installs could be aggressive
+
+            # Restore cookies if cleanup removed them
+            try:
+                if preserved_cookie_data is not None and not os.path.exists(preserved_cookie_path):
+                    os.makedirs(os.path.dirname(preserved_cookie_path), exist_ok=True)
+                    with open(preserved_cookie_path, "wb") as _cfw:
+                        _cfw.write(preserved_cookie_data)
+                    logger.info("[IMG PRE-CLEANUP] Restored user's cookie.txt after cleanup")
+            except Exception:
+                pass
+
             logger.info(LoggerMsg.IMG_PRE_CLEANUP_COMPLETED_LOG_MSG)
         except Exception as e:
             logger.warning(LoggerMsg.IMG_PRE_CLEANUP_FAILED_LOG_MSG.format(e=e))
@@ -1368,6 +1457,7 @@ def image_command(app, message):
         files_to_cleanup = []
 
         # We'll not start full download thread; we'll pull ranges to enforce batching
+        completion_sent = False  # Guard to ensure we exit after first completion announcement
 
         batch_size = 10
         # If total is small (<=10), download all at once without batching
@@ -1379,7 +1469,12 @@ def image_command(app, message):
         others_buffer = []  # store (converted_path, original_path)
         total_downloaded = 0
         total_sent = 0
+        # Initialize album_index based on existing cache
         album_index = 0  # index of posts we send (albums only)
+        if cached_map:
+            max_cached_album_index = max(cached_map.keys())
+            album_index = max_cached_album_index  # Start from the last cached album index
+            logger.info(f"[IMG CACHE] Starting album_index from cached max: {album_index}")
         # is_admin and total_limit already defined above
         # Using detected_total if present; else metadata-based fallback
         total_expected = locals().get('total_expected') or None
@@ -1392,14 +1487,15 @@ def image_command(app, message):
             pass
 
         def update_status():
+            messages = safe_get_messages(user_id)
             try:
                 safe_edit_message_text(
                     user_id,
                     status_msg.id,
-                    get_messages_instance().DOWNLOADING_MSG +
-                    f"Downloaded: <b>{total_downloaded}</b> / <b>{total_expected or total_limit}</b>\n"
-                    f"Sent: <b>{total_sent}</b>\n"
-                    f"Pending to send: <b>{len(photos_videos_buffer) + len(others_buffer)}</b>",
+                    safe_get_messages(user_id).DOWNLOADING_MSG +
+                    f"{safe_get_messages(user_id).DOWNLOADED_STATUS_MSG} <b>{total_downloaded}</b> / <b>{total_expected or total_limit}</b>\n"
+                    f"{safe_get_messages(user_id).SENT_STATUS_MSG} <b>{total_sent}</b>\n"
+                    f"{safe_get_messages(user_id).PENDING_TO_SEND_STATUS_MSG} <b>{len(photos_videos_buffer) + len(others_buffer)}</b>",
                     parse_mode=enums.ParseMode.HTML,
                 )
             except Exception:
@@ -1438,7 +1534,10 @@ def image_command(app, message):
             try:
                 safe_edit_message_text(
                     user_id, status_msg.id,
-                    f"🔄 Could not determine total media count, proceeding with specified range {manual_range[0]}-{manual_range[1] if manual_range[1] else 'end'}...",
+                    safe_get_messages(user_id).FALLBACK_SPECIFIED_RANGE_MSG.format(
+                        start=manual_range[0], 
+                        end=manual_range[1] if manual_range[1] else 'end'
+                    ),
                     parse_mode=enums.ParseMode.HTML
                 )
             except Exception as e:
@@ -1453,6 +1552,7 @@ def image_command(app, message):
         
         # helper to run one range and wait for files to appear
         def run_and_collect(next_end: int):
+            messages = safe_get_messages(user_id)
             # For single item or when total is small, use range 1-1 to avoid API issues
             # Only use 1-1 when we're actually starting from 1 and it's a single item
             if (current_start == next_end and current_start == 1) or (detected_total and detected_total <= 10 and current_start == 1):
@@ -1487,13 +1587,13 @@ def image_command(app, message):
         while True:
             # Check total timeout
             total_elapsed = time.time() - total_start_time
-            if total_elapsed > max_total_wait_time:
+            if total_elapsed and total_elapsed > max_total_wait_time:
                 logger.warning(LoggerMsg.IMG_BATCH_TOTAL_TIMEOUT_LOG_MSG.format(max_total_wait_time=max_total_wait_time, total_elapsed=total_elapsed))
                 break
                 
             # Check inactivity timeout - if no new files found for too long
             inactivity_elapsed = time.time() - last_activity_time
-            if inactivity_elapsed > max_inactivity_time:
+            if inactivity_elapsed and inactivity_elapsed > max_inactivity_time:
                 logger.warning(LoggerMsg.IMG_BATCH_INACTIVITY_TIMEOUT_LOG_MSG.format(max_inactivity_time=max_inactivity_time, inactivity_elapsed=inactivity_elapsed))
                 break
                 
@@ -1533,7 +1633,7 @@ def image_command(app, message):
                         
                         # Use appropriate error message based on error type
                         if "Instagram" in error_details or "instagram" in error_details.lower():
-                            error_msg = get_messages_instance().IMG_INSTAGRAM_AUTH_ERROR_MSG.format(
+                            error_msg = safe_get_messages(user_id).IMG_INSTAGRAM_AUTH_ERROR_MSG.format(
                                 error_type=error_type,
                                 url=url,
                                 error_details=error_details
@@ -1579,7 +1679,7 @@ def image_command(app, message):
                     
                     # Check if we got significantly fewer files than expected (less than 50% of expected)
                     # This indicates the media has ended
-                    if files_downloaded_in_range < expected_files * 0.5 and files_downloaded_in_range > 0:
+                    if files_downloaded_in_range and files_downloaded_in_range < expected_files * 0.5 and files_downloaded_in_range > 0:
                         logger.info(LoggerMsg.IMG_BATCH_MEDIA_ENDED_LOG_MSG.format(files_downloaded_in_range=files_downloaded_in_range, expected_files=expected_files))
                         # Move to next range to continue downloading
                         current_start = next_end + 1
@@ -1795,7 +1895,7 @@ def image_command(app, message):
                                                         elif individual_msg is not None:
                                                             sent.append(individual_msg)
                                                         # Small delay between messages to help grouping
-                                                        if i < len(album_items) - 1:
+                                                        if i and i < len(album_items) - 1:
                                                             time.sleep(0.1)
                                                     except Exception as e2:
                                                         logger.error(f"[IMG PAID] Individual paid media failed: {e2}")
@@ -1833,7 +1933,7 @@ def image_command(app, message):
                                                     ))
                                             
                                             # Send open copy as album to NSFW channel
-                                            log_channel_nsfw = getattr(Config, "LOGS_NSFW_ID", 0)
+                                            log_channel_nsfw = get_log_channel("video", nsfw=True)
                                             if log_channel_nsfw:
                                                 open_sent = app.send_media_group(
                                                     chat_id=log_channel_nsfw,
@@ -1920,7 +2020,7 @@ def image_command(app, message):
                                                         elif individual_msg is not None:
                                                             sent.append(individual_msg)
                                                         # Small delay between messages to help grouping
-                                                        if i < len(album_items) - 1:
+                                                        if i and i < len(album_items) - 1:
                                                             time.sleep(0.1)
                                                     except Exception as e2:
                                                         logger.error(f"[IMG MAIN FALLBACK] Individual paid media failed: {e2}")
@@ -1948,7 +2048,7 @@ def image_command(app, message):
                                                     ))
                                             
                                             # Send open copy as album to NSFW channel
-                                            log_channel_nsfw = getattr(Config, "LOGS_NSFW_ID", 0)
+                                            log_channel_nsfw = get_log_channel("video", nsfw=True)
                                             open_sent = app.send_media_group(
                                                 chat_id=log_channel_nsfw,
                                                 media=open_media_group,
@@ -2007,7 +2107,7 @@ def image_command(app, message):
                                         except Exception as ex:
                                             last_exc = ex
                                             break
-                                    if attempts >= 5 and last_exc is not None:
+                                    if attempts and attempts >= 5 and last_exc is not None:
                                         raise last_exc
                                 sent_message_ids.extend([m.id for m in sent])
                                 total_sent += len(media_group)
@@ -2055,7 +2155,7 @@ def image_command(app, message):
                                     
                                     elif nsfw_flag and not is_private_chat:
                                         # NSFW content in groups -> LOGS_NSFW_ID only - send as album
-                                        log_channel_nsfw = getattr(Config, "LOGS_NSFW_ID", 0)
+                                        log_channel_nsfw = get_log_channel("video", nsfw=True)
                                         if log_channel_nsfw:
                                             try:
                                                 # Create media group for NSFW log channel with proper caption
@@ -2129,7 +2229,7 @@ def image_command(app, message):
                                                 if hashtags:
                                                     log_caption_lines.append(" ".join(hashtags))
                                                 # Add URL with paperclip emoji
-                                                log_caption_lines.append(f"🔗[Images URL]({url}) @{Config.BOT_NAME}")
+                                                log_caption_lines.append(f"{safe_get_messages(user_id).IMAGE_URL_CAPTION_MSG.format(url=url)} @{Config.BOT_NAME}")
                                                 log_caption = "\n".join(log_caption_lines)
                                             else:
                                                 log_caption = original_caption
@@ -2179,6 +2279,7 @@ def image_command(app, message):
                                     logger.error(f"[IMG CACHE] Unexpected error while copying album to logs: {e_copy}")
                                 # Delete files immediately after sending (strict batching)
                                 def delete_file(path):
+                                    messages = safe_get_messages(user_id)
                                     try:
                                         if os.path.exists(path):
                                             # Delete file to prevent re-processing
@@ -2293,7 +2394,7 @@ def image_command(app, message):
                                                         elif individual_msg is not None:
                                                             sent.append(individual_msg)
                                                         # Small delay between messages to help grouping
-                                                        if i < len(album_items) - 1:
+                                                        if i and i < len(album_items) - 1:
                                                             time.sleep(0.1)
                                                     except Exception as e2:
                                                         logger.error(f"[IMG FALLBACK PAID] Individual paid media failed: {e2}")
@@ -2323,7 +2424,7 @@ def image_command(app, message):
                                                     ))
                                             
                                             # Send open copy as album to NSFW channel
-                                            log_channel_nsfw = getattr(Config, "LOGS_NSFW_ID", 0)
+                                            log_channel_nsfw = get_log_channel("video", nsfw=True)
                                             open_sent = app.send_media_group(
                                                 chat_id=log_channel_nsfw,
                                                 media=open_media_group,
@@ -2416,7 +2517,7 @@ def image_command(app, message):
                                                     elif individual_msg is not None:
                                                         sent.append(individual_msg)
                                                     # Small delay between messages to help grouping
-                                                    if i < len(paid_media_list) - 1:
+                                                    if i and i < len(paid_media_list) - 1:
                                                         time.sleep(0.1)
                                                 except Exception as e2:
                                                     logger.error(f"[IMG FALLBACK PAID] Individual paid media failed: {e2}")
@@ -2456,7 +2557,7 @@ def image_command(app, message):
                                                     ))
                                             
                                             # Send open copy as album to NSFW channel
-                                            log_channel_nsfw = getattr(Config, "LOGS_NSFW_ID", 0)
+                                            log_channel_nsfw = get_log_channel("video", nsfw=True)
                                             if log_channel_nsfw:
                                                 open_sent = app.send_media_group(
                                                     chat_id=log_channel_nsfw,
@@ -2547,7 +2648,7 @@ def image_command(app, message):
                                         logger.info(f"[IMG FALLBACK ALBUM] Successfully sent album {album_start+1}-{album_end} ({len(album_items)} items)")
                                         
                                         # Small delay between albums
-                                        if album_end < len(fallback):
+                                        if album_end and album_end < len(fallback):
                                             time.sleep(0.5)
                                         
                                     except Exception as album_exc:
@@ -2674,7 +2775,7 @@ def image_command(app, message):
                                                             log_caption_lines = []
                                                             if tags_text_norm:
                                                                 log_caption_lines.append(tags_text_norm)
-                                                            log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
+                                                            log_caption_lines.append(f"{safe_get_messages(user_id).IMAGE_URL_CAPTION_MSG.format(url=url)} @{Config.BOT_NAME}")
                                                             # Add profile hashtag
                                                             profile_name = extract_profile_name(url)
                                                             if profile_name:
@@ -2755,7 +2856,7 @@ def image_command(app, message):
                                         except Exception as ex:
                                             last_exc = ex
                                             break
-                                    if attempts >= 5 and last_exc is not None:
+                                    if attempts and attempts >= 5 and last_exc is not None:
                                         raise last_exc
                                 sent_message_ids.append(sent_msg.id)
                                 total_sent += 1
@@ -2765,16 +2866,16 @@ def image_command(app, message):
                                     if os.path.exists(p):
                                         # Delete file to prevent re-processing
                                         os.remove(p)
-                                        logger.info(f"get_messages_instance().IMG_BATCH_OTHERS_DELETED_FILE_LOG_MSG")
+                                        logger.info(f"safe_get_messages(user_id).IMG_BATCH_OTHERS_DELETED_FILE_LOG_MSG")
                                 except Exception as e:
-                                    logger.warning(f"get_messages_instance().IMG_BATCH_OTHERS_FAILED_DELETE_LOG_MSG")
+                                    logger.warning(f"safe_get_messages(user_id).IMG_BATCH_OTHERS_FAILED_DELETE_LOG_MSG")
                                 try:
                                     if os.path.exists(orig):
                                         # Delete file to prevent re-processing
                                         os.remove(orig)
                                         logger.info(f"[IMG BATCH OTHERS] Zeroed out original: {orig}")
                                 except Exception as e:
-                                    logger.warning(f"get_messages_instance().IMG_BATCH_OTHERS_FAILED_ZERO_LOG_MSG")
+                                    logger.warning(f"safe_get_messages(user_id).IMG_BATCH_OTHERS_FAILED_ZERO_LOG_MSG")
                             except Exception as e:
                                 logger.error(f"Failed to send document: {e}")
 
@@ -2932,7 +3033,7 @@ def image_command(app, message):
                                             ))
                                     
                                     # Send open copy as album to NSFW channel
-                                    log_channel_nsfw = getattr(Config, "LOGS_NSFW_ID", 0)
+                                    log_channel_nsfw = get_log_channel("video", nsfw=True)
                                     if log_channel_nsfw:
                                         open_sent = app.send_media_group(
                                             chat_id=log_channel_nsfw,
@@ -3024,7 +3125,7 @@ def image_command(app, message):
                                 except Exception as ex:
                                     last_exc = ex
                                     break
-                            if attempts >= 5 and last_exc is not None:
+                            if attempts and attempts >= 5 and last_exc is not None:
                                 raise last_exc
                         sent_message_ids.extend([m.id for m in sent])
                         total_sent += len(media_group)
@@ -3144,7 +3245,7 @@ def image_command(app, message):
                                         log_caption_lines = []
                                         if tags_text_norm:
                                             log_caption_lines.append(tags_text_norm)
-                                        log_caption_lines.append(f"[Images URL]({url}) @{Config.BOT_NAME}")
+                                        log_caption_lines.append(f"{safe_get_messages(user_id).IMAGE_URL_CAPTION_MSG.format(url=url)} @{Config.BOT_NAME}")
                                         log_caption = "\n".join(log_caption_lines)
                                     else:
                                         log_caption = original_caption
@@ -3246,7 +3347,7 @@ def image_command(app, message):
                                             except Exception as ex:
                                                 last_exc = ex
                                                 break
-                                        if attempts >= 5 and last_exc is not None:
+                                        if attempts and attempts >= 5 and last_exc is not None:
                                             raise last_exc
                                     else:
                                         # try generate thumbnail
@@ -3289,7 +3390,7 @@ def image_command(app, message):
                                             except Exception as ex:
                                                 last_exc = ex
                                                 break
-                                        if attempts >= 5 and last_exc is not None:
+                                        if attempts and attempts >= 5 and last_exc is not None:
                                             raise last_exc
                                     sent_message_ids.append(sent_msg.id)
                                     tmp_ids2.append(sent_msg.id)
@@ -3477,32 +3578,34 @@ def image_command(app, message):
                             if os.path.exists(p):
                                 # Delete file to prevent re-processing
                                 os.remove(p)
-                                logger.info(f"get_messages_instance().IMG_BATCH_OTHERS_DELETED_FILE_LOG_MSG")
+                                logger.info(f"safe_get_messages(user_id).IMG_BATCH_OTHERS_DELETED_FILE_LOG_MSG")
                         except Exception as e:
-                            logger.warning(f"get_messages_instance().IMG_BATCH_OTHERS_FAILED_DELETE_LOG_MSG")
+                            logger.warning(f"safe_get_messages(user_id).IMG_BATCH_OTHERS_FAILED_DELETE_LOG_MSG")
                         try:
                             if os.path.exists(orig):
                                 # Delete file to prevent re-processing
                                 os.remove(orig)
                                 logger.info(f"[IMG BATCH OTHERS] Zeroed out original: {orig}")
                         except Exception as e:
-                            logger.warning(f"get_messages_instance().IMG_BATCH_OTHERS_FAILED_ZERO_LOG_MSG")
+                            logger.warning(f"safe_get_messages(user_id).IMG_BATCH_OTHERS_FAILED_ZERO_LOG_MSG")
                     except Exception:
                         pass
                 # Final update and replace header to 'Download complete'
                 final_expected = total_expected or min(total_downloaded, total_limit)
                 try:
-                    safe_edit_message_text(
-                        user_id,
-                        status_msg.id,
-                        get_messages_instance().DOWNLOAD_COMPLETE_MSG +
-                        f"Downloaded: <b>{total_downloaded}</b> / <b>{final_expected}</b>\n"
-                        f"Sent: <b>{total_sent}</b>",
-                        parse_mode=enums.ParseMode.HTML,
-                    )
+                    if not completion_sent:
+                        safe_edit_message_text(
+                            user_id,
+                            status_msg.id,
+                            safe_get_messages(user_id).DOWNLOAD_COMPLETE_MSG +
+                            f"{safe_get_messages(user_id).DOWNLOADED_STATUS_MSG} <b>{total_downloaded}</b> / <b>{final_expected}</b>\n"
+                            f"{safe_get_messages(user_id).SENT_STATUS_MSG} <b>{total_sent}</b>",
+                            parse_mode=enums.ParseMode.HTML,
+                        )
+                        completion_sent = True
                 except Exception:
                     pass
-                break
+                return
 
             if not is_admin and total_sent >= total_limit:
                 break
@@ -3528,17 +3631,21 @@ def image_command(app, message):
 
         # Update status to show completion
         try:
-            final_expected = total_expected or min(total_downloaded, total_limit)
-            safe_edit_message_text(
-                user_id,
-                status_msg.id,
-                get_messages_instance().DOWNLOAD_COMPLETE_MSG +
-                f"Downloaded: <b>{total_downloaded}</b> / <b>{final_expected}</b>\n"
-                f"Sent: <b>{total_sent}</b>",
-                parse_mode=enums.ParseMode.HTML,
-            )
+            if not completion_sent:
+                final_expected = total_expected or min(total_downloaded, total_limit)
+                safe_edit_message_text(
+                    user_id,
+                    status_msg.id,
+                    safe_get_messages(user_id).DOWNLOAD_COMPLETE_MSG +
+                    f"{safe_get_messages(user_id).DOWNLOADED_STATUS_MSG} <b>{total_downloaded}</b> / <b>{final_expected}</b>\n"
+                    f"{safe_get_messages(user_id).SENT_STATUS_MSG} <b>{total_sent}</b>",
+                    parse_mode=enums.ParseMode.HTML,
+                )
+                completion_sent = True
         except Exception:
             pass
+        if completion_sent:
+            return
 
         # Send remaining files in buffer as final album
         if photos_videos_buffer:
@@ -3670,7 +3777,7 @@ def image_command(app, message):
 
         # Final cleanup: remove all media files from user directory
         try:
-            logger.info(f"get_messages_instance().IMG_CLEANUP_START_LOG_MSG")
+            logger.info(f"safe_get_messages(user_id).IMG_CLEANUP_START_LOG_MSG")
             if os.path.exists(run_dir):
                 for root, dirs, files in os.walk(run_dir):
                     for file in files:
@@ -3684,9 +3791,9 @@ def image_command(app, message):
                                 '.pdf', '.doc', '.docx', '.txt', '.zip', '.rar', '.7z'
                             )):
                                 os.remove(file_path)
-                                logger.info(f"get_messages_instance().IMG_CLEANUP_REMOVED_FILE_LOG_MSG")
+                                logger.info(f"safe_get_messages(user_id).IMG_CLEANUP_REMOVED_FILE_LOG_MSG")
                         except Exception as e:
-                            logger.warning(f"get_messages_instance().IMG_CLEANUP_FAILED_REMOVE_LOG_MSG")
+                            logger.warning(f"safe_get_messages(user_id).IMG_CLEANUP_FAILED_REMOVE_LOG_MSG")
                     
                     # Remove empty directories
                     for dir_name in dirs:
@@ -3694,7 +3801,7 @@ def image_command(app, message):
                         try:
                             if os.path.exists(dir_path) and not os.listdir(dir_path):
                                 os.rmdir(dir_path)
-                                logger.info(f"get_messages_instance().IMG_CLEANUP_REMOVED_DIR_LOG_MSG")
+                                logger.info(f"safe_get_messages(user_id).IMG_CLEANUP_REMOVED_DIR_LOG_MSG")
                         except Exception as e:
                             logger.warning(f"[IMG CLEANUP] Failed to remove directory {dir_path}: {e}")
             
@@ -3731,7 +3838,7 @@ def image_command(app, message):
                         file_time = os.path.getctime(file_path)
                         time_diff = current_time - file_time
                         # Clean up files created in the last 5 minutes
-                        if time_diff < 300:
+                        if time_diff and time_diff < 300:
                             try:
                                 # Check if file still exists before trying to remove it
                                 if os.path.exists(file_path):
@@ -3796,15 +3903,17 @@ def image_command(app, message):
         
         safe_edit_message_text(
             user_id, status_msg.id,
-            get_messages_instance().ERROR_OCCURRED_MSG.format(url=url, error=str(e)),
+            safe_get_messages(user_id).ERROR_OCCURRED_MSG.format(url=url, error=str(e)),
             parse_mode=enums.ParseMode.HTML
         )
         from HELPERS.logger import send_error_to_user
-        send_error_to_user(message, get_messages_instance().ERROR_OCCURRED_MSG.format(url=url, error=str(e)))
+        send_error_to_user(message, safe_get_messages(user_id).ERROR_OCCURRED_MSG.format(url=url, error=str(e)))
         log_error_to_channel(message, LoggerMsg.IMAGE_COMMAND_ERROR.format(url=url, error=e), url)
 
 @app.on_callback_query(filters.regex(r"^img_help\|"))
 def img_help_callback(app, callback_query: CallbackQuery):
+    user_id = callback_query.from_user.id
+    messages = safe_get_messages(None)
     """Handle img help callback"""
     data = callback_query.data.split("|")[-1]
     
@@ -3814,7 +3923,7 @@ def img_help_callback(app, callback_query: CallbackQuery):
         except Exception:
             callback_query.edit_message_reply_markup(reply_markup=None)
         try:
-            callback_query.answer(get_messages_instance().IMG_HELP_CLOSED_MSG)
+            callback_query.answer(safe_get_messages(user_id).IMG_HELP_CLOSED_MSG)
         except Exception:
             pass
         return
@@ -3826,9 +3935,13 @@ def img_help_callback(app, callback_query: CallbackQuery):
 
 @app.on_callback_query(filters.regex(r"^img_range\|"))
 def img_range_callback(app, callback_query: CallbackQuery):
+    messages = safe_get_messages(None)
     """Handle img range selection callback"""
     try:
+        user_id = callback_query.from_user.id
+        logger.info(f"[IMG_RANGE_CALLBACK] Received callback: {callback_query.data}")
         data_parts = callback_query.data.split("|")
+        logger.info(f"[IMG_RANGE_CALLBACK] Data parts: {data_parts}")
         
         if len(data_parts) < 2:
             callback_query.answer("❌ Data error")
@@ -3853,11 +3966,21 @@ def img_range_callback(app, callback_query: CallbackQuery):
         end = int(data_parts[2])
         url = data_parts[3]
         
+        logger.info(f"[IMG_RANGE_CALLBACK] Parsed: start={start}, end={end}, url={url}")
+        
         # Answer callback
-        callback_query.answer(f"📥 Downloading {start}-{end}")
+        callback_query.answer(f"{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_IMAGES_MSG} {start}-{end}")
+        
+        # Delete the original message with the buttons immediately
+        try:
+            callback_query.message.delete()
+            logger.info(f"[IMG_RANGE_CALLBACK] Deleted message with ID: {callback_query.message.message_id}")
+        except Exception as e:
+            logger.error(f"[IMG_RANGE_CALLBACK] Failed to delete message: {e}")
         
         # Create new message with range command
         range_command = f"/img {start}-{end} {url}"
+        logger.info(f"[IMG_RANGE_CALLBACK] Created command: {range_command}")
         
         # Send the command as if user typed it
         from pyrogram.types import Message
@@ -3874,10 +3997,12 @@ def img_range_callback(app, callback_query: CallbackQuery):
         )
         
         # Call the image command function
+        logger.info(f"[IMG_RANGE_CALLBACK] Calling image_command with mock_message")
         image_command(app, mock_message)
+        logger.info(f"[IMG_RANGE_CALLBACK] image_command completed")
         
     except Exception as e:
         try:
-            callback_query.answer(f"{get_messages_instance().IMAGE_ERROR_MSG}")
+            callback_query.answer(f"{safe_get_messages(user_id).IMAGE_ERROR_MSG}")
         except Exception:
             pass

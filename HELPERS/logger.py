@@ -100,11 +100,11 @@ def send_to_user(message, msg):
 
 # Send Message to All ...
 
-def send_to_all(message, msg):
+def send_to_all(message, msg, parse_mode=None):
     user_id = message.chat.id
     msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
     safe_send_message(get_log_channel("general"), msg_with_id, parse_mode=enums.ParseMode.HTML)
-    safe_send_message(user_id, msg, parse_mode=enums.ParseMode.HTML, message=message)
+    safe_send_message(user_id, msg, parse_mode=parse_mode or enums.ParseMode.HTML, message=message)
 
 # --- Helpers for error logging -------------------------------------------------
 
