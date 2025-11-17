@@ -220,7 +220,7 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                         if ok and content and len(content) <= 100 * 1024:
                             with open(user_cookie_path, "wb") as cf:
                                 cf.write(content)
-                if test_youtube_cookies_on_url(user_cookie_path, url, user_id):
+                            if test_youtube_cookies_on_url(user_cookie_path, url, user_id):
                                 cookie_file = user_cookie_path
                                 logger.info(f"YouTube cookies from source {i} work on user's URL for format detection for user {user_id} - saved to user folder")
                                 success = True
