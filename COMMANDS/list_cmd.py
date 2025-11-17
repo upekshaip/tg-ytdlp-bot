@@ -18,6 +18,7 @@ from CONFIG.config import Config
 from CONFIG.messages import Messages, safe_get_messages
 from CONFIG.logger_msg import LoggerMsg
 from HELPERS.pot_helper import build_cli_extractor_args
+from COMMANDS.proxy_cmd import get_proxy_url
 
 # Get app instance
 app = get_app()
@@ -47,6 +48,13 @@ def run_ytdlp_list(url: str, user_id: int) -> tuple[bool, str]:
         cmd.extend(build_cli_extractor_args(url))
         # Verbose for clearer diagnostics
         cmd.extend(["-v", "-F"])
+        
+        # Respect per-user proxy settings
+        proxy_url, proxy_reason = get_proxy_url(user_id=user_id, url=url)
+        if proxy_url:
+            cmd.extend(["--proxy", proxy_url])
+            logger.info(LoggerMsg.LIST_USING_PROXY_LOG_MSG.format(user_id=user_id, proxy_url=proxy_url, reason=proxy_reason or "user"))
+        
         if cookie_file:
             cmd.extend(["--cookies", cookie_file])
         # Append URL last

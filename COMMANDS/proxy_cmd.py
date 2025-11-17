@@ -333,31 +333,72 @@ def select_proxy_for_domain(url):
     logger.info(LoggerMsg.PROXY_CMD_DOMAIN_NOT_IN_LIST_LOG_MSG.format(domain=domain))
     return None
 
-def add_proxy_to_ytdl_opts(ytdl_opts, url, user_id=None):
-    messages = safe_get_messages(user_id)
+def resolve_proxy_config(user_id=None, url=None, allow_domain_fallback=True):
+    """
+    Determine which proxy configuration should be used for the current context.
+    Priority:
+    1. User-specific proxy toggle (/proxy on)
+    2. Domain-specific proxy lists (if enabled and allowed)
+    """
+    reason = None
+    proxy_config = None
+    
+    if user_id is not None:
+        try:
+            proxy_enabled = is_proxy_enabled(user_id)
+            logger.info(LoggerMsg.PROXY_CMD_PROXY_CHECK_FOR_USER_LOG_MSG.format(user_id=user_id, proxy_enabled=proxy_enabled))
+            if proxy_enabled:
+                proxy_config = select_proxy_for_user()
+                reason = "user"
+        except Exception as e:
+            logger.warning(LoggerMsg.PROXY_CMD_ERROR_CHECKING_PROXY_LOG_MSG.format(user_id=user_id, error=e))
+    
+    if proxy_config is None and allow_domain_fallback and url:
+        proxy_config = select_proxy_for_domain(url)
+        if proxy_config:
+            reason = "domain"
+    
+    return proxy_config, reason
+
+
+def get_proxy_url(user_id=None, url=None, allow_domain_fallback=True):
+    """Return proxy URL string for current context or None."""
+    proxy_config, reason = resolve_proxy_config(user_id, url, allow_domain_fallback)
+    if not proxy_config:
+        return None, None
+    proxy_url = build_proxy_url(proxy_config)
+    if not proxy_url:
+        return None, None
+    return proxy_url, reason
+
+
+def get_requests_proxies(user_id=None, url=None, allow_domain_fallback=True):
+    """
+    Build a proxies dict suitable for requests when proxy mode is enabled.
+    Returns dict or None.
+    """
+    proxy_url, reason = get_proxy_url(user_id, url, allow_domain_fallback)
+    if not proxy_url:
+        return None, None
+    proxies = {
+        'http': proxy_url,
+        'https': proxy_url,
+        'HTTP': proxy_url,
+        'HTTPS': proxy_url,
+    }
+    return proxies, reason
+
+
+def add_proxy_to_ytdl_opts(ytdl_opts, url, user_id=None, allow_domain_fallback=True):
     """Add proxy to yt-dlp options if proxy is enabled for user or domain requires it"""
     logger.info(LoggerMsg.PROXY_CMD_ADD_PROXY_CALLED_LOG_MSG.format(user_id=user_id, url=url))
     
-    # Check if user has proxy enabled
-    if user_id:
-        proxy_enabled = is_proxy_enabled(user_id)
-        logger.info(LoggerMsg.PROXY_CMD_PROXY_CHECK_FOR_USER_LOG_MSG.format(user_id=user_id, proxy_enabled=proxy_enabled))
-        if proxy_enabled:
-            # Use round-robin/random selection for user proxy
-            proxy_config = select_proxy_for_user()
-            if proxy_config:
-                proxy_url = build_proxy_url(proxy_config)
-                if proxy_url:
-                    ytdl_opts['proxy'] = proxy_url
-                    logger.info(LoggerMsg.PROXY_CMD_ADDED_PROXY_FOR_USER_LOG_MSG.format(user_id=user_id, proxy_url=proxy_url))
-                    return ytdl_opts
-    
-    # Check if domain requires specific proxy
-    proxy_config = select_proxy_for_domain(url)
-    if proxy_config:
-        proxy_url = build_proxy_url(proxy_config)
-        if proxy_url:
-            ytdl_opts['proxy'] = proxy_url
+    proxy_url, reason = get_proxy_url(user_id=user_id, url=url, allow_domain_fallback=allow_domain_fallback)
+    if proxy_url:
+        ytdl_opts['proxy'] = proxy_url
+        if reason == "user":
+            logger.info(LoggerMsg.PROXY_CMD_ADDED_PROXY_FOR_USER_LOG_MSG.format(user_id=user_id, proxy_url=proxy_url))
+        else:
             logger.info(LoggerMsg.PROXY_CMD_ADDED_DOMAIN_PROXY_LOG_MSG.format(url=url, proxy_url=proxy_url))
     
     return ytdl_opts

@@ -2,6 +2,7 @@ import math
 import time
 import threading
 import os
+import json
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -290,39 +291,194 @@ class RestDBAdapter:
                 pass
 
 
-# Initialize db adapter (admin or REST fallback)
-use_admin = _init_firebase_admin_if_needed()
-if use_admin:
-    db = FirebaseDBAdapter("/")
+class LocalDBAdapter:
+    """Локальный адаптер для работы с JSON файлом вместо Firebase.
+    
+    Имитирует API Pyrebase для совместимости с существующим кодом.
+    Все операции чтения/записи выполняются с локальным JSON файлом.
+    """
+    
+    def __init__(self, cache_file: str, path: str = "/"):
+        self._cache_file = cache_file
+        self._path = path if path.startswith("/") else f"/{path}"
+        self._lock = threading.RLock()
+        self._ensure_cache_file()
+    
+    def _ensure_cache_file(self):
+        """Создает файл кэша если его нет."""
+        if not os.path.exists(self._cache_file):
+            with open(self._cache_file, 'w', encoding='utf-8') as f:
+                json.dump({}, f, ensure_ascii=False, indent=2)
+    
+    def _load_cache(self) -> Dict[str, Any]:
+        """Загружает данные из JSON файла."""
+        try:
+            if os.path.exists(self._cache_file):
+                with open(self._cache_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            return {}
+        except Exception as e:
+            logger.error(f"Ошибка загрузки локального кэша: {e}")
+            return {}
+    
+    def _save_cache(self, data: Dict[str, Any]) -> None:
+        """Сохраняет данные в JSON файл."""
+        try:
+            with open(self._cache_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"Ошибка сохранения локального кэша: {e}")
+            raise
+    
+    def _get_path_value(self, data: Dict[str, Any], path: str) -> Any:
+        """Получает значение по пути в словаре."""
+        if path == "/" or not path:
+            return data
+        parts = [p for p in path.strip("/").split("/") if p]
+        current = data
+        for part in parts:
+            if isinstance(current, dict) and part in current:
+                current = current[part]
+            else:
+                return None
+        return current
+    
+    def _set_path_value(self, data: Dict[str, Any], path: str, value: Any) -> None:
+        """Устанавливает значение по пути в словаре."""
+        if path == "/" or not path:
+            if isinstance(value, dict):
+                data.update(value)
+            else:
+                raise ValueError("Корневой путь должен быть словарем")
+            return
+        
+        parts = [p for p in path.strip("/").split("/") if p]
+        current = data
+        for i, part in enumerate(parts[:-1]):
+            if part not in current or not isinstance(current[part], dict):
+                current[part] = {}
+            current = current[part]
+        current[parts[-1]] = value
+    
+    def _remove_path_value(self, data: Dict[str, Any], path: str) -> None:
+        """Удаляет значение по пути в словаре."""
+        if path == "/" or not path:
+            data.clear()
+            return
+        
+        parts = [p for p in path.strip("/").split("/") if p]
+        current = data
+        for i, part in enumerate(parts[:-1]):
+            if isinstance(current, dict) and part in current:
+                current = current[part]
+            else:
+                return  # Путь не существует
+        if isinstance(current, dict) and parts[-1] in current:
+            del current[parts[-1]]
+    
+    def child(self, *path_parts: str) -> "LocalDBAdapter":
+        """Создает дочерний адаптер с расширенным путем."""
+        path = self._path.rstrip("/")
+        for part in path_parts:
+            part = str(part).strip("/")
+            if not part:
+                continue
+            path = f"{path}/{part}"
+        return LocalDBAdapter(self._cache_file, path)
+    
+    def set(self, data: Any) -> None:
+        """Устанавливает значение по текущему пути."""
+        with self._lock:
+            cache = self._load_cache()
+            self._set_path_value(cache, self._path, data)
+            self._save_cache(cache)
+    
+    def update(self, data: Dict[str, Any]) -> None:
+        """Обновляет значения по текущему пути."""
+        with self._lock:
+            cache = self._load_cache()
+            current = self._get_path_value(cache, self._path)
+            if isinstance(current, dict):
+                current.update(data)
+                self._set_path_value(cache, self._path, current)
+            else:
+                self._set_path_value(cache, self._path, data)
+            self._save_cache(cache)
+    
+    def remove(self) -> None:
+        """Удаляет значение по текущему пути."""
+        with self._lock:
+            cache = self._load_cache()
+            self._remove_path_value(cache, self._path)
+            self._save_cache(cache)
+    
+    def push(self, data: Any):
+        """Добавляет данные в список (генерирует ключ как timestamp)."""
+        with self._lock:
+            cache = self._load_cache()
+            current = self._get_path_value(cache, self._path)
+            if not isinstance(current, dict):
+                current = {}
+            key = str(int(time.time() * 1000))  # timestamp в миллисекундах
+            current[key] = data
+            self._set_path_value(cache, self._path, current)
+            self._save_cache(cache)
+            return key
+    
+    def get(self) -> _SnapshotCompat:
+        """Получает значение по текущему пути."""
+        with self._lock:
+            cache = self._load_cache()
+            value = self._get_path_value(cache, self._path)
+            return _SnapshotCompat(value)
+    
+    def close(self):
+        """Закрывает адаптер (для локального режима ничего не делает)."""
+        pass
+
+
+# Initialize db adapter (admin, REST fallback, or local)
+use_firebase = getattr(Config, 'USE_FIREBASE', True)
+if not use_firebase:
+    # Локальный режим - используем JSON файл
+    cache_file = getattr(Config, 'FIREBASE_CACHE_FILE', 'dump.json')
+    db = LocalDBAdapter(cache_file, "/")
+    logger.info(f"✅ Локальный режим активирован (кэш: {cache_file})")
 else:
-    database_url = _get_database_url()
-    api_key = getattr(Config, "FIREBASE_CONF", {}).get("apiKey")
-    if not api_key:
-        raise RuntimeError("FIREBASE_CONF.apiKey отсутствует — нужен для REST аутентификации")
-    # Sign in via REST using managed session
-    from HELPERS.http_manager import get_managed_session
-    auth_manager = get_managed_session("firebase-auth")
-    auth_session = auth_manager.get_session()
-    try:
-        auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
-        resp = auth_session.post(auth_url, json={
-            "email": getattr(Config, "FIREBASE_USER", None),
-            "password": getattr(Config, "FIREBASE_PASSWORD", None),
-            "returnSecureToken": True,
-        }, timeout=60)
-        resp.raise_for_status()
-        payload = resp.json()
-        id_token = payload.get("idToken")
-        refresh_token = payload.get("refreshToken")
-        if not id_token:
-            raise RuntimeError("Не удалось получить idToken через REST аутентификацию")
-        logger.info("✅ REST Firebase auth successful")
-        db = RestDBAdapter(database_url, id_token, refresh_token, api_key, "/")
-    finally:
-        auth_manager.close()
+    # Firebase режим - используем облачную базу
+    use_admin = _init_firebase_admin_if_needed()
+    if use_admin:
+        db = FirebaseDBAdapter("/")
+    else:
+        database_url = _get_database_url()
+        api_key = getattr(Config, "FIREBASE_CONF", {}).get("apiKey")
+        if not api_key:
+            raise RuntimeError("FIREBASE_CONF.apiKey отсутствует — нужен для REST аутентификации")
+        # Sign in via REST using managed session
+        from HELPERS.http_manager import get_managed_session
+        auth_manager = get_managed_session("firebase-auth")
+        auth_session = auth_manager.get_session()
+        try:
+            auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
+            resp = auth_session.post(auth_url, json={
+                "email": getattr(Config, "FIREBASE_USER", None),
+                "password": getattr(Config, "FIREBASE_PASSWORD", None),
+                "returnSecureToken": True,
+            }, timeout=60)
+            resp.raise_for_status()
+            payload = resp.json()
+            id_token = payload.get("idToken")
+            refresh_token = payload.get("refreshToken")
+            if not id_token:
+                raise RuntimeError("Не удалось получить idToken через REST аутентификацию")
+            logger.info("✅ REST Firebase auth successful")
+            db = RestDBAdapter(database_url, id_token, refresh_token, api_key, "/")
+        finally:
+            auth_manager.close()
 
 
-def db_child_by_path(db_adapter: FirebaseDBAdapter, path: str) -> FirebaseDBAdapter:
+def db_child_by_path(db_adapter, path: str):
+    """Создает дочерний адаптер по пути (работает с любым типом адаптера)."""
     for part in path.strip("/").split("/"):
         db_adapter = db_adapter.child(part)
     return db_adapter
@@ -346,18 +502,36 @@ def check_user(message):
         shutil.copy(cookie_src, cookie_dest)
 
     # Register the User in the Database if Not Already Registered
-    user_db = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").get().each()
-    users = [user.key() for user in user_db] if user_db else []
-    if user_id_str not in users:
-        data = {"ID": message.chat.id, "timestamp": math.floor(time.time())}
-        db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").child(user_id_str).set(data)
+    use_firebase = getattr(Config, 'USE_FIREBASE', True)
+    if use_firebase:
+        user_db = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").get().each()
+        users = [user.key() for user in user_db] if user_db else []
+        if user_id_str not in users:
+            data = {"ID": message.chat.id, "timestamp": math.floor(time.time())}
+            db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").child(user_id_str).set(data)
+    else:
+        # В локальном режиме проверяем через локальный кэш
+        from DATABASE.cache_db import get_from_local_cache
+        users_data = get_from_local_cache(["bot", Config.BOT_NAME_FOR_USERS, "users"])
+        users = list(users_data.keys()) if isinstance(users_data, dict) else []
+        if user_id_str not in users:
+            data = {"ID": message.chat.id, "timestamp": math.floor(time.time())}
+            db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").child(user_id_str).set(data)
 
 
 # Checking user is Blocked or not
 def is_user_blocked(message):
     messages = safe_get_messages(message.chat.id)
-    blocked = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("blocked_users").get().each()
-    blocked_users = [int(b_user.key()) for b_user in blocked] if blocked else []
+    use_firebase = getattr(Config, 'USE_FIREBASE', True)
+    if use_firebase:
+        blocked = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("blocked_users").get().each()
+        blocked_users = [int(b_user.key()) for b_user in blocked] if blocked else []
+    else:
+        # В локальном режиме проверяем через локальный кэш
+        from DATABASE.cache_db import get_from_local_cache
+        blocked_data = get_from_local_cache(["bot", Config.BOT_NAME_FOR_USERS, "blocked_users"])
+        blocked_users = [int(k) for k in blocked_data.keys()] if isinstance(blocked_data, dict) else []
+    
     if int(message.chat.id) in blocked_users:
         send_to_all(message, safe_get_messages().DB_USER_BANNED_MSG)
         return True
@@ -376,16 +550,23 @@ def write_logs(message, video_url, video_title):
 
 # ####################################################################################
 # Initialize minimal structure
+use_firebase = getattr(Config, 'USE_FIREBASE', True)
 _format = {"ID": '0', "timestamp": math.floor(time.time())}
 try:
     db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").child("0").set(_format)
     db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("blocked_users").child("0").set(_format)
     db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("unblocked_users").child("0").set(_format)
     messages = safe_get_messages(None)
-    logger.info(safe_get_messages().DB_DATABASE_CREATED_MSG)
+    if use_firebase:
+        logger.info(safe_get_messages().DB_DATABASE_CREATED_MSG)
+    else:
+        logger.info("✅ Локальная база данных инициализирована")
 except Exception as e:
     messages = safe_get_messages(None)
-    logger.error(safe_get_messages().DB_ERROR_INITIALIZING_BASE_MSG.format(error=e))
+    if use_firebase:
+        logger.error(safe_get_messages().DB_ERROR_INITIALIZING_BASE_MSG.format(error=e))
+    else:
+        logger.error(f"Ошибка инициализации локальной базы данных: {e}")
 
 starting_point.append(time.time())
 messages = safe_get_messages(None)

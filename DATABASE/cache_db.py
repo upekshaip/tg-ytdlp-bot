@@ -2,6 +2,19 @@ import os
 import json
 import time
 import threading
+
+NEGATIVE_INDEX_PREFIX = "1000"
+
+
+def encode_playlist_cache_index(index: int) -> str:
+    """Encode playlist index for cache storage (supports negative indices)."""
+    try:
+        idx = int(index)
+    except (TypeError, ValueError):
+        return str(index)
+    if idx >= 0:
+        return str(idx)
+    return f"{NEGATIVE_INDEX_PREFIX}{abs(idx)}"
 import re
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
@@ -30,6 +43,18 @@ reload_interval_hours = getattr(Config, 'RELOAD_CACHE_EVERY', 4)
 _thread_lock = threading.RLock()
 
 ###################################################
+
+def _sync_local_cache_to_file():
+    """Синхронизирует локальный кэш с файлом (используется при USE_FIREBASE=False)."""
+    global firebase_cache
+    use_firebase = getattr(Config, 'USE_FIREBASE', True)
+    if not use_firebase:
+        try:
+            cache_file = getattr(Config, 'FIREBASE_CACHE_FILE', 'dump.json')
+            with open(cache_file, "w", encoding="utf-8") as f:
+                json.dump(firebase_cache, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"Ошибка синхронизации локального кэша: {e}")
 
 def get_from_local_cache(path_parts):
     """
@@ -66,16 +91,27 @@ def load_firebase_cache():
     """Load local Firebase cache from JSON file."""
     global firebase_cache
     try:
-        cache_file = getattr(Config, 'FIREBASE_CACHE_FILE', 'firebase_cache.json')
+        cache_file = getattr(Config, 'FIREBASE_CACHE_FILE', 'dump.json')
+        use_firebase = getattr(Config, 'USE_FIREBASE', True)
         if os.path.exists(cache_file):
             with open(cache_file, "r", encoding="utf-8") as f:
                 firebase_cache = json.load(f)
-            print(safe_get_messages().DB_FIREBASE_CACHE_LOADED_MSG.format(count=len(firebase_cache)))
+            if use_firebase:
+                print(safe_get_messages().DB_FIREBASE_CACHE_LOADED_MSG.format(count=len(firebase_cache)))
+            else:
+                print(f"✅ Локальный кэш загружен из {cache_file} ({len(firebase_cache)} записей)")
         else:
-            print(safe_get_messages().DB_FIREBASE_CACHE_NOT_FOUND_MSG.format(cache_file=cache_file))
+            if use_firebase:
+                print(safe_get_messages().DB_FIREBASE_CACHE_NOT_FOUND_MSG.format(cache_file=cache_file))
+            else:
+                print(f"ℹ️ Локальный кэш не найден, создан новый файл: {cache_file}")
             firebase_cache = {}
     except Exception as e:
-        print(safe_get_messages().DB_FAILED_LOAD_FIREBASE_CACHE_MSG.format(error=e))
+        use_firebase = getattr(Config, 'USE_FIREBASE', True)
+        if use_firebase:
+            print(safe_get_messages().DB_FAILED_LOAD_FIREBASE_CACHE_MSG.format(error=e))
+        else:
+            print(f"⚠️ Ошибка загрузки локального кэша: {e}")
         firebase_cache = {}
 
 def reload_firebase_cache():
@@ -126,6 +162,12 @@ def auto_reload_firebase_cache():
     messages = safe_get_messages(None)
     """Background thread that reloads local cache every N hours by downloading dump first."""
     global auto_cache_enabled
+    
+    # В локальном режиме не нужно перезагружать кэш
+    use_firebase = getattr(Config, 'USE_FIREBASE', True)
+    if not use_firebase:
+        print("ℹ️ Автоматическая перезагрузка кэша отключена в локальном режиме")
+        return
 
     while auto_cache_enabled:
         interval_hours_local = max(1, int(reload_interval_hours))
@@ -449,6 +491,21 @@ def save_to_playlist_cache(playlist_url: str, quality_key: str, video_indices: l
             if clear:
                 db_child_by_path(db, f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}/{quality_key}").remove()
                 logger.info(f"Cleared playlist cache for hash={url_hash}, quality={quality_key}")
+                # Обновляем локальный кэш
+                use_firebase = getattr(Config, 'USE_FIREBASE', True)
+                if not use_firebase:
+                    global firebase_cache
+                    path_parts_clear = ["bot", "video_cache", "playlists", url_hash, quality_key]
+                    current = firebase_cache
+                    for i, part in enumerate(path_parts_clear[:-1]):
+                        if part in current and isinstance(current[part], dict):
+                            current = current[part]
+                        else:
+                            break
+                    else:
+                        if path_parts_clear[-1] in current:
+                            del current[path_parts_clear[-1]]
+                            _sync_local_cache_to_file()
                 continue
 
             if not message_ids or not video_indices:
@@ -456,9 +513,10 @@ def save_to_playlist_cache(playlist_url: str, quality_key: str, video_indices: l
                 continue
 
             for i, msg_id in zip(video_indices, message_ids):
+                encoded_index = encode_playlist_cache_index(i)
                 
-                path_parts_local = ["bot", "video_cache", "playlists", url_hash, quality_key, str(i)]
-                path_parts = [Config.PLAYLIST_CACHE_DB_PATH, url_hash, quality_key, str(i)]
+                path_parts_local = ["bot", "video_cache", "playlists", url_hash, quality_key, encoded_index]
+                path_parts = [Config.PLAYLIST_CACHE_DB_PATH, url_hash, quality_key, encoded_index]
                 already_cached = get_from_local_cache(path_parts_local)
 
                 if already_cached:
@@ -467,8 +525,24 @@ def save_to_playlist_cache(playlist_url: str, quality_key: str, video_indices: l
 
                 db_child_by_path(db, "/".join(path_parts)).set(str(msg_id))
                 logger.info(f"Saved to playlist cache: path={path_parts}, msg_id={msg_id}")
+                
+                # Обновляем локальный кэш для немедленного доступа
+                use_firebase = getattr(Config, 'USE_FIREBASE', True)
+                if not use_firebase:
+                    global firebase_cache
+                    current = firebase_cache
+                    for part in path_parts_local:
+                        if part not in current:
+                            current[part] = {}
+                        current = current[part]
+                    current[encoded_index] = str(msg_id)
 
         logger.info(f"✅ Saved to playlist cache for hash={url_hash}, quality={quality_key}, indices={video_indices}, message_ids={message_ids}")
+        
+        # Синхронизируем локальный кэш с файлом при USE_FIREBASE=False
+        use_firebase = getattr(Config, 'USE_FIREBASE', True)
+        if not use_firebase:
+            _sync_local_cache_to_file()
 
     except Exception as e:
         logger.error(f"Failed to save to playlist cache: {e}")
@@ -510,22 +584,35 @@ def get_cached_playlist_videos(playlist_url: str, quality_key: str, requested_in
                 logger.info(f"get_cached_playlist_videos: checking quality: {qk}")
 
                 # A new way for searching in Dump!
-                arr = get_from_local_cache(["bot", "video_cache", "playlists", url_hash, qk])
-                if isinstance(arr, list):
+                data = get_from_local_cache(["bot", "video_cache", "playlists", url_hash, qk])
+                if isinstance(data, dict):
                     for index in requested_indices:
                         try:
-                            if index and index < len(arr) and arr[index]:
-                                found[index] = int(arr[index])
+                            encoded_index = encode_playlist_cache_index(index)
+                            value = data.get(encoded_index)
+                            if value:
+                                found[index] = int(value)
                                 logger.info(
-                                    f"get_cached_playlist_videos: found cached video for index {index} (quality={qk}): {arr[index]}")
+                                    f"get_cached_playlist_videos: found cached video for index {index} (quality={qk}): {value}")
                         except Exception as e:
                             logger.error(
-                                f"get_cached_playlist_videos: error reading cache for url_hash={url_hash}, quality={qk}, index={index}: {e}")
+                                f"get_cached_playlist_videos: error reading dict cache for url_hash={url_hash}, quality={qk}, index={index}: {e}")
                             continue
-                    if found:
-                        logger.info(
-                            f"get_cached_playlist_videos: returning cached videos for indices {list(found.keys())}: {found}")
-                        return found
+                elif isinstance(data, list):
+                    for index in requested_indices:
+                        try:
+                            if isinstance(index, int) and index >= 0 and index < len(data) and data[index]:
+                                found[index] = int(data[index])
+                                logger.info(
+                                    f"get_cached_playlist_videos: found cached video for index {index} (quality={qk}): {data[index]}")
+                        except Exception as e:
+                            logger.error(
+                                f"get_cached_playlist_videos: error reading list cache for url_hash={url_hash}, quality={qk}, index={index}: {e}")
+                            continue
+                if found:
+                    logger.info(
+                        f"get_cached_playlist_videos: returning cached videos for indices {list(found.keys())}: {found}")
+                    return found
 
         logger.info(safe_get_messages().DB_GET_CACHED_PLAYLIST_VIDEOS_NO_CACHE_MSG)
         return {}
@@ -602,35 +689,66 @@ def get_cached_playlist_count(playlist_url: str, quality_key: str, indices: list
         for u in set(urls):
             url_hash = get_url_hash(u)
             for qk in quality_keys:
-                arr = get_from_local_cache(["bot", "video_cache", "playlists", url_hash, qk])
-                if not isinstance(arr, list):
+                data = get_from_local_cache(["bot", "video_cache", "playlists", url_hash, qk])
+                if data is None:
                     continue
                 if indices is not None:
-                    # For large ranges, we use a fast count
-                    if len(indices) > 100:
-                        try:
-                            cached_count = sum(1 for index in indices if index and index < len(arr) and arr[index] is not None)
-                            logger.info(safe_get_messages().DB_GET_CACHED_PLAYLIST_COUNT_FAST_COUNT_MSG.format(cached_count=cached_count))
-                            return cached_count
-                        except Exception as e:
-                            logger.error(f"get_cached_playlist_count: error in fast count: {e}")
-                            continue
-                    else:
-                        # For small ranges, check each index separately
-                        for index in indices:
+                    target_indices = indices
+                    if isinstance(data, dict):
+                        if len(target_indices) > 100:
                             try:
-                                if index and index < len(arr) and arr[index] is not None:
-                                    cached_count += 1
-                                    logger.info(
-                                        f"get_cached_playlist_count: found cached video for index {index} (quality={qk}): {arr[index]}")
+                                cached_count = sum(
+                                    1 for index in target_indices
+                                    if data.get(encode_playlist_cache_index(index)) is not None
+                                )
+                                logger.info(safe_get_messages().DB_GET_CACHED_PLAYLIST_COUNT_FAST_COUNT_MSG.format(cached_count=cached_count))
+                                return cached_count
                             except Exception as e:
-                                logger.error(
-                                    f"get_cached_playlist_count: error reading cache for url_hash={url_hash}, quality={qk}, index={index}: {e}")
+                                logger.error(f"get_cached_playlist_count: error in dict fast count: {e}")
                                 continue
+                        else:
+                            for index in target_indices:
+                                try:
+                                    if data.get(encode_playlist_cache_index(index)) is not None:
+                                        cached_count += 1
+                                        logger.info(
+                                            f"get_cached_playlist_count: found cached video for index {index} (quality={qk})")
+                                except Exception as e:
+                                    logger.error(
+                                        f"get_cached_playlist_count: error reading dict cache for url_hash={url_hash}, quality={qk}, index={index}: {e}")
+                                    continue
+                    elif isinstance(data, list):
+                        if len(target_indices) > 100:
+                            try:
+                                cached_count = sum(
+                                    1 for index in target_indices
+                                    if isinstance(index, int) and index >= 0 and index < len(data) and data[index] is not None
+                                )
+                                logger.info(safe_get_messages().DB_GET_CACHED_PLAYLIST_COUNT_FAST_COUNT_MSG.format(cached_count=cached_count))
+                                return cached_count
+                            except Exception as e:
+                                logger.error(f"get_cached_playlist_count: error in list fast count: {e}")
+                                continue
+                        else:
+                            for index in target_indices:
+                                try:
+                                    if isinstance(index, int) and index >= 0 and index < len(data) and data[index] is not None:
+                                        cached_count += 1
+                                        logger.info(
+                                            f"get_cached_playlist_count: found cached video for index {index} (quality={qk}): {data[index]}")
+                                except Exception as e:
+                                    logger.error(
+                                        f"get_cached_playlist_count: error reading list cache for url_hash={url_hash}, quality={qk}, index={index}: {e}")
+                                    continue
                 else:
                     # Count all non-empty records
                     try:
-                        cached_count = sum(1 for item in arr if item is not None)
+                        if isinstance(data, dict):
+                            cached_count = sum(1 for item in data.values() if item is not None)
+                        elif isinstance(data, list):
+                            cached_count = sum(1 for item in data if item is not None)
+                        else:
+                            cached_count = 0
                     except Exception as e:
                         logger.error(
                             f"get_cached_playlist_count: error reading cache for url_hash={url_hash}, quality={qk}: {e}")
@@ -699,7 +817,20 @@ def save_to_image_cache(url: str, post_index: int, message_ids: list):
                     logger.info(f"[IMG CACHE] Fallback write via db_child_by_path succeeded: {image_root}/{url_hash}/{int(post_index)}")
                 except Exception as inner2:
                     logger.error(f"[IMG CACHE] Fallback write failed: {inner2}")
-            logger.info(f"[IMG CACHE] Saved album to Firebase: {path_dbg_parent}/{int(post_index)}")
+            logger.info(f"[IMG CACHE] Saved album to cache: {path_dbg_parent}/{int(post_index)}")
+            
+            # Обновляем локальный кэш для немедленного доступа
+            use_firebase = getattr(Config, 'USE_FIREBASE', True)
+            if not use_firebase:
+                global firebase_cache
+                current = firebase_cache
+                for part in local_path_parts[:-1]:  # Все кроме последнего (post_index)
+                    if part not in current:
+                        current[part] = {}
+                    current = current[part]
+                current[local_path_parts[-1]] = ids_string
+                _sync_local_cache_to_file()
+            
             # Optional verification
             try:
                 val = cache_ref.child(str(int(post_index))).get().val()
@@ -874,6 +1005,20 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
             if clear:
                 logger.info(f"Clearing cache for URL hash {url_hash}, quality {quality_key}")
                 db.child(*path_parts).child(quality_key).remove()
+                # Обновляем локальный кэш
+                use_firebase = getattr(Config, 'USE_FIREBASE', True)
+                if not use_firebase:
+                    global firebase_cache
+                    current = firebase_cache
+                    for part in ["bot", "video_cache", url_hash]:
+                        if part in current and isinstance(current[part], dict):
+                            current = current[part]
+                        else:
+                            break
+                    else:
+                        if quality_key in current:
+                            del current[quality_key]
+                            _sync_local_cache_to_file()
                 continue
 
             if not message_ids:
@@ -891,10 +1036,35 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
             if len(message_ids) == 1:
                 cache_ref.child(quality_key).set(str(message_ids[0]))
                 logger.info(f"Saved single video to cache: hash={url_hash}, quality={quality_key}, msg_id={message_ids[0]}")
+                # Обновляем локальный кэш
+                use_firebase = getattr(Config, 'USE_FIREBASE', True)
+                if not use_firebase:
+                    global firebase_cache
+                    current = firebase_cache
+                    for part in ["bot", "video_cache", url_hash]:
+                        if part not in current:
+                            current[part] = {}
+                        current = current[part]
+                    current[quality_key] = str(message_ids[0])
             else:
                 ids_string = ",".join(map(str, message_ids))
                 cache_ref.child(quality_key).set(ids_string)
                 logger.info(f"Saved split video to cache: hash={url_hash}, quality={quality_key}, msg_ids={ids_string}")
+                # Обновляем локальный кэш
+                use_firebase = getattr(Config, 'USE_FIREBASE', True)
+                if not use_firebase:
+                    global firebase_cache
+                    current = firebase_cache
+                    for part in ["bot", "video_cache", url_hash]:
+                        if part not in current:
+                            current[part] = {}
+                        current = current[part]
+                    current[quality_key] = ids_string
+            
+            # Синхронизируем локальный кэш с файлом при USE_FIREBASE=False
+            use_firebase = getattr(Config, 'USE_FIREBASE', True)
+            if not use_firebase:
+                _sync_local_cache_to_file()
 
     except Exception as e:
         logger.error(f"Failed to save to video cache: {e}")
