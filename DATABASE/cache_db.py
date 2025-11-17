@@ -460,6 +460,7 @@ def auto_cache_command(app, message):
 def save_to_playlist_cache(playlist_url: str, quality_key: str, video_indices: list, message_ids: list,
                            messages = safe_get_messages(None),
                            clear: bool = False, original_text: str = None):
+    global firebase_cache
     # Lazy imports to avoid circular imports
     from URL_PARSERS.normalizer import normalize_url_for_cache, strip_range_from_url
     from URL_PARSERS.youtube import is_youtube_url, youtube_to_short_url, youtube_to_long_url
@@ -494,7 +495,6 @@ def save_to_playlist_cache(playlist_url: str, quality_key: str, video_indices: l
                 # Обновляем локальный кэш
                 use_firebase = getattr(Config, 'USE_FIREBASE', True)
                 if not use_firebase:
-                    global firebase_cache
                     path_parts_clear = ["bot", "video_cache", "playlists", url_hash, quality_key]
                     current = firebase_cache
                     for i, part in enumerate(path_parts_clear[:-1]):
@@ -529,7 +529,6 @@ def save_to_playlist_cache(playlist_url: str, quality_key: str, video_indices: l
                 # Обновляем локальный кэш для немедленного доступа
                 use_firebase = getattr(Config, 'USE_FIREBASE', True)
                 if not use_firebase:
-                    global firebase_cache
                     current = firebase_cache
                     for part in path_parts_local:
                         if part not in current:
@@ -783,6 +782,7 @@ def save_to_image_cache(url: str, post_index: int, message_ids: list):
     Stored under local cache path: bot -> image_cache -> url_hash -> str(post_index) -> comma-separated ids
     And mirrored to Firebase using db_child_by_path when available.
     """
+    global firebase_cache
     from URL_PARSERS.normalizer import normalize_url_for_cache
     try:
         logger.info(f"[IMG CACHE] save_to_image_cache called: url={url}, post_index={post_index}, message_ids={message_ids}")
@@ -822,7 +822,6 @@ def save_to_image_cache(url: str, post_index: int, message_ids: list):
             # Обновляем локальный кэш для немедленного доступа
             use_firebase = getattr(Config, 'USE_FIREBASE', True)
             if not use_firebase:
-                global firebase_cache
                 current = firebase_cache
                 for part in local_path_parts[:-1]:  # Все кроме последнего (post_index)
                     if part not in current:
@@ -954,6 +953,7 @@ def get_cached_image_post_indices(url: str) -> set:
 
 def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bool = False, original_text: str = None, user_id: int = None):
     """Saves message IDs to Firebase video cache after checking local cache to avoid duplication."""
+    global firebase_cache
     from URL_PARSERS.normalizer import normalize_url_for_cache
     from URL_PARSERS.youtube import is_youtube_url, youtube_to_short_url, youtube_to_long_url
     from URL_PARSERS.playlist_utils import is_playlist_with_range
@@ -1008,7 +1008,6 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
                 # Обновляем локальный кэш
                 use_firebase = getattr(Config, 'USE_FIREBASE', True)
                 if not use_firebase:
-                    global firebase_cache
                     current = firebase_cache
                     for part in ["bot", "video_cache", url_hash]:
                         if part in current and isinstance(current[part], dict):
@@ -1039,7 +1038,6 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
                 # Обновляем локальный кэш
                 use_firebase = getattr(Config, 'USE_FIREBASE', True)
                 if not use_firebase:
-                    global firebase_cache
                     current = firebase_cache
                     for part in ["bot", "video_cache", url_hash]:
                         if part not in current:
@@ -1053,7 +1051,6 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
                 # Обновляем локальный кэш
                 use_firebase = getattr(Config, 'USE_FIREBASE', True)
                 if not use_firebase:
-                    global firebase_cache
                     current = firebase_cache
                     for part in ["bot", "video_cache", url_hash]:
                         if part not in current:
