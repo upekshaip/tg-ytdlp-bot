@@ -351,8 +351,12 @@ starting_point = []
 
 # ###############################################################################################
 
-# Run the automatic loading of the Firebase cache
-start_auto_cache_reloader()
+# Run the automatic loading of the Firebase cache (only if Firebase is enabled)
+use_firebase = getattr(Config, 'USE_FIREBASE', True)
+if use_firebase:
+    start_auto_cache_reloader()
+else:
+    print("ℹ️ Автоматическая перезагрузка кэша отключена (локальный режим)")
 
 def cleanup_on_exit():
     messages = safe_get_messages(None)
