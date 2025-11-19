@@ -474,6 +474,8 @@ cd tg-ytdlp-bot/TXT
 nano cookie.txt
 ```
 
+---
+
 #### Advanced YouTube Cookie Management
 
 The bot now supports automatic downloading and validation of YouTube cookies from multiple sources:
