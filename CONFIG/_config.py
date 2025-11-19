@@ -41,6 +41,9 @@ class Config(object):
     # Add subscription channel - Required (str)
     SUBSCRIBE_CHANNEL_URL = "https://t.me/+abcdef"
     #######################################################
+    ###########################################################
+    # FOR DOCKER DEPLOYMENT YOU CAN STOP FILL IN HERE
+    ###########################################################
     # Firebase initialization
     USE_FIREBASE = False
     # your firebase DB path

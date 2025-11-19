@@ -62,6 +62,8 @@ https://youtube.com/watch?v=dQw4w9WgXcQ
 - [Contributing](#-contributing)
 - [Support](#-support)
 
+---
+
 ## 🛠️ Installation
 
 ### 🚢 Docker Deployment (recommended for most users)
@@ -212,6 +214,8 @@ YOUTUBE_COOKIE_URL_2 = "https://your-domain.com/cookies/youtube/cookie3.txt"
 # ... up to YOUTUBE_COOKIE_URL_9 
 
 # Firebase Configuration
+USE_FIREBASE = True
+
 FIREBASE_USER = "your-email@gmail.com"
 FIREBASE_PASSWORD = "your-firebase-password"
 FIREBASE_CONF = {
@@ -394,6 +398,8 @@ create in project folder subfolder `TXT` and place `cookie.txt` extracted from Y
 cd tg-ytdlp-bot/TXT
 nano cookie.txt
 ```
+
+---
 
 #### Advanced YouTube Cookie Management
 
