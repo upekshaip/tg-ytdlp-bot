@@ -77,24 +77,18 @@ class Config(object):
     # If one URL does not work or the cookies are expired, the bot will automatically try the next one
     YOUTUBE_COOKIE_URL = "http://configuration-webserver/cookies/youtube.txt"
     YOUTUBE_COOKIE_URL_1 = "http://configuration-webserver/cookies/youtube-1.txt"
-    YOUTUBE_COOKIE_URL_2 = "http://configuration-webserver/cookies/youtube-[N=2-9].txt"
-    #YOUTUBE_COOKIE_URL_2 = "http://configuration-webserver/cookies/youtube-2.txt"
-    #YOUTUBE_COOKIE_URL_3 = "http://configuration-webserver/cookies/youtube-3.txt"
+    YOUTUBE_COOKIE_URL_2 = "http://configuration-webserver/cookies/youtube-2.txt"
+    YOUTUBE_COOKIE_URL_3 = "http://configuration-webserver/cookies/youtube-3.txt"
     #YOUTUBE_COOKIE_URL_4 = "http://configuration-webserver/cookies/youtube-4.txt"
-    #YOUTUBE_COOKIE_URL_5 = "http://configuration-webserver/cookies/youtube-5.txt"
-    #YOUTUBE_COOKIE_URL_6 = "http://configuration-webserver/cookies/youtube-6.txt"
-    #YOUTUBE_COOKIE_URL_7 = "http://configuration-webserver/cookies/youtube-7.txt"
-    #YOUTUBE_COOKIE_URL_8 = "http://configuration-webserver/cookies/youtube-8.txt"
-    #YOUTUBE_COOKIE_URL_9 = "http://configuration-webserver/cookies/youtube-9.txt"    
-    YOUTUBE_COOKIE_URL_10 = "http://configuration-webserver/cookies/youtube-10.txt"
+    #YOUTUBE_COOKIE_URL_10 = "http://configuration-webserver/cookies/youtube-10.txt"
     YOUTUBE_COOKIE_ORDER = "round_robin" # random, round_robin
     # YouTube test URL for cookie validation
     YOUTUBE_COOKIE_TEST_URL = "https://www.youtube.com/watch?v=_GuOjXYl5ew" #youtube official video
     #YOUTUBE_COOKIE_TEST_URL = "https://youtu.be/XqZsoesa55w"  # Baby Shark Dance
     #YOUTUBE_COOKIE_TEST_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"  # Rick Roll - short video
-    INSTAGRAM_COOKIE_URL = "http://configuration-webserver/cookies/instagram.txt"
+    #INSTAGRAM_COOKIE_URL = "http://configuration-webserver/cookies/instagram.txt"
     TIKTOK_COOKIE_URL = "http://configuration-webserver/cookies/tiktok.txt"
-    FACEBOOK_COOKIE_URL = "http://configuration-webserver/cookies/facebook.txt"
+    #FACEBOOK_COOKIE_URL = "http://configuration-webserver/cookies/facebook.txt"
     TWITTER_COOKIE_URL = "http://configuration-webserver/cookies/twitter.txt"
     VK_COOKIE_URL = "http://configuration-webserver/cookies/vk.txt"
     # Do not chanege this
