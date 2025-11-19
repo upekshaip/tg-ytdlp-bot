@@ -66,27 +66,28 @@ class Config(object):
     # OPTIONAL (NOT REQUIRED) SETTINGS - you can stop here
     ########################################################    
     # Cookie file URL
-    # EX: "https://path/to/your/cookie-file.txt"
-    COOKIE_URL = "https://XXX/cookie.txt"
+    # For Docker setup: served by configuration-webserver container
+    # EX: "http://configuration-webserver/cookies/cookie.txt"
+    COOKIE_URL = "http://configuration-webserver/cookies/cookie.txt"
     # YouTube cookies URLs - main URL and backups
     # The bot will check cookies in the order: YOUTUBE_COOKIE_URL, YOUTUBE_COOKIE_URL_1, YOUTUBE_COOKIE_URL_2, etc. up to 10
     # If one URL does not work or the cookies are expired, the bot will automatically try the next one
-    YOUTUBE_COOKIE_URL = "https://XXX/youtube_cookie.txt"
-    YOUTUBE_COOKIE_URL_1 = "https://XXX/cookie1.txt"
-    YOUTUBE_COOKIE_URL_2 = "https://XXX/cookie2.txt"
-    YOUTUBE_COOKIE_URL_3 = "https://XXX/cookie3.txt"
-    #YOUTUBE_COOKIE_URL_4 = "https://XXX/cookie4.txt"
-    #YOUTUBE_COOKIE_URL_10 = "https://XXX/cookie10.txt"
+    YOUTUBE_COOKIE_URL = "http://configuration-webserver/cookies/youtube.txt"
+    YOUTUBE_COOKIE_URL_1 = "http://configuration-webserver/cookies/youtube-1.txt"
+    YOUTUBE_COOKIE_URL_2 = "http://configuration-webserver/cookies/youtube-2.txt"
+    YOUTUBE_COOKIE_URL_3 = "http://configuration-webserver/cookies/youtube-3.txt"
+    #YOUTUBE_COOKIE_URL_4 = "http://configuration-webserver/cookies/youtube-4.txt"
+    #YOUTUBE_COOKIE_URL_10 = "http://configuration-webserver/cookies/youtube-10.txt"
     YOUTUBE_COOKIE_ORDER = "round_robin" # random, round_robin
     # YouTube test URL for cookie validation
     YOUTUBE_COOKIE_TEST_URL = "https://www.youtube.com/watch?v=_GuOjXYl5ew" #youtube official video
     #YOUTUBE_COOKIE_TEST_URL = "https://youtu.be/XqZsoesa55w"  # Baby Shark Dance
     #YOUTUBE_COOKIE_TEST_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"  # Rick Roll - short video
-    #INSTAGRAM_COOKIE_URL = "https://XXX/instagram_cookie.txt"
-    TIKTOK_COOKIE_URL = "https://XXX/tiktok_cookie.txt"
-    #FACEBOOK_COOKIE_URL = "https://XXX/facebook_cookie.txt"
-    TWITTER_COOKIE_URL = "https://XXX/twitter_cookie.txt"
-    VK_COOKIE_URL = "https://XXX/vk_cookie.txt"
+    #INSTAGRAM_COOKIE_URL = "http://configuration-webserver/cookies/instagram.txt"
+    TIKTOK_COOKIE_URL = "http://configuration-webserver/cookies/tiktok.txt"
+    #FACEBOOK_COOKIE_URL = "http://configuration-webserver/cookies/facebook.txt"
+    TWITTER_COOKIE_URL = "http://configuration-webserver/cookies/twitter.txt"
+    VK_COOKIE_URL = "http://configuration-webserver/cookies/vk.txt"
     # Do not chanege this
     COOKIE_FILE_PATH = "TXT/cookie.txt"
     # Do not chanege this
@@ -115,7 +116,8 @@ class Config(object):
     # Enable PO token provider for YouTube domains
     YOUTUBE_POT_ENABLED = True
     # PO token provider server URL (Docker container)
-    YOUTUBE_POT_BASE_URL = "http://127.0.0.1:4416"
+    # For Docker Compose, service name is "bgutil-provider"
+    YOUTUBE_POT_BASE_URL = "http://bgutil-provider:4416"
     # Disable innertube if tokens stop working
     YOUTUBE_POT_DISABLE_INNERTUBE = False
     ###########################################################

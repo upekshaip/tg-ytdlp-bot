@@ -128,6 +128,17 @@ source venv/bin/activate
 python3 magic.py
 ```
 
+### Docker Compose Deployment
+
+For a fully containerized setup (bot + PO token provider + cookie webserver):
+
+```bash
+cp .env.example .env     # Adjust TZ / project name if needed
+docker compose up -d --build
+```
+
+Place your cookie files (for YouTube, Instagram, TikTok, etc.) in `docker/configuration-webserver/site/cookies`. They will be served at `http://configuration-webserver/cookies/<filename>` inside the Docker network and automatically picked up via the updated URLs in `CONFIG/config.py`.
+
 ## ⚙️ Configuration
 
 ### Required Configuration
