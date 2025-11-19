@@ -86,8 +86,8 @@ Then edit `CONFIG/config.py` and fill in at least:
 - **BOT_NAME** – any internal name of your bot
 - **BOT_NAME_FOR_USERS** – name used in DB (usually real bot username without `@`)
 - **ADMIN** – list with at least your Telegram user ID
-- **API_ID**, **API_HASH** – from [my.telegram.org](https://my.telegram.org) see section [Getting API Credentials](#getting-api-credentials)
-- **BOT_TOKEN** – from [@BotFather](https://t.me/BotFather) see section [Getting API Credentials](#getting-api-credentials)
+- **API_ID**, **API_HASH** – from [my.telegram.org](https://my.telegram.org) (see section [Getting API Credentials](#getting-api-credentials))
+- **BOT_TOKEN** – from [@BotFather](https://t.me/BotFather) (see section [Getting API Credentials](#getting-api-credentials))
 - **LOGS\_*** (LOGS_ID, LOGS_VIDEO_ID, LOGS_NSFW_ID, LOGS_IMG_ID, LOGS_PAID_ID, LOG_EXCEPTION) – Fill in all the fields, if you want you can use the same channel for all
 - **SUBSCRIBE_CHANNEL** and **SUBSCRIBE_CHANNEL_URL** – channel ID and invite link users must join
 
