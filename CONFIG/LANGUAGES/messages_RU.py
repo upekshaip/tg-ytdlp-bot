@@ -16,8 +16,8 @@ class Messages(object):
     PLAYLIST_HELP_MSG = """
 <blockquote expandable>📋 <b>Плейлисты (yt-dlp)</b>
 
-Для скачивания плейлистов отправьте URL с диапазонами <code>*начало*конец</code> в конце. Например: <code>URL*1*5</code>.
-Или используйте <code>/vid ОТ-ДО URL</code>. Например: <code>/vid 3-7 URL</code>. Также работает для команды <code>/audio</code>.
+Для скачивания плейлистов отправьте URL с диапазонами <code>*начало*конец</code> в конце. Например: <code>URL*1*5</code> (первые 5 видео с 1 по 5 включительно). <code>URL*-1*-5</code> (последние 5 видео с 1 по 5 включительно).
+Или используйте <code>/vid ОТ-ДО URL</code>. Например: <code>/vid 3-7 URL</code> (скачивает видео с 3 по 7 включительно с начала). <code>/vid -3-7 URL</code> (скачивает видео с 3 по 7 включительно с конца). Также работает для команды <code>/audio</code>.
 
 <b>Примеры:</b>
 
@@ -94,8 +94,10 @@ class Messages(object):
 • Ответьте на видео текстом → изменить подпись
 
 📋 <b>Плейлисты и диапазоны:</b>
-• <code>URL*1*5</code> → скачать видео 1-5
+• <code>URL*1*5</code> → скачать первые 5 видео
+• <code>URL*-1*-5</code> → скачать последние 5 видео
 • <code>/vid 3-7 URL</code> → становится <code>URL*3*7</code>
+• <code>/vid -3-7 URL</code> → становится <code>URL*-3*-7</code>
 
 🍪 <b>Cookies и приватные:</b>
 • Загрузите *.txt cookie для приватных видео
@@ -1968,7 +1970,7 @@ class Messages(object):
     URL_EXTRACTOR_VID_HELP_TITLE_MSG = "🎬 Команда скачивания видео"
     URL_EXTRACTOR_VID_HELP_USAGE_MSG = "Использование: <code>/vid URL</code>"
     URL_EXTRACTOR_VID_HELP_EXAMPLES_MSG = "Примеры:"
-    URL_EXTRACTOR_VID_HELP_EXAMPLE_1_MSG = "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code>"
+    URL_EXTRACTOR_VID_HELP_EXAMPLE_1_MSG = "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code> (прямой порядок)\n• <code>/vid -3-7 https://youtube.com/playlist?list=123abc</code> (обратный порядок)"
     URL_EXTRACTOR_VID_HELP_ALSO_SEE_MSG = "Также смотрите: /audio, /img, /help, /playlist, /settings"
     URL_EXTRACTOR_ADD_GROUP_USER_CLOSED_MSG = "User {user_id} closed add_bot_to_group command"
 

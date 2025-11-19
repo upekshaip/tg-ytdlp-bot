@@ -16,14 +16,14 @@ class Messages(object):
     PLAYLIST_HELP_MSG = """
 <blockquote expandable>📋 <b>Playlists (yt-dlp)</b>
 
-To download playlists send its URL with <code>*start*end</code> ranges in the end. For example: <code>URL*1*5</code>.
-Or you can use <code>/vid FROM-TO URL</code>. For example: <code>/vid 3-7 URL</code>. Also works for <code>/audio</code> command.
+To download playlists send its URL with <code>*start*end</code> ranges in the end. For example: <code>URL*1*5</code> (first 5 videos from 1 to 5 inclusive).<code>URL*-1*-5</code> (last 5 videos from 1 to 5 inclusive).
+Or you can use <code>/vid FROM-TO URL</code>. For example: <code>/vid 3-7 URL</code> (downloads videos from 3 to 7 inclusive from the start). <code>/vid -3-7 URL</code> (downloads videos from 3 to 7 inclusive from the end). Also works for <code>/audio</code> command.
 
 <b>Examples:</b>
 
 🟥 <b>Video range from YouTube playlist:</b> (need 🍪)
 <code>https://youtu.be/playlist?list=PL...*1*5</code>
-(downloads videos from 1 to 5 inclusive)
+(downloads first 5 videos from 1 to 5 inclusive)
 🟥 <b>Single video from YouTube playlist:</b> (need 🍪)
 <code>https://youtu.be/playlist?list=PL...*3*3</code>
 (downloads only the 3rd video)
@@ -94,8 +94,10 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
 • Reply to video with text → change caption
 
 📋 <b>Playlists & Ranges:</b>
-• <code>URL*1*5</code> → download videos 1-5
+• <code>URL*1*5</code> → download first 5 videos
+• <code>URL*-1*-5</code> → download last 5 videos
 • <code>/vid 3-7 URL</code> → becomes <code>URL*3*7</code>
+• <code>/vid -3-7 URL</code> → becomes <code>URL*-3*-7</code>
 
 🍪 <b>Cookies & Private:</b>
 • Upload *.txt cookie for private videos
@@ -1968,7 +1970,7 @@ Use:
     URL_EXTRACTOR_VID_HELP_TITLE_MSG = "🎬 Video Download Command"
     URL_EXTRACTOR_VID_HELP_USAGE_MSG = "Usage: <code>/vid URL</code>"
     URL_EXTRACTOR_VID_HELP_EXAMPLES_MSG = "Examples:"
-    URL_EXTRACTOR_VID_HELP_EXAMPLE_1_MSG = "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code>"
+    URL_EXTRACTOR_VID_HELP_EXAMPLE_1_MSG = "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code> (direct order)\n• <code>/vid -3-7 https://youtube.com/playlist?list=123abc</code> (reverse order)"
     URL_EXTRACTOR_VID_HELP_ALSO_SEE_MSG = "Also see: /audio, /img, /help, /playlist, /settings"
     URL_EXTRACTOR_ADD_GROUP_USER_CLOSED_MSG = "User {user_id} closed add_bot_to_group command"
 
