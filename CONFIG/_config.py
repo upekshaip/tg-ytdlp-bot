@@ -42,7 +42,7 @@ class Config(object):
     SUBSCRIBE_CHANNEL_URL = "https://t.me/+abcdef"
     #######################################################
     # Firebase initialization
-    USE_FIREBASE = True
+    USE_FIREBASE = False
     # your firebase DB path
     BOT_DB_PATH = f"bot/{BOT_NAME_FOR_USERS}/"
     VIDEO_CACHE_DB_PATH = f"bot/video_cache"
