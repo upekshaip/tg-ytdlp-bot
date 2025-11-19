@@ -98,21 +98,21 @@ Then edit `CONFIG/config.py` and fill in at least:
 #####################################################################
 
 # Bot Configuration
-BOT_NAME = "your_bot_name"                    # Your bot's name
+BOT_NAME = "your_bot_name"                   # Your bot's name
 BOT_NAME_FOR_USERS = "tg-ytdlp-bot"          # Name in database
-ADMIN = [123456789, 987654321]               # List of admin user IDs
+ADMIN = [123456789]                          # List of admin user IDs
 API_ID = 12345678                            # Your Telegram API ID
 API_HASH = "your_api_hash_here"              # Your Telegram API Hash
 BOT_TOKEN = "1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"  # Your bot token
 
 # Channel Configuration (Multiple Log Channels)
 LOGS_ID = -1001234567890                     # Main logging channel
-LOGS_VIDEO_ID = -1001234567891               # Video download logs
-LOGS_NSFW_ID = -1001234567892                # NSFW content logs
-LOGS_IMG_ID = -1001234567893                 # Image download logs
-LOGS_PAID_ID = -1001234567894                # Paid media logs
-LOG_EXCEPTION = -1001234567895               # Error logs
-SUBSCRIBE_CHANNEL = -1001234567890           # Subscription channel
+LOGS_VIDEO_ID = -1001234567890               # Video download logs
+LOGS_NSFW_ID = -1001234567890                # NSFW content logs
+LOGS_IMG_ID = -1001234567890                 # Image download logs
+LOGS_PAID_ID = -1001234567890                # Paid media logs
+LOG_EXCEPTION = -1001234567890               # Error logs
+SUBSCRIBE_CHANNEL = -1000987654321           # Subscription channel
 SUBSCRIBE_CHANNEL_URL = "https://t.me/your_channel"  # Channel invite link
 
 #####################################################################
