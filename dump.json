@@ -1,0 +1,54 @@
+{
+  "bot": {
+    "tgytdlp_bot": {
+      "blocked_users": {
+        "0": {
+          "ID": "0",
+          "timestamp": 1763537791
+        }
+      },
+      "logs": {
+        "0": {
+          "0": {
+            "ID": "0",
+            "name": "test",
+            "timestamp": "1763537791",
+            "title": "test.mp4",
+            "urls": "https://example.com/"
+          }
+        }
+      },
+      "unblocked_users": {
+        "0": {
+          "ID": "0",
+          "timestamp": 1763537791
+        }
+      },
+      "users": {
+        "0": {
+          "ID": "0",
+          "timestamp": 1763537791
+        }
+      }
+    },
+    "video_cache": {
+      "0": {
+        "best": "0"
+      },
+      "images": {
+        "0": [
+          null,
+          "0"
+        ]
+      },
+      "playlists": {
+        "0": {
+          "best": [
+            null,
+            "0"
+          ]
+        }
+      }
+    }
+  }
+}
