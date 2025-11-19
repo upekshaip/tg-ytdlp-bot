@@ -64,7 +64,56 @@ https://youtube.com/watch?v=dQw4w9WgXcQ
 
 ## 🛠️ Installation
 
-### Prerequisites
+### 🚢 Docker Deployment (recommended for most users)
+
+This is the easiest way to run the bot: everything (bot + PO token provider + cookie webserver) runs in Docker containers.
+
+**Requirements:**
+- **Docker** and **Docker Compose**
+- A server or VPS with Linux (Ubuntu/Debian recommended)
+
+**Step 1 – Create config file:**
+
+```bash
+cd tg-ytdlp-bot
+cp CONFIG/_config.py CONFIG/config.py
+```
+
+Then edit `CONFIG/config.py` and fill in at least:
+- **BOT_NAME** – any internal name of your bot
+- **BOT_NAME_FOR_USERS** – name used in DB (usually real bot username without `@`)
+- **ADMIN** – list with at least your Telegram user ID
+- **API_ID**, **API_HASH** – from [my.telegram.org](https://my.telegram.org)
+- **BOT_TOKEN** – from [@BotFather](https://t.me/BotFather)
+- **LOGS\_*** (LOGS_ID, LOGS_VIDEO_ID, LOGS_NSFW_ID, LOGS_IMG_ID, LOGS_PAID_ID, LOG_EXCEPTION) – Fill in all the fields, if you want you can use the same channel for all
+- **SUBSCRIBE_CHANNEL** and **SUBSCRIBE_CHANNEL_URL** – channel ID and invite link users must join
+
+All cookie URLs in the template already point to the internal `configuration-webserver` container,
+you only need to put real cookie files into `docker/configuration-webserver/site/cookies` before starting (see section [Get YouTube cookies](#get-youtube-cookies) below for export and requirements).
+
+**Step 2 – Environment file (.env):**
+
+```bash
+cp .env.example .env
+```
+
+You can optionally change:
+- `COMPOSE_PROJECT_NAME` – project name prefix for Docker
+- `TZ` – your timezone (e.g. `Europe/Moscow`)
+
+**Step 3 – Start containers:**
+
+```bash
+docker compose up -d --build
+```
+
+The bot container will be built from the included `Dockerfile`, and:
+- `configuration-webserver` will serve cookie files at `http://configuration-webserver/cookies/<filename>`
+- `bgutil-provider` will be available at `http://bgutil-provider:4416` for YouTube PO tokens
+
+### Manual Installation (without Docker)
+
+#### Prerequisites
 
 - **Python 3.10+**
 - **Ubuntu/Debian** (recommended) or other Linux distribution
