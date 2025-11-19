@@ -62,6 +62,8 @@ https://youtube.com/watch?v=dQw4w9WgXcQ
 - [Contributing](#-contributing)
 - [Support](#-support)
 
+---
+
 ## 🛠️ Installation
 
 ### 🚢 Docker Deployment (recommended for most users)
@@ -183,6 +185,8 @@ docker compose up -d --build
 The bot container will be built from the included `Dockerfile`, and:
 - `configuration-webserver` will serve cookie files at `http://configuration-webserver/cookies/<filename>`
 - `bgutil-provider` will be available at `http://bgutil-provider:4416` for YouTube PO tokens
+
+---
 
 ### Manual Installation (without Docker)
 
