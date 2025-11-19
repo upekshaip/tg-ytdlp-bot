@@ -273,6 +273,7 @@ class LoggerMsg(object):
     PROXY_CMD_PROXY_CHECK_FOR_USER_LOG_MSG = "Proxy check for user {user_id}: {proxy_enabled}"
     PROXY_CMD_ADDED_PROXY_FOR_USER_LOG_MSG = "Added proxy for user {user_id}: {proxy_url}"
     PROXY_CMD_ADDED_DOMAIN_PROXY_LOG_MSG = "Added domain-specific proxy for {url}: {proxy_url}"
+    PROXY_CMD_ERROR_CHECKING_PROXY_LOG_MSG = "Error checking proxy state for user {user_id}: {error}"
     
     # Database cache logs
     DB_FIREBASE_CACHE_ACCESS_LOG_MSG = "Firebase local-cache access: {path} -> {status}"
@@ -493,6 +494,7 @@ class LoggerMsg(object):
     
     # List Command Log Messages
     LIST_ERROR_IN_HELP_CALLBACK_LOG_MSG = "Error in list help callback: {e}"
+    LIST_USING_PROXY_LOG_MSG = "[LIST] Using {reason} proxy for user {user_id}: {proxy_url}"
     
     # Link Command Log Messages
     LINK_FAILED_COPY_GLOBAL_COOKIE_LOG_MSG = "Failed to copy global cookie file for user {user_id}: {e}"

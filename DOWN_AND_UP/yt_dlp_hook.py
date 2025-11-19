@@ -105,7 +105,7 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
             # Always check existing cookies first on user's URL for maximum speed
             if os.path.exists(user_cookie_path):
                 logger.info(safe_get_messages(user_id).YTDLP_CHECKING_EXISTING_YOUTUBE_COOKIES_MSG.format(user_id=user_id))
-                if test_youtube_cookies_on_url(user_cookie_path, url):
+                if test_youtube_cookies_on_url(user_cookie_path, url, user_id):
                     cookie_file = user_cookie_path
                     logger.info(safe_get_messages(user_id).YTDLP_EXISTING_YOUTUBE_COOKIES_WORK_MSG.format(user_id=user_id))
                 else:
@@ -128,14 +128,14 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                                 mark_cookie_source_checked(user_id, idx)
                                 
                                 try:
-                                    ok, status_code, content, error = _download_content(cookie_url)
+                                    ok, status_code, content, error = _download_content(cookie_url, user_id=user_id)
                                 except Exception as download_e:
                                     logger.error(f"Error processing cookie source {idx + 1} for user {user_id}: {download_e}")
                                     continue
                                 if ok and content and len(content) <= 100 * 1024:
                                     with open(user_cookie_path, "wb") as cf:
                                         cf.write(content)
-                                    if test_youtube_cookies_on_url(user_cookie_path, url):
+                                    if test_youtube_cookies_on_url(user_cookie_path, url, user_id):
                                         cookie_file = user_cookie_path
                                         logger.info(safe_get_messages(user_id).YTDLP_YOUTUBE_COOKIES_FROM_SOURCE_WORK_MSG.format(i=idx + 1, user_id=user_id))
                                         success = True
@@ -173,14 +173,14 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                             mark_cookie_source_checked(user_id, idx)
                             
                             try:
-                                ok, status_code, content, error = _download_content(cookie_url)
+                                ok, status_code, content, error = _download_content(cookie_url, user_id=user_id)
                             except Exception as download_e:
                                 logger.error(f"Error processing cookie source {idx + 1} for user {user_id}: {download_e}")
                                 continue
                             if ok and content and len(content) <= 100 * 1024:
                                 with open(user_cookie_path, "wb") as cf:
                                     cf.write(content)
-                                if test_youtube_cookies_on_url(user_cookie_path, url):
+                                if test_youtube_cookies_on_url(user_cookie_path, url, user_id):
                                     cookie_file = user_cookie_path
                                     logger.info(f"YouTube cookies from source {idx + 1} work on user's URL for format detection for user {user_id} - saved to user folder")
                                     success = True
@@ -213,14 +213,14 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                     for i, cookie_url in enumerate(cookie_urls, 1):
                         logger.info(f"Trying YouTube cookie source {i} for format detection for user {user_id}")
                         try:
-                            ok, status_code, content, error = _download_content(cookie_url)
+                            ok, status_code, content, error = _download_content(cookie_url, user_id=user_id)
                         except Exception as download_e:
                             logger.error(f"Error processing cookie source {i} for user {user_id}: {download_e}")
                             continue
                         if ok and content and len(content) <= 100 * 1024:
                             with open(user_cookie_path, "wb") as cf:
                                 cf.write(content)
-                            if test_youtube_cookies_on_url(user_cookie_path, url):
+                            if test_youtube_cookies_on_url(user_cookie_path, url, user_id):
                                 cookie_file = user_cookie_path
                                 logger.info(f"YouTube cookies from source {i} work on user's URL for format detection for user {user_id} - saved to user folder")
                                 success = True

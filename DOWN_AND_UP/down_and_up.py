@@ -337,6 +337,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             requested_indices = list(range(video_start_with, video_start_with + video_count))
     else:
         requested_indices = []
+    playlist_indices_all = requested_indices[:] if requested_indices else []
     cached_videos = {}
     uncached_indices = []
     if safe_quality_key and is_playlist:
@@ -355,7 +356,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         
         uncached_indices = [i for i in requested_indices if i not in cached_videos]
         # First, repost the cached ones (skip if send_as_file is enabled)
-        if cached_videos:
+        if cached_videos and (not use_range_download or len(uncached_indices) == 0):
             # Check if send_as_file is enabled - if so, skip cache repost
             from COMMANDS.args_cmd import get_user_args
             user_args = get_user_args(user_id)
@@ -394,6 +395,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 return
             else:
                 app.send_message(user_id, safe_get_messages(user_id).CACHE_PARTIAL_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+        elif cached_videos:
+            logger.info("[VIDEO CACHE] Skipping partial cache replay for negative range to avoid duplicate downloads")
+            uncached_indices = requested_indices
         else:
             logger.info(f"[VIDEO CACHE] Skipping cache check for playlist because Always Ask mode is enabled: url={url}, quality={safe_quality_key}")
             # Set all indices as uncached when Always Ask mode is enabled
@@ -897,15 +901,15 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
         def try_download(url, attempt_opts):
             messages = safe_get_messages(message.chat.id)
-            nonlocal current_total_process, error_message, did_cookie_retry, did_proxy_retry, is_hls, error_message_sent, is_reverse_order, use_range_download, playlist_range_str
+            nonlocal current_total_process, error_message, did_cookie_retry, did_proxy_retry, is_hls, error_message_sent, is_reverse_order, use_range_download, playlist_range_str, current_playlist_items_override, range_entries_metadata
             
             # Use original filename for first attempt
             original_outtmpl = os.path.join(user_dir_name, "%(title)s.%(ext)s")
             
             # First try with original filename
             # Для отрицательных индексов используем весь диапазон сразу
-            if use_range_download:
-                playlist_items_str = playlist_range_str
+            if current_playlist_items_override:
+                playlist_items_str = current_playlist_items_override
             elif is_reverse_order and is_playlist:
                 # Для обратного порядка используем формат START:STOP:-1
                 playlist_items_str = f"{current_index}:{current_index}:-1"
@@ -1036,7 +1040,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     # Always check existing cookies first on user's URL for maximum speed
                     if os.path.exists(user_cookie_path):
                         logger.info(f"Checking existing YouTube cookies on user's URL for user {user_id}")
-                        if test_youtube_cookies_on_url(user_cookie_path, url):
+                        if test_youtube_cookies_on_url(user_cookie_path, url, user_id):
                             common_opts['cookiefile'] = user_cookie_path
                             logger.info(f"Existing YouTube cookies work on user's URL for user {user_id} - using them")
                         else:
@@ -1059,11 +1063,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         mark_cookie_source_checked(user_id, idx)
                                         
                                         try:
-                                            ok, status, content, err = _download_content(cookie_url, timeout=30)
+                                            ok, status, content, err = _download_content(cookie_url, timeout=30, user_id=user_id)
                                             if ok and content and len(content) <= 100 * 1024:
                                                 with open(user_cookie_path, "wb") as cf:
                                                     cf.write(content)
-                                                if test_youtube_cookies_on_url(user_cookie_path, url):
+                                                if test_youtube_cookies_on_url(user_cookie_path, url, user_id):
                                                     common_opts['cookiefile'] = user_cookie_path
                                                     logger.info(f"YouTube cookies from source {idx + 1} work on user's URL for user {user_id} - saved to user folder")
                                                     success = True
@@ -1100,11 +1104,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     mark_cookie_source_checked(user_id, idx)
                                     
                                     try:
-                                        ok, status, content, err = _download_content(cookie_url, timeout=30)
+                                        ok, status, content, err = _download_content(cookie_url, timeout=30, user_id=user_id)
                                         if ok and content and len(content) <= 100 * 1024:
                                             with open(user_cookie_path, "wb") as cf:
                                                 cf.write(content)
-                                            if test_youtube_cookies_on_url(user_cookie_path, url):
+                                            if test_youtube_cookies_on_url(user_cookie_path, url, user_id):
                                                 common_opts['cookiefile'] = user_cookie_path
                                                 logger.info(f"YouTube cookies from source {idx + 1} work on user's URL for user {user_id} - saved to user folder")
                                                 success = True
@@ -1734,15 +1738,18 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 playlist_range_str = f"{video_start_with}:{video_end_with}:-1"
             else:
                 playlist_range_str = f"{video_start_with}:{video_end_with}"
-            # Скачиваем весь диапазон сразу
-            indices_to_download = [0]  # Один элемент, но с диапазоном
+            # Обрабатываем каждый индекс из исходного списка, но скачиваем один раз
+            indices_to_download = playlist_indices_all
         elif is_playlist and safe_quality_key:
             indices_to_download = uncached_indices
+        elif is_playlist:
+            indices_to_download = playlist_indices_all
         else:
             indices_to_download = range(video_count)
         
+        range_entries_metadata = None
+        current_playlist_items_override = None
         for idx, current_index in enumerate(indices_to_download):
-            x = current_index - video_start_with  # Don't add quality if size is unknown
             messages = safe_get_messages(message.chat.id)
             total_process = f"""
 <b>📶 {safe_get_messages(user_id).TOTAL_PROGRESS_MSG}</b>
@@ -1753,7 +1760,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             # Determine rename_name based on the incoming playlist_name:
             if playlist_name and playlist_name.strip():
                 # A new name for the playlist is explicitly set - let's use it
-                rename_name = sanitize_filename_strict(f"{playlist_name.strip()} - Part {idx + video_start_with}")
+                rename_name = sanitize_filename_strict(f"{playlist_name.strip()} - Part {idx + 1}")
             else:
                 # No new name set - extract name from metadata
                 rename_name = None
@@ -1771,62 +1778,101 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             timestamp = int(time.time())
             safe_outtmpl = os.path.join(user_dir_name, f"download_{timestamp}.%(ext)s")
             
-            for attempt in attempts:
-                result = try_download(url, attempt)
-                
-                # If download failed and it's a YouTube URL, try automatic cookie retry
-                if result is None and is_youtube_url(url) and not did_cookie_retry:
-                    logger.info(f"Video download failed for user {user_id}, attempting automatic cookie retry")
-                    
-                    # Try retry with different cookies
-                    retry_result = retry_download_with_different_cookies(
-                        user_id, url, try_download, url, attempt
-                    )
-                    
-                    if retry_result is not None:
-                        logger.info(f"Video download retry with different cookies successful for user {user_id}")
-                        result = retry_result
-                        did_cookie_retry = True
-                    else:
-                        logger.warning(f"All cookie retry attempts failed for user {user_id}")
-                        did_cookie_retry = True
-                if result == "STOP":
+            reuse_range_download = use_range_download and range_entries_metadata is not None
+            if reuse_range_download:
+                if idx < len(range_entries_metadata):
+                    info_dict = range_entries_metadata[idx]
+                    logger.info(f"Reusing cached range download entry #{idx + 1} for playlist index {current_index}")
+                else:
+                    logger.warning(f"Range download already completed but entry #{idx + 1} missing (total {len(range_entries_metadata)}). Stopping playlist.")
+                    info_dict = None
                     stop_all = True
-                    break
-                elif result == "SKIP":
-                    skip_item = True
-                    break
-                elif result == "IMG":
-                    # Gallery-dl fallback has been triggered for this specific item
-                    logger.info(f"Gallery-dl fallback triggered for item {current_index}, continuing with next item")
-                    skip_item = True
-                    break
-                elif result is not None and isinstance(result, dict):
-                    info_dict = result
-                    break
-                elif result is not None and isinstance(result, str):
-                    # Handle string return values (like "POSTPROCESSING_ERROR")
-                    logger.info(f"Download attempt returned string result: {result}")
-                    if result == "POSTPROCESSING_ERROR":
-                        # Try again with safe filename if this was the first attempt
-                        if attempt == attempts[0]:  # First attempt failed
-                            logger.info("First attempt failed with postprocessing error, retrying with safe filename")
-                            # Modify the attempt to use safe filename
-                            safe_attempt = attempt.copy()
-                            safe_attempt['outtmpl'] = safe_outtmpl
-                            safe_result = try_download(url, safe_attempt)
-                            if safe_result is not None and isinstance(safe_result, dict):
-                                info_dict = safe_result
-                                break
-                            elif safe_result is not None and isinstance(safe_result, str):
-                                logger.info(f"Safe filename attempt also failed: {safe_result}")
+            else:
+                if use_range_download:
+                    current_playlist_items_override = playlist_range_str
+                else:
+                    current_playlist_items_override = None
+
+                for attempt in attempts:
+                    result = try_download(url, attempt)
+                    
+                    # If download failed and it's a YouTube URL, try automatic cookie retry
+                    if result is None and is_youtube_url(url) and not did_cookie_retry:
+                        logger.info(f"Video download failed for user {user_id}, attempting automatic cookie retry")
+                        
+                        # Try retry with different cookies
+                        retry_result = retry_download_with_different_cookies(
+                            user_id, url, try_download, url, attempt
+                        )
+                        
+                        if retry_result is not None:
+                            logger.info(f"Video download retry with different cookies successful for user {user_id}")
+                            result = retry_result
+                            did_cookie_retry = True
+                        else:
+                            logger.warning(f"All cookie retry attempts failed for user {user_id}")
+                            did_cookie_retry = True
+                    if result == "STOP":
+                        stop_all = True
+                        break
+                    elif result == "SKIP":
+                        skip_item = True
+                        break
+                    elif result == "IMG":
+                        # Gallery-dl fallback has been triggered for this specific item
+                        logger.info(f"Gallery-dl fallback triggered for item {current_index}, continuing with next item")
+                        skip_item = True
+                        break
+                    elif result is not None and isinstance(result, dict):
+                        info_dict = result
+                        break
+                    elif result is not None and isinstance(result, str):
+                        # Handle string return values (like "POSTPROCESSING_ERROR")
+                        logger.info(f"Download attempt returned string result: {result}")
+                        if result == "POSTPROCESSING_ERROR":
+                            # Try again with safe filename if this was the first attempt
+                            if attempt == attempts[0]:  # First attempt failed
+                                logger.info("First attempt failed with postprocessing error, retrying with safe filename")
+                                # Modify the attempt to use safe filename
+                                safe_attempt = attempt.copy()
+                                safe_attempt['outtmpl'] = safe_outtmpl
+                                safe_result = try_download(url, safe_attempt)
+                                if safe_result is not None and isinstance(safe_result, dict):
+                                    info_dict = safe_result
+                                    break
+                                elif safe_result is not None and isinstance(safe_result, str):
+                                    logger.info(f"Safe filename attempt also failed: {safe_result}")
+                                    continue
+                            else:
+                                # Already tried safe filename, skip this attempt
                                 continue
                         else:
-                            # Already tried safe filename, skip this attempt
+                            # Other string results, skip this attempt
                             continue
+
+                current_playlist_items_override = None
+
+                if use_range_download and info_dict is not None:
+                    entries_list = []
+                    if isinstance(info_dict, dict) and "entries" in info_dict:
+                        entries_list = info_dict.get("entries") or []
+                    elif isinstance(info_dict, list):
+                        entries_list = info_dict
                     else:
-                        # Other string results, skip this attempt
-                        continue
+                        entries_list = [info_dict]
+
+                    if not entries_list:
+                        logger.warning("Range download completed but yt-dlp returned no entries.")
+                        range_entries_metadata = []
+                        info_dict = None
+                    else:
+                        range_entries_metadata = entries_list
+                        if idx < len(range_entries_metadata):
+                            info_dict = range_entries_metadata[idx]
+                        else:
+                            logger.warning(f"Range download returned {len(range_entries_metadata)} entries, but requested entry #{idx + 1} is missing.")
+                            info_dict = None
+                            stop_all = True
 
             if stop_all:
                 logger.info(f"Stopping all downloads due to playlist error at index {current_index}")
@@ -1909,7 +1955,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             info_text = f"""
 {total_process}
 <b>{safe_get_messages(user_id).DOWN_UP_VIDEO_INFO_MSG}</b>
-<blockquote><b>{safe_get_messages(user_id).DOWN_UP_NUMBER_MSG}:</b> {idx + video_start_with}</blockquote>
+<blockquote><b>{safe_get_messages(user_id).DOWN_UP_NUMBER_MSG}:</b> {current_index}</blockquote>
 <blockquote><b>{safe_get_messages(user_id).DOWN_UP_TITLE_MSG}:</b> {original_video_title}</blockquote>
 <blockquote><b>{safe_get_messages(user_id).DOWN_UP_ID_MSG}:</b> {video_id}</blockquote>
 """
@@ -1924,7 +1970,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
 
             dir_path = user_dir_name
-            allfiles = os.listdir(dir_path)
+            downloaded_file = None
+            downloaded_abs_path = None
             
             # Get user's preferred video format to determine file extensions
             from COMMANDS.args_cmd import get_user_ytdlp_args
@@ -1961,31 +2008,57 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Fallback to all supported formats
                 video_extensions = ('.mp4', '.mkv', '.webm', '.ts', '.avi', '.mov', '.flv', '.3gp', '.ogv', '.wmv', '.asf')
             
-            files = [fname for fname in allfiles if fname.endswith(video_extensions)]
-            files.sort()
+            # Try to use exact filename from yt-dlp metadata first
+            filename_hints = []
+            meta_filename = info_dict.get('_filename')
+            if meta_filename:
+                filename_hints.append(meta_filename)
+            filepath_hint = info_dict.get('filepath')
+            if filepath_hint:
+                filename_hints.append(filepath_hint)
+            requested_downloads = info_dict.get('requested_downloads') or []
+            for rd in requested_downloads:
+                rd_path = rd.get('filepath') or rd.get('_filename')
+                if rd_path:
+                    filename_hints.append(rd_path)
             
-            # Log all found files for debugging
-            logger.info(f"Found video files in {dir_path}: {files}")
+            for hint in filename_hints:
+                if hint and os.path.exists(hint):
+                    downloaded_abs_path = os.path.abspath(hint)
+                    downloaded_file = os.path.basename(downloaded_abs_path)
+                    logger.info(f"Using yt-dlp reported file path: {downloaded_abs_path}")
+                    break
             
-            # If no files found with preferred format, try to find any video file
-            if not files:
-                logger.warning(f"No files found with preferred format {target_format}, searching for any video file")
-                fallback_extensions = ('.mp4', '.mkv', '.webm', '.ts', '.avi', '.mov', '.flv', '.3gp', '.ogv', '.wmv', '.asf', '.m4v')
-                files = [fname for fname in allfiles if fname.endswith(fallback_extensions)]
+            if not downloaded_file:
+                allfiles = os.listdir(dir_path)
+                
+                files = [fname for fname in allfiles if fname.endswith(video_extensions)]
                 files.sort()
-                logger.info(f"Found video files with fallback search: {files}")
-            
-            if not files:
-                send_error_to_user(message, safe_get_messages(user_id).SKIPPING_UNSUPPORTED_FILE_TYPE_MSG.format(index=idx + video_start_with))
-                continue
+                
+                # Log all found files for debugging
+                logger.info(f"Found video files in {dir_path}: {files}")
+                
+                # If no files found with preferred format, try to find any video file
+                if not files:
+                    logger.warning(f"No files found with preferred format {target_format}, searching for any video file")
+                    fallback_extensions = ('.mp4', '.mkv', '.webm', '.ts', '.avi', '.mov', '.flv', '.3gp', '.ogv', '.wmv', '.asf', '.m4v')
+                    files = [fname for fname in allfiles if fname.endswith(fallback_extensions)]
+                    files.sort()
+                    logger.info(f"Found video files with fallback search: {files}")
+                
+                if not files:
+                    send_error_to_user(message, safe_get_messages(user_id).SKIPPING_UNSUPPORTED_FILE_TYPE_MSG.format(index=current_index))
+                    continue
 
-            downloaded_file = files[0]
+                downloaded_file = files[0]
+                downloaded_abs_path = os.path.abspath(os.path.join(dir_path, downloaded_file))
+            
             logger.info(f"Selected downloaded file: {downloaded_file}")
             write_logs(message, url, downloaded_file)
             
             # Save original filename for subtitle search
             original_video_filename = downloaded_file
-            original_video_path = os.path.join(dir_path, original_video_filename)
+            original_video_path = downloaded_abs_path or os.path.join(dir_path, original_video_filename)
 
             if rename_name == video_title:
                 caption_name = original_video_title  # Original title for caption
@@ -2012,7 +2085,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Use cleaned title for filename
                 final_name = sanitize_filename_strict(cleaned_title + os.path.splitext(downloaded_file)[1])
                 if final_name != downloaded_file:
-                    old_path = os.path.join(dir_path, downloaded_file)
+                    old_path = downloaded_abs_path or os.path.join(dir_path, downloaded_file)
                     new_path = os.path.join(dir_path, final_name)
                     try:
                         if os.path.exists(new_path):
@@ -2026,7 +2099,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Sanitize filename for disk storage while keeping original title for caption
                 final_name = sanitize_filename(rename_name + ext)
                 caption_name = rename_name  # Original title for caption
-                old_path = os.path.join(dir_path, downloaded_file)
+                old_path = downloaded_abs_path or os.path.join(dir_path, downloaded_file)
                 new_path = os.path.join(dir_path, final_name)
 
                 if os.path.exists(new_path):

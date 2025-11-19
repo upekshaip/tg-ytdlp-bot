@@ -24,6 +24,7 @@ from requests.adapters import HTTPAdapter
 import yt_dlp
 import random
 from HELPERS.pot_helper import add_pot_to_ytdl_opts
+from COMMANDS.proxy_cmd import add_proxy_to_ytdl_opts
 from URL_PARSERS.youtube import is_youtube_url
 
 # Get app instance for decorators
@@ -512,7 +513,7 @@ def browser_choice_callback(app, callback_query):
         safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, safe_get_messages(user_id).COOKIES_DOWNLOADING_FROM_URL_MSG)
         
         try:
-            ok, status, content, err = _download_content(fallback_url, timeout=30)
+            ok, status, content, err = _download_content(fallback_url, timeout=30, user_id=user_id)
             if ok:
                 # basic validation
                 if not fallback_url.lower().endswith('.txt'):
@@ -792,7 +793,7 @@ def checking_cookie_file(app, message):
                         return True
                 return False
             if _has_youtube_domain(cookie_content):
-                if test_youtube_cookies(file_path):
+                if test_youtube_cookies(file_path, user_id=user_id):
                     if initial_msg is not None and hasattr(initial_msg, 'id'):
                         safe_edit_message_text(message.chat.id, initial_msg.id, safe_get_messages(user_id).COOKIES_YOUTUBE_WORKING_PROPERLY_MSG)
                     send_to_logger(message, safe_get_messages(user_id).COOKIES_FILE_WORKING_LOG_MSG)
@@ -845,7 +846,7 @@ def download_cookie(app, message):
                 
                 # Check existing cookies first
                 if os.path.exists(cookie_file_path):
-                    if test_youtube_cookies(cookie_file_path):
+                    if test_youtube_cookies(cookie_file_path, user_id=user_id):
                         send_to_user(message, safe_get_messages(user_id).COOKIES_YOUTUBE_WORKING_MSG)
                         return
                     else:
@@ -941,25 +942,33 @@ def _sanitize_error_detail(detail: str, url: str) -> str:
     except Exception:
         return "<hidden>"
 
-def _download_content(url: str, timeout: int = 30):
-    """Скачивает бинарный контент используя короткоживущую сессию с малым пулом и Connection: close.
-    
-    Args:
-        url (str): URL для скачивания
-        timeout (int): Таймаут в секундах
-        
-    Returns:
-        tuple: (ok: bool, status_code: int|None, content: bytes|None, error: str|None)
-    """
+def _download_content(url: str, timeout: int = 30, user_id: int | None = None, allow_domain_fallback: bool = True):
+    """Скачивает бинарный контент, при необходимости используя пользовательский прокси."""
     if not url:
         return False, None, None, "empty-url"
+    
     sess = Session()
+    sess.trust_env = False
+    proxy_reason = None
+    proxies = None
+    
+    if user_id is not None:
+        try:
+            from COMMANDS.proxy_cmd import get_requests_proxies
+            proxies, proxy_reason = get_requests_proxies(user_id=user_id, url=url, allow_domain_fallback=allow_domain_fallback)
+            if proxies:
+                logger.info(f"[COOKIES] Using {proxy_reason or 'user'} proxy for {_sanitize_error_detail(url, url)} download (user_id={user_id})")
+        except Exception as e:
+            logger.warning(f"[COOKIES] Failed to build proxy config for user {user_id}: {e}")
+            proxies = None
+            proxy_reason = None
+    
     try:
         sess.headers.update({'User-Agent': 'tg-ytdlp-bot/1.0', 'Connection': 'close'})
         adapter = HTTPAdapter(pool_connections=2, pool_maxsize=4, max_retries=2, pool_block=False)
         sess.mount('http://', adapter)
         sess.mount('https://', adapter)
-        resp = sess.get(url, timeout=timeout)
+        resp = sess.get(url, timeout=timeout, proxies=proxies)
         status = resp.status_code
         if status == 200:
             data = resp.content
@@ -995,7 +1004,7 @@ def download_and_save_cookie(app, callback_query, url, service):
         return
 
     try:
-        ok, status, content, err = _download_content(url, timeout=30)
+        ok, status, content, err = _download_content(url, timeout=30, user_id=user_id)
         if ok:
             # Optional: validate extension (do not expose URL); keep internal check
             if not url.lower().endswith('.txt'):
@@ -1083,7 +1092,7 @@ def save_as_cookie_file(app, message):
         send_to_user(message, safe_get_messages(user_id).COOKIES_NOT_VALID_MSG)
         send_to_logger(message, safe_get_messages(user_id).COOKIES_INVALID_CONTENT_LOG_MSG.format(user_id=user_id))
 
-def test_youtube_cookies_on_url(cookie_file_path: str, url: str) -> bool:
+def test_youtube_cookies_on_url(cookie_file_path: str, url: str, user_id: int | None = None) -> bool:
     """
     Проверяет работоспособность YouTube куки на конкретном URL пользователя.
     
@@ -1110,6 +1119,7 @@ def test_youtube_cookies_on_url(cookie_file_path: str, url: str) -> bool:
             'extractor_retries': 1,
         }
         
+        ydl_opts = add_proxy_to_ytdl_opts(ydl_opts, url, user_id=user_id)
         # Add PO token provider for YouTube domains
         ydl_opts = add_pot_to_ytdl_opts(ydl_opts, url)
         
@@ -1139,7 +1149,7 @@ def test_youtube_cookies_on_url(cookie_file_path: str, url: str) -> bool:
         logger.warning(LoggerMsg.COOKIES_YOUTUBE_TEST_FAILED_USER_URL_LOG_MSG.format(cookie_file_path=cookie_file_path, e=e))
         return False
 
-def test_youtube_cookies(cookie_file_path: str) -> bool:
+def test_youtube_cookies(cookie_file_path: str, user_id: int | None = None) -> bool:
     """
     Тщательно проверяет работоспособность YouTube куки.
     
@@ -1172,6 +1182,7 @@ def test_youtube_cookies(cookie_file_path: str) -> bool:
             'extractor_retries': 2,
         }
         
+        ydl_opts = add_proxy_to_ytdl_opts(ydl_opts, test_url, user_id=user_id)
         # Add PO token provider for YouTube domains
         ydl_opts = add_pot_to_ytdl_opts(ydl_opts, test_url)
         
@@ -1559,7 +1570,7 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
             mark_cookie_source_checked(int(user_id), idx)
             
             # Download cookies
-            ok, status, content, err = _download_content(url, timeout=30)
+            ok, status, content, err = _download_content(url, timeout=30, user_id=user_id)
             if not ok:
                 logger.warning(LoggerMsg.COOKIES_YOUTUBE_DOWNLOAD_FAILED_LOG_MSG.format(url_index=idx + 1, status=status, error=err))
                 continue
@@ -1582,7 +1593,7 @@ def download_and_validate_youtube_cookies(app, message, selected_index: int | No
             update_message(safe_get_messages(user_id).COOKIES_DOWNLOADING_TESTING_MSG.format(attempt=attempt_number, total=len(indices)), user_id)
             
             # Check the functionality of cookies
-            if test_youtube_cookies(cookie_file_path):
+            if test_youtube_cookies(cookie_file_path, user_id=user_id):
                 update_message(safe_get_messages(user_id).COOKIES_SUCCESS_VALIDATED_MSG.format(source=idx + 1, total=len(cookie_urls)), user_id)
                 # Safe logging
                 try:
@@ -1683,7 +1694,7 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
         # Проверяем существующие куки
         if os.path.exists(cookie_file_path):
             logger.info(LoggerMsg.COOKIES_YOUTUBE_CHECKING_EXISTING_LOG_MSG.format(user_id=user_id))
-            if test_youtube_cookies(cookie_file_path):
+            if test_youtube_cookies(cookie_file_path, user_id=user_id):
                 logger.info(LoggerMsg.COOKIES_YOUTUBE_EXISTING_WORKING_LOG_MSG.format(user_id=user_id))
                 logger.info(LoggerMsg.COOKIES_YOUTUBE_FINISHED_EXISTING_WORKING_LOG_MSG.format(user_id=user_id))
                 # Завершаем задачу успешно
@@ -1731,7 +1742,7 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
                 mark_cookie_source_checked(user_id, idx)
                 
                 # Скачиваем куки
-                ok, status, content, err = _download_content(url, timeout=30)
+                ok, status, content, err = _download_content(url, timeout=30, user_id=user_id)
                 if not ok:
                     logger.warning(LoggerMsg.COOKIES_YOUTUBE_DOWNLOAD_FAILED_LOG_MSG.format(url_index=idx + 1, status=status, error=err))
                     continue
@@ -1751,7 +1762,7 @@ def ensure_working_youtube_cookies(user_id: int) -> bool:
                     cf.write(content)
                 
                 # Проверяем работоспособность
-                if test_youtube_cookies(cookie_file_path):
+                if test_youtube_cookies(cookie_file_path, user_id=user_id):
                     logger.info(LoggerMsg.COOKIES_YOUTUBE_SOURCE_WORKING_LOG_MSG.format(source_index=idx + 1, user_id=user_id))
                     logger.info(LoggerMsg.COOKIES_YOUTUBE_FINISHED_WORKING_FOUND_LOG_MSG.format(user_id=user_id, source_index=idx + 1))
                     # Завершаем задачу успешно
@@ -2002,7 +2013,7 @@ def retry_download_with_different_cookies(user_id: int, url: str, download_func,
                 
                 # Скачиваем куки
                 try:
-                    ok, status, content, err = _download_content(cookie_urls[idx], timeout=30)
+                    ok, status, content, err = _download_content(cookie_urls[idx], timeout=30, user_id=user_id)
                 except Exception as download_e:
                     logger.error(LoggerMsg.COOKIES_ERROR_PROCESSING_SOURCE_LOG_MSG.format(idx=idx + 1, user_id=user_id, error=download_e))
                     continue
@@ -2026,7 +2037,7 @@ def retry_download_with_different_cookies(user_id: int, url: str, download_func,
                     cf.write(content)
                 
                 # Проверяем работоспособность
-                if test_youtube_cookies(cookie_file_path):
+                if test_youtube_cookies(cookie_file_path, user_id=user_id):
                     logger.info(LoggerMsg.COOKIES_YOUTUBE_RETRY_SOURCE_WORKING_LOG_MSG.format(source_index=idx + 1, user_id=user_id))
                     
                     # Обновляем кеш
@@ -2211,7 +2222,7 @@ def try_download_with_cookie_fallback(user_id: int, url: str, download_func, *ar
             elif attempt_type == 'service':
                 # Скачиваем куки сервиса
                 try:
-                    ok, status, content, err = _download_content(cookie_source, timeout=30)
+                    ok, status, content, err = _download_content(cookie_source, timeout=30, user_id=user_id)
                     if ok and content and len(content) <= 100 * 1024:
                         cookie_file_path = user_cookie_path
                         with open(cookie_file_path, "wb") as cf:
@@ -2447,7 +2458,7 @@ def try_non_youtube_cookie_fallback(user_id: int, url: str, download_func, *args
             if service_cookie_url:
                 logger.info(f"Trying service cookies for {service_name}: {url}")
                 try:
-                    ok, status, content, err = _download_content(service_cookie_url, timeout=30)
+                    ok, status, content, err = _download_content(service_cookie_url, timeout=30, user_id=user_id)
                     if ok and content:
                         # Сохраняем куки во временный файл
                         temp_cookie_path = os.path.join(user_dir, f"temp_{service_name}_cookie.txt")

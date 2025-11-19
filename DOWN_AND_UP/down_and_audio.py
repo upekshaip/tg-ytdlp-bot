@@ -296,6 +296,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             requested_indices = list(range(video_start_with, video_start_with + video_count))
     else:
         requested_indices = []
+    playlist_indices_all = requested_indices[:] if requested_indices else []
+    use_range_download = is_playlist and any(idx < 0 for idx in requested_indices)
     cached_videos = {}
     uncached_indices = []
     if quality_key and is_playlist:
@@ -317,7 +319,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             cached_videos = {}
             uncached_indices = requested_indices
         # First, repost the cached ones (skip if send_as_file is enabled)
-        if cached_videos:
+        if cached_videos and (not use_range_download or len(uncached_indices) == 0):
             # Check if send_as_file is enabled - if so, skip cache repost
             from COMMANDS.args_cmd import get_user_args
             user_args = get_user_args(user_id)
@@ -376,6 +378,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 return
             else:
                 app.send_message(user_id, safe_get_messages(user_id).CACHE_PARTIAL_MSG.format(cached=len(cached_videos), total=len(requested_indices)), reply_parameters=ReplyParameters(message_id=message.id))
+        elif cached_videos:
+            logger.info("[AUDIO CACHE] Skipping partial cache replay for negative range to avoid duplicate downloads")
+            uncached_indices = requested_indices
     elif quality_key and not is_playlist:
         # Check if Always Ask mode is enabled - if yes, skip cache completely
         if not is_subs_always_ask(user_id):
@@ -615,7 +620,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             # Always check existing cookies first on user's URL for maximum speed
             if os.path.exists(user_cookie_path):
                 logger.info(f"Checking existing YouTube cookies on user's URL for user {user_id}")
-                if test_youtube_cookies_on_url(user_cookie_path, url):
+                if test_youtube_cookies_on_url(user_cookie_path, url, user_id):
                     cookie_file = user_cookie_path
                     logger.info(f"Existing YouTube cookies work on user's URL for user {user_id} - using them")
                 else:
@@ -638,11 +643,11 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                                 mark_cookie_source_checked(user_id, idx)
                                 
                                 try:
-                                    ok, status, content, err = _download_content(cookie_url, timeout=30)
+                                    ok, status, content, err = _download_content(cookie_url, timeout=30, user_id=user_id)
                                     if ok and content and len(content) <= 100 * 1024:
                                         with open(user_cookie_path, "wb") as cf:
                                             cf.write(content)
-                                        if test_youtube_cookies_on_url(user_cookie_path, url):
+                                        if test_youtube_cookies_on_url(user_cookie_path, url, user_id):
                                             cookie_file = user_cookie_path
                                             logger.info(f"YouTube cookies from source {idx + 1} work on user's URL for user {user_id} - saved to user folder")
                                             success = True
@@ -679,11 +684,11 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                             mark_cookie_source_checked(user_id, idx)
                             
                             try:
-                                ok, status, content, err = _download_content(cookie_url, timeout=30)
+                                ok, status, content, err = _download_content(cookie_url, timeout=30, user_id=user_id)
                                 if ok and content and len(content) <= 100 * 1024:
                                     with open(user_cookie_path, "wb") as cf:
                                         cf.write(content)
-                                    if test_youtube_cookies_on_url(user_cookie_path, url):
+                                    if test_youtube_cookies_on_url(user_cookie_path, url, user_id):
                                         cookie_file = user_cookie_path
                                         logger.info(f"YouTube cookies from source {idx + 1} work on user's URL for user {user_id} - saved to user folder")
                                         success = True
@@ -786,7 +791,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
         def try_download_audio(url, current_index):
             messages = safe_get_messages(message.chat.id)
-            nonlocal current_total_process, did_cookie_retry, did_proxy_retry, is_hls, is_reverse_order
+            nonlocal current_total_process, did_cookie_retry, did_proxy_retry, is_hls, is_reverse_order, current_playlist_items_override, use_range_download, range_entries_metadata
             # Use format_override if provided, otherwise use default 'ba'
             download_format = format_override if format_override else 'ba'
             
@@ -802,6 +807,13 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             # Update is_hls based on actual URL analysis
             is_hls = ("m3u8" in url.lower())
             
+            if current_playlist_items_override:
+                playlist_items_value = current_playlist_items_override
+            elif is_reverse_order and is_playlist:
+                playlist_items_value = f"{current_index}:{current_index}:-1"
+            else:
+                playlist_items_value = str(current_index)
+
             ytdl_opts = {
                'format': download_format,
                'postprocessors': [{
@@ -816,7 +828,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                'prefer_ffmpeg': True,
                'extractaudio': True,
                # Для обратного порядка используем формат START:STOP:-1, иначе просто номер
-               'playlist_items': f"{current_index + video_start_with}:{current_index + video_start_with}:-1" if is_reverse_order and is_playlist else str(current_index + video_start_with),
+               'playlist_items': playlist_items_value,
                # outtmpl will be set later with sanitized title
                # Allow Unicode characters in filenames
                'restrictfilenames': False,
@@ -928,9 +940,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     info_dict = (info_dict[0] if len(info_dict) > 0 else {})
                 if isinstance(info_dict, dict) and "entries" in info_dict:
                     entries = info_dict["entries"]
-                    if len(entries) > 1:  # If the video in the playlist is more than one
-                        actual_index = current_index + video_start_with - 1  # -1 because indexes in entries start from 0
-                        if actual_index and actual_index < len(entries):
+                    if len(entries) > 1 and not current_playlist_items_override:  # If the video in the playlist is more than one
+                        actual_index = current_index - 1  # -1 because indexes in entries start from 0
+                        if 0 <= actual_index < len(entries):
                             info_dict = entries[actual_index]
                         else:
                             raise Exception(f"Audio index {actual_index + 1} out of range (total {len(entries)})")
@@ -1209,14 +1221,14 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 
                 # Check if this is a "No videos found in playlist" error
                 if "No videos found in playlist" in error_text or "Story might have expired" in error_text:
-                    error_message = safe_get_messages(user_id).DOWN_UP_NO_CONTENT_FOUND_MSG.format(index=current_index + video_start_with)
+                    error_message = safe_get_messages(user_id).DOWN_UP_NO_CONTENT_FOUND_MSG.format(index=original_playlist_index)
                     send_error_to_user(message, error_message)
                     logger.info(f"Skipping item at index {current_index} (no content found)")
                     return "SKIP"
                 
                 # Check if this is a TikTok infinite loop error
                 if "TikTok API keeps sending the same page" in error_text and "infinite loop" in error_text:
-                    error_message = safe_get_messages(user_id).AUDIO_TIKTOK_API_ERROR_SKIP_MSG.format(index=current_index + video_start_with)
+                    error_message = safe_get_messages(user_id).AUDIO_TIKTOK_API_ERROR_SKIP_MSG.format(index=original_playlist_index)
                     send_to_user(message, error_message)
                     logger.info(f"Skipping TikTok audio at index {current_index} due to API error")
                     return "SKIP"  # Skip this audio and continue with next
@@ -1264,8 +1276,12 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         except Exception as e:
             logger.warning(f"Thumbnail download failed: {e}")
 
-        if is_playlist and quality_key:
+        if use_range_download:
+            indices_to_download = playlist_indices_all
+        elif is_playlist and quality_key:
             indices_to_download = uncached_indices
+        elif is_playlist:
+            indices_to_download = playlist_indices_all
         else:
             indices_to_download = range(video_count)
         
@@ -1273,8 +1289,11 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         timestamp = int(time.time())
         safe_outtmpl = os.path.join(user_folder, f"download_{timestamp}.%(ext)s")
         
+        range_entries_metadata = None
+        current_playlist_items_override = None
         for idx, current_index in enumerate(indices_to_download):
-            current_index = current_index - video_start_with  # for numbering/display
+            original_playlist_index = current_index
+            playlist_item_index = current_index if is_playlist else current_index + video_start_with
             messages = safe_get_messages(message.chat.id)
             total_process = f"""
 <b>📶 {safe_get_messages(user_id).TOTAL_PROGRESS_MSG}</b>
@@ -1289,7 +1308,34 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             did_cookie_retry = False
             did_proxy_retry = False
 
-            result = try_download_audio(url, current_index)
+            reuse_range_download = use_range_download and range_entries_metadata is not None
+            if reuse_range_download:
+                if idx < len(range_entries_metadata):
+                    info_dict = range_entries_metadata[idx]
+                    logger.info(f"[AUDIO RANGE] Reusing cached entry #{idx + 1} for playlist index {original_playlist_index}")
+                    result = info_dict
+                else:
+                    logger.warning(f"[AUDIO RANGE] Missing entry #{idx + 1} in cached metadata, stopping playlist download")
+                    result = None
+                    break
+            else:
+                if use_range_download:
+                    current_playlist_items_override = f"{video_start_with}:{video_end_with}:-1" if is_reverse_order else f"{video_start_with}:{video_end_with}"
+                else:
+                    current_playlist_items_override = None
+                result = try_download_audio(url, playlist_item_index)
+                current_playlist_items_override = None
+                if use_range_download and isinstance(result, dict):
+                    if "entries" in result:
+                        range_entries_metadata = result.get("entries") or []
+                    else:
+                        range_entries_metadata = [result]
+                    if idx < len(range_entries_metadata):
+                        info_dict = range_entries_metadata[idx]
+                    else:
+                        logger.warning(f"[AUDIO RANGE] Download returned {len(range_entries_metadata)} entries but missing entry #{idx + 1}")
+                        break
+                    result = info_dict
             
             # If download failed and it's a YouTube URL, try automatic cookie retry
             if result is None and is_youtube_url(url) and not did_cookie_retry:
@@ -1297,7 +1343,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 
                 # Try retry with different cookies
                 retry_result = retry_download_with_different_cookies(
-                    user_id, url, try_download_audio, url, current_index
+                    user_id, url, try_download_audio, url, playlist_item_index
                 )
                 
                 if retry_result is not None:
@@ -1348,7 +1394,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                            'prefer_ffmpeg': True,
                            'extractaudio': True,
                            # Для обратного порядка используем формат START:STOP:-1, иначе просто номер
-                          'playlist_items': f"{current_index + video_start_with}:{current_index + video_start_with}:-1" if is_reverse_order and is_playlist else str(current_index + video_start_with),
+                          'playlist_items': f"{playlist_item_index}:{playlist_item_index}:-1" if is_reverse_order and is_playlist else str(playlist_item_index),
                            'outtmpl': safe_outtmpl,  # Use safe filename
                            'restrictfilenames': False,
                            'progress_hooks': [progress_hook],
@@ -1391,8 +1437,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                             if "entries" in info_dict:
                                 entries = info_dict["entries"]
                                 if len(entries) > 1:
-                                    actual_index = current_index + video_start_with - 1
-                                    if actual_index and actual_index < len(entries):
+                                    actual_index = playlist_item_index - 1
+                                    if 0 <= actual_index < len(entries):
                                         info_dict = entries[actual_index]
                                     else:
                                         raise Exception(f"Audio index {actual_index + 1} out of range (total {len(entries)})")
@@ -1457,34 +1503,60 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
             dir_path = user_folder
 
+            downloaded_file = None
+            downloaded_abs_path = None
+            
             # Find the downloaded audio file
-            allfiles = os.listdir(user_folder)
-            logger.info(f"All files in user folder: {allfiles}")
+            filename_hints = []
+            meta_filename = info_dict.get('_filename')
+            if meta_filename:
+                filename_hints.append(meta_filename)
+            filepath_hint = info_dict.get('filepath')
+            if filepath_hint:
+                filename_hints.append(filepath_hint)
+            requested_downloads = info_dict.get('requested_downloads') or []
+            for rd in requested_downloads:
+                rd_path = rd.get('filepath') or rd.get('_filename')
+                if rd_path:
+                    filename_hints.append(rd_path)
             
-            # Look for files with the user's preferred audio format extension
-            audio_extensions = ['.mp3', '.aac', '.flac', '.m4a', '.opus', '.ogg', '.wav', '.alac', '.ac3']
-            files = [fname for fname in allfiles if any(fname.endswith(ext) for ext in audio_extensions)]
-            logger.info(f"Found audio files: {files}")
-            files.sort()
+            for hint in filename_hints:
+                if hint and os.path.exists(hint):
+                    downloaded_abs_path = os.path.abspath(hint)
+                    downloaded_file = os.path.basename(downloaded_abs_path)
+                    logger.info(f"[AUDIO RANGE] Using yt-dlp reported file path: {downloaded_abs_path}")
+                    break
             
-            # If no files found with standard audio extensions, try additional formats
-            if not files:
-                logger.warning(f"No files found with standard audio extensions, trying additional formats")
-                additional_extensions = ['.mka', '.wma', '.aiff', '.au', '.ra', '.rm', '.3ga', '.amr', '.awb', '.m4b', '.m4p', '.oga', '.spx', '.tta', '.weba']
-                files = [fname for fname in allfiles if any(fname.endswith(ext) for ext in additional_extensions)]
+            if not downloaded_file:
+                allfiles = os.listdir(user_folder)
+                logger.info(f"All files in user folder: {allfiles}")
+                
+                # Look for files with the user's preferred audio format extension
+                audio_extensions = ['.mp3', '.aac', '.flac', '.m4a', '.opus', '.ogg', '.wav', '.alac', '.ac3']
+                files = [fname for fname in allfiles if any(fname.endswith(ext) for ext in audio_extensions)]
+                logger.info(f"Found audio files: {files}")
                 files.sort()
-                logger.info(f"Found audio files with additional formats: {files}")
-            
-            if not files:
-                logger.error(f"No audio files found in {user_folder}. Available files: {allfiles}")
-                send_error_to_user(message, safe_get_messages(user_id).AUDIO_UNSUPPORTED_FILE_TYPE_MSG.format(index=idx + video_start_with))
-                continue
+                
+                # If no files found with standard audio extensions, try additional formats
+                if not files:
+                    logger.warning(f"No files found with standard audio extensions, trying additional formats")
+                    additional_extensions = ['.mka', '.wma', '.aiff', '.au', '.ra', '.rm', '.3ga', '.amr', '.awb', '.m4b', '.m4p', '.oga', '.spx', '.tta', '.weba']
+                    files = [fname for fname in allfiles if any(fname.endswith(ext) for ext in additional_extensions)]
+                    files.sort()
+                    logger.info(f"Found audio files with additional formats: {files}")
+                
+                if not files:
+                    logger.error(f"No audio files found in {user_folder}. Available files: {allfiles}")
+                    send_error_to_user(message, safe_get_messages(user_id).AUDIO_UNSUPPORTED_FILE_TYPE_MSG.format(index=original_playlist_index))
+                    continue
 
-            downloaded_file = files[0]
+                downloaded_file = files[0]
+                downloaded_abs_path = os.path.abspath(os.path.join(user_folder, downloaded_file))
+
             write_logs(message, url, downloaded_file)
-
+            
             # File is already sanitized by yt-dlp with our custom outtmpl
-            audio_file = os.path.join(user_folder, downloaded_file)
+            audio_file = downloaded_abs_path or os.path.join(user_folder, downloaded_file)
             if not os.path.exists(audio_file):
                 send_to_user(message, safe_get_messages(user_id).AUDIO_FILE_NOT_FOUND_MSG)
                 continue
@@ -1752,7 +1824,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     
                     if is_playlist:
                         # For playlists, save to playlist cache with index
-                        current_video_index = idx + video_start_with
+                        current_video_index = original_playlist_index
                         logger.info(f"down_and_audio: saving to playlist cache: index={current_video_index}, msg_ids={msg_ids}")
                         save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], msg_ids, original_text=message.text or message.caption or "")
                         cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, [current_video_index])

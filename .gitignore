@@ -105,6 +105,8 @@ test_clean_files/
 fix_fake_message_threads.py
 test_thread_support.py
 THREAD_SUPPORT_SUMMARY.md
+start_docker.sh
+monitor_resources.py
 
 # Configs with secrets (do not commit)
 CONFIG/config.py

@@ -38,6 +38,25 @@ def reload_firebase_cache_command(app, message):
     # Check if this is a fake message (called programmatically)
     is_fake_message = getattr(message, '_is_fake_message', False) or message.id == 0
     
+    # В локальном режиме просто перезагружаем кэш из файла
+    use_firebase = getattr(Config, 'USE_FIREBASE', True)
+    if not use_firebase:
+        from DATABASE.cache_db import reload_firebase_cache
+        success = reload_firebase_cache()
+        if success:
+            final_msg = "✅ Локальный кэш перезагружен"
+            if is_fake_message:
+                send_to_logger(message, "✅ Локальный кэш перезагружен автоматически")
+            else:
+                safe_send_message_with_auto_delete(message.chat.id, final_msg, delete_after_seconds=10)
+        else:
+            error_msg = "❌ Ошибка перезагрузки локального кэша"
+            if is_fake_message:
+                send_to_logger(message, error_msg)
+            else:
+                safe_send_message_with_auto_delete(message.chat.id, error_msg, delete_after_seconds=10)
+        return
+    
     try:
         # 1) Download fresh dump via external script path
         script_path = getattr(Config, "DOWNLOAD_FIREBASE_SCRIPT_PATH", "DATABASE/download_firebase.py")
@@ -538,6 +557,12 @@ def uncache_command(app, message):
                 h = get_url_hash(norm)
                 db_child_by_path(db, f"{Config.VIDEO_CACHE_DB_PATH}/{h}").remove()
                 db_child_by_path(db, f"{Config.PLAYLIST_CACHE_DB_PATH}/{h}").remove()
+        # Обновляем локальный кэш после удаления в локальном режиме
+        use_firebase = getattr(Config, 'USE_FIREBASE', True)
+        if not use_firebase and removed_any:
+            from DATABASE.cache_db import reload_firebase_cache
+            reload_firebase_cache()
+        
         if removed_any:
             send_to_user(message, safe_get_messages(message.chat.id).ADMIN_CACHE_CLEARED_MSG.format(url=url))
             send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_CACHE_CLEARED_LOG_MSG.format(user_id=user_id, url=url))

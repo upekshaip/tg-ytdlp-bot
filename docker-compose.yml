@@ -1,0 +1,47 @@
+version: "3.9"
+
+x-default-build-args: &default-build-args
+  TZ: "${TZ}"
+
+x-default-logging: &default-logging
+  driver: local
+  options:
+    max-size: "1G"
+    max-file: "1"
+    compress: "false"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        <<: *default-build-args
+    env_file:
+      - .env
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      - bgutil-provider
+      - configuration-webserver
+    volumes:
+      - .:/app
+
+  bgutil-provider:
+    image: brainicism/bgutil-ytdlp-pot-provider:latest
+    restart: unless-stopped
+    logging: *default-logging
+    expose:
+      - "4416"
+
+  configuration-webserver:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ./docker/configuration-webserver/conf:/etc/caddy:ro
+      - ./docker/configuration-webserver/site:/srv:ro
+      - ./docker/configuration-webserver/data:/data
+      - ./docker/configuration-webserver/config:/config
