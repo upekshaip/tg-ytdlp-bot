@@ -195,6 +195,7 @@ The bot container will be built from the included `Dockerfile`, and:
 - `configuration-webserver` will serve cookie files at `http://configuration-webserver/cookies/<filename>`
 - `bgutil-provider` will be available at `http://bgutil-provider:4416` for YouTube PO tokens
 
+P.S. do not forget to add your bot to your channels with admin rights
 ---
 
 ### Manual Installation (without Docker)
