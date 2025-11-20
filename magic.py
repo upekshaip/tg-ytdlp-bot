@@ -56,7 +56,7 @@ import traceback
 import tldextract
 # from moviepy.editor import VideoFileClip
 from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
-from pyrogram import Client, filters
+from pyrogram import Client, filters, idle
 from pyrogram import enums
 from pyrogram.enums import ChatMemberStatus
 from pyrogram.errors import FloodWait
@@ -83,6 +83,7 @@ from CONFIG.messages import Messages, safe_get_messages
 # HELPERS (только те, что не содержат обработчики)
 from HELPERS.app_instance import set_app
 from HELPERS.download_status import *
+from HELPERS.channel_guard import start_channel_guard, stop_channel_guard
 from HELPERS.filesystem_hlp import *
 from HELPERS.limitter import *
 from HELPERS.limitter import ensure_group_admin
@@ -399,4 +400,12 @@ def signal_handler(sig, frame):
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
-app.run()
+if __name__ == "__main__":
+    app.start()
+    start_channel_guard(app)
+    idle()
+    try:
+        app.loop.run_until_complete(stop_channel_guard())
+    except Exception:
+        pass
+    app.stop()

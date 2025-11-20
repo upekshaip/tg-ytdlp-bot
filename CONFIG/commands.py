@@ -38,4 +38,5 @@ class CommandsConfig(object):
     NSFW_COMMAND = "/nsfw"  
     ARGS_COMMAND = "/args"
     LIST_COMMAND = "/list"
+    BAN_TIME_COMMAND = "/ban_time"
     #######################################################
