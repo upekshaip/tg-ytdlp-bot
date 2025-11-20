@@ -296,7 +296,17 @@ class ChannelGuard:
 
     async def _fetch_leave_events(self) -> List[Tuple[Any, Dict[str, Any]]]:
         peer = await self._app.resolve_peer(self._channel_id)
-        events_filter = ChannelAdminLogEventsFilter(participants_left=True)
+        # Try to create filter - some Pyrogram versions don't support participants_left parameter
+        # We'll filter events manually by action type anyway
+        events_filter = None
+        try:
+            # Try creating empty filter first
+            events_filter = ChannelAdminLogEventsFilter()
+        except (TypeError, AttributeError) as e:
+            # If filter creation fails, use None (will fetch all events, we filter manually)
+            logger.debug(f"[ChannelGuard] Filter creation failed, using None: {e}")
+            events_filter = None
+        
         try:
             result = await self._app.invoke(
                 GetAdminLog(
