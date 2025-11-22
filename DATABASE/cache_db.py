@@ -526,15 +526,14 @@ def save_to_playlist_cache(playlist_url: str, quality_key: str, video_indices: l
                 db_child_by_path(db, "/".join(path_parts)).set(str(msg_id))
                 logger.info(f"Saved to playlist cache: path={path_parts}, msg_id={msg_id}")
                 
-                # Обновляем локальный кэш для немедленного доступа
-                use_firebase = getattr(Config, 'USE_FIREBASE', True)
-                if not use_firebase:
-                    current = firebase_cache
-                    for part in path_parts_local:
-                        if part not in current:
-                            current[part] = {}
-                        current = current[part]
-                    current[encoded_index] = str(msg_id)
+                # Обновляем локальный кэш для немедленного доступа (и для Firebase, и для локального режима)
+                current = firebase_cache
+                for part in path_parts_local:
+                    if part not in current:
+                        current[part] = {}
+                    current = current[part]
+                current[encoded_index] = str(msg_id)
+                logger.info(f"✅ [CACHE] Обновлен локальный кэш: path={path_parts_local}, msg_id={msg_id}")
 
         logger.info(f"✅ Saved to playlist cache for hash={url_hash}, quality={quality_key}, indices={video_indices}, message_ids={message_ids}")
         
@@ -643,14 +642,60 @@ def get_cached_playlist_videos(playlist_url: str, quality_key: str, requested_in
 def get_cached_playlist_qualities(playlist_url: str) -> set:
     """Gets all available qualities for a cached playlist."""
     from URL_PARSERS.normalizer import normalize_url_for_cache, strip_range_from_url
+    from URL_PARSERS.youtube import is_youtube_url, youtube_to_short_url, youtube_to_long_url
     try:
-        url_hash = get_url_hash(normalize_url_for_cache(strip_range_from_url(playlist_url)))
-        data = get_from_local_cache(["bot", "video_cache", "playlists", url_hash])
-        if data and isinstance(data, dict):
-            return set(data.keys())
-        return set()
+        # Нормализуем URL так же, как при сохранении (без диапазона) и формируем все варианты ссылок
+        urls = [normalize_url_for_cache(strip_range_from_url(playlist_url))]
+        if is_youtube_url(playlist_url):
+            urls.extend([
+                normalize_url_for_cache(strip_range_from_url(youtube_to_short_url(playlist_url))),
+                normalize_url_for_cache(strip_range_from_url(youtube_to_long_url(playlist_url))),
+            ])
+        
+        # Проверяем все варианты URL и собираем все качества
+        all_qualities = set()
+        for u in set(urls):
+            url_hash = get_url_hash(u)
+            logger.info(f"get_cached_playlist_qualities: checking hash {url_hash} for URL: {u}")
+            
+            # Проверяем локальный кэш
+            data = get_from_local_cache(["bot", "video_cache", "playlists", url_hash])
+            if data and isinstance(data, dict):
+                qualities = set(data.keys())
+                all_qualities.update(qualities)
+                logger.info(f"get_cached_playlist_qualities: found qualities {qualities} for hash {url_hash} (local cache)")
+            else:
+                # Если в локальном кэше нет, проверяем Firebase напрямую (если используется)
+                use_firebase = getattr(Config, 'USE_FIREBASE', True)
+                if use_firebase:
+                    try:
+                        # Пытаемся получить данные из Firebase напрямую
+                        firebase_path = f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}"
+                        firebase_data = db.child(firebase_path).get()
+                        if firebase_data and isinstance(firebase_data.val(), dict):
+                            qualities = set(firebase_data.val().keys())
+                            all_qualities.update(qualities)
+                            logger.info(f"get_cached_playlist_qualities: found qualities {qualities} for hash {url_hash} (Firebase)")
+                            # Обновляем локальный кэш для будущих обращений
+                            if "bot" not in firebase_cache:
+                                firebase_cache["bot"] = {}
+                            if "video_cache" not in firebase_cache["bot"]:
+                                firebase_cache["bot"]["video_cache"] = {}
+                            if "playlists" not in firebase_cache["bot"]["video_cache"]:
+                                firebase_cache["bot"]["video_cache"]["playlists"] = {}
+                            firebase_cache["bot"]["video_cache"]["playlists"][url_hash] = firebase_data.val()
+                    except Exception as e:
+                        logger.warning(f"get_cached_playlist_qualities: error checking Firebase for hash {url_hash}: {e}")
+        
+        if all_qualities:
+            logger.info(f"get_cached_playlist_qualities: returning {all_qualities} for playlist: {playlist_url}")
+        else:
+            logger.info(f"get_cached_playlist_qualities: no cached qualities found for playlist: {playlist_url}")
+        return all_qualities
     except Exception as e:
         logger.error(f"Failed to get cached playlist qualities: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return set()
 
 
