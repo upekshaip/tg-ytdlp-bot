@@ -1,13 +1,21 @@
 import asyncio
-from datetime import datetime, timezone
+import concurrent.futures
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional, Tuple, Callable, Union
 
+from pyrogram import Client as PyroClient
 from pyrogram.errors import RPCError
 from pyrogram.raw.functions.channels import GetAdminLog
 from pyrogram.raw.types import (
     ChannelAdminLogEventActionParticipantLeave,
     ChannelAdminLogEventsFilter,
+    ChannelAdminLogEventActionParticipantJoin,
+    ChannelAdminLogEventActionParticipantInvite,
 )
+try:
+    from pyrogram.raw.types import ChannelAdminLogEventActionParticipantAdd
+except ImportError:
+    ChannelAdminLogEventActionParticipantAdd = None
 
 from CONFIG.config import Config
 from CONFIG.messages import safe_get_messages
@@ -94,6 +102,9 @@ class ChannelGuard:
         self._lock = asyncio.Lock()
         self._running = False
         self._block_executor: Optional[Callable[[int, Optional[str]], None]] = None
+        self._user_session_string = getattr(Config, "CHANNEL_GUARD_SESSION_STRING", "").strip()
+        self._user_client: Optional[PyroClient] = None
+        self._bot_admin_log_allowed = True
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -128,6 +139,20 @@ class ChannelGuard:
         self._loop = app.loop
         self.initialize_from_db()
         self._running = True
+        if self._user_session_string:
+            try:
+                self._user_client = PyroClient(
+                    name="channel_guard_user",
+                    api_id=Config.API_ID,
+                    api_hash=Config.API_HASH,
+                    session_string=self._user_session_string,
+                    no_updates=True,
+                )
+                await self._user_client.start()
+                logger.info("[ChannelGuard] User session connected for admin logs")
+            except Exception as exc:
+                logger.error(f"[ChannelGuard] Failed to start user session: {exc}")
+                self._user_client = None
         self._scan_task = self._loop.create_task(self._scan_loop())
         self._auto_task = self._loop.create_task(self._auto_loop())
         logger.info("[ChannelGuard] Guard started")
@@ -138,6 +163,12 @@ class ChannelGuard:
             self._scan_task.cancel()
         if self._auto_task:
             self._auto_task.cancel()
+        if self._user_client:
+            try:
+                await self._user_client.stop()
+            except Exception as exc:
+                logger.warning(f"[ChannelGuard] Failed to stop user session: {exc}")
+            self._user_client = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -184,13 +215,13 @@ class ChannelGuard:
     def mark_user_blocked(self, user_id: Union[str, int], reason: str) -> None:
         uid = str(user_id)
         leaver = self._leavers.get(uid)
-        now = int(datetime.now(tz=timezone.utc).timestamp())
+        blocked_ts = int(datetime.now(tz=timezone.utc).timestamp())
         if not leaver:
             leaver = {"ID": uid}
         leaver.update(
             {
                 "blocked": True,
-                "blocked_ts": now,
+                "blocked_ts": blocked_ts,
                 "blocked_reason": reason,
             }
         )
@@ -214,6 +245,8 @@ class ChannelGuard:
         while self._running:
             try:
                 new_leavers, auto_banned = await self._scan_once()
+                pending = len(self.get_pending_leavers())
+                logger.info(f"[ChannelGuard] Periodic scan: new={new_leavers}, auto_banned={auto_banned}, pending={pending}, last_event_id={self._last_event_id}")
                 await self._send_scan_report(new_leavers, auto_banned)
             except asyncio.CancelledError:
                 break
@@ -239,7 +272,8 @@ class ChannelGuard:
             events = await self._fetch_leave_events()
             if not events:
                 return 0, 0
-            events.sort(key=lambda e: e.id)
+            # events это список кортежей (event, user_info), сортируем по event.id
+            events.sort(key=lambda e: e[0].id)
             new_count = 0
             auto_banned = 0
             for event, user_info in events:
@@ -247,7 +281,6 @@ class ChannelGuard:
                     continue
                 self._last_event_id = max(self._last_event_id, event.id)
                 uid = str(user_info.get("id"))
-                now = int(datetime.now(tz=timezone.utc).timestamp())
                 leaver = self._leavers.get(uid, {})
                 if not leaver:
                     leaver = {
@@ -294,21 +327,39 @@ class ChannelGuard:
         self.mark_user_blocked(user_id, reason)
         return True
 
+    def _build_events_filter(self, *, join: bool = False, leave: bool = False):
+        flags = {}
+        if join:
+            flags["join"] = True
+        if leave:
+            flags["leave"] = True
+        if not flags:
+            try:
+                return ChannelAdminLogEventsFilter()
+            except Exception:
+                return None
+        try:
+            return ChannelAdminLogEventsFilter(**flags)
+        except (TypeError, ValueError):
+            try:
+                events_filter = ChannelAdminLogEventsFilter()
+                for key in flags:
+                    setattr(events_filter, key, True)
+                return events_filter
+            except Exception as inner_err:
+                logger.debug(f"[ChannelGuard] Filter fallback failed: {inner_err}")
+                return None
+
     async def _fetch_leave_events(self) -> List[Tuple[Any, Dict[str, Any]]]:
-        peer = await self._app.resolve_peer(self._channel_id)
-        # Try to create filter - some Pyrogram versions don't support participants_left parameter
-        # We'll filter events manually by action type anyway
-        events_filter = None
+        client = self._get_admin_log_client()
+        if not client:
+            logger.error("[ChannelGuard] No client available for admin logs")
+            return []
+        # Используем тот же client для resolve_peer, чтобы user client мог получить доступ к каналу
+        peer = await client.resolve_peer(self._channel_id)
+        events_filter = self._build_events_filter(leave=True)
         try:
-            # Try creating empty filter first
-            events_filter = ChannelAdminLogEventsFilter()
-        except (TypeError, AttributeError) as e:
-            # If filter creation fails, use None (will fetch all events, we filter manually)
-            logger.debug(f"[ChannelGuard] Filter creation failed, using None: {e}")
-            events_filter = None
-        
-        try:
-            result = await self._app.invoke(
+            result = await client.invoke(
                 GetAdminLog(
                     channel=peer,
                     q="",
@@ -320,7 +371,7 @@ class ChannelGuard:
                 )
             )
         except RPCError as exc:
-            logger.error(f"[ChannelGuard] GetAdminLog RPC error: {exc}")
+            self._handle_admin_log_error(exc, client)
             return []
         except Exception as exc:
             logger.error(f"[ChannelGuard] Unexpected log fetch error: {exc}")
@@ -353,6 +404,152 @@ class ChannelGuard:
                 leave_events.append((event, user_meta))
         return leave_events
 
+    async def _fetch_recent_activity(self, hours: int = 48, limit: int = 500) -> List[Dict[str, Any]]:
+        client = self._get_admin_log_client()
+        if not client:
+            logger.error("[ChannelGuard] No client available for admin logs")
+            return []
+        if not self.can_read_admin_log():
+            logger.error("[ChannelGuard] Cannot read admin logs: bot method invalid and no user session provided")
+            return []
+        # Используем тот же client для resolve_peer, чтобы user client мог получить доступ к каналу
+        peer = await client.resolve_peer(self._channel_id)
+        events_filter = self._build_events_filter(join=True, leave=True)
+        try:
+            result = await client.invoke(
+                GetAdminLog(
+                    channel=peer,
+                    q="",
+                    events_filter=events_filter,
+                    admins=None,
+                    max_id=0,
+                    min_id=0,
+                    limit=limit,
+                )
+            )
+        except RPCError as exc:
+            self._handle_admin_log_error(exc, client)
+            return []
+        except Exception as exc:
+            logger.error(f"[ChannelGuard] Unable to fetch recent activity: {exc}")
+            return []
+
+        users_map = {}
+        for user in getattr(result, "users", []) or []:
+            try:
+                full_name = " ".join(
+                    filter(
+                        None,
+                        [
+                            getattr(user, "first_name", None),
+                            getattr(user, "last_name", None),
+                        ],
+                    )
+                ).strip()
+            except Exception:
+                full_name = ""
+            users_map[user.id] = {
+                "id": user.id,
+                "username": getattr(user, "username", None),
+                "full_name": full_name or getattr(user, "first_name", "") or "",
+            }
+
+        threshold = datetime.now(timezone.utc) - timedelta(hours=hours)
+        activity: List[Dict[str, Any]] = []
+        for event in getattr(result, "events", []) or []:
+            action = getattr(event, "action", None)
+            if action is None:
+                continue
+            event_dt = getattr(event, "date", None)
+            if not isinstance(event_dt, datetime):
+                try:
+                    event_dt = datetime.fromtimestamp(event.date, tz=timezone.utc)
+                except Exception:
+                    continue
+            if event_dt.tzinfo is None:
+                event_dt = event_dt.replace(tzinfo=timezone.utc)
+            if event_dt < threshold:
+                continue
+
+            entry_type = None
+            description = ""
+            if isinstance(action, ChannelAdminLogEventActionParticipantLeave):
+                entry_type = "leave"
+                description = "покинул(а) канал"
+            else:
+                # Проверяем типы join, но ChannelAdminLogEventActionParticipantAdd может быть None
+                join_types = [ChannelAdminLogEventActionParticipantJoin, ChannelAdminLogEventActionParticipantInvite]
+                if ChannelAdminLogEventActionParticipantAdd is not None:
+                    join_types.append(ChannelAdminLogEventActionParticipantAdd)
+                
+                if any(isinstance(action, t) for t in join_types):
+                    entry_type = "join"
+                    description = "вступил(а) в канал"
+                    invite = getattr(action, "invite", None)
+                    if invite is not None:
+                        via = getattr(invite, "title", None) or ("permanent" if getattr(invite, "permanent", False) else None)
+                        if via:
+                            description += f" через {via}"
+                else:
+                    continue
+
+            user_meta = users_map.get(event.user_id, {"id": event.user_id})
+            activity.append(
+                {
+                    "type": entry_type,
+                    "timestamp": event_dt.timestamp(),
+                    "datetime": event_dt,
+                    "user_id": user_meta.get("id"),
+                    "name": user_meta.get("full_name") or "",
+                    "username": user_meta.get("username"),
+                    "description": description,
+                }
+            )
+        activity.sort(key=lambda item: item["timestamp"])
+        return activity
+
+    def export_recent_activity(self, hours: int = 48, limit: int = 500) -> List[Dict[str, Any]]:
+        if not self._loop or not self._app:
+            logger.error("[ChannelGuard] Cannot export activity: guard not running")
+            return []
+        future = asyncio.run_coroutine_threadsafe(self._fetch_recent_activity(hours, limit), self._loop)
+        try:
+            return future.result(timeout=30)
+        except concurrent.futures.TimeoutError:
+            logger.error("[ChannelGuard] Timeout while exporting activity")
+        except Exception as exc:
+            logger.error(f"[ChannelGuard] Error exporting activity: {exc}")
+        return []
+
+    def _get_admin_log_client(self):
+        """Return the appropriate client for admin log operations (user client preferred, bot client as fallback)."""
+        return self._user_client or self._app
+
+    def can_read_admin_log(self) -> bool:
+        """Check if admin logs can be read (either via user client or bot is allowed)."""
+        return self._user_client is not None or self._bot_admin_log_allowed
+
+    def _handle_admin_log_error(self, exc: RPCError, client) -> None:
+        """Handle admin log errors, especially bot permission issues."""
+        error_str = str(exc)
+        logger.error(f"[ChannelGuard] GetAdminLog RPC error: {exc}")
+        
+        if "BOT_METHOD_INVALID" in error_str and client is self._app:
+            if self._bot_admin_log_allowed:
+                self._bot_admin_log_allowed = False
+                logger.error(
+                    "[ChannelGuard] Telegram forbids bots from reading channel admin logs. Provide CHANNEL_GUARD_SESSION_STRING with a user session to enable this feature."
+                )
+        elif "CHANNEL_INVALID" in error_str:
+            logger.error(
+                f"[ChannelGuard] Channel {self._channel_id} is invalid or user session doesn't have access. "
+                f"Ensure: 1) User is admin of the channel, 2) User has 'View admin log' permission, 3) Channel ID is correct."
+            )
+        elif "CHAT_ADMIN_REQUIRED" in error_str:
+            logger.error(
+                "[ChannelGuard] User session is not an admin of the channel or doesn't have 'View admin log' permission."
+            )
+
     async def _send_scan_report(self, new_count: int, auto_banned: int) -> None:
         admins = getattr(Config, "ADMIN", [])
         if not admins:
@@ -375,6 +572,14 @@ class ChannelGuard:
                 )
             except Exception as exc:
                 logger.error(f"[ChannelGuard] Failed to send report to {admin_id}: {exc}")
+        logger.info(
+            "[ChannelGuard] Scan summary: ts=%s new=%s auto=%s pending=%s last_event_id=%s",
+            ts,
+            new_count,
+            auto_banned,
+            pending_count,
+            self._last_event_id,
+        )
 
 
 # --------------------------------------------------------------------------------------

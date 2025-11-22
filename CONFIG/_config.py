@@ -40,6 +40,10 @@ class Config(object):
     SUBSCRIBE_CHANNEL = -100222222222222222222
     # Add subscription channel - Required (str)
     SUBSCRIBE_CHANNEL_URL = "https://t.me/+abcdef"
+    # Session string пользователя для чтения admin logs канала (опционально)
+    # Боты не могут читать admin logs, поэтому нужна пользовательская сессия
+    # Для генерации session string запустите: python generate_session_string.py
+    CHANNEL_GUARD_SESSION_STRING = ""
     #######################################################
     # Firebase initialization
     USE_FIREBASE = False
@@ -144,6 +148,7 @@ class Config(object):
     COOKIES_FROM_BROWSER_COMMAND = CommandsConfig.COOKIES_FROM_BROWSER_COMMAND
     BLOCK_USER_COMMAND = CommandsConfig.BLOCK_USER_COMMAND
     UNBLOCK_USER_COMMAND = CommandsConfig.UNBLOCK_USER_COMMAND
+    BAN_TIME_COMMAND = CommandsConfig.BAN_TIME_COMMAND
     RUN_TIME = CommandsConfig.RUN_TIME
     GET_USER_LOGS_COMMAND = CommandsConfig.GET_USER_LOGS_COMMAND
     CLEAN_COMMAND = CommandsConfig.CLEAN_COMMAND

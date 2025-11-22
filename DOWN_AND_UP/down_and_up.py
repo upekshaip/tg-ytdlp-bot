@@ -1,3 +1,4 @@
+# Version: 1.0.1
 # ########################################
 # Download_and_up function
 # ########################################
@@ -23,7 +24,7 @@ from DOWN_AND_UP.ffmpeg import get_duration_thumb, get_video_info_ffprobe, embed
 from DOWN_AND_UP.sender import send_videos
 from DATABASE.firebase_init import write_logs
 from URL_PARSERS.tags import generate_final_tags, save_user_tags
-from URL_PARSERS.youtube import is_youtube_url, download_thumbnail
+from URL_PARSERS.youtube import is_youtube_url, download_thumbnail, extract_youtube_id
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.filter_check import is_no_filter_domain
 from URL_PARSERS.filter_utils import create_smart_match_filter, create_legacy_match_filter
@@ -1932,6 +1933,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             original_video_title = info_dict.get("original_title", info_dict.get("title", None))  # Original title for caption
             full_video_title = info_dict.get("description", original_video_title)
             video_title = info_dict.get("title", "video")  # Already sanitized title for file operations
+            video_page_url = (
+                info_dict.get("webpage_url")
+                or info_dict.get("original_url")
+                or info_dict.get("url")
+                or info_dict.get("canonical_url")
+                or url
+            )
 
             # --- Use new centralized function for all tags ---
             tags_list = tags_text.split() if tags_text else []
@@ -2194,14 +2202,15 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             youtube_thumb_path = None
             thumb_dir = None
             duration = 0
+            thumb_source_url = video_page_url or url
             
             # Try to download YouTube thumbnail first
-            if ("youtube.com" in url or "youtu.be" in url):
+            if ("youtube.com" in thumb_source_url or "youtu.be" in thumb_source_url):
                 try:
                     yt_id = video_id or None
                     if not yt_id:
                         try:
-                            yt_id = extract_youtube_id(url, user_id)
+                            yt_id = extract_youtube_id(thumb_source_url, user_id)
                         except Exception:
                             yt_id = None
                     if yt_id:
@@ -2217,7 +2226,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             if not thumb_dir:
                 try:
                     universal_thumb_path = os.path.join(dir_path, "universal_thumb.jpg")
-                    if download_universal_thumbnail(url, universal_thumb_path):
+                    if download_universal_thumbnail(thumb_source_url, universal_thumb_path):
                         if os.path.exists(universal_thumb_path):
                             thumb_dir = universal_thumb_path
                             logger.info(f"Using universal thumbnail: {universal_thumb_path}")

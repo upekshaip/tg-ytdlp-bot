@@ -448,6 +448,68 @@ def block_user(app, message):
         # Channel guard helpers
         if guard:
             if argument_lower == "show":
+                # Используем 48 часов (2 дня) вместо 3 дней
+                hours_span = 48
+                # Проверяем доступ к admin logs
+                if not guard.can_read_admin_log():
+                    safe_send_message(
+                        message.chat.id,
+                        messages.CHANNEL_GUARD_NO_ACCESS_MSG,
+                        message=message,
+                    )
+                    return
+                activity_entries = guard.export_recent_activity(hours=hours_span)
+                if activity_entries:
+                    join_total = sum(1 for item in activity_entries if item.get("type") == "join")
+                    leave_total = sum(1 for item in activity_entries if item.get("type") == "leave")
+                    lines = []
+                    for entry in activity_entries:
+                        emoji = "🟢" if entry.get("type") == "join" else "🔴"
+                        dt_local = datetime.fromtimestamp(entry.get("timestamp", 0))
+                        time_str = dt_local.strftime("%Y-%m-%d %H:%M:%S")
+                        user_id = entry.get("user_id")
+                        username = entry.get("username")
+                        username_part = f"@{username}" if username else ""
+                        name_part = entry.get("name") or ""
+                        display = (name_part + f" {username_part}").strip()
+                        if not display:
+                            display = f"ID {user_id}"
+                        description = entry.get("description") or ""
+                        # Добавляем Telegram ID в строку
+                        lines.append(f"{emoji} {time_str} — {display} (ID: {user_id}) {description}".strip())
+                    lines.append("")
+                    lines.append(
+                        messages.CHANNEL_GUARD_ACTIVITY_TOTALS_LINE_MSG.format(
+                            joined=join_total,
+                            left=leave_total,
+                        )
+                    )
+                    user_dir = os.path.join("users", str(message.chat.id))
+                    os.makedirs(user_dir, exist_ok=True)
+                    file_path = os.path.join(user_dir, f"channel_activity_{int(time.time())}.txt")
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        f.write("\n".join(lines))
+                    try:
+                        app.send_document(
+                            message.chat.id,
+                            file_path,
+                            caption=messages.CHANNEL_GUARD_ACTIVITY_FILE_CAPTION_MSG.format(hours=hours_span),
+                            reply_to_message_id=message.id,
+                        )
+                    except Exception as e:
+                        logger.error(f"[block_user_show] Failed to send activity file: {e}")
+                    safe_send_message(
+                        message.chat.id,
+                        messages.CHANNEL_GUARD_ACTIVITY_SUMMARY_MSG.format(hours=hours_span, joined=join_total, left=leave_total),
+                        message=message,
+                    )
+                else:
+                    safe_send_message(
+                        message.chat.id,
+                        messages.CHANNEL_GUARD_ACTIVITY_EMPTY_MSG.format(hours=hours_span),
+                        message=message,
+                    )
+
                 pending = guard.get_pending_leavers()
                 if not pending:
                     safe_send_message(message.chat.id, messages.CHANNEL_GUARD_PENDING_EMPTY_MSG, message=message)
@@ -476,21 +538,65 @@ def block_user(app, message):
                 safe_send_message(message.chat.id, "\n".join(rows), message=message)
                 return
             if argument_lower == "all":
+                # Получаем всех пользователей, которые покинули канал за последние 48 часов
+                hours_span = 48
+                if not guard.can_read_admin_log():
+                    safe_send_message(
+                        message.chat.id,
+                        messages.CHANNEL_GUARD_NO_ACCESS_MSG,
+                        message=message,
+                    )
+                    return
+                
+                activity_entries = guard.export_recent_activity(hours=hours_span)
+                # Получаем ID всех пользователей, которые покинули канал (тип "leave")
+                leave_user_ids = set()
+                for entry in activity_entries:
+                    if entry.get("type") == "leave":
+                        user_id = entry.get("user_id")
+                        if user_id:
+                            leave_user_ids.add(int(user_id))
+                
+                # Также добавляем pending leavers (на случай если они еще не попали в activity)
                 pending_ids = guard.get_pending_ids()
-                if not pending_ids:
+                for uid in pending_ids:
+                    leave_user_ids.add(uid)
+                
+                if not leave_user_ids:
                     safe_send_message(message.chat.id, messages.CHANNEL_GUARD_PENDING_EMPTY_MSG, message=message)
                     return
-                total_processed = 0
-                for uid in pending_ids:
-                    fake_msg = fake_message(
-                        f"{Config.BLOCK_USER_COMMAND} {uid}",
+                
+                # Проверяем, кто уже заблокирован
+                snapshot = db.child(f"{Config.BOT_DB_PATH}/blocked_users").get()
+                all_blocked_users = snapshot.each() if snapshot else []
+                blocked_ids = {int(str(b_user.key())) for b_user in (all_blocked_users or []) if b_user is not None}
+                
+                # Фильтруем только незаблокированных
+                to_block_ids = [uid for uid in leave_user_ids if uid not in blocked_ids]
+                
+                if not to_block_ids:
+                    safe_send_message(
                         message.chat.id,
-                        original_chat_id=message.chat.id,
-                        message_thread_id=getattr(message, "message_thread_id", None),
-                        original_message=message,
+                        messages.CHANNEL_GUARD_BLOCKED_ALL_MSG.format(count=0),
+                        message=message,
                     )
-                    block_user(app, fake_msg)
-                    total_processed += 1
+                    return
+                
+                total_processed = 0
+                for uid in to_block_ids:
+                    try:
+                        fake_msg = fake_message(
+                            f"{Config.BLOCK_USER_COMMAND} {uid}",
+                            message.chat.id,
+                            original_chat_id=message.chat.id,
+                            message_thread_id=getattr(message, "message_thread_id", None),
+                            original_message=message,
+                        )
+                        block_user(app, fake_msg)
+                        total_processed += 1
+                    except Exception as e:
+                        logger.error(f"[block_user_all] Failed to block user {uid}: {e}")
+                
                 safe_send_message(
                     message.chat.id,
                     messages.CHANNEL_GUARD_BLOCKED_ALL_MSG.format(count=total_processed),
