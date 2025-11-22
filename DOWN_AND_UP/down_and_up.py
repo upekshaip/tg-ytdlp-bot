@@ -2369,8 +2369,22 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         elif is_nsfw:
                             # NSFW content in groups -> LOGS_NSFW_ID only
                             # For split videos, always forward each part to NSFW channel
+                            # For playlists, always forward each video to NSFW channel (don't use already_forwarded_to_log)
                             if caption_lst and len(caption_lst) > 1:
                                 # This is a split video - always forward each part
+                                log_channel = get_log_channel("video", nsfw=True)
+                                if log_channel and log_channel != 0:
+                                    try:
+                                        forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                        logger.info(f"down_and_up: NSFW content sent to NSFW channel")
+                                    except Exception as e:
+                                        logger.error(f"down_and_up: failed to forward to NSFW channel: {e}")
+                                        forwarded_msgs = None
+                                else:
+                                    logger.warning(f"down_and_up: NSFW channel not available (ID: {log_channel}), skipping forward")
+                                    forwarded_msgs = None
+                            elif is_playlist:
+                                # For playlists, always forward each video to NSFW channel
                                 log_channel = get_log_channel("video", nsfw=True)
                                 if log_channel and log_channel != 0:
                                     try:
@@ -2405,8 +2419,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         else:
                             # Regular content -> LOGS_VIDEO_ID and cache
                             # For split videos, always forward each part to log channel
+                            # For playlists, always forward each video to log channel (don't use already_forwarded_to_log)
                             if caption_lst and len(caption_lst) > 1:
                                 # This is a split video - always forward each part
+                                log_channel = get_log_channel("video")
+                                forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                            elif is_playlist:
+                                # For playlists, always forward each video to log channel
                                 log_channel = get_log_channel("video")
                                 forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
                             elif not already_forwarded_to_log:
@@ -2783,8 +2802,13 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             elif is_nsfw:
                                 # NSFW content in groups -> LOGS_NSFW_ID only
                                 # For split videos, always forward each part to NSFW channel
+                                # For playlists, always forward each video to NSFW channel (don't use already_forwarded_to_log)
                                 if caption_lst and len(caption_lst) > 1:
                                     # This is a split video - always forward each part
+                                    log_channel = get_log_channel("video", nsfw=True)
+                                    forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                elif is_playlist:
+                                    # For playlists, always forward each video to NSFW channel
                                     log_channel = get_log_channel("video", nsfw=True)
                                     forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
                                 elif not already_forwarded_to_log:
@@ -2805,6 +2829,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     forwarded_msgs = None
                                 elif caption_lst and len(caption_lst) > 1:
                                     # This is a split video - always forward each part
+                                    log_channel = get_log_channel("video")
+                                    forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                elif is_playlist:
+                                    # For playlists, always forward each video to log channel (don't use already_forwarded_to_log)
                                     log_channel = get_log_channel("video")
                                     forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
                                 elif not already_forwarded_to_log:
