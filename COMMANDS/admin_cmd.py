@@ -510,9 +510,10 @@ def block_user(app, message):
                         message=message,
                     )
 
+                # Показываем pending очередь только если она не пуста
                 pending = guard.get_pending_leavers()
                 if not pending:
-                    safe_send_message(message.chat.id, messages.CHANNEL_GUARD_PENDING_EMPTY_MSG, message=message)
+                    # Не показываем сообщение "Очередь пуста" если уже показали активность
                     return
                 rows = [
                     messages.CHANNEL_GUARD_PENDING_HEADER_MSG.format(total=len(pending))

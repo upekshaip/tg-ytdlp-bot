@@ -281,15 +281,25 @@ class ChannelGuard:
                     continue
                 self._last_event_id = max(self._last_event_id, event.id)
                 uid = str(user_info.get("id"))
+                # Обрабатываем event.date - может быть datetime или int (timestamp)
+                event_date = getattr(event, "date", None)
+                if isinstance(event_date, datetime):
+                    event_timestamp = event_date.timestamp()
+                elif isinstance(event_date, (int, float)):
+                    event_timestamp = float(event_date)
+                else:
+                    # Fallback: используем текущее время
+                    event_timestamp = datetime.now(tz=timezone.utc).timestamp()
+                
                 leaver = self._leavers.get(uid, {})
                 if not leaver:
                     leaver = {
                         "ID": uid,
-                        "first_left_ts": event.date.timestamp(),
+                        "first_left_ts": event_timestamp,
                         "username": user_info.get("username"),
                         "name": user_info.get("full_name"),
                     }
-                leaver["last_left_ts"] = event.date.timestamp()
+                leaver["last_left_ts"] = event_timestamp
                 leaver["blocked"] = leaver.get("blocked", False)
                 self._leavers[uid] = leaver
                 self._guard_root.child("leavers").child(uid).update(leaver)
