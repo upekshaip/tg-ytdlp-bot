@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rsync \
     fonts-noto-core \
     fonts-noto-extra \
-    fonts-kacst \
+    #fonts-kacst \
     fonts-kacst-one \
     fonts-noto-cjk \
     fonts-indic \

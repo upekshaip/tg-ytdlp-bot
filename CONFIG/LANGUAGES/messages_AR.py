@@ -817,6 +817,11 @@ class Messages(object):
         "<b>التفسير:</b>\n{explanation}"
     )
     ADMIN_ERROR_CHECKING_URL_MSG = "❌ خطأ في فحص الرابط: {error}"
+    CHANNEL_GUARD_ACTIVITY_FILE_CAPTION_MSG = "🗂 سجل نشاط القناة لآخر {hours} ساعة (يومان)."
+    CHANNEL_GUARD_ACTIVITY_SUMMARY_MSG = "📝 خلال آخر {hours} ساعة (يومان): انضم {joined}، غادر {left}."
+    CHANNEL_GUARD_ACTIVITY_EMPTY_MSG = "ℹ️ لا يوجد نشاط خلال آخر {hours} ساعة (يومان)."
+    CHANNEL_GUARD_ACTIVITY_TOTALS_LINE_MSG = "الإجمالي: 🟢 انضم {joined}، 🔴 غادر {left}."
+    CHANNEL_GUARD_NO_ACCESS_MSG = "❌ لا يوجد وصول إلى سجل نشاط القناة. لا يمكن للبوتات قراءة سجلات المسؤول. قم بتوفير CHANNEL_GUARD_SESSION_STRING في الإعدادات مع جلسة مستخدم لتمكين هذه الميزة."
     
     # Clean command messages
     CLEAN_COOKIES_CLEANED_MSG = "تم تنظيف ملفات تعريف الارتباط."

@@ -23,7 +23,7 @@ from COMMANDS.keyboard_cmd import keyboard_command, keyboard_callback_handler
 from COMMANDS.proxy_cmd import proxy_command
 from COMMANDS.link_cmd import link_command
 from COMMANDS.image_cmd import image_command
-from COMMANDS.admin_cmd import get_user_log, send_promo_message, block_user, unblock_user, check_runtime, get_user_details, uncache_command, reload_firebase_cache_command
+from COMMANDS.admin_cmd import get_user_log, send_promo_message, block_user, unblock_user, check_runtime, get_user_details, uncache_command, reload_firebase_cache_command, ban_time_command
 from DATABASE.cache_db import auto_cache_command
 from DATABASE.firebase_init import is_user_blocked
 import os
@@ -1092,6 +1092,11 @@ def url_distractor(app, message):
         # /unblock_user Command
         if Config.UNBLOCK_USER_COMMAND in text:
             unblock_user(app, message)
+            return
+
+        # /ban_time Command
+        if Config.BAN_TIME_COMMAND in text:
+            ban_time_command(app, message)
             return
 
         # /Run_Time Command
