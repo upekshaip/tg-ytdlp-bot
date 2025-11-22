@@ -328,14 +328,20 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                     logger.info(f"   is_live: {info['is_live']} (тип: {type(info['is_live'])})")
             
             # Normalize info to a dict
+            # Для плейлистов сохраняем все entries для скачивания обложек
+            playlist_entries = None
             if isinstance(info, list):
                 info = (info[0] if len(info) > 0 else {})
                 logger.info(f"🔍 [DEBUG] info был списком, взяли первый элемент")
             elif isinstance(info, dict) and 'entries' in info:
                 entries = info.get('entries')
                 if isinstance(entries, list) and len(entries) > 0:
+                    # Сохраняем все entries для скачивания обложек
+                    playlist_entries = entries
                     info = entries[0]
-                    logger.info(f"🔍 [DEBUG] info содержал entries, взяли первый элемент")
+                    logger.info(f"🔍 [DEBUG] info содержал entries, взяли первый элемент. Всего entries: {len(entries)}")
+                    # Добавляем entries в info для использования в ask_quality_menu
+                    info['_playlist_entries'] = playlist_entries
             
             # Check for live stream after extraction (only if detection is enabled)
             if info and info.get('is_live', False) and LimitsConfig.ENABLE_LIVE_STREAM_BLOCKING:

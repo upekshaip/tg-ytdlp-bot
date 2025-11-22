@@ -3865,6 +3865,48 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
             thumb_dir = os.path.join("users", str(user_id))
             create_directory(thumb_dir)
         
+        # Для плейлистов скачиваем обложки для всех видео
+        playlist_entries = info.get('_playlist_entries')
+        if is_playlist and playlist_entries and isinstance(playlist_entries, list):
+            logger.info(f"🔍 [DEBUG] Плейлист обнаружен, скачиваем обложки для {len(playlist_entries)} видео")
+            for entry in playlist_entries:
+                if not entry:
+                    continue
+                entry_id = entry.get('id')
+                entry_url = entry.get('url') or entry.get('webpage_url')
+                if not entry_id:
+                    continue
+                
+                # Для YouTube используем специальную функцию
+                if ("youtube.com" in url or "youtu.be" in url) and entry_id:
+                    entry_thumb_path = os.path.join(thumb_dir, f"yt_thumb_{entry_id}.jpg")
+                    try:
+                        # Используем URL конкретного видео, если доступен
+                        entry_video_url = entry_url or f"https://www.youtube.com/watch?v={entry_id}"
+                        download_thumbnail(entry_id, entry_thumb_path, entry_video_url)
+                        logger.info(f"✅ Скачана обложка для видео {entry_id}: {entry_thumb_path}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Не удалось скачать обложку для видео {entry_id}: {e}")
+                elif entry_url:
+                    # Для других сервисов используем универсальный загрузчик
+                    try:
+                        service_name = "unknown"
+                        if 'vk.com' in entry_url:
+                            service_name = "vk"
+                        elif 'tiktok.com' in entry_url:
+                            service_name = "tiktok"
+                        elif any(x in entry_url for x in ['twitter.com', 'x.com']):
+                            service_name = "twitter"
+                        # Добавьте другие сервисы по необходимости
+                        
+                        if service_name != "unknown":
+                            entry_thumb_path = os.path.join(thumb_dir, f"{service_name}_thumb_{entry_id}.jpg")
+                            if download_universal_thumbnail(entry_url, entry_thumb_path):
+                                logger.info(f"✅ Скачана обложка для видео {entry_id}: {entry_thumb_path}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Не удалось скачать обложку для видео {entry_id}: {e}")
+        
+        # Скачиваем обложку для первого видео (для отображения в меню)
         if ("youtube.com" in url or "youtu.be" in url) and video_id:
             thumb_path = os.path.join(thumb_dir, f"yt_thumb_{video_id}.jpg")
             try:
