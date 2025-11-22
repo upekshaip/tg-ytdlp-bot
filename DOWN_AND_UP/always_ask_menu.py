@@ -2290,6 +2290,28 @@ def askq_callback(app, callback_query):
     if not need_subs and not is_subs_always_ask(user_id) and not send_as_file:
 
         message_ids = get_cached_message_ids(url, data)
+        # Если кэш по основному URL не найден, проверяем кэш по уникальной ссылке видео (для одиночных видео из плейлиста)
+        if not message_ids:
+            try:
+                # Пытаемся загрузить info из кэша, чтобы получить уникальную ссылку видео
+                cached_info = load_ask_info(user_id, url)
+                if cached_info:
+                    video_page_url = (
+                        cached_info.get("webpage_url")
+                        or cached_info.get("original_url")
+                        or cached_info.get("url")
+                        or cached_info.get("canonical_url")
+                    )
+                    # Если это не URL плейлиста, проверяем кэш по уникальной ссылке
+                    if video_page_url and video_page_url != url:
+                        message_ids = get_cached_message_ids(video_page_url, data)
+                        if message_ids:
+                            logger.info(f"🔍 [CACHE] Найдено одиночное видео в кэше по уникальной ссылке: {video_page_url}, quality: {data}")
+                            # Обновляем url для дальнейшей обработки
+                            url = video_page_url
+            except Exception as e:
+                logger.warning(f"⚠️ [CACHE] Ошибка при проверке кэша для одиночного видео: {e}")
+        
         if message_ids:
             callback_query.answer("🚀 Found in cache! Forwarding instantly...", show_alert=False)
             # found_type = None
@@ -3386,7 +3408,29 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
                     postfix = f" ({n_cached}/{total})" if total and total > 1 else ""
                     button_text = f"{icon}{quality_key}{postfix}"
                 else:
-                    icon = "🚀" if (quality_key in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
+                    # Проверяем кэш для одиночного видео
+                    is_cached = quality_key in cached_qualities
+                    # Дополнительно проверяем кэш по уникальной ссылке видео, если это видео из плейлиста
+                    if not is_cached:
+                        try:
+                            cached_info = load_ask_info(user_id, url)
+                            if cached_info:
+                                video_page_url = (
+                                    cached_info.get("webpage_url")
+                                    or cached_info.get("original_url")
+                                    or cached_info.get("url")
+                                    or cached_info.get("canonical_url")
+                                )
+                                # Если это не URL плейлиста, проверяем кэш по уникальной ссылке
+                                if video_page_url and video_page_url != url:
+                                    single_video_cached = get_cached_message_ids(video_page_url, quality_key)
+                                    if single_video_cached:
+                                        is_cached = True
+                                        logger.info(f"🔍 [CACHE] Найдено одиночное видео в кэше по уникальной ссылке: {video_page_url}, quality: {quality_key}")
+                        except Exception as e:
+                            logger.warning(f"⚠️ [CACHE] Ошибка при проверке кэша для одиночного видео: {e}")
+                    
+                    icon = "🚀" if (is_cached and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     button_text = f"{icon}{quality_key}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         
@@ -4157,7 +4201,27 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                     postfix = f" ({n_cached}/{total})"
                     is_cached = n_cached > 0
                 else:
+                    # Проверяем кэш для одиночного видео
                     is_cached = q in cached_qualities
+                    # Дополнительно проверяем кэш по уникальной ссылке видео, если это видео из плейлиста
+                    if not is_cached:
+                        # Извлекаем уникальную ссылку текущего видео
+                        video_page_url = (
+                            info.get("webpage_url")
+                            or info.get("original_url")
+                            or info.get("url")
+                            or info.get("canonical_url")
+                            or url
+                        )
+                        # Если это не URL плейлиста, проверяем кэш по уникальной ссылке
+                        if video_page_url != url and video_page_url:
+                            try:
+                                single_video_cached = get_cached_message_ids(video_page_url, q)
+                                if single_video_cached:
+                                    is_cached = True
+                                    logger.info(f"🔍 [CACHE] Найдено одиночное видео в кэше по уникальной ссылке: {video_page_url}, quality: {q}")
+                            except Exception as e:
+                                logger.warning(f"⚠️ [CACHE] Ошибка при проверке кэша для одиночного видео: {e}")
                     postfix = ""
                 need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
                 emoji = "🚀" if (is_cached and not need_subs and not is_nsfw) else "📹"
@@ -4891,7 +4955,29 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                         # In manual mode, respect user's auto_mode setting
                         need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
                     
-                    icon = "🚀" if (quality_key in cached_qualities and not need_subs and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
+                    # Проверяем кэш для одиночного видео
+                    is_cached = quality_key in cached_qualities
+                    # Дополнительно проверяем кэш по уникальной ссылке видео, если это видео из плейлиста
+                    if not is_cached:
+                        # Извлекаем уникальную ссылку текущего видео
+                        video_page_url = (
+                            info.get("webpage_url")
+                            or info.get("original_url")
+                            or info.get("url")
+                            or info.get("canonical_url")
+                            or url
+                        )
+                        # Если это не URL плейлиста, проверяем кэш по уникальной ссылке
+                        if video_page_url != url and video_page_url:
+                            try:
+                                single_video_cached = get_cached_message_ids(video_page_url, quality_key)
+                                if single_video_cached:
+                                    is_cached = True
+                                    logger.info(f"🔍 [CACHE] Найдено одиночное видео в кэше по уникальной ссылке: {video_page_url}, quality: {quality_key}")
+                            except Exception as e:
+                                logger.warning(f"⚠️ [CACHE] Ошибка при проверке кэша для одиночного видео: {e}")
+                    
+                    icon = "🚀" if (is_cached and not need_subs and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     button_text = f"{icon}{quality_key}{subs_available}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         else:
@@ -4927,7 +5013,29 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                     postfix = f" ({n_cached}/{total})" if total and total > 1 else ""
                     button_text = f"{icon}{quality_key}{postfix}"
                 else:
-                    icon = "🚀" if (quality_key in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
+                    # Проверяем кэш для одиночного видео
+                    is_cached = quality_key in cached_qualities
+                    # Дополнительно проверяем кэш по уникальной ссылке видео, если это видео из плейлиста
+                    if not is_cached:
+                        try:
+                            cached_info = load_ask_info(user_id, url)
+                            if cached_info:
+                                video_page_url = (
+                                    cached_info.get("webpage_url")
+                                    or cached_info.get("original_url")
+                                    or cached_info.get("url")
+                                    or cached_info.get("canonical_url")
+                                )
+                                # Если это не URL плейлиста, проверяем кэш по уникальной ссылке
+                                if video_page_url and video_page_url != url:
+                                    single_video_cached = get_cached_message_ids(video_page_url, quality_key)
+                                    if single_video_cached:
+                                        is_cached = True
+                                        logger.info(f"🔍 [CACHE] Найдено одиночное видео в кэше по уникальной ссылке: {video_page_url}, quality: {quality_key}")
+                        except Exception as e:
+                            logger.warning(f"⚠️ [CACHE] Ошибка при проверке кэша для одиночного видео: {e}")
+                    
+                    icon = "🚀" if (is_cached and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     button_text = f"{icon}{quality_key}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
 

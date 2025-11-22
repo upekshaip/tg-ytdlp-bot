@@ -1826,7 +1826,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         # For playlists, save to playlist cache with index
                         current_video_index = original_playlist_index
                         logger.info(f"down_and_audio: saving to playlist cache: index={current_video_index}, msg_ids={msg_ids}")
-                        save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], msg_ids, original_text=message.text or message.caption or "")
+                        save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], msg_ids, original_text=message.text or message.caption or "", video_urls_dict=None)
                         cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, [current_video_index])
                         logger.info(f"Checking the cache immediately after writing: {cached_check}")
                         playlist_indices.append(current_video_index)

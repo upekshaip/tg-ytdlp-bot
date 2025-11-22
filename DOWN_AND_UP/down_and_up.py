@@ -169,7 +169,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     from COMMANDS.cookies_cmd import is_youtube_cookie_error, is_youtube_geo_error, retry_download_with_different_cookies, retry_download_with_proxy
     
     playlist_indices = []
-    playlist_msg_ids = []    
+    playlist_msg_ids = []
+    playlist_video_urls = {}  # Словарь для хранения уникальных ссылок каждого видео: {index: video_url}    
     found_type = None
     already_forwarded_to_log = False  # Initialize variable to track log forwarding status
     need_subs = False  # Will be determined once at the beginning
@@ -1940,6 +1941,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 or info_dict.get("canonical_url")
                 or url
             )
+            
+            # Сохраняем уникальную ссылку видео для последующего кэширования
+            if is_playlist:
+                playlist_video_urls[current_index] = video_page_url
+                logger.info(f"🔍 [CACHE] Сохранена уникальная ссылка для видео index={current_index}: {video_page_url}")
 
             # --- Use new centralized function for all tags ---
             tags_list = tags_text.split() if tags_text else []
@@ -2426,7 +2432,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 if not need_subs:
                                     # Only cache regular content (not NSFW)
                                     if not is_nsfw:
-                                        save_to_playlist_cache(get_clean_playlist_url(url), rounded_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                        # Передаем уникальную ссылку видео для дополнительного кэширования
+                                        video_urls_dict = {current_video_index: playlist_video_urls.get(current_video_index)} if current_video_index in playlist_video_urls else None
+                                        save_to_playlist_cache(get_clean_playlist_url(url), rounded_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "", video_urls_dict=video_urls_dict)
                                     else:
                                         logger.info(f"NSFW content not cached (found_type={found_type}, auto_mode={auto_mode})")
                                 else:
@@ -2448,7 +2456,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 auto_mode = get_user_subs_auto_mode(user_id)
                                 need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                                 if not need_subs:
-                                    save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
+                                    # Передаем уникальную ссылку видео для дополнительного кэширования
+                                    video_urls_dict = {current_video_index: playlist_video_urls.get(current_video_index)} if current_video_index in playlist_video_urls else None
+                                    save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "", video_urls_dict=video_urls_dict)
                                 else:
                                     logger.info("Video with subtitles (subs.txt found) is not cached!")
                                 cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), safe_quality_key, [current_video_index])
@@ -2485,7 +2495,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             auto_mode = get_user_subs_auto_mode(user_id)
                             need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                             if not need_subs:
-                                save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
+                                # Передаем уникальную ссылку видео для дополнительного кэширования
+                                video_urls_dict = {current_video_index: playlist_video_urls.get(current_video_index)} if current_video_index in playlist_video_urls else None
+                                save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "", video_urls_dict=video_urls_dict)
                             else:
                                 logger.info("Video with subtitles (subs.txt found) is not cached!")
                             cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), safe_quality_key, [current_video_index])
@@ -2812,7 +2824,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     auto_mode = get_user_subs_auto_mode(user_id)
                                     need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                                     if not need_subs:
-                                        save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                        # Передаем уникальную ссылку видео для дополнительного кэширования
+                                        video_urls_dict = {current_video_index: playlist_video_urls.get(current_video_index)} if current_video_index in playlist_video_urls else None
+                                        save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "", video_urls_dict=video_urls_dict)
                                     else:
                                         logger.info("Video with subtitles (subs.txt found) is not cached!")
                                     cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), safe_quality_key, [current_video_index])
@@ -2901,7 +2915,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                                 auto_mode = get_user_subs_auto_mode(user_id)
                                                 need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                                                 if not need_subs:
-                                                    save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                                    # Передаем уникальную ссылку видео для дополнительного кэширования
+                                                    video_urls_dict = {current_video_index: playlist_video_urls.get(current_video_index)} if current_video_index in playlist_video_urls else None
+                                                    save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "", video_urls_dict=video_urls_dict)
                                                 else:
                                                     logger.info("Video with subtitles (subs.txt found) is not cached!")
                                                 cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), safe_quality_key, [current_video_index])
@@ -3026,7 +3042,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         auto_mode = get_user_subs_auto_mode(user_id)
                                         need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                                         if not need_subs:
-                                            save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                            # Передаем уникальную ссылку видео для дополнительного кэширования
+                                            video_urls_dict = {current_video_index: playlist_video_urls.get(current_video_index)} if current_video_index in playlist_video_urls else None
+                                            save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "", video_urls_dict=video_urls_dict)
                                         else:
                                             logger.info("Video with subtitles (subs.txt found) is not cached!")
                                         cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), safe_quality_key, [current_video_index])
@@ -3188,7 +3206,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             auto_mode = get_user_subs_auto_mode(user_id)
             need_subs = determine_need_subs(subs_enabled, found_type, user_id)
             if not need_subs:
-                save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, playlist_indices, playlist_msg_ids, original_text=message.text or message.caption or "")
+                # Передаем все уникальные ссылки видео для дополнительного кэширования
+                save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, playlist_indices, playlist_msg_ids, original_text=message.text or message.caption or "", video_urls_dict=playlist_video_urls if playlist_video_urls else None)
             else:
                 logger.info("Video with subtitles (subs.txt found) is not cached!")
             cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), safe_quality_key, playlist_indices)

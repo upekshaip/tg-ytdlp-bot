@@ -459,7 +459,7 @@ def auto_cache_command(app, message):
 # Added playlist caching - separate functions for saving and retrieving playlist cache
 def save_to_playlist_cache(playlist_url: str, quality_key: str, video_indices: list, message_ids: list,
                            messages = safe_get_messages(None),
-                           clear: bool = False, original_text: str = None):
+                           clear: bool = False, original_text: str = None, video_urls_dict: dict = None):
     global firebase_cache
     # Lazy imports to avoid circular imports
     from URL_PARSERS.normalizer import normalize_url_for_cache, strip_range_from_url
@@ -537,6 +537,24 @@ def save_to_playlist_cache(playlist_url: str, quality_key: str, video_indices: l
                     current[encoded_index] = str(msg_id)
 
         logger.info(f"✅ Saved to playlist cache for hash={url_hash}, quality={quality_key}, indices={video_indices}, message_ids={message_ids}")
+        
+        # Дополнительно кэшируем каждое видео отдельно по его уникальной ссылке
+        if video_urls_dict and not clear:
+            logger.info(f"🔍 [CACHE] Дополнительно кэшируем {len(video_urls_dict)} видео по их уникальным ссылкам")
+            for video_index, video_url in video_urls_dict.items():
+                if not video_url:
+                    continue
+                try:
+                    # Извлекаем message_id для этого видео
+                    if video_index in video_indices:
+                        idx_pos = video_indices.index(video_index)
+                        if idx_pos < len(message_ids):
+                            video_msg_id = message_ids[idx_pos]
+                            # Сохраняем видео отдельно по его уникальной ссылке
+                            save_to_video_cache(video_url, quality_key, [video_msg_id], clear=False, original_text=None, user_id=None)
+                            logger.info(f"✅ [CACHE] Сохранено отдельное видео: index={video_index}, url={video_url}, msg_id={video_msg_id}")
+                except Exception as e:
+                    logger.warning(f"⚠️ [CACHE] Не удалось сохранить отдельное видео для index={video_index}, url={video_url}: {e}")
         
         # Синхронизируем локальный кэш с файлом при USE_FIREBASE=False
         use_firebase = getattr(Config, 'USE_FIREBASE', True)
