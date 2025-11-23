@@ -3,18 +3,16 @@ import json
 import time
 import threading
 
-NEGATIVE_INDEX_PREFIX = "1000"
-
-
 def encode_playlist_cache_index(index: int) -> str:
-    """Encode playlist index for cache storage (supports negative indices)."""
+    """Encode playlist index for cache storage (uses real positive indices)."""
+    # Убрана логика с префиксом 1000 для отрицательных индексов
+    # Теперь отрицательные индексы преобразуются в положительные перед сохранением в кэш
     try:
         idx = int(index)
+        # Используем реальный индекс (уже преобразованный в положительный)
+        return str(idx)
     except (TypeError, ValueError):
         return str(index)
-    if idx >= 0:
-        return str(idx)
-    return f"{NEGATIVE_INDEX_PREFIX}{abs(idx)}"
 import re
 from datetime import datetime, timedelta
 from urllib.parse import urlparse

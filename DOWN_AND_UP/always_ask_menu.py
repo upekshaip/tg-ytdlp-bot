@@ -2052,7 +2052,55 @@ def askq_callback(app, callback_query):
             video_count = abs(video_start_with - video_end_with) + 1
         else:
             video_count = video_end_with - video_start_with + 1
-        requested_indices = list(range(video_start_with, video_start_with + video_count))
+        
+        # Формируем список индексов с учетом отрицательных индексов
+        # Для отрицательных индексов нужно будет преобразовать их в положительные после получения общего количества видео
+        has_negative_indices = video_start_with < 0 or video_end_with < 0
+        if has_negative_indices:
+            # Для отрицательных индексов сначала создаем список с отрицательными значениями
+            if abs(video_start_with) < abs(video_end_with):
+                # -1 до -7: создаем список [-1, -2, -3, -4, -5, -6, -7]
+                requested_indices = list(range(video_start_with, video_end_with - 1, -1))
+            else:
+                # -7 до -1: создаем список [-7, -6, -5, -4, -3, -2, -1]
+                requested_indices = list(range(video_start_with, video_end_with + 1, 1))
+        elif video_start_with > video_end_with:
+            # Для обратного порядка: от start до end включительно в обратном порядке
+            requested_indices = list(range(video_start_with, video_end_with - 1, -1))
+        else:
+            # Для прямого порядка: от start до end включительно
+            requested_indices = list(range(video_start_with, video_start_with + video_count))
+        
+        # Если есть отрицательные индексы, нужно получить общее количество видео и преобразовать их
+        if has_negative_indices:
+            try:
+                from DOWN_AND_UP.yt_dlp_hook import get_video_formats
+                logger.info(f"Getting total playlist count for negative indices conversion (always_ask)...")
+                temp_info = get_video_formats(url, user_id, 1, True, False, 1)
+                if temp_info and isinstance(temp_info, dict):
+                    if "entries" in temp_info:
+                        total_playlist_count = len(temp_info["entries"])
+                    elif "_playlist_entries" in temp_info:
+                        total_playlist_count = len(temp_info["_playlist_entries"])
+                    else:
+                        total_playlist_count = None
+                    
+                    if total_playlist_count:
+                        logger.info(f"Total playlist count (always_ask): {total_playlist_count}")
+                        # Преобразуем отрицательные индексы в положительные
+                        converted_indices = []
+                        for neg_idx in requested_indices:
+                            if neg_idx < 0:
+                                pos_idx = total_playlist_count + neg_idx + 1
+                                converted_indices.append(pos_idx)
+                            else:
+                                converted_indices.append(neg_idx)
+                        # Сортируем в обратном порядке для скачивания от последнего к первому
+                        converted_indices.sort(reverse=True)
+                        requested_indices = converted_indices
+                        logger.info(f"Converted negative indices to positive (always_ask): {converted_indices}")
+            except Exception as e:
+                logger.warning(f"Failed to get total playlist count for negative indices (always_ask): {e}, using original indices")
         
         # Check if Always Ask mode is enabled - if yes, skip cache completely
         # Also check if send_as_file is enabled - if so, skip cache completely
@@ -4187,15 +4235,45 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 elif is_playlist and playlist_range:
                     # Правильное формирование indices для отрицательных индексов
                     start, end = playlist_range
-                    if start < 0 and end < 0:
+                    has_negative = start < 0 or end < 0
+                    
+                    if has_negative:
+                        # Для отрицательных индексов сначала создаем список с отрицательными значениями
                         if abs(start) < abs(end):
                             indices = list(range(start, end - 1, -1))
                         else:
                             indices = list(range(start, end + 1, 1))
+                        
+                        # Преобразуем отрицательные индексы в положительные для проверки кэша
+                        # (в кэше они хранятся как положительные индексы)
+                        try:
+                            from DOWN_AND_UP.yt_dlp_hook import get_video_formats
+                            temp_info = get_video_formats(url, user_id, 1, True, False, 1)
+                            if temp_info and isinstance(temp_info, dict):
+                                if "entries" in temp_info:
+                                    total_playlist_count = len(temp_info["entries"])
+                                elif "_playlist_entries" in temp_info:
+                                    total_playlist_count = len(temp_info["_playlist_entries"])
+                                else:
+                                    total_playlist_count = None
+                                
+                                if total_playlist_count:
+                                    # Преобразуем отрицательные индексы в положительные
+                                    converted_indices = []
+                                    for neg_idx in indices:
+                                        if neg_idx < 0:
+                                            pos_idx = total_playlist_count + neg_idx + 1
+                                            converted_indices.append(pos_idx)
+                                        else:
+                                            converted_indices.append(neg_idx)
+                                    indices = converted_indices
+                        except Exception as e:
+                            logger.warning(f"Failed to convert negative indices for cache check: {e}")
                     elif start > end:
                         indices = list(range(start, end - 1, -1))
                     else:
                         indices = list(range(start, end + 1))
+                    
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), q, indices)
                     total = len(indices)
                     postfix = f" ({n_cached}/{total})"
