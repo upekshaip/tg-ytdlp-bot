@@ -1291,7 +1291,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
         # Для отрицательных индексов используем весь диапазон сразу, а не цикл
         total_playlist_count = None  # Общее количество видео в плейлисте (для преобразования отрицательных индексов)
+        has_negative_indices_for_download = False  # Флаг для отрицательных индексов (не используем range_entries_metadata)
         if use_range_download:
+            has_negative_indices_for_download = True  # Для отрицательных индексов скачиваем каждый отдельно
             # Для отрицательных индексов нужно получить общее количество видео из плейлиста
             # Делаем предварительный запрос, чтобы получить общее количество видео
             try:
@@ -1357,7 +1359,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             did_cookie_retry = False
             did_proxy_retry = False
 
-            reuse_range_download = use_range_download and range_entries_metadata is not None
+            # Для отрицательных индексов не используем reuse_range_download, скачиваем каждый индекс отдельно
+            reuse_range_download = use_range_download and range_entries_metadata is not None and not has_negative_indices_for_download
             if reuse_range_download:
                 if idx < len(range_entries_metadata):
                     info_dict = range_entries_metadata[idx]
@@ -1374,7 +1377,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     current_playlist_items_override = None
                 result = try_download_audio(url, playlist_item_index)
                 current_playlist_items_override = None
-                if use_range_download and isinstance(result, dict):
+                # Для отрицательных индексов не используем range_entries_metadata, скачиваем каждый индекс отдельно
+                if use_range_download and isinstance(result, dict) and not has_negative_indices_for_download:
                     if "entries" in result:
                         range_entries_metadata = result.get("entries") or []
                     else:

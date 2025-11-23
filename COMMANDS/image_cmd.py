@@ -1544,16 +1544,42 @@ def image_command(app, message):
         is_reverse_order_img = False  # Флаг для обратного порядка скачивания изображений
         # Removed failed_attempts logic - using only timeout-based stopping
         if manual_range is not None:
-            current_start = manual_range[0]
+            original_current_start = manual_range[0]
+            original_manual_end_cap = manual_range[1]
+            current_start = original_current_start
+            
             # Upper cap: if user provided end, respect it (but not above limit for non-admins)
-            if manual_range[1] is not None:
-                manual_end_cap = manual_range[1] if is_admin else min(manual_range[1], total_limit)
-                # Определяем обратный порядок для отрицательных индексов
-                if current_start < 0 and manual_end_cap < 0:
+            if original_manual_end_cap is not None:
+                manual_end_cap = original_manual_end_cap if is_admin else min(original_manual_end_cap, total_limit)
+                
+                # Для отрицательных индексов нужно получить общее количество постов и преобразовать их
+                if current_start < 0 or manual_end_cap < 0:
                     is_reverse_order_img = True
-                    # Для отрицательных индексов нужно получить общее количество постов
-                    # Пока используем абсолютные значения для расчета
-                    total_expected = abs(manual_end_cap) - abs(current_start) + 1
+                    # Получаем общее количество постов для преобразования отрицательных индексов
+                    total_media_count = detected_total
+                    if not total_media_count:
+                        # Пытаемся получить через get_total_media_count
+                        try:
+                            total_media_count = get_total_media_count(url, user_id, use_proxy)
+                        except Exception:
+                            total_media_count = None
+                    
+                    if total_media_count and total_media_count > 0:
+                        # Преобразуем отрицательные индексы в положительные
+                        # -1 = последний пост (total_media_count), -2 = предпоследний (total_media_count - 1), и т.д.
+                        # Формула: positive_index = total_media_count + negative_index + 1
+                        if current_start < 0:
+                            current_start = total_media_count + current_start + 1
+                        if manual_end_cap < 0:
+                            manual_end_cap = total_media_count + manual_end_cap + 1
+                        logger.info(f"[IMG] Converted negative indices: {original_current_start}->{current_start}, {original_manual_end_cap}->{manual_end_cap} (total={total_media_count})")
+                        # После преобразования отрицательных индексов current_start > manual_end_cap - это нормально для обратного порядка
+                        # Например: -1 до -7 -> 7 до 1, скачиваем в порядке 7, 6, 5, 4, 3, 2, 1
+                        total_expected = abs(current_start - manual_end_cap) + 1
+                    else:
+                        # Если не удалось получить общее количество, используем абсолютные значения
+                        logger.warning(f"[IMG] Could not get total media count for negative indices conversion, using absolute values")
+                        total_expected = abs(manual_end_cap) - abs(current_start) + 1
                 elif current_start > manual_end_cap:
                     is_reverse_order_img = True
                     total_expected = abs(current_start - manual_end_cap) + 1
@@ -1650,22 +1676,29 @@ def image_command(app, message):
         
         # helper to run ranges in reverse order (for negative indices)
         def run_and_collect_reverse(start: int, end: int, batch_size: int):
-            """Скачивает диапазон в обратном порядке, по одному элементу"""
+            """Скачивает диапазон в обратном порядке, по одному элементу
+            ВАЖНО: start и end должны быть уже преобразованы в положительные индексы"""
             messages = safe_get_messages(user_id)
-            # Для обратного порядка скачиваем по одному элементу от start до end
-            for idx in range(start, end - 1, -1):
-                range_expr = f"{idx}-{idx}"
-                logger.info(f"[IMG REVERSE] Downloading single item: {range_expr}")
-                result = download_image_range_cli(url, range_expr, user_id, use_proxy, output_dir=run_dir)
-                if isinstance(result, str):  # 401 Unauthorized error message
-                    return result
-                if not result:
-                    logger.warning(f"[IMG REVERSE] CLI download failed for {range_expr}, trying fallback")
-                    result = download_image_range(url, range_expr, user_id, use_proxy, run_dir)
+            # Для обратного порядка скачиваем по одному элементу от start до end (в обратном порядке)
+            # start > end после преобразования отрицательных индексов
+            if start > end:
+                # Скачиваем от большего к меньшему: start, start-1, ..., end+1, end
+                for idx in range(start, end - 1, -1):
+                    range_expr = f"{idx}-{idx}"
+                    logger.info(f"[IMG REVERSE] Downloading single item: {range_expr}")
+                    result = download_image_range_cli(url, range_expr, user_id, use_proxy, output_dir=run_dir)
                     if isinstance(result, str):  # 401 Unauthorized error message
                         return result
-                # Небольшая задержка между запросами
-                time.sleep(0.5)
+                    if not result:
+                        logger.warning(f"[IMG REVERSE] CLI download failed for {range_expr}, trying fallback")
+                        result = download_image_range(url, range_expr, user_id, use_proxy, run_dir)
+                        if isinstance(result, str):  # 401 Unauthorized error message
+                            return result
+                    # Небольшая задержка между запросами
+                    time.sleep(0.5)
+            else:
+                # Если start <= end, это не обратный порядок (не должно происходить)
+                logger.warning(f"[IMG REVERSE] start ({start}) <= end ({end}), this should not happen for reverse order")
             return True
 
         consecutive_empty_searches = 0  # Counter for consecutive searches with no new files
