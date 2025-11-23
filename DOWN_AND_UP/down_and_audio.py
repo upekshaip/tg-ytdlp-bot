@@ -276,19 +276,32 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     video_end_with = parsed_end if parsed_end != 1 or parsed_start != 1 else (video_start_with + video_count - 1)
     
     # Определяем, нужен ли обратный порядок (когда start > end)
-    # Для отрицательных индексов: -1 > -100 означает обратный порядок
+    # Для отрицательных индексов: -1 до -7 означает обратный порядок (7, 6, 5, 4, 3, 2, 1)
     is_reverse_order = False
+    has_negative_indices = False
     if is_playlist and video_start_with is not None and video_end_with is not None:
-        # Если оба отрицательные, сравниваем по абсолютному значению
+        # Если оба отрицательные, всегда используем обратный порядок
         if video_start_with < 0 and video_end_with < 0:
-            is_reverse_order = abs(video_start_with) < abs(video_end_with)
+            is_reverse_order = True
+            has_negative_indices = True
         # Если start > end, это обратный порядок
         elif video_start_with > video_end_with:
             is_reverse_order = True
     
     # Формируем список индексов с учетом обратного порядка
+    # Для отрицательных индексов нужно будет преобразовать их в положительные после получения общего количества видео
     if is_playlist:
-        if is_reverse_order:
+        if has_negative_indices:
+            # Для отрицательных индексов сначала создаем список с отрицательными значениями
+            # Позже преобразуем их в положительные после получения общего количества видео
+            # -1 до -7 означает: качать в порядке 7, 6, 5, 4, 3, 2, 1 (от последнего к первому)
+            if abs(video_start_with) < abs(video_end_with):
+                # -1 до -7: создаем список [-1, -2, -3, -4, -5, -6, -7]
+                requested_indices = list(range(video_start_with, video_end_with - 1, -1))
+            else:
+                # -7 до -1: создаем список [-7, -6, -5, -4, -3, -2, -1]
+                requested_indices = list(range(video_start_with, video_end_with + 1, 1))
+        elif is_reverse_order:
             # Для обратного порядка: от start до end включительно в обратном порядке
             requested_indices = list(range(video_start_with, video_end_with - 1, -1))
         else:
@@ -1276,8 +1289,46 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         except Exception as e:
             logger.warning(f"Thumbnail download failed: {e}")
 
+        # Для отрицательных индексов используем весь диапазон сразу, а не цикл
+        total_playlist_count = None  # Общее количество видео в плейлисте (для преобразования отрицательных индексов)
+        has_negative_indices_for_download = False  # Флаг для отрицательных индексов (не используем range_entries_metadata)
         if use_range_download:
-            indices_to_download = playlist_indices_all
+            has_negative_indices_for_download = True  # Для отрицательных индексов скачиваем каждый отдельно
+            # Для отрицательных индексов нужно получить общее количество видео из плейлиста
+            # Делаем предварительный запрос, чтобы получить общее количество видео
+            try:
+                from DOWN_AND_UP.yt_dlp_hook import get_video_formats
+                logger.info(f"Getting total playlist count for negative indices conversion (audio)...")
+                temp_info = get_video_formats(url, user_id, 1, cookies_already_checked, use_proxy, 1)
+                if temp_info and isinstance(temp_info, dict):
+                    if "entries" in temp_info:
+                        total_playlist_count = len(temp_info["entries"])
+                    elif "_playlist_entries" in temp_info:
+                        total_playlist_count = len(temp_info["_playlist_entries"])
+                if total_playlist_count:
+                    logger.info(f"Total playlist count (audio): {total_playlist_count}")
+                    # Преобразуем отрицательные индексы в положительные
+                    # -1 = последнее видео (total_playlist_count), -2 = предпоследнее (total_playlist_count - 1), и т.д.
+                    # Формула: positive_index = total_playlist_count + negative_index + 1
+                    converted_indices = []
+                    for neg_idx in playlist_indices_all:
+                        if neg_idx < 0:
+                            pos_idx = total_playlist_count + neg_idx + 1
+                            converted_indices.append(pos_idx)
+                        else:
+                            converted_indices.append(neg_idx)
+                    # Сортируем в обратном порядке для скачивания от последнего к первому
+                    converted_indices.sort(reverse=True)
+                    playlist_indices_all = converted_indices
+                    logger.info(f"Converted negative indices to positive (audio): {converted_indices}")
+            except Exception as e:
+                logger.warning(f"Failed to get total playlist count for negative indices (audio): {e}, using original indices")
+        
+        if use_range_download:
+            # Для отрицательных индексов используем весь диапазон сразу
+            # Теперь indices_to_download содержит уже преобразованные положительные индексы
+            # Для отрицательных индексов всегда используем обратный порядок (от последнего к первому)
+            indices_to_download = playlist_indices_all  # Уже отсортированы в обратном порядке
         elif is_playlist and quality_key:
             indices_to_download = uncached_indices
         elif is_playlist:
@@ -1308,7 +1359,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             did_cookie_retry = False
             did_proxy_retry = False
 
-            reuse_range_download = use_range_download and range_entries_metadata is not None
+            # Для отрицательных индексов не используем reuse_range_download, скачиваем каждый индекс отдельно
+            reuse_range_download = use_range_download and range_entries_metadata is not None and not has_negative_indices_for_download
             if reuse_range_download:
                 if idx < len(range_entries_metadata):
                     info_dict = range_entries_metadata[idx]
@@ -1325,7 +1377,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     current_playlist_items_override = None
                 result = try_download_audio(url, playlist_item_index)
                 current_playlist_items_override = None
-                if use_range_download and isinstance(result, dict):
+                # Для отрицательных индексов не используем range_entries_metadata, скачиваем каждый индекс отдельно
+                if use_range_download and isinstance(result, dict) and not has_negative_indices_for_download:
                     if "entries" in result:
                         range_entries_metadata = result.get("entries") or []
                     else:
@@ -1826,7 +1879,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         # For playlists, save to playlist cache with index
                         current_video_index = original_playlist_index
                         logger.info(f"down_and_audio: saving to playlist cache: index={current_video_index}, msg_ids={msg_ids}")
-                        save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], msg_ids, original_text=message.text or message.caption or "")
+                        save_to_playlist_cache(get_clean_playlist_url(url), quality_key, [current_video_index], msg_ids, original_text=message.text or message.caption or "", video_urls_dict=None)
                         cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, [current_video_index])
                         logger.info(f"Checking the cache immediately after writing: {cached_check}")
                         playlist_indices.append(current_video_index)

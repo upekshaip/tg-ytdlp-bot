@@ -3,18 +3,16 @@ import json
 import time
 import threading
 
-NEGATIVE_INDEX_PREFIX = "1000"
-
-
 def encode_playlist_cache_index(index: int) -> str:
-    """Encode playlist index for cache storage (supports negative indices)."""
+    """Encode playlist index for cache storage (uses real positive indices)."""
+    # Убрана логика с префиксом 1000 для отрицательных индексов
+    # Теперь отрицательные индексы преобразуются в положительные перед сохранением в кэш
     try:
         idx = int(index)
+        # Используем реальный индекс (уже преобразованный в положительный)
+        return str(idx)
     except (TypeError, ValueError):
         return str(index)
-    if idx >= 0:
-        return str(idx)
-    return f"{NEGATIVE_INDEX_PREFIX}{abs(idx)}"
 import re
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
@@ -459,7 +457,7 @@ def auto_cache_command(app, message):
 # Added playlist caching - separate functions for saving and retrieving playlist cache
 def save_to_playlist_cache(playlist_url: str, quality_key: str, video_indices: list, message_ids: list,
                            messages = safe_get_messages(None),
-                           clear: bool = False, original_text: str = None):
+                           clear: bool = False, original_text: str = None, video_urls_dict: dict = None):
     global firebase_cache
     # Lazy imports to avoid circular imports
     from URL_PARSERS.normalizer import normalize_url_for_cache, strip_range_from_url
@@ -526,17 +524,34 @@ def save_to_playlist_cache(playlist_url: str, quality_key: str, video_indices: l
                 db_child_by_path(db, "/".join(path_parts)).set(str(msg_id))
                 logger.info(f"Saved to playlist cache: path={path_parts}, msg_id={msg_id}")
                 
-                # Обновляем локальный кэш для немедленного доступа
-                use_firebase = getattr(Config, 'USE_FIREBASE', True)
-                if not use_firebase:
-                    current = firebase_cache
-                    for part in path_parts_local:
-                        if part not in current:
-                            current[part] = {}
-                        current = current[part]
-                    current[encoded_index] = str(msg_id)
+                # Обновляем локальный кэш для немедленного доступа (и для Firebase, и для локального режима)
+                current = firebase_cache
+                for part in path_parts_local:
+                    if part not in current:
+                        current[part] = {}
+                    current = current[part]
+                current[encoded_index] = str(msg_id)
+                logger.info(f"✅ [CACHE] Обновлен локальный кэш: path={path_parts_local}, msg_id={msg_id}")
 
         logger.info(f"✅ Saved to playlist cache for hash={url_hash}, quality={quality_key}, indices={video_indices}, message_ids={message_ids}")
+        
+        # Дополнительно кэшируем каждое видео отдельно по его уникальной ссылке
+        if video_urls_dict and not clear:
+            logger.info(f"🔍 [CACHE] Дополнительно кэшируем {len(video_urls_dict)} видео по их уникальным ссылкам")
+            for video_index, video_url in video_urls_dict.items():
+                if not video_url:
+                    continue
+                try:
+                    # Извлекаем message_id для этого видео
+                    if video_index in video_indices:
+                        idx_pos = video_indices.index(video_index)
+                        if idx_pos < len(message_ids):
+                            video_msg_id = message_ids[idx_pos]
+                            # Сохраняем видео отдельно по его уникальной ссылке
+                            save_to_video_cache(video_url, quality_key, [video_msg_id], clear=False, original_text=None, user_id=None)
+                            logger.info(f"✅ [CACHE] Сохранено отдельное видео: index={video_index}, url={video_url}, msg_id={video_msg_id}")
+                except Exception as e:
+                    logger.warning(f"⚠️ [CACHE] Не удалось сохранить отдельное видео для index={video_index}, url={video_url}: {e}")
         
         # Синхронизируем локальный кэш с файлом при USE_FIREBASE=False
         use_firebase = getattr(Config, 'USE_FIREBASE', True)
@@ -625,14 +640,60 @@ def get_cached_playlist_videos(playlist_url: str, quality_key: str, requested_in
 def get_cached_playlist_qualities(playlist_url: str) -> set:
     """Gets all available qualities for a cached playlist."""
     from URL_PARSERS.normalizer import normalize_url_for_cache, strip_range_from_url
+    from URL_PARSERS.youtube import is_youtube_url, youtube_to_short_url, youtube_to_long_url
     try:
-        url_hash = get_url_hash(normalize_url_for_cache(strip_range_from_url(playlist_url)))
-        data = get_from_local_cache(["bot", "video_cache", "playlists", url_hash])
-        if data and isinstance(data, dict):
-            return set(data.keys())
-        return set()
+        # Нормализуем URL так же, как при сохранении (без диапазона) и формируем все варианты ссылок
+        urls = [normalize_url_for_cache(strip_range_from_url(playlist_url))]
+        if is_youtube_url(playlist_url):
+            urls.extend([
+                normalize_url_for_cache(strip_range_from_url(youtube_to_short_url(playlist_url))),
+                normalize_url_for_cache(strip_range_from_url(youtube_to_long_url(playlist_url))),
+            ])
+        
+        # Проверяем все варианты URL и собираем все качества
+        all_qualities = set()
+        for u in set(urls):
+            url_hash = get_url_hash(u)
+            logger.info(f"get_cached_playlist_qualities: checking hash {url_hash} for URL: {u}")
+            
+            # Проверяем локальный кэш
+            data = get_from_local_cache(["bot", "video_cache", "playlists", url_hash])
+            if data and isinstance(data, dict):
+                qualities = set(data.keys())
+                all_qualities.update(qualities)
+                logger.info(f"get_cached_playlist_qualities: found qualities {qualities} for hash {url_hash} (local cache)")
+            else:
+                # Если в локальном кэше нет, проверяем Firebase напрямую (если используется)
+                use_firebase = getattr(Config, 'USE_FIREBASE', True)
+                if use_firebase:
+                    try:
+                        # Пытаемся получить данные из Firebase напрямую
+                        firebase_path = f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}"
+                        firebase_data = db.child(firebase_path).get()
+                        if firebase_data and isinstance(firebase_data.val(), dict):
+                            qualities = set(firebase_data.val().keys())
+                            all_qualities.update(qualities)
+                            logger.info(f"get_cached_playlist_qualities: found qualities {qualities} for hash {url_hash} (Firebase)")
+                            # Обновляем локальный кэш для будущих обращений
+                            if "bot" not in firebase_cache:
+                                firebase_cache["bot"] = {}
+                            if "video_cache" not in firebase_cache["bot"]:
+                                firebase_cache["bot"]["video_cache"] = {}
+                            if "playlists" not in firebase_cache["bot"]["video_cache"]:
+                                firebase_cache["bot"]["video_cache"]["playlists"] = {}
+                            firebase_cache["bot"]["video_cache"]["playlists"][url_hash] = firebase_data.val()
+                    except Exception as e:
+                        logger.warning(f"get_cached_playlist_qualities: error checking Firebase for hash {url_hash}: {e}")
+        
+        if all_qualities:
+            logger.info(f"get_cached_playlist_qualities: returning {all_qualities} for playlist: {playlist_url}")
+        else:
+            logger.info(f"get_cached_playlist_qualities: no cached qualities found for playlist: {playlist_url}")
+        return all_qualities
     except Exception as e:
         logger.error(f"Failed to get cached playlist qualities: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return set()
 
 

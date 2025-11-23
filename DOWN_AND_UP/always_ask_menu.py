@@ -2052,7 +2052,55 @@ def askq_callback(app, callback_query):
             video_count = abs(video_start_with - video_end_with) + 1
         else:
             video_count = video_end_with - video_start_with + 1
-        requested_indices = list(range(video_start_with, video_start_with + video_count))
+        
+        # Формируем список индексов с учетом отрицательных индексов
+        # Для отрицательных индексов нужно будет преобразовать их в положительные после получения общего количества видео
+        has_negative_indices = video_start_with < 0 or video_end_with < 0
+        if has_negative_indices:
+            # Для отрицательных индексов сначала создаем список с отрицательными значениями
+            if abs(video_start_with) < abs(video_end_with):
+                # -1 до -7: создаем список [-1, -2, -3, -4, -5, -6, -7]
+                requested_indices = list(range(video_start_with, video_end_with - 1, -1))
+            else:
+                # -7 до -1: создаем список [-7, -6, -5, -4, -3, -2, -1]
+                requested_indices = list(range(video_start_with, video_end_with + 1, 1))
+        elif video_start_with > video_end_with:
+            # Для обратного порядка: от start до end включительно в обратном порядке
+            requested_indices = list(range(video_start_with, video_end_with - 1, -1))
+        else:
+            # Для прямого порядка: от start до end включительно
+            requested_indices = list(range(video_start_with, video_start_with + video_count))
+        
+        # Если есть отрицательные индексы, нужно получить общее количество видео и преобразовать их
+        if has_negative_indices:
+            try:
+                from DOWN_AND_UP.yt_dlp_hook import get_video_formats
+                logger.info(f"Getting total playlist count for negative indices conversion (always_ask)...")
+                temp_info = get_video_formats(url, user_id, 1, True, False, 1)
+                if temp_info and isinstance(temp_info, dict):
+                    if "entries" in temp_info:
+                        total_playlist_count = len(temp_info["entries"])
+                    elif "_playlist_entries" in temp_info:
+                        total_playlist_count = len(temp_info["_playlist_entries"])
+                    else:
+                        total_playlist_count = None
+                    
+                    if total_playlist_count:
+                        logger.info(f"Total playlist count (always_ask): {total_playlist_count}")
+                        # Преобразуем отрицательные индексы в положительные
+                        converted_indices = []
+                        for neg_idx in requested_indices:
+                            if neg_idx < 0:
+                                pos_idx = total_playlist_count + neg_idx + 1
+                                converted_indices.append(pos_idx)
+                            else:
+                                converted_indices.append(neg_idx)
+                        # Сортируем в обратном порядке для скачивания от последнего к первому
+                        converted_indices.sort(reverse=True)
+                        requested_indices = converted_indices
+                        logger.info(f"Converted negative indices to positive (always_ask): {converted_indices}")
+            except Exception as e:
+                logger.warning(f"Failed to get total playlist count for negative indices (always_ask): {e}, using original indices")
         
         # Check if Always Ask mode is enabled - if yes, skip cache completely
         # Also check if send_as_file is enabled - if so, skip cache completely
@@ -2290,6 +2338,28 @@ def askq_callback(app, callback_query):
     if not need_subs and not is_subs_always_ask(user_id) and not send_as_file:
 
         message_ids = get_cached_message_ids(url, data)
+        # Если кэш по основному URL не найден, проверяем кэш по уникальной ссылке видео (для одиночных видео из плейлиста)
+        if not message_ids:
+            try:
+                # Пытаемся загрузить info из кэша, чтобы получить уникальную ссылку видео
+                cached_info = load_ask_info(user_id, url)
+                if cached_info:
+                    video_page_url = (
+                        cached_info.get("webpage_url")
+                        or cached_info.get("original_url")
+                        or cached_info.get("url")
+                        or cached_info.get("canonical_url")
+                    )
+                    # Если это не URL плейлиста, проверяем кэш по уникальной ссылке
+                    if video_page_url and video_page_url != url:
+                        message_ids = get_cached_message_ids(video_page_url, data)
+                        if message_ids:
+                            logger.info(f"🔍 [CACHE] Найдено одиночное видео в кэше по уникальной ссылке: {video_page_url}, quality: {data}")
+                            # Обновляем url для дальнейшей обработки
+                            url = video_page_url
+            except Exception as e:
+                logger.warning(f"⚠️ [CACHE] Ошибка при проверке кэша для одиночного видео: {e}")
+        
         if message_ids:
             callback_query.answer("🚀 Found in cache! Forwarding instantly...", show_alert=False)
             # found_type = None
@@ -3386,7 +3456,29 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
                     postfix = f" ({n_cached}/{total})" if total and total > 1 else ""
                     button_text = f"{icon}{quality_key}{postfix}"
                 else:
-                    icon = "🚀" if (quality_key in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
+                    # Проверяем кэш для одиночного видео
+                    is_cached = quality_key in cached_qualities
+                    # Дополнительно проверяем кэш по уникальной ссылке видео, если это видео из плейлиста
+                    if not is_cached:
+                        try:
+                            cached_info = load_ask_info(user_id, url)
+                            if cached_info:
+                                video_page_url = (
+                                    cached_info.get("webpage_url")
+                                    or cached_info.get("original_url")
+                                    or cached_info.get("url")
+                                    or cached_info.get("canonical_url")
+                                )
+                                # Если это не URL плейлиста, проверяем кэш по уникальной ссылке
+                                if video_page_url and video_page_url != url:
+                                    single_video_cached = get_cached_message_ids(video_page_url, quality_key)
+                                    if single_video_cached:
+                                        is_cached = True
+                                        logger.info(f"🔍 [CACHE] Найдено одиночное видео в кэше по уникальной ссылке: {video_page_url}, quality: {quality_key}")
+                        except Exception as e:
+                            logger.warning(f"⚠️ [CACHE] Ошибка при проверке кэша для одиночного видео: {e}")
+                    
+                    icon = "🚀" if (is_cached and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     button_text = f"{icon}{quality_key}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         
@@ -3704,6 +3796,9 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
             if is_playlist and playlist_range:
                 playlist_end_index = playlist_range[1]
             
+            # Импортируем get_video_formats локально, так как есть локальные импорты в других местах функции
+            from DOWN_AND_UP.yt_dlp_hook import get_video_formats
+            
             try:
                 info = get_video_formats(url, user_id, playlist_start_index, cookies_already_checked=True, playlist_end_index=playlist_end_index)
                 logger.info(f"✅ [DEBUG] get_video_formats выполнен успешно")
@@ -3865,6 +3960,48 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
             thumb_dir = os.path.join("users", str(user_id))
             create_directory(thumb_dir)
         
+        # Для плейлистов скачиваем обложки для всех видео
+        playlist_entries = info.get('_playlist_entries')
+        if is_playlist and playlist_entries and isinstance(playlist_entries, list):
+            logger.info(f"🔍 [DEBUG] Плейлист обнаружен, скачиваем обложки для {len(playlist_entries)} видео")
+            for entry in playlist_entries:
+                if not entry:
+                    continue
+                entry_id = entry.get('id')
+                entry_url = entry.get('url') or entry.get('webpage_url')
+                if not entry_id:
+                    continue
+                
+                # Для YouTube используем специальную функцию
+                if ("youtube.com" in url or "youtu.be" in url) and entry_id:
+                    entry_thumb_path = os.path.join(thumb_dir, f"yt_thumb_{entry_id}.jpg")
+                    try:
+                        # Используем URL конкретного видео, если доступен
+                        entry_video_url = entry_url or f"https://www.youtube.com/watch?v={entry_id}"
+                        download_thumbnail(entry_id, entry_thumb_path, entry_video_url)
+                        logger.info(f"✅ Скачана обложка для видео {entry_id}: {entry_thumb_path}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Не удалось скачать обложку для видео {entry_id}: {e}")
+                elif entry_url:
+                    # Для других сервисов используем универсальный загрузчик
+                    try:
+                        service_name = "unknown"
+                        if 'vk.com' in entry_url:
+                            service_name = "vk"
+                        elif 'tiktok.com' in entry_url:
+                            service_name = "tiktok"
+                        elif any(x in entry_url for x in ['twitter.com', 'x.com']):
+                            service_name = "twitter"
+                        # Добавьте другие сервисы по необходимости
+                        
+                        if service_name != "unknown":
+                            entry_thumb_path = os.path.join(thumb_dir, f"{service_name}_thumb_{entry_id}.jpg")
+                            if download_universal_thumbnail(entry_url, entry_thumb_path):
+                                logger.info(f"✅ Скачана обложка для видео {entry_id}: {entry_thumb_path}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Не удалось скачать обложку для видео {entry_id}: {e}")
+        
+        # Скачиваем обложку для первого видео (для отображения в меню)
         if ("youtube.com" in url or "youtu.be" in url) and video_id:
             thumb_path = os.path.join(thumb_dir, f"yt_thumb_{video_id}.jpg")
             try:
@@ -4101,21 +4238,71 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 elif is_playlist and playlist_range:
                     # Правильное формирование indices для отрицательных индексов
                     start, end = playlist_range
-                    if start < 0 and end < 0:
+                    has_negative = start < 0 or end < 0
+                    
+                    if has_negative:
+                        # Для отрицательных индексов сначала создаем список с отрицательными значениями
                         if abs(start) < abs(end):
                             indices = list(range(start, end - 1, -1))
                         else:
                             indices = list(range(start, end + 1, 1))
+                        
+                        # Преобразуем отрицательные индексы в положительные для проверки кэша
+                        # (в кэше они хранятся как положительные индексы)
+                        try:
+                            from DOWN_AND_UP.yt_dlp_hook import get_video_formats
+                            temp_info = get_video_formats(url, user_id, 1, True, False, 1)
+                            if temp_info and isinstance(temp_info, dict):
+                                if "entries" in temp_info:
+                                    total_playlist_count = len(temp_info["entries"])
+                                elif "_playlist_entries" in temp_info:
+                                    total_playlist_count = len(temp_info["_playlist_entries"])
+                                else:
+                                    total_playlist_count = None
+                                
+                                if total_playlist_count:
+                                    # Преобразуем отрицательные индексы в положительные
+                                    converted_indices = []
+                                    for neg_idx in indices:
+                                        if neg_idx < 0:
+                                            pos_idx = total_playlist_count + neg_idx + 1
+                                            converted_indices.append(pos_idx)
+                                        else:
+                                            converted_indices.append(neg_idx)
+                                    indices = converted_indices
+                        except Exception as e:
+                            logger.warning(f"Failed to convert negative indices for cache check: {e}")
                     elif start > end:
                         indices = list(range(start, end - 1, -1))
                     else:
                         indices = list(range(start, end + 1))
+                    
                     n_cached = get_cached_playlist_count(get_clean_playlist_url(url), q, indices)
                     total = len(indices)
                     postfix = f" ({n_cached}/{total})"
                     is_cached = n_cached > 0
                 else:
+                    # Проверяем кэш для одиночного видео
                     is_cached = q in cached_qualities
+                    # Дополнительно проверяем кэш по уникальной ссылке видео, если это видео из плейлиста
+                    if not is_cached:
+                        # Извлекаем уникальную ссылку текущего видео
+                        video_page_url = (
+                            info.get("webpage_url")
+                            or info.get("original_url")
+                            or info.get("url")
+                            or info.get("canonical_url")
+                            or url
+                        )
+                        # Если это не URL плейлиста, проверяем кэш по уникальной ссылке
+                        if video_page_url != url and video_page_url:
+                            try:
+                                single_video_cached = get_cached_message_ids(video_page_url, q)
+                                if single_video_cached:
+                                    is_cached = True
+                                    logger.info(f"🔍 [CACHE] Найдено одиночное видео в кэше по уникальной ссылке: {video_page_url}, quality: {q}")
+                            except Exception as e:
+                                logger.warning(f"⚠️ [CACHE] Ошибка при проверке кэша для одиночного видео: {e}")
                     postfix = ""
                 need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
                 emoji = "🚀" if (is_cached and not need_subs and not is_nsfw) else "📹"
@@ -4849,7 +5036,29 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                         # In manual mode, respect user's auto_mode setting
                         need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
                     
-                    icon = "🚀" if (quality_key in cached_qualities and not need_subs and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
+                    # Проверяем кэш для одиночного видео
+                    is_cached = quality_key in cached_qualities
+                    # Дополнительно проверяем кэш по уникальной ссылке видео, если это видео из плейлиста
+                    if not is_cached:
+                        # Извлекаем уникальную ссылку текущего видео
+                        video_page_url = (
+                            info.get("webpage_url")
+                            or info.get("original_url")
+                            or info.get("url")
+                            or info.get("canonical_url")
+                            or url
+                        )
+                        # Если это не URL плейлиста, проверяем кэш по уникальной ссылке
+                        if video_page_url != url and video_page_url:
+                            try:
+                                single_video_cached = get_cached_message_ids(video_page_url, quality_key)
+                                if single_video_cached:
+                                    is_cached = True
+                                    logger.info(f"🔍 [CACHE] Найдено одиночное видео в кэше по уникальной ссылке: {video_page_url}, quality: {quality_key}")
+                            except Exception as e:
+                                logger.warning(f"⚠️ [CACHE] Ошибка при проверке кэша для одиночного видео: {e}")
+                    
+                    icon = "🚀" if (is_cached and not need_subs and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     button_text = f"{icon}{quality_key}{subs_available}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         else:
@@ -4885,7 +5094,29 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                     postfix = f" ({n_cached}/{total})" if total and total > 1 else ""
                     button_text = f"{icon}{quality_key}{postfix}"
                 else:
-                    icon = "🚀" if (quality_key in cached_qualities and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
+                    # Проверяем кэш для одиночного видео
+                    is_cached = quality_key in cached_qualities
+                    # Дополнительно проверяем кэш по уникальной ссылке видео, если это видео из плейлиста
+                    if not is_cached:
+                        try:
+                            cached_info = load_ask_info(user_id, url)
+                            if cached_info:
+                                video_page_url = (
+                                    cached_info.get("webpage_url")
+                                    or cached_info.get("original_url")
+                                    or cached_info.get("url")
+                                    or cached_info.get("canonical_url")
+                                )
+                                # Если это не URL плейлиста, проверяем кэш по уникальной ссылке
+                                if video_page_url and video_page_url != url:
+                                    single_video_cached = get_cached_message_ids(video_page_url, quality_key)
+                                    if single_video_cached:
+                                        is_cached = True
+                                        logger.info(f"🔍 [CACHE] Найдено одиночное видео в кэше по уникальной ссылке: {video_page_url}, quality: {quality_key}")
+                        except Exception as e:
+                            logger.warning(f"⚠️ [CACHE] Ошибка при проверке кэша для одиночного видео: {e}")
+                    
+                    icon = "🚀" if (is_cached and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     button_text = f"{icon}{quality_key}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
 

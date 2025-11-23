@@ -970,10 +970,28 @@ def image_command(app, message):
             if manual_range is not None:
                 start_i, end_i = manual_range
                 if end_i is not None:
-                    requested_indices = list(range(int(start_i), int(end_i) + 1))
+                    # Обработка отрицательных индексов и обратного порядка
+                    if start_i < 0 or end_i < 0:
+                        # Для отрицательных индексов нужно получить общее количество постов
+                        # Пока используем прямую логику, преобразование будет в функции скачивания
+                        if start_i < end_i:
+                            requested_indices = list(range(int(start_i), int(end_i) + 1))
+                        else:
+                            # Обратный порядок: от start_i до end_i включительно в обратном порядке
+                            requested_indices = list(range(int(start_i), int(end_i) - 1, -1))
+                    elif start_i > end_i:
+                        # Обратный порядок для положительных индексов
+                        requested_indices = list(range(int(start_i), int(end_i) - 1, -1))
+                    else:
+                        # Прямой порядок
+                        requested_indices = list(range(int(start_i), int(end_i) + 1))
                 else:
                     cached_all = sorted(list(get_cached_image_post_indices(url)))
-                    requested_indices = [i for i in cached_all if i >= int(start_i)]
+                    if start_i < 0:
+                        # Для отрицательных индексов берем последние |start_i| постов
+                        requested_indices = cached_all[start_i:] if abs(start_i) <= len(cached_all) else []
+                    else:
+                        requested_indices = [i for i in cached_all if i >= int(start_i)]
             else:
                 # No manual range specified, get all cached indices
                 requested_indices = None
@@ -1013,10 +1031,27 @@ def image_command(app, message):
             if manual_range is not None:
                 start_i, end_i = manual_range
                 if end_i is not None:
-                    requested_count = end_i - start_i + 1
+                    # Правильный расчет количества для отрицательных индексов и обратного порядка
+                    if start_i < 0 and end_i < 0:
+                        requested_count = abs(end_i) - abs(start_i) + 1
+                    elif start_i > end_i:
+                        requested_count = abs(start_i - end_i) + 1
+                    else:
+                        requested_count = end_i - start_i + 1
                     # Check if we have all requested indices in cache
                     cached_indices = set(cached_map.keys())
-                    requested_indices = set(range(int(start_i), int(end_i) + 1))
+                    # Формируем правильный список запрошенных индексов
+                    if start_i < 0 or end_i < 0:
+                        # Для отрицательных индексов пока используем прямую логику
+                        # Преобразование будет в функции скачивания
+                        if start_i < end_i:
+                            requested_indices = set(range(int(start_i), int(end_i) + 1))
+                        else:
+                            requested_indices = set(range(int(start_i), int(end_i) - 1, -1))
+                    elif start_i > end_i:
+                        requested_indices = set(range(int(start_i), int(end_i) - 1, -1))
+                    else:
+                        requested_indices = set(range(int(start_i), int(end_i) + 1))
                     missing_indices = requested_indices - cached_indices
                     
                     if not missing_indices:
@@ -1506,14 +1541,58 @@ def image_command(app, message):
         # Seed current_start and upper bound from manual range if provided
         current_start = 1
         manual_end_cap = None
+        is_reverse_order_img = False  # Флаг для обратного порядка скачивания изображений
         # Removed failed_attempts logic - using only timeout-based stopping
         if manual_range is not None:
-            current_start = manual_range[0]
+            original_current_start = manual_range[0]
+            original_manual_end_cap = manual_range[1]
+            current_start = original_current_start
+            
             # Upper cap: if user provided end, respect it (but not above limit for non-admins)
-            if manual_range[1] is not None:
-                manual_end_cap = manual_range[1] if is_admin else min(manual_range[1], total_limit)
-                # Calculate correct expected count for range (end - start + 1)
-                total_expected = manual_end_cap - current_start + 1
+            if original_manual_end_cap is not None:
+                manual_end_cap = original_manual_end_cap if is_admin else min(original_manual_end_cap, total_limit)
+                
+                # Для отрицательных индексов нужно получить общее количество постов и преобразовать их
+                if current_start < 0 or manual_end_cap < 0:
+                    is_reverse_order_img = True
+                    # Получаем общее количество постов для преобразования отрицательных индексов
+                    total_media_count = detected_total
+                    if not total_media_count:
+                        # Пытаемся получить через get_total_media_count
+                        try:
+                            total_media_count = get_total_media_count(url, user_id, use_proxy)
+                        except Exception:
+                            total_media_count = None
+                    
+                    if total_media_count and total_media_count > 0:
+                        # Преобразуем отрицательные индексы в положительные
+                        # -1 = последний пост (total_media_count), -2 = предпоследний (total_media_count - 1), и т.д.
+                        # Формула: positive_index = total_media_count + negative_index + 1
+                        if current_start < 0:
+                            current_start = total_media_count + current_start + 1
+                        if manual_end_cap < 0:
+                            manual_end_cap = total_media_count + manual_end_cap + 1
+                        logger.info(f"[IMG] Converted negative indices: {original_current_start}->{current_start}, {original_manual_end_cap}->{manual_end_cap} (total={total_media_count})")
+                        # После преобразования отрицательных индексов current_start > manual_end_cap - это нормально для обратного порядка
+                        # Например: -1 до -7 -> 7 до 1, скачиваем в порядке 7, 6, 5, 4, 3, 2, 1
+                        total_expected = abs(current_start - manual_end_cap) + 1
+                    else:
+                        # Если не удалось получить общее количество, используем абсолютные значения
+                        logger.warning(f"[IMG] Could not get total media count for negative indices conversion, using absolute values")
+                        total_expected = abs(manual_end_cap) - abs(current_start) + 1
+                elif current_start > manual_end_cap:
+                    is_reverse_order_img = True
+                    total_expected = abs(current_start - manual_end_cap) + 1
+                else:
+                    # Calculate correct expected count for range (end - start + 1)
+                    total_expected = manual_end_cap - current_start + 1
+            else:
+                # Open-ended range
+                if current_start < 0:
+                    # Для отрицательных индексов без конца используем разумное значение
+                    total_expected = abs(current_start) if is_admin else min(abs(current_start), total_limit)
+                else:
+                    total_expected = total_limit
         
         # For small totals, set end cap to avoid range issues
         if detected_total and detected_total <= 10 and manual_range is None:
@@ -1524,10 +1603,19 @@ def image_command(app, message):
         # Fallback: if no total detected but manual range specified, use the range
         if manual_range is not None and total_expected is None:
             if manual_range[1] is not None:
-                total_expected = manual_range[1] - manual_range[0] + 1
+                # Правильный расчет для отрицательных индексов и обратного порядка
+                if manual_range[0] < 0 and manual_range[1] < 0:
+                    total_expected = abs(manual_range[1]) - abs(manual_range[0]) + 1
+                elif manual_range[0] > manual_range[1]:
+                    total_expected = abs(manual_range[0] - manual_range[1]) + 1
+                else:
+                    total_expected = manual_range[1] - manual_range[0] + 1
             else:
                 # Open-ended range, use a reasonable default
-                total_expected = total_limit
+                if manual_range[0] < 0:
+                    total_expected = abs(manual_range[0]) if is_admin else min(abs(manual_range[0]), total_limit)
+                else:
+                    total_expected = total_limit
             logger.info(f"[IMG FALLBACK] Using manual range for total_expected: {total_expected}")
             
             # Update status message to show we're proceeding with manual range
@@ -1567,7 +1655,12 @@ def image_command(app, message):
                         return result
                     return result
             else:
-                range_expr = f"{current_start}-{next_end}"
+                # Формируем правильный range_expr с учетом порядка
+                if current_start > next_end:
+                    # Обратный порядок: gallery-dl обычно не поддерживает, скачиваем по одному
+                    range_expr = f"{next_end}-{current_start}"
+                else:
+                    range_expr = f"{current_start}-{next_end}"
                 # Prefer CLI to enforce strict range behavior across gallery-dl versions
                 logger.info(LoggerMsg.IMG_PREPARED_RANGE_LOG_MSG.format(range_expr=range_expr))
                 result = download_image_range_cli(url, range_expr, user_id, use_proxy, output_dir=run_dir)
@@ -1579,6 +1672,33 @@ def image_command(app, message):
                     if isinstance(result, str):  # 401 Unauthorized error message
                         return result
                     return result
+            return True
+        
+        # helper to run ranges in reverse order (for negative indices)
+        def run_and_collect_reverse(start: int, end: int, batch_size: int):
+            """Скачивает диапазон в обратном порядке, по одному элементу
+            ВАЖНО: start и end должны быть уже преобразованы в положительные индексы"""
+            messages = safe_get_messages(user_id)
+            # Для обратного порядка скачиваем по одному элементу от start до end (в обратном порядке)
+            # start > end после преобразования отрицательных индексов
+            if start > end:
+                # Скачиваем от большего к меньшему: start, start-1, ..., end+1, end
+                for idx in range(start, end - 1, -1):
+                    range_expr = f"{idx}-{idx}"
+                    logger.info(f"[IMG REVERSE] Downloading single item: {range_expr}")
+                    result = download_image_range_cli(url, range_expr, user_id, use_proxy, output_dir=run_dir)
+                    if isinstance(result, str):  # 401 Unauthorized error message
+                        return result
+                    if not result:
+                        logger.warning(f"[IMG REVERSE] CLI download failed for {range_expr}, trying fallback")
+                        result = download_image_range(url, range_expr, user_id, use_proxy, run_dir)
+                        if isinstance(result, str):  # 401 Unauthorized error message
+                            return result
+                    # Небольшая задержка между запросами
+                    time.sleep(0.5)
+            else:
+                # Если start <= end, это не обратный порядок (не должно происходить)
+                logger.warning(f"[IMG REVERSE] start ({start}) <= end ({end}), this should not happen for reverse order")
             return True
 
         consecutive_empty_searches = 0  # Counter for consecutive searches with no new files
@@ -1600,20 +1720,52 @@ def image_command(app, message):
             # Only download next range if buffer is empty (strict batching)
             if len(photos_videos_buffer) == 0:
                 upper_cap = manual_end_cap or total_expected
-                if upper_cap and current_start > upper_cap:
-                    break
+                # Проверка для обратного порядка (отрицательные индексы или start > end)
+                if is_reverse_order_img:
+                    # Для обратного порядка проверяем, не дошли ли мы до конца
+                    if upper_cap and current_start < upper_cap:
+                        break
                 else:
+                    # Для прямого порядка
+                    if upper_cap and current_start > upper_cap:
+                        break
+                
+                if is_reverse_order_img:
+                    # Для обратного порядка: скачиваем от большего к меньшему
+                    next_end = current_start - batch_size + 1
+                    if upper_cap:
+                        next_end = max(next_end, upper_cap)
+                else:
+                    # Для прямого порядка
                     next_end = current_start + batch_size - 1
                     if upper_cap:
                         next_end = min(next_end, upper_cap)
-                    logger.info(LoggerMsg.IMG_BATCH_STARTING_DOWNLOAD_RANGE_LOG_MSG.format(current_start=current_start, next_end=next_end))
-                    
-                    # Reset range timer
-                    range_start_time = time.time()
-                    
-                    # Count files before download
-                    files_before = len(seen_files)
+                logger.info(LoggerMsg.IMG_BATCH_STARTING_DOWNLOAD_RANGE_LOG_MSG.format(current_start=current_start, next_end=next_end))
+                
+                # Для обратного порядка формируем range_expr правильно
+                if is_reverse_order_img and current_start > next_end:
+                    range_expr = f"{next_end}-{current_start}"
+                else:
+                    range_expr = f"{current_start}-{next_end}"
+                
+                # Reset range timer
+                range_start_time = time.time()
+                
+                # Count files before download
+                files_before = len(seen_files)
+                # Сохраняем исходное значение current_start для расчета expected_files
+                original_current_start = current_start
+                # Используем правильный range_expr для скачивания
+                if is_reverse_order_img:
+                    # Для обратного порядка gallery-dl может не поддерживать напрямую
+                    # Скачиваем по одному элементу в обратном порядке
+                    result = run_and_collect_reverse(current_start, next_end, batch_size)
+                    # Обновляем current_start для обратного порядка
+                    current_start = next_end - 1
+                else:
                     result = run_and_collect(next_end)
+                    # Обновляем current_start для прямого порядка
+                    current_start = next_end + 1
                     
                     # Debug: Log the result type and content
                     logger.info(f"[IMG DEBUG] run_and_collect result: type={type(result)}, value={result}")
@@ -1661,30 +1813,29 @@ def image_command(app, message):
                     # Count files after download
                     files_after = len(seen_files)
                     files_downloaded_in_range = files_after - files_before
-                    expected_files = next_end - current_start + 1
+                    # Правильный расчет expected_files для обратного порядка
+                    # Используем исходное значение original_current_start, сохраненное выше
+                    if is_reverse_order_img:
+                        expected_files = abs(original_current_start - next_end) + 1
+                    else:
+                        expected_files = next_end - original_current_start + 1
                     
                     elapsed_time = time.time() - range_start_time
-                    logger.info(LoggerMsg.IMG_BATCH_DOWNLOADED_FILES_LOG_MSG.format(files_downloaded_in_range=files_downloaded_in_range, current_start=current_start, next_end=next_end, expected_files=expected_files, elapsed_time=elapsed_time))
+                    logger.info(LoggerMsg.IMG_BATCH_DOWNLOADED_FILES_LOG_MSG.format(files_downloaded_in_range=files_downloaded_in_range, current_start=original_current_start, next_end=next_end, expected_files=expected_files, elapsed_time=elapsed_time))
                     
                     # Check if we got no files at all (gallery-dl found nothing)
                     # Always proceed to file search - don't break early
+                    # current_start уже обновлен выше (строки 1729 или 1733), не обновляем повторно
                     if files_downloaded_in_range == 0:
-                        logger.info(LoggerMsg.IMG_BATCH_NO_FILES_DOWNLOADED_LOG_MSG.format(current_start=current_start, next_end=next_end))
-                        # Move to next range to continue downloading
-                        current_start = next_end + 1
+                        logger.info(LoggerMsg.IMG_BATCH_NO_FILES_DOWNLOADED_LOG_MSG.format(current_start=original_current_start, next_end=next_end))
                     else:
                         logger.info(LoggerMsg.IMG_BATCH_FOUND_FILES_LOG_MSG.format(files_downloaded_in_range=files_downloaded_in_range))
-                        # Move to next range to continue downloading
-                        current_start = next_end + 1
                     
                     # Check if we got significantly fewer files than expected (less than 50% of expected)
                     # This indicates the media has ended
+                    # current_start уже обновлен выше, не обновляем повторно
                     if files_downloaded_in_range and files_downloaded_in_range < expected_files * 0.5 and files_downloaded_in_range > 0:
                         logger.info(LoggerMsg.IMG_BATCH_MEDIA_ENDED_LOG_MSG.format(files_downloaded_in_range=files_downloaded_in_range, expected_files=expected_files))
-                        # Move to next range to continue downloading
-                        current_start = next_end + 1
-                    
-                    current_start = next_end + 1
             
             # Find new files - search in the actual download directory structure
             # gallery-dl creates subdirectories like instagram/username/ so we need to search deeper
