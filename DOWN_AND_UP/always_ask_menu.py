@@ -3796,6 +3796,9 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
             if is_playlist and playlist_range:
                 playlist_end_index = playlist_range[1]
             
+            # Импортируем get_video_formats локально, так как есть локальные импорты в других местах функции
+            from DOWN_AND_UP.yt_dlp_hook import get_video_formats
+            
             try:
                 info = get_video_formats(url, user_id, playlist_start_index, cookies_already_checked=True, playlist_end_index=playlist_end_index)
                 logger.info(f"✅ [DEBUG] get_video_formats выполнен успешно")
