@@ -931,6 +931,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Для обратного порядка используем формат START:STOP:-1
                 playlist_items_str = f"{current_index}:{current_index}:-1"
             else:
+                # Для обычных случаев (включая отрицательные индексы, уже преобразованные в положительные)
                 playlist_items_str = str(current_index)
             
             common_opts = {
@@ -1747,9 +1748,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         # use_range_download уже объявлена выше (строка 325)
         total_playlist_count = None  # Общее количество видео в плейлисте (для преобразования отрицательных индексов)
         playlist_range_str = None  # Строка диапазона для плейлиста (например, "1:7" или "1:7:-1")
+        has_negative_indices_for_download = False  # Флаг для отрицательных индексов (не используем range_entries_metadata)
         if is_playlist and video_start_with is not None and video_end_with is not None:
             if video_start_with < 0 or video_end_with < 0:
                 use_range_download = True
+                has_negative_indices_for_download = True  # Для отрицательных индексов скачиваем каждый отдельно
                 # Для отрицательных индексов playlist_range_str не используется, так как обрабатываем каждый индекс отдельно
                 # Для отрицательных индексов нужно получить общее количество видео из плейлиста
                 # Делаем предварительный запрос, чтобы получить общее количество видео
@@ -1803,7 +1806,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         
         range_entries_metadata = None
         current_playlist_items_override = None
+        logger.info(f"🔍 [DEBUG] Starting playlist download: indices_to_download={indices_to_download}, len={len(indices_to_download) if indices_to_download else 0}, use_range_download={use_range_download}, has_negative_indices_for_download={has_negative_indices_for_download}")
         for idx, current_index in enumerate(indices_to_download):
+            logger.info(f"🔍 [DEBUG] Processing video {idx + 1}/{len(indices_to_download)}: current_index={current_index}")
             messages = safe_get_messages(message.chat.id)
             total_process = f"""
 <b>📶 {safe_get_messages(user_id).TOTAL_PROGRESS_MSG}</b>
@@ -1832,7 +1837,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             timestamp = int(time.time())
             safe_outtmpl = os.path.join(user_dir_name, f"download_{timestamp}.%(ext)s")
             
-            reuse_range_download = use_range_download and range_entries_metadata is not None
+            # Для отрицательных индексов не используем reuse_range_download, скачиваем каждый индекс отдельно
+            reuse_range_download = use_range_download and range_entries_metadata is not None and not has_negative_indices_for_download
             if reuse_range_download:
                 if idx < len(range_entries_metadata):
                     info_dict = range_entries_metadata[idx]
@@ -1843,7 +1849,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     stop_all = True
             else:
                 if use_range_download:
-                    current_playlist_items_override = playlist_range_str
+                    # Для отрицательных индексов playlist_range_str = None, поэтому используем None
+                    # В try_download будет использован current_index (уже преобразованный в положительный)
+                    current_playlist_items_override = playlist_range_str  # Может быть None для отрицательных индексов
                 else:
                     current_playlist_items_override = None
 
@@ -1906,7 +1914,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
                 current_playlist_items_override = None
 
-                if use_range_download and info_dict is not None:
+                # Для отрицательных индексов не используем range_entries_metadata, скачиваем каждый индекс отдельно
+                if use_range_download and info_dict is not None and not has_negative_indices_for_download:
                     entries_list = []
                     if isinstance(info_dict, dict) and "entries" in info_dict:
                         entries_list = info_dict.get("entries") or []
