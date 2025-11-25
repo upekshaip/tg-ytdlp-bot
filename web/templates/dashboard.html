@@ -1,0 +1,253 @@
+{% set active_minutes = (config.get('STATS_ACTIVE_TIMEOUT', 900) // 60) if config else 15 %}
+{% set channel_hours = 48 %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body data-active-minutes="{{ active_minutes }}" data-channel-hours="{{ channel_hours }}">
+<main class="page">
+    <header class="page__header">
+        <div>
+            <h1 data-i18n="header.title">Bot statistics</h1>
+            <p class="subtitle" data-i18n="header.subtitle">Online dashboard for monitoring Telegram bot activity.</p>
+        </div>
+        <div class="header-actions">
+            <div class="lang-switch" role="group" aria-label="Language switch">
+                <button type="button" data-lang-btn="en" class="active">EN</button>
+                <span>|</span>
+                <button type="button" data-lang-btn="ru">RU</button>
+            </div>
+            <div class="status-chip" id="dashboard-status" data-i18n="status.online">ONLINE</div>
+        </div>
+    </header>
+
+    <nav class="tabs" role="tablist">
+        <button class="tab-button active" data-tab-target="activity" data-i18n="tabs.activity">Activity</button>
+        <button class="tab-button" data-tab-target="users" data-i18n="tabs.users">Users</button>
+        <button class="tab-button" data-tab-target="content" data-i18n="tabs.content">Content</button>
+        <button class="tab-button" data-tab-target="moderation" data-i18n="tabs.moderation">Moderation</button>
+        <button class="tab-button" data-tab-target="system" data-i18n="tabs.system">System</button>
+        <button class="tab-button" data-tab-target="lists" data-i18n="tabs.lists">Lists</button>
+    </nav>
+
+    <section class="tab-panel active" data-tab-panel="activity">
+        <div class="grid">
+            <article class="card">
+                <header>
+                    <h3 data-i18n="cards.active.title">Active users</h3>
+                    <p data-i18n="cards.active.subtitle" data-minutes="{{ active_minutes }}">Sessions during last {{ active_minutes }} minutes.</p>
+                </header>
+                <input type="text" class="search-input" data-search-target="active-users-list" placeholder="Search...">
+                <div id="active-users-list" class="list" data-expand-limit="10"></div>
+                <button class="ghost" data-expand-button="active-users-list">Show all</button>
+            </article>
+
+            <article class="card">
+                <header class="card__header-row">
+                    <div>
+                        <h3 data-i18n="cards.top_downloaders.title">Top downloaders</h3>
+                        <p data-i18n="cards.top_downloaders.subtitle">Pick a period for the ranking.</p>
+                    </div>
+                    <select id="top-users-period" class="period-select">
+                        <option value="today" data-i18n="filters.today">Today</option>
+                        <option value="week" data-i18n="filters.week">Week</option>
+                        <option value="month" data-i18n="filters.month">Month</option>
+                        <option value="all" selected data-i18n="filters.all">All time</option>
+                    </select>
+                </header>
+                <input type="text" class="search-input" data-search-target="top-users-list" placeholder="Search...">
+                <div id="top-users-list" class="list" data-expand-limit="10"></div>
+                <button class="ghost" data-expand-button="top-users-list">Show all</button>
+            </article>
+
+            <article class="card">
+                <header>
+                    <h3 data-i18n="cards.channel.title" data-hours="{{ channel_hours }}">Channel activity ({{ channel_hours }}h)</h3>
+                    <p data-i18n="cards.channel.subtitle">Join and leave events in the log channel.</p>
+                </header>
+                <div id="channel-events-list" class="timeline"></div>
+            </article>
+        </div>
+    </section>
+
+    <section class="tab-panel" data-tab-panel="users">
+        <div class="grid">
+            <article class="card">
+                <header class="card__header-row">
+                    <div>
+                        <h3 data-i18n="cards.countries.title">Top countries</h3>
+                        <p data-i18n="cards.countries.subtitle">Detected via language/flag.</p>
+                    </div>
+                    <select id="countries-period" class="period-select">
+                        <option value="today" data-i18n="filters.today">Today</option>
+                        <option value="week" data-i18n="filters.week">Week</option>
+                        <option value="month" data-i18n="filters.month">Month</option>
+                        <option value="all" selected data-i18n="filters.all">All time</option>
+                    </select>
+                </header>
+                <div id="countries-list" class="list compact"></div>
+            </article>
+
+            <article class="card">
+                <header>
+                    <h3 data-i18n="cards.gender.title">Gender &amp; age</h3>
+                    <p data-i18n="cards.gender.subtitle">Groups based on heuristics.</p>
+                </header>
+                <div class="dual-stats">
+                    <div>
+                        <h4 data-i18n="cards.gender.gender_label">Gender</h4>
+                        <div id="gender-stats" class="list compact"></div>
+                    </div>
+                    <div>
+                        <h4 data-i18n="cards.gender.age_label">Age</h4>
+                        <div id="age-stats" class="list compact"></div>
+                    </div>
+                </div>
+            </article>
+
+            <article class="card">
+                <header>
+                    <h3 data-i18n="cards.nsfw_users.title">NSFW users</h3>
+                    <p data-i18n="cards.nsfw_users.subtitle">Most frequent NSFW downloads.</p>
+                </header>
+                <input type="text" class="search-input" data-search-target="nsfw-users-list" placeholder="Search...">
+                <div id="nsfw-users-list" class="list" data-expand-limit="10"></div>
+                <button class="ghost" data-expand-button="nsfw-users-list">Show all</button>
+            </article>
+
+            <article class="card">
+                <header>
+                    <h3 data-i18n="cards.playlists.title">Playlist lovers</h3>
+                    <p data-i18n="cards.playlists.subtitle">Users who request playlists most.</p>
+                </header>
+                <input type="text" class="search-input" data-search-target="playlist-users-list" placeholder="Search...">
+                <div id="playlist-users-list" class="list" data-expand-limit="10"></div>
+                <button class="ghost" data-expand-button="playlist-users-list">Show all</button>
+            </article>
+
+            <article class="card">
+                <header>
+                    <h3 data-i18n="cards.power.title">Power users</h3>
+                    <p data-i18n="cards.power.subtitle">At least 10 URLs every day during 7 consecutive days.</p>
+                </header>
+                <div id="power-users-list" class="list" data-expand-limit="10"></div>
+            </article>
+        </div>
+    </section>
+
+    <section class="tab-panel" data-tab-panel="content">
+        <div class="grid">
+            <article class="card">
+                <header class="card__header-row">
+                    <div>
+                        <h3 data-i18n="cards.domains.title">Top domains</h3>
+                        <p data-i18n="cards.domains.subtitle">Where links come from.</p>
+                    </div>
+                    <select id="domains-period" class="period-select">
+                        <option value="today" data-i18n="filters.today">Today</option>
+                        <option value="week" data-i18n="filters.week">Week</option>
+                        <option value="month" data-i18n="filters.month">Month</option>
+                        <option value="all" selected data-i18n="filters.all">All time</option>
+                    </select>
+                </header>
+                <div id="domains-list" class="list compact"></div>
+            </article>
+
+            <article class="card">
+                <header>
+                    <h3 data-i18n="cards.nsfw_domains.title">NSFW sites</h3>
+                    <p data-i18n="cards.nsfw_domains.subtitle">Most requested NSFW domains.</p>
+                </header>
+                <div id="nsfw-domains-list" class="list compact"></div>
+            </article>
+        </div>
+    </section>
+
+    <section class="tab-panel" data-tab-panel="moderation">
+        <div class="grid">
+            <article class="card">
+                <header>
+                    <h3 data-i18n="cards.blocked.title">Banned users</h3>
+                    <p data-i18n="cards.blocked.subtitle">Use ✅ to unblock.</p>
+                </header>
+                <input type="text" id="blocked-users-search" placeholder="Search..." class="search-input" style="margin-bottom: 1rem;">
+                <div id="blocked-users-list" class="list" data-expand-limit="20"></div>
+                <button class="ghost" data-expand-button="blocked-users-list">Show all</button>
+            </article>
+        </div>
+    </section>
+
+    <section class="tab-panel" data-tab-panel="system">
+        <div class="grid">
+            <article class="card">
+                <header>
+                    <h3>System Metrics</h3>
+                </header>
+                <div id="system-metrics"></div>
+            </article>
+            <article class="card">
+                <header>
+                    <h3>Package Versions</h3>
+                </header>
+                <div id="package-versions"></div>
+            </article>
+            <article class="card">
+                <header>
+                    <h3>Configuration</h3>
+                </header>
+                <div id="config-settings"></div>
+            </article>
+        </div>
+    </section>
+
+    <section class="tab-panel" data-tab-panel="lists">
+        <div class="grid">
+            <article class="card">
+                <header>
+                    <h3>File Statistics</h3>
+                </header>
+                <div id="lists-stats"></div>
+            </article>
+            <article class="card" style="grid-column: 1 / -1;">
+                <header>
+                    <h3>Domain Lists</h3>
+                    <p>Edit domain lists from CONFIG/domains.py</p>
+                </header>
+                <div id="domain-lists-container"></div>
+            </article>
+        </div>
+    </section>
+</main>
+
+<template id="user-row-template">
+    <div class="list-row">
+        <div class="list-row__info">
+            <span class="flag" data-flag></span>
+            <div>
+                <span class="title" data-name></span>
+                <span class="meta" data-meta></span>
+            </div>
+        </div>
+        <div class="list-row__actions">
+            <span class="badge" data-extra></span>
+            <button class="icon-button" data-block>❌</button>
+        </div>
+    </div>
+</template>
+
+<script>
+    window.dashboardConfig = {
+        periods: ["today", "week", "month", "all"]
+    };
+</script>
+<script src="/static/dashboard.js"></script>
+</body>
+</html>

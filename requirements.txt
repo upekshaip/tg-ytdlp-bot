@@ -4,6 +4,10 @@ pyrotgfork
 aiohttp
 aiofiles
 requests<3,>=2.8.1
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
 TgCrypto>=1.2.5
 moviepy==1.0.3
 tldextract
