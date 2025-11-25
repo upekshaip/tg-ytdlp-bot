@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 from pathlib import Path
 from typing import Dict, Any, List
 
@@ -108,4 +109,23 @@ def update_domain_list(list_name: str, items: List[str]) -> bool:
     except Exception as e:
         print(f"Error updating domain list {list_name}: {e}")
         return False
+
+
+def update_lists() -> Dict[str, Any]:
+    """Обновляет списки через script.sh."""
+    try:
+        script_path = "/root/Telegram/tg-ytdlp-bot/script.sh"
+        result = subprocess.run(
+            ["bash", script_path],
+            capture_output=True,
+            text=True,
+            timeout=300,  # 5 минут
+            check=False,
+        )
+        if result.returncode == 0:
+            return {"status": "ok", "message": "Lists updated successfully", "output": result.stdout}
+        else:
+            return {"status": "error", "message": result.stderr or "Failed to update lists"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 

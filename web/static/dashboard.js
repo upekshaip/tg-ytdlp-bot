@@ -51,7 +51,28 @@
             "time.just_now": "just now",
             "time.minutes": "{value} min ago",
             "time.hours": "{value} h ago",
-            "time.days": "{value} d ago"
+            "time.days": "{value} d ago",
+            "system.metrics": "System Metrics",
+            "system.versions": "Package Versions",
+            "system.config": "Configuration",
+            "system.ip_rotate": "Rotate IP",
+            "system.restart": "Restart Service",
+            "system.cleanup": "Cleanup User Files",
+            "system.update_engines": "Update Engines",
+            "lists.stats": "File Statistics",
+            "lists.domains": "Domain Lists",
+            "lists.update": "Update Lists",
+            "power.min_urls": "Min URLs per day:",
+            "power.days": "Days:",
+            "power.apply": "Apply",
+            "demographics.title": "Demographics & Countries",
+            "demographics.subtitle": "User statistics by country, gender, and age.",
+            "demographics.countries": "Top Countries",
+            "demographics.gender": "Gender",
+            "demographics.age": "Age",
+            "buttons.logout": "Logout",
+            "buttons.save": "Save",
+            "buttons.add": "Add"
         },
         ru: {
             "header.title": "Статистика бота",
@@ -103,7 +124,28 @@
             "time.just_now": "только что",
             "time.minutes": "{value} мин назад",
             "time.hours": "{value} ч назад",
-            "time.days": "{value} дн назад"
+            "time.days": "{value} дн назад",
+            "system.metrics": "Метрики системы",
+            "system.versions": "Версии пакетов",
+            "system.config": "Конфигурация",
+            "system.ip_rotate": "Сменить IP",
+            "system.restart": "Перезапустить сервис",
+            "system.cleanup": "Очистить файлы пользователей",
+            "system.update_engines": "Обновить движки",
+            "lists.stats": "Статистика файлов",
+            "lists.domains": "Списки доменов",
+            "lists.update": "Обновить списки",
+            "power.min_urls": "Мин. URL в день:",
+            "power.days": "Дней:",
+            "power.apply": "Применить",
+            "demographics.title": "Демография и страны",
+            "demographics.subtitle": "Статистика пользователей по странам, полу и возрасту.",
+            "demographics.countries": "Топ стран",
+            "demographics.gender": "Пол",
+            "demographics.age": "Возраст",
+            "buttons.logout": "Выход",
+            "buttons.save": "Сохранить",
+            "buttons.add": "Добавить"
         }
     };
 
@@ -122,7 +164,7 @@
         nsfwUsers: (limit = 100) => `/api/top-nsfw-users?limit=${limit}`,
         nsfwDomains: (limit = 50) => `/api/top-nsfw-domains?limit=${limit}`,
         playlistUsers: (limit = 100) => `/api/top-playlist-users?limit=${limit}`,
-        powerUsers: (limit = 50) => `/api/power-users?limit=${limit}`,
+        powerUsers: (minUrls = 10, days = 7, limit = 50) => `/api/power-users?min_urls=${minUrls}&days=${days}&limit=${limit}`,
         blockedUsers: (limit = 200) => `/api/blocked-users?limit=${limit}`,
         channelEvents: (hours = 48, limit = 200) => `/api/channel-events?hours=${hours}&limit=${limit}`,
     };
@@ -213,8 +255,22 @@
         const button = node.querySelector("[data-block]");
 
         flag.textContent = item.flag || "🏳";
-        nameEl.textContent = item.name || `${t("meta.id_label")} ${item.user_id}`;
-        metaEl.textContent = options.meta ? options.meta(item) : formatUserMeta(item);
+        
+        // Добавляем ссылки на профили
+        const nameText = item.name || `${t("meta.id_label")} ${item.user_id}`;
+        if (item.username) {
+            nameEl.innerHTML = `<a href="https://t.me/${item.username}" target="_blank" style="color: #38bdf8; text-decoration: none;">${nameText}</a>`;
+        } else {
+            nameEl.innerHTML = `<a href="tg://user?id=${item.user_id}" style="color: #38bdf8; text-decoration: none;">${nameText}</a>`;
+        }
+        
+        // Добавляем ссылку на ID если есть username
+        const metaText = options.meta ? options.meta(item) : formatUserMeta(item);
+        if (item.username && item.user_id) {
+            metaEl.innerHTML = `${metaText} • <a href="tg://user?id=${item.user_id}" style="color: #94a3b8; text-decoration: none; font-size: 0.85rem;">ID: ${item.user_id}</a>`;
+        } else {
+            metaEl.textContent = metaText;
+        }
         extraEl.textContent = options.extra ? options.extra(item) : "";
         if (options.hideButton) {
             button.remove();
@@ -258,8 +314,10 @@
     function renderSimpleList(container, items, formatter, icon) {
         if (!items || !items.length) {
             container.innerHTML = `<div class="empty-state">${emptyStateText}</div>`;
+            container.__items = [];
             return;
         }
+        container.__items = items; // Сохраняем для поиска
         container.innerHTML = "";
         items.forEach((item) => {
             const row = document.createElement("div");
@@ -281,12 +339,43 @@
         const data = await fetchJSON(endpoints.activeUsers());
         const container = document.getElementById("active-users-list");
         setListData(container, data.items || [], (item, parent) => {
-            parent.appendChild(
-                createUserRow(item, {
-                    meta: () => `${formatUserMeta(item)} • ${item.url || ""}`,
-                    extra: () => relativeTime(item.last_event_ts),
-                })
-            );
+            // Извлекаем домен из URL для более компактного отображения
+            let urlDisplay = item.url || "";
+            if (urlDisplay) {
+                try {
+                    const urlObj = new URL(urlDisplay);
+                    urlDisplay = urlObj.hostname.replace("www.", "");
+                } catch (e) {
+                    // Если не удалось распарсить, оставляем как есть
+                }
+            }
+            
+            const row = createUserRow(item, {
+                meta: () => {
+                    let meta = `${formatUserMeta(item)}`;
+                    if (urlDisplay) {
+                        meta += ` • ${urlDisplay}`;
+                    }
+                    if (item.title) {
+                        const titleShort = item.title.length > 50 ? item.title.substring(0, 50) + "..." : item.title;
+                        meta += ` • ${titleShort}`;
+                    }
+                    return meta;
+                },
+                extra: () => {
+                    if (item.progress !== undefined && item.progress !== null) {
+                        const progressPercent = Math.round(item.progress);
+                        return `<div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <div style="width: 120px; height: 10px; background: rgba(148, 163, 184, 0.2); border-radius: 5px; overflow: hidden;">
+                                <div style="width: ${progressPercent}%; height: 100%; background: linear-gradient(120deg, #22d3ee, #a855f7); transition: width 0.3s;"></div>
+                            </div>
+                            <span style="font-size: 0.85rem; color: #38bdf8; font-weight: 600; min-width: 45px;">${progressPercent}%</span>
+                        </div>`;
+                    }
+                    return relativeTime(item.last_event_ts);
+                },
+            });
+            parent.appendChild(row);
         });
     }
 
@@ -368,7 +457,9 @@
     }
 
     async function loadPowerUsers() {
-        const data = await fetchJSON(endpoints.powerUsers());
+        const minUrls = parseInt(document.getElementById("power-users-min-urls")?.value || "10", 10);
+        const days = parseInt(document.getElementById("power-users-days")?.value || "7", 10);
+        const data = await fetchJSON(endpoints.powerUsers(minUrls, days));
         const container = document.getElementById("power-users-list");
         setListData(container, data || [], (item, parent) => {
             parent.appendChild(
@@ -481,7 +572,16 @@
             let text = t(key);
             if (!text) return;
             text = replacePlaceholders(text, { minutes, hours });
-            el.textContent = text;
+            // Проверяем, является ли элемент кнопкой или input - для них используем textContent
+            if (el.tagName === "BUTTON" || el.tagName === "INPUT" || el.tagName === "LABEL") {
+                if (el.tagName === "INPUT" && el.type === "button") {
+                    el.value = text;
+                } else {
+                    el.textContent = text;
+                }
+            } else {
+                el.textContent = text;
+            }
         });
         emptyStateText = t("misc.empty");
         document.querySelectorAll("[data-lang-btn]").forEach((button) => {
@@ -517,26 +617,40 @@
                 const query = e.target.value.toLowerCase().trim();
                 const container = document.getElementById(targetId);
                 if (!container || !container.__items) return;
-                const filtered = container.__items.filter((item) => {
-                    const searchable = [
-                        item.name || "",
-                        item.username || "",
-                        String(item.user_id || ""),
-                        item.url || "",
-                        item.title || "",
-                        item.domain || "",
-                        item.country_code || "",
-                    ].join(" ").toLowerCase();
-                    return searchable.includes(query);
-                });
-                const originalItems = container.__items;
-                const originalExpanded = container.dataset.expanded;
-                container.__items = filtered;
-                container.dataset.expanded = "true";
-                updateListView(container);
-                container.__items = originalItems;
-                if (originalExpanded !== "true") {
-                    container.dataset.expanded = originalExpanded;
+                
+                // Проверяем, это простой список или список с пользователями
+                const isSimpleList = container.classList.contains("compact");
+                
+                if (isSimpleList) {
+                    // Для простых списков фильтруем напрямую
+                    const rows = container.querySelectorAll(".list-row");
+                    rows.forEach((row) => {
+                        const text = row.textContent.toLowerCase();
+                        row.style.display = text.includes(query) ? "" : "none";
+                    });
+                } else {
+                    // Для списков с пользователями используем updateListView
+                    const filtered = container.__items.filter((item) => {
+                        const searchable = [
+                            item.name || "",
+                            item.username || "",
+                            String(item.user_id || ""),
+                            item.url || "",
+                            item.title || "",
+                            item.domain || "",
+                            item.country_code || "",
+                        ].join(" ").toLowerCase();
+                        return searchable.includes(query);
+                    });
+                    const originalItems = container.__items;
+                    const originalExpanded = container.dataset.expanded;
+                    container.__items = filtered;
+                    container.dataset.expanded = "true";
+                    updateListView(container);
+                    container.__items = originalItems;
+                    if (originalExpanded !== "true") {
+                        container.dataset.expanded = originalExpanded;
+                    }
                 }
             });
         });
@@ -586,6 +700,23 @@
                 <span class="metric-label">Network received:</span>
                 <span class="metric-value">${data.network?.bytes_recv_mb || 0} MB</span>
             </div>
+            <div class="metric-row">
+                <span class="metric-label">Network speed (sent):</span>
+                <span class="metric-value">${data.network?.speed_sent_mbps || 0} Mbps</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">Network speed (recv):</span>
+                <span class="metric-value">${data.network?.speed_recv_mbps || 0} Mbps</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">External IP:</span>
+                <span class="metric-value">${data.external_ip || "unknown"}</span>
+            </div>
+            <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button class="action-button" onclick="rotateIP()" data-i18n="system.ip_rotate">Rotate IP</button>
+                <button class="action-button" onclick="restartService()" data-i18n="system.restart">Restart Service</button>
+                <button class="action-button" onclick="cleanupUserFiles()" data-i18n="system.cleanup">Cleanup User Files</button>
+            </div>
         `;
     }
 
@@ -597,8 +728,71 @@
                 <span class="metric-label">${pkg}:</span>
                 <span class="metric-value">${version}</span>
             </div>
-        `).join("");
+        `).join("") + `
+            <div style="margin-top: 1rem;">
+                <button class="action-button" onclick="updateEngines()" data-i18n="system.update_engines">Update Engines</button>
+            </div>
+        `;
     }
+
+    window.rotateIP = async function() {
+        if (!confirm("Rotate IP address? This will restart WireGuard.")) return;
+        try {
+            const response = await fetch("/api/rotate-ip", { method: "POST" });
+            const data = await response.json();
+            alert(data.message || (data.status === "ok" ? "IP rotated successfully" : "Failed to rotate IP"));
+            if (data.status === "ok") {
+                await loadSystemMetrics();
+            }
+        } catch (e) {
+            alert("Error: " + e.message);
+        }
+    };
+
+    window.restartService = async function() {
+        if (!confirm("Restart tg-ytdlp-bot service?")) return;
+        try {
+            const response = await fetch("/api/restart-service", { method: "POST" });
+            const data = await response.json();
+            alert(data.message || (data.status === "ok" ? "Service restarted successfully" : "Failed to restart service"));
+        } catch (e) {
+            alert("Error: " + e.message);
+        }
+    };
+
+    window.updateEngines = async function() {
+        if (!confirm("Update engines? This may take several minutes.")) return;
+        try {
+            const response = await fetch("/api/update-engines", { method: "POST" });
+            const data = await response.json();
+            alert(data.message || (data.status === "ok" ? "Engines updated successfully" : "Failed to update engines"));
+            if (data.status === "ok") {
+                await loadPackageVersions();
+            }
+        } catch (e) {
+            alert("Error: " + e.message);
+        }
+    };
+
+    window.cleanupUserFiles = async function() {
+        if (!confirm("Delete all user files (except system files)? This cannot be undone.")) return;
+        try {
+            const response = await fetch("/api/cleanup-user-files", { method: "POST" });
+            const data = await response.json();
+            alert(data.message || (data.status === "ok" ? "Files cleaned up successfully" : "Failed to cleanup files"));
+        } catch (e) {
+            alert("Error: " + e.message);
+        }
+    };
+
+    window.logout = async function() {
+        try {
+            await fetch("/api/logout", { method: "POST" });
+            window.location.href = "/login";
+        } catch (e) {
+            window.location.href = "/login";
+        }
+    };
 
     async function loadConfigSettings() {
         const data = await fetchJSON("/api/config-settings");
@@ -695,8 +889,25 @@
                 <span class="metric-label">supported_sites.txt:</span>
                 <span class="metric-value">${data.supported_sites || 0} lines</span>
             </div>
+            <div style="margin-top: 1rem;">
+                <button class="action-button" onclick="updateLists()" data-i18n="lists.update">Update Lists</button>
+            </div>
         `;
     }
+
+    window.updateLists = async function() {
+        if (!confirm("Update lists? This may take several minutes.")) return;
+        try {
+            const response = await fetch("/api/update-lists", { method: "POST" });
+            const data = await response.json();
+            alert(data.message || (data.status === "ok" ? "Lists updated successfully" : "Failed to update lists"));
+            if (data.status === "ok") {
+                await loadListsStats();
+            }
+        } catch (e) {
+            alert("Error: " + e.message);
+        }
+    };
 
     async function loadDomainLists() {
         const data = await fetchJSON("/api/domain-lists");
@@ -810,8 +1021,10 @@
                 const target = button.dataset.tabTarget;
                 if (target === "system") {
                     await Promise.all([loadSystemMetrics(), loadPackageVersions(), loadConfigSettings()]);
+                    applyTranslations();
                 } else if (target === "lists") {
                     await Promise.all([loadListsStats(), loadDomainLists()]);
+                    applyTranslations();
                 }
             });
         });

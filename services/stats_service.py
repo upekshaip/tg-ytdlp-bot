@@ -54,8 +54,8 @@ def fetch_top_playlist_users(limit: int = 10) -> List[Dict[str, Any]]:
     return get_stats_collector().get_top_playlist_users(limit)
 
 
-def fetch_power_users(limit: int = 10) -> List[Dict[str, Any]]:
-    return get_stats_collector().get_power_users(limit)
+def fetch_power_users(min_urls: int = 10, days: int = 7, limit: int = 10) -> List[Dict[str, Any]]:
+    return get_stats_collector().get_power_users(min_urls=min_urls, days=days, limit=limit)
 
 
 def fetch_blocked_users(limit: int = 50) -> List[Dict[str, Any]]:

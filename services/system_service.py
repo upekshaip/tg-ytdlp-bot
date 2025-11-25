@@ -4,12 +4,75 @@ import psutil
 import time
 import subprocess
 import re
+import requests
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any
 
 from CONFIG.config import Config
 from DATABASE.cache_db import get_next_reload_time
+
+# Кеш для скорости сети
+_network_speed_cache = {"last_check": 0, "last_sent": 0, "last_recv": 0, "speed_sent": 0, "speed_recv": 0}
+
+
+def get_network_speed() -> Dict[str, Any]:
+    """Вычисляет текущую скорость сети на основе активных потоков."""
+    global _network_speed_cache
+    try:
+        now = time.time()
+        net_io = psutil.net_io_counters()
+        
+        # Если прошло меньше секунды с последней проверки, возвращаем кеш
+        if now - _network_speed_cache["last_check"] < 1:
+            return {
+                "speed_sent_mbps": round(_network_speed_cache["speed_sent"] / (1024**2) * 8, 2),
+                "speed_recv_mbps": round(_network_speed_cache["speed_recv"] / (1024**2) * 8, 2),
+            }
+        
+        # Вычисляем скорость
+        if _network_speed_cache["last_check"] > 0:
+            time_diff = now - _network_speed_cache["last_check"]
+            sent_diff = net_io.bytes_sent - _network_speed_cache["last_sent"]
+            recv_diff = net_io.bytes_recv - _network_speed_cache["last_recv"]
+            
+            _network_speed_cache["speed_sent"] = sent_diff / time_diff if time_diff > 0 else 0
+            _network_speed_cache["speed_recv"] = recv_diff / time_diff if time_diff > 0 else 0
+        else:
+            _network_speed_cache["speed_sent"] = 0
+            _network_speed_cache["speed_recv"] = 0
+        
+        _network_speed_cache["last_check"] = now
+        _network_speed_cache["last_sent"] = net_io.bytes_sent
+        _network_speed_cache["last_recv"] = net_io.bytes_recv
+        
+        return {
+            "speed_sent_mbps": round(_network_speed_cache["speed_sent"] / (1024**2) * 8, 2),
+            "speed_recv_mbps": round(_network_speed_cache["speed_recv"] / (1024**2) * 8, 2),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def get_external_ip() -> str:
+    """Получает внешний IP адрес."""
+    try:
+        # Пробуем несколько сервисов
+        services = [
+            "https://api.ipify.org",
+            "https://ifconfig.me/ip",
+            "https://icanhazip.com",
+        ]
+        for service in services:
+            try:
+                response = requests.get(service, timeout=3)
+                if response.status_code == 200:
+                    return response.text.strip()
+            except Exception:
+                continue
+        return "unknown"
+    except Exception:
+        return "unknown"
 
 
 def get_system_metrics() -> Dict[str, Any]:
@@ -32,6 +95,12 @@ def get_system_metrics() -> Dict[str, Any]:
         delta = next_reload - now
         reload_seconds = int(delta.total_seconds())
         
+        # Скорость сети
+        network_speed = get_network_speed()
+        
+        # Внешний IP
+        external_ip = get_external_ip()
+        
         return {
             "cpu_percent": round(cpu_percent, 1),
             "memory": {
@@ -48,7 +117,10 @@ def get_system_metrics() -> Dict[str, Any]:
             "network": {
                 "bytes_sent_mb": round(net_io.bytes_sent / (1024**2), 2),
                 "bytes_recv_mb": round(net_io.bytes_recv / (1024**2), 2),
+                "speed_sent_mbps": network_speed.get("speed_sent_mbps", 0),
+                "speed_recv_mbps": network_speed.get("speed_recv_mbps", 0),
             },
+            "external_ip": external_ip,
             "uptime": {
                 "days": uptime_days,
                 "hours": uptime_hours,
@@ -70,31 +142,161 @@ def get_package_versions() -> Dict[str, str]:
     packages = ["yt-dlp", "gallery-dl", "pyrotgfork"]
     for pkg in packages:
         try:
-            result = subprocess.run(
-                [pkg, "--version"] if pkg != "pyrotgfork" else ["python", "-c", f"import {pkg}; print({pkg}.__version__)"],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if result.returncode == 0:
-                versions[pkg] = result.stdout.strip().split()[0] if pkg != "pyrotgfork" else result.stdout.strip()
-            else:
-                versions[pkg] = "unknown"
-        except Exception:
-            try:
-                if pkg == "pyrotgfork":
-                    import pyrotgfork
-                    versions[pkg] = getattr(pyrotgfork, "__version__", "unknown")
+            if pkg == "pyrotgfork":
+                # Пробуем через pip show
+                result = subprocess.run(
+                    ["pip", "show", pkg],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    check=False,
+                )
+                if result.returncode == 0:
+                    match = re.search(r"Version:\s*(\S+)", result.stdout)
+                    versions[pkg] = match.group(1) if match else "unknown"
                 else:
-                    result = subprocess.run(["pip", "show", pkg], capture_output=True, text=True, timeout=5)
+                    # Пробуем импортировать
+                    try:
+                        import pyrotgfork
+                        versions[pkg] = getattr(pyrotgfork, "__version__", "unknown")
+                    except Exception:
+                        versions[pkg] = "unknown"
+            else:
+                result = subprocess.run(
+                    [pkg, "--version"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    check=False,
+                )
+                if result.returncode == 0:
+                    versions[pkg] = result.stdout.strip().split()[0]
+                else:
+                    # Пробуем через pip show
+                    result = subprocess.run(
+                        ["pip", "show", pkg],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                        check=False,
+                    )
                     if result.returncode == 0:
                         match = re.search(r"Version:\s*(\S+)", result.stdout)
                         versions[pkg] = match.group(1) if match else "unknown"
                     else:
                         versions[pkg] = "unknown"
-            except Exception:
-                versions[pkg] = "unknown"
+        except Exception:
+            versions[pkg] = "unknown"
     return versions
+
+
+def rotate_ip() -> Dict[str, Any]:
+    """Ротирует IP адрес через перезапуск WireGuard."""
+    try:
+        result = subprocess.run(
+            ["sudo", "systemctl", "restart", "wg-quick@wgcf"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        if result.returncode == 0:
+            return {"status": "ok", "message": "IP rotated successfully"}
+        else:
+            return {"status": "error", "message": result.stderr or "Failed to rotate IP"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+def restart_service() -> Dict[str, Any]:
+    """Перезапускает сервис tg-ytdlp-bot."""
+    try:
+        result = subprocess.run(
+            ["sudo", "systemctl", "restart", "tg-ytdlp-bot"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        if result.returncode == 0:
+            return {"status": "ok", "message": "Service restarted successfully"}
+        else:
+            return {"status": "error", "message": result.stderr or "Failed to restart service"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+def update_engines() -> Dict[str, Any]:
+    """Обновляет движки через engines_updater.sh."""
+    try:
+        script_path = "/root/Telegram/tg-ytdlp-bot/engines_updater.sh"
+        result = subprocess.run(
+            ["bash", script_path],
+            capture_output=True,
+            text=True,
+            timeout=300,  # 5 минут
+            check=False,
+        )
+        if result.returncode == 0:
+            return {"status": "ok", "message": "Engines updated successfully", "output": result.stdout}
+        else:
+            return {"status": "error", "message": result.stderr or "Failed to update engines"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+def cleanup_user_files() -> Dict[str, Any]:
+    """Удаляет файлы из папок пользователей (кроме системных)."""
+    try:
+        users_dir = "/root/Telegram/tg-ytdlp-bot/users"
+        result = subprocess.run(
+            [
+                "/usr/bin/find",
+                users_dir,
+                "-type", "f",
+                "!", "-name", "lang.txt",
+                "!", "-name", "args.txt",
+                "!", "-name", "keyboard.txt",
+                "!", "-name", "subs.txt",
+                "!", "-name", "subs_auto.txt",
+                "!", "-name", "mediainfo.txt",
+                "!", "-name", "split.txt",
+                "!", "-name", "tags.txt",
+                "!", "-name", "cookie.txt",
+                "!", "-name", "logs.txt",
+                "!", "-name", "format.txt",
+                "-delete",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        if result.returncode == 0:
+            return {"status": "ok", "message": "User files cleaned up successfully"}
+        else:
+            return {"status": "error", "message": result.stderr or "Failed to cleanup files"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+def update_lists() -> Dict[str, Any]:
+    """Обновляет списки через script.sh."""
+    try:
+        script_path = "/root/Telegram/tg-ytdlp-bot/script.sh"
+        result = subprocess.run(
+            ["bash", script_path],
+            capture_output=True,
+            text=True,
+            timeout=300,  # 5 минут
+            check=False,
+        )
+        if result.returncode == 0:
+            return {"status": "ok", "message": "Lists updated successfully", "output": result.stdout}
+        else:
+            return {"status": "error", "message": result.stderr or "Failed to update lists"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
 def get_config_settings() -> Dict[str, Any]:

@@ -18,6 +18,7 @@ from HELPERS.safe_messeger import safe_delete_messages, safe_edit_message_text, 
 from HELPERS.filesystem_hlp import sanitize_filename, sanitize_filename_strict, create_directory, check_disk_space, cleanup_user_temp_files
 from DATABASE.firebase_init import write_logs
 from URL_PARSERS.tags import generate_final_tags
+from services.stats_events import update_download_progress
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.filter_check import is_no_filter_domain
 from URL_PARSERS.filter_utils import create_smart_match_filter, create_legacy_match_filter
@@ -774,6 +775,17 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 blocks = int(percent // 10)
                 bar = "🟩" * blocks + "⬜️" * (10 - blocks)
                 
+                # Обновляем прогресс в статистике
+                try:
+                    update_download_progress(
+                        user_id=user_id,
+                        progress=percent,
+                        url=url,
+                        title=title,
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to update download progress: {e}")
+                
                 # For HLS audio, update progress data for cycle animation
                 if hasattr(progress_hook, 'progress_data') and progress_hook.progress_data:
                     progress_hook.progress_data['downloaded_bytes'] = downloaded
@@ -785,6 +797,16 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "finished":
+                # Обновляем прогресс до 100% при завершении
+                try:
+                    update_download_progress(
+                        user_id=user_id,
+                        progress=100.0,
+                        url=url,
+                        title=title,
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to update download progress on finish: {e}")
                 try:
                     full_bar = "🟩" * 10
                     safe_edit_message_text(user_id, proc_msg_id,
@@ -793,6 +815,16 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "error":
+                # Сбрасываем прогресс при ошибке
+                try:
+                    update_download_progress(
+                        user_id=user_id,
+                        progress=None,
+                        url=url,
+                        title=title,
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to update download progress on error: {e}")
                 try:
                     safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).AUDIO_DOWNLOAD_ERROR_MSG)
                 except Exception as e:

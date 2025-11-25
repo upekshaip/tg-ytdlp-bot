@@ -214,6 +214,7 @@ class ActiveSession:
     last_event_ts: float
     current_url: Optional[str]
     title: Optional[str]
+    progress: Optional[float] = None  # Progress percentage (0-100)
 
 
 @dataclass
@@ -525,14 +526,28 @@ class StatsCollector:
         timestamp: float,
         url: Optional[str],
         title: Optional[str],
+        progress: Optional[float] = None,
     ) -> None:
         with self._lock:
-            self._active_sessions[user_id] = ActiveSession(
-                user_id=user_id,
-                last_event_ts=timestamp,
-                current_url=url,
-                title=title,
-            )
+            existing = self._active_sessions.get(user_id)
+            if existing:
+                # Обновляем существующую сессию
+                existing.last_event_ts = timestamp
+                if url:
+                    existing.current_url = url
+                if title:
+                    existing.title = title
+                if progress is not None:
+                    existing.progress = progress
+            else:
+                # Создаем новую сессию
+                self._active_sessions[user_id] = ActiveSession(
+                    user_id=user_id,
+                    last_event_ts=timestamp,
+                    current_url=url,
+                    title=title,
+                    progress=progress,
+                )
 
     def _purge_expired_sessions(self) -> None:
         expiry = time.time() - self.active_timeout
@@ -572,6 +587,17 @@ class StatsCollector:
         with self._lock:
             self._live_downloads.append(record)
         self._update_active_session(user_id, record.timestamp, record.url, record.title)
+
+    def update_download_progress(
+        self,
+        user_id: int,
+        progress: float,
+        url: Optional[str] = None,
+        title: Optional[str] = None,
+    ) -> None:
+        """Обновляет прогресс загрузки для активной сессии пользователя."""
+        timestamp = time.time()
+        self._update_active_session(user_id, timestamp, url, title, progress)
 
     def handle_db_event(self, path: str, operation: str, payload: Any) -> None:
         """Обновляет кеш на основе структур в БД."""
@@ -629,21 +655,21 @@ class StatsCollector:
             rec for rec in self._get_all_downloads()
             if rec.timestamp >= threshold
         ]
-        user_last_activity: Dict[int, Tuple[float, Optional[str], Optional[str]]] = {}
+        user_last_activity: Dict[int, Tuple[float, Optional[str], Optional[str], Optional[float]]] = {}
         for rec in recent_downloads:
-            existing = user_last_activity.get(rec.user_id, (0, None, None))
+            existing = user_last_activity.get(rec.user_id, (0, None, None, None))
             if rec.timestamp > existing[0]:
-                user_last_activity[rec.user_id] = (rec.timestamp, rec.url, rec.title)
+                user_last_activity[rec.user_id] = (rec.timestamp, rec.url, rec.title, None)
         with self._lock:
             for session in self._active_sessions.values():
-                existing = user_last_activity.get(session.user_id, (0, None, None))
+                existing = user_last_activity.get(session.user_id, (0, None, None, None))
                 if session.last_event_ts > existing[0]:
                     user_last_activity[session.user_id] = (
-                        session.last_event_ts, session.current_url, session.title
+                        session.last_event_ts, session.current_url, session.title, session.progress
                     )
         sessions = [
-            {"user_id": uid, "last_event_ts": ts, "url": url, "title": title}
-            for uid, (ts, url, title) in user_last_activity.items()
+            {"user_id": uid, "last_event_ts": ts, "url": url, "title": title, "progress": progress}
+            for uid, (ts, url, title, progress) in user_last_activity.items()
         ]
         sessions.sort(key=lambda s: s["last_event_ts"], reverse=True)
         total = len(sessions)
@@ -760,8 +786,8 @@ class StatsCollector:
     def get_top_playlist_users(self, limit: int = 10) -> List[Dict[str, Any]]:
         return self._filter_downloads_by_flag(lambda rec: rec.is_playlist, limit=limit)
 
-    def get_power_users(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """Пользователи, которые 7 дней подряд отправляли >10 ссылок."""
+    def get_power_users(self, min_urls: int = 10, days: int = 7, limit: int = 10) -> List[Dict[str, Any]]:
+        """Пользователи, которые N дней подряд отправляли >M ссылок."""
         downloads = self._get_all_downloads()
         per_user_per_day: Dict[int, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
         for record in downloads:
@@ -773,12 +799,12 @@ class StatsCollector:
             streak = 0
             best_streak = 0
             for _, count in days_sorted:
-                if count >= 10:
+                if count >= min_urls:
                     streak += 1
                     best_streak = max(best_streak, streak)
                 else:
                     streak = 0
-            if best_streak >= 7:
+            if best_streak >= days:
                 qualified.append((user_id, best_streak))
         qualified.sort(key=lambda item: item[1], reverse=True)
         result = []

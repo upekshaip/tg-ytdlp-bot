@@ -24,6 +24,7 @@ from DOWN_AND_UP.ffmpeg import get_duration_thumb, get_video_info_ffprobe, embed
 from DOWN_AND_UP.sender import send_videos
 from DATABASE.firebase_init import write_logs
 from URL_PARSERS.tags import generate_final_tags, save_user_tags
+from services.stats_events import update_download_progress
 from URL_PARSERS.youtube import is_youtube_url, download_thumbnail, extract_youtube_id
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.filter_check import is_no_filter_domain
@@ -874,6 +875,17 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 blocks = int(percent // 10)
                 bar = "🟩" * blocks + "⬜️" * (10 - blocks)
                 
+                # Обновляем прогресс в статистике
+                try:
+                    update_download_progress(
+                        user_id=user_id,
+                        progress=percent,
+                        url=url,
+                        title=title,
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to update download progress: {e}")
+                
                 # For HLS, update progress data for cycle animation
                 if is_hls and hasattr(progress_func, 'progress_data') and progress_func.progress_data:
                     progress_func.progress_data['downloaded_bytes'] = downloaded
@@ -902,6 +914,16 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     if "'quality_key'" in str(e):
                         _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
             elif d.get("status") == "finished":
+                # Обновляем прогресс до 100% при завершении
+                try:
+                    update_download_progress(
+                        user_id=user_id,
+                        progress=100.0,
+                        url=url,
+                        title=title,
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to update download progress on finish: {e}")
                 try:
                     safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).VIDEO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
                 except Exception as e:
@@ -910,6 +932,16 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     if "'quality_key'" in str(e):
                         _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
             elif d.get("status") == "error":
+                # Сбрасываем прогресс при ошибке
+                try:
+                    update_download_progress(
+                        user_id=user_id,
+                        progress=None,
+                        url=url,
+                        title=title,
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to update download progress on error: {e}")
                 logger.error("Error occurred during download.")
                 send_error_to_user(message, safe_get_messages(user_id).DOWNLOAD_ERROR_GENERIC)
             last_update = current_time

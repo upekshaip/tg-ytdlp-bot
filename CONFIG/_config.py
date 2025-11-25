@@ -213,3 +213,8 @@ class Config(object):
     # PO Token Provider configuration - these are defined above in the main config
     # No need to duplicate them here as they are already accessible
     #######################################################
+    # Dashboard configuration
+    DASHBOARD_PORT = 5555
+    DASHBOARD_USERNAME = "admin"
+    DASHBOARD_PASSWORD = "admin123"
+    #######################################################

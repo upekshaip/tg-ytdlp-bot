@@ -1,23 +1,119 @@
 from __future__ import annotations
 
 import pathlib
+import logging
 from typing import Any, List
-from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException, Query, Request, Cookie, Response
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from CONFIG.config import Config
 from services import stats_service
 from services import system_service, lists_service
+from services.auth_service import get_auth_service
 
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Порт дашборда берется из Config.DASHBOARD_PORT (по умолчанию 5555)
+# Для запуска: uvicorn web.dashboard_app:app --host 0.0.0.0 --port {Config.DASHBOARD_PORT}
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 app = FastAPI(title="TG YTDLP Dashboard", version="1.0.0")
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+# CORS для API запросов
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# Middleware для проверки авторизации
+class AuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Публичные пути
+        public_paths = ["/login", "/api/login", "/api/reset-lockdown", "/static", "/health"]
+        if any(request.url.path.startswith(path) for path in public_paths):
+            return await call_next(request)
+        
+        # Проверяем токен из cookie
+        token = request.cookies.get("auth_token")
+        auth_service = get_auth_service()
+        
+        if not token or not auth_service.verify_token(token):
+            if request.url.path.startswith("/api/"):
+                raise HTTPException(status_code=401, detail="Unauthorized")
+            return RedirectResponse(url="/login", status_code=302)
+        
+        response = await call_next(request)
+        return response
+
+
+app.add_middleware(AuthMiddleware)
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(...)
+    password: str = Field(...)
+
+
+@app.post("/api/login")
+async def api_login(payload: LoginRequest, request: Request):
+    auth_service = get_auth_service()
+    # Перезагружаем конфиг перед каждой попыткой входа
+    auth_service.reload_config()
+    client_ip = request.client.host if request.client else "unknown"
+    
+    try:
+        token = auth_service.login(payload.username, payload.password, client_ip)
+        response = Response(content='{"status": "ok"}', media_type="application/json")
+        response.set_cookie(
+            key="auth_token",
+            value=token,
+            httponly=True,
+            secure=False,  # В production установить True для HTTPS
+            samesite="lax",
+            max_age=24 * 3600,  # 24 часа
+        )
+        return response
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+
+@app.post("/api/reset-lockdown")
+async def api_reset_lockdown(request: Request):
+    """Сбрасывает блокировку для текущего IP (для отладки)."""
+    auth_service = get_auth_service()
+    client_ip = request.client.host if request.client else "unknown"
+    auth_service.reset_lockdown(client_ip)
+    return {"status": "ok", "message": f"Lockdown reset for IP {client_ip}"}
+
+
+@app.post("/api/logout")
+async def api_logout(request: Request):
+    token = request.cookies.get("auth_token")
+    if token:
+        auth_service = get_auth_service()
+        auth_service.logout(token)
+    response = RedirectResponse(url="/login", status_code=302)
+    response.delete_cookie("auth_token")
+    return response
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -83,8 +179,8 @@ async def api_playlist_users(limit: int = 10):
 
 
 @app.get("/api/power-users")
-async def api_power_users(limit: int = 10):
-    return stats_service.fetch_power_users(limit)
+async def api_power_users(min_urls: int = 10, days: int = 7, limit: int = 10):
+    return stats_service.fetch_power_users(min_urls=min_urls, days=days, limit=limit)
 
 
 @app.get("/api/blocked-users")
@@ -175,6 +271,31 @@ async def api_update_domain_list(payload: DomainListUpdateRequest):
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"status": "ok"}
+
+
+@app.post("/api/rotate-ip")
+async def api_rotate_ip():
+    return system_service.rotate_ip()
+
+
+@app.post("/api/restart-service")
+async def api_restart_service():
+    return system_service.restart_service()
+
+
+@app.post("/api/update-engines")
+async def api_update_engines():
+    return system_service.update_engines()
+
+
+@app.post("/api/cleanup-user-files")
+async def api_cleanup_user_files():
+    return system_service.cleanup_user_files()
+
+
+@app.post("/api/update-lists")
+async def api_update_lists():
+    return lists_service.update_lists()
 
 
 @app.get("/health")

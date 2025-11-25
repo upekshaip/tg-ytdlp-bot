@@ -74,6 +74,25 @@ def capture_message_context(message) -> None:
         logger.debug(f"[stats] failed to capture metadata: {exc}")
 
 
+def update_download_progress(
+    user_id: int,
+    progress: float,
+    url: Optional[str] = None,
+    title: Optional[str] = None,
+) -> None:
+    """Обновляет прогресс загрузки для активной сессии пользователя."""
+    try:
+        collector = get_stats_collector()
+        collector.update_download_progress(
+            user_id=user_id,
+            progress=progress,
+            url=url,
+            title=title,
+        )
+    except Exception as exc:
+        logger.debug(f"[stats] failed to update download progress for {user_id}: {exc}")
+
+
 class StatsAwareDBAdapter:
     """Обёртка над Firebase/локальным адаптером, которая перехватывает записи."""
 
