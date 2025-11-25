@@ -16,6 +16,7 @@ from HELPERS.app_instance import get_app
 from HELPERS.logger import logger, send_to_user, send_error_to_user
 from HELPERS.limitter import check_user, is_user_in_channel
 from HELPERS.safe_messeger import safe_send_message
+from HELPERS.decorators import background_handler
 from CONFIG.config import Config
 from CONFIG.messages import Messages, get_messages_instance, safe_get_messages
 from CONFIG.logger_msg import LoggerMsg
@@ -1154,6 +1155,7 @@ def parse_import_message(text: str, user_id: int = None) -> Dict[str, Any]:
     return parsed_args
 
 @app.on_message(filters.command("args"))
+@background_handler(label="args_command")
 def args_command(app, message):
     messages = get_messages_instance(message.chat.id)
     """Handle /args command"""
@@ -1638,6 +1640,7 @@ def _has_args_state(flt, client, message) -> bool:
         return False
 
 @app.on_message(filters.text & ~filters.regex(r'^/') & filters.create(_has_args_state))
+@background_handler(label="args_text_handler")
 def args_text_handler(app, message):
     """Handle text input for args configuration in same chat/topic using stored state"""
     try:

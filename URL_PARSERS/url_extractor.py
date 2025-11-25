@@ -3,7 +3,7 @@
 # Checking Actions
 # Text Message Handler for General Commands
 from HELPERS.app_instance import get_app
-from HELPERS.decorators import reply_with_keyboard
+from HELPERS.decorators import reply_with_keyboard, background_handler
 from HELPERS.limitter import is_user_in_channel, check_user
 from HELPERS.logger import send_to_all, send_to_logger, send_to_user
 from CONFIG.logger_msg import LoggerMsg, get_logger_msg
@@ -43,6 +43,7 @@ app = get_app()
 
 @app.on_message(filters.text & filters.private)
 @reply_with_keyboard
+@background_handler(label="url_distractor")
 def url_distractor(app, message):
     user_id = message.chat.id
     is_admin = int(user_id) in Config.ADMIN

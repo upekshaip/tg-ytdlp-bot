@@ -6,7 +6,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyPara
 from HELPERS.safe_messeger import safe_send_message
 
 from HELPERS.app_instance import get_app
-from HELPERS.decorators import reply_with_keyboard, send_reply_keyboard_always
+from HELPERS.decorators import reply_with_keyboard, send_reply_keyboard_always, background_handler
 from HELPERS.logger import send_to_logger, send_to_user
 from HELPERS.limitter import is_user_in_channel, check_user, check_playlist_range_limits
 from HELPERS.download_status import get_active_download
@@ -47,6 +47,7 @@ def help_msg_callback(app, callback_query):
 # Command to Download Audio from a Video url
 @app.on_message(filters.command("audio") & filters.private)
 # @reply_with_keyboard
+@background_handler(label="audio_command")
 def audio_command_handler(app, message):
     messages = safe_get_messages(message.chat.id)
     user_id = message.chat.id
@@ -121,6 +122,7 @@ def audio_command_handler(app, message):
 
 # /Link Command
 @app.on_message(filters.command("link") & filters.private)
+@background_handler(label="link_command")
 def link_command_handler(app, message):
     user_id = message.chat.id
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
@@ -129,6 +131,7 @@ def link_command_handler(app, message):
 
 # /Proxy Command
 @app.on_message(filters.command("proxy") & filters.private)
+@background_handler(label="proxy_command")
 def proxy_command_handler(app, message):
     user_id = message.chat.id
     if int(user_id) not in Config.ADMIN and not is_user_in_channel(app, message):
@@ -139,6 +142,7 @@ def proxy_command_handler(app, message):
 # /Playlist Command
 @app.on_message(filters.command("playlist") & filters.private)
 # @reply_with_keyboard
+@background_handler(label="playlist_command")
 def playlist_command(app, message):
     messages = safe_get_messages(message.chat.id)
     user_id = message.chat.id

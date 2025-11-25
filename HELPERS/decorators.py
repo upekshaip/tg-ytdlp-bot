@@ -138,4 +138,56 @@ def reply_with_keyboard(func):
 
     return wrapper 
 
+
+def _extract_message_arg(args, kwargs):
+    """Return best-effort message-like object from handler args."""
+    for obj in list(args) + list(kwargs.values()):
+        if hasattr(obj, "chat"):
+            return obj
+        if hasattr(obj, "message") and getattr(obj, "message", None):
+            return obj.message
+    return None
+
+
+def _format_handler_context(func_name, message_obj):
+    chat = getattr(message_obj, "chat", None) if message_obj else None
+    from_user = getattr(message_obj, "from_user", None) if message_obj else None
+    chat_id = getattr(chat, "id", None)
+    chat_type = getattr(chat, "type", None)
+    from_id = getattr(from_user, "id", None)
+    text = None
+    for attr in ("text", "caption", "data"):
+        value = getattr(message_obj, attr, None) if message_obj else None
+        if value:
+            text = value
+            break
+    if isinstance(text, str) and len(text) > 160:
+        text = text[:157] + "..."
+    return f"{func_name} chat={chat_id} type={chat_type} from={from_id} text={text!r}"
+
+
+def background_handler(func=None, *, label=None):
+    """
+    Decorator that offloads a handler into a background ThreadPoolExecutor
+    and logs its lifecycle so long-running jobs don't block Pyrogram updates.
+    """
+    if func is None:
+        return lambda f: background_handler(f, label=label)
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        message_obj = _extract_message_arg(args, kwargs)
+        context = _format_handler_context(label or func.__name__, message_obj)
+        logger.info(f"[INBOUND] {context}")
+        try:
+            logger.info(f"[HANDLER-START] {context}")
+            result = func(*args, **kwargs)
+            logger.info(f"[HANDLER-DONE] {context}")
+            return result
+        except Exception:
+            logger.exception(f"[HANDLER-CRASH] {context}")
+            raise
+
+    return wrapper
+
     

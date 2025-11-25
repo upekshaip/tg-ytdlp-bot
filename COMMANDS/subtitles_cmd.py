@@ -7,7 +7,7 @@ import random
 import json
 from HELPERS.app_instance import get_app
 from HELPERS.filesystem_hlp import create_directory
-from HELPERS.decorators import reply_with_keyboard
+from HELPERS.decorators import reply_with_keyboard, background_handler
 from HELPERS.logger import logger, send_to_logger
 from HELPERS.limitter import is_user_in_channel
 from HELPERS.safe_messeger import safe_forward_messages
@@ -307,6 +307,7 @@ def get_flag(lang_code: str, use_second_part: bool = False) -> str:
 
 @app.on_message(filters.command("subs") & filters.private)
 @reply_with_keyboard
+@background_handler(label="subs_command")
 def subs_command(app, message):
     messages = safe_get_messages(message.chat.id)
     """Handle /subs command - show language selection menu"""
