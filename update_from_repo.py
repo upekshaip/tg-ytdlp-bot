@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Version 1.0.0
 """
 Script to automatically update code from a GitHub repository.
 Clones the repository into a temporary folder and replaces required files.
@@ -48,10 +49,25 @@ EXCLUDED_DIRS = [
     "_cursor",           # Cursor temp workspace
 ]
 
+# Дополнительные каталоги / файлы, которые нужно обязательно забирать
+INCLUDE_DIRS = [
+    "web",  # Включает шаблоны, статику и сам FastAPI-приложение
+    "CONFIG/templates",  # Если появятся шаблоны/локализации
+]
+
+ALWAYS_INCLUDE_FILES = [
+    "requirements.txt",
+]
+
 def log(message, level="INFO"):
     """Logging with timestamp"""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{timestamp}] {level}: {message}")
+
+def _is_inside(path: str, directory: str) -> bool:
+    """Helper: checks if path is the directory itself or inside it."""
+    return path == directory or path.startswith(f"{directory}/")
+
 
 def should_update_file(file_path):
     """Checks whether the file should be updated"""
@@ -62,8 +78,17 @@ def should_update_file(file_path):
     
     # Check excluded directories
     for excluded_dir in EXCLUDED_DIRS:
-        if file_path.startswith(excluded_dir + "/"):
+        if _is_inside(file_path, excluded_dir):
             return False
+    
+    # Ensure explicitly listed files are synced
+    if file_path in ALWAYS_INCLUDE_FILES:
+        return True
+    
+    # Ensure specific directories (e.g. web UI) are synced entirely
+    for include_dir in INCLUDE_DIRS:
+        if _is_inside(file_path, include_dir):
+            return True
     
     # Update Python files
     if file_path.endswith('.py'):
