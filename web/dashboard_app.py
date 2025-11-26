@@ -202,6 +202,14 @@ async def api_channel_events(hours: int = 48, limit: int = 100):
     return stats_service.fetch_recent_channel_events(hours=hours, limit=limit)
 
 
+@app.get("/api/suspicious-users")
+async def api_suspicious_users(
+    period: str = Query(default="today", regex="^(today|week|month|all)$"),
+    limit: int = 20,
+):
+    return stats_service.fetch_suspicious_users(period=period, limit=limit)
+
+
 class BlockRequest(BaseModel):
     user_id: int = Field(..., gt=0)
     reason: str | None = Field(default=None, max_length=120)

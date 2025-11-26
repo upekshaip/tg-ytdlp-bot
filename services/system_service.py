@@ -176,12 +176,47 @@ def _read_package_version(
     return "unknown"
 
 
+def _get_bgutil_provider_info() -> str:
+    """Возвращает информацию о docker-контейнере bgutil-provider."""
+    try:
+        result = subprocess.run(
+            [
+                "docker",
+                "ps",
+                "-a",
+                "--filter",
+                "name=bgutil-provider",
+                "--format",
+                "{{.Names}}|{{.Image}}|{{.Status}}",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        if result.returncode != 0:
+            return "docker unavailable"
+        line = result.stdout.strip()
+        if not line:
+            return "not running"
+        parts = line.split("|")
+        name = parts[0] if len(parts) > 0 else "bgutil-provider"
+        image = parts[1] if len(parts) > 1 else "unknown image"
+        status = parts[2] if len(parts) > 2 else "unknown status"
+        return f"{name} ({image}) — {status}"
+    except FileNotFoundError:
+        return "docker missing"
+    except Exception:
+        return "unknown"
+
+
 def get_package_versions() -> Dict[str, str]:
     """Возвращает версии установленных пакетов."""
     return {
         "yt-dlp": _read_package_version("yt-dlp", module_name="yt_dlp", cli_command=["yt-dlp", "--version"]),
         "gallery-dl": _read_package_version("gallery-dl", module_name="gallery_dl", cli_command=["gallery-dl", "--version"]),
         "pyrotgfork": _read_package_version("pyrotgfork", module_name="pyrotgfork"),
+        "bgutil-provider": _get_bgutil_provider_info(),
     }
 
 
@@ -224,18 +259,26 @@ def restart_service() -> Dict[str, Any]:
 def update_engines() -> Dict[str, Any]:
     """Обновляет движки через engines_updater.sh."""
     try:
-        script_path = "/root/Telegram/tg-ytdlp-bot/engines_updater.sh"
-        result = subprocess.run(
-            ["bash", script_path],
-            capture_output=True,
-            text=True,
-            timeout=300,  # 5 минут
-            check=False,
-        )
-        if result.returncode == 0:
-            return {"status": "ok", "message": "Engines updated successfully", "output": result.stdout}
-        else:
-            return {"status": "error", "message": result.stderr or "Failed to update engines"}
+        commands = [
+            ("yt-dlp/gdl", ["bash", "/root/Telegram/tg-ytdlp-bot/engines_updater.sh"]),
+            ("bgutil-provider", ["bash", "/root/Telegram/tg-ytdlp-bot/update_bgutil_provider.sh"]),
+        ]
+        outputs = []
+        for label, command in commands:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=300,
+                check=False,
+            )
+            if result.returncode != 0:
+                return {
+                    "status": "error",
+                    "message": f"{label} failed: {result.stderr or 'Unknown error'}",
+                }
+            outputs.append(f"{label}:\n{result.stdout.strip()}")
+        return {"status": "ok", "message": "Engines updated successfully", "output": "\n\n".join(outputs)}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -296,6 +339,9 @@ def update_lists() -> Dict[str, Any]:
 
 def get_config_settings() -> Dict[str, Any]:
     """Возвращает редактируемые настройки из конфига."""
+    youtube_cookie_urls = [getattr(Config, "YOUTUBE_COOKIE_URL", "")]
+    for idx in range(1, 11):
+        youtube_cookie_urls.append(getattr(Config, f"YOUTUBE_COOKIE_URL_{idx}", ""))
     return {
         "proxy": {
             "type": getattr(Config, "PROXY_TYPE", ""),
@@ -311,12 +357,29 @@ def get_config_settings() -> Dict[str, Any]:
             "user": getattr(Config, "PROXY_2_USER", ""),
             "password": getattr(Config, "PROXY_2_PASSWORD", ""),
         },
+        "proxy_select": getattr(Config, "PROXY_SELECT", "random"),
         "cookies": {
             "youtube": getattr(Config, "YOUTUBE_COOKIE_URL", ""),
             "instagram": getattr(Config, "INSTAGRAM_COOKIE_URL", ""),
             "tiktok": getattr(Config, "TIKTOK_COOKIE_URL", ""),
             "twitter": getattr(Config, "TWITTER_COOKIE_URL", ""),
             "vk": getattr(Config, "VK_COOKIE_URL", ""),
+        },
+        "youtube_cookies": {
+            "order": getattr(Config, "YOUTUBE_COOKIE_ORDER", "round_robin"),
+            "test_url": getattr(Config, "YOUTUBE_COOKIE_TEST_URL", ""),
+            "cookie_url": getattr(Config, "COOKIE_URL", ""),
+            "pot_base_url": getattr(Config, "YOUTUBE_POT_BASE_URL", ""),
+            "list": youtube_cookie_urls,
+        },
+        "channels": {
+            "logs_id": getattr(Config, "LOGS_ID", ""),
+            "logs_video_id": getattr(Config, "LOGS_VIDEO_ID", ""),
+            "logs_nsfw_id": getattr(Config, "LOGS_NSFW_ID", ""),
+            "logs_img_id": getattr(Config, "LOGS_IMG_ID", ""),
+            "logs_paid_id": getattr(Config, "LOGS_PAID_ID", ""),
+            "log_exception": getattr(Config, "LOG_EXCEPTION", ""),
+            "subscribe_channel": getattr(Config, "SUBSCRIBE_CHANNEL", ""),
         },
         "allowed_groups": getattr(Config, "ALLOWED_GROUP", []),
         "admins": getattr(Config, "ADMIN", []),
@@ -344,6 +407,7 @@ def update_config_setting(key: str, value: Any) -> bool:
             "PROXY_2_PORT": r'^\s*PROXY_2_PORT\s*=',
             "PROXY_2_USER": r'^\s*PROXY_2_USER\s*=',
             "PROXY_2_PASSWORD": r'^\s*PROXY_2_PASSWORD\s*=',
+            "PROXY_SELECT": r'^\s*PROXY_SELECT\s*=',
             "MINIAPP_URL": r'^\s*MINIAPP_URL\s*=',
             "SUBSCRIBE_CHANNEL_URL": r'^\s*SUBSCRIBE_CHANNEL_URL\s*=',
             "YOUTUBE_COOKIE_URL": r'^\s*YOUTUBE_COOKIE_URL\s*=',
@@ -351,15 +415,41 @@ def update_config_setting(key: str, value: Any) -> bool:
             "TIKTOK_COOKIE_URL": r'^\s*TIKTOK_COOKIE_URL\s*=',
             "TWITTER_COOKIE_URL": r'^\s*TWITTER_COOKIE_URL\s*=',
             "VK_COOKIE_URL": r'^\s*VK_COOKIE_URL\s*=',
+            "COOKIE_URL": r'^\s*COOKIE_URL\s*=',
+            "YOUTUBE_COOKIE_ORDER": r'^\s*YOUTUBE_COOKIE_ORDER\s*=',
+            "YOUTUBE_COOKIE_TEST_URL": r'^\s*YOUTUBE_COOKIE_TEST_URL\s*=',
+            "YOUTUBE_POT_BASE_URL": r'^\s*YOUTUBE_POT_BASE_URL\s*=',
+            "LOGS_ID": r'^\s*LOGS_ID\s*=',
+            "LOGS_VIDEO_ID": r'^\s*LOGS_VIDEO_ID\s*=',
+            "LOGS_NSFW_ID": r'^\s*LOGS_NSFW_ID\s*=',
+            "LOGS_IMG_ID": r'^\s*LOGS_IMG_ID\s*=',
+            "LOGS_PAID_ID": r'^\s*LOGS_PAID_ID\s*=',
+            "LOG_EXCEPTION": r'^\s*LOG_EXCEPTION\s*=',
+            "SUBSCRIBE_CHANNEL": r'^\s*SUBSCRIBE_CHANNEL\s*=',
+        }
+        integer_keys = {
+            "LOGS_ID",
+            "LOGS_VIDEO_ID",
+            "LOGS_NSFW_ID",
+            "LOGS_IMG_ID",
+            "LOGS_PAID_ID",
+            "LOG_EXCEPTION",
+            "SUBSCRIBE_CHANNEL",
         }
         
         updated = False
         for i, line in enumerate(lines):
             if key in patterns and re.match(patterns[key], line):
-                if isinstance(value, str):
-                    lines[i] = f"    {key} = \"{value}\"\n"
-                elif isinstance(value, int):
+                if key in integer_keys:
+                    try:
+                        coerced = int(value)
+                    except Exception:
+                        coerced = value
+                    lines[i] = f"    {key} = {coerced}\n"
+                elif isinstance(value, (int, float)) and key not in integer_keys:
                     lines[i] = f"    {key} = {value}\n"
+                else:
+                    lines[i] = f"    {key} = \"{value}\"\n"
                 updated = True
                 break
             elif key == "ADMIN" and re.match(r'^\s*ADMIN\s*=', line):
@@ -374,6 +464,28 @@ def update_config_setting(key: str, value: Any) -> bool:
                     lines[i] = f"    ALLOWED_GROUP = [{list_str}]\n"
                     updated = True
                     break
+            elif key.startswith("YOUTUBE_COOKIE_URL") and re.match(rf'^\s*{re.escape(key)}\s*=', line):
+                lines[i] = f"    {key} = \"{value}\"\n"
+                updated = True
+                break
+        
+        if not updated and key.startswith("YOUTUBE_COOKIE_URL"):
+            insert_at = next(
+                (idx for idx, line in enumerate(lines) if "INSTAGRAM_COOKIE_URL" in line),
+                len(lines),
+            )
+            lines.insert(insert_at, f"    {key} = \"{value}\"\n")
+            updated = True
+        elif not updated and key in patterns:
+            if key in integer_keys:
+                try:
+                    coerced = int(value)
+                except Exception:
+                    coerced = value
+                lines.append(f"    {key} = {coerced}\n")
+            else:
+                lines.append(f"    {key} = \"{value}\"\n")
+            updated = True
         
         if updated:
             with open(config_path, "w", encoding="utf-8") as f:

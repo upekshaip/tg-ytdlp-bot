@@ -24,8 +24,13 @@
                 <button type="button" data-lang-btn="en" class="active">EN</button>
                 <span>|</span>
                 <button type="button" data-lang-btn="ru">RU</button>
+                <span>|</span>
+                <button type="button" data-lang-btn="hi">HI</button>
+                <span>|</span>
+                <button type="button" data-lang-btn="ar">AR</button>
             </div>
             <div class="status-chip" id="dashboard-status" data-i18n="status.online">ONLINE</div>
+            <button class="chip-button" id="theme-toggle" data-i18n="buttons.theme_dark">Dark</button>
             <button class="logout-button" onclick="logout()" data-i18n="buttons.logout">Logout</button>
         </div>
     </header>
@@ -76,11 +81,21 @@
             </article>
 
             <article class="card">
-                <header>
-                    <h3 data-i18n="cards.channel.title" data-hours="{{ channel_hours }}">Channel activity ({{ channel_hours }}h)</h3>
-                    <p data-i18n="cards.channel.subtitle">Join and leave events in the log channel.</p>
+                <header class="card__header-row">
+                    <div>
+                        <h3 data-i18n="cards.suspicious.title">Suspicious users</h3>
+                        <p data-i18n="cards.suspicious.subtitle">Users with minimal breaks between downloads.</p>
+                    </div>
+                    <select id="suspicious-period" class="period-select">
+                        <option value="today" data-i18n="filters.today">Today</option>
+                        <option value="week" data-i18n="filters.week">Week</option>
+                        <option value="month" data-i18n="filters.month">Month</option>
+                        <option value="all" selected data-i18n="filters.all">All time</option>
+                    </select>
                 </header>
-                <div id="channel-events-list" class="timeline"></div>
+                <input type="text" class="search-input" data-search-target="suspicious-users-list" placeholder="Search...">
+                <div id="suspicious-users-list" class="list" data-expand-limit="10"></div>
+                <button class="ghost" data-expand-button="suspicious-users-list">Show all</button>
             </article>
         </div>
     </section>
@@ -195,6 +210,14 @@
                 <div id="blocked-users-list" class="list" data-expand-limit="20"></div>
                 <button class="ghost" data-expand-button="blocked-users-list">Show all</button>
             </article>
+
+            <article class="card">
+                <header>
+                    <h3 data-i18n="cards.channel.title" data-hours="{{ channel_hours }}">Channel activity ({{ channel_hours }}h)</h3>
+                    <p data-i18n="cards.channel.subtitle">Join and leave events in the log channel.</p>
+                </header>
+                <div id="channel-events-list" class="timeline"></div>
+            </article>
         </div>
     </section>
 
@@ -253,6 +276,14 @@
             <span class="badge" data-extra></span>
             <button class="icon-button" data-block>❌</button>
         </div>
+    </div>
+</template>
+
+<template id="config-setting-template">
+    <div class="config-row">
+        <label data-label></label>
+        <input type="text" data-input>
+        <button class="action-button" data-save data-i18n="buttons.save">Save</button>
     </div>
 </template>
 

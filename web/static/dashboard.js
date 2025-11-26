@@ -19,6 +19,8 @@
             "cards.top_downloaders.subtitle": "Pick a period for the ranking.",
             "cards.channel.title": "Channel activity ({hours}h)",
             "cards.channel.subtitle": "Join and leave events in the log channel.",
+            "cards.suspicious.title": "Suspicious users",
+            "cards.suspicious.subtitle": "Users with the smallest breaks between downloads.",
             "cards.countries.title": "Top countries",
             "cards.countries.subtitle": "Detected via language/flag.",
             "cards.gender.title": "Gender & age",
@@ -44,6 +46,8 @@
             "misc.empty": "No data for the selected period",
             "buttons.show_all": "Show all",
             "buttons.collapse": "Collapse",
+            "buttons.theme_dark": "Dark theme",
+            "buttons.theme_light": "Light theme",
             "meta.no_username": "no username",
             "meta.id_label": "ID",
             "meta.days": "{value} d",
@@ -95,6 +99,8 @@
             "labels.eta": "ETA",
             "labels.format": "Format",
             "labels.domain": "Domain",
+            "labels.max_gap": "Break: {value}",
+            "labels.downloads": "{value} downloads",
             "misc.no_url": "No URL",
             "misc.no_metadata": "No additional metadata",
             "misc.unknown": "unknown"
@@ -117,6 +123,8 @@
             "cards.top_downloaders.subtitle": "Выберите период для рейтинга.",
             "cards.channel.title": "Действия в канале ({hours}ч)",
             "cards.channel.subtitle": "Вступления и выходы в лог-канале.",
+            "cards.suspicious.title": "Подозрительные пользователи",
+            "cards.suspicious.subtitle": "Минимальные перерывы между загрузками.",
             "cards.countries.title": "Топ стран",
             "cards.countries.subtitle": "Определение по языку/флагу.",
             "cards.gender.title": "Пол и возраст",
@@ -142,6 +150,8 @@
             "misc.empty": "Нет данных за выбранный период",
             "buttons.show_all": "Показать все",
             "buttons.collapse": "Свернуть",
+            "buttons.theme_dark": "Тёмная тема",
+            "buttons.theme_light": "Светлая тема",
             "meta.no_username": "без ника",
             "meta.id_label": "ID",
             "meta.days": "{value} дн",
@@ -193,19 +203,77 @@
             "labels.eta": "Осталось",
             "labels.format": "Формат",
             "labels.domain": "Домен",
+            "labels.max_gap": "Перерыв: {value}",
+            "labels.downloads": "{value} загрузок",
             "misc.no_url": "Нет ссылки",
             "misc.no_metadata": "Дополнительные данные отсутствуют",
             "misc.unknown": "неизвестно"
         }
     };
 
+    translations.hi = {
+        ...translations.en,
+        "header.title": "बॉट आँकड़े",
+        "header.subtitle": "टेलीग्राम बॉट की गतिविधि पर नज़र रखने वाला डैशबोर्ड.",
+        "tabs.activity": "गतिविधि",
+        "tabs.users": "उपयोगकर्ता",
+        "tabs.content": "सामग्री",
+        "tabs.moderation": "मॉडरेशन",
+        "tabs.system": "सिस्टम",
+        "tabs.lists": "सूचियाँ",
+        "status.online": "ऑनलाइन",
+        "status.updating": "अपडेट हो रहा है…",
+        "cards.active.title": "सक्रिय उपयोगकर्ता",
+        "cards.active.subtitle": "पिछले {minutes} मिनट की सत्र जानकारी.",
+        "cards.active.count_label": "अभी",
+        "cards.suspicious.title": "संदिग्ध उपयोगकर्ता",
+        "cards.suspicious.subtitle": "जिनके डाउनलोड के बीच बहुत कम अंतर है.",
+        "cards.top_downloaders.title": "शीर्ष डाउनलोडर",
+        "cards.channel.title": "चैनल गतिविधि ({hours}घं)",
+        "cards.channel.subtitle": "लॉग चैनल में शामिल/छोड़ने की घटनाएँ.",
+        "buttons.theme_dark": "डार्क थीम",
+        "buttons.theme_light": "लाइट थीम",
+        "misc.empty": "चयनित अवधि के लिए डेटा नहीं",
+        "labels.max_gap": "अंतर: {value}",
+        "labels.downloads": "{value} डाउनलोड",
+    };
+
+    translations.ar = {
+        ...translations.en,
+        "header.title": "إحصائيات البوت",
+        "header.subtitle": "لوحة لمراقبة نشاط بوت تيليغرام.",
+        "tabs.activity": "النشاط",
+        "tabs.users": "المستخدمون",
+        "tabs.content": "المحتوى",
+        "tabs.moderation": "الإشراف",
+        "tabs.system": "النظام",
+        "tabs.lists": "القوائم",
+        "status.online": "متصل",
+        "status.updating": "يتم التحديث…",
+        "cards.active.title": "المستخدمون النشطون",
+        "cards.active.subtitle": "جلسات خلال آخر {minutes} دقيقة.",
+        "cards.active.count_label": "الآن",
+        "cards.suspicious.title": "مستخدمون مشبوهون",
+        "cards.suspicious.subtitle": "أقصر فترات التوقف بين التنزيلات.",
+        "cards.top_downloaders.title": "الأكثر تحميلًا",
+        "cards.channel.title": "نشاط القناة ({hours}س)",
+        "cards.channel.subtitle": "أحداث الانضمام والمغادرة في قناة السجل.",
+        "buttons.theme_dark": "الوضع الداكن",
+        "buttons.theme_light": "الوضع الفاتح",
+        "misc.empty": "لا توجد بيانات للفترة المحددة",
+        "labels.max_gap": "الفاصل: {value}",
+        "labels.downloads": "{value} تنزيل",
+    };
+
     const selectors = {};
-    let currentLang = "en";
+    let currentLang = localStorage.getItem("dashboardLang") || "en";
     let statusMode = "online";
     let emptyStateText = translations.en["misc.empty"];
     let modalRoot;
     let modalTitleEl;
     let modalBodyEl;
+    let themeToggleBtn;
+    let currentTheme = localStorage.getItem("dashboardTheme") || "dark";
 
     const endpoints = {
         activeUsers: (limit = 100) => `/api/active-users?limit=${limit}`,
@@ -220,6 +288,7 @@
         powerUsers: (minUrls = 10, days = 7, limit = 50) => `/api/power-users?min_urls=${minUrls}&days=${days}&limit=${limit}`,
         blockedUsers: (limit = 200) => `/api/blocked-users?limit=${limit}`,
         channelEvents: (hours = 48, limit = 200) => `/api/channel-events?hours=${hours}&limit=${limit}`,
+        suspiciousUsers: (period = "today", limit = 50) => `/api/suspicious-users?period=${period}&limit=${limit}`,
     };
 
     function t(key) {
@@ -300,6 +369,28 @@
         return `${minutes}m ${remaining}s`;
     }
 
+    function formatGapLabel(seconds) {
+        if (seconds === undefined || seconds === null) {
+            return t("misc.unknown");
+        }
+        const secs = Math.max(0, Math.round(seconds));
+        if (secs < 60) {
+            return `${secs}s`;
+        }
+        const minutes = Math.floor(secs / 60);
+        if (minutes < 60) {
+            return `${minutes}m`;
+        }
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) {
+            const mins = minutes % 60;
+            return mins ? `${hours}h ${mins}m` : `${hours}h`;
+        }
+        const days = Math.floor(hours / 24);
+        const remHours = hours % 24;
+        return remHours ? `${days}d ${remHours}h` : `${days}d`;
+    }
+
     function formatSpeed(bytesPerSecond) {
         if (!bytesPerSecond) return t("misc.unknown");
         return `${formatBytes(bytesPerSecond)}/s`;
@@ -351,6 +442,29 @@
         if (!modalRoot) return;
         modalRoot.classList.remove("visible");
         modalRoot.classList.add("hidden");
+    }
+
+    function updateThemeToggleLabel() {
+        if (!themeToggleBtn) {
+            return;
+        }
+        themeToggleBtn.textContent = t(currentTheme === "light" ? "buttons.theme_dark" : "buttons.theme_light");
+    }
+
+    function applyTheme(theme) {
+        currentTheme = theme === "light" ? "light" : "dark";
+        document.body.classList.toggle("theme-light", currentTheme === "light");
+        localStorage.setItem("dashboardTheme", currentTheme);
+        updateThemeToggleLabel();
+    }
+
+    function setupThemeToggle() {
+        if (!themeToggleBtn) return;
+        themeToggleBtn.addEventListener("click", () => {
+            const nextTheme = currentTheme === "dark" ? "light" : "dark";
+            applyTheme(nextTheme);
+        });
+        applyTheme(currentTheme);
     }
 
     function setListData(container, items, renderer) {
@@ -580,6 +694,7 @@
                     const urlButton = document.createElement("button");
                     urlButton.className = "chip-button";
                     urlButton.textContent = item.url ? prettifyUrl(item.url) : t("misc.no_url");
+                    urlButton.title = item.url || "";
                     if (!item.url) {
                         urlButton.disabled = true;
                     }
@@ -593,6 +708,23 @@
                 },
             });
             parent.appendChild(row);
+        });
+    }
+
+    async function loadSuspiciousUsers(period = "today") {
+        const data = await fetchJSON(endpoints.suspiciousUsers(period));
+        const container = document.getElementById("suspicious-users-list");
+        const items = data || [];
+        container.__searchableFields = ["name", "username", "user_id"];
+        setListData(container, items, (item, parent) => {
+            parent.appendChild(
+                createUserRow(item, {
+                    meta: () =>
+                        `${formatUserMeta(item)} • ${t("labels.max_gap", { value: formatGapLabel(item.max_gap_seconds) })}`,
+                    extra: () => t("labels.downloads", { value: item.downloads ?? 0 }),
+                    onRowClick: () => showUserDetailsModal(item),
+                })
+            );
         });
     }
 
@@ -764,15 +896,19 @@
         selectors.countries = document.getElementById("countries-period");
         selectors.domains = document.getElementById("domains-period");
         selectors.activeCount = document.querySelector("[data-active-count]");
+        selectors.suspicious = document.getElementById("suspicious-period");
+        themeToggleBtn = document.getElementById("theme-toggle");
     }
 
     function setupSelectors() {
-        selectors.topUsers.addEventListener("change", (event) => loadTopUsers(event.target.value));
-        selectors.countries.addEventListener("change", (event) => {
-            loadCountries(event.target.value);
-            loadGenderAge(event.target.value);
+        selectors.topUsers?.addEventListener("change", (event) => loadTopUsers(event.target.value));
+        selectors.countries?.addEventListener("change", (event) => {
+            const period = event.target.value;
+            loadCountries(period);
+            loadGenderAge(period);
         });
-        selectors.domains.addEventListener("change", (event) => loadDomains(event.target.value));
+        selectors.domains?.addEventListener("change", (event) => loadDomains(event.target.value));
+        selectors.suspicious?.addEventListener("change", (event) => loadSuspiciousUsers(event.target.value));
     }
 
     function setupLanguageSwitch() {
@@ -783,6 +919,9 @@
 
     function applyTranslations() {
         document.documentElement.lang = currentLang;
+        const dir = currentLang === "ar" ? "rtl" : "ltr";
+        document.documentElement.dir = dir;
+        document.body.dir = dir;
         const minutes = document.body.dataset.activeMinutes || "15";
         const hours = document.body.dataset.channelHours || "48";
         document.querySelectorAll("[data-i18n]").forEach((el) => {
@@ -814,6 +953,7 @@
                 button.textContent = t("buttons.show_all");
             }
         });
+        updateThemeToggleLabel();
         updateStatusText();
     }
 
@@ -822,6 +962,7 @@
             return;
         }
         currentLang = lang;
+        localStorage.setItem("dashboardLang", lang);
         applyTranslations();
         refreshData();
     }
@@ -1013,80 +1154,203 @@
         const data = await fetchJSON("/api/config-settings");
         const container = document.getElementById("config-settings");
         if (!data) {
-            container.innerHTML = `<div class="empty-state">No config data</div>`;
+            container.innerHTML = `<div class="empty-state">${t("misc.empty")}</div>`;
             return;
         }
-        let html = "";
-        if (data.proxy) {
-            html += `<div class="config-section"><h4>Proxy 1</h4>`;
-            html += `<div class="config-field"><label>Type:</label><input type="text" value="${data.proxy.type || ""}" data-config-key="PROXY_TYPE"></div>`;
-            html += `<div class="config-field"><label>IP:</label><input type="text" value="${data.proxy.ip || ""}" data-config-key="PROXY_IP"></div>`;
-            html += `<div class="config-field"><label>Port:</label><input type="text" value="${data.proxy.port || ""}" data-config-key="PROXY_PORT"></div>`;
-            html += `<div class="config-field"><label>User:</label><input type="text" value="${data.proxy.user || ""}" data-config-key="PROXY_USER"></div>`;
-            html += `<div class="config-field"><label>Password:</label><input type="password" value="${data.proxy.password || ""}" data-config-key="PROXY_PASSWORD"></div>`;
-            html += `</div>`;
+        const template = document.getElementById("config-setting-template");
+        if (!template) {
+            container.innerHTML = `<div class="empty-state">Layout template missing</div>`;
+            return;
         }
-        if (data.proxy_2) {
-            html += `<div class="config-section"><h4>Proxy 2</h4>`;
-            html += `<div class="config-field"><label>Type:</label><input type="text" value="${data.proxy_2.type || ""}" data-config-key="PROXY_2_TYPE"></div>`;
-            html += `<div class="config-field"><label>IP:</label><input type="text" value="${data.proxy_2.ip || ""}" data-config-key="PROXY_2_IP"></div>`;
-            html += `<div class="config-field"><label>Port:</label><input type="text" value="${data.proxy_2.port || ""}" data-config-key="PROXY_2_PORT"></div>`;
-            html += `<div class="config-field"><label>User:</label><input type="text" value="${data.proxy_2.user || ""}" data-config-key="PROXY_2_USER"></div>`;
-            html += `<div class="config-field"><label>Password:</label><input type="password" value="${data.proxy_2.password || ""}" data-config-key="PROXY_2_PASSWORD"></div>`;
-            html += `</div>`;
-        }
-        if (data.cookies) {
-            html += `<div class="config-section"><h4>Cookies</h4>`;
-            Object.entries(data.cookies).forEach(([key, url]) => {
-                const configKey = key.toUpperCase() + "_COOKIE_URL";
-                html += `<div class="config-field"><label>${key}:</label><input type="text" value="${url || ""}" data-config-key="${configKey}"></div>`;
-            });
-            html += `</div>`;
-        }
-        if (data.allowed_groups) {
-            html += `<div class="config-section"><h4>Allowed Groups</h4>`;
-            html += `<div class="config-field"><label>Groups:</label><input type="text" value="${data.allowed_groups.join(", ")}" data-config-key="ALLOWED_GROUP"></div>`;
-            html += `</div>`;
-        }
-        if (data.admins) {
-            html += `<div class="config-section"><h4>Admins</h4>`;
-            html += `<div class="config-field"><label>Admin IDs:</label><input type="text" value="${data.admins.join(", ")}" data-config-key="ADMIN"></div>`;
-            html += `</div>`;
-        }
-        if (data.miniapp_url) {
-            html += `<div class="config-section"><h4>MiniApp</h4>`;
-            html += `<div class="config-field"><label>URL:</label><input type="text" value="${data.miniapp_url || ""}" data-config-key="MINIAPP_URL"></div>`;
-            html += `</div>`;
-        }
-        if (data.subscribe_channel_url) {
-            html += `<div class="config-section"><h4>Subscribe Channel</h4>`;
-            html += `<div class="config-field"><label>URL:</label><input type="text" value="${data.subscribe_channel_url || ""}" data-config-key="SUBSCRIBE_CHANNEL_URL"></div>`;
-            html += `</div>`;
-        }
-        html += `<button class="save-config-btn" onclick="saveConfigSettings()">Save Config</button>`;
-        container.innerHTML = html;
-    }
+        container.innerHTML = "";
 
-    window.saveConfigSettings = async function() {
-        const inputs = document.querySelectorAll("#config-settings input[data-config-key]");
-        for (const input of inputs) {
-            const key = input.dataset.configKey;
-            let value = input.value.trim();
-            if (key === "ALLOWED_GROUP" || key === "ADMIN") {
-                value = value.split(",").map(v => v.trim()).filter(v => v);
-            }
-            try {
-                await fetchJSON("/api/update-config", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ key, value }),
+        const rotationOptions = [
+            { value: "random", label: "random" },
+            { value: "round_robin", label: "round_robin" },
+        ];
+
+        const parseNumberList = (raw) =>
+            raw
+                .split(",")
+                .map((v) => Number(v.trim()))
+                .filter((num) => !Number.isNaN(num));
+
+        const buildRow = (field) => {
+            const node = template.content.firstElementChild.cloneNode(true);
+            const labelEl = node.querySelector("[data-label]");
+            labelEl.textContent = field.label;
+            let control = node.querySelector("[data-input]");
+            if (field.type === "select") {
+                const select = document.createElement("select");
+                select.className = control.className;
+                (field.options || []).forEach((option) => {
+                    const opt = document.createElement("option");
+                    opt.value = option.value;
+                    opt.textContent = option.label;
+                    if (option.value === field.value) {
+                        opt.selected = true;
+                    }
+                    select.appendChild(opt);
                 });
-            } catch (e) {
-                console.error(`Failed to update ${key}:`, e);
+                control.replaceWith(select);
+                control = select;
+            } else if (field.type === "number") {
+                control.type = "number";
+                control.value = field.value ?? "";
+            } else {
+                control.type = field.type === "password" ? "password" : "text";
+                control.value = field.type === "list" && Array.isArray(field.value)
+                    ? field.value.join(", ")
+                    : field.value ?? "";
             }
+            const saveButton = node.querySelector("[data-save]");
+            saveButton.addEventListener("click", async () => {
+                let newValue = control.value;
+                try {
+                    if (field.transform) {
+                        newValue = field.transform(newValue);
+                    } else if (field.type === "number") {
+                        newValue = Number(newValue);
+                        if (Number.isNaN(newValue)) {
+                            throw new Error("Value must be a number");
+                        }
+                    } else if (field.type === "list") {
+                        newValue = newValue
+                            .split(",")
+                            .map((v) => v.trim())
+                            .filter((v) => v);
+                    }
+                    saveButton.disabled = true;
+                    await fetchJSON("/api/update-config", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ key: field.key, value: newValue }),
+                    });
+                } catch (err) {
+                    alert(err.message || err);
+                } finally {
+                    saveButton.disabled = false;
+                }
+            });
+            return node;
+        };
+
+        const appendSection = (title, fields) => {
+            if (!fields || !fields.length) {
+                return;
+            }
+            const section = document.createElement("div");
+            section.className = "config-section";
+            if (title) {
+                const heading = document.createElement("h4");
+                heading.textContent = title;
+                section.appendChild(heading);
+            }
+            fields.forEach((field) => {
+                section.appendChild(buildRow(field));
+            });
+            container.appendChild(section);
+        };
+
+        appendSection("Proxy 1", data.proxy ? [
+            { label: "Type", key: "PROXY_TYPE", value: data.proxy.type || "" },
+            { label: "IP", key: "PROXY_IP", value: data.proxy.ip || "" },
+            { label: "Port", key: "PROXY_PORT", value: data.proxy.port || "", type: "number" },
+            { label: "User", key: "PROXY_USER", value: data.proxy.user || "" },
+            { label: "Password", key: "PROXY_PASSWORD", value: data.proxy.password || "", type: "password" },
+        ] : []);
+
+        appendSection("Proxy 2", data.proxy_2 ? [
+            { label: "Type", key: "PROXY_2_TYPE", value: data.proxy_2.type || "" },
+            { label: "IP", key: "PROXY_2_IP", value: data.proxy_2.ip || "" },
+            { label: "Port", key: "PROXY_2_PORT", value: data.proxy_2.port || "", type: "number" },
+            { label: "User", key: "PROXY_2_USER", value: data.proxy_2.user || "" },
+            { label: "Password", key: "PROXY_2_PASSWORD", value: data.proxy_2.password || "", type: "password" },
+        ] : []);
+
+        appendSection("Proxy strategy", [
+            {
+                label: "Selection mode",
+                key: "PROXY_SELECT",
+                value: data.proxy_select || "random",
+                type: "select",
+                options: rotationOptions,
+            },
+        ]);
+
+        if (data.cookies) {
+            const cookieFields = Object.entries(data.cookies).map(([name, url]) => ({
+                label: `${name.toUpperCase()} cookie URL`,
+                key: `${name.toUpperCase()}_COOKIE_URL`,
+                value: url || "",
+            }));
+            appendSection("Service cookies", cookieFields);
         }
-        alert("Config updated! Restart bot to apply changes.");
-    };
+
+        const youtube = data.youtube_cookies || {};
+        const youtubeFields = [
+            {
+                label: "Rotation mode",
+                key: "YOUTUBE_COOKIE_ORDER",
+                value: youtube.order || "round_robin",
+                type: "select",
+                options: rotationOptions,
+            },
+            { label: "Test URL", key: "YOUTUBE_COOKIE_TEST_URL", value: youtube.test_url || "" },
+            { label: "Fallback cookie URL", key: "COOKIE_URL", value: youtube.cookie_url || "" },
+            { label: "POT base URL", key: "YOUTUBE_POT_BASE_URL", value: youtube.pot_base_url || "" },
+        ];
+        const cookieList = youtube.list || [];
+        const totalCookies = Math.max(cookieList.length, 11);
+        for (let i = 0; i < totalCookies; i += 1) {
+            const key = i === 0 ? "YOUTUBE_COOKIE_URL" : `YOUTUBE_COOKIE_URL_${i}`;
+            youtubeFields.push({
+                label: `Cookie #${i + 1}`,
+                key,
+                value: cookieList[i] || "",
+            });
+        }
+        appendSection("YouTube cookies", youtubeFields);
+
+        appendSection("Allowed groups", [
+            {
+                label: "Group IDs",
+                key: "ALLOWED_GROUP",
+                value: data.allowed_groups || [],
+                type: "list",
+                transform: (val) => parseNumberList(val),
+            },
+        ]);
+
+        appendSection("Admins", [
+            {
+                label: "Admin IDs",
+                key: "ADMIN",
+                value: data.admins || [],
+                type: "list",
+                transform: (val) => parseNumberList(val),
+            },
+        ]);
+
+        appendSection("Mini app", [
+            { label: "Mini app URL", key: "MINIAPP_URL", value: data.miniapp_url || "" },
+        ]);
+
+        appendSection("Subscription link", [
+            { label: "Subscribe link", key: "SUBSCRIBE_CHANNEL_URL", value: data.subscribe_channel_url || "" },
+        ]);
+
+        const channels = data.channels || {};
+        appendSection("Logging channels", [
+            { label: "Logs channel ID", key: "LOGS_ID", value: channels.logs_id || "", type: "number" },
+            { label: "Video log ID", key: "LOGS_VIDEO_ID", value: channels.logs_video_id || "", type: "number" },
+            { label: "NSFW log ID", key: "LOGS_NSFW_ID", value: channels.logs_nsfw_id || "", type: "number" },
+            { label: "Image log ID", key: "LOGS_IMG_ID", value: channels.logs_img_id || "", type: "number" },
+            { label: "Paid log ID", key: "LOGS_PAID_ID", value: channels.logs_paid_id || "", type: "number" },
+            { label: "Exception log ID", key: "LOG_EXCEPTION", value: channels.log_exception || "", type: "number" },
+            { label: "Subscribe channel ID", key: "SUBSCRIBE_CHANNEL", value: channels.subscribe_channel || "", type: "number" },
+        ]);
+    }
 
     async function loadListsStats() {
         const data = await fetchJSON("/api/lists-stats");
@@ -1215,6 +1479,7 @@
         const topPeriod = selectors.topUsers?.value || "all";
         const countriesPeriod = selectors.countries?.value || "all";
         const domainsPeriod = selectors.domains?.value || "all";
+        const suspiciousPeriod = selectors.suspicious?.value || "all";
         await Promise.all([
             loadActiveUsers(),
             loadTopUsers(topPeriod),
@@ -1226,6 +1491,7 @@
             loadPowerUsers(),
             loadBlockedUsers(),
             loadChannelEvents(),
+            loadSuspiciousUsers(suspiciousPeriod),
         ]);
     }
 
@@ -1270,6 +1536,7 @@
         setupLanguageSwitch();
         setupSearchFilters();
         setupTabHandlers();
+        setupThemeToggle();
         applyTranslations();
         await refreshData();
     }

@@ -62,6 +62,10 @@ def fetch_blocked_users(limit: int = 50) -> List[Dict[str, Any]]:
     return get_stats_collector().get_blocked_users(limit)
 
 
+def fetch_suspicious_users(period: str, limit: int = 20) -> List[Dict[str, Any]]:
+    return get_stats_collector().get_suspicious_users(period, limit)
+
+
 def _is_guard_ready(guard) -> bool:
     return bool(
         guard

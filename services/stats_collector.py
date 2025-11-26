@@ -818,6 +818,39 @@ class StatsCollector:
             )
         return {"total": total, "items": items}
 
+    def get_suspicious_users(self, period: str, limit: int = 20) -> List[Dict[str, Any]]:
+        downloads = self._filter_downloads(period)
+        per_user: Dict[int, List[int]] = defaultdict(list)
+        for record in downloads:
+            per_user[record.user_id].append(record.timestamp)
+        suspicious: List[Tuple[int, int, int, int]] = []
+        for user_id, timestamps in per_user.items():
+            if len(timestamps) < 2:
+                continue
+            timestamps.sort()
+            gaps = [
+                second - first
+                for first, second in zip(timestamps, timestamps[1:])
+                if second >= first
+            ]
+            if not gaps:
+                continue
+            max_gap = max(gaps)
+            suspicious.append((user_id, max_gap, len(timestamps), timestamps[-1]))
+        suspicious.sort(key=lambda item: (item[1], -item[2], item[3] * -1))
+        result: List[Dict[str, Any]] = []
+        for user_id, max_gap, count, last_ts in suspicious[:limit]:
+            profile = self._get_profile(user_id)
+            result.append(
+                {
+                    **profile.to_public_dict(),
+                    "max_gap_seconds": max_gap,
+                    "downloads": count,
+                    "last_event_ts": last_ts,
+                }
+            )
+        return result
+
     def _aggregate_by_user(self, downloads: Iterable[DownloadRecord]) -> Counter:
         counter: Counter = Counter()
         for record in downloads:
