@@ -71,10 +71,10 @@
             "power.days": "Days:",
             "power.apply": "Apply",
             "demographics.title": "Demographics & Countries",
-            "demographics.subtitle": "User statistics by country, gender, and age.",
+            "demographics.subtitle": "User statistics by country, gender, and registration date.",
             "demographics.countries": "Top Countries",
             "demographics.gender": "Gender",
-            "demographics.age": "Age",
+            "demographics.age": "Registered",
             "buttons.logout": "Logout",
             "buttons.save": "Save",
             "buttons.add": "Add",
@@ -86,7 +86,7 @@
             "labels.user_id": "User ID",
             "labels.country": "Country",
             "labels.gender": "Gender",
-            "labels.age": "Age",
+            "labels.age": "Registered at",
             "labels.last_event": "Last activity",
             "labels.url": "URL",
             "labels.progress": "Progress",
@@ -175,10 +175,10 @@
             "power.days": "Дней:",
             "power.apply": "Применить",
             "demographics.title": "Демография и страны",
-            "demographics.subtitle": "Статистика пользователей по странам, полу и возрасту.",
+            "demographics.subtitle": "Статистика пользователей по странам, полу и дате регистрации.",
             "demographics.countries": "Топ стран",
             "demographics.gender": "Пол",
-            "demographics.age": "Возраст",
+            "demographics.age": "Регистрация",
             "buttons.logout": "Выход",
             "buttons.save": "Сохранить",
             "buttons.add": "Добавить",
@@ -190,7 +190,7 @@
             "labels.user_id": "ID пользователя",
             "labels.country": "Страна",
             "labels.gender": "Пол",
-            "labels.age": "Возраст",
+            "labels.age": "Дата регистрации",
             "labels.last_event": "Последняя активность",
             "labels.url": "Ссылка",
             "labels.progress": "Прогресс",
@@ -276,7 +276,8 @@
     let currentTheme = localStorage.getItem("dashboardTheme") || "dark";
 
     const endpoints = {
-        activeUsers: (limit = 100) => `/api/active-users?limit=${limit}`,
+        activeUsers: (minutes = 15, limit = 100) =>
+            `/api/active-users?limit=${limit}&minutes=${minutes}`,
         topDownloaders: (period = "today", limit = 100) => `/api/top-downloaders?period=${period}&limit=${limit}`,
         countries: (period = "today", limit = 50) => `/api/top-countries?period=${period}&limit=${limit}`,
         gender: (period = "today") => `/api/gender-stats?period=${period}`,
@@ -558,26 +559,10 @@
         return node;
     }
 
-    function showUserDetailsModal(item) {
-        const usernameValue = item.username
-            ? `<a href="https://t.me/${item.username}" target="_blank">${`@${item.username}`}</a>`
-            : t("meta.no_username");
-        const rows = [
-            { label: t("labels.username"), value: usernameValue },
-            { label: t("labels.user_id"), value: item.user_id },
-            { label: t("labels.country"), value: item.flag ? `${item.flag} ${item.country_code || ""}` : t("misc.unknown") },
-            { label: t("labels.gender"), value: item.gender || t("misc.unknown") },
-            { label: t("labels.age"), value: item.age || t("misc.unknown") },
-            { label: t("labels.progress"), value: typeof item.progress === "number" ? `${item.progress.toFixed(1)}%` : t("misc.unknown") },
-            { label: t("labels.last_event"), value: item.last_event_ts ? new Date(item.last_event_ts * 1000).toLocaleString() : t("misc.unknown") },
-        ];
-        openModal(t("modals.user_title"), renderDetailsList(rows));
-    }
-
-    function showMediaDetailsModal(item) {
+    function buildMediaRows(item) {
         const metadata = item.metadata || {};
         const totalBytes = metadata.total_bytes || metadata.filesize;
-        const rows = [
+        return [
             {
                 label: t("labels.url"),
                 value: item.url ? `<a href="${item.url}" target="_blank">${prettifyUrl(item.url)}</a>` : null,
@@ -598,6 +583,36 @@
             { label: t("labels.speed"), value: metadata.speed ? formatSpeed(metadata.speed) : null },
             { label: t("labels.eta"), value: metadata.eta ? formatDuration(metadata.eta) : null },
         ];
+    }
+
+    function showUserDetailsModal(item) {
+        const usernameValue = item.username
+            ? `<a href="https://t.me/${item.username}" target="_blank">${`@${item.username}`}</a>`
+            : t("meta.no_username");
+        const registeredValue = item.first_seen_ts
+            ? new Date(item.first_seen_ts * 1000).toLocaleString()
+            : t("misc.unknown");
+        const userRows = [
+            { label: t("labels.username"), value: usernameValue },
+            { label: t("labels.user_id"), value: item.user_id },
+            { label: t("labels.country"), value: item.flag ? `${item.flag} ${item.country_code || ""}` : t("misc.unknown") },
+            { label: t("labels.gender"), value: item.gender || t("misc.unknown") },
+            { label: t("labels.age"), value: registeredValue },
+            { label: t("labels.progress"), value: typeof item.progress === "number" ? `${item.progress.toFixed(1)}%` : t("misc.unknown") },
+            { label: t("labels.last_event"), value: item.last_event_ts ? new Date(item.last_event_ts * 1000).toLocaleString() : t("misc.unknown") },
+        ];
+        const mediaRows = buildMediaRows(item);
+        const sections = [
+            `<h4>${t("modals.user_title")}</h4>`,
+            renderDetailsList(userRows),
+            `<h4 style="margin-top:1.5rem;">${t("modals.media_title")}</h4>`,
+            renderDetailsList(mediaRows),
+        ].join("");
+        openModal(t("modals.user_title"), sections);
+    }
+
+    function showMediaDetailsModal(item) {
+        const rows = buildMediaRows(item);
         openModal(t("modals.media_title"), renderDetailsList(rows));
     }
 
@@ -676,7 +691,10 @@
     }
 
     async function loadActiveUsers() {
-        const data = await fetchJSON(endpoints.activeUsers());
+        const minutes = selectors.activePeriod
+            ? Number(selectors.activePeriod.value || selectors.activePeriod.dataset.defaultMinutes || 15)
+            : 15;
+        const data = await fetchJSON(endpoints.activeUsers(minutes || 15));
         const container = document.getElementById("active-users-list");
         const items = data.items || [];
         if (selectors.activeCount) {
@@ -895,8 +913,9 @@
         selectors.topUsers = document.getElementById("top-users-period");
         selectors.countries = document.getElementById("countries-period");
         selectors.domains = document.getElementById("domains-period");
-        selectors.activeCount = document.querySelector("[data-active-count]");
         selectors.suspicious = document.getElementById("suspicious-period");
+        selectors.activePeriod = document.getElementById("active-users-period");
+        selectors.activeCount = document.querySelector("[data-active-count]");
         themeToggleBtn = document.getElementById("theme-toggle");
     }
 
@@ -909,6 +928,17 @@
         });
         selectors.domains?.addEventListener("change", (event) => loadDomains(event.target.value));
         selectors.suspicious?.addEventListener("change", (event) => loadSuspiciousUsers(event.target.value));
+        if (selectors.activePeriod) {
+            selectors.activePeriod.addEventListener("change", () => {
+                loadActiveUsers();
+                const minutes = selectors.activePeriod.value || "15";
+                const subtitle = document.querySelector("[data-i18n='cards.active.subtitle']");
+                if (subtitle) {
+                    subtitle.dataset.minutes = minutes;
+                    subtitle.textContent = replacePlaceholders(t("cards.active.subtitle"), { minutes });
+                }
+            });
+        }
     }
 
     function setupLanguageSwitch() {

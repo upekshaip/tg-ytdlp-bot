@@ -224,9 +224,9 @@ body.theme-light .list-row__info .meta {
 
 .list-row {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    gap: 1rem;
+    gap: 0.75rem;
 }
 
 body.theme-light .list-row {
@@ -237,6 +237,8 @@ body.theme-light .list-row {
     display: flex;
     gap: 0.75rem;
     align-items: center;
+    flex: 1 1 0;
+    min-width: 0;
 }
 
 .list-row__info .flag {
@@ -246,14 +248,27 @@ body.theme-light .list-row {
 .list-row__info .title {
     display: block;
     font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .list-row__info .meta {
     font-size: 0.85rem;
     color: #94a3b8;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .list-row__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.card__header-controls {
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -458,20 +473,21 @@ body.theme-light .config-section h4 {
 
 .config-row {
     display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.85rem;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
 }
 
 .config-row label {
-    flex: 0 0 200px;
+    flex: 0 0 auto;
     font-weight: 600;
     color: #cbd5f5;
 }
 
 .config-row input,
 .config-row select {
-    flex: 1;
+    flex: 1 1 auto;
     padding: 0.5rem 0.75rem;
     background: #0f172a;
     border: 1px solid rgba(148, 163, 184, 0.2);
@@ -482,6 +498,7 @@ body.theme-light .config-section h4 {
 
 .config-row button {
     flex-shrink: 0;
+    align-self: flex-start;
 }
 
 body.theme-light .config-row label {

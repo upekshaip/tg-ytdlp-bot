@@ -334,6 +334,8 @@ class StatsCollector:
         self._profiles: Dict[int, ProfileInfo] = {}
         self._blocked_users: Dict[int, BlockRecord] = {}
         self._channel_events: Deque[ChannelActivity] = deque(maxlen=500)
+        # timestamp первой зафиксированной активности пользователя
+        self._first_seen: Dict[int, int] = {}
         self._latest_dump_ts: int = 0
         self._last_reload_ts: float = 0
         self._profile_fetcher = TelegramProfileFetcher()
@@ -385,6 +387,7 @@ class StatsCollector:
             .get(getattr(Config, "BOT_NAME_FOR_USERS", "tgytdlp_bot"), {})
         )
         download_records: List[DownloadRecord] = []
+        first_seen: Dict[int, int] = {}
         blocked_users: Dict[int, BlockRecord] = {}
         channel_events: List[ChannelActivity] = []
         latest_ts = 0
@@ -399,6 +402,9 @@ class StatsCollector:
                     if not record:
                         continue
                     download_records.append(record)
+                    prev = first_seen.get(record.user_id)
+                    if not prev or record.timestamp < prev:
+                        first_seen[record.user_id] = record.timestamp
                     latest_ts = max(latest_ts, record.timestamp)
         else:
             if logs not in (None, {}):
@@ -455,6 +461,8 @@ class StatsCollector:
                 [rec for rec in self._live_downloads if rec.timestamp > self._latest_dump_ts],
                 maxlen=10_000,
             )
+            # обновляем карту первой активности
+            self._first_seen = first_seen
         logger.debug(
             "[stats] dump reloaded: downloads=%s blocked=%s events=%s latest_ts=%s",
             len(self._historical_downloads),
@@ -694,6 +702,10 @@ class StatsCollector:
             profile.flag = _flag_from_country(profile.country_code)
         with self._lock:
             self._live_downloads.append(record)
+            ts = record.timestamp
+            prev = self._first_seen.get(user_id)
+            if not prev or ts < prev:
+                self._first_seen[user_id] = ts
         self._update_active_session(user_id, record.timestamp, record.url, record.title)
 
     def update_download_progress(
@@ -724,6 +736,10 @@ class StatsCollector:
                 return
             with self._lock:
                 self._live_downloads.append(record)
+                ts = record.timestamp
+                prev = self._first_seen.get(user_id)
+                if not prev or ts < prev:
+                    self._first_seen[user_id] = ts
             self._update_active_session(user_id, record.timestamp, record.url, record.title)
         elif section == "blocked_users":
             user_id = _safe_int(rest[0]) if rest else _safe_int(payload.get("ID"))
@@ -755,12 +771,13 @@ class StatsCollector:
                     )
                 )
 
-    def get_active_users(self, limit: int = 10) -> Dict[str, Any]:
+    def get_active_users(self, limit: int = 10, minutes: Optional[int] = None) -> Dict[str, Any]:
         self._maybe_reload_active_sessions_from_disk()
         self._purge_expired_sessions()
         # Также учитываем последние загрузки из дампа для активных пользователей
         now = time.time()
-        threshold = now - self.active_timeout
+        window = (minutes or 0) * 60
+        threshold = now - (window or self.active_timeout)
         recent_downloads = [
             rec for rec in self._get_all_downloads()
             if rec.timestamp >= threshold
@@ -814,6 +831,7 @@ class StatsCollector:
                     "title": session["title"],
                     "progress": session["progress"],
                     "metadata": session.get("metadata") or {},
+                    "first_seen_ts": self._first_seen.get(user_id),
                 }
             )
         return {"total": total, "items": items}
@@ -902,13 +920,15 @@ class StatsCollector:
         return [{"gender": gender, "count": count} for gender, count in counter.most_common()]
 
     def get_age_stats(self, period: str) -> List[Dict[str, Any]]:
+        """Статистика по «возрасту» аккаунта: дата первой зафиксированной активности."""
         downloads = self._filter_downloads(period)
+        user_ids = {rec.user_id for rec in downloads}
         counter: Counter = Counter()
-        for record in downloads:
-            profile = self._get_profile(record.user_id)
-            age = profile.age
-            if age:
-                bucket = f"{(age // 10) * 10}s"
+        for user_id in user_ids:
+            first_ts = self._first_seen.get(user_id)
+            if first_ts:
+                dt = datetime.fromtimestamp(first_ts, tz=timezone.utc)
+                bucket = dt.strftime("%Y-%m")
             else:
                 bucket = "unknown"
             counter[bucket] += 1

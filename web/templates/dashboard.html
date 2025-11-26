@@ -52,9 +52,17 @@
                         <h3 data-i18n="cards.active.title">Active users</h3>
                         <p data-i18n="cards.active.subtitle" data-minutes="{{ active_minutes }}">Sessions during last {{ active_minutes }} minutes.</p>
                     </div>
-                    <div class="stat-chip">
-                        <span data-i18n="cards.active.count_label">Now</span>
-                        <strong data-active-count>0</strong>
+                    <div class="card__header-controls">
+                        <select id="active-users-period" class="period-select">
+                            <option value="5">5 min</option>
+                            <option value="15" selected>15 min</option>
+                            <option value="30">30 min</option>
+                            <option value="60">60 min</option>
+                        </select>
+                        <div class="stat-chip">
+                            <span data-i18n="cards.active.count_label">Now</span>
+                            <strong data-active-count>0</strong>
+                        </div>
                     </div>
                 </header>
                 <input type="text" class="search-input" data-search-target="active-users-list" placeholder="Search...">

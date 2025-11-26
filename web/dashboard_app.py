@@ -140,8 +140,11 @@ async def dashboard(request: Request):
 
 
 @app.get("/api/active-users")
-async def api_active_users(limit: int = 10):
-    return stats_service.fetch_active_users(limit=limit)
+async def api_active_users(
+    limit: int = 10,
+    minutes: int | None = Query(default=None, ge=1, le=3600),
+):
+    return stats_service.fetch_active_users(limit=limit, minutes=minutes)
 
 
 @app.get("/api/top-downloaders")
