@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# Version 1.0.1
+
 import hashlib
 import secrets
 import time
@@ -98,8 +100,7 @@ class AuthService:
             # Создаем сессию
             token = secrets.token_urlsafe(32)
             self._sessions[token] = time.time() + self._session_ttl
-        self._save_sessions()
-            
+            self._save_sessions()
             return token
     
     def verify_token(self, token: str) -> bool:
