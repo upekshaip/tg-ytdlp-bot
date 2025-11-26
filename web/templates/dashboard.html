@@ -42,9 +42,15 @@
     <section class="tab-panel active" data-tab-panel="activity">
         <div class="grid">
             <article class="card">
-                <header>
-                    <h3 data-i18n="cards.active.title">Active users</h3>
-                    <p data-i18n="cards.active.subtitle" data-minutes="{{ active_minutes }}">Sessions during last {{ active_minutes }} minutes.</p>
+                <header class="card__header-row">
+                    <div>
+                        <h3 data-i18n="cards.active.title">Active users</h3>
+                        <p data-i18n="cards.active.subtitle" data-minutes="{{ active_minutes }}">Sessions during last {{ active_minutes }} minutes.</p>
+                    </div>
+                    <div class="stat-chip">
+                        <span data-i18n="cards.active.count_label">Now</span>
+                        <strong data-active-count>0</strong>
+                    </div>
                 </header>
                 <input type="text" class="search-input" data-search-target="active-users-list" placeholder="Search...">
                 <div id="active-users-list" class="list" data-expand-limit="10"></div>
@@ -256,5 +262,12 @@
     };
 </script>
 <script src="/static/dashboard.js"></script>
+        <div id="modal-root" class="modal hidden">
+            <div class="modal__dialog">
+                <button type="button" class="modal__close" data-modal-close aria-label="Close">×</button>
+                <h3 id="modal-title"></h3>
+                <div id="modal-body"></div>
+            </div>
+        </div>
 </body>
 </html>

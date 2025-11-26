@@ -7,6 +7,7 @@ import time
 from collections import Counter, defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Deque, Dict, Iterable, List, Optional, Set, Tuple
 from urllib.parse import urlparse
 
@@ -16,6 +17,7 @@ import logging
 from CONFIG.config import Config
 
 logger = logging.getLogger(__name__)
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 # --------------------------------------------------------------------------------------
 # Утилиты
@@ -215,6 +217,7 @@ class ActiveSession:
     current_url: Optional[str]
     title: Optional[str]
     progress: Optional[float] = None  # Progress percentage (0-100)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -334,6 +337,15 @@ class StatsCollector:
         self._latest_dump_ts: int = 0
         self._last_reload_ts: float = 0
         self._profile_fetcher = TelegramProfileFetcher()
+        self._active_sessions_file = Path(
+            getattr(
+                Config,
+                "ACTIVE_SESSIONS_FILE",
+                BASE_DIR / "CONFIG" / ".active_sessions.json",
+            )
+        )
+        self._active_sessions_mtime: float = 0.0
+        self._last_sessions_persist_ts: float = 0.0
 
         self._reload_thread: Optional[threading.Thread] = None
         if start_background:
@@ -345,6 +357,7 @@ class StatsCollector:
             self.reload_from_dump()
         except Exception as exc:
             logger.warning(f"[stats] initial dump load failed: {exc}")
+        self._load_active_sessions_from_disk()
 
     # ------------------------------------------------------------------
     # Вспомогательные методы
@@ -527,7 +540,9 @@ class StatsCollector:
         url: Optional[str],
         title: Optional[str],
         progress: Optional[float] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
+        metadata = self._sanitize_metadata(metadata)
         with self._lock:
             existing = self._active_sessions.get(user_id)
             if existing:
@@ -539,6 +554,8 @@ class StatsCollector:
                     existing.title = title
                 if progress is not None:
                     existing.progress = progress
+                if metadata:
+                    existing.metadata.update(metadata)
             else:
                 # Создаем новую сессию
                 self._active_sessions[user_id] = ActiveSession(
@@ -547,14 +564,105 @@ class StatsCollector:
                     current_url=url,
                     title=title,
                     progress=progress,
+                    metadata=metadata or {},
                 )
-
+            self._persist_active_sessions_locked()
+    
     def _purge_expired_sessions(self) -> None:
         expiry = time.time() - self.active_timeout
         with self._lock:
             stale = [uid for uid, session in self._active_sessions.items() if session.last_event_ts < expiry]
             for uid in stale:
                 self._active_sessions.pop(uid, None)
+            if stale:
+                self._persist_active_sessions_locked(force=True)
+    
+    def _sanitize_metadata(self, metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        if not metadata:
+            return {}
+        safe: Dict[str, Any] = {}
+        for key, value in metadata.items():
+            if isinstance(value, (str, int, float, bool)) or value is None:
+                safe[key] = value
+            elif isinstance(value, dict):
+                safe[key] = self._sanitize_metadata(value)
+            else:
+                safe[key] = str(value)
+        return safe
+    
+    def _persist_active_sessions_locked(self, force: bool = False) -> None:
+        now = time.time()
+        if not force and (now - self._last_sessions_persist_ts) < 2:
+            return
+        self._last_sessions_persist_ts = now
+        try:
+            payload = {
+                str(uid): {
+                    "user_id": session.user_id,
+                    "last_event_ts": session.last_event_ts,
+                    "current_url": session.current_url,
+                    "title": session.title,
+                    "progress": session.progress,
+                    "metadata": session.metadata,
+                }
+                for uid, session in self._active_sessions.items()
+            }
+            path = self._active_sessions_file
+            tmp_path = path.with_suffix(".tmp")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(tmp_path, "w", encoding="utf-8") as fh:
+                json.dump(payload, fh, ensure_ascii=False)
+            tmp_path.replace(path)
+            try:
+                self._active_sessions_mtime = path.stat().st_mtime
+            except OSError:
+                self._active_sessions_mtime = time.time()
+        except Exception as exc:
+            logger.debug(f"[stats] failed to persist active sessions: {exc}")
+    
+    def _load_active_sessions_from_disk(self) -> None:
+        path = self._active_sessions_file
+        if not path.exists():
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                raw = json.load(fh)
+        except Exception as exc:
+            logger.debug(f"[stats] failed to read active sessions file: {exc}")
+            return
+        sessions: Dict[int, ActiveSession] = {}
+        now = time.time()
+        for uid_str, data in raw.items():
+            try:
+                uid = int(uid_str)
+            except Exception:
+                continue
+            sessions[uid] = ActiveSession(
+                user_id=uid,
+                last_event_ts=float(data.get("last_event_ts", now)),
+                current_url=data.get("current_url"),
+                title=data.get("title"),
+                progress=data.get("progress"),
+                metadata=self._sanitize_metadata(data.get("metadata")),
+            )
+        with self._lock:
+            self._active_sessions = sessions
+            try:
+                self._active_sessions_mtime = path.stat().st_mtime
+            except OSError:
+                self._active_sessions_mtime = time.time()
+    
+    def _maybe_reload_active_sessions_from_disk(self) -> None:
+        path = self._active_sessions_file
+        try:
+            mtime = path.stat().st_mtime
+        except FileNotFoundError:
+            return
+        except OSError:
+            return
+        if mtime <= self._active_sessions_mtime:
+            return
+        self._load_active_sessions_from_disk()
 
     # ------------------------------------------------------------------
     # Публичный интерфейс
@@ -594,10 +702,11 @@ class StatsCollector:
         progress: float,
         url: Optional[str] = None,
         title: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Обновляет прогресс загрузки для активной сессии пользователя."""
         timestamp = time.time()
-        self._update_active_session(user_id, timestamp, url, title, progress)
+        self._update_active_session(user_id, timestamp, url, title, progress, metadata)
 
     def handle_db_event(self, path: str, operation: str, payload: Any) -> None:
         """Обновляет кеш на основе структур в БД."""
@@ -647,6 +756,7 @@ class StatsCollector:
                 )
 
     def get_active_users(self, limit: int = 10) -> Dict[str, Any]:
+        self._maybe_reload_active_sessions_from_disk()
         self._purge_expired_sessions()
         # Также учитываем последние загрузки из дампа для активных пользователей
         now = time.time()
@@ -655,21 +765,32 @@ class StatsCollector:
             rec for rec in self._get_all_downloads()
             if rec.timestamp >= threshold
         ]
-        user_last_activity: Dict[int, Tuple[float, Optional[str], Optional[str], Optional[float]]] = {}
+        user_last_activity: Dict[int, Tuple[float, Optional[str], Optional[str], Optional[float], Dict[str, Any]]] = {}
         for rec in recent_downloads:
-            existing = user_last_activity.get(rec.user_id, (0, None, None, None))
+            existing = user_last_activity.get(rec.user_id, (0, None, None, None, {}))
             if rec.timestamp > existing[0]:
-                user_last_activity[rec.user_id] = (rec.timestamp, rec.url, rec.title, None)
+                user_last_activity[rec.user_id] = (rec.timestamp, rec.url, rec.title, None, {})
         with self._lock:
             for session in self._active_sessions.values():
-                existing = user_last_activity.get(session.user_id, (0, None, None, None))
+                existing = user_last_activity.get(session.user_id, (0, None, None, None, {}))
                 if session.last_event_ts > existing[0]:
                     user_last_activity[session.user_id] = (
-                        session.last_event_ts, session.current_url, session.title, session.progress
+                        session.last_event_ts,
+                        session.current_url,
+                        session.title,
+                        session.progress,
+                        session.metadata,
                     )
         sessions = [
-            {"user_id": uid, "last_event_ts": ts, "url": url, "title": title, "progress": progress}
-            for uid, (ts, url, title, progress) in user_last_activity.items()
+            {
+                "user_id": uid,
+                "last_event_ts": ts,
+                "url": url,
+                "title": title,
+                "progress": progress,
+                "metadata": metadata or {},
+            }
+            for uid, (ts, url, title, progress, metadata) in user_last_activity.items()
         ]
         sessions.sort(key=lambda s: s["last_event_ts"], reverse=True)
         total = len(sessions)
@@ -691,6 +812,8 @@ class StatsCollector:
                     "last_event_ts": session["last_event_ts"],
                     "url": session["url"],
                     "title": session["title"],
+                    "progress": session["progress"],
+                    "metadata": session.get("metadata") or {},
                 }
             )
         return {"total": total, "items": items}

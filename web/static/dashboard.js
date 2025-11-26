@@ -14,6 +14,7 @@
             "status.updating": "UPDATING…",
             "cards.active.title": "Active users",
             "cards.active.subtitle": "Sessions during last {minutes} minutes.",
+            "cards.active.count_label": "Now",
             "cards.top_downloaders.title": "Top downloaders",
             "cards.top_downloaders.subtitle": "Pick a period for the ranking.",
             "cards.channel.title": "Channel activity ({hours}h)",
@@ -72,7 +73,31 @@
             "demographics.age": "Age",
             "buttons.logout": "Logout",
             "buttons.save": "Save",
-            "buttons.add": "Add"
+            "buttons.add": "Add",
+            "buttons.view_media": "Media info",
+            "buttons.view_user": "User info",
+            "modals.user_title": "User details",
+            "modals.media_title": "Media details",
+            "labels.username": "Username",
+            "labels.user_id": "User ID",
+            "labels.country": "Country",
+            "labels.gender": "Gender",
+            "labels.age": "Age",
+            "labels.last_event": "Last activity",
+            "labels.url": "URL",
+            "labels.progress": "Progress",
+            "labels.size": "Size",
+            "labels.downloaded": "Downloaded",
+            "labels.quality": "Quality",
+            "labels.resolution": "Resolution",
+            "labels.duration": "Duration",
+            "labels.speed": "Speed",
+            "labels.eta": "ETA",
+            "labels.format": "Format",
+            "labels.domain": "Domain",
+            "misc.no_url": "No URL",
+            "misc.no_metadata": "No additional metadata",
+            "misc.unknown": "unknown"
         },
         ru: {
             "header.title": "Статистика бота",
@@ -87,6 +112,7 @@
             "status.updating": "ОБНОВЛЕНИЕ…",
             "cards.active.title": "Активные пользователи",
             "cards.active.subtitle": "Сессии за последние {minutes} минут.",
+            "cards.active.count_label": "Сейчас",
             "cards.top_downloaders.title": "Топ загрузчиков",
             "cards.top_downloaders.subtitle": "Выберите период для рейтинга.",
             "cards.channel.title": "Действия в канале ({hours}ч)",
@@ -145,7 +171,31 @@
             "demographics.age": "Возраст",
             "buttons.logout": "Выход",
             "buttons.save": "Сохранить",
-            "buttons.add": "Добавить"
+            "buttons.add": "Добавить",
+            "buttons.view_media": "Информация о видео",
+            "buttons.view_user": "Профиль пользователя",
+            "modals.user_title": "Данные пользователя",
+            "modals.media_title": "Данные по медиа",
+            "labels.username": "Имя/ник",
+            "labels.user_id": "ID пользователя",
+            "labels.country": "Страна",
+            "labels.gender": "Пол",
+            "labels.age": "Возраст",
+            "labels.last_event": "Последняя активность",
+            "labels.url": "Ссылка",
+            "labels.progress": "Прогресс",
+            "labels.size": "Размер",
+            "labels.downloaded": "Скачано",
+            "labels.quality": "Качество",
+            "labels.resolution": "Разрешение",
+            "labels.duration": "Длительность",
+            "labels.speed": "Скорость",
+            "labels.eta": "Осталось",
+            "labels.format": "Формат",
+            "labels.domain": "Домен",
+            "misc.no_url": "Нет ссылки",
+            "misc.no_metadata": "Дополнительные данные отсутствуют",
+            "misc.unknown": "неизвестно"
         }
     };
 
@@ -153,6 +203,9 @@
     let currentLang = "en";
     let statusMode = "online";
     let emptyStateText = translations.en["misc.empty"];
+    let modalRoot;
+    let modalTitleEl;
+    let modalBodyEl;
 
     const endpoints = {
         activeUsers: (limit = 100) => `/api/active-users?limit=${limit}`,
@@ -224,6 +277,82 @@
         return replacePlaceholders(t("time.days"), { value: days });
     }
 
+    function formatBytes(bytes) {
+        if (bytes === undefined || bytes === null) {
+            return t("misc.unknown");
+        }
+        if (bytes === 0) return "0 B";
+        const units = ["B", "KB", "MB", "GB", "TB"];
+        const idx = Math.floor(Math.log(bytes) / Math.log(1024));
+        const value = bytes / Math.pow(1024, idx);
+        return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[idx]}`;
+    }
+
+    function formatDuration(seconds) {
+        if (!seconds && seconds !== 0) return t("misc.unknown");
+        const secs = Math.max(0, Math.floor(seconds));
+        const hours = Math.floor(secs / 3600);
+        const minutes = Math.floor((secs % 3600) / 60);
+        const remaining = secs % 60;
+        if (hours) {
+            return `${hours}h ${minutes}m`;
+        }
+        return `${minutes}m ${remaining}s`;
+    }
+
+    function formatSpeed(bytesPerSecond) {
+        if (!bytesPerSecond) return t("misc.unknown");
+        return `${formatBytes(bytesPerSecond)}/s`;
+    }
+
+    function truncate(text, limit = 42) {
+        if (!text) return "";
+        return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
+    }
+
+    function prettifyUrl(url) {
+        if (!url) return t("misc.no_url");
+        try {
+            const parsed = new URL(url);
+            return `${parsed.hostname}${parsed.pathname !== "/" ? parsed.pathname : ""}`;
+        } catch (err) {
+            return truncate(url, 32);
+        }
+    }
+
+    function renderDetailsList(rows) {
+        const filtered = rows.filter((row) => row.value);
+        if (!filtered.length) {
+            return `<p class="empty-state">${t("misc.no_metadata")}</p>`;
+        }
+        return `
+            <dl class="details-list">
+                ${filtered
+                    .map(
+                        (row) => `
+                        <dt>${row.label}</dt>
+                        <dd>${row.value}</dd>
+                    `
+                    )
+                    .join("")}
+            </dl>
+        `;
+    }
+
+    function openModal(title, html) {
+        if (!modalRoot) return;
+        modalTitleEl.textContent = title;
+        modalBodyEl.innerHTML = html;
+        modalRoot.classList.remove("hidden");
+        modalRoot.classList.add("visible");
+    }
+
+    function closeModal() {
+        if (!modalRoot) return;
+        modalRoot.classList.remove("visible");
+        modalRoot.classList.add("hidden");
+    }
+
     function setListData(container, items, renderer) {
         container.__items = items || [];
         container.__renderer = renderer;
@@ -278,12 +407,21 @@
         } else {
             metaEl.textContent = metaText;
         }
-        extraEl.textContent = options.extra ? options.extra(item) : "";
+        const extraContent = options.extra ? options.extra(item) : "";
+        if (typeof extraContent === "string") {
+            extraEl.innerHTML = extraContent;
+        } else if (extraContent instanceof HTMLElement) {
+            extraEl.innerHTML = "";
+            extraEl.appendChild(extraContent);
+        } else {
+            extraEl.textContent = "";
+        }
         if (options.hideButton) {
             button.remove();
         } else {
             button.textContent = options.unblock ? "✅" : "❌";
-            button.addEventListener("click", () => {
+            button.addEventListener("click", (event) => {
+                event.stopPropagation();
                 if (options.unblock) {
                     unblockUser(item.user_id);
                 } else {
@@ -291,7 +429,62 @@
                 }
             });
         }
+        if (typeof options.onRowClick === "function") {
+            node.classList.add("interactive");
+            node.addEventListener("click", (event) => {
+                if (event.target.closest("[data-block]") || event.target.classList.contains("chip-button")) {
+                    return;
+                }
+                options.onRowClick(event);
+            });
+        }
+        if (typeof options.afterRender === "function") {
+            options.afterRender(node);
+        }
         return node;
+    }
+
+    function showUserDetailsModal(item) {
+        const usernameValue = item.username
+            ? `<a href="https://t.me/${item.username}" target="_blank">${`@${item.username}`}</a>`
+            : t("meta.no_username");
+        const rows = [
+            { label: t("labels.username"), value: usernameValue },
+            { label: t("labels.user_id"), value: item.user_id },
+            { label: t("labels.country"), value: item.flag ? `${item.flag} ${item.country_code || ""}` : t("misc.unknown") },
+            { label: t("labels.gender"), value: item.gender || t("misc.unknown") },
+            { label: t("labels.age"), value: item.age || t("misc.unknown") },
+            { label: t("labels.progress"), value: typeof item.progress === "number" ? `${item.progress.toFixed(1)}%` : t("misc.unknown") },
+            { label: t("labels.last_event"), value: item.last_event_ts ? new Date(item.last_event_ts * 1000).toLocaleString() : t("misc.unknown") },
+        ];
+        openModal(t("modals.user_title"), renderDetailsList(rows));
+    }
+
+    function showMediaDetailsModal(item) {
+        const metadata = item.metadata || {};
+        const totalBytes = metadata.total_bytes || metadata.filesize;
+        const rows = [
+            {
+                label: t("labels.url"),
+                value: item.url ? `<a href="${item.url}" target="_blank">${prettifyUrl(item.url)}</a>` : null,
+            },
+            { label: t("labels.domain"), value: metadata.domain || (item.url ? prettifyUrl(item.url) : null) },
+            { label: t("labels.progress"), value: typeof item.progress === "number" ? `${item.progress.toFixed(1)}%` : t("misc.unknown") },
+            { label: t("labels.size"), value: totalBytes ? formatBytes(totalBytes) : null },
+            {
+                label: t("labels.downloaded"),
+                value: metadata.downloaded_bytes
+                    ? `${formatBytes(metadata.downloaded_bytes)}${totalBytes ? ` / ${formatBytes(totalBytes)}` : ""}`
+                    : null,
+            },
+            { label: t("labels.duration"), value: metadata.duration ? formatDuration(metadata.duration) : null },
+            { label: t("labels.resolution"), value: metadata.resolution || null },
+            { label: t("labels.quality"), value: metadata.quality || null },
+            { label: t("labels.format"), value: metadata.ext || null },
+            { label: t("labels.speed"), value: metadata.speed ? formatSpeed(metadata.speed) : null },
+            { label: t("labels.eta"), value: metadata.eta ? formatDuration(metadata.eta) : null },
+        ];
+        openModal(t("modals.media_title"), renderDetailsList(rows));
     }
 
     async function blockUser(userId) {
@@ -342,44 +535,61 @@
         });
     }
 
+    function buildActiveMeta(item) {
+        let meta = `${formatUserMeta(item)}`;
+        if (item.url) {
+            meta += ` • ${prettifyUrl(item.url)}`;
+        }
+        if (item.title) {
+            meta += ` • ${truncate(item.title, 60)}`;
+        }
+        return meta;
+    }
+
+    function buildProgressDisplay(item) {
+        if (typeof item.progress === "number") {
+            const progressPercent = Math.max(0, Math.min(100, item.progress));
+            return `
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <div style="width:120px; height:10px; background:rgba(148,163,184,0.2); border-radius:5px; overflow:hidden;">
+                        <div style="width:${progressPercent}%; height:100%; background:linear-gradient(120deg,#22d3ee,#a855f7); transition:width 0.3s;"></div>
+                    </div>
+                    <span style="font-size:0.85rem; color:#38bdf8; font-weight:600; min-width:45px;">${progressPercent.toFixed(1)}%</span>
+                </div>
+            `;
+        }
+        return relativeTime(item.last_event_ts);
+    }
+
     async function loadActiveUsers() {
         const data = await fetchJSON(endpoints.activeUsers());
         const container = document.getElementById("active-users-list");
-        setListData(container, data.items || [], (item, parent) => {
-            // Извлекаем домен из URL для более компактного отображения
-            let urlDisplay = item.url || "";
-            if (urlDisplay) {
-                try {
-                    const urlObj = new URL(urlDisplay);
-                    urlDisplay = urlObj.hostname.replace("www.", "");
-                } catch (e) {
-                    // Если не удалось распарсить, оставляем как есть
-                }
-            }
-            
+        const items = data.items || [];
+        if (selectors.activeCount) {
+            selectors.activeCount.textContent = data.total ?? 0;
+        }
+        container.__searchableFields = ["name", "username", "user_id", "url", "title", "metadata"];
+        setListData(container, items, (item, parent) => {
             const row = createUserRow(item, {
-                meta: () => {
-                    let meta = `${formatUserMeta(item)}`;
-                    if (urlDisplay) {
-                        meta += ` • ${urlDisplay}`;
+                meta: () => buildActiveMeta(item),
+                extra: () => buildProgressDisplay(item),
+                onRowClick: () => showUserDetailsModal(item),
+                afterRender: (node) => {
+                    const actions = node.querySelector(".list-row__actions");
+                    if (!actions) return;
+                    const urlButton = document.createElement("button");
+                    urlButton.className = "chip-button";
+                    urlButton.textContent = item.url ? prettifyUrl(item.url) : t("misc.no_url");
+                    if (!item.url) {
+                        urlButton.disabled = true;
                     }
-                    if (item.title) {
-                        const titleShort = item.title.length > 50 ? item.title.substring(0, 50) + "..." : item.title;
-                        meta += ` • ${titleShort}`;
-                    }
-                    return meta;
-                },
-                extra: () => {
-                    if (item.progress !== undefined && item.progress !== null) {
-                        const progressPercent = Math.round(item.progress);
-                        return `<div style="display: flex; align-items: center; gap: 0.5rem;">
-                            <div style="width: 120px; height: 10px; background: rgba(148, 163, 184, 0.2); border-radius: 5px; overflow: hidden;">
-                                <div style="width: ${progressPercent}%; height: 100%; background: linear-gradient(120deg, #22d3ee, #a855f7); transition: width 0.3s;"></div>
-                            </div>
-                            <span style="font-size: 0.85rem; color: #38bdf8; font-weight: 600; min-width: 45px;">${progressPercent}%</span>
-                        </div>`;
-                    }
-                    return relativeTime(item.last_event_ts);
+                    urlButton.addEventListener("click", (event) => {
+                        event.stopPropagation();
+                        if (item.url) {
+                            showMediaDetailsModal(item);
+                        }
+                    });
+                    actions.insertBefore(urlButton, actions.firstChild);
                 },
             });
             parent.appendChild(row);
@@ -553,6 +763,7 @@
         selectors.topUsers = document.getElementById("top-users-period");
         selectors.countries = document.getElementById("countries-period");
         selectors.domains = document.getElementById("domains-period");
+        selectors.activeCount = document.querySelector("[data-active-count]");
     }
 
     function setupSelectors() {
@@ -1035,6 +1246,24 @@
 
     async function bootstrap() {
         cacheSelectors();
+        modalRoot = document.getElementById("modal-root");
+        modalTitleEl = document.getElementById("modal-title");
+        modalBodyEl = document.getElementById("modal-body");
+        document.querySelectorAll("[data-modal-close]").forEach((btn) =>
+            btn.addEventListener("click", closeModal)
+        );
+        if (modalRoot) {
+            modalRoot.addEventListener("click", (event) => {
+                if (event.target === modalRoot) {
+                    closeModal();
+                }
+            });
+        }
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+                closeModal();
+            }
+        });
         setupTabs();
         setupExpandButtons();
         setupSelectors();

@@ -79,6 +79,7 @@ def update_download_progress(
     progress: float,
     url: Optional[str] = None,
     title: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Обновляет прогресс загрузки для активной сессии пользователя."""
     try:
@@ -88,6 +89,7 @@ def update_download_progress(
             progress=progress,
             url=url,
             title=title,
+            metadata=metadata,
         )
     except Exception as exc:
         logger.debug(f"[stats] failed to update download progress for {user_id}: {exc}")

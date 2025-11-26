@@ -28,6 +28,7 @@ from HELPERS.pot_helper import add_pot_to_ytdl_opts
 from CONFIG.limits import LimitsConfig
 from HELPERS.fallback_helper import should_fallback_to_gallery_dl
 import subprocess
+from urllib.parse import urlparse
 from PIL import Image
 import io
 from CONFIG.config import Config
@@ -755,6 +756,30 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 raise Exception(f"Download timeout exceeded ({Config.DOWNLOAD_TIMEOUT // 3600} hours)")
             current_time = time.time()
             
+            def build_progress_metadata(downloaded_bytes, total_bytes):
+                info_dict = d.get("info_dict") or {}
+                fmt = info_dict.get("requested_formats", [{}])[-1] if info_dict.get("requested_formats") else info_dict
+                filesize = (
+                    total_bytes
+                    or fmt.get("filesize")
+                    or fmt.get("filesize_approx")
+                    or info_dict.get("filesize")
+                    or info_dict.get("filesize_approx")
+                )
+                metadata_payload = {
+                    "downloaded_bytes": downloaded_bytes,
+                    "total_bytes": total_bytes,
+                    "filesize": filesize,
+                    "duration": info_dict.get("duration"),
+                    "bitrate": fmt.get("abr") or info_dict.get("abr"),
+                    "ext": fmt.get("ext") or info_dict.get("ext"),
+                    "speed": d.get("speed"),
+                    "eta": d.get("eta"),
+                    "domain": urlparse(url).netloc,
+                    "thumbnail": info_dict.get("thumbnail"),
+                }
+                return {k: v for k, v in metadata_payload.items() if v is not None}
+            
             # Calculate elapsed time and minutes passed
             elapsed = max(0, current_time - progress_start_time)
             minutes_passed = int(elapsed // 60)
@@ -782,6 +807,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         progress=percent,
                         url=url,
                         title=title,
+                        metadata=build_progress_metadata(downloaded, total),
                     )
                 except Exception as e:
                     logger.debug(f"Failed to update download progress: {e}")
@@ -798,12 +824,14 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 last_update = current_time
             elif d.get("status") == "finished":
                 # Обновляем прогресс до 100% при завершении
+                total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
                 try:
                     update_download_progress(
                         user_id=user_id,
                         progress=100.0,
                         url=url,
                         title=title,
+                        metadata=build_progress_metadata(total or 0, total or 0),
                     )
                 except Exception as e:
                     logger.debug(f"Failed to update download progress on finish: {e}")
@@ -816,12 +844,15 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 last_update = current_time
             elif d.get("status") == "error":
                 # Сбрасываем прогресс при ошибке
+                downloaded = d.get("downloaded_bytes", 0)
+                total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
                 try:
                     update_download_progress(
                         user_id=user_id,
                         progress=None,
                         url=url,
                         title=title,
+                        metadata=build_progress_metadata(downloaded, total),
                     )
                 except Exception as e:
                     logger.debug(f"Failed to update download progress on error: {e}")
