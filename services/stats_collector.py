@@ -837,25 +837,79 @@ class StatsCollector:
         return {"total": total, "items": items}
 
     def get_suspicious_users(self, period: str, limit: int = 20) -> List[Dict[str, Any]]:
-        downloads = self._filter_downloads(period)
+        """
+        Пользователи, которые практически непрерывно что‑то качают в указанный период.
+
+        Логика:
+        - Берём все загрузки в окне [window_start, now] (или весь дамп для "all").
+        - Для каждого пользователя считаем:
+            * internal gaps — интервалы между соседними загрузками (НЕ учитываем
+              паузы от начала окна до первой загрузки и от последней до "сейчас").
+            * active_span = last_ts - first_ts.
+            * coverage = active_span / window_span.
+        - В "подозрительные" попадают только те, у кого:
+            * достаточно много событий (MIN_EVENTS);
+            * coverage >= MIN_COVERAGE — т.е. пользователь был активен большую
+              часть периода, а не сделал 2 запроса и ушёл.
+        - В результате сортируем по максимальной внутренней паузе (чем меньше,
+          тем более "беспрерывный" пользователь).
+        """
+        # Определяем окно периода
+        delta_map = {
+            "today": timedelta(days=1),
+            "week": timedelta(days=7),
+            "month": timedelta(days=30),
+            "all": None,
+        }
+        window_delta = delta_map.get(period)
+        now = int(time.time())
+        if window_delta is None:
+            window_start = 0
+            window_end = None
+        else:
+            window_end = now
+            window_start = int((datetime.now(tz=timezone.utc) - window_delta).timestamp())
+
+        # Собираем таймстемпы по пользователям в пределах окна
         per_user: Dict[int, List[int]] = defaultdict(list)
-        for record in downloads:
+        for record in self._get_all_downloads():
+            if window_delta is not None and record.timestamp < window_start:
+                continue
             per_user[record.user_id].append(record.timestamp)
+
+        MIN_EVENTS = 10
+        MIN_COVERAGE = 0.5
+
         suspicious: List[Tuple[int, int, int, int]] = []
         for user_id, timestamps in per_user.items():
-            if len(timestamps) < 2:
+            if len(timestamps) < MIN_EVENTS:
                 continue
             timestamps.sort()
-            gaps = [
+            first_ts, last_ts = timestamps[0], timestamps[-1]
+            # внутренние паузы между соседними загрузками
+            internal_gaps = [
                 second - first
                 for first, second in zip(timestamps, timestamps[1:])
                 if second >= first
             ]
-            if not gaps:
+            if not internal_gaps:
                 continue
-            max_gap = max(gaps)
-            suspicious.append((user_id, max_gap, len(timestamps), timestamps[-1]))
-        suspicious.sort(key=lambda item: (item[1], -item[2], item[3] * -1))
+            max_internal_gap = max(internal_gaps)
+
+            # Покрытие окна активностью пользователя
+            effective_window_end = window_end or last_ts
+            window_span = max(effective_window_end - window_start, 1)
+            active_span = max(last_ts - first_ts, 0)
+            coverage = active_span / window_span
+            if coverage < MIN_COVERAGE:
+                # пользователь был активен только в небольшой части окна — не считаем подозрительным
+                continue
+
+            suspicious.append((user_id, max_internal_gap, len(timestamps), last_ts))
+
+        # Чем меньше максимальная пауза и чем больше загрузок, тем "подозрительнее"
+        suspicious.sort(key=lambda item: (item[1], -item[2], -item[3]))
+
         result: List[Dict[str, Any]] = []
         for user_id, max_gap, count, last_ts in suspicious[:limit]:
             profile = self._get_profile(user_id)
