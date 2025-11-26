@@ -187,14 +187,21 @@
         updateStatusText();
     }
 
-    async function fetchJSON(url) {
+    async function fetchJSON(url, options = {}) {
         setStatus("loading");
         try {
-            const response = await fetch(url);
+            const response = await fetch(url, options);
             if (!response.ok) {
-                throw new Error(await response.text());
+                const text = await response.text();
+                throw new Error(text || "Request failed");
             }
-            return await response.json();
+            const text = await response.text();
+            if (!text) return {};
+            try {
+                return JSON.parse(text);
+            } catch (err) {
+                throw new Error(`Invalid JSON response: ${text.substring(0, 120)}`);
+            }
         } finally {
             setStatus("online");
         }
@@ -738,8 +745,7 @@
     window.rotateIP = async function() {
         if (!confirm("Rotate IP address? This will restart WireGuard.")) return;
         try {
-            const response = await fetch("/api/rotate-ip", { method: "POST" });
-            const data = await response.json();
+            const data = await fetchJSON("/api/rotate-ip", { method: "POST" });
             alert(data.message || (data.status === "ok" ? "IP rotated successfully" : "Failed to rotate IP"));
             if (data.status === "ok") {
                 await loadSystemMetrics();
@@ -752,8 +758,7 @@
     window.restartService = async function() {
         if (!confirm("Restart tg-ytdlp-bot service?")) return;
         try {
-            const response = await fetch("/api/restart-service", { method: "POST" });
-            const data = await response.json();
+            const data = await fetchJSON("/api/restart-service", { method: "POST" });
             alert(data.message || (data.status === "ok" ? "Service restarted successfully" : "Failed to restart service"));
         } catch (e) {
             alert("Error: " + e.message);
@@ -763,8 +768,7 @@
     window.updateEngines = async function() {
         if (!confirm("Update engines? This may take several minutes.")) return;
         try {
-            const response = await fetch("/api/update-engines", { method: "POST" });
-            const data = await response.json();
+            const data = await fetchJSON("/api/update-engines", { method: "POST" });
             alert(data.message || (data.status === "ok" ? "Engines updated successfully" : "Failed to update engines"));
             if (data.status === "ok") {
                 await loadPackageVersions();
@@ -777,8 +781,7 @@
     window.cleanupUserFiles = async function() {
         if (!confirm("Delete all user files (except system files)? This cannot be undone.")) return;
         try {
-            const response = await fetch("/api/cleanup-user-files", { method: "POST" });
-            const data = await response.json();
+            const data = await fetchJSON("/api/cleanup-user-files", { method: "POST" });
             alert(data.message || (data.status === "ok" ? "Files cleaned up successfully" : "Failed to cleanup files"));
         } catch (e) {
             alert("Error: " + e.message);
@@ -787,9 +790,10 @@
 
     window.logout = async function() {
         try {
-            await fetch("/api/logout", { method: "POST" });
-            window.location.href = "/login";
+            await fetchJSON("/api/logout", { method: "POST" });
         } catch (e) {
+            // даже если произошла ошибка, переходим на страницу логина
+        } finally {
             window.location.href = "/login";
         }
     };
@@ -861,7 +865,7 @@
                 value = value.split(",").map(v => v.trim()).filter(v => v);
             }
             try {
-                await fetch("/api/update-config", {
+                await fetchJSON("/api/update-config", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ key, value }),
@@ -898,8 +902,7 @@
     window.updateLists = async function() {
         if (!confirm("Update lists? This may take several minutes.")) return;
         try {
-            const response = await fetch("/api/update-lists", { method: "POST" });
-            const data = await response.json();
+            const data = await fetchJSON("/api/update-lists", { method: "POST" });
             alert(data.message || (data.status === "ok" ? "Lists updated successfully" : "Failed to update lists"));
             if (data.status === "ok") {
                 await loadListsStats();

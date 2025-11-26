@@ -57,6 +57,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return RedirectResponse(url="/login", status_code=302)
         
         response = await call_next(request)
+        if request.url.path != "/api/logout":
+            response.set_cookie(
+                key="auth_token",
+                value=token,
+                httponly=True,
+                secure=False,
+                samesite="lax",
+                max_age=auth_service.session_ttl,
+            )
         return response
 
 
@@ -89,7 +98,7 @@ async def api_login(payload: LoginRequest, request: Request):
             httponly=True,
             secure=False,  # В production установить True для HTTPS
             samesite="lax",
-            max_age=24 * 3600,  # 24 часа
+            max_age=auth_service.session_ttl,
         )
         return response
     except ValueError as e:
@@ -111,7 +120,7 @@ async def api_logout(request: Request):
     if token:
         auth_service = get_auth_service()
         auth_service.logout(token)
-    response = RedirectResponse(url="/login", status_code=302)
+    response = Response(content='{"status":"ok"}', media_type="application/json")
     response.delete_cookie("auth_token")
     return response
 

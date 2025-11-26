@@ -4,7 +4,8 @@ import hashlib
 import secrets
 import time
 import logging
-from datetime import datetime, timedelta
+import json
+from pathlib import Path
 from typing import Dict, Optional
 from threading import Lock
 
@@ -21,7 +22,8 @@ class AuthService:
         self._failed_attempts: Dict[str, int] = {}  # ip -> count
         self._lockdown_until: Dict[str, float] = {}  # ip -> unlock_time
         self._lock = Lock()
-        self._session_ttl = 24 * 3600  # 24 часа
+        self._session_ttl = 15 * 60  # 15 минут неактивности
+        self._sessions_file = Path(__file__).resolve().parent.parent / "CONFIG" / ".dashboard_sessions.json"
         
         # Получаем логин/пароль из конфига (убираем пробелы)
         username = getattr(Config, "DASHBOARD_USERNAME", "admin")
@@ -29,6 +31,8 @@ class AuthService:
         self._username = str(username).strip() if username else "admin"
         self._password_hash = self._hash_password(str(password).strip() if password else "admin123")
         logger.info(f"[auth] Initialized with username='{self._username}' (length={len(self._username)})")
+        
+        self._load_sessions()
     
     def _hash_password(self, password: str) -> str:
         """Хеширует пароль."""
@@ -94,6 +98,7 @@ class AuthService:
             # Создаем сессию
             token = secrets.token_urlsafe(32)
             self._sessions[token] = time.time() + self._session_ttl
+        self._save_sessions()
             
             return token
     
@@ -101,15 +106,22 @@ class AuthService:
         """Проверяет валидность токена."""
         with self._lock:
             expiry = self._sessions.get(token, 0)
-            if expiry < time.time():
+            now = time.time()
+            if expiry < now:
                 self._sessions.pop(token, None)
+                self._save_sessions()
                 return False
+            # Продлеваем сессию при активности
+            self._sessions[token] = now + self._session_ttl
+            self._save_sessions()
             return True
     
     def logout(self, token: str) -> None:
         """Удаляет сессию."""
         with self._lock:
-            self._sessions.pop(token, None)
+            removed = self._sessions.pop(token, None)
+            if removed is not None:
+                self._save_sessions()
     
     def cleanup_expired_sessions(self) -> None:
         """Удаляет истекшие сессии."""
@@ -118,6 +130,8 @@ class AuthService:
             expired = [token for token, expiry in self._sessions.items() if expiry < now]
             for token in expired:
                 self._sessions.pop(token, None)
+            if expired:
+                self._save_sessions()
     
     def reload_config(self) -> None:
         """Перезагружает настройки из конфига."""
@@ -137,6 +151,32 @@ class AuthService:
         with self._lock:
             self._failed_attempts.pop(ip, None)
             self._lockdown_until.pop(ip, None)
+    
+    def _load_sessions(self) -> None:
+        try:
+            if not self._sessions_file.exists():
+                return
+            with open(self._sessions_file, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            now = time.time()
+            valid = {token: expiry for token, expiry in data.items() if expiry > now}
+            self._sessions.update(valid)
+            if len(valid) != len(data):
+                self._save_sessions()
+        except Exception as exc:
+            logger.warning(f"[auth] Failed to load dashboard sessions: {exc}")
+    
+    def _save_sessions(self) -> None:
+        try:
+            self._sessions_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._sessions_file, "w", encoding="utf-8") as fh:
+                json.dump(self._sessions, fh)
+        except Exception as exc:
+            logger.warning(f"[auth] Failed to persist dashboard sessions: {exc}")
+
+    @property
+    def session_ttl(self) -> int:
+        return self._session_ttl
 
 
 # Глобальный экземпляр

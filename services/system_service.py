@@ -8,6 +8,7 @@ import requests
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any
+from importlib import import_module, metadata
 
 from CONFIG.config import Config
 from DATABASE.cache_db import get_next_reload_time
@@ -136,58 +137,52 @@ def get_system_metrics() -> Dict[str, Any]:
         return {"error": str(e)}
 
 
+def _read_package_version(
+    package_name: str,
+    module_name: str | None = None,
+    cli_command: list[str] | None = None,
+) -> str:
+    """Пытается определить версию пакета несколькими способами."""
+    try:
+        return metadata.version(package_name)
+    except metadata.PackageNotFoundError:
+        pass
+    except Exception:
+        pass
+    
+    if module_name:
+        try:
+            module = import_module(module_name)
+            version = getattr(module, "__version__", None)
+            if version:
+                return str(version)
+        except Exception:
+            pass
+    
+    if cli_command:
+        try:
+            result = subprocess.run(
+                cli_command,
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if result.returncode == 0:
+                return result.stdout.strip().split()[0]
+        except Exception:
+            pass
+    
+    return "unknown"
+
+
 def get_package_versions() -> Dict[str, str]:
     """Возвращает версии установленных пакетов."""
-    versions = {}
-    packages = ["yt-dlp", "gallery-dl", "pyrotgfork"]
-    for pkg in packages:
-        try:
-            if pkg == "pyrotgfork":
-                # Пробуем через pip show
-                result = subprocess.run(
-                    ["pip", "show", pkg],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                    check=False,
-                )
-                if result.returncode == 0:
-                    match = re.search(r"Version:\s*(\S+)", result.stdout)
-                    versions[pkg] = match.group(1) if match else "unknown"
-                else:
-                    # Пробуем импортировать
-                    try:
-                        import pyrotgfork
-                        versions[pkg] = getattr(pyrotgfork, "__version__", "unknown")
-                    except Exception:
-                        versions[pkg] = "unknown"
-            else:
-                result = subprocess.run(
-                    [pkg, "--version"],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                    check=False,
-                )
-                if result.returncode == 0:
-                    versions[pkg] = result.stdout.strip().split()[0]
-                else:
-                    # Пробуем через pip show
-                    result = subprocess.run(
-                        ["pip", "show", pkg],
-                        capture_output=True,
-                        text=True,
-                        timeout=5,
-                        check=False,
-                    )
-                    if result.returncode == 0:
-                        match = re.search(r"Version:\s*(\S+)", result.stdout)
-                        versions[pkg] = match.group(1) if match else "unknown"
-                    else:
-                        versions[pkg] = "unknown"
-        except Exception:
-            versions[pkg] = "unknown"
-    return versions
+    return {
+        "yt-dlp": _read_package_version("yt-dlp", module_name="yt_dlp", cli_command=["yt-dlp", "--version"]),
+        "gallery-dl": _read_package_version("gallery-dl", module_name="gallery_dl", cli_command=["gallery-dl", "--version"]),
+        "pyrotgfork": _read_package_version("pyrotgfork", module_name="pyrotgfork"),
+    }
 
 
 def rotate_ip() -> Dict[str, Any]:
