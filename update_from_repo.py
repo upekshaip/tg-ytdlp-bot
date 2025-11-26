@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version 1.0.0
+# Version 1.0.1
 """
 Script to automatically update code from a GitHub repository.
 Clones the repository into a temporary folder and replaces required files.
@@ -17,8 +17,8 @@ from datetime import datetime
 # Configuration
 REPO_URL = "https://github.com/chelaxian/tg-ytdlp-bot.git"
 # Use explicit branch
-# BRANCH = "newdesign2"
-BRANCH = "main"
+BRANCH = "newdesign2"
+# BRANCH = "main"
 
 # Files and directories that MUST NOT be updated
 EXCLUDED_FILES = [
@@ -166,6 +166,25 @@ def find_python_files(source_dir):
     
     return sorted(files_to_update)
 
+
+def sync_include_directories(source_root: str) -> None:
+    """Полностью синхронизирует каталоги из INCLUDE_DIRS (жёсткое копирование)."""
+    for include_dir in INCLUDE_DIRS:
+        source_path = os.path.join(source_root, include_dir)
+        if not os.path.exists(source_path):
+            log(f"⚠️ Include directory missing in repo: {include_dir}", "WARNING")
+            continue
+        
+        target_path = Path(include_dir)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        if target_path.exists():
+            log(f"🧹 Removing existing directory: {include_dir}")
+            shutil.rmtree(target_path)
+        
+        log(f"📦 Syncing directory: {include_dir}")
+        shutil.copytree(source_path, target_path)
+
 def update_file_from_source(source_file, target_file):
     """Update a file from the source repository"""
     try:
@@ -280,6 +299,9 @@ def main():
         log(f"✅ Successfully updated: {updated_count}")
         log(f"❌ Errors: {failed_count}")
         log(f"📁 Total files: {len(files_to_update)}")
+
+        # Жёстко подтягиваем обязательные каталоги (например, web/)
+        sync_include_directories(temp_dir)
 
         # Move backups into _backup/
         move_backups_to_backup_dir()
