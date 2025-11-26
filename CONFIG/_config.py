@@ -217,4 +217,5 @@ class Config(object):
     DASHBOARD_PORT = 5555
     DASHBOARD_USERNAME = "admin"
     DASHBOARD_PASSWORD = "admin123"
+    ACTIVE_SESSIONS_FILE = "CONFIG/.active_sessions.json"
     #######################################################
