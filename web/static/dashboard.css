@@ -54,7 +54,7 @@ body.theme-light .page {
 .lang-switch button {
     border: none;
     background: transparent;
-    color: #cbd5f5;
+    color: #e5e7eb;
     font-weight: 600;
     cursor: pointer;
     padding: 0;
@@ -65,7 +65,64 @@ body.theme-light .page {
 }
 
 .lang-switch span {
-    color: rgba(148, 163, 184, 0.6);
+    color: rgba(148, 163, 184, 0.8);
+}
+
+body.theme-light {
+    background: #f3f4f6;
+    color: #0f172a;
+}
+
+body.theme-light .page {
+    color: #0f172a;
+}
+
+body.theme-light h1,
+body.theme-light h2,
+body.theme-light h3,
+body.theme-light h4,
+body.theme-light h5,
+body.theme-light h6 {
+    color: #0f172a;
+}
+
+body.theme-light .subtitle,
+body.theme-light .card p,
+body.theme-light .list-row__info .meta,
+body.theme-light .metric-label {
+    color: #4b5563;
+}
+
+body.theme-light .status-chip {
+    background: #e0f2fe;
+    color: #0f172a;
+}
+
+body.theme-light .tab-button {
+    background: #e5e7eb;
+    color: #0f172a;
+}
+
+body.theme-light .tab-button.active {
+    background: linear-gradient(135deg, #0ea5e9, #6366f1);
+    color: #0f172a;
+}
+
+body.theme-light .card {
+    background: #ffffff;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+body.theme-light .list-row {
+    color: #0f172a;
+}
+
+body.theme-light .metric-row {
+    border-bottom-color: rgba(148, 163, 184, 0.2);
+}
+
+body.theme-light .action-button {
+    color: #0f172a;
 }
 
 .subtitle {

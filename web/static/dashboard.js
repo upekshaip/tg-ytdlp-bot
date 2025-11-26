@@ -706,24 +706,6 @@
                 meta: () => buildActiveMeta(item),
                 extra: () => buildProgressDisplay(item),
                 onRowClick: () => showUserDetailsModal(item),
-                afterRender: (node) => {
-                    const actions = node.querySelector(".list-row__actions");
-                    if (!actions) return;
-                    const urlButton = document.createElement("button");
-                    urlButton.className = "chip-button";
-                    urlButton.textContent = item.url ? prettifyUrl(item.url) : t("misc.no_url");
-                    urlButton.title = item.url || "";
-                    if (!item.url) {
-                        urlButton.disabled = true;
-                    }
-                    urlButton.addEventListener("click", (event) => {
-                        event.stopPropagation();
-                        if (item.url) {
-                            showMediaDetailsModal(item);
-                        }
-                    });
-                    actions.insertBefore(urlButton, actions.firstChild);
-                },
             });
             parent.appendChild(row);
         });
@@ -1511,7 +1493,7 @@
         const topPeriod = selectors.topUsers?.value || "all";
         const countriesPeriod = selectors.countries?.value || "all";
         const domainsPeriod = selectors.domains?.value || "all";
-        const suspiciousPeriod = selectors.suspicious?.value || "all";
+        const suspiciousPeriod = selectors.suspicious?.value || "today";
         await Promise.all([
             loadActiveUsers(),
             loadTopUsers(topPeriod),

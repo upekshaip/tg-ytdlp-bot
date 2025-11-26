@@ -95,10 +95,10 @@
                         <p data-i18n="cards.suspicious.subtitle">Users with minimal breaks between downloads.</p>
                     </div>
                     <select id="suspicious-period" class="period-select">
-                        <option value="today" data-i18n="filters.today">Today</option>
+                        <option value="today" selected data-i18n="filters.today">Today</option>
                         <option value="week" data-i18n="filters.week">Week</option>
                         <option value="month" data-i18n="filters.month">Month</option>
-                        <option value="all" selected data-i18n="filters.all">All time</option>
+                        <option value="all" data-i18n="filters.all">All time</option>
                     </select>
                 </header>
                 <input type="text" class="search-input" data-search-target="suspicious-users-list" placeholder="Search...">
@@ -123,7 +123,7 @@
                         <option value="all" selected data-i18n="filters.all">All time</option>
                     </select>
                 </header>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; max-height: 260px; overflow-y: auto;">
                     <div>
                         <h4 style="margin: 0 0 0.75rem 0; color: #22d3ee;" data-i18n="demographics.countries">Top Countries</h4>
                         <div id="countries-list" class="list compact"></div>
@@ -134,7 +134,7 @@
                     </div>
                     <div>
                         <h4 style="margin: 0 0 0.75rem 0; color: #22d3ee;" data-i18n="demographics.age">Age</h4>
-                        <div id="age-stats" class="list compact"></div>
+                        <div id="age-stats" class="list compact" style="max-height: 200px; overflow-y: auto;"></div>
                     </div>
                 </div>
             </article>
