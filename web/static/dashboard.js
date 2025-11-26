@@ -738,8 +738,11 @@
             parent.appendChild(
                 createUserRow(item, {
                     meta: () =>
-                        `${formatUserMeta(item)} • ${t("labels.max_gap", { value: formatGapLabel(item.max_gap_seconds) })}`,
-                    extra: () => t("labels.downloads", { value: item.downloads ?? 0 }),
+                        `${formatUserMeta(item)} • ${replacePlaceholders(t("labels.max_gap"), { value: formatGapLabel(item.max_gap_seconds) })}`,
+                    extra: () =>
+                        replacePlaceholders(t("labels.downloads"), {
+                            value: item.downloads ?? 0,
+                        }),
                     onRowClick: () => showUserDetailsModal(item),
                 })
             );

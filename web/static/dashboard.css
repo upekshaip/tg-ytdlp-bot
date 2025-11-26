@@ -216,6 +216,12 @@ body.theme-light .list-row__info .meta {
     padding: 0.35rem 0.7rem;
 }
 
+body.theme-light .period-select {
+    background: #e2e8f0;
+    color: #0f172a;
+    border-color: rgba(15, 23, 42, 0.15);
+}
+
 .list {
     display: flex;
     flex-direction: column;
@@ -329,6 +335,12 @@ body.theme-light .badge {
     background: rgba(56, 189, 248, 0.2);
 }
 
+body.theme-light .chip-button {
+    background: rgba(59, 130, 246, 0.06);
+    color: #1d4ed8;
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
 .chip-button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -398,6 +410,12 @@ body.theme-light .chip-button {
 .search-input:focus {
     outline: none;
     border-color: #22d3ee;
+}
+
+body.theme-light .search-input {
+    background: #f8fafc;
+    border-color: rgba(15, 23, 42, 0.12);
+    color: #0f172a;
 }
 
 .metric-row {
