@@ -871,8 +871,12 @@ class StatsCollector:
             window_start = int((datetime.now(tz=timezone.utc) - window_delta).timestamp())
 
         # Собираем таймстемпы по пользователям в пределах окна
+        with self._lock:
+            blocked_user_ids = set(self._blocked_users.keys())
         per_user: Dict[int, List[int]] = defaultdict(list)
         for record in self._get_all_downloads():
+            if record.user_id in blocked_user_ids:
+                continue
             if window_delta is not None and record.timestamp < window_start:
                 continue
             per_user[record.user_id].append(record.timestamp)
@@ -933,11 +937,15 @@ class StatsCollector:
         downloads = self._filter_downloads(period)
         counter = self._aggregate_by_user(downloads)
         top = counter.most_common(limit * 2)
-        user_ids = [user_id for user_id, _ in top[:limit]]
+        # Filter out blocked users
+        with self._lock:
+            blocked_user_ids = set(self._blocked_users.keys())
+        filtered_top = [(user_id, count) for user_id, count in top if user_id not in blocked_user_ids]
+        user_ids = [user_id for user_id, _ in filtered_top[:limit]]
         # Массовая загрузка профилей
         fetched_profiles = self._profile_fetcher.batch_fetch_profiles(user_ids)
         result = []
-        for user_id, count in top[:limit]:
+        for user_id, count in filtered_top[:limit]:
             if user_id in fetched_profiles:
                 profile = fetched_profiles[user_id]
                 with self._lock:
@@ -954,11 +962,14 @@ class StatsCollector:
 
     def get_top_countries(self, period: str, limit: int = 10) -> List[Dict[str, Any]]:
         downloads = self._filter_downloads(period)
+        with self._lock:
+            blocked_user_ids = set(self._blocked_users.keys())
         counter: Counter = Counter()
         for record in downloads:
-            profile = self._get_profile(record.user_id)
-            country = profile.country_code or "UN"
-            counter[country] += 1
+            if record.user_id not in blocked_user_ids:
+                profile = self._get_profile(record.user_id)
+                country = profile.country_code or "UN"
+                counter[country] += 1
         result = []
         for country, count in counter.most_common(limit):
             flag = _flag_from_country(country if country != "UN" else None)
@@ -967,16 +978,21 @@ class StatsCollector:
 
     def get_gender_stats(self, period: str) -> List[Dict[str, Any]]:
         downloads = self._filter_downloads(period)
+        with self._lock:
+            blocked_user_ids = set(self._blocked_users.keys())
         counter: Counter = Counter()
         for record in downloads:
-            profile = self._get_profile(record.user_id)
-            counter[profile.gender or "unknown"] += 1
+            if record.user_id not in blocked_user_ids:
+                profile = self._get_profile(record.user_id)
+                counter[profile.gender or "unknown"] += 1
         return [{"gender": gender, "count": count} for gender, count in counter.most_common()]
 
     def get_age_stats(self, period: str) -> List[Dict[str, Any]]:
         """Статистика по «возрасту» аккаунта: дата первой зафиксированной активности."""
         downloads = self._filter_downloads(period)
-        user_ids = {rec.user_id for rec in downloads}
+        with self._lock:
+            blocked_user_ids = set(self._blocked_users.keys())
+        user_ids = {rec.user_id for rec in downloads if rec.user_id not in blocked_user_ids}
         counter: Counter = Counter()
         for user_id in user_ids:
             first_ts = self._first_seen.get(user_id)
@@ -1019,8 +1035,12 @@ class StatsCollector:
     def get_power_users(self, min_urls: int = 10, days: int = 7, limit: int = 10) -> List[Dict[str, Any]]:
         """Пользователи, которые N дней подряд отправляли >M ссылок."""
         downloads = self._get_all_downloads()
+        with self._lock:
+            blocked_user_ids = set(self._blocked_users.keys())
         per_user_per_day: Dict[int, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
         for record in downloads:
+            if record.user_id in blocked_user_ids:
+                continue
             day = datetime.fromtimestamp(record.timestamp, tz=timezone.utc).strftime("%Y-%m-%d")
             per_user_per_day[record.user_id][day] += 1
         qualified: List[Tuple[int, int]] = []
@@ -1042,6 +1062,84 @@ class StatsCollector:
             profile = self._get_profile(user_id)
             result.append({**profile.to_public_dict(), "streak": streak})
         return result
+
+    def get_user_history(self, user_id: int, period: str = "all", limit: int = 100) -> List[Dict[str, Any]]:
+        """Получить историю загрузок пользователя из dump.json (logs)"""
+        result = []
+        
+        # Получаем логи напрямую из dump.json
+        if not os.path.exists(self.dump_path):
+            return result
+        
+        try:
+            with open(self.dump_path, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+        except Exception as exc:
+            logger.error(f"[stats] unable to read dump {self.dump_path}: {exc}")
+            return result
+        
+        bot_root = (
+            data.get("bot", {})
+            .get(getattr(Config, "BOT_NAME_FOR_USERS", "tgytdlp_bot"), {})
+        )
+        
+        logs = bot_root.get("logs", {})
+        if not isinstance(logs, dict):
+            return result
+        
+        user_id_str = str(user_id)
+        user_logs = logs.get(user_id_str, {})
+        if not isinstance(user_logs, dict):
+            return result
+        
+        # Обрабатываем все логи пользователя
+        for ts_str, payload in user_logs.items():
+            try:
+                timestamp = int(ts_str)
+            except (ValueError, TypeError):
+                continue
+            
+            # Фильтр по периоду
+            if period != "all":
+                delta_map = {
+                    "today": timedelta(days=1),
+                    "week": timedelta(days=7),
+                    "month": timedelta(days=30),
+                }
+                if period in delta_map:
+                    window_start = int((datetime.now(tz=timezone.utc) - delta_map[period]).timestamp())
+                    if timestamp < window_start:
+                        continue
+            
+            # Извлекаем данные из payload
+            url = payload.get("urls", "") or payload.get("url", "")
+            title = payload.get("title", "") or payload.get("name", "")
+            domain = ""
+            if url:
+                try:
+                    from urllib.parse import urlparse
+                    parsed = urlparse(url)
+                    domain = parsed.netloc or ""
+                except Exception:
+                    pass
+            
+            is_nsfw = payload.get("is_nsfw", False) or payload.get("nsfw", False)
+            is_playlist = payload.get("is_playlist", False) or payload.get("playlist", False)
+            
+            result.append({
+                "timestamp": timestamp,
+                "url": url,
+                "title": title,
+                "domain": domain,
+                "is_nsfw": bool(is_nsfw),
+                "is_playlist": bool(is_playlist),
+            })
+        
+        # Сортировка по времени (новые сначала)
+        result.sort(key=lambda x: x["timestamp"], reverse=True)
+        
+        # Ограничение количества
+        return result[:limit]
 
     def get_blocked_users(self, limit: int = 50) -> List[Dict[str, Any]]:
         with self._lock:

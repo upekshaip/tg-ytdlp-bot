@@ -65,6 +65,28 @@ class LimitsConfig(object):
     YOUTUBE_COOKIE_RETRY_WINDOW = 3600  # 1 hour
     
     #######################################################
+    # Rate limiting configuration for URLs
+    #######################################################
+    # Maximum URLs per minute
+    RATE_LIMIT_PER_MINUTE = 5
+    # Maximum URLs per hour
+    RATE_LIMIT_PER_HOUR = 60
+    # Maximum URLs per day
+    RATE_LIMIT_PER_DAY = 1000
+    # Cooldown durations in seconds
+    RATE_LIMIT_COOLDOWN_MINUTE = 300  # 5 minutes
+    RATE_LIMIT_COOLDOWN_HOUR = 3600   # 1 hour
+    RATE_LIMIT_COOLDOWN_DAY = 86400   # 1 day
+    #######################################################
+    # Command spam protection
+    #######################################################
+    # Maximum commands per minute
+    COMMAND_LIMIT_PER_MINUTE = 20
+    # Initial cooldown for command spam (in seconds)
+    COMMAND_COOLDOWN_INITIAL = 60  # 1 minute
+    # Cooldown multiplier for repeated violations (exponential backoff)
+    COMMAND_COOLDOWN_MULTIPLIER = 2
+    #######################################################
     # Group multipliers (applied in groups/channels) - except quality
     GROUP_MULTIPLIER = 2
     #######################################################

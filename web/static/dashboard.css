@@ -68,6 +68,18 @@ body.theme-light .page {
     color: rgba(148, 163, 184, 0.8);
 }
 
+body.theme-light .lang-switch button {
+    color: #0f172a;
+}
+
+body.theme-light .lang-switch button.active {
+    color: #22d3ee;
+}
+
+body.theme-light .lang-switch span {
+    color: #64748b;
+}
+
 body.theme-light {
     background: #f3f4f6;
     color: #0f172a;
@@ -88,9 +100,8 @@ body.theme-light h6 {
 
 body.theme-light .subtitle,
 body.theme-light .card p,
-body.theme-light .list-row__info .meta,
 body.theme-light .metric-label {
-    color: #4b5563;
+    color: #0f172a;
 }
 
 body.theme-light .status-chip {
@@ -245,7 +256,20 @@ body.theme-light .card {
 body.theme-light .card p,
 body.theme-light .subtitle,
 body.theme-light .list-row__info .meta {
-    color: #475569;
+    color: #0f172a;
+}
+
+body.theme-light .card header,
+body.theme-light .card__header-row {
+    background: #f8fafc;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+    padding-bottom: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+body.theme-light .card header h3,
+body.theme-light .card header h4 {
+    color: #0f172a;
 }
 
 .card header h3 {
@@ -322,6 +346,10 @@ body.theme-light .list-row {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+body.theme-light .list-row__info .meta {
+    color: #475569;
 }
 
 .list-row__actions {
@@ -496,6 +524,26 @@ body.theme-light .search-input {
     color: #e2e8f0;
     font-weight: 600;
     font-size: 0.95rem;
+}
+
+body.theme-light .metric-label {
+    color: #0f172a;
+}
+
+body.theme-light .metric-value {
+    color: #0f172a;
+}
+
+body.theme-light .modal__dialog {
+    color: #0f172a;
+}
+
+body.theme-light .modal__dialog .search-input {
+    color: #0f172a;
+}
+
+body.theme-light .modal__dialog .period-select {
+    color: #0f172a;
 }
 
 .config-section {

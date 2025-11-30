@@ -213,6 +213,13 @@ class Config(object):
     # PO Token Provider configuration - these are defined above in the main config
     # No need to duplicate them here as they are already accessible
     #######################################################
+    # Rate limiting configuration - moved to CONFIG/limits.py
+    # Import from LimitsConfig for backward compatibility
+    from CONFIG.limits import LimitsConfig
+    RATE_LIMIT_PER_MINUTE = LimitsConfig.RATE_LIMIT_PER_MINUTE
+    RATE_LIMIT_PER_HOUR = LimitsConfig.RATE_LIMIT_PER_HOUR
+    RATE_LIMIT_PER_DAY = LimitsConfig.RATE_LIMIT_PER_DAY
+    #######################################################
     # Dashboard configuration
     DASHBOARD_PORT = 5555
     DASHBOARD_USERNAME = "admin"

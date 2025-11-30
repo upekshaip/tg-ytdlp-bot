@@ -8,8 +8,11 @@
             "tabs.users": "Users",
             "tabs.content": "Content",
             "tabs.moderation": "Moderation",
+            "tabs.history": "History",
             "tabs.system": "System",
             "tabs.lists": "Lists",
+            "history.title": "User History",
+            "history.subtitle": "View download history for any user.",
             "status.online": "ONLINE",
             "status.updating": "UPDATING…",
             "cards.active.title": "Active users",
@@ -112,8 +115,11 @@
             "tabs.users": "Пользователи",
             "tabs.content": "Контент",
             "tabs.moderation": "Модерация",
+            "tabs.history": "История",
             "tabs.system": "Система",
             "tabs.lists": "Списки",
+            "history.title": "История пользователя",
+            "history.subtitle": "Просмотр истории загрузок любого пользователя.",
             "status.online": "ОНЛАЙН",
             "status.updating": "ОБНОВЛЕНИЕ…",
             "cards.active.title": "Активные пользователи",
@@ -219,8 +225,11 @@
         "tabs.users": "उपयोगकर्ता",
         "tabs.content": "सामग्री",
         "tabs.moderation": "मॉडरेशन",
+        "tabs.history": "इतिहास",
         "tabs.system": "सिस्टम",
         "tabs.lists": "सूचियाँ",
+        "history.title": "उपयोगकर्ता इतिहास",
+        "history.subtitle": "किसी भी उपयोगकर्ता की डाउनलोड इतिहास देखें।",
         "status.online": "ऑनलाइन",
         "status.updating": "अपडेट हो रहा है…",
         "cards.active.title": "सक्रिय उपयोगकर्ता",
@@ -246,8 +255,11 @@
         "tabs.users": "المستخدمون",
         "tabs.content": "المحتوى",
         "tabs.moderation": "الإشراف",
+        "tabs.history": "السجل",
         "tabs.system": "النظام",
         "tabs.lists": "القوائم",
+        "history.title": "سجل المستخدم",
+        "history.subtitle": "عرض سجل التنزيلات لأي مستخدم.",
         "status.online": "متصل",
         "status.updating": "يتم التحديث…",
         "cards.active.title": "المستخدمون النشطون",
@@ -290,6 +302,7 @@
         blockedUsers: (limit = 200) => `/api/blocked-users?limit=${limit}`,
         channelEvents: (hours = 48, limit = 200) => `/api/channel-events?hours=${hours}&limit=${limit}`,
         suspiciousUsers: (period = "today", limit = 50) => `/api/suspicious-users?period=${period}&limit=${limit}`,
+        userHistory: (userId, period = "all", limit = 100) => `/api/user-history?user_id=${userId}&period=${period}&limit=${limit}`,
     };
 
     function t(key) {
@@ -496,6 +509,214 @@
         }
     }
 
+    let currentHistoryUserId = null;
+
+    async function loadHistoryUsers() {
+        // Получаем всех пользователей из топов для поиска
+        const [topUsers, suspiciousUsers] = await Promise.all([
+            fetchJSON(endpoints.topDownloaders("all", 500)),
+            fetchJSON(endpoints.suspiciousUsers("all", 500)),
+        ]);
+        
+        // Объединяем и убираем дубликаты
+        const userMap = new Map();
+        [...(topUsers || []), ...(suspiciousUsers || [])].forEach(user => {
+            if (user.user_id && !userMap.has(user.user_id)) {
+                userMap.set(user.user_id, user);
+            }
+        });
+        
+        const allUsers = Array.from(userMap.values());
+        const container = document.getElementById("history-users-list");
+        const searchInput = document.getElementById("history-search");
+        
+        const filterUsers = (query) => {
+            if (!query) {
+                return allUsers.slice(0, 50); // Показываем первые 50 без поиска
+            }
+            const lowerQuery = query.toLowerCase();
+            return allUsers.filter(user => 
+                String(user.user_id).includes(lowerQuery) ||
+                (user.name || "").toLowerCase().includes(lowerQuery) ||
+                (user.username || "").toLowerCase().includes(lowerQuery)
+            ).slice(0, 50);
+        };
+        
+        const renderUsers = (users) => {
+            container.innerHTML = "";
+            if (users.length === 0) {
+                container.innerHTML = `<div class="empty-state">${emptyStateText}</div>`;
+                return;
+            }
+            users.forEach(user => {
+                const row = createUserRow(user, {
+                    onRowClick: () => {
+                        currentHistoryUserId = user.user_id;
+                        loadUserHistory(user.user_id);
+                    }
+                });
+                if (row) {
+                    row.dataset.userId = user.user_id;
+                    container.appendChild(row);
+                }
+            });
+        };
+        
+        if (searchInput) {
+            searchInput.addEventListener("input", (e) => {
+                const filtered = filterUsers(e.target.value);
+                renderUsers(filtered);
+            });
+        }
+        
+        renderUsers(filterUsers(""));
+    }
+
+    async function loadUserHistory(userId) {
+        // Получаем имя пользователя
+        const userRow = Array.from(document.getElementById("history-users-list").children).find(
+            row => row.dataset.userId === String(userId)
+        );
+        const userName = userRow ? (userRow.querySelector(".title")?.textContent || `User ${userId}`) : `User ${userId}`;
+        
+        // Загружаем все данные (без ограничения по периоду для фильтрации на клиенте)
+        const allData = await fetchJSON(endpoints.userHistory(userId, "all", 1000));
+        
+        if (!allData || allData.length === 0) {
+            openModal(
+                `History: ${userName}`,
+                `<div class="empty-state">No downloads found for this user</div>`
+            );
+            return;
+        }
+        
+        // Создаем модальное окно с поиском и фильтрацией
+        let currentPeriod = "all";
+        let currentSearch = "";
+        let filteredData = [...allData];
+        
+        const renderHistory = () => {
+            // Фильтрация по периоду
+            let periodFiltered = filteredData;
+            if (currentPeriod !== "all") {
+                const now = Date.now();
+                const periodMap = {
+                    "today": 24 * 60 * 60 * 1000,
+                    "week": 7 * 24 * 60 * 60 * 1000,
+                    "month": 30 * 24 * 60 * 60 * 1000,
+                };
+                const threshold = now - periodMap[currentPeriod];
+                periodFiltered = filteredData.filter(item => item.timestamp * 1000 >= threshold);
+            }
+            
+            // Поиск по URL и названию
+            let searchFiltered = periodFiltered;
+            if (currentSearch) {
+                const searchLower = currentSearch.toLowerCase();
+                searchFiltered = periodFiltered.filter(item => 
+                    (item.url || "").toLowerCase().includes(searchLower) ||
+                    (item.title || "").toLowerCase().includes(searchLower) ||
+                    (item.domain || "").toLowerCase().includes(searchLower)
+                );
+            }
+            
+            // Сортировка по времени (новые сначала)
+            searchFiltered.sort((a, b) => b.timestamp - a.timestamp);
+            
+            const container = document.getElementById("history-modal-list");
+            if (!container) return;
+            
+            if (searchFiltered.length === 0) {
+                container.innerHTML = `<div class="empty-state">No downloads found matching your filters</div>`;
+                return;
+            }
+            
+            container.innerHTML = "";
+            searchFiltered.forEach(item => {
+                const row = document.createElement("div");
+                row.className = "list-row";
+                const date = new Date(item.timestamp * 1000).toLocaleString();
+                const badges = [];
+                if (item.is_nsfw) badges.push('<span class="badge" style="background: #ef4444; color: white;">NSFW</span>');
+                if (item.is_playlist) badges.push('<span class="badge" style="background: #3b82f6; color: white;">Playlist</span>');
+                
+                const title = item.title || item.url || "No title";
+                const url = item.url || "";
+                const domain = item.domain || "unknown domain";
+                
+                row.innerHTML = `
+                    <div class="list-row__info">
+                        <span class="flag">•</span>
+                        <div style="flex: 1; min-width: 0;">
+                            <span class="title" style="display: block; margin-bottom: 0.25rem;">${title}</span>
+                            <div class="meta">${date} • ${domain}</div>
+                            ${url ? `<div class="meta" style="font-size: 0.75rem; margin-top: 0.25rem; word-break: break-all;">${url}</div>` : ""}
+                        </div>
+                    </div>
+                    <div class="list-row__actions">
+                        ${badges.join("")}
+                    </div>
+                `;
+                container.appendChild(row);
+            });
+            
+            // Обновляем счетчик
+            const counter = document.getElementById("history-modal-count");
+            if (counter) {
+                counter.textContent = `Showing ${searchFiltered.length} of ${allData.length} items`;
+            }
+        };
+        
+        const modalHtml = `
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                    <input 
+                        type="text" 
+                        id="history-modal-search" 
+                        class="search-input" 
+                        placeholder="Search by URL, title, or domain..." 
+                        style="flex: 1; min-width: 200px;"
+                    >
+                    <select id="history-modal-period" class="period-select">
+                        <option value="all">All time</option>
+                        <option value="today">Today</option>
+                        <option value="week">Week</option>
+                        <option value="month">Month</option>
+                    </select>
+                </div>
+                <div id="history-modal-count" class="metric-label" style="font-size: 0.85rem;">
+                    Showing ${allData.length} of ${allData.length} items
+                </div>
+                <div id="history-modal-list" class="list" style="max-height: 60vh; overflow-y: auto;"></div>
+            </div>
+        `;
+        
+        openModal(`History: ${userName}`, modalHtml);
+        
+        // Настраиваем обработчики событий
+        setTimeout(() => {
+            const searchInput = document.getElementById("history-modal-search");
+            const periodSelect = document.getElementById("history-modal-period");
+            
+            if (searchInput) {
+                searchInput.addEventListener("input", (e) => {
+                    currentSearch = e.target.value;
+                    renderHistory();
+                });
+            }
+            
+            if (periodSelect) {
+                periodSelect.addEventListener("change", (e) => {
+                    currentPeriod = e.target.value;
+                    renderHistory();
+                });
+            }
+            
+            // Первоначальная отрисовка
+            renderHistory();
+        }, 100);
+    }
+
     function createUserRow(item, options = {}) {
         const template = document.getElementById("user-row-template");
         const node = template.content.firstElementChild.cloneNode(true);
@@ -640,7 +861,7 @@
         refreshModeration();
     }
 
-    function renderSimpleList(container, items, formatter, icon) {
+    function renderSimpleList(container, items, formatter, icon, showBadge = true) {
         if (!items || !items.length) {
             container.innerHTML = `<div class="empty-state">${emptyStateText}</div>`;
             container.__items = [];
@@ -651,6 +872,7 @@
         items.forEach((item) => {
             const row = document.createElement("div");
             row.className = "list-row";
+            const badgeHtml = showBadge ? `<div class="badge">${item.count ?? ""}</div>` : "";
             row.innerHTML = `
                 <div class="list-row__info">
                     <span class="flag">${icon || "•"}</span>
@@ -658,7 +880,7 @@
                         <span class="title">${formatter(item)}</span>
                     </div>
                 </div>
-                <div class="badge">${item.count ?? ""}</div>
+                ${badgeHtml}
             `;
             container.appendChild(row);
         });
@@ -764,11 +986,17 @@
             (item) => `${item.gender}: ${item.count}`,
             ""
         );
+        const ageContainer = document.getElementById("age-stats");
+        if (ageContainer) {
+            ageContainer.style.maxHeight = "400px";
+            ageContainer.style.overflowY = "auto";
+        }
         renderSimpleList(
-            document.getElementById("age-stats"),
+            ageContainer,
             age || [],
             (item) => `${item.age_group}: ${item.count}`,
-            ""
+            "",
+            false  // Don't show count badge (already in formatter)
         );
     }
 
@@ -819,6 +1047,40 @@
                 })
             );
         });
+    }
+
+    function setupPowerUsersFilters() {
+        const minUrlsInput = document.getElementById("power-users-min-urls");
+        const daysInput = document.getElementById("power-users-days");
+        const applyBtn = document.querySelector('[onclick="loadPowerUsers()"]');
+        
+        if (minUrlsInput && daysInput) {
+            // Auto-reload on input change with debounce
+            let timeout;
+            const reload = () => {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => {
+                    loadPowerUsers();
+                }, 500);
+            };
+            
+            minUrlsInput.addEventListener("input", reload);
+            daysInput.addEventListener("input", reload);
+            
+            // Also reload on Enter key
+            minUrlsInput.addEventListener("keypress", (e) => {
+                if (e.key === "Enter") {
+                    clearTimeout(timeout);
+                    loadPowerUsers();
+                }
+            });
+            daysInput.addEventListener("keypress", (e) => {
+                if (e.key === "Enter") {
+                    clearTimeout(timeout);
+                    loadPowerUsers();
+                }
+            });
+        }
     }
 
     async function loadBlockedUsers() {
@@ -1082,8 +1344,12 @@
                 <span class="metric-value">${data.network?.speed_recv_mbps || 0} Mbps</span>
             </div>
             <div class="metric-row">
-                <span class="metric-label">External IP:</span>
-                <span class="metric-value">${data.external_ip || "unknown"}</span>
+                <span class="metric-label">External IP (IPv4):</span>
+                <span class="metric-value">${data.external_ip?.ipv4 || data.external_ip || "unknown"}</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">External IP (IPv6):</span>
+                <span class="metric-value">${data.external_ip?.ipv6 || "unknown"}</span>
             </div>
             <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
                 <button class="action-button" onclick="rotateIP()" data-i18n="system.ip_rotate">Rotate IP</button>
@@ -1112,7 +1378,11 @@
         if (!confirm("Rotate IP address? This will restart WireGuard.")) return;
         try {
             const data = await fetchJSON("/api/rotate-ip", { method: "POST" });
-            alert(data.message || (data.status === "ok" ? "IP rotated successfully" : "Failed to rotate IP"));
+            let message = data.message || (data.status === "ok" ? "IP rotated successfully" : "Failed to rotate IP");
+            if (data.status === "ok" && data.ipv4 && data.ipv6) {
+                message += `\n\nNew IPv4: ${data.ipv4}\nNew IPv6: ${data.ipv6}`;
+            }
+            alert(message);
             if (data.status === "ok") {
                 await loadSystemMetrics();
             }
@@ -1213,6 +1483,9 @@
                 control.value = field.value ?? "";
             } else {
                 control.type = field.type === "password" ? "password" : "text";
+                if (field.placeholder) {
+                    control.placeholder = field.placeholder;
+                }
                 control.value = field.type === "list" && Array.isArray(field.value)
                     ? field.value.join(", ")
                     : field.value ?? "";
@@ -1233,6 +1506,12 @@
                             .split(",")
                             .map((v) => v.trim())
                             .filter((v) => v);
+                    } else if (field.type === "password") {
+                        // Для пароля - если пусто, не обновляем
+                        if (!newValue || !newValue.trim()) {
+                            alert("Password cannot be empty. Please enter a new password.");
+                            return;
+                        }
                     }
                     saveButton.disabled = true;
                     await fetchJSON("/api/update-config", {
@@ -1240,6 +1519,20 @@
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ key: field.key, value: newValue }),
                     });
+                    if (field.type === "password") {
+                        // Очищаем поле пароля после успешного сохранения
+                        control.value = "";
+                        alert("Password updated successfully. Please log in again with the new password.");
+                    } else if (field.key === "DASHBOARD_USERNAME") {
+                        alert("Username updated successfully. Please log in again with the new username.");
+                    } else {
+                        // Показываем успешное сохранение для других полей
+                        const originalText = saveButton.textContent;
+                        saveButton.textContent = "Saved!";
+                        setTimeout(() => {
+                            saveButton.textContent = originalText;
+                        }, 2000);
+                    }
                 } catch (err) {
                     alert(err.message || err);
                 } finally {
@@ -1352,6 +1645,12 @@
 
         appendSection("Subscription link", [
             { label: "Subscribe link", key: "SUBSCRIBE_CHANNEL_URL", value: data.subscribe_channel_url || "" },
+        ]);
+
+        const dashboard = data.dashboard || {};
+        appendSection("Dashboard authentication", [
+            { label: "Username", key: "DASHBOARD_USERNAME", value: dashboard.username || "" },
+            { label: "Password", key: "DASHBOARD_PASSWORD", value: "", type: "password", placeholder: "Enter new password" },
         ]);
 
         const channels = data.channels || {};
@@ -1519,6 +1818,17 @@
                 } else if (target === "lists") {
                     await Promise.all([loadListsStats(), loadDomainLists()]);
                     applyTranslations();
+                } else if (target === "history") {
+                    await loadHistoryUsers();
+                    const periodSelect = document.getElementById("history-period");
+                    if (periodSelect) {
+                        periodSelect.addEventListener("change", () => {
+                            if (currentHistoryUserId) {
+                                loadUserHistory(currentHistoryUserId);
+                            }
+                        });
+                    }
+                    applyTranslations();
                 }
             });
         });
@@ -1551,6 +1861,7 @@
         setupSearchFilters();
         setupTabHandlers();
         setupThemeToggle();
+        setupPowerUsersFilters();
         applyTranslations();
         await refreshData();
     }

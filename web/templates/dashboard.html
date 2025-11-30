@@ -40,6 +40,7 @@
         <button class="tab-button" data-tab-target="users" data-i18n="tabs.users">Users</button>
         <button class="tab-button" data-tab-target="content" data-i18n="tabs.content">Content</button>
         <button class="tab-button" data-tab-target="moderation" data-i18n="tabs.moderation">Moderation</button>
+        <button class="tab-button" data-tab-target="history" data-i18n="tabs.history">History</button>
         <button class="tab-button" data-tab-target="system" data-i18n="tabs.system">System</button>
         <button class="tab-button" data-tab-target="lists" data-i18n="tabs.lists">Lists</button>
     </nav>
@@ -133,8 +134,8 @@
                         <div id="gender-stats" class="list compact"></div>
                     </div>
                     <div>
-                        <h4 style="margin: 0 0 0.75rem 0; color: #22d3ee;" data-i18n="demographics.age">Age</h4>
-                        <div id="age-stats" class="list compact" style="max-height: 200px; overflow-y: auto;"></div>
+                        <h4 style="margin: 0 0 0.75rem 0; color: #22d3ee;" data-i18n="demographics.age">Registered</h4>
+                        <div id="age-stats" class="list compact" style="max-height: 400px; overflow-y: auto;"></div>
                     </div>
                 </div>
             </article>
@@ -164,12 +165,12 @@
                     <h3 data-i18n="cards.power.title">Power users</h3>
                     <p data-i18n="cards.power.subtitle">Users who send many URLs consistently.</p>
                 </header>
-                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center;">
-                    <label style="color: #94a3b8; font-size: 0.9rem;" data-i18n="power.min_urls">Min URLs per day:</label>
-                    <input type="number" id="power-users-min-urls" value="10" min="1" max="100" style="width: 80px; padding: 0.35rem; background: #0f172a; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; color: #e2e8f0;">
-                    <label style="color: #94a3b8; font-size: 0.9rem;" data-i18n="power.days">Days:</label>
-                    <input type="number" id="power-users-days" value="7" min="1" max="30" style="width: 80px; padding: 0.35rem; background: #0f172a; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; color: #e2e8f0;">
-                    <button class="action-button" onclick="loadPowerUsers()" style="padding: 0.35rem 0.75rem; font-size: 0.85rem;" data-i18n="power.apply">Apply</button>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; align-items: center; flex-wrap: nowrap;">
+                    <label style="color: #94a3b8; font-size: 0.9rem; white-space: nowrap;" data-i18n="power.min_urls">Min URLs per day:</label>
+                    <input type="number" id="power-users-min-urls" value="10" min="1" max="100" style="width: 80px; padding: 0.35rem; background: #0f172a; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; color: #e2e8f0; flex-shrink: 0;">
+                    <label style="color: #94a3b8; font-size: 0.9rem; white-space: nowrap;" data-i18n="power.days">Days:</label>
+                    <input type="number" id="power-users-days" value="7" min="1" max="30" style="width: 80px; padding: 0.35rem; background: #0f172a; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; color: #e2e8f0; flex-shrink: 0;">
+                    <button class="action-button" onclick="loadPowerUsers()" style="padding: 0.35rem 0.75rem; font-size: 0.85rem; flex-shrink: 0;" data-i18n="power.apply">Apply</button>
                 </div>
                 <div id="power-users-list" class="list" data-expand-limit="10"></div>
                 <button class="ghost" data-expand-button="power-users-list">Show all</button>
@@ -225,6 +226,33 @@
                     <p data-i18n="cards.channel.subtitle">Join and leave events in the log channel.</p>
                 </header>
                 <div id="channel-events-list" class="timeline"></div>
+            </article>
+        </div>
+    </section>
+
+    <section class="tab-panel" data-tab-panel="history">
+        <div class="grid">
+            <article class="card" style="grid-column: 1 / -1;">
+                <header class="card__header-row">
+                    <div>
+                        <h3 data-i18n="history.title">User History</h3>
+                        <p data-i18n="history.subtitle">View download history for any user.</p>
+                    </div>
+                    <select id="history-period" class="period-select">
+                        <option value="today" data-i18n="filters.today">Today</option>
+                        <option value="week" data-i18n="filters.week">Week</option>
+                        <option value="month" data-i18n="filters.month">Month</option>
+                        <option value="all" selected data-i18n="filters.all">All time</option>
+                    </select>
+                </header>
+                <div style="margin-bottom: 1rem;">
+                    <input type="text" id="history-search" class="search-input" placeholder="Search by User ID, Name, or Username..." style="width: 100%;">
+                </div>
+                <div id="history-users-list" class="list" data-expand-limit="20"></div>
+                <div id="history-details" style="display: none; margin-top: 1.5rem;">
+                    <h4 id="history-user-name" style="margin-bottom: 1rem;"></h4>
+                    <div id="history-downloads-list" class="list" style="max-height: 500px; overflow-y: auto;"></div>
+                </div>
             </article>
         </div>
     </section>

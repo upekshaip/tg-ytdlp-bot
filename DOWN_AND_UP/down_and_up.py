@@ -248,8 +248,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Form response
                 response = safe_get_messages(user_id).DIRECT_LINK_OBTAINED_MSG
                 response += safe_get_messages(user_id).TITLE_FIELD_MSG.format(title=title)
-                if duration and duration > 0:
-                    response += safe_get_messages(user_id).DURATION_FIELD_MSG.format(duration=duration)
+                try:
+                    duration_val = float(duration) if duration is not None else 0
+                    if duration_val > 0:
+                        response += safe_get_messages(user_id).DURATION_FIELD_MSG.format(duration=duration_val)
+                except (TypeError, ValueError):
+                    pass
                 response += safe_get_messages(user_id).FORMAT_FIELD_MSG.format(format_spec=format_spec)
                 
                 if video_url:
@@ -798,28 +802,41 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             allowed = True  # Allow download if we can't determine the size
         else:
             filesize = selected_format.get('filesize') or selected_format.get('filesize_approx')
-            if not filesize:
+            if filesize is None:
                 # fallback on rating
                 tbr = selected_format.get('tbr')
                 duration = selected_format.get('duration')
-                if tbr and duration:
-                    filesize = float(tbr) * float(duration) * 125
+                if tbr is not None and duration is not None:
+                    try:
+                        filesize = float(tbr) * float(duration) * 125
+                    except (TypeError, ValueError):
+                        filesize = None
                 else:
+                    filesize = None
+                
+                if filesize is None:
                     width = selected_format.get('width')
                     height = selected_format.get('height')
                     duration = selected_format.get('duration')
-                    if width and height and duration:
-                        filesize = int(width) * int(height) * float(duration) * 0.07
+                    if width is not None and height is not None and duration is not None:
+                        try:
+                            filesize = int(width) * int(height) * float(duration) * 0.07
+                        except (TypeError, ValueError):
+                            filesize = 0
                     else:
                         filesize = 0
 
             allowed = check_file_size_limit(selected_format, max_size_bytes=max_size_bytes, message=message)
         
         # Secure file size logging
-        if filesize and filesize > 0:
-            size_gb = filesize/(1024**3)
-            logger.info(f"[SIZE CHECK] safe_quality_key={safe_quality_key}, determined size={size_gb:.2f} GB, limit={max_size_gb} GB, allowed={allowed}")
-        else:
+        try:
+            filesize_val = float(filesize) if filesize is not None else 0
+            if filesize_val > 0:
+                size_gb = filesize_val/(1024**3)
+                logger.info(f"[SIZE CHECK] safe_quality_key={safe_quality_key}, determined size={size_gb:.2f} GB, limit={max_size_gb} GB, allowed={allowed}")
+            else:
+                logger.info(f"[SIZE CHECK] safe_quality_key={safe_quality_key}, size unknown, limit={max_size_gb} GB, allowed={allowed}")
+        except (TypeError, ValueError):
             logger.info(f"[SIZE CHECK] safe_quality_key={safe_quality_key}, size unknown, limit={max_size_gb} GB, allowed={allowed}")
 
         if not allowed:
@@ -1708,6 +1725,17 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     elif "Sign in to confirm" in error_message:
                         error_code = "SIGN_IN_REQUIRED"
                         error_description = "Sign in required - cookies needed"
+                        # Автоматический rotate IP при SIGN_IN_REQUIRED
+                        try:
+                            from services.system_service import rotate_ip
+                            logger.warning(f"Auto-rotating IP due to SIGN_IN_REQUIRED error for user {user_id}")
+                            rotate_result = rotate_ip()
+                            if rotate_result.get("status") == "ok":
+                                logger.info(f"IP rotated successfully: IPv4={rotate_result.get('ipv4')}, IPv6={rotate_result.get('ipv6')}")
+                            else:
+                                logger.error(f"Failed to auto-rotate IP: {rotate_result.get('message')}")
+                        except Exception as rotate_error:
+                            logger.error(f"Error during auto-rotate IP: {rotate_error}")
                     elif "No video formats found" in error_message:
                         error_code = "NO_FORMATS"
                         error_description = "No downloadable formats available"
@@ -1717,6 +1745,32 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     elif "Network error" in error_message:
                         error_code = "NETWORK_ERROR"
                         error_description = "Network connection failed"
+                    elif "ffmpeg exited with code" in error_message or "ERROR: ffmpeg" in error_message:
+                        error_code = "FFMPEG_ERROR"
+                        # Try to extract more details from error message
+                        if "code 1" in error_message:
+                            error_description = "FFmpeg processing failed - video format may be incompatible or corrupted"
+                        elif "code 2" in error_message:
+                            error_description = "FFmpeg error - invalid arguments or unsupported format"
+                        else:
+                            error_description = "FFmpeg processing error occurred"
+                        
+                        # Try to extract specific error details
+                        import re
+                        ffmpeg_details = re.search(r'ffmpeg.*?error[:\s]+(.*?)(?:\n|$)', error_message, re.IGNORECASE | re.DOTALL)
+                        if ffmpeg_details:
+                            details = ffmpeg_details.group(1).strip()[:200]
+                            if details:
+                                error_description += f"\n\nDetails: {details}"
+                        
+                        # Suggest solutions
+                        error_description += (
+                            "\n\n**Possible solutions:**\n"
+                            "• Try downloading with a different quality/format\n"
+                            "• The video may be corrupted or in an unsupported format\n"
+                            "• Try downloading without post-processing\n"
+                            "• Check if ffmpeg is properly installed"
+                        )
                     
                     send_error_to_user(
                         message,                   

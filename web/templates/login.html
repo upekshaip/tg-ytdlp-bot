@@ -97,9 +97,6 @@
                 </div>
                 <button type="submit" class="login-button" id="login-btn">Login</button>
                 <div class="error-message" id="error-msg"></div>
-                <div style="margin-top: 1rem; text-align: center;">
-                    <button type="button" class="login-button" id="reset-btn" style="background: rgba(148, 163, 184, 0.2); color: #94a3b8; font-size: 0.85rem; padding: 0.5rem;">Reset Lockdown</button>
-                </div>
             </form>
         </div>
     </div>
@@ -140,16 +137,6 @@
             } finally {
                 btn.disabled = false;
                 btn.textContent = "Login";
-            }
-        });
-        
-        document.getElementById("reset-btn").addEventListener("click", async () => {
-            try {
-                const response = await fetch("/api/reset-lockdown", { method: "POST" });
-                const data = await response.json();
-                alert(data.message || "Lockdown reset successfully");
-            } catch (err) {
-                alert("Failed to reset lockdown");
             }
         });
     </script>

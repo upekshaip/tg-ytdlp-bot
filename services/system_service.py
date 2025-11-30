@@ -5,6 +5,7 @@ import time
 import subprocess
 import re
 import requests
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any
@@ -12,6 +13,8 @@ from importlib import import_module, metadata
 
 from CONFIG.config import Config
 from DATABASE.cache_db import get_next_reload_time
+
+logger = logging.getLogger(__name__)
 
 # Кеш для скорости сети
 _network_speed_cache = {"last_check": 0, "last_sent": 0, "last_recv": 0, "speed_sent": 0, "speed_recv": 0}
@@ -55,25 +58,60 @@ def get_network_speed() -> Dict[str, Any]:
         return {"error": str(e)}
 
 
-def get_external_ip() -> str:
-    """Получает внешний IP адрес."""
+def get_external_ip() -> Dict[str, str]:
+    """Получает внешний IPv4 и IPv6 адреса."""
+    ipv4 = "unknown"
+    ipv6 = "unknown"
+    
     try:
-        # Пробуем несколько сервисов
-        services = [
+        # Получаем IPv4
+        ipv4_services = [
             "https://api.ipify.org",
             "https://ifconfig.me/ip",
             "https://icanhazip.com",
         ]
-        for service in services:
+        for service in ipv4_services:
             try:
                 response = requests.get(service, timeout=3)
                 if response.status_code == 200:
-                    return response.text.strip()
+                    ipv4 = response.text.strip()
+                    break
             except Exception:
                 continue
-        return "unknown"
+        
+        # Получаем IPv6 через curl -6 ifconfig.io
+        try:
+            result = subprocess.run(
+                ["curl", "-6", "ifconfig.io"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                ipv6 = result.stdout.strip()
+        except Exception:
+            pass
+        
+        # Если IPv6 не получен через curl, пробуем через requests с IPv6
+        if ipv6 == "unknown":
+            try:
+                # Попытка получить IPv6 через специальный сервис
+                response = requests.get("https://api64.ipify.org?format=json", timeout=3)
+                if response.status_code == 200:
+                    data = response.json()
+                    if "ip" in data:
+                        ipv6_candidate = data["ip"]
+                        # Проверяем, что это IPv6 (содержит :)
+                        if ":" in ipv6_candidate:
+                            ipv6 = ipv6_candidate
+            except Exception:
+                pass
+        
     except Exception:
-        return "unknown"
+        pass
+    
+    return {"ipv4": ipv4, "ipv6": ipv6}
 
 
 def get_system_metrics() -> Dict[str, Any]:
@@ -221,7 +259,7 @@ def get_package_versions() -> Dict[str, str]:
 
 
 def rotate_ip() -> Dict[str, Any]:
-    """Ротирует IP адрес через перезапуск WireGuard."""
+    """Ротирует IP адрес через перезапуск WireGuard и возвращает новые IP."""
     try:
         result = subprocess.run(
             ["sudo", "systemctl", "restart", "wg-quick@wgcf"],
@@ -231,7 +269,17 @@ def rotate_ip() -> Dict[str, Any]:
             check=False,
         )
         if result.returncode == 0:
-            return {"status": "ok", "message": "IP rotated successfully"}
+            # Ждем немного для применения нового IP
+            import time
+            time.sleep(2)
+            # Получаем новые IP адреса
+            new_ips = get_external_ip()
+            return {
+                "status": "ok",
+                "message": "IP rotated successfully",
+                "ipv4": new_ips.get("ipv4", "unknown"),
+                "ipv6": new_ips.get("ipv6", "unknown")
+            }
         else:
             return {"status": "error", "message": result.stderr or "Failed to rotate IP"}
     except Exception as e:
@@ -385,6 +433,10 @@ def get_config_settings() -> Dict[str, Any]:
         "admins": getattr(Config, "ADMIN", []),
         "miniapp_url": getattr(Config, "MINIAPP_URL", ""),
         "subscribe_channel_url": getattr(Config, "SUBSCRIBE_CHANNEL_URL", ""),
+        "dashboard": {
+            "username": getattr(Config, "DASHBOARD_USERNAME", "admin"),
+            "password": getattr(Config, "DASHBOARD_PASSWORD", ""),  # Не показываем пароль в API
+        },
     }
 
 
@@ -426,6 +478,8 @@ def update_config_setting(key: str, value: Any) -> bool:
             "LOGS_PAID_ID": r'^\s*LOGS_PAID_ID\s*=',
             "LOG_EXCEPTION": r'^\s*LOG_EXCEPTION\s*=',
             "SUBSCRIBE_CHANNEL": r'^\s*SUBSCRIBE_CHANNEL\s*=',
+            "DASHBOARD_USERNAME": r'^\s*DASHBOARD_USERNAME\s*=',
+            "DASHBOARD_PASSWORD": r'^\s*DASHBOARD_PASSWORD\s*=',
         }
         integer_keys = {
             "LOGS_ID",
@@ -435,6 +489,8 @@ def update_config_setting(key: str, value: Any) -> bool:
             "LOGS_PAID_ID",
             "LOG_EXCEPTION",
             "SUBSCRIBE_CHANNEL",
+            "PROXY_PORT",
+            "PROXY_2_PORT",
         }
         
         updated = False
@@ -443,13 +499,18 @@ def update_config_setting(key: str, value: Any) -> bool:
                 if key in integer_keys:
                     try:
                         coerced = int(value)
-                    except Exception:
-                        coerced = value
-                    lines[i] = f"    {key} = {coerced}\n"
+                        lines[i] = f"    {key} = {coerced}\n"
+                    except (ValueError, TypeError):
+                        # Если не удалось преобразовать в int, сохраняем как строку
+                        lines[i] = f"    {key} = \"{value}\"\n"
                 elif isinstance(value, (int, float)) and key not in integer_keys:
                     lines[i] = f"    {key} = {value}\n"
+                elif isinstance(value, bool):
+                    lines[i] = f"    {key} = {str(value)}\n"
                 else:
-                    lines[i] = f"    {key} = \"{value}\"\n"
+                    # Экранируем кавычки в строке
+                    escaped_value = str(value).replace('"', '\\"')
+                    lines[i] = f"    {key} = \"{escaped_value}\"\n"
                 updated = True
                 break
             elif key == "ADMIN" and re.match(r'^\s*ADMIN\s*=', line):
@@ -468,6 +529,13 @@ def update_config_setting(key: str, value: Any) -> bool:
                 lines[i] = f"    {key} = \"{value}\"\n"
                 updated = True
                 break
+            elif key == "DASHBOARD_PASSWORD" and re.match(r'^\s*DASHBOARD_PASSWORD\s*=', line):
+                # Для пароля обновляем только если передано непустое значение
+                if value and str(value).strip():
+                    escaped_value = str(value).replace('"', '\\"')
+                    lines[i] = f"    DASHBOARD_PASSWORD = \"{escaped_value}\"\n"
+                    updated = True
+                break
         
         if not updated and key.startswith("YOUTUBE_COOKIE_URL"):
             insert_at = next(
@@ -475,6 +543,17 @@ def update_config_setting(key: str, value: Any) -> bool:
                 len(lines),
             )
             lines.insert(insert_at, f"    {key} = \"{value}\"\n")
+            updated = True
+        elif not updated and key == "DASHBOARD_PASSWORD":
+            # Ищем место после DASHBOARD_USERNAME
+            insert_at = next(
+                (idx for idx, line in enumerate(lines) if "DASHBOARD_USERNAME" in line),
+                len(lines),
+            )
+            if insert_at < len(lines):
+                lines.insert(insert_at + 1, f"    DASHBOARD_PASSWORD = \"{value}\"\n")
+            else:
+                lines.append(f"    DASHBOARD_PASSWORD = \"{value}\"\n")
             updated = True
         elif not updated and key in patterns:
             if key in integer_keys:
@@ -490,6 +569,16 @@ def update_config_setting(key: str, value: Any) -> bool:
         if updated:
             with open(config_path, "w", encoding="utf-8") as f:
                 f.writelines(lines)
+            
+            # Если обновили логин или пароль дашборда, перезагружаем конфиг в auth_service
+            if key in ("DASHBOARD_USERNAME", "DASHBOARD_PASSWORD"):
+                try:
+                    from services.auth_service import get_auth_service
+                    auth_service = get_auth_service()
+                    auth_service.reload_config()
+                except Exception as auth_error:
+                    logger.warning(f"Failed to reload auth config: {auth_error}")
+            
             return True
         return False
     except Exception as e:

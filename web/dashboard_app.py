@@ -213,6 +213,15 @@ async def api_suspicious_users(
     return stats_service.fetch_suspicious_users(period=period, limit=limit)
 
 
+@app.get("/api/user-history")
+async def api_user_history(
+    user_id: int = Query(..., gt=0),
+    period: str = Query(default="all", regex="^(today|week|month|all)$"),
+    limit: int = Query(default=100, le=1000),
+):
+    return stats_service.fetch_user_history(user_id, period, limit)
+
+
 class BlockRequest(BaseModel):
     user_id: int = Field(..., gt=0)
     reason: str | None = Field(default=None, max_length=120)

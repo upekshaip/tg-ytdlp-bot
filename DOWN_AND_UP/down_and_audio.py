@@ -1269,6 +1269,17 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     elif "Sign in to confirm" in error_text:
                         error_code = "SIGN_IN_REQUIRED"
                         error_description = "Sign in required - cookies needed"
+                        # Автоматический rotate IP при SIGN_IN_REQUIRED
+                        try:
+                            from services.system_service import rotate_ip
+                            logger.warning(f"Auto-rotating IP due to SIGN_IN_REQUIRED error for user {user_id}")
+                            rotate_result = rotate_ip()
+                            if rotate_result.get("status") == "ok":
+                                logger.info(f"IP rotated successfully: IPv4={rotate_result.get('ipv4')}, IPv6={rotate_result.get('ipv6')}")
+                            else:
+                                logger.error(f"Failed to auto-rotate IP: {rotate_result.get('message')}")
+                        except Exception as rotate_error:
+                            logger.error(f"Error during auto-rotate IP: {rotate_error}")
                     elif "No video formats found" in error_text:
                         error_code = "NO_FORMATS"
                         error_description = "No downloadable formats available"
@@ -1278,6 +1289,32 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     elif "Network error" in error_text:
                         error_code = "NETWORK_ERROR"
                         error_description = "Network connection failed"
+                    elif "ffmpeg exited with code" in error_text or "ERROR: ffmpeg" in error_text:
+                        error_code = "FFMPEG_ERROR"
+                        # Try to extract more details from error message
+                        if "code 1" in error_text:
+                            error_description = "FFmpeg processing failed - audio format may be incompatible or corrupted"
+                        elif "code 2" in error_text:
+                            error_description = "FFmpeg error - invalid arguments or unsupported format"
+                        else:
+                            error_description = "FFmpeg processing error occurred"
+                        
+                        # Try to extract specific error details
+                        import re
+                        ffmpeg_details = re.search(r'ffmpeg.*?error[:\s]+(.*?)(?:\n|$)', error_text, re.IGNORECASE | re.DOTALL)
+                        if ffmpeg_details:
+                            details = ffmpeg_details.group(1).strip()[:200]
+                            if details:
+                                error_description += f"\n\nDetails: {details}"
+                        
+                        # Suggest solutions
+                        error_description += (
+                            "\n\n**Possible solutions:**\n"
+                            "• Try downloading with a different quality/format\n"
+                            "• The audio may be corrupted or in an unsupported format\n"
+                            "• Try downloading without post-processing\n"
+                            "• Check if ffmpeg is properly installed"
+                        )
                     
                     send_error_to_user(
                         message,
