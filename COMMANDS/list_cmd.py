@@ -226,6 +226,7 @@ safe_get_messages(user_id).LIST_PROCESSING_MSG,
 
 @app.on_callback_query(filters.regex("^list_help\\|"))
 def list_help_callback(app, callback_query):
+    user_id = callback_query.from_user.id
     messages = safe_get_messages(None)
     """Handle list help callback"""
     try:

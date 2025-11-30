@@ -4065,6 +4065,7 @@ def image_command(app, message):
 
 @app.on_callback_query(filters.regex(r"^img_help\|"))
 def img_help_callback(app, callback_query: CallbackQuery):
+    user_id = callback_query.from_user.id
     messages = safe_get_messages(None)
     """Handle img help callback"""
     data = callback_query.data.split("|")[-1]

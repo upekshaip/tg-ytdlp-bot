@@ -45,6 +45,9 @@ class Config(object):
     # Для генерации session string запустите: python generate_session_string.py
     CHANNEL_GUARD_SESSION_STRING = ""
     #######################################################
+    ###########################################################
+    # FOR DOCKER DEPLOYMENT YOU CAN STOP FILL IN HERE
+    ###########################################################
     # Firebase initialization
     USE_FIREBASE = False
     # your firebase DB path
@@ -213,6 +216,7 @@ class Config(object):
     # PO Token Provider configuration - these are defined above in the main config
     # No need to duplicate them here as they are already accessible
     #######################################################
+
     # Rate limiting configuration - moved to CONFIG/limits.py
     # Import from LimitsConfig for backward compatibility
     from CONFIG.limits import LimitsConfig

@@ -526,7 +526,8 @@ def format_container_callback(app, callback_query):
 # Callback processor to close the message
 @app.on_callback_query(filters.regex(r"^format_custom\|"))
 def format_custom_callback(app, callback_query):
-    messages = safe_get_messages(callback_query.from_user.id)
+    user_id = callback_query.from_user.id
+    messages = safe_get_messages(user_id)
     data = callback_query.data.split("|")[1]
     if data == "close":
         try:

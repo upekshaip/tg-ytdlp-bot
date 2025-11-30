@@ -16,7 +16,7 @@ except ImportError:
     import sys
     import os
     sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'CONFIG', 'LANGUAGES'))
-    from language_router import language_router, get_messages, set_user_language
+    from language_router import language_router, get_messages, set_user_language # type: ignore
 
 def lang_command_handler(update, context):
     """
