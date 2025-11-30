@@ -122,4 +122,7 @@ TXT/porn_keywords.txt
 TXT/porn_keywords.txt.removal_report.txt
 TXT/porn_keywords.txt.backup
 
+!requirements.txt
+CONFIG/.dashboard_sessions.json
+CONFIG/.active_sessions.json
 env

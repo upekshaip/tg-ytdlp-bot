@@ -18,6 +18,7 @@ from HELPERS.safe_messeger import safe_delete_messages, safe_edit_message_text, 
 from HELPERS.filesystem_hlp import sanitize_filename, sanitize_filename_strict, create_directory, check_disk_space, cleanup_user_temp_files
 from DATABASE.firebase_init import write_logs
 from URL_PARSERS.tags import generate_final_tags
+from services.stats_events import update_download_progress
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.filter_check import is_no_filter_domain
 from URL_PARSERS.filter_utils import create_smart_match_filter, create_legacy_match_filter
@@ -27,6 +28,7 @@ from HELPERS.pot_helper import add_pot_to_ytdl_opts
 from CONFIG.limits import LimitsConfig
 from HELPERS.fallback_helper import should_fallback_to_gallery_dl
 import subprocess
+from urllib.parse import urlparse
 from PIL import Image
 import io
 from CONFIG.config import Config
@@ -754,6 +756,30 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 raise Exception(f"Download timeout exceeded ({Config.DOWNLOAD_TIMEOUT // 3600} hours)")
             current_time = time.time()
             
+            def build_progress_metadata(downloaded_bytes, total_bytes):
+                info_dict = d.get("info_dict") or {}
+                fmt = info_dict.get("requested_formats", [{}])[-1] if info_dict.get("requested_formats") else info_dict
+                filesize = (
+                    total_bytes
+                    or fmt.get("filesize")
+                    or fmt.get("filesize_approx")
+                    or info_dict.get("filesize")
+                    or info_dict.get("filesize_approx")
+                )
+                metadata_payload = {
+                    "downloaded_bytes": downloaded_bytes,
+                    "total_bytes": total_bytes,
+                    "filesize": filesize,
+                    "duration": info_dict.get("duration"),
+                    "bitrate": fmt.get("abr") or info_dict.get("abr"),
+                    "ext": fmt.get("ext") or info_dict.get("ext"),
+                    "speed": d.get("speed"),
+                    "eta": d.get("eta"),
+                    "domain": urlparse(url).netloc,
+                    "thumbnail": info_dict.get("thumbnail"),
+                }
+                return {k: v for k, v in metadata_payload.items() if v is not None}
+            
             # Calculate elapsed time and minutes passed
             elapsed = max(0, current_time - progress_start_time)
             minutes_passed = int(elapsed // 60)
@@ -774,6 +800,18 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 blocks = int(percent // 10)
                 bar = "🟩" * blocks + "⬜️" * (10 - blocks)
                 
+                # Обновляем прогресс в статистике
+                try:
+                    update_download_progress(
+                        user_id=user_id,
+                        progress=percent,
+                        url=url,
+                        title=title,
+                        metadata=build_progress_metadata(downloaded, total),
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to update download progress: {e}")
+                
                 # For HLS audio, update progress data for cycle animation
                 if hasattr(progress_hook, 'progress_data') and progress_hook.progress_data:
                     progress_hook.progress_data['downloaded_bytes'] = downloaded
@@ -785,6 +823,18 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "finished":
+                # Обновляем прогресс до 100% при завершении
+                total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
+                try:
+                    update_download_progress(
+                        user_id=user_id,
+                        progress=100.0,
+                        url=url,
+                        title=title,
+                        metadata=build_progress_metadata(total or 0, total or 0),
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to update download progress on finish: {e}")
                 try:
                     full_bar = "🟩" * 10
                     safe_edit_message_text(user_id, proc_msg_id,
@@ -793,6 +843,19 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "error":
+                # Сбрасываем прогресс при ошибке
+                downloaded = d.get("downloaded_bytes", 0)
+                total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
+                try:
+                    update_download_progress(
+                        user_id=user_id,
+                        progress=None,
+                        url=url,
+                        title=title,
+                        metadata=build_progress_metadata(downloaded, total),
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to update download progress on error: {e}")
                 try:
                     safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).AUDIO_DOWNLOAD_ERROR_MSG)
                 except Exception as e:
@@ -1206,6 +1269,17 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     elif "Sign in to confirm" in error_text:
                         error_code = "SIGN_IN_REQUIRED"
                         error_description = "Sign in required - cookies needed"
+                        # Автоматический rotate IP при SIGN_IN_REQUIRED
+                        try:
+                            from services.system_service import rotate_ip
+                            logger.warning(f"Auto-rotating IP due to SIGN_IN_REQUIRED error for user {user_id}")
+                            rotate_result = rotate_ip()
+                            if rotate_result.get("status") == "ok":
+                                logger.info(f"IP rotated successfully: IPv4={rotate_result.get('ipv4')}, IPv6={rotate_result.get('ipv6')}")
+                            else:
+                                logger.error(f"Failed to auto-rotate IP: {rotate_result.get('message')}")
+                        except Exception as rotate_error:
+                            logger.error(f"Error during auto-rotate IP: {rotate_error}")
                     elif "No video formats found" in error_text:
                         error_code = "NO_FORMATS"
                         error_description = "No downloadable formats available"
@@ -1215,6 +1289,32 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     elif "Network error" in error_text:
                         error_code = "NETWORK_ERROR"
                         error_description = "Network connection failed"
+                    elif "ffmpeg exited with code" in error_text or "ERROR: ffmpeg" in error_text:
+                        error_code = "FFMPEG_ERROR"
+                        # Try to extract more details from error message
+                        if "code 1" in error_text:
+                            error_description = "FFmpeg processing failed - audio format may be incompatible or corrupted"
+                        elif "code 2" in error_text:
+                            error_description = "FFmpeg error - invalid arguments or unsupported format"
+                        else:
+                            error_description = "FFmpeg processing error occurred"
+                        
+                        # Try to extract specific error details
+                        import re
+                        ffmpeg_details = re.search(r'ffmpeg.*?error[:\s]+(.*?)(?:\n|$)', error_text, re.IGNORECASE | re.DOTALL)
+                        if ffmpeg_details:
+                            details = ffmpeg_details.group(1).strip()[:200]
+                            if details:
+                                error_description += f"\n\nDetails: {details}"
+                        
+                        # Suggest solutions
+                        error_description += (
+                            "\n\n**Possible solutions:**\n"
+                            "• Try downloading with a different quality/format\n"
+                            "• The audio may be corrupted or in an unsupported format\n"
+                            "• Try downloading without post-processing\n"
+                            "• Check if ffmpeg is properly installed"
+                        )
                     
                     send_error_to_user(
                         message,

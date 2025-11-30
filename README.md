@@ -194,6 +194,39 @@ docker compose up -d --build
 The bot container will be built from the included `Dockerfile`, and:
 - `configuration-webserver` will serve cookie files at `http://configuration-webserver/cookies/<filename>`
 - `bgutil-provider` will be available at `http://bgutil-provider:4416` for YouTube PO tokens
+- **Dashboard panel** will be available at `http://localhost:5555` (or `http://<your-server-ip>:5555`)
+
+**Step 4 – Access the Dashboard Panel:**
+
+After starting the containers, the web dashboard panel will automatically start on port **5555** (configurable via `DASHBOARD_PORT` in `CONFIG/config.py`). You can access it at:
+- `http://localhost:5555` (if accessing from the same machine)
+- `http://<your-server-ip>:5555` (if accessing remotely)
+
+**Note:** If you change `DASHBOARD_PORT` in the config, make sure to update the port mapping in `docker-compose.yml` accordingly.
+
+**Default credentials:**
+- **Username:** `admin` (defined in `CONFIG/config.py` as `DASHBOARD_USERNAME`)
+- **Password:** `admin123` (defined in `CONFIG/config.py` as `DASHBOARD_PASSWORD`)
+
+**⚠️ Important:** Change the default password immediately after first login!
+
+**How to change the password:**
+
+1. Log in to the dashboard at `http://<your-server-ip>:5555`
+2. Go to the **System** tab
+3. Find the **Configuration** section
+4. Locate the **Password** field (under "Dashboard authentication")
+5. Enter your new password and click **Save**
+
+The password will be automatically updated in `CONFIG/config.py` and will take effect immediately (no restart required).
+
+**Dashboard features:**
+- Real-time active users monitoring
+- Top downloaders, domains, countries statistics
+- NSFW content tracking
+- System metrics and configuration management
+- User blocking/unblocking functionality
+- And much more...
 
 P.S. do not forget to add your bot to your channels with admin rights
 ---
@@ -1638,6 +1671,41 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **yt-dlp**: [yt-dlp](https://github.com/yt-dlp/yt-dlp) for video extraction
 - **gallery-dl**: [gallery-dl](https://github.com/mikf/gallery-dl) for image extraction
 - **PyroTGFork**: [PyroTGFork](https://telegramplayground.github.io/pyrogram/) for Telegram API
+
+---
+
+## 📈 Техническая панель статистики (порт 5555)
+
+Мы добавили отдельный FastAPI-сервис с многовкладочным UI и REST API, который отображает ключевые показатели бота в реальном времени без лишних обращений к Firebase.
+
+### Как запустить
+
+```bash
+pip install -r requirements.txt           # убедитесь, что fastapi/uvicorn подтянулись
+./venv/bin/python -m uvicorn web.dashboard_app:app --host 0.0.0.0 --port 5555 --reload
+```
+
+После запуска откройте `http://<ваш-хост>:5555`. Панель не стартует автоматически вместе с ботом, поэтому при необходимости заверните команду в отдельный systemd-юнит или docker-сервис.
+
+### Что показываем
+
+- Активные пользователи «прямо сейчас» (по таймауту `Config.STATS_ACTIVE_TIMEOUT`), их ссылки и быстрый бан по кнопке ❌.
+- Топ-скачивания за день/неделю/месяц/всё время, топ стран, пола и возрастных групп (эвристики по данным Telegram).
+- Популярные домены, NSFW-источники, любители плейлистов и NSFW контента.
+- «Постоянные» пользователи, которые 7 дней подряд шлют ≥10 URL.
+- Канальный лог (join/leave) за последние 48 часов, список забаненных с кнопкой ✅ для разбана.
+
+На каждой вкладке для длинных списков выводится топ-10 с кнопкой «Показать все».
+
+### Откуда берутся данные
+
+- Базовый срез читается из локального `dump.json`, который уже обновляется скриптом `DATABASE/download_firebase.py`.
+- Хуки в `DATABASE/firebase_init.py` и `HELPERS/logger.py`, а также прокси `StatsAwareDBAdapter` перехватывают все записи в БД и пополняют in-memory кеш без повторных REST-запросов.
+- Информация о пользователях дополняется через Telegram Bot API (метод `getChat`) с локальным кешем, плюс мгновенные данные берутся из объектов `message`.
+
+### REST API
+
+UI использует обычные JSON-эндпоинты (`/api/active-users`, `/api/top-downloaders`, `/api/block-user`, `/api/channel-events`, и т.д.), поэтому вы можете встроить ту же статистику в внешние мониторинги, алерты или боты без рендеринга HTML.
 
 ---
 

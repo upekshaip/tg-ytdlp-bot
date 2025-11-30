@@ -8,7 +8,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyPara
 
 from HELPERS.app_instance import get_app
 
-from HELPERS.decorators import reply_with_keyboard
+from HELPERS.decorators import reply_with_keyboard, background_handler
 from HELPERS.limitter import is_user_in_channel
 from HELPERS.logger import send_to_logger, logger, send_to_user, send_to_all
 from HELPERS.filesystem_hlp import create_directory
@@ -374,6 +374,7 @@ def get_unchecked_cookie_sources(user_id: int, cookie_urls: list) -> list:
 
 @app.on_message(filters.command("cookies_from_browser") & filters.private)
 # @reply_with_keyboard
+@background_handler(label="cookies_from_browser")
 def cookies_from_browser(app, message):
     """
     Позволяет пользователю выбрать браузер для извлечения куки.
@@ -595,6 +596,7 @@ def browser_choice_callback(app, callback_query):
 # Принимаем cookie.txt не только в личке, но и в группах/топиках
 @app.on_message(filters.document)
 @reply_with_keyboard
+@background_handler(label="cookie_document")
 def save_my_cookie(app, message):
     """
     Сохраняет куки, загруженные пользователем как документ.

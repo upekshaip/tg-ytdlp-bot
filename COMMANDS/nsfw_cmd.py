@@ -10,6 +10,7 @@ from HELPERS.filesystem_hlp import create_directory
 from HELPERS.logger import send_to_logger, logger
 from CONFIG.logger_msg import LoggerMsg
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
+from HELPERS.decorators import background_handler
 from HELPERS.limitter import is_user_in_channel
 
 # Get app instance for decorators
@@ -17,6 +18,7 @@ app = get_app()
 
 # Like mediainfo: handle private here; groups are registered/wrapped in magic.py
 @app.on_message(filters.command("nsfw"))
+@background_handler(label="nsfw_command")
 def nsfw_command(app, message):
     messages = safe_get_messages(message.chat.id)
     chat_id = message.chat.id

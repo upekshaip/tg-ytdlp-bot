@@ -104,17 +104,27 @@ def download_firebase_dump():
         response = session.get(url, timeout=300)
         response.raise_for_status()
 
-        # Saving to file
+        # Saving to file without loading entire dump into memory
         with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-            json.dump(response.json(), f, ensure_ascii=False, indent=2)
+            for chunk in response.iter_content(chunk_size=1024 * 512, decode_unicode=True):
+                if chunk:
+                    f.write(chunk)
 
-        data = response.json()
+        data = None
+        file_size = os.path.getsize(OUTPUT_FILE)
+        if file_size <= 50 * 1024 * 1024:  # only parse stats for reasonably sized dumps
+            try:
+                with open(OUTPUT_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception as stats_err:
+                logger.warning(f"Failed to parse Firebase dump for stats: {stats_err}")
+
         if data:
             total_keys = len(data)
             print("✅ Firebase database downloaded successfully!")
             print(f"📊 Total root nodes: {total_keys}")
             print(f"💾 Saved to: {OUTPUT_FILE}")
-            print(f"📏 File size: {os.path.getsize(OUTPUT_FILE)} bytes")
+            print(f"📏 File size: {file_size} bytes")
 
             print("\n📋 Database structure:")
             for key in data.keys():
@@ -125,6 +135,8 @@ def download_firebase_dump():
                     print(f"  - {key}: {type(data[key]).__name__}")
         else:
             print(safe_get_messages().DB_DATABASE_EMPTY_MSG)
+            print(f"💾 Saved to: {OUTPUT_FILE}")
+            print(f"📏 File size: {file_size} bytes")
 
         return True
 

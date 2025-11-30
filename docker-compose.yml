@@ -26,6 +26,8 @@ services:
       - configuration-webserver
     volumes:
       - .:/app
+    ports:
+      - "5555:5555"  # Панель управления (порт можно изменить в CONFIG/config.py как DASHBOARD_PORT)
 
   bgutil-provider:
     image: brainicism/bgutil-ytdlp-pot-provider:latest

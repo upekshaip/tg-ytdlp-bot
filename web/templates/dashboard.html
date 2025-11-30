@@ -1,0 +1,340 @@
+{% set active_minutes = (config.get('STATS_ACTIVE_TIMEOUT', 900) // 60) if config else 15 %}
+{% set channel_hours = 48 %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body data-active-minutes="{{ active_minutes }}" data-channel-hours="{{ channel_hours }}">
+<main class="page">
+    <header class="page__header">
+        <div>
+            <h1 data-i18n="header.title">Bot statistics</h1>
+            <p class="subtitle" data-i18n="header.subtitle">Online dashboard for monitoring Telegram bot activity.</p>
+        </div>
+        <div class="header-actions">
+            <div class="lang-switch" role="group" aria-label="Language switch">
+                <button type="button" data-lang-btn="en" class="active">EN</button>
+                <span>|</span>
+                <button type="button" data-lang-btn="ru">RU</button>
+                <span>|</span>
+                <button type="button" data-lang-btn="hi">HI</button>
+                <span>|</span>
+                <button type="button" data-lang-btn="ar">AR</button>
+            </div>
+            <div class="status-chip" id="dashboard-status" data-i18n="status.online">ONLINE</div>
+            <button class="chip-button" id="theme-toggle" data-i18n="buttons.theme_dark">Dark</button>
+            <button class="logout-button" onclick="logout()" data-i18n="buttons.logout">Logout</button>
+        </div>
+    </header>
+
+    <nav class="tabs" role="tablist">
+        <button class="tab-button active" data-tab-target="activity" data-i18n="tabs.activity">Activity</button>
+        <button class="tab-button" data-tab-target="users" data-i18n="tabs.users">Users</button>
+        <button class="tab-button" data-tab-target="content" data-i18n="tabs.content">Content</button>
+        <button class="tab-button" data-tab-target="moderation" data-i18n="tabs.moderation">Moderation</button>
+        <button class="tab-button" data-tab-target="history" data-i18n="tabs.history">History</button>
+        <button class="tab-button" data-tab-target="system" data-i18n="tabs.system">System</button>
+        <button class="tab-button" data-tab-target="lists" data-i18n="tabs.lists">Lists</button>
+    </nav>
+
+    <section class="tab-panel active" data-tab-panel="activity">
+        <div class="grid">
+            <article class="card">
+                <header class="card__header-row">
+                    <div>
+                        <h3 data-i18n="cards.active.title">Active users</h3>
+                        <p data-i18n="cards.active.subtitle" data-minutes="{{ active_minutes }}">Sessions during last {{ active_minutes }} minutes.</p>
+                    </div>
+                    <div class="card__header-controls">
+                        <select id="active-users-period" class="period-select">
+                            <option value="5">5 min</option>
+                            <option value="15" selected>15 min</option>
+                            <option value="30">30 min</option>
+                            <option value="60">60 min</option>
+                        </select>
+                        <div class="stat-chip">
+                            <span data-i18n="cards.active.count_label">Now</span>
+                            <strong data-active-count>0</strong>
+                        </div>
+                    </div>
+                </header>
+                <input type="text" class="search-input" data-search-target="active-users-list" placeholder="Search...">
+                <div id="active-users-list" class="list" data-expand-limit="10"></div>
+                <button class="ghost" data-expand-button="active-users-list">Show all</button>
+            </article>
+
+            <article class="card">
+                <header class="card__header-row">
+                    <div>
+                        <h3 data-i18n="cards.top_downloaders.title">Top downloaders</h3>
+                        <p data-i18n="cards.top_downloaders.subtitle">Pick a period for the ranking.</p>
+                    </div>
+                    <select id="top-users-period" class="period-select">
+                        <option value="today" data-i18n="filters.today">Today</option>
+                        <option value="week" data-i18n="filters.week">Week</option>
+                        <option value="month" data-i18n="filters.month">Month</option>
+                        <option value="all" selected data-i18n="filters.all">All time</option>
+                    </select>
+                </header>
+                <input type="text" class="search-input" data-search-target="top-users-list" placeholder="Search...">
+                <div id="top-users-list" class="list" data-expand-limit="10"></div>
+                <button class="ghost" data-expand-button="top-users-list">Show all</button>
+            </article>
+
+            <article class="card">
+                <header class="card__header-row">
+                    <div>
+                        <h3 data-i18n="cards.suspicious.title">Suspicious users</h3>
+                        <p data-i18n="cards.suspicious.subtitle">Users with minimal breaks between downloads.</p>
+                    </div>
+                    <select id="suspicious-period" class="period-select">
+                        <option value="today" selected data-i18n="filters.today">Today</option>
+                        <option value="week" data-i18n="filters.week">Week</option>
+                        <option value="month" data-i18n="filters.month">Month</option>
+                        <option value="all" data-i18n="filters.all">All time</option>
+                    </select>
+                </header>
+                <input type="text" class="search-input" data-search-target="suspicious-users-list" placeholder="Search...">
+                <div id="suspicious-users-list" class="list" data-expand-limit="10"></div>
+                <button class="ghost" data-expand-button="suspicious-users-list">Show all</button>
+            </article>
+        </div>
+    </section>
+
+    <section class="tab-panel" data-tab-panel="users">
+        <div class="grid">
+            <article class="card" style="grid-column: 1 / -1;">
+                <header class="card__header-row">
+                    <div>
+                        <h3 data-i18n="demographics.title">Demographics & Countries</h3>
+                        <p data-i18n="demographics.subtitle">User statistics by country, gender, and age.</p>
+                    </div>
+                    <select id="countries-period" class="period-select">
+                        <option value="today" data-i18n="filters.today">Today</option>
+                        <option value="week" data-i18n="filters.week">Week</option>
+                        <option value="month" data-i18n="filters.month">Month</option>
+                        <option value="all" selected data-i18n="filters.all">All time</option>
+                    </select>
+                </header>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; max-height: 260px; overflow-y: auto;">
+                    <div>
+                        <h4 style="margin: 0 0 0.75rem 0; color: #22d3ee;" data-i18n="demographics.countries">Top Countries</h4>
+                        <div id="countries-list" class="list compact"></div>
+                    </div>
+                    <div>
+                        <h4 style="margin: 0 0 0.75rem 0; color: #22d3ee;" data-i18n="demographics.gender">Gender</h4>
+                        <div id="gender-stats" class="list compact"></div>
+                    </div>
+                    <div>
+                        <h4 style="margin: 0 0 0.75rem 0; color: #22d3ee;" data-i18n="demographics.age">Registered</h4>
+                        <div id="age-stats" class="list compact" style="max-height: 400px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+            </article>
+
+            <article class="card">
+                <header>
+                    <h3 data-i18n="cards.nsfw_users.title">NSFW users</h3>
+                    <p data-i18n="cards.nsfw_users.subtitle">Most frequent NSFW downloads.</p>
+                </header>
+                <input type="text" class="search-input" data-search-target="nsfw-users-list" placeholder="Search...">
+                <div id="nsfw-users-list" class="list" data-expand-limit="10"></div>
+                <button class="ghost" data-expand-button="nsfw-users-list">Show all</button>
+            </article>
+
+            <article class="card">
+                <header>
+                    <h3 data-i18n="cards.playlists.title">Playlist lovers</h3>
+                    <p data-i18n="cards.playlists.subtitle">Users who request playlists most.</p>
+                </header>
+                <input type="text" class="search-input" data-search-target="playlist-users-list" placeholder="Search...">
+                <div id="playlist-users-list" class="list" data-expand-limit="10"></div>
+                <button class="ghost" data-expand-button="playlist-users-list">Show all</button>
+            </article>
+
+            <article class="card">
+                <header>
+                    <h3 data-i18n="cards.power.title">Power users</h3>
+                    <p data-i18n="cards.power.subtitle">Users who send many URLs consistently.</p>
+                </header>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; align-items: center; flex-wrap: nowrap;">
+                    <label style="color: #94a3b8; font-size: 0.9rem; white-space: nowrap;" data-i18n="power.min_urls">Min URLs per day:</label>
+                    <input type="number" id="power-users-min-urls" value="10" min="1" max="100" style="width: 80px; padding: 0.35rem; background: #0f172a; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; color: #e2e8f0; flex-shrink: 0;">
+                    <label style="color: #94a3b8; font-size: 0.9rem; white-space: nowrap;" data-i18n="power.days">Days:</label>
+                    <input type="number" id="power-users-days" value="7" min="1" max="30" style="width: 80px; padding: 0.35rem; background: #0f172a; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; color: #e2e8f0; flex-shrink: 0;">
+                    <button class="action-button" onclick="loadPowerUsers()" style="padding: 0.35rem 0.75rem; font-size: 0.85rem; flex-shrink: 0;" data-i18n="power.apply">Apply</button>
+                </div>
+                <div id="power-users-list" class="list" data-expand-limit="10"></div>
+                <button class="ghost" data-expand-button="power-users-list">Show all</button>
+            </article>
+        </div>
+    </section>
+
+    <section class="tab-panel" data-tab-panel="content">
+        <div class="grid">
+            <article class="card">
+                <header class="card__header-row">
+                    <div>
+                        <h3 data-i18n="cards.domains.title">Top domains</h3>
+                        <p data-i18n="cards.domains.subtitle">Where links come from.</p>
+                    </div>
+                    <select id="domains-period" class="period-select">
+                        <option value="today" data-i18n="filters.today">Today</option>
+                        <option value="week" data-i18n="filters.week">Week</option>
+                        <option value="month" data-i18n="filters.month">Month</option>
+                        <option value="all" selected data-i18n="filters.all">All time</option>
+                    </select>
+                </header>
+                <input type="text" class="search-input" data-search-target="domains-list" placeholder="Search...">
+                <div id="domains-list" class="list compact"></div>
+            </article>
+
+            <article class="card">
+                <header>
+                    <h3 data-i18n="cards.nsfw_domains.title">NSFW sites</h3>
+                    <p data-i18n="cards.nsfw_domains.subtitle">Most requested NSFW domains.</p>
+                </header>
+                <input type="text" class="search-input" data-search-target="nsfw-domains-list" placeholder="Search...">
+                <div id="nsfw-domains-list" class="list compact"></div>
+            </article>
+        </div>
+    </section>
+
+    <section class="tab-panel" data-tab-panel="moderation">
+        <div class="grid">
+            <article class="card">
+                <header>
+                    <h3 data-i18n="cards.blocked.title">Banned users</h3>
+                    <p data-i18n="cards.blocked.subtitle">Use ✅ to unblock.</p>
+                </header>
+                <input type="text" id="blocked-users-search" placeholder="Search..." class="search-input" style="margin-bottom: 1rem;">
+                <div id="blocked-users-list" class="list" data-expand-limit="20"></div>
+                <button class="ghost" data-expand-button="blocked-users-list">Show all</button>
+            </article>
+
+            <article class="card">
+                <header>
+                    <h3 data-i18n="cards.channel.title" data-hours="{{ channel_hours }}">Channel activity ({{ channel_hours }}h)</h3>
+                    <p data-i18n="cards.channel.subtitle">Join and leave events in the log channel.</p>
+                </header>
+                <div id="channel-events-list" class="timeline"></div>
+            </article>
+        </div>
+    </section>
+
+    <section class="tab-panel" data-tab-panel="history">
+        <div class="grid">
+            <article class="card" style="grid-column: 1 / -1;">
+                <header class="card__header-row">
+                    <div>
+                        <h3 data-i18n="history.title">User History</h3>
+                        <p data-i18n="history.subtitle">View download history for any user.</p>
+                    </div>
+                    <select id="history-period" class="period-select">
+                        <option value="today" data-i18n="filters.today">Today</option>
+                        <option value="week" data-i18n="filters.week">Week</option>
+                        <option value="month" data-i18n="filters.month">Month</option>
+                        <option value="all" selected data-i18n="filters.all">All time</option>
+                    </select>
+                </header>
+                <div style="margin-bottom: 1rem;">
+                    <input type="text" id="history-search" class="search-input" placeholder="Search by User ID, Name, or Username..." style="width: 100%;">
+                </div>
+                <div id="history-users-list" class="list" data-expand-limit="20"></div>
+                <div id="history-details" style="display: none; margin-top: 1.5rem;">
+                    <h4 id="history-user-name" style="margin-bottom: 1rem;"></h4>
+                    <div id="history-downloads-list" class="list" style="max-height: 500px; overflow-y: auto;"></div>
+                </div>
+            </article>
+        </div>
+    </section>
+
+    <section class="tab-panel" data-tab-panel="system">
+        <div class="grid">
+            <article class="card">
+                <header>
+                    <h3 data-i18n="system.metrics">System Metrics</h3>
+                </header>
+                <div id="system-metrics"></div>
+            </article>
+            <article class="card">
+                <header>
+                    <h3 data-i18n="system.versions">Package Versions</h3>
+                </header>
+                <div id="package-versions"></div>
+            </article>
+            <article class="card">
+                <header>
+                    <h3 data-i18n="system.config">Configuration</h3>
+                </header>
+                <div id="config-settings"></div>
+            </article>
+        </div>
+    </section>
+
+    <section class="tab-panel" data-tab-panel="lists">
+        <div class="grid">
+            <article class="card">
+                <header>
+                    <h3 data-i18n="lists.stats">File Statistics</h3>
+                </header>
+                <div id="lists-stats"></div>
+            </article>
+            <article class="card" style="grid-column: 1 / -1;">
+                <header>
+                    <h3 data-i18n="lists.domains">Domain Lists</h3>
+                    <p>Edit domain lists from CONFIG/domains.py</p>
+                </header>
+                <div id="domain-lists-container"></div>
+            </article>
+        </div>
+    </section>
+</main>
+
+<template id="user-row-template">
+    <div class="list-row">
+        <div class="list-row__info">
+            <span class="flag" data-flag></span>
+            <div>
+                <span class="title" data-name></span>
+                <span class="meta" data-meta></span>
+            </div>
+        </div>
+        <div class="list-row__actions">
+            <span class="badge" data-extra></span>
+            <button class="icon-button" data-block>❌</button>
+        </div>
+    </div>
+</template>
+
+<template id="config-setting-template">
+    <div class="config-row">
+        <label data-label></label>
+        <input type="text" data-input>
+        <button class="action-button" data-save data-i18n="buttons.save">Save</button>
+    </div>
+</template>
+
+<script>
+    window.dashboardConfig = {
+        periods: ["today", "week", "month", "all"]
+    };
+</script>
+<script src="/static/dashboard.js"></script>
+        <div id="modal-root" class="modal hidden">
+            <div class="modal__dialog">
+                <button type="button" class="modal__close" data-modal-close aria-label="Close">×</button>
+                <h3 id="modal-title"></h3>
+                <div id="modal-body"></div>
+            </div>
+        </div>
+</body>
+</html>

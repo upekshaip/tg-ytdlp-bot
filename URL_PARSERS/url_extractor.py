@@ -3,7 +3,7 @@
 # Checking Actions
 # Text Message Handler for General Commands
 from HELPERS.app_instance import get_app
-from HELPERS.decorators import reply_with_keyboard
+from HELPERS.decorators import reply_with_keyboard, background_handler
 from HELPERS.limitter import is_user_in_channel, check_user
 from HELPERS.logger import send_to_all, send_to_logger, send_to_user
 from CONFIG.logger_msg import LoggerMsg, get_logger_msg
@@ -43,6 +43,7 @@ app = get_app()
 
 @app.on_message(filters.text & filters.private)
 @reply_with_keyboard
+@background_handler(label="url_distractor")
 def url_distractor(app, message):
     user_id = message.chat.id
     is_admin = int(user_id) in Config.ADMIN
@@ -50,8 +51,29 @@ def url_distractor(app, message):
     text = message.text.strip()
     logger.info(f"🔍 [DEBUG] url_distractor: text после strip='{text}'")
     
-    # Import get_messages_instance locally to avoid UnboundLocalError
+    # Check command rate limit (for all commands, not just URLs)
+    from HELPERS.command_limiter import check_command_limit
     from CONFIG.messages import safe_get_messages
+    from HELPERS.safe_messeger import safe_send_message
+    
+    # Check if this is a command (starts with / or is an emoji command)
+    is_command = text.startswith('/') or text in [
+        "🧹", "🍪", "⚙️", "🔍", "🌐", "🔗", "📼", "📊", "✂️", "🎧", "💬", 
+        "#️⃣", "🆘", "📃", "⏯️", "🎹", "🌎", "✅", "🖼", "🧰", "🔞", "🧾"
+    ]
+    
+    if is_command:
+        allowed, cmd_limit_msg = check_command_limit(user_id, is_admin)
+        if not allowed:
+            messages = safe_get_messages(user_id)
+            safe_send_message(
+                user_id,
+                cmd_limit_msg or "Too many commands. Please wait.",
+                message=message
+            )
+            return
+    
+    # Import get_messages_instance locally to avoid UnboundLocalError
     from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     from HELPERS.filesystem_hlp import remove_media
     from COMMANDS.cookies_cmd import download_cookie
@@ -1026,6 +1048,18 @@ def url_distractor(app, message):
     final_text = message.text if hasattr(message, 'text') and message.text else text
     if ("https://" in final_text) or ("http://" in final_text):
         if not is_user_blocked(message):
+            # Check rate limit before processing URL
+            from HELPERS.rate_limiter import check_rate_limit
+            allowed, rate_limit_msg = check_rate_limit(user_id, is_admin)
+            if not allowed:
+                messages = safe_get_messages(user_id)
+                safe_send_message(
+                    user_id,
+                    rate_limit_msg or messages.RATE_LIMIT_EXCEEDED_MSG if hasattr(messages, 'RATE_LIMIT_EXCEEDED_MSG') else "Rate limit exceeded. Please wait.",
+                    message=message
+                )
+                return
+            
             from COMMANDS.subtitles_cmd import clear_subs_check_cache
             clear_subs_check_cache()
             # Централизованный роутер на gallery-dl для некоторых ссылок

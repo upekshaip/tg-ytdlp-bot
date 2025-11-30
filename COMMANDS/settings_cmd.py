@@ -10,6 +10,7 @@ from HELPERS.limitter import is_user_in_channel
 
 from HELPERS.app_instance import get_app
 from HELPERS.safe_messeger import fake_message, safe_send_message, safe_edit_message_text
+from HELPERS.decorators import background_handler
 from pyrogram.errors import FloodWait
 import os
 # Lazy imports to avoid circular dependency - import url_distractor inside functions
@@ -48,6 +49,7 @@ app = get_app()
 
 @app.on_message(filters.command("settings") & filters.private)
 # @reply_with_keyboard
+@background_handler(label="settings_command")
 def settings_command(app, message):
     user_id = message.chat.id
     # Subscription check for non-admins

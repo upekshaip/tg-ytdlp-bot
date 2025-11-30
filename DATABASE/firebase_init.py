@@ -16,6 +16,7 @@ from CONFIG.messages import Messages, safe_get_messages
 from HELPERS.logger import logger
 from HELPERS.filesystem_hlp import create_directory
 from HELPERS.logger import send_to_all
+from services.stats_events import emit_download_event, wrap_db_adapter
 
 # Global variable for timing
 starting_point = []
@@ -476,6 +477,8 @@ else:
         finally:
             auth_manager.close()
 
+db = wrap_db_adapter(db)
+
 
 def db_child_by_path(db_adapter, path: str):
     """Создает дочерний адаптер по пути (работает с любым типом адаптера)."""
@@ -539,6 +542,17 @@ def is_user_blocked(message):
         return False
 
 
+def _build_stats_metadata(message) -> dict:
+    metadata = {}
+    user = getattr(message, "from_user", None) or getattr(message, "chat", None)
+    if user:
+        metadata["first_name"] = getattr(user, "first_name", None)
+        metadata["last_name"] = getattr(user, "last_name", None)
+        metadata["username"] = getattr(user, "username", None)
+        metadata["language_code"] = getattr(user, "language_code", None)
+    return {k: v for k, v in metadata.items() if v}
+
+
 def write_logs(message, video_url, video_title):
     messages = safe_get_messages(message.chat.id)
     ts = str(math.floor(time.time()))
@@ -546,6 +560,16 @@ def write_logs(message, video_url, video_title):
             "name": message.chat.first_name, "urls": str(video_url), "title": video_title}
     db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("logs").child(str(message.chat.id)).child(str(ts)).set(data)
     logger.info(safe_get_messages().DB_LOG_FOR_USER_ADDED_MSG)
+    try:
+        emit_download_event(
+            user_id=int(message.chat.id),
+            url=str(video_url),
+            title=str(video_title),
+            timestamp=int(ts),
+            metadata=_build_stats_metadata(message),
+        )
+    except Exception as exc:
+        logger.debug(f"[stats] failed to emit download event: {exc}")
 
 
 # ####################################################################################

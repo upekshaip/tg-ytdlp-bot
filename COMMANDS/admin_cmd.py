@@ -28,6 +28,7 @@ from HELPERS.channel_guard import (
 )
 # from DATABASE.cache_db import get_url_hash, db_child_by_path  # moved to lazy imports
 from HELPERS.logger import logger
+from HELPERS.decorators import background_handler
 
 # Global variable for bot start time
 starting_point = [time.time()]
@@ -36,6 +37,7 @@ starting_point = [time.time()]
 app = get_app()
 
 @app.on_message(filters.command("reload_cache") & filters.private)
+@background_handler(label="reload_cache")
 def reload_firebase_cache_command(app, message):
     messages = safe_get_messages(message.chat.id)
     """The processor of command for rebooting the local cache Firebase"""
@@ -834,6 +836,7 @@ def uncache_command(app, message):
 
 
 @app.on_message(filters.command("update_porn") & filters.private)
+@background_handler(label="update_porn")
 def update_porn_command(app, message):
     messages = safe_get_messages(message.chat.id)
     """Admin command to run the porn list update script"""
@@ -878,6 +881,7 @@ def update_porn_command(app, message):
 
 
 @app.on_message(filters.command("reload_porn") & filters.private)
+@background_handler(label="reload_porn")
 def reload_porn_command(app, message):
     messages = safe_get_messages(message.chat.id)
     """Admin command to reload porn domains and keywords cache without restarting the bot"""
@@ -934,6 +938,7 @@ def reload_porn_command(app, message):
 
 
 @app.on_message(filters.command("check_porn") & filters.private)
+@background_handler(label="check_porn")
 def check_porn_command(app, message):
     messages = safe_get_messages(message.chat.id)
     """Admin command to check if a URL is NSFW and get detailed explanation"""

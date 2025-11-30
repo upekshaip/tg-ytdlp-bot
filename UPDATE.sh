@@ -1,4 +1,5 @@
 #!/bin/bash
+# Version 1.0.0
 
 # Updater script for tg-ytdlp-bot
 # Run from the bot folder (where magic.py is located)

@@ -12,6 +12,7 @@ from pyrogram import enums
 import re
 from CONFIG.config import Config
 from HELPERS.safe_messeger import safe_send_message
+from services.stats_events import capture_message_context
 
 # Configure logging
 logging.basicConfig(
@@ -86,6 +87,7 @@ def get_log_channel(kind: str = "general", nsfw: bool = False, paid: bool = Fals
 # Send Message to Logger
 
 def send_to_logger(message, msg):
+    capture_message_context(message)
     user_id = message.chat.id
     msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
     # Print (user_id, "-", msg)
@@ -95,12 +97,14 @@ def send_to_logger(message, msg):
 # Send Message to User Only
 
 def send_to_user(message, msg):
+    capture_message_context(message)
     user_id = message.chat.id
     safe_send_message(user_id, msg, parse_mode=enums.ParseMode.HTML, message=message)
 
 # Send Message to All ...
 
 def send_to_all(message, msg, parse_mode=None):
+    capture_message_context(message)
     user_id = message.chat.id
     msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
     safe_send_message(get_log_channel("general"), msg_with_id, parse_mode=enums.ParseMode.HTML)
@@ -121,6 +125,7 @@ def _extract_url_from_message(message) -> str:
 
 # Send Error Message to User and LOG_EXCEPTION channel
 def send_error_to_user(message, msg, url: str = None):
+    capture_message_context(message)
     """Send error message to user and log it to LOG_EXCEPTION channel.
 
     url: optional explicit URL that caused the error; if not provided, will be
@@ -139,6 +144,7 @@ def send_error_to_user(message, msg, url: str = None):
 
 # Log error message to LOG_EXCEPTION channel (without sending to user)
 def log_error_to_channel(message, msg, url: str = None):
+    capture_message_context(message)
     """Log error message to LOG_EXCEPTION channel only.
 
     url: optional explicit URL that caused the error; if not provided, will be

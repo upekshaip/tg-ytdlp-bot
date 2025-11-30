@@ -15,6 +15,7 @@ from CONFIG.messages import Messages, safe_get_messages
 from CONFIG.domains import DomainsConfig
 from HELPERS.app_instance import get_app
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
+from HELPERS.decorators import background_handler
 import HELPERS.safe_messeger as sm
 from DOWN_AND_UP.gallery_dl_hook import (
     get_image_info,
@@ -767,6 +768,7 @@ def get_reply_message_id(message):
     else:
         return message.id
 
+@background_handler(label="image_command")
 def image_command(app, message):
     messages = safe_get_messages(message.chat.id)
     """Handle /img command for downloading images"""

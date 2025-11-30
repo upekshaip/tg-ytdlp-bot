@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Bot Dashboard</title>
+    <link rel="stylesheet" href="/static/dashboard.css">
+    <style>
+        .login-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: #0f172a;
+        }
+        .login-card {
+            background: #121a2c;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 24px;
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 400px;
+        }
+        .login-card h1 {
+            margin: 0 0 1.5rem 0;
+            text-align: center;
+            color: #e2e8f0;
+        }
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            background: #0f172a;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 8px;
+            color: #e2e8f0;
+            font-size: 1rem;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #22d3ee;
+        }
+        .login-button {
+            width: 100%;
+            padding: 0.75rem;
+            background: linear-gradient(120deg, #22d3ee, #a855f7);
+            color: #0f172a;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .login-button:hover {
+            opacity: 0.9;
+        }
+        .login-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .error-message {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background: rgba(248, 113, 113, 0.2);
+            border: 1px solid rgba(248, 113, 113, 0.4);
+            border-radius: 8px;
+            color: #f87171;
+            font-size: 0.9rem;
+            display: none;
+        }
+        .error-message.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <h1>Bot Dashboard</h1>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" required autofocus>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <button type="submit" class="login-button" id="login-btn">Login</button>
+                <div class="error-message" id="error-msg"></div>
+            </form>
+        </div>
+    </div>
+    <script>
+        document.getElementById("login-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById("login-btn");
+            const errorMsg = document.getElementById("error-msg");
+            const username = document.getElementById("username").value.trim();
+            const password = document.getElementById("password").value.trim();
+            
+            btn.disabled = true;
+            btn.textContent = "Logging in...";
+            errorMsg.classList.remove("show");
+            
+            try {
+                const response = await fetch("/api/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username, password }),
+                });
+                
+                if (response.ok) {
+                    window.location.href = "/";
+                } else {
+                    const data = await response.json();
+                    let errorText = data.detail || "Login failed";
+                    // Если есть информация о блокировке, показываем её
+                    if (errorText.includes("Too many failed attempts")) {
+                        errorText += "..";
+                    }
+                    errorMsg.textContent = errorText;
+                    errorMsg.classList.add("show");
+                }
+            } catch (err) {
+                errorMsg.textContent = "Network error. Please try again.";
+                errorMsg.classList.add("show");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "Login";
+            }
+        });
+    </script>
+</body>
+</html>
+

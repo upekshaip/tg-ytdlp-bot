@@ -123,12 +123,13 @@ def is_porn_domain(domain_parts):
     return False
 
 # --- a new function for checking for porn ---
-def is_porn(url, title, description, caption=None):
+def is_porn(url, title, description, caption=None, tags=None):
     """
     Checks content for pornography by domain and keywords (word-boundary regex search)
-    in title, description, caption and URL. Domain whitelist has highest priority.
+    in title, description, caption, tags and URL. Domain whitelist has highest priority.
     White keywords list can override porn detection for false positive correction.
     URL keywords are checked with spaces replaced by underscores and dashes.
+    Tags are checked with underscores treated as word separators.
     """
     # 1. Checking the domain (with redirect unwrapping)
     clean_url = unwrap_redirect_url(url).lower()
@@ -145,17 +146,23 @@ def is_porn(url, title, description, caption=None):
     title_lower       = title.lower()       if title       else ""
     description_lower = description.lower() if description else ""
     caption_lower     = caption.lower()     if caption     else ""
+    # Process tags: replace underscores with spaces for keyword matching
+    tags_lower = ""
+    if tags:
+        # Tags are space-separated, but keywords inside tags use underscores
+        # Replace underscores with spaces for matching
+        tags_lower = tags.lower().replace("_", " ")
     
     # 3. Prepare URL for keyword checking (replace spaces with underscores and dashes)
     url_lower = clean_url
     logger.debug(f"is_porn URL for keyword check: '{url_lower}'")
     
-    if not (title_lower or description_lower or caption_lower or url_lower):
+    if not (title_lower or description_lower or caption_lower or tags_lower or url_lower):
         logger.info("is_porn: all text fields and URL empty")
         return False
 
-    # 4. We collect a single text for search (including URL)
-    combined = " ".join([title_lower, description_lower, caption_lower, url_lower])
+    # 4. We collect a single text for search (including URL and tags)
+    combined = " ".join([title_lower, description_lower, caption_lower, tags_lower, url_lower])
     logger.debug(f"is_porn combined text: '{combined}'")
     logger.debug(f"is_porn keywords: {PORN_KEYWORDS}")
 
@@ -179,8 +186,10 @@ def is_porn(url, title, description, caption=None):
         return False
 
     # 7. Check for keyword matches in text fields (with word boundaries)
+    # Include tags in text fields check (tags already have underscores replaced with spaces)
     text_pattern = re.compile(r"\b(" + "|".join(text_kws) + r")\b", flags=re.IGNORECASE)
-    if text_pattern.search(" ".join([title_lower, description_lower, caption_lower])):
+    text_to_check = " ".join([title_lower, description_lower, caption_lower, tags_lower])
+    if text_pattern.search(text_to_check):
         logger.info(f"is_porn: keyword match in text fields (regex): {text_pattern.pattern}")
         return True
 
