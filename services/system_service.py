@@ -387,9 +387,23 @@ def update_lists() -> Dict[str, Any]:
 
 def get_config_settings() -> Dict[str, Any]:
     """Возвращает редактируемые настройки из конфига."""
-    youtube_cookie_urls = [getattr(Config, "YOUTUBE_COOKIE_URL", "")]
+    # Собираем все YouTube cookie URLs, включая пустые значения
+    # Используем getattr с дефолтом "" для безопасной обработки отсутствующих атрибутов
+    youtube_cookie_urls = []
+    try:
+        # Основной URL
+        main_url = getattr(Config, "YOUTUBE_COOKIE_URL", "")
+        youtube_cookie_urls.append(str(main_url) if main_url else "")
+    except (AttributeError, TypeError):
+        youtube_cookie_urls.append("")
+    
+    # Дополнительные URL (1-10)
     for idx in range(1, 11):
-        youtube_cookie_urls.append(getattr(Config, f"YOUTUBE_COOKIE_URL_{idx}", ""))
+        try:
+            url = getattr(Config, f"YOUTUBE_COOKIE_URL_{idx}", "")
+            youtube_cookie_urls.append(str(url) if url else "")
+        except (AttributeError, TypeError):
+            youtube_cookie_urls.append("")
     return {
         "proxy": {
             "type": getattr(Config, "PROXY_TYPE", ""),
@@ -525,10 +539,24 @@ def update_config_setting(key: str, value: Any) -> bool:
                     lines[i] = f"    ALLOWED_GROUP = [{list_str}]\n"
                     updated = True
                     break
-            elif key.startswith("YOUTUBE_COOKIE_URL") and re.match(rf'^\s*{re.escape(key)}\s*=', line):
-                lines[i] = f"    {key} = \"{value}\"\n"
-                updated = True
-                break
+            elif key.startswith("YOUTUBE_COOKIE_URL"):
+                # Проверяем активную строку (приоритет)
+                active_match = re.match(rf'^\s*{re.escape(key)}\s*=', line)
+                if active_match:
+                    # Обрабатываем пустые значения корректно
+                    escaped_value = str(value).replace('"', '\\"') if value else ""
+                    lines[i] = f"    {key} = \"{escaped_value}\"\n"
+                    updated = True
+                    break
+                # Проверяем закомментированную строку (если активной не нашли)
+                commented_match = re.match(rf'^\s*#\s*{re.escape(key)}\s*=', line)
+                if commented_match and not updated:
+                    # Обрабатываем пустые значения корректно
+                    escaped_value = str(value).replace('"', '\\"') if value else ""
+                    # Раскомментируем строку и обновляем значение
+                    lines[i] = f"    {key} = \"{escaped_value}\"\n"
+                    updated = True
+                    break
             elif key == "DASHBOARD_PASSWORD" and re.match(r'^\s*DASHBOARD_PASSWORD\s*=', line):
                 # Для пароля обновляем только если передано непустое значение
                 if value and str(value).strip():
@@ -538,11 +566,23 @@ def update_config_setting(key: str, value: Any) -> bool:
                 break
         
         if not updated and key.startswith("YOUTUBE_COOKIE_URL"):
-            insert_at = next(
-                (idx for idx, line in enumerate(lines) if "INSTAGRAM_COOKIE_URL" in line),
-                len(lines),
-            )
-            lines.insert(insert_at, f"    {key} = \"{value}\"\n")
+            # Ищем место после последнего YOUTUBE_COOKIE_URL (активного или закомментированного) или перед INSTAGRAM_COOKIE_URL
+            insert_at = len(lines)
+            # Сначала ищем последний YOUTUBE_COOKIE_URL (активный или закомментированный)
+            for idx in range(len(lines) - 1, -1, -1):
+                # Проверяем как активную, так и закомментированную строку
+                if re.match(r'^\s*#?\s*YOUTUBE_COOKIE_URL', lines[idx]):
+                    insert_at = idx + 1
+                    break
+            # Если не нашли, ищем перед INSTAGRAM_COOKIE_URL
+            if insert_at == len(lines):
+                insert_at = next(
+                    (idx for idx, line in enumerate(lines) if "INSTAGRAM_COOKIE_URL" in line),
+                    len(lines),
+                )
+            # Обрабатываем пустые значения корректно
+            escaped_value = str(value).replace('"', '\\"') if value else ""
+            lines.insert(insert_at, f"    {key} = \"{escaped_value}\"\n")
             updated = True
         elif not updated and key == "DASHBOARD_PASSWORD":
             # Ищем место после DASHBOARD_USERNAME
@@ -582,6 +622,8 @@ def update_config_setting(key: str, value: Any) -> bool:
             return True
         return False
     except Exception as e:
-        print(f"Error updating config: {e}")
+        logger.error(f"Error updating config: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return False
 

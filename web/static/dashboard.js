@@ -1608,13 +1608,15 @@
             { label: "POT base URL", key: "YOUTUBE_POT_BASE_URL", value: youtube.pot_base_url || "" },
         ];
         const cookieList = youtube.list || [];
-        const totalCookies = Math.max(cookieList.length, 11);
-        for (let i = 0; i < totalCookies; i += 1) {
+        // Всегда показываем 11 полей (YOUTUBE_COOKIE_URL + YOUTUBE_COOKIE_URL_1 до YOUTUBE_COOKIE_URL_10)
+        // Если в списке меньше элементов, остальные будут пустыми
+        for (let i = 0; i < 11; i += 1) {
             const key = i === 0 ? "YOUTUBE_COOKIE_URL" : `YOUTUBE_COOKIE_URL_${i}`;
+            const value = (cookieList[i] !== undefined && cookieList[i] !== null) ? String(cookieList[i]) : "";
             youtubeFields.push({
                 label: `Cookie #${i + 1}`,
                 key,
-                value: cookieList[i] || "",
+                value: value || "",
             });
         }
         appendSection("YouTube cookies", youtubeFields);
