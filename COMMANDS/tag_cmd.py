@@ -3,6 +3,7 @@ from pyrogram import filters
 import os
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 from HELPERS.safe_messeger import safe_send_message
+from HELPERS.decorators import background_handler
 from CONFIG.config import Config
 from HELPERS.logger import send_to_logger
 from HELPERS.limitter import is_user_in_channel
@@ -13,6 +14,7 @@ app = get_app()
 
 @app.on_message(filters.command("tags") & filters.private)
 # @reply_with_keyboard
+@background_handler(label="tags_command")
 def tags_command(app, message):
     messages = safe_get_messages(message.chat.id)
     user_id = message.chat.id

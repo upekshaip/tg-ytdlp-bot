@@ -107,6 +107,8 @@ test_thread_support.py
 THREAD_SUPPORT_SUMMARY.md
 start_docker.sh
 monitor_resources.py
+channel_guard_session_string.txt
+channel_guard_user_session.session
 
 # Configs with secrets (do not commit)
 CONFIG/config.py
@@ -120,4 +122,7 @@ TXT/porn_keywords.txt
 TXT/porn_keywords.txt.removal_report.txt
 TXT/porn_keywords.txt.backup
 
+!requirements.txt
+CONFIG/.dashboard_sessions.json
+CONFIG/.active_sessions.json
 env

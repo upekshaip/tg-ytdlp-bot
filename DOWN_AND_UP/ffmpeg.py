@@ -519,8 +519,31 @@ def ffmpeg_extract_subclip(video_path, start_time, end_time, targetname):
         logger.info(f"FFmpeg extract completed successfully for {targetname}")
         logger.info(f"Output file size: {os.path.getsize(targetname) if os.path.exists(targetname) else 'File not found'}")
         return True
+    except subprocess.CalledProcessError as e:
+        error_details = ""
+        if e.stderr:
+            error_details = f"stderr: {e.stderr[:500]}"
+        if e.stdout:
+            error_details += f"\nstdout: {e.stdout[:500]}" if error_details else f"stdout: {e.stdout[:500]}"
+        
+        logger.error(f"FFmpeg extract error (code {e.returncode}): {error_details if error_details else str(e)}")
+        
+        # Try to identify common error types
+        error_text = (error_details + str(e)).lower()
+        if "invalid argument" in error_text or "invalid data" in error_text:
+            logger.error("FFmpeg error: Invalid argument - video format may be incompatible")
+        elif "no such file" in error_text or "cannot find" in error_text:
+            logger.error("FFmpeg error: File not found")
+        elif "permission denied" in error_text:
+            logger.error("FFmpeg error: Permission denied")
+        elif "codec" in error_text and ("not found" in error_text or "unsupported" in error_text):
+            logger.error("FFmpeg error: Codec not found or unsupported")
+        
+        return False
     except Exception as e:
         logger.error(f"Error extracting subclip: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return False
 
 
@@ -780,7 +803,26 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
         proc.wait()
         
         if proc.returncode != 0:
+            # Try to read any remaining output for error details
+            remaining_output = proc.stdout.read() if proc.stdout else ""
+            error_details = remaining_output[:500] if remaining_output else "No error details available"
+            
             logger.error(f"FFmpeg error: process exited with code {proc.returncode}")
+            logger.error(f"FFmpeg error details: {error_details}")
+            
+            # Try to identify common error types
+            error_lower = error_details.lower()
+            if "invalid argument" in error_lower or "invalid data" in error_lower:
+                logger.error("FFmpeg error: Invalid argument or data - video/subtitle format may be incompatible")
+            elif "no such file" in error_lower or "cannot find" in error_lower:
+                logger.error("FFmpeg error: File not found - check if video or subtitle file exists")
+            elif "permission denied" in error_lower:
+                logger.error("FFmpeg error: Permission denied - check file permissions")
+            elif "codec" in error_lower and ("not found" in error_lower or "unsupported" in error_lower):
+                logger.error("FFmpeg error: Codec not found or unsupported")
+            elif "out of memory" in error_lower or "cannot allocate" in error_lower:
+                logger.error("FFmpeg error: Out of memory - video may be too large")
+            
             if os.path.exists(output_path):
                 os.remove(output_path)
             return False

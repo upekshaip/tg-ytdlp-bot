@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rsync \
     fonts-noto-core \
     fonts-noto-extra \
-    fonts-kacst \
+    #fonts-kacst \
     fonts-kacst-one \
     fonts-noto-cjk \
     fonts-indic \
@@ -37,4 +37,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python", "magic.py"]
+# Копируем и делаем исполняемым entrypoint скрипт
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+CMD ["/usr/local/bin/docker-entrypoint.sh"]

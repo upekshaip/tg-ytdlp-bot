@@ -128,13 +128,26 @@ def generate_final_tags(url, user_tags, info_dict):
         if uid_tag.lower() not in seen:
             final_tags.append(uid_tag)
             seen.add(uid_tag.lower())
-    # 5. #nsfw if defined by title, description or caption (keywords)
+    # 5. #nsfw if defined by title, description, caption or tags (keywords)
     video_title = info_dict.get("title") if info_dict else None
     video_description = info_dict.get("description") if info_dict else None
     video_caption = info_dict.get("caption") if info_dict else None
+    # Get tags from info_dict (for tags with underscores)
+    video_tags = info_dict.get("tags") if info_dict else None
+    # Also check already collected tags (user tags + auto tags)
+    existing_tags_text = ' '.join(final_tags) if final_tags else None
     try:
         from HELPERS.porn import is_porn
-        if is_porn(url, video_title, video_description, video_caption):
+        # Combine tags from info_dict and already collected tags
+        all_tags = None
+        if video_tags:
+            if isinstance(video_tags, list):
+                all_tags = ' '.join(str(t) for t in video_tags)
+            else:
+                all_tags = str(video_tags)
+        if existing_tags_text:
+            all_tags = f"{all_tags} {existing_tags_text}" if all_tags else existing_tags_text
+        if is_porn(url, video_title, video_description, video_caption, tags=all_tags):
             if '#nsfw' not in seen:
                 final_tags.append('#nsfw')
                 seen.add('#nsfw')

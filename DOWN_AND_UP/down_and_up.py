@@ -1,3 +1,4 @@
+# Version: 1.0.1
 # ########################################
 # Download_and_up function
 # ########################################
@@ -23,7 +24,8 @@ from DOWN_AND_UP.ffmpeg import get_duration_thumb, get_video_info_ffprobe, embed
 from DOWN_AND_UP.sender import send_videos
 from DATABASE.firebase_init import write_logs
 from URL_PARSERS.tags import generate_final_tags, save_user_tags
-from URL_PARSERS.youtube import is_youtube_url, download_thumbnail
+from services.stats_events import update_download_progress
+from URL_PARSERS.youtube import is_youtube_url, download_thumbnail, extract_youtube_id
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.filter_check import is_no_filter_domain
 from URL_PARSERS.filter_utils import create_smart_match_filter, create_legacy_match_filter
@@ -36,6 +38,7 @@ from COMMANDS.split_sizer import get_user_split_size
 from COMMANDS.mediainfo_cmd import send_mediainfo_if_enabled
 from URL_PARSERS.playlist_utils import is_playlist_with_range
 from URL_PARSERS.normalizer import get_clean_playlist_url
+from urllib.parse import urlparse
 from DATABASE.cache_db import get_cached_playlist_videos, get_cached_message_ids, save_to_video_cache, save_to_playlist_cache
 from HELPERS.qualifier import get_quality_by_min_side
 from HELPERS.logger import send_to_all  # Импорт в самом конце для гарантии видимости
@@ -168,7 +171,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     from COMMANDS.cookies_cmd import is_youtube_cookie_error, is_youtube_geo_error, retry_download_with_different_cookies, retry_download_with_proxy
     
     playlist_indices = []
-    playlist_msg_ids = []    
+    playlist_msg_ids = []
+    playlist_video_urls = {}  # Словарь для хранения уникальных ссылок каждого видео: {index: video_url}    
     found_type = None
     already_forwarded_to_log = False  # Initialize variable to track log forwarding status
     need_subs = False  # Will be determined once at the beginning
@@ -244,8 +248,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Form response
                 response = safe_get_messages(user_id).DIRECT_LINK_OBTAINED_MSG
                 response += safe_get_messages(user_id).TITLE_FIELD_MSG.format(title=title)
-                if duration and duration > 0:
-                    response += safe_get_messages(user_id).DURATION_FIELD_MSG.format(duration=duration)
+                try:
+                    duration_val = float(duration) if duration is not None else 0
+                    if duration_val > 0:
+                        response += safe_get_messages(user_id).DURATION_FIELD_MSG.format(duration=duration_val)
+                except (TypeError, ValueError):
+                    pass
                 response += safe_get_messages(user_id).FORMAT_FIELD_MSG.format(format_spec=format_spec)
                 
                 if video_url:
@@ -317,19 +325,34 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     video_end_with = parsed_end if parsed_end != 1 or parsed_start != 1 else (video_start_with + video_count - 1)
     
     # Определяем, нужен ли обратный порядок (когда start > end)
-    # Для отрицательных индексов: -1 > -100 означает обратный порядок
+    # Для отрицательных индексов: -1 до -7 означает обратный порядок (7, 6, 5, 4, 3, 2, 1)
     is_reverse_order = False
+    has_negative_indices = False
+    use_range_download = False  # Объявляем переменную заранее
     if is_playlist and video_start_with is not None and video_end_with is not None:
-        # Если оба отрицательные, сравниваем по абсолютному значению
+        # Если оба отрицательные, всегда используем обратный порядок
         if video_start_with < 0 and video_end_with < 0:
-            is_reverse_order = abs(video_start_with) < abs(video_end_with)
+            is_reverse_order = True
+            has_negative_indices = True
         # Если start > end, это обратный порядок
         elif video_start_with > video_end_with:
             is_reverse_order = True
     
     # Формируем список индексов с учетом обратного порядка
+    # Для отрицательных индексов нужно будет преобразовать их в положительные после получения общего количества видео
     if is_playlist:
-        if is_reverse_order:
+        if has_negative_indices:
+            # Для отрицательных индексов сначала создаем список с отрицательными значениями
+            # Позже преобразуем их в положительные после получения общего количества видео
+            # -1 до -7 означает: качать в порядке 7, 6, 5, 4, 3, 2, 1 (от последнего к первому)
+            # Создаем список от -1 до -7 включительно: [-1, -2, -3, -4, -5, -6, -7]
+            if abs(video_start_with) < abs(video_end_with):
+                # -1 до -7: создаем список [-1, -2, -3, -4, -5, -6, -7]
+                requested_indices = list(range(video_start_with, video_end_with - 1, -1))
+            else:
+                # -7 до -1: создаем список [-7, -6, -5, -4, -3, -2, -1]
+                requested_indices = list(range(video_start_with, video_end_with + 1, 1))
+        elif is_reverse_order:
             # Для обратного порядка: от start до end включительно в обратном порядке
             requested_indices = list(range(video_start_with, video_end_with - 1, -1))
         else:
@@ -779,28 +802,41 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             allowed = True  # Allow download if we can't determine the size
         else:
             filesize = selected_format.get('filesize') or selected_format.get('filesize_approx')
-            if not filesize:
+            if filesize is None:
                 # fallback on rating
                 tbr = selected_format.get('tbr')
                 duration = selected_format.get('duration')
-                if tbr and duration:
-                    filesize = float(tbr) * float(duration) * 125
+                if tbr is not None and duration is not None:
+                    try:
+                        filesize = float(tbr) * float(duration) * 125
+                    except (TypeError, ValueError):
+                        filesize = None
                 else:
+                    filesize = None
+                
+                if filesize is None:
                     width = selected_format.get('width')
                     height = selected_format.get('height')
                     duration = selected_format.get('duration')
-                    if width and height and duration:
-                        filesize = int(width) * int(height) * float(duration) * 0.07
+                    if width is not None and height is not None and duration is not None:
+                        try:
+                            filesize = int(width) * int(height) * float(duration) * 0.07
+                        except (TypeError, ValueError):
+                            filesize = 0
                     else:
                         filesize = 0
 
             allowed = check_file_size_limit(selected_format, max_size_bytes=max_size_bytes, message=message)
         
         # Secure file size logging
-        if filesize and filesize > 0:
-            size_gb = filesize/(1024**3)
-            logger.info(f"[SIZE CHECK] safe_quality_key={safe_quality_key}, determined size={size_gb:.2f} GB, limit={max_size_gb} GB, allowed={allowed}")
-        else:
+        try:
+            filesize_val = float(filesize) if filesize is not None else 0
+            if filesize_val > 0:
+                size_gb = filesize_val/(1024**3)
+                logger.info(f"[SIZE CHECK] safe_quality_key={safe_quality_key}, determined size={size_gb:.2f} GB, limit={max_size_gb} GB, allowed={allowed}")
+            else:
+                logger.info(f"[SIZE CHECK] safe_quality_key={safe_quality_key}, size unknown, limit={max_size_gb} GB, allowed={allowed}")
+        except (TypeError, ValueError):
             logger.info(f"[SIZE CHECK] safe_quality_key={safe_quality_key}, size unknown, limit={max_size_gb} GB, allowed={allowed}")
 
         if not allowed:
@@ -835,6 +871,38 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 raise Exception(f"Download timeout exceeded ({safe_get_messages(user_id).DOWNLOAD_TIMEOUT // 3600} hours)")
             current_time = time.time()
             
+            def build_progress_metadata(downloaded_bytes, total_bytes):
+                info_dict = d.get("info_dict") or {}
+                fmt = selected_format or {}
+                width = fmt.get("width") or info_dict.get("width")
+                height = fmt.get("height") or info_dict.get("height")
+                resolution = f"{width}x{height}" if width and height else None
+                filesize = (
+                    total_bytes
+                    or fmt.get("filesize")
+                    or fmt.get("filesize_approx")
+                    or info_dict.get("filesize")
+                    or info_dict.get("filesize_approx")
+                )
+                duration_val = (
+                    fmt.get("duration")
+                    or info_dict.get("duration")
+                )
+                metadata_payload = {
+                    "downloaded_bytes": downloaded_bytes,
+                    "total_bytes": total_bytes,
+                    "filesize": filesize,
+                    "duration": duration_val,
+                    "resolution": resolution,
+                    "quality": fmt.get("format_note") or safe_quality_key,
+                    "ext": fmt.get("ext") or info_dict.get("ext"),
+                    "speed": d.get("speed"),
+                    "eta": d.get("eta"),
+                    "domain": urlparse(url).netloc,
+                    "thumbnail": info_dict.get("thumbnail"),
+                }
+                return {k: v for k, v in metadata_payload.items() if v is not None}
+            
             # Calculate elapsed time and minutes passed
             elapsed = max(0, current_time - progress_start_time)
             minutes_passed = int(elapsed // 60)
@@ -856,6 +924,18 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 percent = (downloaded / total * 100) if total else 0
                 blocks = int(percent // 10)
                 bar = "🟩" * blocks + "⬜️" * (10 - blocks)
+                
+                # Обновляем прогресс в статистике
+                try:
+                    update_download_progress(
+                        user_id=user_id,
+                        progress=percent,
+                        url=url,
+                        title=title,
+                        metadata=build_progress_metadata(downloaded, total),
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to update download progress: {e}")
                 
                 # For HLS, update progress data for cycle animation
                 if is_hls and hasattr(progress_func, 'progress_data') and progress_func.progress_data:
@@ -885,6 +965,18 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     if "'quality_key'" in str(e):
                         _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
             elif d.get("status") == "finished":
+                # Обновляем прогресс до 100% при завершении
+                total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
+                try:
+                    update_download_progress(
+                        user_id=user_id,
+                        progress=100.0,
+                        url=url,
+                        title=title,
+                        metadata=build_progress_metadata(total or 0, total or 0),
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to update download progress on finish: {e}")
                 try:
                     safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).VIDEO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
                 except Exception as e:
@@ -893,6 +985,19 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     if "'quality_key'" in str(e):
                         _handle_quality_key_error(e, split_msg_ids, is_playlist, successful_uploads, indices_to_download, video_count, user_id, proc_msg_id, message, app)
             elif d.get("status") == "error":
+                # Сбрасываем прогресс при ошибке
+                downloaded = d.get("downloaded_bytes", 0)
+                total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
+                try:
+                    update_download_progress(
+                        user_id=user_id,
+                        progress=None,
+                        url=url,
+                        title=title,
+                        metadata=build_progress_metadata(downloaded, total),
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to update download progress on error: {e}")
                 logger.error("Error occurred during download.")
                 send_error_to_user(message, safe_get_messages(user_id).DOWNLOAD_ERROR_GENERIC)
             last_update = current_time
@@ -901,7 +1006,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
         def try_download(url, attempt_opts):
             messages = safe_get_messages(message.chat.id)
-            nonlocal current_total_process, error_message, did_cookie_retry, did_proxy_retry, is_hls, error_message_sent, is_reverse_order, use_range_download, playlist_range_str, current_playlist_items_override, range_entries_metadata
+            nonlocal current_total_process, error_message, did_cookie_retry, did_proxy_retry, is_hls, error_message_sent, is_reverse_order, use_range_download, current_playlist_items_override, range_entries_metadata
             
             # Use original filename for first attempt
             original_outtmpl = os.path.join(user_dir_name, "%(title)s.%(ext)s")
@@ -914,6 +1019,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Для обратного порядка используем формат START:STOP:-1
                 playlist_items_str = f"{current_index}:{current_index}:-1"
             else:
+                # Для обычных случаев (включая отрицательные индексы, уже преобразованные в положительные)
                 playlist_items_str = str(current_index)
             
             common_opts = {
@@ -1619,6 +1725,17 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     elif "Sign in to confirm" in error_message:
                         error_code = "SIGN_IN_REQUIRED"
                         error_description = "Sign in required - cookies needed"
+                        # Автоматический rotate IP при SIGN_IN_REQUIRED
+                        try:
+                            from services.system_service import rotate_ip
+                            logger.warning(f"Auto-rotating IP due to SIGN_IN_REQUIRED error for user {user_id}")
+                            rotate_result = rotate_ip()
+                            if rotate_result.get("status") == "ok":
+                                logger.info(f"IP rotated successfully: IPv4={rotate_result.get('ipv4')}, IPv6={rotate_result.get('ipv6')}")
+                            else:
+                                logger.error(f"Failed to auto-rotate IP: {rotate_result.get('message')}")
+                        except Exception as rotate_error:
+                            logger.error(f"Error during auto-rotate IP: {rotate_error}")
                     elif "No video formats found" in error_message:
                         error_code = "NO_FORMATS"
                         error_description = "No downloadable formats available"
@@ -1628,6 +1745,32 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     elif "Network error" in error_message:
                         error_code = "NETWORK_ERROR"
                         error_description = "Network connection failed"
+                    elif "ffmpeg exited with code" in error_message or "ERROR: ffmpeg" in error_message:
+                        error_code = "FFMPEG_ERROR"
+                        # Try to extract more details from error message
+                        if "code 1" in error_message:
+                            error_description = "FFmpeg processing failed - video format may be incompatible or corrupted"
+                        elif "code 2" in error_message:
+                            error_description = "FFmpeg error - invalid arguments or unsupported format"
+                        else:
+                            error_description = "FFmpeg processing error occurred"
+                        
+                        # Try to extract specific error details
+                        import re
+                        ffmpeg_details = re.search(r'ffmpeg.*?error[:\s]+(.*?)(?:\n|$)', error_message, re.IGNORECASE | re.DOTALL)
+                        if ffmpeg_details:
+                            details = ffmpeg_details.group(1).strip()[:200]
+                            if details:
+                                error_description += f"\n\nDetails: {details}"
+                        
+                        # Suggest solutions
+                        error_description += (
+                            "\n\n**Possible solutions:**\n"
+                            "• Try downloading with a different quality/format\n"
+                            "• The video may be corrupted or in an unsupported format\n"
+                            "• Try downloading without post-processing\n"
+                            "• Check if ffmpeg is properly installed"
+                        )
                     
                     send_error_to_user(
                         message,                   
@@ -1727,19 +1870,58 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 return None
 
         # Для отрицательных индексов используем весь диапазон сразу, а не цикл
-        use_range_download = False
+        # use_range_download уже объявлена выше (строка 325)
+        total_playlist_count = None  # Общее количество видео в плейлисте (для преобразования отрицательных индексов)
+        playlist_range_str = None  # Строка диапазона для плейлиста (например, "1:7" или "1:7:-1")
+        has_negative_indices_for_download = False  # Флаг для отрицательных индексов (не используем range_entries_metadata)
         if is_playlist and video_start_with is not None and video_end_with is not None:
             if video_start_with < 0 or video_end_with < 0:
                 use_range_download = True
+                has_negative_indices_for_download = True  # Для отрицательных индексов скачиваем каждый отдельно
+                # Для отрицательных индексов playlist_range_str не используется, так как обрабатываем каждый индекс отдельно
+                # Для отрицательных индексов нужно получить общее количество видео из плейлиста
+                # Делаем предварительный запрос, чтобы получить общее количество видео
+                try:
+                    from DOWN_AND_UP.yt_dlp_hook import get_video_formats
+                    logger.info(f"Getting total playlist count for negative indices conversion...")
+                    temp_info = get_video_formats(url, user_id, 1, cookies_already_checked, use_proxy, 1)
+                    if temp_info and isinstance(temp_info, dict):
+                        if "entries" in temp_info:
+                            total_playlist_count = len(temp_info["entries"])
+                        elif "_playlist_entries" in temp_info:
+                            total_playlist_count = len(temp_info["_playlist_entries"])
+                    if total_playlist_count:
+                        logger.info(f"Total playlist count: {total_playlist_count}")
+                        # Преобразуем отрицательные индексы в положительные
+                        # -1 = последнее видео (total_playlist_count), -2 = предпоследнее (total_playlist_count - 1), и т.д.
+                        # Формула: positive_index = total_playlist_count + negative_index + 1
+                        converted_indices = []
+                        for neg_idx in playlist_indices_all:
+                            if neg_idx < 0:
+                                pos_idx = total_playlist_count + neg_idx + 1
+                                converted_indices.append(pos_idx)
+                            else:
+                                converted_indices.append(neg_idx)
+                        # Сортируем в обратном порядке для скачивания от последнего к первому
+                        converted_indices.sort(reverse=True)
+                        playlist_indices_all = converted_indices
+                        logger.info(f"Converted negative indices to positive: {converted_indices}")
+                except Exception as e:
+                    logger.warning(f"Failed to get total playlist count for negative indices: {e}, using original indices")
+            elif video_start_with != video_end_with:
+                # Формируем строку диапазона для обычных случаев
+                if is_reverse_order:
+                    playlist_range_str = f"{video_start_with}:{video_end_with}:-1"
+                else:
+                    playlist_range_str = f"{video_start_with}:{video_end_with}"
         
         if use_range_download:
             # Для отрицательных индексов используем весь диапазон сразу
-            if is_reverse_order:
-                playlist_range_str = f"{video_start_with}:{video_end_with}:-1"
-            else:
-                playlist_range_str = f"{video_start_with}:{video_end_with}"
-            # Обрабатываем каждый индекс из исходного списка, но скачиваем один раз
-            indices_to_download = playlist_indices_all
+            # Теперь indices_to_download содержит уже преобразованные положительные индексы
+            # Для отрицательных индексов всегда используем обратный порядок (от последнего к первому)
+            # playlist_range_str не используется для отрицательных индексов, так как мы обрабатываем каждый индекс отдельно
+            # Обрабатываем каждый индекс из исходного списка в обратном порядке (от последнего к первому)
+            indices_to_download = playlist_indices_all  # Уже отсортированы в обратном порядке
         elif is_playlist and safe_quality_key:
             indices_to_download = uncached_indices
         elif is_playlist:
@@ -1749,7 +1931,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         
         range_entries_metadata = None
         current_playlist_items_override = None
+        logger.info(f"🔍 [DEBUG] Starting playlist download: indices_to_download={indices_to_download}, len={len(indices_to_download) if indices_to_download else 0}, use_range_download={use_range_download}, has_negative_indices_for_download={has_negative_indices_for_download}")
         for idx, current_index in enumerate(indices_to_download):
+            logger.info(f"🔍 [DEBUG] Processing video {idx + 1}/{len(indices_to_download)}: current_index={current_index}")
             messages = safe_get_messages(message.chat.id)
             total_process = f"""
 <b>📶 {safe_get_messages(user_id).TOTAL_PROGRESS_MSG}</b>
@@ -1778,7 +1962,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             timestamp = int(time.time())
             safe_outtmpl = os.path.join(user_dir_name, f"download_{timestamp}.%(ext)s")
             
-            reuse_range_download = use_range_download and range_entries_metadata is not None
+            # Для отрицательных индексов не используем reuse_range_download, скачиваем каждый индекс отдельно
+            reuse_range_download = use_range_download and range_entries_metadata is not None and not has_negative_indices_for_download
             if reuse_range_download:
                 if idx < len(range_entries_metadata):
                     info_dict = range_entries_metadata[idx]
@@ -1789,7 +1974,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     stop_all = True
             else:
                 if use_range_download:
-                    current_playlist_items_override = playlist_range_str
+                    # Для отрицательных индексов playlist_range_str = None, поэтому используем None
+                    # В try_download будет использован current_index (уже преобразованный в положительный)
+                    current_playlist_items_override = playlist_range_str  # Может быть None для отрицательных индексов
                 else:
                     current_playlist_items_override = None
 
@@ -1852,7 +2039,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
                 current_playlist_items_override = None
 
-                if use_range_download and info_dict is not None:
+                # Для отрицательных индексов не используем range_entries_metadata, скачиваем каждый индекс отдельно
+                if use_range_download and info_dict is not None and not has_negative_indices_for_download:
                     entries_list = []
                     if isinstance(info_dict, dict) and "entries" in info_dict:
                         entries_list = info_dict.get("entries") or []
@@ -1932,6 +2120,18 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             original_video_title = info_dict.get("original_title", info_dict.get("title", None))  # Original title for caption
             full_video_title = info_dict.get("description", original_video_title)
             video_title = info_dict.get("title", "video")  # Already sanitized title for file operations
+            video_page_url = (
+                info_dict.get("webpage_url")
+                or info_dict.get("original_url")
+                or info_dict.get("url")
+                or info_dict.get("canonical_url")
+                or url
+            )
+            
+            # Сохраняем уникальную ссылку видео для последующего кэширования
+            if is_playlist:
+                playlist_video_urls[current_index] = video_page_url
+                logger.info(f"🔍 [CACHE] Сохранена уникальная ссылка для видео index={current_index}: {video_page_url}")
 
             # --- Use new centralized function for all tags ---
             tags_list = tags_text.split() if tags_text else []
@@ -2194,14 +2394,15 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             youtube_thumb_path = None
             thumb_dir = None
             duration = 0
+            thumb_source_url = video_page_url or url
             
             # Try to download YouTube thumbnail first
-            if ("youtube.com" in url or "youtu.be" in url):
+            if ("youtube.com" in thumb_source_url or "youtu.be" in thumb_source_url):
                 try:
                     yt_id = video_id or None
                     if not yt_id:
                         try:
-                            yt_id = extract_youtube_id(url, user_id)
+                            yt_id = extract_youtube_id(thumb_source_url, user_id)
                         except Exception:
                             yt_id = None
                     if yt_id:
@@ -2217,7 +2418,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             if not thumb_dir:
                 try:
                     universal_thumb_path = os.path.join(dir_path, "universal_thumb.jpg")
-                    if download_universal_thumbnail(url, universal_thumb_path):
+                    if download_universal_thumbnail(thumb_source_url, universal_thumb_path):
                         if os.path.exists(universal_thumb_path):
                             thumb_dir = universal_thumb_path
                             logger.info(f"Using universal thumbnail: {universal_thumb_path}")
@@ -2354,8 +2555,23 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         elif is_nsfw:
                             # NSFW content in groups -> LOGS_NSFW_ID only
                             # For split videos, always forward each part to NSFW channel
+                            # For playlists, always forward each video to NSFW channel (don't use already_forwarded_to_log)
+                            # IMPORTANT: For split videos in playlists, only forward once (split video takes priority)
                             if caption_lst and len(caption_lst) > 1:
-                                # This is a split video - always forward each part
+                                # This is a split video - always forward each part (even if it's in a playlist)
+                                log_channel = get_log_channel("video", nsfw=True)
+                                if log_channel and log_channel != 0:
+                                    try:
+                                        forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                        logger.info(f"down_and_up: NSFW content sent to NSFW channel")
+                                    except Exception as e:
+                                        logger.error(f"down_and_up: failed to forward to NSFW channel: {e}")
+                                        forwarded_msgs = None
+                                else:
+                                    logger.warning(f"down_and_up: NSFW channel not available (ID: {log_channel}), skipping forward")
+                                    forwarded_msgs = None
+                            elif is_playlist:
+                                # For playlists (non-split videos), always forward each video to NSFW channel
                                 log_channel = get_log_channel("video", nsfw=True)
                                 if log_channel and log_channel != 0:
                                     try:
@@ -2390,8 +2606,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         else:
                             # Regular content -> LOGS_VIDEO_ID and cache
                             # For split videos, always forward each part to log channel
+                            # For playlists, always forward each video to log channel (don't use already_forwarded_to_log)
+                            # IMPORTANT: For split videos in playlists, only forward once (split video takes priority)
                             if caption_lst and len(caption_lst) > 1:
-                                # This is a split video - always forward each part
+                                # This is a split video - always forward each part (even if it's in a playlist)
+                                log_channel = get_log_channel("video")
+                                forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                            elif is_playlist:
+                                # For playlists (non-split videos), always forward each video to log channel
                                 log_channel = get_log_channel("video")
                                 forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
                             elif not already_forwarded_to_log:
@@ -2406,7 +2628,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             logger.info(f"down_and_up: collecting forwarded message IDs for split video: {[m.id for m in forwarded_msgs]}")
                             if is_playlist:
                                 # For playlists, save to playlist cache with index
-                                current_video_index = x + video_start_with
+                                current_video_index = current_index
                                 rounded_quality_key = safe_quality_key
                                 try:
                                     if safe_quality_key.endswith('p'):
@@ -2417,7 +2639,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 if not need_subs:
                                     # Only cache regular content (not NSFW)
                                     if not is_nsfw:
-                                        save_to_playlist_cache(get_clean_playlist_url(url), rounded_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                        # Передаем уникальную ссылку видео для дополнительного кэширования
+                                        video_urls_dict = {current_video_index: playlist_video_urls.get(current_video_index)} if current_video_index in playlist_video_urls else None
+                                        save_to_playlist_cache(get_clean_playlist_url(url), rounded_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "", video_urls_dict=video_urls_dict)
                                     else:
                                         logger.info(f"NSFW content not cached (found_type={found_type}, auto_mode={auto_mode})")
                                 else:
@@ -2433,13 +2657,15 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             logger.info(f"down_and_up: collecting video_msg.id for split video: {video_msg.id}")
                             if is_playlist:
                                 # For playlists, save to playlist cache with video index
-                                current_video_index = x + video_start_with
+                                current_video_index = current_index
                                 #found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
                                 subs_enabled = is_subs_enabled(user_id)
                                 auto_mode = get_user_subs_auto_mode(user_id)
                                 need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                                 if not need_subs:
-                                    save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
+                                    # Передаем уникальную ссылку видео для дополнительного кэширования
+                                    video_urls_dict = {current_video_index: playlist_video_urls.get(current_video_index)} if current_video_index in playlist_video_urls else None
+                                    save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "", video_urls_dict=video_urls_dict)
                                 else:
                                     logger.info("Video with subtitles (subs.txt found) is not cached!")
                                 cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), safe_quality_key, [current_video_index])
@@ -2470,13 +2696,15 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             break
                         if is_playlist:
                             # For playlists, save to playlist cache with video index
-                            current_video_index = x + video_start_with
+                            current_video_index = current_index
                             #found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
                             subs_enabled = is_subs_enabled(user_id)
                             auto_mode = get_user_subs_auto_mode(user_id)
                             need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                             if not need_subs:
-                                save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "")
+                                # Передаем уникальную ссылку видео для дополнительного кэширования
+                                video_urls_dict = {current_video_index: playlist_video_urls.get(current_video_index)} if current_video_index in playlist_video_urls else None
+                                save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [video_msg.id], original_text=message.text or message.caption or "", video_urls_dict=video_urls_dict)
                             else:
                                 logger.info("Video with subtitles (subs.txt found) is not cached!")
                             cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), safe_quality_key, [current_video_index])
@@ -2762,8 +2990,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             elif is_nsfw:
                                 # NSFW content in groups -> LOGS_NSFW_ID only
                                 # For split videos, always forward each part to NSFW channel
+                                # For playlists, always forward each video to NSFW channel (don't use already_forwarded_to_log)
+                                # IMPORTANT: For split videos in playlists, only forward once (split video takes priority)
                                 if caption_lst and len(caption_lst) > 1:
-                                    # This is a split video - always forward each part
+                                    # This is a split video - always forward each part (even if it's in a playlist)
+                                    log_channel = get_log_channel("video", nsfw=True)
+                                    forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                elif is_playlist:
+                                    # For playlists (non-split videos), always forward each video to NSFW channel
                                     log_channel = get_log_channel("video", nsfw=True)
                                     forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
                                 elif not already_forwarded_to_log:
@@ -2786,6 +3020,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     # This is a split video - always forward each part
                                     log_channel = get_log_channel("video")
                                     forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
+                                elif is_playlist:
+                                    # For playlists, always forward each video to log channel (don't use already_forwarded_to_log)
+                                    log_channel = get_log_channel("video")
+                                    forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
                                 elif not already_forwarded_to_log:
                                     log_channel = get_log_channel("video")
                                     forwarded_msgs = safe_forward_messages(log_channel, user_id, [video_msg.id])
@@ -2797,13 +3035,15 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 logger.info(f"down_and_up: saving to cache with forwarded message IDs: {[m.id for m in forwarded_msgs]}")
                                 if is_playlist:
                                     # For playlists, save to playlist cache with video index
-                                    current_video_index = x + video_start_with
+                                    current_video_index = current_index
                                     #found_type = check_subs_availability(url, user_id, safe_quality_key, return_type=True)
                                     subs_enabled = is_subs_enabled(user_id)
                                     auto_mode = get_user_subs_auto_mode(user_id)
                                     need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                                     if not need_subs:
-                                        save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                        # Передаем уникальную ссылку видео для дополнительного кэширования
+                                        video_urls_dict = {current_video_index: playlist_video_urls.get(current_video_index)} if current_video_index in playlist_video_urls else None
+                                        save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "", video_urls_dict=video_urls_dict)
                                     else:
                                         logger.info("Video with subtitles (subs.txt found) is not cached!")
                                     cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), safe_quality_key, [current_video_index])
@@ -2821,7 +3061,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         logger.info(f"Video with subtitles is not cached - different users may need different languages")
                             else:
                                 # If forwarding failed, try to forward manually and get log channel IDs
-                                if 'already_forwarded_to_log' in locals() and already_forwarded_to_log:
+                                # For playlists, skip manual forward if we already tried to forward (to avoid duplicates)
+                                if is_playlist:
+                                    logger.info("down_and_up: forwarding failed for playlist video, but skipping manual forward to avoid duplicates")
+                                elif 'already_forwarded_to_log' in locals() and already_forwarded_to_log:
                                     logger.info("down_and_up: already forwarded to log; skipping manual forward duplicate")
                                 else:
                                     logger.info(f"down_and_up: forwarding failed, trying manual forward for video: {video_msg.id}")
@@ -2887,12 +3130,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                             logger.info(f"down_and_up: manual forward successful, got IDs: {[m.id for m in forwarded_msgs]}")
                                             if is_playlist:
                                                 # For playlists, save to playlist cache with video index
-                                                current_video_index = x + video_start_with
+                                                current_video_index = current_index
                                                 subs_enabled = is_subs_enabled(user_id)
                                                 auto_mode = get_user_subs_auto_mode(user_id)
                                                 need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                                                 if not need_subs:
-                                                    save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                                    # Передаем уникальную ссылку видео для дополнительного кэширования
+                                                    video_urls_dict = {current_video_index: playlist_video_urls.get(current_video_index)} if current_video_index in playlist_video_urls else None
+                                                    save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "", video_urls_dict=video_urls_dict)
                                                 else:
                                                     logger.info("Video with subtitles (subs.txt found) is not cached!")
                                                 cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), safe_quality_key, [current_video_index])
@@ -3012,12 +3257,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     logger.info(f"down_and_up: manual forward after error successful, got IDs: {[m.id for m in forwarded_msgs]}")
                                     if is_playlist:
                                         # For playlists, save to playlist cache with video index
-                                        current_video_index = x + video_start_with
+                                        current_video_index = current_index
                                         subs_enabled = is_subs_enabled(user_id)
                                         auto_mode = get_user_subs_auto_mode(user_id)
                                         need_subs = determine_need_subs(subs_enabled, found_type, user_id)
                                         if not need_subs:
-                                            save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "")
+                                            # Передаем уникальную ссылку видео для дополнительного кэширования
+                                            video_urls_dict = {current_video_index: playlist_video_urls.get(current_video_index)} if current_video_index in playlist_video_urls else None
+                                            save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, [current_video_index], [m.id for m in forwarded_msgs], original_text=message.text or message.caption or "", video_urls_dict=video_urls_dict)
                                         else:
                                             logger.info("Video with subtitles (subs.txt found) is not cached!")
                                         cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), safe_quality_key, [current_video_index])
@@ -3179,7 +3426,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             auto_mode = get_user_subs_auto_mode(user_id)
             need_subs = determine_need_subs(subs_enabled, found_type, user_id)
             if not need_subs:
-                save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, playlist_indices, playlist_msg_ids, original_text=message.text or message.caption or "")
+                # Передаем все уникальные ссылки видео для дополнительного кэширования
+                save_to_playlist_cache(get_clean_playlist_url(url), safe_quality_key, playlist_indices, playlist_msg_ids, original_text=message.text or message.caption or "", video_urls_dict=playlist_video_urls if playlist_video_urls else None)
             else:
                 logger.info("Video with subtitles (subs.txt found) is not cached!")
             cached_check = get_cached_playlist_videos(get_clean_playlist_url(url), safe_quality_key, playlist_indices)

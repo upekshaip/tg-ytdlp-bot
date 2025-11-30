@@ -200,24 +200,47 @@ def check_file_size_limit(info_dict, max_size_bytes=None, message=None):
         return True
 
     filesize = info_dict.get('filesize') or info_dict.get('filesize_approx')
-    if filesize and filesize > 0:
-        size_bytes = int(filesize)
+    if filesize is not None:
+        try:
+            filesize = float(filesize)
+            if filesize > 0:
+                size_bytes = int(filesize)
+            else:
+                size_bytes = None
+        except (TypeError, ValueError):
+            size_bytes = None
     else:
+        size_bytes = None
+    
+    if size_bytes is None:
         # Try to estimate by bitrate (kbit/s) and duration (s)
         tbr = info_dict.get('tbr')
         duration = info_dict.get('duration')
-        if tbr and duration:
-            size_bytes = float(tbr) * float(duration) * 125  # kbit/s -> bytes
-        else:
+        if tbr is not None and duration is not None:
+            try:
+                tbr = float(tbr)
+                duration = float(duration)
+                size_bytes = int(tbr * duration * 125)  # kbit/s -> bytes
+            except (TypeError, ValueError):
+                size_bytes = None
+        
+        if size_bytes is None:
             # Very rough estimate by resolution and duration
             width = info_dict.get('width')
             height = info_dict.get('height')
             duration = info_dict.get('duration')
-            if width and height and duration:
-                size_bytes = int(width) * int(height) * float(duration) * 0.07
-            else:
-                # Could not estimate, allow download
-                return True
+            if width is not None and height is not None and duration is not None:
+                try:
+                    width = int(width)
+                    height = int(height)
+                    duration = float(duration)
+                    size_bytes = int(width * height * duration * 0.07)
+                except (TypeError, ValueError):
+                    size_bytes = None
+    
+    if size_bytes is None:
+        # Could not estimate, allow download
+        return True
 
     return size_bytes <= max_size_bytes
 
@@ -246,26 +269,41 @@ def check_subs_limits(info_dict, quality_key=None):
         
         # Check the duration
         duration = info_dict.get('duration')
-        if duration and duration > max_duration:
-            logger.info(safe_get_messages(None).HELPER_SUBTITLE_EMBEDDING_SKIPPED_DURATION_MSG.format(duration=duration, max_duration=max_duration))
-            return False
+        if duration is not None:
+            try:
+                duration = float(duration)
+                if duration > max_duration:
+                    logger.info(safe_get_messages(None).HELPER_SUBTITLE_EMBEDDING_SKIPPED_DURATION_MSG.format(duration=duration, max_duration=max_duration))
+                    return False
+            except (TypeError, ValueError):
+                pass
         
         # Check the file size (only if it is accurately known)
         filesize = info_dict.get('filesize') or info_dict.get('filesize_approx')
-        if filesize and filesize > 0:  # Check that the size is larger than 0
-            size_mb = filesize / (1024 * 1024)  # Fixed: use division instead of integer division
-            if size_mb and size_mb > max_size:
-                logger.info(safe_get_messages(None).HELPER_SUBTITLE_EMBEDDING_SKIPPED_SIZE_MSG.format(size_mb=size_mb, max_size=max_size))
-                return False
+        if filesize is not None:
+            try:
+                filesize = float(filesize)
+                if filesize > 0:  # Check that the size is larger than 0
+                    size_mb = filesize / (1024 * 1024)  # Fixed: use division instead of integer division
+                    if size_mb > max_size:
+                        logger.info(safe_get_messages(None).HELPER_SUBTITLE_EMBEDDING_SKIPPED_SIZE_MSG.format(size_mb=size_mb, max_size=max_size))
+                        return False
+            except (TypeError, ValueError):
+                pass
         
         # Check quality (only if width and height are available)
         width = info_dict.get('width')
         height = info_dict.get('height')
-        if width and height:
-            min_side = min(width, height)
-            if min_side and min_side > max_quality:
-                logger.info(safe_get_messages(None).HELPER_SUBTITLE_EMBEDDING_SKIPPED_QUALITY_MSG.format(width=width, height=height, min_side=min_side, max_quality=max_quality))
-                return False
+        if width is not None and height is not None:
+            try:
+                width = int(width)
+                height = int(height)
+                min_side = min(width, height)
+                if min_side > max_quality:
+                    logger.info(safe_get_messages(None).HELPER_SUBTITLE_EMBEDDING_SKIPPED_QUALITY_MSG.format(width=width, height=height, min_side=min_side, max_quality=max_quality))
+                    return False
+            except (TypeError, ValueError):
+                pass
         
         logger.info(LoggerMsg.LIMITTER_SUBTITLE_LIMITS_CHECK_PASSED_LOG_MSG.format(duration=duration, size=filesize, width=width, height=height))
         return True
@@ -315,7 +353,7 @@ def check_playlist_range_limits(url, video_start_with, video_end_with, app, mess
         # Для прямого порядка: обычная формула
         count = video_end_with - video_start_with + 1
     
-    if count and count > max_count:
+    if count is not None and count > max_count:
         # Determine command type based on URL
         if 'tiktok.com' in url_l:
             command_type = safe_get_messages(user_id).HELPER_COMMAND_TYPE_TIKTOK_MSG

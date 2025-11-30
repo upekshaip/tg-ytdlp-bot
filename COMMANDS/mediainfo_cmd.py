@@ -10,6 +10,7 @@ from HELPERS.app_instance import get_app
 from HELPERS.filesystem_hlp import create_directory
 from HELPERS.logger import send_to_logger, logger, send_to_all, send_error_to_user
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
+from HELPERS.decorators import background_handler
 from HELPERS.limitter import is_user_in_channel
 
 # Get app instance for decorators
@@ -17,6 +18,7 @@ app = get_app()
 
 @app.on_message(filters.command("mediainfo") & filters.private)
 # @reply_with_keyboard
+@background_handler(label="mediainfo_command")
 def mediainfo_command(app, message):
     messages = safe_get_messages(message.chat.id)
     user_id = message.chat.id

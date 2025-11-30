@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Version 1.0.1
 """
 Script to automatically update code from a GitHub repository.
 Clones the repository into a temporary folder and replaces required files.
@@ -16,8 +17,8 @@ from datetime import datetime
 # Configuration
 REPO_URL = "https://github.com/chelaxian/tg-ytdlp-bot.git"
 # Use explicit branch
-# BRANCH = "newdesign2"
-BRANCH = "main"
+BRANCH = "newdesign2"
+# BRANCH = "main"
 
 # Files and directories that MUST NOT be updated
 EXCLUDED_FILES = [
@@ -48,13 +49,34 @@ EXCLUDED_DIRS = [
     "_cursor",           # Cursor temp workspace
 ]
 
+# Дополнительные каталоги / файлы, которые нужно обязательно забирать
+INCLUDE_DIRS = [
+    "web",  # Включает шаблоны, статику и сам FastAPI-приложение
+    "CONFIG/templates",  # Если появятся шаблоны/локализации
+]
+
+ALWAYS_INCLUDE_FILES = [
+    "requirements.txt",
+]
+
 def log(message, level="INFO"):
     """Logging with timestamp"""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{timestamp}] {level}: {message}")
 
-def should_update_file(file_path):
-    """Checks whether the file should be updated"""
+def _is_inside(path: str, directory: str) -> bool:
+    """Helper: checks if path is the directory itself or inside it."""
+    return path == directory or path.startswith(f"{directory}/")
+
+
+def should_update_file(file_path, exclude_include_dirs=False):
+    """Checks whether the file should be updated
+    
+    Args:
+        file_path: Path to the file to check
+        exclude_include_dirs: If True, exclude files from INCLUDE_DIRS 
+                             (they will be synced separately via sync_include_directories)
+    """
     # Check excluded files
     for excluded in EXCLUDED_FILES:
         if file_path == excluded:
@@ -62,8 +84,26 @@ def should_update_file(file_path):
     
     # Check excluded directories
     for excluded_dir in EXCLUDED_DIRS:
-        if file_path.startswith(excluded_dir + "/"):
+        if _is_inside(file_path, excluded_dir):
             return False
+    
+    # If exclude_include_dirs is True, skip files from INCLUDE_DIRS
+    # (they will be synced via sync_include_directories)
+    if exclude_include_dirs:
+        for include_dir in INCLUDE_DIRS:
+            if _is_inside(file_path, include_dir):
+                return False
+    
+    # Ensure explicitly listed files are synced
+    if file_path in ALWAYS_INCLUDE_FILES:
+        return True
+    
+    # Ensure specific directories (e.g. web UI) are synced entirely
+    # (only if not excluding them)
+    if not exclude_include_dirs:
+        for include_dir in INCLUDE_DIRS:
+            if _is_inside(file_path, include_dir):
+                return True
     
     # Update Python files
     if file_path.endswith('.py'):
@@ -125,21 +165,64 @@ def clone_repository(temp_dir):
         log(messages.UPDATE_CLONE_EXCEPTION_MSG.format(error=e), "ERROR")
         return False
 
-def find_python_files(source_dir):
-    """Find all Python files and LANGUAGES files in the source directory"""
+def find_python_files(source_dir, exclude_include_dirs=False):
+    """Find all Python files and LANGUAGES files in the source directory
+    
+    Args:
+        source_dir: Source directory to search
+        exclude_include_dirs: If True, exclude files from INCLUDE_DIRS 
+                             (they will be synced separately via sync_include_directories)
+    """
     files_to_update = []
     
     for root, dirs, files in os.walk(source_dir):
         # Exclude unnecessary directories
         dirs[:] = [d for d in dirs if d not in ['.git', '__pycache__', 'venv']]
         
+        # Also exclude INCLUDE_DIRS from walking if we're excluding them
+        if exclude_include_dirs:
+            for include_dir in INCLUDE_DIRS:
+                if include_dir in dirs:
+                    dirs.remove(include_dir)
+        
         for file in files:
             # Build relative path
             rel_path = os.path.relpath(os.path.join(root, file), source_dir)
-            if should_update_file(rel_path):
+            if should_update_file(rel_path, exclude_include_dirs=exclude_include_dirs):
                 files_to_update.append(rel_path)
     
     return sorted(files_to_update)
+
+
+def sync_include_directories(source_root: str) -> None:
+    """Полностью синхронизирует каталоги из INCLUDE_DIRS (жёсткое копирование)."""
+    for include_dir in INCLUDE_DIRS:
+        source_path = os.path.join(source_root, include_dir)
+        if not os.path.exists(source_path):
+            log(f"⚠️ Include directory missing in repo: {include_dir}", "WARNING")
+            continue
+        
+        target_path = Path(include_dir)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Count files before removal
+        file_count = 0
+        if target_path.exists():
+            for root, dirs, files in os.walk(target_path):
+                file_count += len(files)
+            log(f"🧹 Removing existing directory: {include_dir} ({file_count} files)")
+            shutil.rmtree(target_path)
+        
+        # Count files to copy
+        files_to_copy = []
+        for root, dirs, files in os.walk(source_path):
+            for file in files:
+                rel_path = os.path.relpath(os.path.join(root, file), source_path)
+                files_to_copy.append(rel_path)
+        
+        log(f"📦 Syncing directory: {include_dir} ({len(files_to_copy)} files)")
+        shutil.copytree(source_path, target_path)
+        log(f"✅ Successfully synced {include_dir}: {len(files_to_copy)} files updated")
 
 def update_file_from_source(source_file, target_file):
     """Update a file from the source repository"""
@@ -213,8 +296,8 @@ def main():
         if not clone_repository(temp_dir):
             return False
         
-        # Find files to update
-        files_to_update = find_python_files(temp_dir)
+        # Find files to update (exclude INCLUDE_DIRS - they will be synced separately)
+        files_to_update = find_python_files(temp_dir, exclude_include_dirs=True)
         
         if not files_to_update:
             log("❌ No files found to update", "ERROR")
@@ -255,6 +338,11 @@ def main():
         log(f"✅ Successfully updated: {updated_count}")
         log(f"❌ Errors: {failed_count}")
         log(f"📁 Total files: {len(files_to_update)}")
+
+        # Жёстко подтягиваем обязательные каталоги (например, web/)
+        log("=" * 50)
+        log("📦 Syncing include directories (web/, etc.)...")
+        sync_include_directories(temp_dir)
 
         # Move backups into _backup/
         move_backups_to_backup_dir()
