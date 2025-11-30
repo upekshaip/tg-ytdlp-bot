@@ -126,7 +126,7 @@
                     let errorText = data.detail || "Login failed";
                     // Если есть информация о блокировке, показываем её
                     if (errorText.includes("Too many failed attempts")) {
-                        errorText += ". Click 'Reset Lockdown' to unlock.";
+                        errorText += "..";
                     }
                     errorMsg.textContent = errorText;
                     errorMsg.classList.add("show");
