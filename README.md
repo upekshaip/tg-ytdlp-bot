@@ -194,6 +194,39 @@ docker compose up -d --build
 The bot container will be built from the included `Dockerfile`, and:
 - `configuration-webserver` will serve cookie files at `http://configuration-webserver/cookies/<filename>`
 - `bgutil-provider` will be available at `http://bgutil-provider:4416` for YouTube PO tokens
+- **Dashboard panel** will be available at `http://localhost:5555` (or `http://<your-server-ip>:5555`)
+
+**Step 4 – Access the Dashboard Panel:**
+
+After starting the containers, the web dashboard panel will automatically start on port **5555** (configurable via `DASHBOARD_PORT` in `CONFIG/config.py`). You can access it at:
+- `http://localhost:5555` (if accessing from the same machine)
+- `http://<your-server-ip>:5555` (if accessing remotely)
+
+**Note:** If you change `DASHBOARD_PORT` in the config, make sure to update the port mapping in `docker-compose.yml` accordingly.
+
+**Default credentials:**
+- **Username:** `admin` (defined in `CONFIG/config.py` as `DASHBOARD_USERNAME`)
+- **Password:** `admin123` (defined in `CONFIG/config.py` as `DASHBOARD_PASSWORD`)
+
+**⚠️ Important:** Change the default password immediately after first login!
+
+**How to change the password:**
+
+1. Log in to the dashboard at `http://<your-server-ip>:5555`
+2. Go to the **System** tab
+3. Find the **Configuration** section
+4. Locate the **Password** field (under "Dashboard authentication")
+5. Enter your new password and click **Save**
+
+The password will be automatically updated in `CONFIG/config.py` and will take effect immediately (no restart required).
+
+**Dashboard features:**
+- Real-time active users monitoring
+- Top downloaders, domains, countries statistics
+- NSFW content tracking
+- System metrics and configuration management
+- User blocking/unblocking functionality
+- And much more...
 
 P.S. do not forget to add your bot to your channels with admin rights
 ---
