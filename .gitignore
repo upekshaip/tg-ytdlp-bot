@@ -33,6 +33,7 @@ runtime.log
 # Local data / caches / backups
 users/
 cookies/
+tests/
 _backup/
 _backup/_arabic_fonts_amiri/
 _cursor/
