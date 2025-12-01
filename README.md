@@ -1707,38 +1707,38 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 📈 Техническая панель статистики (порт 5555)
+## 📈 Statistics dashboard (port 5555)
 
-Мы добавили отдельный FastAPI-сервис с многовкладочным UI и REST API, который отображает ключевые показатели бота в реальном времени без лишних обращений к Firebase.
+We provide a separate FastAPI service with a multi-tab UI and REST API that shows key bot metrics in real time without constantly hitting Firebase.
 
-### Как запустить
+### How to run
 
 ```bash
-pip install -r requirements.txt           # убедитесь, что fastapi/uvicorn подтянулись
+pip install -r requirements.txt           # make sure fastapi/uvicorn are installed
 ./venv/bin/python -m uvicorn web.dashboard_app:app --host 0.0.0.0 --port 5555 --reload
 ```
 
-После запуска откройте `http://<ваш-хост>:5555`. Панель не стартует автоматически вместе с ботом, поэтому при необходимости заверните команду в отдельный systemd-юнит или docker-сервис.
+After starting, open `http://<your-host>:5555`. The dashboard does not start automatically with the bot, so you may want to wrap this command into a dedicated systemd unit or Docker service.
 
-### Что показываем
+### What it shows
 
-- Активные пользователи «прямо сейчас» (по таймауту `Config.STATS_ACTIVE_TIMEOUT`), их ссылки и быстрый бан по кнопке ❌.
-- Топ-скачивания за день/неделю/месяц/всё время, топ стран, пола и возрастных групп (эвристики по данным Telegram).
-- Популярные домены, NSFW-источники, любители плейлистов и NSFW контента.
-- «Постоянные» пользователи, которые 7 дней подряд шлют ≥10 URL.
-- Канальный лог (join/leave) за последние 48 часов, список забаненных с кнопкой ✅ для разбана.
+- Active users “right now” (based on `Config.STATS_ACTIVE_TIMEOUT`), their links, and quick ban via ❌ button.
+- Top downloads by day/week/month/all-time, top countries, gender and age groups (heuristics based on Telegram data).
+- Popular domains, NSFW sources, playlist lovers, and heavy NSFW consumers.
+- “Persistent” users who send ≥10 URLs per day for 7 days in a row.
+- Channel join/leave log for the last 48 hours and a list of banned users with ✅ unban button.
 
-На каждой вкладке для длинных списков выводится топ-10 с кнопкой «Показать все».
+On each tab with long lists, the top‑10 items are displayed with a “Show all” button.
 
-### Откуда берутся данные
+### Where the data comes from
 
-- Базовый срез читается из локального `dump.json`, который уже обновляется скриптом `DATABASE/download_firebase.py`.
-- Хуки в `DATABASE/firebase_init.py` и `HELPERS/logger.py`, а также прокси `StatsAwareDBAdapter` перехватывают все записи в БД и пополняют in-memory кеш без повторных REST-запросов.
-- Информация о пользователях дополняется через Telegram Bot API (метод `getChat`) с локальным кешем, плюс мгновенные данные берутся из объектов `message`.
+- The base snapshot is read from local `dump.json`, which is already refreshed by `DATABASE/download_firebase.py`.
+- Hooks in `DATABASE/firebase_init.py` and `HELPERS/logger.py`, plus the `StatsAwareDBAdapter` proxy, intercept all DB writes and update the in‑memory cache without extra REST calls.
+- User information is enriched via Telegram Bot API (`getChat`) with a local cache, and instant data is taken directly from incoming `message` objects.
 
 ### REST API
 
-UI использует обычные JSON-эндпоинты (`/api/active-users`, `/api/top-downloaders`, `/api/block-user`, `/api/channel-events`, и т.д.), поэтому вы можете встроить ту же статистику в внешние мониторинги, алерты или боты без рендеринга HTML.
+The UI uses simple JSON endpoints (`/api/active-users`, `/api/top-downloaders`, `/api/block-user`, `/api/channel-events`, etc.), so you can reuse the same statistics in external monitoring tools, alerts, or bots without rendering HTML.
 
 ### Configuration and usage of the dashboard
 
