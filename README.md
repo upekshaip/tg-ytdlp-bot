@@ -558,6 +558,20 @@ Also you may fill in `porn_domains.txt` `porn_keywords.txt` files in `TXT` folde
 
 ---
 
+## ⏳ Limits & Cooldowns (`CONFIG/limits.py`)
+
+`CONFIG/limits.py` is the single place where all runtime limits for the bot are configured. Before deploying, review this file and tune values for your hardware and hosting:
+
+- **Downloads & subtitles:** `MAX_FILE_SIZE_GB`, `MAX_VIDEO_DURATION`, and `MAX_SUB_*` prevent extremely large videos/subtitles from entering the queue. In groups, `GROUP_MULTIPLIER` is applied automatically.
+- **Images & live streams:** `MAX_IMG_*`, `ENABLE_LIVE_STREAM_BLOCKING`, and `MAX_LIVE_STREAM_DURATION` protect you from endless album/live-stream downloads. On slow connections, increase `MAX_IMG_TOTAL_WAIT_TIME`.
+- **Cookie cache:** `COOKIE_CACHE_DURATION`, `COOKIE_CACHE_MAX_LIFETIME`, and `YOUTUBE_COOKIE_RETRY_LIMIT_PER_HOUR` control how aggressively YouTube cookies are reused and how many retry attempts a single user gets per hour.
+- **Rate limits:** `RATE_LIMIT_PER_MINUTE|HOUR|DAY` and the corresponding `RATE_LIMIT_COOLDOWN_*` values implement anti‑spam. When a user exceeds limits, they are put on cooldown for 5/60/1440 minutes.
+- **Commands:** `COMMAND_LIMIT_PER_MINUTE` and the exponential `COMMAND_COOLDOWN_MULTIPLIER` protect all commands (not only URLs) from abuse.
+- **NSFW monetization:** `NSFW_STAR_COST` defines the Telegram Stars price for paid NSFW posts and can be adjusted at any time.
+
+After changing this file, restart the bot so new limits are applied. If you run multiple instances with different limits, keep separate copies of `CONFIG/limits.py` and mount them via `systemd` or Docker volumes.
+
+---
 
 ## 👤 User Commands
 
@@ -1499,6 +1513,25 @@ systemctl restart tg-ytdlp-bot.service
 journalctl -u tg-ytdlp-bot -f
 ```
 
+### Dashboard auto-start service
+
+To auto-start the FastAPI dashboard, copy the template `_etc/systemd/system/tg-ytdlp-dashboard.service` to:
+```bash
+/etc/systemd/system/tg-ytdlp-dashboard.service
+```
+edit `WorkingDirectory`, `ExecStart`, and port according to your setup.
+
+Reload systemd and enable the unit:
+```bash
+systemctl daemon-reexec
+systemctl daemon-reload
+systemctl enable tg-ytdlp-dashboard.service
+systemctl restart tg-ytdlp-dashboard.service
+journalctl -u tg-ytdlp-dashboard -f
+```
+
+The default command runs `uvicorn web.dashboard_app:app --host 0.0.0.0 --port 5555`; add `--reload` or change the port if required.
+
 ---
 
 ### /vid range shortcut
@@ -1706,6 +1739,19 @@ pip install -r requirements.txt           # убедитесь, что fastapi/u
 ### REST API
 
 UI использует обычные JSON-эндпоинты (`/api/active-users`, `/api/top-downloaders`, `/api/block-user`, `/api/channel-events`, и т.д.), поэтому вы можете встроить ту же статистику в внешние мониторинги, алерты или боты без рендеринга HTML.
+
+### Configuration and usage of the dashboard
+
+1. **Update the config.** In `CONFIG/config.py`, set `DASHBOARD_PORT`, `DASHBOARD_USERNAME`, and `DASHBOARD_PASSWORD`. In Docker you can also override them via environment variables. Values are read at runtime, but you typically rebuild/restart the container or service once after changes.
+2. **Start the service.** On bare‑metal use `./venv/bin/python -m uvicorn web.dashboard_app:app --host 0.0.0.0 --port $DASHBOARD_PORT`. In Docker add a separate service or wire the dashboard into an existing compose file.
+3. **Secure access.** Put the dashboard behind HTTPS (Nginx/Traefik) and an IP allowlist if it is exposed to the internet. For local‑only use, prefer SSH port forwarding instead of public exposure.
+4. **Working in the UI.**
+   - The **Active Users** tab shows live sessions; the ❌ button instantly blocks a user.  
+   - **Top Downloads / Domains** helps you spot abuse patterns.  
+   - **Channel Events / Blocked Users** lets you manage subscriptions and the ban‑list without touching the database directly.
+5. **Debugging.** If the dashboard stops responding, check `journalctl -u tg-ytdlp-dashboard -f` (or Docker logs) and verify that `DATABASE/download_firebase.py` is still updating `dump.json`.
+
+Add a dedicated systemd unit (see `etc/systemd/system/tg-ytdlp-bot.service` as a reference) or a Docker healthcheck so the dashboard is automatically restarted after host or container restarts.
 
 ---
 

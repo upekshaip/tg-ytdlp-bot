@@ -1,0 +1,15 @@
+[Unit]
+Description=TG YTDLP Dashboard (uvicorn)
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/PATH/TO/YOUR/FOLDER/tg-ytdlp-bot
+#ExecStart=/PATH/TO/YOUR/FOLDER/tg-ytdlp-bot/venv/bin/python -m uvicorn web.dashboard_app:app --host 0.0.0.0 --port 5555 --reload
+ExecStart=/PATH/TO/YOUR/FOLDER/tg-ytdlp-bot/venv/bin/python -m uvicorn web.dashboard_app:app --host 0.0.0.0 --port 5555
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
