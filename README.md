@@ -558,6 +558,20 @@ Also you may fill in `porn_domains.txt` `porn_keywords.txt` files in `TXT` folde
 
 ---
 
+## ⏳ Limits & Cooldowns (`CONFIG/limits.py`)
+
+`CONFIG/limits.py` is the single place where all runtime limits for the bot are configured. Before deploying, review this file and tune values for your hardware and hosting:
+
+- **Downloads & subtitles:** `MAX_FILE_SIZE_GB`, `MAX_VIDEO_DURATION`, and `MAX_SUB_*` prevent extremely large videos/subtitles from entering the queue. In groups, `GROUP_MULTIPLIER` is applied automatically.
+- **Images & live streams:** `MAX_IMG_*`, `ENABLE_LIVE_STREAM_BLOCKING`, and `MAX_LIVE_STREAM_DURATION` protect you from endless album/live-stream downloads. On slow connections, increase `MAX_IMG_TOTAL_WAIT_TIME`.
+- **Cookie cache:** `COOKIE_CACHE_DURATION`, `COOKIE_CACHE_MAX_LIFETIME`, and `YOUTUBE_COOKIE_RETRY_LIMIT_PER_HOUR` control how aggressively YouTube cookies are reused and how many retry attempts a single user gets per hour.
+- **Rate limits:** `RATE_LIMIT_PER_MINUTE|HOUR|DAY` and the corresponding `RATE_LIMIT_COOLDOWN_*` values implement anti‑spam. When a user exceeds limits, they are put on cooldown for 5/60/1440 minutes.
+- **Commands:** `COMMAND_LIMIT_PER_MINUTE` and the exponential `COMMAND_COOLDOWN_MULTIPLIER` protect all commands (not only URLs) from abuse.
+- **NSFW monetization:** `NSFW_STAR_COST` defines the Telegram Stars price for paid NSFW posts and can be adjusted at any time.
+
+After changing this file, restart the bot so new limits are applied. If you run multiple instances with different limits, keep separate copies of `CONFIG/limits.py` and mount them via `systemd` or Docker volumes.
+
+---
 
 ## 👤 User Commands
 
@@ -1499,6 +1513,25 @@ systemctl restart tg-ytdlp-bot.service
 journalctl -u tg-ytdlp-bot -f
 ```
 
+### Dashboard auto-start service
+
+To auto-start the FastAPI dashboard, copy the template `_etc/systemd/system/tg-ytdlp-dashboard.service` to:
+```bash
+/etc/systemd/system/tg-ytdlp-dashboard.service
+```
+edit `WorkingDirectory`, `ExecStart`, and port according to your setup.
+
+Reload systemd and enable the unit:
+```bash
+systemctl daemon-reexec
+systemctl daemon-reload
+systemctl enable tg-ytdlp-dashboard.service
+systemctl restart tg-ytdlp-dashboard.service
+journalctl -u tg-ytdlp-dashboard -f
+```
+
+The default command runs `uvicorn web.dashboard_app:app --host 0.0.0.0 --port 5555`; add `--reload` or change the port if required.
+
 ---
 
 ### /vid range shortcut
@@ -1674,38 +1707,51 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 📈 Техническая панель статистики (порт 5555)
+## 📈 Statistics dashboard (port 5555)
 
-Мы добавили отдельный FastAPI-сервис с многовкладочным UI и REST API, который отображает ключевые показатели бота в реальном времени без лишних обращений к Firebase.
+We provide a separate FastAPI service with a multi-tab UI and REST API that shows key bot metrics in real time without constantly hitting Firebase.
 
-### Как запустить
+### How to run
 
 ```bash
-pip install -r requirements.txt           # убедитесь, что fastapi/uvicorn подтянулись
+pip install -r requirements.txt           # make sure fastapi/uvicorn are installed
 ./venv/bin/python -m uvicorn web.dashboard_app:app --host 0.0.0.0 --port 5555 --reload
 ```
 
-После запуска откройте `http://<ваш-хост>:5555`. Панель не стартует автоматически вместе с ботом, поэтому при необходимости заверните команду в отдельный systemd-юнит или docker-сервис.
+After starting, open `http://<your-host>:5555`. The dashboard does not start automatically with the bot, so you may want to wrap this command into a dedicated systemd unit or Docker service.
 
-### Что показываем
+### What it shows
 
-- Активные пользователи «прямо сейчас» (по таймауту `Config.STATS_ACTIVE_TIMEOUT`), их ссылки и быстрый бан по кнопке ❌.
-- Топ-скачивания за день/неделю/месяц/всё время, топ стран, пола и возрастных групп (эвристики по данным Telegram).
-- Популярные домены, NSFW-источники, любители плейлистов и NSFW контента.
-- «Постоянные» пользователи, которые 7 дней подряд шлют ≥10 URL.
-- Канальный лог (join/leave) за последние 48 часов, список забаненных с кнопкой ✅ для разбана.
+- Active users “right now” (based on `Config.STATS_ACTIVE_TIMEOUT`), their links, and quick ban via ❌ button.
+- Top downloads by day/week/month/all-time, top countries, gender and age groups (heuristics based on Telegram data).
+- Popular domains, NSFW sources, playlist lovers, and heavy NSFW consumers.
+- “Persistent” users who send ≥10 URLs per day for 7 days in a row.
+- Channel join/leave log for the last 48 hours and a list of banned users with ✅ unban button.
 
-На каждой вкладке для длинных списков выводится топ-10 с кнопкой «Показать все».
+On each tab with long lists, the top‑10 items are displayed with a “Show all” button.
 
-### Откуда берутся данные
+### Where the data comes from
 
-- Базовый срез читается из локального `dump.json`, который уже обновляется скриптом `DATABASE/download_firebase.py`.
-- Хуки в `DATABASE/firebase_init.py` и `HELPERS/logger.py`, а также прокси `StatsAwareDBAdapter` перехватывают все записи в БД и пополняют in-memory кеш без повторных REST-запросов.
-- Информация о пользователях дополняется через Telegram Bot API (метод `getChat`) с локальным кешем, плюс мгновенные данные берутся из объектов `message`.
+- The base snapshot is read from local `dump.json`, which is already refreshed by `DATABASE/download_firebase.py`.
+- Hooks in `DATABASE/firebase_init.py` and `HELPERS/logger.py`, plus the `StatsAwareDBAdapter` proxy, intercept all DB writes and update the in‑memory cache without extra REST calls.
+- User information is enriched via Telegram Bot API (`getChat`) with a local cache, and instant data is taken directly from incoming `message` objects.
 
 ### REST API
 
-UI использует обычные JSON-эндпоинты (`/api/active-users`, `/api/top-downloaders`, `/api/block-user`, `/api/channel-events`, и т.д.), поэтому вы можете встроить ту же статистику в внешние мониторинги, алерты или боты без рендеринга HTML.
+The UI uses simple JSON endpoints (`/api/active-users`, `/api/top-downloaders`, `/api/block-user`, `/api/channel-events`, etc.), so you can reuse the same statistics in external monitoring tools, alerts, or bots without rendering HTML.
+
+### Configuration and usage of the dashboard
+
+1. **Update the config.** In `CONFIG/config.py`, set `DASHBOARD_PORT`, `DASHBOARD_USERNAME`, and `DASHBOARD_PASSWORD`. In Docker you can also override them via environment variables. Values are read at runtime, but you typically rebuild/restart the container or service once after changes.
+2. **Start the service.** On bare‑metal use `./venv/bin/python -m uvicorn web.dashboard_app:app --host 0.0.0.0 --port $DASHBOARD_PORT`. In Docker add a separate service or wire the dashboard into an existing compose file.
+3. **Secure access.** Put the dashboard behind HTTPS (Nginx/Traefik) and an IP allowlist if it is exposed to the internet. For local‑only use, prefer SSH port forwarding instead of public exposure.
+4. **Working in the UI.**
+   - The **Active Users** tab shows live sessions; the ❌ button instantly blocks a user.  
+   - **Top Downloads / Domains** helps you spot abuse patterns.  
+   - **Channel Events / Blocked Users** lets you manage subscriptions and the ban‑list without touching the database directly.
+5. **Debugging.** If the dashboard stops responding, check `journalctl -u tg-ytdlp-dashboard -f` (or Docker logs) and verify that `DATABASE/download_firebase.py` is still updating `dump.json`.
+
+Add a dedicated systemd unit (see `etc/systemd/system/tg-ytdlp-bot.service` as a reference) or a Docker healthcheck so the dashboard is automatically restarted after host or container restarts.
 
 ---
 
