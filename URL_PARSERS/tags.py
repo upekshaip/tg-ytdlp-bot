@@ -13,51 +13,51 @@ def sanitize_autotag(tag: str) -> str:
     return '#' + re.sub(r'[^\w\d_]', '_', tag.lstrip('#'), flags=re.UNICODE)
 
 def sanitize_uid_for_telegram(uid: str) -> str:
-    """Очищает UID для использования в Telegram тегах"""
+    """Sanitize UID for use in Telegram tags."""
     if not uid:
         return uid
     
-    # Убираем символы @
+    # Strip @
     uid = uid.replace('@', '')
     
-    # Заменяем пробелы на подчеркивания
+    # Replace spaces with underscores
     uid = uid.replace(' ', '_')
     
-    # Заменяем точки на подчеркивания
+    # Replace dots with underscores
     uid = uid.replace('.', '_')
     
-    # Заменяем недопустимые символы на подчеркивания
-    # В Telegram тегах разрешены: буквы, цифры, подчеркивания
+    # Replace unsupported chars with underscores
+    # Allowed in Telegram tags: letters, digits, underscore
     uid = re.sub(r'[^\w\d_]', '_', uid, flags=re.UNICODE)
     
-    # Убираем множественные подчеркивания
+    # Collapse multiple underscores
     uid = re.sub(r'_+', '_', uid)
     
-    # Убираем подчеркивания в начале и конце
+    # Trim underscores at the ends
     uid = uid.strip('_')
     
     return uid
 
 def _extract_uids_from_info(info_dict):
-    """Внутренняя функция для извлечения всех UID из метаданных"""
+    """Internal helper to extract all UIDs from metadata."""
     if not info_dict:
         return []
     
-    # Пробуем различные поля для UID в порядке приоритета
-    # Для Instagram и TikTok приоритет uploader_id и uploader
+    # Try different UID fields in priority order
+    # For Instagram/TikTok prefer uploader_id and uploader
     uid_fields = [
-        'uploader_id',  # Instagram, TikTok - постоянный для автора
-        'uploader',     # TikTok, общий - постоянный для автора
-        #'id',           # YouTube, общий - уникальный для каждого поста
-        #'display_id',   # YouTube - уникальный для каждого поста
-        #'video_id',     # TikTok, общий - уникальный для каждого поста
-        #'media_id',     # Instagram - уникальный для каждого поста
-        #'post_id',      # Gallery-dl - уникальный для каждого поста
-        #'item_id',      # Gallery-dl - уникальный для каждого поста
-        #'uid'           # Общий - может быть уникальным для каждого поста
+        'uploader_id',  # Instagram/TikTok - stable author identifier
+        'uploader',     # TikTok/general - stable author identifier
+        # 'id',           # YouTube/general - per-item identifier
+        # 'display_id',   # YouTube - per-item identifier
+        # 'video_id',     # TikTok/general - per-item identifier
+        # 'media_id',     # Instagram - per-item identifier
+        # 'post_id',      # gallery-dl - per-item identifier
+        # 'item_id',      # gallery-dl - per-item identifier
+        # 'uid'           # General - may be per-item
     ]
     
-    # Собираем все найденные UID, избегая дублей
+    # Collect all UIDs, avoiding duplicates
     found_uids = []
     seen_uids = set()
     
@@ -65,23 +65,23 @@ def _extract_uids_from_info(info_dict):
         uid = info_dict.get(field)
         if uid and str(uid).strip():
             uid_str = str(uid).strip()
-            # Очищаем UID для Telegram тегов
+            # Sanitize UID for Telegram tags
             cleaned_uid = sanitize_uid_for_telegram(uid_str)
             if cleaned_uid and cleaned_uid not in seen_uids:
                 found_uids.append(cleaned_uid)
                 seen_uids.add(cleaned_uid)
     
-    # YouTube ID из URL не добавляем, так как он уникален для каждого видео, а не для автора
+    # Do not add YouTube video IDs from URL: they identify items, not authors
     
     return found_uids
 
 def extract_uid_from_info(info_dict):
-    """Извлекает первый UID из метаданных yt-dlp или gallery-dl (для обратной совместимости)"""
+    """Extract the first UID from yt-dlp or gallery-dl metadata (backward compatibility)."""
     uids = _extract_uids_from_info(info_dict)
     return uids[0] if uids else None
 
 def extract_all_uids_from_info(info_dict):
-    """Извлекает ВСЕ UID из метаданных yt-dlp или gallery-dl"""
+    """Extract ALL UIDs from yt-dlp or gallery-dl metadata."""
     return _extract_uids_from_info(info_dict)
 
 def generate_final_tags(url, user_tags, info_dict):
@@ -121,7 +121,7 @@ def generate_final_tags(url, user_tags, info_dict):
             if channel_tag.lower() not in seen:
                 final_tags.append(channel_tag)
                 seen.add(channel_tag.lower())
-    # 4. UID tags (все найденные UID)
+    # 4. UID tags (all found UIDs)
     all_uids = extract_all_uids_from_info(info_dict)
     for uid in all_uids:
         uid_tag = f"#{uid}"
@@ -167,11 +167,11 @@ def clean_telegram_tag(tag: str) -> str:
 # --- a function for extracting the URL, the range and tags from the text ---
 def extract_url_range_tags(text: str):
     # This function now always returns the full original download link
-    logger.info(f"🔍 [DEBUG] extract_url_range_tags вызвана с text='{text}'")
+    logger.info(f"🔍 [DEBUG] extract_url_range_tags called with text='{text}'")
     if not isinstance(text, str):
         return None, 1, 1, None, [], '', None
     
-    #  Сначала ищем формат /img start-end URL (поддерживаем отрицательные числа)
+    # First try: /img start-end URL (supports negative indices)
     img_range_match = re.search(r'/img\s+(-?\d+)-(-?\d+)\s+(https?://[^\s\*#]+)', text)
     if img_range_match:
         video_start_with = int(img_range_match.group(1))
@@ -180,8 +180,8 @@ def extract_url_range_tags(text: str):
         after_url = text[img_range_match.end():]
         after_range = after_url
     else:
-        # First, try to find URL with range pattern *start*end at the end (поддерживаем отрицательные числа)
-        # Используем более точный regex, который правильно парсит URL с параметрами и диапазоном
+        # First, try to find URL with range pattern *start*end at the end (supports negative indices)
+        # Use a more precise regex to parse URLs with query params and ranges
         url_with_range_match = re.search(r'(https?://[^\s\*#]+)\*(-?\d+)\*(-?\d+)', text)
         if url_with_range_match:
             url = url_with_range_match.group(1)
@@ -189,28 +189,28 @@ def extract_url_range_tags(text: str):
             video_end_with = int(url_with_range_match.group(3))
             after_url = text[url_with_range_match.end():]
             after_range = after_url
-            logger.info(f"🔍 [DEBUG] extract_url_range_tags: найдено URL с диапазоном: url='{url}', video_start_with={video_start_with}, video_end_with={video_end_with}")
+            logger.info(f"🔍 [DEBUG] extract_url_range_tags: found ranged URL: url='{url}', video_start_with={video_start_with}, video_end_with={video_end_with}")
         else:
             # Fallback to original logic
             url_match = re.search(r'https?://[^\s\*#]+', text)
             if not url_match:
-                logger.info(f"🔍 [DEBUG] extract_url_range_tags: URL не найден в тексте: '{text}'")
+                logger.info(f"🔍 [DEBUG] extract_url_range_tags: URL not found in text: '{text}'")
                 return None, 1, 1, None, [], '', None
             url = url_match.group(0)
 
             after_url = text[url_match.end():]
-            # Range (поддерживаем отрицательные числа)
+            # Range (supports negative indices)
             range_match = re.match(r'\*(-?\d+)\*(-?\d+)', after_url)
             if range_match:
                 video_start_with = int(range_match.group(1))
                 video_end_with = int(range_match.group(2))
                 after_range = after_url[range_match.end():]
-                logger.info(f"🔍 [DEBUG] extract_url_range_tags: найдено URL с диапазоном (fallback): url='{url}', video_start_with={video_start_with}, video_end_with={video_end_with}")
+                logger.info(f"🔍 [DEBUG] extract_url_range_tags: found ranged URL (fallback): url='{url}', video_start_with={video_start_with}, video_end_with={video_end_with}")
             else:
                 video_start_with = 1
                 video_end_with = 1
                 after_range = after_url
-                logger.info(f"🔍 [DEBUG] extract_url_range_tags: диапазон не найден, используем значения по умолчанию: video_start_with={video_start_with}, video_end_with={video_end_with}")
+                logger.info(f"🔍 [DEBUG] extract_url_range_tags: range not found; using defaults: video_start_with={video_start_with}, video_end_with={video_end_with}")
     playlist_name = None
     playlist_match = re.match(r'\*([^\s\*#]+)', after_range)
     if playlist_match:

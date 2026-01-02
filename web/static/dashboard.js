@@ -107,113 +107,6 @@
             "misc.no_url": "No URL",
             "misc.no_metadata": "No additional metadata",
             "misc.unknown": "unknown"
-        },
-        ru: {
-            "header.title": "Статистика бота",
-            "header.subtitle": "Онлайн-дашборд для мониторинга активности Telegram-бота.",
-            "tabs.activity": "Активность",
-            "tabs.users": "Пользователи",
-            "tabs.content": "Контент",
-            "tabs.moderation": "Модерация",
-            "tabs.history": "История",
-            "tabs.system": "Система",
-            "tabs.lists": "Списки",
-            "history.title": "История пользователя",
-            "history.subtitle": "Просмотр истории загрузок любого пользователя.",
-            "status.online": "ОНЛАЙН",
-            "status.updating": "ОБНОВЛЕНИЕ…",
-            "cards.active.title": "Активные пользователи",
-            "cards.active.subtitle": "Сессии за последние {minutes} минут.",
-            "cards.active.count_label": "Сейчас",
-            "cards.top_downloaders.title": "Топ загрузчиков",
-            "cards.top_downloaders.subtitle": "Выберите период для рейтинга.",
-            "cards.channel.title": "Действия в канале ({hours}ч)",
-            "cards.channel.subtitle": "Вступления и выходы в лог-канале.",
-            "cards.suspicious.title": "Подозрительные пользователи",
-            "cards.suspicious.subtitle": "Минимальные перерывы между загрузками.",
-            "cards.countries.title": "Топ стран",
-            "cards.countries.subtitle": "Определение по языку/флагу.",
-            "cards.gender.title": "Пол и возраст",
-            "cards.gender.subtitle": "Группы по эвристикам.",
-            "cards.gender.gender_label": "Пол",
-            "cards.gender.age_label": "Возраст",
-            "cards.nsfw_users.title": "NSFW пользователи",
-            "cards.nsfw_users.subtitle": "Чаще всего качают NSFW.",
-            "cards.playlists.title": "Любители плейлистов",
-            "cards.playlists.subtitle": "Пользователи, которые чаще всего просят плейлисты.",
-            "cards.power.title": "Постоянные хардкорщики",
-            "cards.power.subtitle": "Как минимум 7 дней подряд по 10+ ссылок.",
-            "cards.domains.title": "Топ доменов",
-            "cards.domains.subtitle": "Источники ссылок.",
-            "cards.nsfw_domains.title": "NSFW сайты",
-            "cards.nsfw_domains.subtitle": "Самые популярные NSFW домены.",
-            "cards.blocked.title": "Забаненные пользователи",
-            "cards.blocked.subtitle": "Кнопка ✅ снимает бан.",
-            "filters.today": "Сегодня",
-            "filters.week": "Неделя",
-            "filters.month": "Месяц",
-            "filters.all": "За всё время",
-            "misc.empty": "Нет данных за выбранный период",
-            "buttons.show_all": "Показать все",
-            "buttons.collapse": "Свернуть",
-            "buttons.theme_dark": "Тёмная тема",
-            "buttons.theme_light": "Светлая тема",
-            "meta.no_username": "без ника",
-            "meta.id_label": "ID",
-            "meta.days": "{value} дн",
-            "modals.block_confirm": "Заблокировать пользователя {id}?",
-            "modals.unblock_confirm": "Разблокировать пользователя {id}?",
-            "time.just_now": "только что",
-            "time.minutes": "{value} мин назад",
-            "time.hours": "{value} ч назад",
-            "time.days": "{value} дн назад",
-            "system.metrics": "Метрики системы",
-            "system.versions": "Версии пакетов",
-            "system.config": "Конфигурация",
-            "system.ip_rotate": "Сменить IP",
-            "system.restart": "Перезапустить сервис",
-            "system.cleanup": "Очистить файлы пользователей",
-            "system.update_engines": "Обновить движки",
-            "lists.stats": "Статистика файлов",
-            "lists.domains": "Списки доменов",
-            "lists.update": "Обновить списки",
-            "power.min_urls": "Мин. URL в день:",
-            "power.days": "Дней:",
-            "power.apply": "Применить",
-            "demographics.title": "Демография и страны",
-            "demographics.subtitle": "Статистика пользователей по странам, полу и дате регистрации.",
-            "demographics.countries": "Топ стран",
-            "demographics.gender": "Пол",
-            "demographics.age": "Регистрация",
-            "buttons.logout": "Выход",
-            "buttons.save": "Сохранить",
-            "buttons.add": "Добавить",
-            "buttons.view_media": "Информация о видео",
-            "buttons.view_user": "Профиль пользователя",
-            "modals.user_title": "Данные пользователя",
-            "modals.media_title": "Данные по медиа",
-            "labels.username": "Имя/ник",
-            "labels.user_id": "ID пользователя",
-            "labels.country": "Страна",
-            "labels.gender": "Пол",
-            "labels.age": "Дата регистрации",
-            "labels.last_event": "Последняя активность",
-            "labels.url": "Ссылка",
-            "labels.progress": "Прогресс",
-            "labels.size": "Размер",
-            "labels.downloaded": "Скачано",
-            "labels.quality": "Качество",
-            "labels.resolution": "Разрешение",
-            "labels.duration": "Длительность",
-            "labels.speed": "Скорость",
-            "labels.eta": "Осталось",
-            "labels.format": "Формат",
-            "labels.domain": "Домен",
-            "labels.max_gap": "Перерыв: {value}",
-            "labels.downloads": "{value} загрузок",
-            "misc.no_url": "Нет ссылки",
-            "misc.no_metadata": "Дополнительные данные отсутствуют",
-            "misc.unknown": "неизвестно"
         }
     };
 
@@ -512,13 +405,13 @@
     let currentHistoryUserId = null;
 
     async function loadHistoryUsers() {
-        // Получаем всех пользователей из топов для поиска
+        // Load all users from "top" lists for search
         const [topUsers, suspiciousUsers] = await Promise.all([
             fetchJSON(endpoints.topDownloaders("all", 500)),
             fetchJSON(endpoints.suspiciousUsers("all", 500)),
         ]);
         
-        // Объединяем и убираем дубликаты
+        // Merge and deduplicate
         const userMap = new Map();
         [...(topUsers || []), ...(suspiciousUsers || [])].forEach(user => {
             if (user.user_id && !userMap.has(user.user_id)) {
@@ -532,7 +425,7 @@
         
         const filterUsers = (query) => {
             if (!query) {
-                return allUsers.slice(0, 50); // Показываем первые 50 без поиска
+                return allUsers.slice(0, 50); // Show first 50 without search
             }
             const lowerQuery = query.toLowerCase();
             return allUsers.filter(user => 
@@ -573,13 +466,13 @@
     }
 
     async function loadUserHistory(userId) {
-        // Получаем имя пользователя
+        // Resolve user display name
         const userRow = Array.from(document.getElementById("history-users-list").children).find(
             row => row.dataset.userId === String(userId)
         );
         const userName = userRow ? (userRow.querySelector(".title")?.textContent || `User ${userId}`) : `User ${userId}`;
         
-        // Загружаем все данные (без ограничения по периоду для фильтрации на клиенте)
+        // Load all data (no period limit; filter on client)
         const allData = await fetchJSON(endpoints.userHistory(userId, "all", 1000));
         
         if (!allData || allData.length === 0) {
@@ -590,13 +483,13 @@
             return;
         }
         
-        // Создаем модальное окно с поиском и фильтрацией
+        // Build modal with search and filtering
         let currentPeriod = "all";
         let currentSearch = "";
         let filteredData = [...allData];
         
         const renderHistory = () => {
-            // Фильтрация по периоду
+            // Filter by period
             let periodFiltered = filteredData;
             if (currentPeriod !== "all") {
                 const now = Date.now();
@@ -609,7 +502,7 @@
                 periodFiltered = filteredData.filter(item => item.timestamp * 1000 >= threshold);
             }
             
-            // Поиск по URL и названию
+            // Search by URL/title
             let searchFiltered = periodFiltered;
             if (currentSearch) {
                 const searchLower = currentSearch.toLowerCase();
@@ -620,7 +513,7 @@
                 );
             }
             
-            // Сортировка по времени (новые сначала)
+            // Sort by time (newest first)
             searchFiltered.sort((a, b) => b.timestamp - a.timestamp);
             
             const container = document.getElementById("history-modal-list");
@@ -660,7 +553,7 @@
                 container.appendChild(row);
             });
             
-            // Обновляем счетчик
+            // Update counter
             const counter = document.getElementById("history-modal-count");
             if (counter) {
                 counter.textContent = `Showing ${searchFiltered.length} of ${allData.length} items`;
@@ -693,7 +586,7 @@
         
         openModal(`History: ${userName}`, modalHtml);
         
-        // Настраиваем обработчики событий
+        // Setup event handlers
         setTimeout(() => {
             const searchInput = document.getElementById("history-modal-search");
             const periodSelect = document.getElementById("history-modal-period");
@@ -712,7 +605,7 @@
                 });
             }
             
-            // Первоначальная отрисовка
+            // Initial render
             renderHistory();
         }, 100);
     }
@@ -728,7 +621,7 @@
 
         flag.textContent = item.flag || "🏳";
         
-        // Добавляем ссылки на профили
+        // Add profile links
         const nameText = item.name || `${t("meta.id_label")} ${item.user_id}`;
         if (item.username) {
             nameEl.innerHTML = `<a href="https://t.me/${item.username}" target="_blank" style="color: #38bdf8; text-decoration: none;">${nameText}</a>`;
@@ -736,7 +629,7 @@
             nameEl.innerHTML = `<a href="tg://user?id=${item.user_id}" style="color: #38bdf8; text-decoration: none;">${nameText}</a>`;
         }
         
-        // Добавляем ссылку на ID если есть username
+        // Add ID link when username exists
         const metaText = options.meta ? options.meta(item) : formatUserMeta(item);
         if (item.username && item.user_id) {
             metaEl.innerHTML = `${metaText} • <a href="tg://user?id=${item.user_id}" style="color: #94a3b8; text-decoration: none; font-size: 0.85rem;">ID: ${item.user_id}</a>`;
@@ -867,7 +760,7 @@
             container.__items = [];
             return;
         }
-        container.__items = items; // Сохраняем для поиска
+        container.__items = items; // Keep for search
         container.innerHTML = "";
         items.forEach((item) => {
             const row = document.createElement("div");
@@ -1205,7 +1098,7 @@
             let text = t(key);
             if (!text) return;
             text = replacePlaceholders(text, { minutes, hours });
-            // Проверяем, является ли элемент кнопкой или input - для них используем textContent
+            // If the element is a button/input/label, use textContent/value instead of innerHTML
             if (el.tagName === "BUTTON" || el.tagName === "INPUT" || el.tagName === "LABEL") {
                 if (el.tagName === "INPUT" && el.type === "button") {
                     el.value = text;
@@ -1253,18 +1146,18 @@
                 const container = document.getElementById(targetId);
                 if (!container || !container.__items) return;
                 
-                // Проверяем, это простой список или список с пользователями
+                // Detect whether this is a simple list or a user list
                 const isSimpleList = container.classList.contains("compact");
                 
                 if (isSimpleList) {
-                    // Для простых списков фильтруем напрямую
+                    // For simple lists, filter DOM rows directly
                     const rows = container.querySelectorAll(".list-row");
                     rows.forEach((row) => {
                         const text = row.textContent.toLowerCase();
                         row.style.display = text.includes(query) ? "" : "none";
                     });
                 } else {
-                    // Для списков с пользователями используем updateListView
+                    // For user lists, use updateListView
                     const filtered = container.__items.filter((item) => {
                         const searchable = [
                             item.name || "",
@@ -1428,7 +1321,7 @@
         try {
             await fetchJSON("/api/logout", { method: "POST" });
         } catch (e) {
-            // даже если произошла ошибка, переходим на страницу логина
+            // Even if an error occurs, redirect to login page
         } finally {
             window.location.href = "/login";
         }
@@ -1507,7 +1400,7 @@
                             .map((v) => v.trim())
                             .filter((v) => v);
                     } else if (field.type === "password") {
-                        // Для пароля - если пусто, не обновляем
+                        // For password: do not update when empty
                         if (!newValue || !newValue.trim()) {
                             alert("Password cannot be empty. Please enter a new password.");
                             return;
@@ -1520,13 +1413,13 @@
                         body: JSON.stringify({ key: field.key, value: newValue }),
                     });
                     if (field.type === "password") {
-                        // Очищаем поле пароля после успешного сохранения
+                        // Clear password input after successful save
                         control.value = "";
                         alert("Password updated successfully. Please log in again with the new password.");
                     } else if (field.key === "DASHBOARD_USERNAME") {
                         alert("Username updated successfully. Please log in again with the new username.");
                     } else {
-                        // Показываем успешное сохранение для других полей
+                        // Show success state for other fields
                         const originalText = saveButton.textContent;
                         saveButton.textContent = "Saved!";
                         setTimeout(() => {
@@ -1608,8 +1501,8 @@
             { label: "POT base URL", key: "YOUTUBE_POT_BASE_URL", value: youtube.pot_base_url || "" },
         ];
         const cookieList = youtube.list || [];
-        // Всегда показываем 11 полей (YOUTUBE_COOKIE_URL + YOUTUBE_COOKIE_URL_1 до YOUTUBE_COOKIE_URL_10)
-        // Если в списке меньше элементов, остальные будут пустыми
+        // Always show 11 fields (YOUTUBE_COOKIE_URL + YOUTUBE_COOKIE_URL_1..YOUTUBE_COOKIE_URL_10)
+        // If the list has fewer items, the rest will be empty
         for (let i = 0; i < 11; i += 1) {
             const key = i === 0 ? "YOUTUBE_COOKIE_URL" : `YOUTUBE_COOKIE_URL_${i}`;
             const value = (cookieList[i] !== undefined && cookieList[i] !== null) ? String(cookieList[i]) : "";

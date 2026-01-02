@@ -878,7 +878,7 @@ body.theme-light .list-row.interactive:hover {
     background: rgba(15, 23, 42, 0.06);
 }
 
-/* Адаптивный дизайн */
+/* Responsive design */
 @media (max-width: 768px) {
     .page {
         padding: 1rem 0.75rem 2rem;
@@ -1046,4 +1046,3 @@ body.theme-light .list-row.interactive:hover {
         font-size: 0.85rem;
     }
 }
-

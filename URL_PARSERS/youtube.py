@@ -89,23 +89,28 @@ def download_thumbnail(video_id: str, dest: str, url: str = None) -> None:
 
 
 def youtube_to_piped_url(url: str) -> str:
-    """Преобразует YouTube-ссылку к формату
-    https://<Config.PIPED_DOMAIN>/api/video/download?v=<ID>&q=18
-    1) youtu.be -> извлечь ID и собрать целевой URL
-    2) youtube.com/watch?v= -> извлечь ID и собрать целевой URL
-    3) youtube.com/shorts/ID -> привести к watch и собрать целевой URL
-    Иные параметры из исходной ссылки игнорируются (по ТЗ).
+    """Convert a YouTube URL to a Piped download URL.
+
+    Target format:
+      https://<Config.PIPED_DOMAIN>/api/video/download?v=<ID>&q=18
+
+    Supported inputs:
+      1) youtu.be/<ID>
+      2) youtube.com/watch?v=<ID>
+      3) youtube.com/shorts/<ID>
+
+    Other query parameters are ignored.
     """
     try:
         parsed = urlparse(url)
         domain = parsed.netloc
         path = parsed.path
         query = parsed.query
-        # 1) короткая форма youtu.be/ID
+        # 1) short form youtu.be/<ID>
         if 'youtu.be' in domain:
             video_id = path.lstrip('/')
             return f"https://{Config.PIPED_DOMAIN}/api/video/download?v={video_id}&q=18"
-        # 2) полная форма
+        # 2) full form
         if 'youtube.com' in domain:
             # shorts -> watch
             if path.startswith('/shorts/'):

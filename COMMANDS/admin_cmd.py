@@ -48,19 +48,19 @@ def reload_firebase_cache_command(app, message):
     # Check if this is a fake message (called programmatically)
     is_fake_message = getattr(message, '_is_fake_message', False) or message.id == 0
     
-    # В локальном режиме просто перезагружаем кэш из файла
+    # In local mode, reload cache from file
     use_firebase = getattr(Config, 'USE_FIREBASE', True)
     if not use_firebase:
         from DATABASE.cache_db import reload_firebase_cache
         success = reload_firebase_cache()
         if success:
-            final_msg = "✅ Локальный кэш перезагружен"
+            final_msg = "✅ Local cache reloaded"
             if is_fake_message:
-                send_to_logger(message, "✅ Локальный кэш перезагружен автоматически")
+                send_to_logger(message, "✅ Local cache reloaded automatically")
             else:
                 safe_send_message_with_auto_delete(message.chat.id, final_msg, delete_after_seconds=10)
         else:
-            error_msg = "❌ Ошибка перезагрузки локального кэша"
+            error_msg = "❌ Error reloading local cache"
             if is_fake_message:
                 send_to_logger(message, error_msg)
             else:
@@ -151,12 +151,12 @@ def reload_firebase_cache_command(app, message):
                 from HELPERS.logger import log_error_to_channel
                 log_error_to_channel(message, final_msg)
     except Exception as e:
-        # ГЛОБАЛЬНАЯ ЗАЩИТА: Убедимся, что messages инициализирована
+        # GLOBAL SAFETY: ensure messages is initialized
         if 'messages' not in locals() or messages is None:
             try:
                 messages = safe_get_messages(message.chat.id)
             except Exception:
-                # Если все не удается, создаем минимальную защиту
+                # If everything fails, create a minimal fallback
                 class EmergencyMessages:
                     def __getattr__(self, name):
                         return f"[{name}]"
@@ -450,9 +450,9 @@ def block_user(app, message):
         # Channel guard helpers
         if guard:
             if argument_lower == "show":
-                # Используем 48 часов (2 дня) вместо 3 дней
+                # Use 48 hours (2 days) instead of 3 days
                 hours_span = 48
-                # Проверяем доступ к admin logs
+                # Check access to admin logs
                 if not guard.can_read_admin_log():
                     safe_send_message(
                         message.chat.id,
@@ -477,7 +477,7 @@ def block_user(app, message):
                         if not display:
                             display = f"ID {user_id}"
                         description = entry.get("description") or ""
-                        # Добавляем Telegram ID в строку
+                        # Include Telegram ID in the line
                         lines.append(f"{emoji} {time_str} — {display} (ID: {user_id}) {description}".strip())
                     lines.append("")
                     lines.append(
@@ -512,14 +512,12 @@ def block_user(app, message):
                         message=message,
                     )
 
-                # Показываем pending очередь только если она не пуста
+                # Show the pending queue only if it's not empty
                 pending = guard.get_pending_leavers()
                 if not pending:
-                    # Не показываем сообщение "Очередь пуста" если уже показали активность
+                    # Do not show an "empty queue" message if activity was already displayed
                     return
-                rows = [
-                    messages.CHANNEL_GUARD_PENDING_HEADER_MSG.format(total=len(pending))
-                ]
+                rows = [messages.CHANNEL_GUARD_PENDING_HEADER_MSG.format(total=len(pending))]
                 for entry in pending[:50]:
                     left_ts = int(entry.get("last_left_ts", entry.get("first_left_ts", 0)))
                     try:
@@ -541,7 +539,7 @@ def block_user(app, message):
                 safe_send_message(message.chat.id, "\n".join(rows), message=message)
                 return
             if argument_lower == "all":
-                # Получаем всех пользователей, которые покинули канал за последние 48 часов
+                # Get all users who left the channel in the last 48 hours
                 hours_span = 48
                 if not guard.can_read_admin_log():
                     safe_send_message(
@@ -552,7 +550,7 @@ def block_user(app, message):
                     return
                 
                 activity_entries = guard.export_recent_activity(hours=hours_span)
-                # Получаем ID всех пользователей, которые покинули канал (тип "leave")
+                # Collect IDs of all users who left the channel (type "leave")
                 leave_user_ids = set()
                 for entry in activity_entries:
                     if entry.get("type") == "leave":
@@ -560,7 +558,7 @@ def block_user(app, message):
                         if user_id:
                             leave_user_ids.add(int(user_id))
                 
-                # Также добавляем pending leavers (на случай если они еще не попали в activity)
+                # Also include pending leavers (in case they haven't appeared in activity yet)
                 pending_ids = guard.get_pending_ids()
                 for uid in pending_ids:
                     leave_user_ids.add(uid)
@@ -569,12 +567,12 @@ def block_user(app, message):
                     safe_send_message(message.chat.id, messages.CHANNEL_GUARD_PENDING_EMPTY_MSG, message=message)
                     return
                 
-                # Проверяем, кто уже заблокирован
+                # Check who is already blocked
                 snapshot = db.child(f"{Config.BOT_DB_PATH}/blocked_users").get()
                 all_blocked_users = snapshot.each() if snapshot else []
                 blocked_ids = {int(str(b_user.key())) for b_user in (all_blocked_users or []) if b_user is not None}
                 
-                # Фильтруем только незаблокированных
+                # Keep only users who are not blocked yet
                 to_block_ids = [uid for uid in leave_user_ids if uid not in blocked_ids]
                 
                 if not to_block_ids:
@@ -820,7 +818,7 @@ def uncache_command(app, message):
                 h = get_url_hash(norm)
                 db_child_by_path(db, f"{Config.VIDEO_CACHE_DB_PATH}/{h}").remove()
                 db_child_by_path(db, f"{Config.PLAYLIST_CACHE_DB_PATH}/{h}").remove()
-        # Обновляем локальный кэш после удаления в локальном режиме
+        # Update local cache after deletion in local mode
         use_firebase = getattr(Config, 'USE_FIREBASE', True)
         if not use_firebase and removed_any:
             from DATABASE.cache_db import reload_firebase_cache
@@ -1001,4 +999,3 @@ def check_porn_command(app, message):
         else:
             safe_send_message(user_id, error_msg, parse_mode=enums.ParseMode.HTML)
         send_to_logger(message, safe_get_messages(message.chat.id).ADMIN_CHECK_PORN_ERROR_LOG_MSG.format(admin_id=message.chat.id, error=str(e)))
-

@@ -12,6 +12,6 @@ def is_playlist_with_range(text: str) -> bool:
     if not isinstance(text, str):
         return False
 
-    # Look for patterns like *1*3, 1*1000, *5*10, *-1*-100, or just * for full playlist (поддерживаем отрицательные числа)
+    # Look for patterns like *1*3, 1*1000, *5*10, *-1*-100, or just * for full playlist (supports negative indices)
     range_pattern = r'\*-?\d+\*-?\d+|-?\d+\*-?\d+|\*'
     return bool(re.search(range_pattern, text)) 

@@ -14,7 +14,7 @@ A powerful Telegram bot that downloads videos, audio, and images from YouTube, T
 ## ✨ Features
 
 - 🎬 **1500+ Platforms**: YouTube, TikTok, Instagram, Twitter, Facebook, and many more
-- 🌍 **Multi-Language Support**: 4 languages - 🇺🇸 English, 🇷🇺 Русский, 🇸🇦 العربية, 🇮🇳 हिन्दी
+- 🌍 **Multi-Language Support**: 4 languages - 🇺🇸 English, 🇷🇺 Russian, 🇸🇦 العربية, 🇮🇳 हिन्दी
 - 🍪 **Cookie Support**: Download private/age-restricted content with your own cookies
 - 🎯 **Smart Format Selection**: Advanced codec support (H.264/AVC, AV1, VP9) with container preferences
 - 📱 **Interactive Menus**: Always Ask quality selection with real-time filtering
@@ -695,7 +695,7 @@ The bot supports 4 languages with full interface translation:
 | Language | Code | Native Name | Flag |
 |----------|------|-------------|------|
 | 🇺🇸 English | `en` | English | 🇺🇸 |
-| 🇷🇺 Russian | `ru` | Русский | 🇷🇺 |
+| 🇷🇺 Russian | `ru` | Russian | 🇷🇺 |
 | 🇸🇦 Arabic | `ar` | العربية | 🇸🇦 |
 | 🇮🇳 Hindi | `in` | हिन्दी | 🇮🇳 |
 

@@ -5,11 +5,11 @@ import threading
 
 def encode_playlist_cache_index(index: int) -> str:
     """Encode playlist index for cache storage (uses real positive indices)."""
-    # Убрана логика с префиксом 1000 для отрицательных индексов
-    # Теперь отрицательные индексы преобразуются в положительные перед сохранением в кэш
+    # Removed the legacy "1000 prefix" logic for negative indices.
+    # Negative indices are now converted to positive before saving to cache.
     try:
         idx = int(index)
-        # Используем реальный индекс (уже преобразованный в положительный)
+        # Use the real index (already converted to positive)
         return str(idx)
     except (TypeError, ValueError):
         return str(index)
@@ -43,7 +43,7 @@ _thread_lock = threading.RLock()
 ###################################################
 
 def _sync_local_cache_to_file():
-    """Синхронизирует локальный кэш с файлом (используется при USE_FIREBASE=False)."""
+    """Sync local cache to file (used when USE_FIREBASE=False)."""
     global firebase_cache
     use_firebase = getattr(Config, 'USE_FIREBASE', True)
     if not use_firebase:
@@ -52,7 +52,7 @@ def _sync_local_cache_to_file():
             with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump(firebase_cache, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            logger.error(f"Ошибка синхронизации локального кэша: {e}")
+            logger.error(f"Error syncing local cache: {e}")
 
 def get_from_local_cache(path_parts):
     """
@@ -97,19 +97,19 @@ def load_firebase_cache():
             if use_firebase:
                 print(safe_get_messages().DB_FIREBASE_CACHE_LOADED_MSG.format(count=len(firebase_cache)))
             else:
-                print(f"✅ Локальный кэш загружен из {cache_file} ({len(firebase_cache)} записей)")
+                print(f"✅ Local cache loaded from {cache_file} ({len(firebase_cache)} entries)")
         else:
             if use_firebase:
                 print(safe_get_messages().DB_FIREBASE_CACHE_NOT_FOUND_MSG.format(cache_file=cache_file))
             else:
-                print(f"ℹ️ Локальный кэш не найден, создан новый файл: {cache_file}")
+                print(f"ℹ️ Local cache not found; created a new file: {cache_file}")
             firebase_cache = {}
     except Exception as e:
         use_firebase = getattr(Config, 'USE_FIREBASE', True)
         if use_firebase:
             print(safe_get_messages().DB_FAILED_LOAD_FIREBASE_CACHE_MSG.format(error=e))
         else:
-            print(f"⚠️ Ошибка загрузки локального кэша: {e}")
+            print(f"⚠️ Error loading local cache: {e}")
         firebase_cache = {}
 
 def reload_firebase_cache():
@@ -161,10 +161,10 @@ def auto_reload_firebase_cache():
     """Background thread that reloads local cache every N hours by downloading dump first."""
     global auto_cache_enabled
     
-    # В локальном режиме не нужно перезагружать кэш
+    # Local mode does not need cache reload
     use_firebase = getattr(Config, 'USE_FIREBASE', True)
     if not use_firebase:
-        print("ℹ️ Автоматическая перезагрузка кэша отключена в локальном режиме")
+        print("ℹ️ Automatic cache reload is disabled in local mode")
         return
 
     while auto_cache_enabled:
@@ -490,7 +490,7 @@ def save_to_playlist_cache(playlist_url: str, quality_key: str, video_indices: l
             if clear:
                 db_child_by_path(db, f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}/{quality_key}").remove()
                 logger.info(f"Cleared playlist cache for hash={url_hash}, quality={quality_key}")
-                # Обновляем локальный кэш
+                # Update local cache
                 use_firebase = getattr(Config, 'USE_FIREBASE', True)
                 if not use_firebase:
                     path_parts_clear = ["bot", "video_cache", "playlists", url_hash, quality_key]
@@ -524,36 +524,36 @@ def save_to_playlist_cache(playlist_url: str, quality_key: str, video_indices: l
                 db_child_by_path(db, "/".join(path_parts)).set(str(msg_id))
                 logger.info(f"Saved to playlist cache: path={path_parts}, msg_id={msg_id}")
                 
-                # Обновляем локальный кэш для немедленного доступа (и для Firebase, и для локального режима)
+                # Update local cache for immediate access (both Firebase and local mode)
                 current = firebase_cache
                 for part in path_parts_local:
                     if part not in current:
                         current[part] = {}
                     current = current[part]
                 current[encoded_index] = str(msg_id)
-                logger.info(f"✅ [CACHE] Обновлен локальный кэш: path={path_parts_local}, msg_id={msg_id}")
+                logger.info(f"✅ [CACHE] Local cache updated: path={path_parts_local}, msg_id={msg_id}")
 
         logger.info(f"✅ Saved to playlist cache for hash={url_hash}, quality={quality_key}, indices={video_indices}, message_ids={message_ids}")
         
-        # Дополнительно кэшируем каждое видео отдельно по его уникальной ссылке
+        # Additionally cache each video separately by its unique URL
         if video_urls_dict and not clear:
-            logger.info(f"🔍 [CACHE] Дополнительно кэшируем {len(video_urls_dict)} видео по их уникальным ссылкам")
+            logger.info(f"🔍 [CACHE] Additionally caching {len(video_urls_dict)} videos by unique URLs")
             for video_index, video_url in video_urls_dict.items():
                 if not video_url:
                     continue
                 try:
-                    # Извлекаем message_id для этого видео
+                    # Extract message_id for this video
                     if video_index in video_indices:
                         idx_pos = video_indices.index(video_index)
                         if idx_pos < len(message_ids):
                             video_msg_id = message_ids[idx_pos]
-                            # Сохраняем видео отдельно по его уникальной ссылке
+                            # Save video separately by its unique URL
                             save_to_video_cache(video_url, quality_key, [video_msg_id], clear=False, original_text=None, user_id=None)
-                            logger.info(f"✅ [CACHE] Сохранено отдельное видео: index={video_index}, url={video_url}, msg_id={video_msg_id}")
+                            logger.info(f"✅ [CACHE] Saved video separately: index={video_index}, url={video_url}, msg_id={video_msg_id}")
                 except Exception as e:
-                    logger.warning(f"⚠️ [CACHE] Не удалось сохранить отдельное видео для index={video_index}, url={video_url}: {e}")
+                    logger.warning(f"⚠️ [CACHE] Failed to save separate video for index={video_index}, url={video_url}: {e}")
         
-        # Синхронизируем локальный кэш с файлом при USE_FIREBASE=False
+        # Sync local cache to file when USE_FIREBASE=False
         use_firebase = getattr(Config, 'USE_FIREBASE', True)
         if not use_firebase:
             _sync_local_cache_to_file()
@@ -642,7 +642,7 @@ def get_cached_playlist_qualities(playlist_url: str) -> set:
     from URL_PARSERS.normalizer import normalize_url_for_cache, strip_range_from_url
     from URL_PARSERS.youtube import is_youtube_url, youtube_to_short_url, youtube_to_long_url
     try:
-        # Нормализуем URL так же, как при сохранении (без диапазона) и формируем все варианты ссылок
+        # Normalize the URL (without range) and build all URL variants (same as during save)
         urls = [normalize_url_for_cache(strip_range_from_url(playlist_url))]
         if is_youtube_url(playlist_url):
             urls.extend([
@@ -650,31 +650,31 @@ def get_cached_playlist_qualities(playlist_url: str) -> set:
                 normalize_url_for_cache(strip_range_from_url(youtube_to_long_url(playlist_url))),
             ])
         
-        # Проверяем все варианты URL и собираем все качества
+        # Check all URL variants and collect all qualities
         all_qualities = set()
         for u in set(urls):
             url_hash = get_url_hash(u)
             logger.info(f"get_cached_playlist_qualities: checking hash {url_hash} for URL: {u}")
             
-            # Проверяем локальный кэш
+            # Check local cache
             data = get_from_local_cache(["bot", "video_cache", "playlists", url_hash])
             if data and isinstance(data, dict):
                 qualities = set(data.keys())
                 all_qualities.update(qualities)
                 logger.info(f"get_cached_playlist_qualities: found qualities {qualities} for hash {url_hash} (local cache)")
             else:
-                # Если в локальном кэше нет, проверяем Firebase напрямую (если используется)
+                # If not in local cache, check Firebase directly (if enabled)
                 use_firebase = getattr(Config, 'USE_FIREBASE', True)
                 if use_firebase:
                     try:
-                        # Пытаемся получить данные из Firebase напрямую
+                        # Try to fetch data from Firebase directly
                         firebase_path = f"{Config.PLAYLIST_CACHE_DB_PATH}/{url_hash}"
                         firebase_data = db.child(firebase_path).get()
                         if firebase_data and isinstance(firebase_data.val(), dict):
                             qualities = set(firebase_data.val().keys())
                             all_qualities.update(qualities)
                             logger.info(f"get_cached_playlist_qualities: found qualities {qualities} for hash {url_hash} (Firebase)")
-                            # Обновляем локальный кэш для будущих обращений
+                            # Update local cache for future access
                             if "bot" not in firebase_cache:
                                 firebase_cache["bot"] = {}
                             if "video_cache" not in firebase_cache["bot"]:
@@ -880,11 +880,11 @@ def save_to_image_cache(url: str, post_index: int, message_ids: list):
                     logger.error(f"[IMG CACHE] Fallback write failed: {inner2}")
             logger.info(f"[IMG CACHE] Saved album to cache: {path_dbg_parent}/{int(post_index)}")
             
-            # Обновляем локальный кэш для немедленного доступа
+            # Update local cache for immediate access
             use_firebase = getattr(Config, 'USE_FIREBASE', True)
             if not use_firebase:
                 current = firebase_cache
-                for part in local_path_parts[:-1]:  # Все кроме последнего (post_index)
+                for part in local_path_parts[:-1]:  # Everything except the last part (post_index)
                     if part not in current:
                         current[part] = {}
                     current = current[part]
@@ -1066,7 +1066,7 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
             if clear:
                 logger.info(f"Clearing cache for URL hash {url_hash}, quality {quality_key}")
                 db.child(*path_parts).child(quality_key).remove()
-                # Обновляем локальный кэш
+                # Update local cache
                 use_firebase = getattr(Config, 'USE_FIREBASE', True)
                 if not use_firebase:
                     current = firebase_cache
@@ -1096,7 +1096,7 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
             if len(message_ids) == 1:
                 cache_ref.child(quality_key).set(str(message_ids[0]))
                 logger.info(f"Saved single video to cache: hash={url_hash}, quality={quality_key}, msg_id={message_ids[0]}")
-                # Обновляем локальный кэш
+                # Update local cache
                 use_firebase = getattr(Config, 'USE_FIREBASE', True)
                 if not use_firebase:
                     current = firebase_cache
@@ -1109,7 +1109,7 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
                 ids_string = ",".join(map(str, message_ids))
                 cache_ref.child(quality_key).set(ids_string)
                 logger.info(f"Saved split video to cache: hash={url_hash}, quality={quality_key}, msg_ids={ids_string}")
-                # Обновляем локальный кэш
+                # Update local cache
                 use_firebase = getattr(Config, 'USE_FIREBASE', True)
                 if not use_firebase:
                     current = firebase_cache
@@ -1119,7 +1119,7 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
                         current = current[part]
                     current[quality_key] = ids_string
             
-            # Синхронизируем локальный кэш с файлом при USE_FIREBASE=False
+            # Sync local cache to file when USE_FIREBASE=False
             use_firebase = getattr(Config, 'USE_FIREBASE', True)
             if not use_firebase:
                 _sync_local_cache_to_file()

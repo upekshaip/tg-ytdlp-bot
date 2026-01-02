@@ -8,8 +8,8 @@ from urllib.parse import urlparse
 
 def route_if_gallerydl_only(app, message) -> bool:
     """
-    Решает, нужно ли сразу маршрутизировать ссылку в gallery-dl (команда /img),
-    минуя yt-dlp. Возвращает True, если обработка полностью выполнена здесь.
+    Decide whether to route the URL directly to gallery-dl (/img),
+    bypassing yt-dlp. Returns True if handling is fully performed here.
     """
     try:
         text = (getattr(message, 'text', None) or getattr(message, 'caption', '') or '').strip()
@@ -25,7 +25,7 @@ def route_if_gallerydl_only(app, message) -> bool:
         if domain.startswith('www.'):
             domain = domain[4:]
 
-        # 1) Абсолютное совпадение по части пути из массива GALLERYDL_ONLY_PATH
+        # 1) Exact match by path segment from GALLERYDL_ONLY_PATH
         try:
             path_list = getattr(DomainsConfig, 'GALLERYDL_ONLY_PATH', []) or []
         except Exception:
@@ -46,7 +46,7 @@ def route_if_gallerydl_only(app, message) -> bool:
             except Exception as e:
                 logger.error(f"[ENGINE_ROUTER] Error checking path {path_part}: {e}")
 
-        # 2) Домены из списка GALLERYDL_ONLY_DOMAINS
+        # 2) Domains from GALLERYDL_ONLY_DOMAINS
         try:
             domains_list = getattr(DomainsConfig, 'GALLERYDL_ONLY_DOMAINS', []) or []
         except Exception:
@@ -74,5 +74,4 @@ def route_if_gallerydl_only(app, message) -> bool:
     except Exception as e:
         logger.error(f"[ENGINE_ROUTER] route_if_gallerydl_only error: {e}")
         return False
-
 

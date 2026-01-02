@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Скрипт для создания бэкапа всех модулей перед исправлениями
+Create a backup of project modules before applying fixes.
 """
 
 import os
@@ -9,20 +9,20 @@ import datetime
 from pathlib import Path
 
 def create_backup():
-    """Создать бэкап всех модулей"""
+    """Create a backup of project modules."""
     
-    print("💾 СОЗДАНИЕ БЭКАПА ВСЕХ МОДУЛЕЙ")
+    print("💾 CREATING BACKUP OF ALL MODULES")
     print("=" * 50)
     
-    # Создаем папку для бэкапа
+    # Create the backup directory
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_dir = f"backup_before_fixes_{timestamp}"
     
     try:
         os.makedirs(backup_dir, exist_ok=True)
-        print(f"📁 Создана папка бэкапа: {backup_dir}")
+        print(f"📁 Created backup directory: {backup_dir}")
         
-        # Список папок и файлов для бэкапа
+        # List of folders/files to back up
         items_to_backup = [
             'COMMANDS/',
             'HELPERS/',
@@ -41,57 +41,57 @@ def create_backup():
         for item in items_to_backup:
             if os.path.exists(item):
                 if os.path.isdir(item):
-                    # Копируем папку
+                    # Copy directory
                     dest_path = os.path.join(backup_dir, item)
                     shutil.copytree(item, dest_path)
-                    print(f"📁 Скопирована папка: {item}")
+                    print(f"📁 Copied directory: {item}")
                     backed_up_count += 1
                 else:
-                    # Копируем файл
+                    # Copy file
                     dest_path = os.path.join(backup_dir, item)
                     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
                     shutil.copy2(item, dest_path)
-                    print(f"📄 Скопирован файл: {item}")
+                    print(f"📄 Copied file: {item}")
                     backed_up_count += 1
             else:
-                print(f"⚠️  Не найден: {item}")
+                print(f"⚠️  Not found: {item}")
         
-        print(f"\n✅ БЭКАП СОЗДАН УСПЕШНО!")
-        print(f"   📁 Папка бэкапа: {backup_dir}")
-        print(f"   📊 Скопировано элементов: {backed_up_count}")
-        print(f"   🕒 Время создания: {timestamp}")
+        print("\n✅ BACKUP CREATED SUCCESSFULLY!")
+        print(f"   📁 Backup directory: {backup_dir}")
+        print(f"   📊 Items copied: {backed_up_count}")
+        print(f"   🕒 Created at: {timestamp}")
         
-        # Создаем файл с информацией о бэкапе
-        backup_info = f"""БЭКАП СОЗДАН: {timestamp}
+        # Write backup metadata file
+        backup_info = f"""BACKUP CREATED: {timestamp}
 ===============================
 
-Цель: Бэкап перед исправлением проблем с 'name messages is not defined'
-Содержимое: Все модули и файлы проекта
-Количество элементов: {backed_up_count}
+Purpose: Backup before fixing 'name messages is not defined'
+Contents: All project modules and files
+Items: {backed_up_count}
 
-Для восстановления:
-1. Остановите бота
-2. Удалите поврежденные файлы
-3. Скопируйте файлы из этой папки обратно в проект
-4. Запустите бота
+Restore steps:
+1. Stop the bot
+2. Remove the broken files
+3. Copy files from this directory back into the project
+4. Start the bot
 
-ВНИМАНИЕ: Этот бэкап создан автоматически перед исправлениями!
+WARNING: This backup was created automatically before applying fixes!
 """
         
         with open(os.path.join(backup_dir, "BACKUP_INFO.txt"), 'w', encoding='utf-8') as f:
             f.write(backup_info)
         
-        print(f"📝 Создан файл с информацией: {backup_dir}/BACKUP_INFO.txt")
+        print(f"📝 Wrote info file: {backup_dir}/BACKUP_INFO.txt")
         
         return backup_dir
         
     except Exception as e:
-        print(f"❌ Ошибка при создании бэкапа: {e}")
+        print(f"❌ Error while creating backup: {e}")
         return None
 
 if __name__ == "__main__":
     backup_dir = create_backup()
     if backup_dir:
-        print(f"\n🎉 Бэкап готов! Папка: {backup_dir}")
+        print(f"\n🎉 Backup ready! Directory: {backup_dir}")
     else:
-        print("\n❌ Ошибка создания бэкапа!")
+        print("\n❌ Backup creation failed!")

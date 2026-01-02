@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-🔍 ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ДЛЯ ОТЛАДКИ ОШИБКИ NONE COMPARISON
-===========================================================
+🔍 DETAILED LOGGING FOR DEBUGGING NONE COMPARISON ERRORS
+=======================================================
 
-Этот патч добавляет детальное логирование для отслеживания ошибки:
+This patch adds detailed logging to help track down the error:
 '>' not supported between instances of 'NoneType' and 'int'
 
-Автор: AI Assistant
-Дата: 11.10.2025
+Author: AI Assistant
+Date: 2025-10-11
 """
 
 import os
@@ -17,81 +17,81 @@ import logging
 from typing import Any, Optional
 
 def apply_debug_none_comparison():
-    """Применяет детальное логирование для отладки ошибки None comparison"""
+    """Enable detailed logging for debugging None comparison errors."""
     
-    print("🔍 Применяем детальное логирование для отладки ошибки None comparison...")
+    print("🔍 Applying detailed logging for debugging None comparison errors...")
     
-    # Настройка логирования
+    # Logging configuration
     logging.basicConfig(level=logging.DEBUG)
     logger = logging.getLogger(__name__)
     
-    # Создаем декоратор для отслеживания сравнений
+    # Create a decorator to trace comparisons and inputs
     def debug_comparison_decorator(func):
         def wrapper(*args, **kwargs):
             try:
-                # Логируем входные параметры
-                logger.debug(f"🔍 ВЫЗОВ ФУНКЦИИ: {func.__name__}")
-                logger.debug(f"   Аргументы: {args}")
-                logger.debug(f"   Ключевые аргументы: {kwargs}")
+                # Log inputs
+                logger.debug(f"🔍 FUNCTION CALL: {func.__name__}")
+                logger.debug(f"   Args: {args}")
+                logger.debug(f"   Kwargs: {kwargs}")
                 
-                # Выполняем функцию
+                # Execute
                 result = func(*args, **kwargs)
                 
-                # Логируем результат
-                logger.debug(f"✅ ФУНКЦИЯ {func.__name__} ВЫПОЛНЕНА УСПЕШНО")
+                # Log result
+                logger.debug(f"✅ FUNCTION {func.__name__} COMPLETED SUCCESSFULLY")
                 return result
                 
             except TypeError as e:
                 if "'>' not supported between instances of 'NoneType' and 'int'" in str(e):
-                    logger.error(f"❌ ОШИБКА NONE COMPARISON в функции {func.__name__}: {e}")
-                    logger.error(f"   Аргументы: {args}")
-                    logger.error(f"   Ключевые аргументы: {kwargs}")
+                    logger.error(f"❌ NONE COMPARISON ERROR in {func.__name__}: {e}")
+                    logger.error(f"   Args: {args}")
+                    logger.error(f"   Kwargs: {kwargs}")
                     
-                    # Пытаемся найти проблемные переменные
+                    # Try to identify problematic values
                     for i, arg in enumerate(args):
                         if arg is None:
-                            logger.error(f"   ⚠️  Аргумент {i} равен None: {arg}")
+                            logger.error(f"   ⚠️  Arg {i} is None: {arg}")
                         elif isinstance(arg, (int, float)):
-                            logger.error(f"   ✅ Аргумент {i} - число: {arg}")
+                            logger.error(f"   ✅ Arg {i} is a number: {arg}")
                         else:
-                            logger.error(f"   ❓ Аргумент {i} - другой тип: {type(arg)} = {arg}")
+                            logger.error(f"   ❓ Arg {i} has other type: {type(arg)} = {arg}")
                     
-                    # Пытаемся найти проблемные ключевые аргументы
+                    # Try to identify problematic keyword args
                     for key, value in kwargs.items():
                         if value is None:
-                            logger.error(f"   ⚠️  Ключевой аргумент {key} равен None: {value}")
+                            logger.error(f"   ⚠️  Kwarg {key} is None: {value}")
                         elif isinstance(value, (int, float)):
-                            logger.error(f"   ✅ Ключевой аргумент {key} - число: {value}")
+                            logger.error(f"   ✅ Kwarg {key} is a number: {value}")
                         else:
-                            logger.error(f"   ❓ Ключевой аргумент {key} - другой тип: {type(value)} = {value}")
+                            logger.error(f"   ❓ Kwarg {key} has other type: {type(value)} = {value}")
                 
                 raise e
             except Exception as e:
-                logger.error(f"❌ ОШИБКА в функции {func.__name__}: {e}")
+                logger.error(f"❌ ERROR in {func.__name__}: {e}")
                 raise e
         
         return wrapper
     
-    # Применяем декоратор к основным функциям
+    # Apply decorator to key functions
     try:
         from DOWN_AND_UP.always_ask_menu import ask_quality_menu
         ask_quality_menu = debug_comparison_decorator(ask_quality_menu)
-        print("✅ Декоратор применен к ask_quality_menu")
+        print("✅ Decorator applied to ask_quality_menu")
     except Exception as e:
-        print(f"⚠️  Не удалось применить декоратор к ask_quality_menu: {e}")
+        print(f"⚠️  Failed to apply decorator to ask_quality_menu: {e}")
     
     try:
         from DOWN_AND_UP.yt_dlp_hook import get_video_formats
         get_video_formats = debug_comparison_decorator(get_video_formats)
-        print("✅ Декоратор применен к get_video_formats")
+        print("✅ Decorator applied to get_video_formats")
     except Exception as e:
-        print(f"⚠️  Не удалось применить декоратор к get_video_formats: {e}")
+        print(f"⚠️  Failed to apply decorator to get_video_formats: {e}")
     
-    # Создаем патч для отслеживания сравнений в коде
+    # Patch comparison operators to detect errors
     def patch_comparison_operators():
-        """Патчим операторы сравнения для отслеживания ошибок"""
+        """Patch comparison operators to trace errors."""
         
-        # Сохраняем оригинальные операторы
+        # Save original operators
         original_gt = int.__gt__
         original_lt = int.__lt__
         original_ge = int.__ge__
@@ -100,80 +100,80 @@ def apply_debug_none_comparison():
         def safe_gt(self, other):
             try:
                 if self is None or other is None:
-                    logger.error(f"❌ ПЫТАЕМСЯ СРАВНИТЬ None: self={self}, other={other}")
-                    logger.error(f"   Тип self: {type(self)}, Тип other: {type(other)}")
+                    logger.error(f"❌ ATTEMPTING TO COMPARE None: self={self}, other={other}")
+                    logger.error(f"   self type: {type(self)}, other type: {type(other)}")
                     return False
                 return original_gt(self, other)
             except Exception as e:
-                logger.error(f"❌ ОШИБКА В СРАВНЕНИИ >: {e}")
-                logger.error(f"   self={self} (тип: {type(self)})")
-                logger.error(f"   other={other} (тип: {type(other)})")
+                logger.error(f"❌ ERROR IN COMPARISON >: {e}")
+                logger.error(f"   self={self} (type: {type(self)})")
+                logger.error(f"   other={other} (type: {type(other)})")
                 return False
         
         def safe_lt(self, other):
             try:
                 if self is None or other is None:
-                    logger.error(f"❌ ПЫТАЕМСЯ СРАВНИТЬ None: self={self}, other={other}")
-                    logger.error(f"   Тип self: {type(self)}, Тип other: {type(other)}")
+                    logger.error(f"❌ ATTEMPTING TO COMPARE None: self={self}, other={other}")
+                    logger.error(f"   self type: {type(self)}, other type: {type(other)}")
                     return False
                 return original_lt(self, other)
             except Exception as e:
-                logger.error(f"❌ ОШИБКА В СРАВНЕНИИ <: {e}")
-                logger.error(f"   self={self} (тип: {type(self)})")
-                logger.error(f"   other={other} (тип: {type(other)})")
+                logger.error(f"❌ ERROR IN COMPARISON <: {e}")
+                logger.error(f"   self={self} (type: {type(self)})")
+                logger.error(f"   other={other} (type: {type(other)})")
                 return False
         
         def safe_ge(self, other):
             try:
                 if self is None or other is None:
-                    logger.error(f"❌ ПЫТАЕМСЯ СРАВНИТЬ None: self={self}, other={other}")
-                    logger.error(f"   Тип self: {type(self)}, Тип other: {type(other)}")
+                    logger.error(f"❌ ATTEMPTING TO COMPARE None: self={self}, other={other}")
+                    logger.error(f"   self type: {type(self)}, other type: {type(other)}")
                     return False
                 return original_ge(self, other)
             except Exception as e:
-                logger.error(f"❌ ОШИБКА В СРАВНЕНИИ >=: {e}")
-                logger.error(f"   self={self} (тип: {type(self)})")
-                logger.error(f"   other={other} (тип: {type(other)})")
+                logger.error(f"❌ ERROR IN COMPARISON >=: {e}")
+                logger.error(f"   self={self} (type: {type(self)})")
+                logger.error(f"   other={other} (type: {type(other)})")
                 return False
         
         def safe_le(self, other):
             try:
                 if self is None or other is None:
-                    logger.error(f"❌ ПЫТАЕМСЯ СРАВНИТЬ None: self={self}, other={other}")
-                    logger.error(f"   Тип self: {type(self)}, Тип other: {type(other)}")
+                    logger.error(f"❌ ATTEMPTING TO COMPARE None: self={self}, other={other}")
+                    logger.error(f"   self type: {type(self)}, other type: {type(other)}")
                     return False
                 return original_le(self, other)
             except Exception as e:
-                logger.error(f"❌ ОШИБКА В СРАВНЕНИИ <=: {e}")
-                logger.error(f"   self={self} (тип: {type(self)})")
-                logger.error(f"   other={other} (тип: {type(other)})")
+                logger.error(f"❌ ERROR IN COMPARISON <=: {e}")
+                logger.error(f"   self={self} (type: {type(self)})")
+                logger.error(f"   other={other} (type: {type(other)})")
                 return False
         
-        # Применяем патчи
+        # Apply patches
         try:
             int.__gt__ = safe_gt
             int.__lt__ = safe_lt
             int.__ge__ = safe_ge
             int.__le__ = safe_le
-            print("✅ Патчи сравнений применены к int")
+            print("✅ Comparison patches applied to int")
         except Exception as e:
-            print(f"⚠️  Не удалось применить патчи к int: {e}")
+            print(f"⚠️  Failed to apply patches to int: {e}")
         
-        # Также патчим float
+        # Also patch float
         try:
             float.__gt__ = safe_gt
             float.__lt__ = safe_lt
             float.__ge__ = safe_ge
             float.__le__ = safe_le
-            print("✅ Патчи сравнений применены к float")
+            print("✅ Comparison patches applied to float")
         except Exception as e:
-            print(f"⚠️  Не удалось применить патчи к float: {e}")
+            print(f"⚠️  Failed to apply patches to float: {e}")
     
-    # Применяем патчи
+    # Apply patches
     patch_comparison_operators()
     
-    print("🎉 Детальное логирование применено успешно!")
-    print("   Теперь все ошибки None comparison будут детально логироваться")
+    print("🎉 Detailed logging applied successfully!")
+    print("   None comparison errors will now be logged in detail")
 
 if __name__ == "__main__":
     apply_debug_none_comparison()

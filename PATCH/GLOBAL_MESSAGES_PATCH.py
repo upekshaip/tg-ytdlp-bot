@@ -1,27 +1,27 @@
 """
-GLOBAL MESSAGES PATCH - РЕШАЕТ ПРОБЛЕМУ 'name messages is not defined' РАЗ И НАВСЕГДА
+GLOBAL MESSAGES PATCH - FIXES 'name messages is not defined' ONCE AND FOR ALL
 
-Этот файл содержит глобальные патчи для предотвращения ошибки 'name messages is not defined'
-во ВСЕХ файлах проекта.
+This file contains global patches to prevent the 'name messages is not defined' error
+across ALL project files.
 """
 
 import sys
 import os
 
-# Добавляем путь к CONFIG (из папки PATCH)
+# Add CONFIG path (from PATCH folder)
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'CONFIG'))
 
 def apply_global_messages_patch():
     """
-    Применяет глобальный патч для предотвращения ошибки 'name messages is not defined'
+    Apply a global patch to prevent 'name messages is not defined'
     """
     try:
         from CONFIG.messages import safe_messages, safe_get_messages
         
-        # Патчим встроенные функции
+        # Patch builtins
         import builtins
         
-        # Создаем безопасную версию get_messages_instance
+        # Create a safe version of get_messages_instance
         def safe_safe_get_messages(user_id=None):
             try:
                 from CONFIG.messages import safe_get_messages
@@ -29,7 +29,7 @@ def apply_global_messages_patch():
             except:
                 return safe_messages(user_id)
         
-        # Добавляем в глобальное пространство имен
+        # Add to global namespace
         builtins.safe_get_messages_instance = safe_safe_get_messages
         builtins.safe_messages = safe_messages
         
@@ -37,13 +37,13 @@ def apply_global_messages_patch():
         
     except Exception as e:
         print(f"❌ Failed to apply global messages patch: {e}")
-        # Создаем минимальную защиту
+        # Create a minimal fallback
         class EmergencyMessages:
             def __getattr__(self, name):
                 return f"[{name}]"
         
-        # Не объявляем global messages здесь, чтобы избежать конфликтов
+        # Do not declare global messages here to avoid conflicts
         pass
 
-# Автоматически применяем патч при импорте
+# Automatically apply the patch on import
 apply_global_messages_patch()

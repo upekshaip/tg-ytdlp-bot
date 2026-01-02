@@ -6,69 +6,68 @@ from HELPERS.logger import logger
 
 def create_smart_match_filter():
     """
-    Создает умный match_filter, который разрешает скачивание если:
-    1. Видео не является живым (!is_live) - только если ENABLE_LIVE_STREAM_BLOCKING = True
-    2. Длительность определена и <= MAX_VIDEO_DURATION
-    3. Длительность не определена (duration is None) - разрешаем скачивание
+    Create a smart yt-dlp match_filter that allows downloading when:
+    1. The video is not live (!is_live) — only if ENABLE_LIVE_STREAM_BLOCKING = True
+    2. Duration is known and <= MAX_VIDEO_DURATION
+    3. Duration is unknown (duration is None) — allow download
     
     Returns:
-        function: Функция фильтра для yt-dlp
+        function: Filter function for yt-dlp
     """
     def match_filter(info_dict):
         """
-        Умный фильтр для yt-dlp
+        Smart filter for yt-dlp.
         
         Args:
-            info_dict (dict): Словарь с информацией о видео
+            info_dict (dict): Video info dict
             
         Returns:
-            str or None: None если видео проходит фильтр, иначе сообщение об ошибке
+            str or None: None if allowed, otherwise an error message
         """
         try:
-            # На некоторых сайтах extractor может вернуть список на ранних стадиях
-            # match_filter должен молча пропускать такие случаи
+            # Some extractors may return a list in early stages; allow silently.
             if not isinstance(info_dict, dict):
                 return None
-            # Проверяем, является ли видео живым (только если включена детекция)
+            # Check live streams (only if detection is enabled)
             is_live = info_dict.get('is_live', False)
             if is_live and LimitsConfig.ENABLE_LIVE_STREAM_BLOCKING:
                 return "LIVE_STREAM_DETECTED"
             
-            # Получаем длительность
+            # Read duration
             duration = info_dict.get('duration')
             
-            # Если длительность не определена (None), разрешаем скачивание
+            # If duration is unknown, allow download
             if duration is None:
                 logger.info("Duration not available, allowing download")
                 return None
             
-            # Проверяем, является ли это завершенным стримом
+            # Allow completed live streams
             was_live = info_dict.get('was_live', False)
             if was_live and not is_live:
                 logger.info(f"Completed live stream detected (duration: {duration}s), allowing download")
                 return None
             
-            # Если длительность определена, проверяем лимит
+            # If duration is known, enforce limit
             if duration and duration > Config.MAX_VIDEO_DURATION:
                 return f"Video too long: {duration}s > {Config.MAX_VIDEO_DURATION}s"
             
-            # Все проверки пройдены
+            # All checks passed
             return None
             
         except Exception as e:
             logger.error(f"Error in match_filter: {e}")
-            # В случае ошибки разрешаем скачивание
+            # On errors, allow download
             return None
     
     return match_filter
 
 def create_legacy_match_filter():
     """
-    Создает стандартный match_filter для обратной совместимости
-    Учитывает ENABLE_LIVE_STREAM_BLOCKING
+    Create the legacy match_filter for backward compatibility.
+    Respects ENABLE_LIVE_STREAM_BLOCKING.
     
     Returns:
-        function: Функция фильтра для yt-dlp
+        function: Filter function for yt-dlp
     """
     if LimitsConfig.ENABLE_LIVE_STREAM_BLOCKING:
         return yt_dlp.utils.match_filter_func(f'!is_live & duration <= {Config.MAX_VIDEO_DURATION}')

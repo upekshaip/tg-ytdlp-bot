@@ -95,7 +95,7 @@ def list_indices(indices: Dict[str, BackupIndex]) -> List[BackupIndex]:
 
 def restore_backup(indices: Dict[str, BackupIndex], ts: str) -> Tuple[int, int]:
     """Restore all files for timestamp ts. Returns (restored, errors)."""
-    # ГЛОБАЛЬНАЯ ЗАЩИТА: Инициализируем messages
+    # Global guard: initialize messages
     messages = safe_get_messages(None)
     
     bi = indices.get(ts)

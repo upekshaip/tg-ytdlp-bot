@@ -23,7 +23,7 @@ starting_point = []
 
 
 def _get_database_url() -> str:
-    # ГЛОБАЛЬНАЯ ЗАЩИТА: Инициализируем messages
+    # Global guard: initialize messages
     messages = safe_get_messages(None)
     
     try:
@@ -140,8 +140,8 @@ class FirebaseDBAdapter:
 class RestDBAdapter:
     """Pyrebase-like adapter using Firebase Realtime Database REST API with idToken.
 
-    Важно: все дочерние адаптеры (child) разделяют одно общее состояние токенов,
-    один requests.Session и один фоновой поток обновления токена.
+    Important: all child adapters share one token state,
+    one requests.Session, and one background token refresh thread.
     """
 
     def __init__(
@@ -162,7 +162,7 @@ class RestDBAdapter:
         self._path = path if path.startswith("/") else f"/{path}"
         self._is_child = _is_child
 
-        # Общее (shared) состояние между всеми child-экземплярами
+        # Shared state between all child instances
         if _shared is None:
             self._shared = {
                 "lock": threading.RLock(),
@@ -173,7 +173,7 @@ class RestDBAdapter:
         else:
             self._shared = _shared
 
-        # Общая сессия между всеми child-экземплярами
+        # Shared session between all child instances
         if _session is None:
             from HELPERS.http_manager import get_managed_session
             # Use managed session for automatic cleanup
@@ -183,7 +183,7 @@ class RestDBAdapter:
             self._session = _session
             self._session_manager = None
 
-        # Запускаем рефрешер токена только один раз (и только у корневого адаптера)
+        # Start the token refresher only once (and only on the root adapter)
         if _start_refresher and self._shared.get("refresh_token"):
             with self._shared["lock"]:
                 if not self._shared["refresher_started"]:
@@ -193,7 +193,7 @@ class RestDBAdapter:
 
     def _token_refresher(self):
         messages = safe_get_messages(None)
-        # Обновляем каждые ~50 минут
+        # Refresh every ~50 minutes
         while True:
             time.sleep(3000)
             try:
@@ -225,7 +225,7 @@ class RestDBAdapter:
             if not part:
                 continue
             path = f"{path}/{part}"
-        # ВАЖНО: не запускаем новый рефрешер и переиспользуем shared и session
+        # IMPORTANT: do not start a new refresher; reuse shared state and session
         return RestDBAdapter(
             self._database_url,
             self._shared.get("id_token"),
@@ -266,8 +266,8 @@ class RestDBAdapter:
 
     def close(self):
         messages = safe_get_messages(None)
-        """Закрывает сетевые ресурсы только у корневого адаптера.
-        Дети разделяют сессию и не должны её закрывать.
+        """Close network resources only on the root adapter.
+        Child adapters share the session and must not close it.
         """
         if self._is_child:
             return
@@ -284,7 +284,7 @@ class RestDBAdapter:
             logger.error(safe_get_messages().DB_ERROR_CLOSING_SESSION_MSG.format(error=e))
 
     def __del__(self):
-        # Ничего не делаем у детей, чтобы не ломать общую сессию
+        # Do nothing for children to avoid breaking the shared session
         if not self._is_child and hasattr(self, '_session_manager') and self._session_manager:
             try:
                 self._session_manager.close()
@@ -293,10 +293,10 @@ class RestDBAdapter:
 
 
 class LocalDBAdapter:
-    """Локальный адаптер для работы с JSON файлом вместо Firebase.
+    """Local adapter that works with a JSON file instead of Firebase.
     
-    Имитирует API Pyrebase для совместимости с существующим кодом.
-    Все операции чтения/записи выполняются с локальным JSON файлом.
+    Mimics the Pyrebase API for compatibility with existing code.
+    All read/write operations are performed against a local JSON file.
     """
     
     def __init__(self, cache_file: str, path: str = "/"):
@@ -306,33 +306,33 @@ class LocalDBAdapter:
         self._ensure_cache_file()
     
     def _ensure_cache_file(self):
-        """Создает файл кэша если его нет."""
+        """Create the cache file if it does not exist."""
         if not os.path.exists(self._cache_file):
             with open(self._cache_file, 'w', encoding='utf-8') as f:
                 json.dump({}, f, ensure_ascii=False, indent=2)
     
     def _load_cache(self) -> Dict[str, Any]:
-        """Загружает данные из JSON файла."""
+        """Load data from the JSON file."""
         try:
             if os.path.exists(self._cache_file):
                 with open(self._cache_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
             return {}
         except Exception as e:
-            logger.error(f"Ошибка загрузки локального кэша: {e}")
+            logger.error(f"Error loading local cache: {e}")
             return {}
     
     def _save_cache(self, data: Dict[str, Any]) -> None:
-        """Сохраняет данные в JSON файл."""
+        """Save data to the JSON file."""
         try:
             with open(self._cache_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            logger.error(f"Ошибка сохранения локального кэша: {e}")
+            logger.error(f"Error saving local cache: {e}")
             raise
     
     def _get_path_value(self, data: Dict[str, Any], path: str) -> Any:
-        """Получает значение по пути в словаре."""
+        """Get a value by path in a dict."""
         if path == "/" or not path:
             return data
         parts = [p for p in path.strip("/").split("/") if p]
@@ -345,12 +345,12 @@ class LocalDBAdapter:
         return current
     
     def _set_path_value(self, data: Dict[str, Any], path: str, value: Any) -> None:
-        """Устанавливает значение по пути в словаре."""
+        """Set a value by path in a dict."""
         if path == "/" or not path:
             if isinstance(value, dict):
                 data.update(value)
             else:
-                raise ValueError("Корневой путь должен быть словарем")
+                raise ValueError("Root path value must be a dict")
             return
         
         parts = [p for p in path.strip("/").split("/") if p]
@@ -362,7 +362,7 @@ class LocalDBAdapter:
         current[parts[-1]] = value
     
     def _remove_path_value(self, data: Dict[str, Any], path: str) -> None:
-        """Удаляет значение по пути в словаре."""
+        """Remove a value by path in a dict."""
         if path == "/" or not path:
             data.clear()
             return
@@ -373,12 +373,12 @@ class LocalDBAdapter:
             if isinstance(current, dict) and part in current:
                 current = current[part]
             else:
-                return  # Путь не существует
+                return  # Path does not exist
         if isinstance(current, dict) and parts[-1] in current:
             del current[parts[-1]]
     
     def child(self, *path_parts: str) -> "LocalDBAdapter":
-        """Создает дочерний адаптер с расширенным путем."""
+        """Create a child adapter with an extended path."""
         path = self._path.rstrip("/")
         for part in path_parts:
             part = str(part).strip("/")
@@ -388,14 +388,14 @@ class LocalDBAdapter:
         return LocalDBAdapter(self._cache_file, path)
     
     def set(self, data: Any) -> None:
-        """Устанавливает значение по текущему пути."""
+        """Set a value at the current path."""
         with self._lock:
             cache = self._load_cache()
             self._set_path_value(cache, self._path, data)
             self._save_cache(cache)
     
     def update(self, data: Dict[str, Any]) -> None:
-        """Обновляет значения по текущему пути."""
+        """Update values at the current path."""
         with self._lock:
             cache = self._load_cache()
             current = self._get_path_value(cache, self._path)
@@ -407,46 +407,46 @@ class LocalDBAdapter:
             self._save_cache(cache)
     
     def remove(self) -> None:
-        """Удаляет значение по текущему пути."""
+        """Remove a value at the current path."""
         with self._lock:
             cache = self._load_cache()
             self._remove_path_value(cache, self._path)
             self._save_cache(cache)
     
     def push(self, data: Any):
-        """Добавляет данные в список (генерирует ключ как timestamp)."""
+        """Append to a list-like dict (generates a timestamp key)."""
         with self._lock:
             cache = self._load_cache()
             current = self._get_path_value(cache, self._path)
             if not isinstance(current, dict):
                 current = {}
-            key = str(int(time.time() * 1000))  # timestamp в миллисекундах
+            key = str(int(time.time() * 1000))  # timestamp in milliseconds
             current[key] = data
             self._set_path_value(cache, self._path, current)
             self._save_cache(cache)
             return key
     
     def get(self) -> _SnapshotCompat:
-        """Получает значение по текущему пути."""
+        """Get a value at the current path."""
         with self._lock:
             cache = self._load_cache()
             value = self._get_path_value(cache, self._path)
             return _SnapshotCompat(value)
     
     def close(self):
-        """Закрывает адаптер (для локального режима ничего не делает)."""
+        """Close the adapter (no-op for local mode)."""
         pass
 
 
 # Initialize db adapter (admin, REST fallback, or local)
 use_firebase = getattr(Config, 'USE_FIREBASE', True)
 if not use_firebase:
-    # Локальный режим - используем JSON файл
+    # Local mode: use JSON cache file
     cache_file = getattr(Config, 'FIREBASE_CACHE_FILE', 'dump.json')
     db = LocalDBAdapter(cache_file, "/")
-    logger.info(f"✅ Локальный режим активирован (кэш: {cache_file})")
+    logger.info(f"✅ Local mode enabled (cache: {cache_file})")
 else:
-    # Firebase режим - используем облачную базу
+    # Firebase mode: use cloud database
     use_admin = _init_firebase_admin_if_needed()
     if use_admin:
         db = FirebaseDBAdapter("/")
@@ -454,7 +454,7 @@ else:
         database_url = _get_database_url()
         api_key = getattr(Config, "FIREBASE_CONF", {}).get("apiKey")
         if not api_key:
-            raise RuntimeError("FIREBASE_CONF.apiKey отсутствует — нужен для REST аутентификации")
+            raise RuntimeError("FIREBASE_CONF.apiKey is missing — required for REST authentication")
         # Sign in via REST using managed session
         from HELPERS.http_manager import get_managed_session
         auth_manager = get_managed_session("firebase-auth")
@@ -471,7 +471,7 @@ else:
             id_token = payload.get("idToken")
             refresh_token = payload.get("refreshToken")
             if not id_token:
-                raise RuntimeError("Не удалось получить idToken через REST аутентификацию")
+                raise RuntimeError("Failed to obtain idToken via REST authentication")
             logger.info("✅ REST Firebase auth successful")
             db = RestDBAdapter(database_url, id_token, refresh_token, api_key, "/")
         finally:
@@ -481,7 +481,7 @@ db = wrap_db_adapter(db)
 
 
 def db_child_by_path(db_adapter, path: str):
-    """Создает дочерний адаптер по пути (работает с любым типом адаптера)."""
+    """Create a child adapter for a path (works with any adapter type)."""
     for part in path.strip("/").split("/"):
         db_adapter = db_adapter.child(part)
     return db_adapter
@@ -513,7 +513,7 @@ def check_user(message):
             data = {"ID": message.chat.id, "timestamp": math.floor(time.time())}
             db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").child(user_id_str).set(data)
     else:
-        # В локальном режиме проверяем через локальный кэш
+        # Local mode: check via local cache
         from DATABASE.cache_db import get_from_local_cache
         users_data = get_from_local_cache(["bot", Config.BOT_NAME_FOR_USERS, "users"])
         users = list(users_data.keys()) if isinstance(users_data, dict) else []
@@ -530,7 +530,7 @@ def is_user_blocked(message):
         blocked = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("blocked_users").get().each()
         blocked_users = [int(b_user.key()) for b_user in blocked] if blocked else []
     else:
-        # В локальном режиме проверяем через локальный кэш
+        # Local mode: check via local cache
         from DATABASE.cache_db import get_from_local_cache
         blocked_data = get_from_local_cache(["bot", Config.BOT_NAME_FOR_USERS, "blocked_users"])
         blocked_users = [int(k) for k in blocked_data.keys()] if isinstance(blocked_data, dict) else []
@@ -584,13 +584,13 @@ try:
     if use_firebase:
         logger.info(safe_get_messages().DB_DATABASE_CREATED_MSG)
     else:
-        logger.info("✅ Локальная база данных инициализирована")
+        logger.info("✅ Local database initialized")
 except Exception as e:
     messages = safe_get_messages(None)
     if use_firebase:
         logger.error(safe_get_messages().DB_ERROR_INITIALIZING_BASE_MSG.format(error=e))
     else:
-        logger.error(f"Ошибка инициализации локальной базы данных: {e}")
+        logger.error(f"Error initializing local database: {e}")
 
 starting_point.append(time.time())
 messages = safe_get_messages(None)
