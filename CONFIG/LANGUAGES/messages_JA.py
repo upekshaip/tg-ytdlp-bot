@@ -8,167 +8,168 @@ class Messages(object):
     #######################################################
     # Messages and errors
     #######################################################
-    CREDITS_MSG = "<blockquote><i>Managed by</i> @iilililiiillliiliililliilliliiil\n🇮🇹 @tgytdlp_it_bot\n🇦🇪 @tgytdlp_uae_bot\n🇬🇧 @tgytdlp_uk_bot\n🇫🇷 @tgytdlp_fr_bot</blockquote>\n<b>🌍 Change language: /lang</b>"
-    TO_USE_MSG = "<i>To use this bot you need to subscribe to @tg_ytdlp Telegram channel.</i>\nAfter you join the channel, <b>resend your video link again and bot will download it for you</b> ❤️\n\n<blockquote>P.S. Downloading 🔞NSFW content and files from ☁️Cloud Storage is paid! 1⭐️ = $0.02</blockquote>\n<blockquote>P.P.S. ‼️ Do not leave the channel - you will be banned from using the bot ⛔️</blockquote>"
+    CREDITS_MSG = "<blockquote><i>管理:</i> @iilililiiillliiliililliilliliiil\n🇮🇹 @tgytdlp_it_bot\n🇦🇪 @tgytdlp_uae_bot\n🇬🇧 @tgytdlp_uk_bot\n🇫🇷 @tgytdlp_fr_bot</blockquote>\n<b>🌍 言語を変更: /lang</b>"
+    TO_USE_MSG = "<i>このボットを使用するには、@tg_ytdlp Telegramチャンネルに登録する必要があります。</i>\nチャンネルに参加した後、<b>ビデオリンクを再送信すると、ボットがダウンロードします</b> ❤️\n\n<blockquote>追伸 🔞NSFWコンテンツと☁️クラウドストレージからのファイルのダウンロードは有料です！ 1⭐️ = $0.02</blockquote>\n<blockquote>追伸 ‼️ チャンネルを離れないでください - ボットの使用が禁止されます ⛔️</blockquote>"
 
-    ERROR1 = "Did not found a url link. Please enter a url with <b>https://</b> or <b>http://</b>"
+    ERROR1 = "URLリンクが見つかりませんでした。<b>https://</b>または<b>http://</b>でURLを入力してください"
 
     PLAYLIST_HELP_MSG = """
-<blockquote expandable>📋 <b>Playlists (yt-dlp)</b>
+<blockquote expandable>📋 <b>プレイリスト (yt-dlp)</b>
 
-To download playlists send its URL with <code>*start*end</code> ranges in the end. For example: <code>URL*1*5</code> (first 5 videos from 1 to 5 inclusive).<code>URL*-1*-5</code> (last 5 videos from 1 to 5 inclusive).
-Or you can use <code>/vid FROM-TO URL</code>. For example: <code>/vid 3-7 URL</code> (downloads videos from 3 to 7 inclusive from the start). <code>/vid -3-7 URL</code> (downloads videos from 3 to 7 inclusive from the end). Also works for <code>/audio</code> command.
+プレイリストをダウンロードするには、URLの末尾に<code>*start*end</code>の範囲を付けて送信します。例: <code>URL*1*5</code> (1から5までの最初の5つのビデオをダウンロードします)。<code>URL*-1*-5</code> (最後から1から5までの5つのビデオをダウンロードします)。
+または、<code>/vid FROM-TO URL</code>を使用することもできます。例: <code>/vid 3-7 URL</code> (最初から3番目から7番目までのビデオをダウンロードします)。<code>/vid -3-7 URL</code> (最後から3番目から7番目までのビデオをダウンロードします)。<code>/audio</code>コマンドでも機能します。
 
-<b>Examples:</b>
+<b>例:</b>
 
-🟥 <b>Video range from YouTube playlist:</b> (need 🍪)
+🟥 <b>YouTubeプレイリストのビデオ範囲:</b> (🍪が必要)
 <code>https://youtu.be/playlist?list=PL...*1*5</code>
-(downloads first 5 videos from 1 to 5 inclusive)
-🟥 <b>Single video from YouTube playlist:</b> (need 🍪)
+(1から5までの最初の5つのビデオをダウンロードします)
+🟥 <b>YouTubeプレイリストの単一ビデオ:</b> (🍪が必要)
 <code>https://youtu.be/playlist?list=PL...*3*3</code>
-(downloads only the 3rd video)
+(3番目のビデオのみをダウンロードします)
 
-⬛️ <b>TikTok profile:</b> (need your 🍪)
+⬛️ <b>TikTokプロフィール:</b> (あなたの🍪が必要)
 <code>https://www.tiktok.com/@USERNAME*1*10</code>
-(downloads first 10 videos from user profile)
+(ユーザープロフィールの最初の10個のビデオをダウンロードします)
 
-🟪 <b>Instagram stories:</b> (need your 🍪)
+🟪 <b>Instagramストーリー:</b> (あなたの🍪が必要)
 <code>https://www.instagram.com/stories/USERNAME*1*3</code>
-(downloads first 3 stories)
+(最初の3つのストーリーをダウンロードします)
 <code>https://www.instagram.com/stories/highlights/123...*1*10</code>
-(downloads first 10 stories from album)
+(アルバムから最初の10個のストーリーをダウンロードします)
 
-🟦 <b>VK videos:</b>
+🟦 <b>VKビデオ:</b>
 <code>https://vkvideo.ru/@PAGE_NAME*1*3</code>
-(downloads first 3 videos from user/group profile)
+(ユーザー/グループプロフィールの最初の3つのビデオをダウンロードします)
 
-⬛️<b>Rutube channels:</b>
+⬛️<b>Rutubeチャンネル:</b>
 <code>https://rutube.ru/channel/CHANNEL_ID/videos*2*4</code>
-(downloads videos from 2 to 4 inclusive from channel)
+(チャンネルから2番目から4番目までのビデオをダウンロードします)
 
-🟪 <b>Twitch clips:</b>
+🟪 <b>Twitchクリップ:</b>
 <code>https://www.twitch.tv/USERNAME/clips*1*3</code>
-(downloads first 3 clips from channel)
+(チャンネルから最初の3つのクリップをダウンロードします)
 
-🟦 <b>Vimeo groups:</b>
+🟦 <b>Vimeoグループ:</b>
 <code>https://vimeo.com/groups/GROUP_NAME/videos*1*2</code>
-(downloads first 2 videos from group)
+(グループから最初の2つのビデオをダウンロードします)
 
-🟧 <b>Pornhub models:</b>
+🟧 <b>Pornhubモデル:</b>
 <code>https://www.pornhub.org/model/MODEL_NAME*1*2</code>
-(downloads first 2 video from model profile)
+(モデルプロフィールの最初の2つのビデオをダウンロードします)
 <code>https://www.pornhub.com/video/search?search=YOUR+PROMPT*1*3</code>
-(downloads first 3 video from search results by your prompt)
+(あなたのプロンプトによる検索結果から最初の3つのビデオをダウンロードします)
 
-and so on...
-see <a href=\"https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/supportedsites.md\">supported sites list</a>
+など...
+<a href=\"https://raw.githubusercontent.com/yt-dlp/yt-dlp/refs/heads/master/supportedsites.md\">サポートされているサイトのリスト</a>を参照してください
 </blockquote>
 
-<blockquote expandable>🖼 <b>Images (gallery-dl)</b>
+<blockquote expandable>🖼 <b>画像 (gallery-dl)</b>
 
-Use <code>/img URL</code> to download images/photos/albums from many platforms.
+<code>/img URL</code>を使用して、多くのプラットフォームから画像/写真/アルバムをダウンロードします。
 
-<b>Examples:</b>
+<b>例:</b>
 <code>/img https://vk.com/wall-160916577_408508</code>
 <code>/img https://2ch.hk/fd/res/1747651.html</code>
 <code>/img https://x.com/username/status/1234567890123456789</code>
 <code>/img https://imgur.com/a/abc123</code>
 
-<b>Ranges:</b>
-<code>/img 11-20 https://example.com/album</code> — items 11..20
-<code>/img 11- https://example.com/album</code> — from 11 to the end (or bot limit)
+<b>範囲:</b>
+<code>/img 11-20 https://example.com/album</code> — アイテム11..20
+<code>/img 11- https://example.com/album</code> — 11番目から最後まで (またはボットの制限まで)
 
-<i>Supported platforms include vk, 2ch, 35photo, 4chan, 500px, ArtStation, Boosty, Civitai, Cyberdrop, DeviantArt, Discord, Facebook, Fansly, Instagram, Pinterest, Reddit, TikTok, Tumblr, Twitter/X, JoyReactor, etc. Full list:</i>
-<a href=\"https://raw.githubusercontent.com/mikf/gallery-dl/refs/heads/master/docs/supportedsites.md\">gallery-dl supported sites</a>
+<i>サポートされているプラットフォームには、vk、2ch、35photo、4chan、500px、ArtStation、Boosty、Civitai、Cyberdrop、DeviantArt、Discord、Facebook、Fansly、Instagram、Pinterest、Reddit、TikTok、Tumblr、Twitter/X、JoyReactorなどが含まれます。完全なリスト:</i>
+<a href=\"https://raw.githubusercontent.com/mikf/gallery-dl/refs/heads/master/docs/supportedsites.md\">gallery-dlがサポートするサイト</a>
 </blockquote>"
     HELP_MSG = """
-<blockquote>🎬 <b>Video Download Bot - Help</b>
+<blockquote>🎬 <b>ビデオダウンロードボット - ヘルプ</b>
 
-📥 <b>Basic Usage:</b>
-• Send any link → bot downloads it
-  <i>the bot automatically tries to download videos via yt-dlp and images via gallery-dl.</i>
-• <code>/audio URL</code> → extract audio
-• <code>/link [quality] URL</code> → get direct links
-• <code>/proxy</code> → enable/disable proxy for all downloads
-• Reply to video with text → change caption
+📥 <b>基本的な使い方:</b>
+• リンクを送信 → ボットがダウンロードします
+  <i>ボットはyt-dlpを介してビデオを、gallery-dlを介して画像を自動的にダウンロードしようとします。</i>
+• <code>/audio URL</code> → 音声を抽出
+• <code>/link [quality] URL</code> → ダイレクトリンクを取得
+• <code>/proxy</code> → すべてのダウンロードでプロキシを有効/無効にする
+• テキスト付きでビデオに返信 → キャプションを変更
 
-📋 <b>Playlists & Ranges:</b>
-• <code>URL*1*5</code> → download first 5 videos
-• <code>URL*-1*-5</code> → download last 5 videos
-• <code>/vid 3-7 URL</code> → becomes <code>URL*3*7</code>
-• <code>/vid -3-7 URL</code> → becomes <code>URL*-3*-7</code>
+📋 <b>プレイリストと範囲:</b>
+• <code>URL*1*5</code> → 最初の5つのビデオをダウンロード
+• <code>URL*-1*-5</code> → 最後の5つのビデオをダウンロード
+• <code>/vid 3-7 URL</code> → <code>URL*3*7</code>になります
+• <code>/vid -3-7 URL</code> → <code>URL*-3*-7</code>になります
 
-🍪 <b>Cookies & Private:</b>
-• Upload *.txt cookie for private videos
-• <code>/cookie [service]</code> → download cookies (youtube/tiktok/x/custom)
-• <code>/cookie youtube 1</code> → pick source by index (1–N)
-• <code>/cookies_from_browser</code> → extract from browser
-• <code>/check_cookie</code> → verify cookie
-• <code>/save_as_cookie</code> → save text as cookie
+🍪 <b>Cookieとプライベート:</b>
+• プライベートビデオ用に*.txt Cookieをアップロード
+• <code>/cookie [service]</code> → Cookieをダウンロード (youtube/tiktok/x/custom)
+• <code>/cookie youtube 1</code> → インデックスでソースを選択 (1–N)
+• <code>/cookies_from_browser</code> → ブラウザから抽出
+• <code>/check_cookie</code> → Cookieを検証
+• <code>/save_as_cookie</code> → テキストをCookieとして保存
 
-🧹 <b>Cleaning:</b>
-• <code>/clean</code> → media files only
-• <code>/clean all</code> → everything
+🧹 <b>クリーニング:</b>
+• <code>/clean</code> → メディアファイルのみ
+• <code>/clean all</code> → すべて
 • <code>/clean cookies/logs/tags/format/split/mediainfo/sub/keyboard</code>
 
-⚙️ <b>Settings:</b>
-• <code>/settings</code> → settings menu
-• <code>/format</code> → quality & format
-• <code>/split</code> → split video into parts
-• <code>/mediainfo on/off</code> → media info
-• <code>/nsfw on/off</code> → NSFW blur
-• <code>/tags</code> → view saved tags
-• <code>/sub on/off</code> → subtitles
-• <code>/keyboard</code> → keyboard (OFF/1x3/2x3)
+⚙️ <b>設定:</b>
+• <code>/settings</code> → 設定メニュー
+• <code>/format</code> → 品質とフォーマット
+• <code>/split</code> → ビデオをパートに分割
+• <code>/mediainfo on/off</code> → メディア情報
+• <code>/nsfw on/off</code> → NSFWブラー
+• <code>/tags</code> → 保存されたタグを表示
+• <code>/sub on/off</code> → 字幕
+• <code>/keyboard</code> → キーボード (OFF/1x3/2x3)
 
-🏷️ <b>Tags:</b>
-• Add <code>#tag1#tag2</code> after URL
-• Tags appear in captions
-• <code>/tags</code> → view all tags
+🏷️ <b>タグ:</b>
+• URLの後に<code>#tag1#tag2</code>を追加
+• タグはキャプションに表示されます
+• <code>/tags</code> → すべてのタグを表示
 
-🔗 <b>Direct Links:</b>
-• <code>/link URL</code> → best quality
-• <code>/link [144-4320]/720p/1080p/4k/8k URL</code> → specific quality
+🔗 <b>ダイレクトリンク:</b>
+• <code>/link URL</code> → 最高品質
+• <code>/link [144-4320]/720p/1080p/4k/8k URL</code> → 特定の品質
 
-⚙️ <b>Quick Commands:</b>
-• <code>/format [144-4320]/720p/1080p/4k/8k/best/ask/id 134</code> → set quality
-• <code>/keyboard off/1x3/2x3/full</code> → keyboard layout
-• <code>/split 100mb-2000mb</code> → change part size
-• <code>/subs off/ru/en auto</code> → subtitle language
-• <code>/list URL</code> → список доступных форматов
-• <code>/mediainfo on/off</code> → on/off media info
-• <code>/proxy on/off</code> → enable/disable proxy for all downloads
+⚙️ <b>クイックコマンド:</b>
+• <code>/format [144-4320]/720p/1080p/4k/8k/best/ask/id 134</code> → 品質を設定
+• <code>/keyboard off/1x3/2x3/full</code> → キーボードレイアウト
+• <code>/split 100mb-2000mb</code> → パートサイズを変更
+• <code>/subs off/ru/en auto</code> → 字幕言語
+• <code>/list URL</code> → 利用可能なフォーマットのリスト
+• <code>/mediainfo on/off</code> → メディア情報のオン/オフ
+• <code>/proxy on/off</code> → すべてのダウンロードでプロキシを有効/無効にする
 
-📊 <b>Info:</b>
-• <code>/usage</code> → download history
-• <code>/search</code> → inline search via @vid
+📊 <b>情報:</b>
+• <code>/usage</code> → ダウンロード履歴
+• <code>/search</code> → @vidを介したインライン検索
 
-🖼 <b>Images:</b>
-• <code>URL</code> → download images URL
-• <code>/img URL</code> → download images from URL
-• <code>/img 11-20 URL</code> → download specific range
-• <code>/img 11- URL</code> → download from 11th to the end
+🖼 <b>画像:</b>
+• <code>URL</code> → 画像URLをダウンロード
+• <code>/img URL</code> → URLから画像をダウンロード
+• <code>/img 11-20 URL</code> → 特定の範囲をダウンロード
+• <code>/img 11- URL</code> → 11番目から最後までダウンロード
 
-👨‍💻 <i>Developer:</i> @upekshaip
-🤝 <i>Contributor:</i> @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl
-</blockquote>    "
+👨‍💻 <i>開発者:</i> @upekshaip
+🤝 <i>貢献者:</i> @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl
+</blockquote>
+    "
     
     # Version 1.0.0 - Добавлен SAVE_AS_COOKIE_HINT для подсказки по /save_as_cookie
     SAVE_AS_COOKIE_HINT = (
-        "Just save your cookie as <b><u>cookie.txt</u></b> and send it to bot as a document.\n\n"
-        "You can also send cookies as plain text with <b><u>/save_as_cookie</u></b> command.\n"
-        "<b>Usage of <b><u>/save_as_cookie</u></b>:</b>\n\n"
+        "<b><u>cookie.txt</u></b>としてCookieを保存し、ドキュメントとしてボットに送信するだけです。\n\n"
+        "<b><u>/save_as_cookie</u></b>コマンドでプレーンテキストとしてCookieを送信することもできます。\n"
+        "<b><b><u>/save_as_cookie</u></b>の使用法:</b>\n\n"
         "<pre>"
         "/save_as_cookie\n"
         "# Netscape HTTP Cookie File\n"
         "# http://curl.haxx.se/rfc/cookie_spec.html\n"
-        "# This file was generated by Cookie-Editor\n"
+        "# このファイルはCookie-Editorによって生成されました\n"
         ".youtube.com  TRUE  /  FALSE  111  ST-xxxxx  session_logininfo=AAA\n"
         ".youtube.com  TRUE  /  FALSE  222  ST-xxxxx  session_logininfo=BBB\n"
         ".youtube.com  TRUE  /  FALSE  33333  ST-xxxxx  session_logininfo=CCC\n"
         "</pre>\n"
         "<blockquote>"
-        "<b><u>Instructions:</u></b>\n"
+        "<b><u>手順:</u></b>\n"
         "https://t.me/tg_ytdlp/203 \n"
         "https://t.me/tg_ytdlp/214 "
         "</blockquote>"
@@ -176,11 +177,11 @@ Use <code>/img URL</code> to download images/photos/albums from many platforms.
     
     # Search command message (English)
     SEARCH_MSG = """
-🔍 <b>Video search</b>
+🔍 <b>ビデオ検索</b>
 
-Press the button below to activate inline search via @vid.
+下のボタンを押して、@vid経由でインライン検索を有効にします。
 
-<blockquote>On PC just type <b>"@vid Your_Search_Query"</b> in any chat.</blockquote>
+<blockquote>PCでは、任意のチャットで<b>「@vid 検索クエリ」</b>と入力するだけです。</blockquote>
     """
     
     # Settings and Hints (English)
@@ -296,33 +297,33 @@ Use:
     """
     
     # UI Messages - Status and Progress
-    CHECKING_CACHE_MSG = "🔄 <b>Checking cache...</b>\n\n<code>{url}</code>"
-    PROCESSING_MSG = "🔄 Processing..."
-    DOWNLOADING_MSG = "📥 <b>Downloading media...</b>\n\n"
+    CHECKING_CACHE_MSG = "🔄 <b>キャッシュを確認しています...</b>\n\n<code>{url}</code>"
+    PROCESSING_MSG = "🔄 処理中..."
+    DOWNLOADING_MSG = "📥 <b>メディアをダウンロードしています...</b>\n\n"
 
-    DOWNLOADING_IMAGE_MSG = "📥 <b>Downloading image...</b>\n\n"
+    DOWNLOADING_IMAGE_MSG = "📥 <b>画像をダウンロードしています...</b>\n\n"
 
-    DOWNLOAD_COMPLETE_MSG = "✅ <b>Download complete</b>\n\n"
+    DOWNLOAD_COMPLETE_MSG = "✅ <b>ダウンロード完了</b>\n\n"
     
     # Download status messages
-    DOWNLOADED_STATUS_MSG = "Downloaded:"
-    SENT_STATUS_MSG = "Sent:"
-    PENDING_TO_SEND_STATUS_MSG = "Pending to send:"
-    TITLE_LABEL_MSG = "Title:"
-    MEDIA_COUNT_LABEL_MSG = "Media count:"
-    AUDIO_DOWNLOAD_FINISHED_PROCESSING_MSG = "Download finished, processing audio..."
-    VIDEO_PROCESSING_MSG = "📽 Video is processing..."
+    DOWNLOADED_STATUS_MSG = "ダウンロード済み:"
+    SENT_STATUS_MSG = "送信済み:"
+    PENDING_TO_SEND_STATUS_MSG = "送信保留中:"
+    TITLE_LABEL_MSG = "タイトル:"
+    MEDIA_COUNT_LABEL_MSG = "メディア数:"
+    AUDIO_DOWNLOAD_FINISHED_PROCESSING_MSG = "ダウンロードが完了し、音声を処理しています..."
+    VIDEO_PROCESSING_MSG = "📽 ビデオを処理しています..."
     WAITING_HOURGLASS_MSG = "⌛️"
     
     # Cache Messages
-    SENT_FROM_CACHE_MSG = "✅ <b>Sent from cache</b>\n\nSent albums: <b>{count}</b>"
-    VIDEO_SENT_FROM_CACHE_MSG = "✅ Video successfully sent from cache."
-    PLAYLIST_SENT_FROM_CACHE_MSG = "✅ Playlist videos sent from cache ({cached}/{total} files)."
-    CACHE_PARTIAL_MSG = "📥 {cached}/{total} videos sent from cache, downloading missing ones..."
-    CACHE_CONTINUING_DOWNLOAD_MSG = "✅ Sent from cache: {cached}\n🔄 Continuing download..."
-    FALLBACK_ANALYZE_MEDIA_MSG = "🔄 Could not analyze media, proceeding with maximum allowed range (1-{fallback_limit})..."
-    FALLBACK_DETERMINE_COUNT_MSG = "🔄 Could not determine media count, proceeding with maximum allowed range (1-{total_limit})..."
-    FALLBACK_SPECIFIED_RANGE_MSG = "🔄 Could not determine total media count, proceeding with specified range {start}-{end}..."
+    SENT_FROM_CACHE_MSG = "✅ <b>キャッシュから送信</b>\n\n送信されたアルバム: <b>{count}</b>"
+    VIDEO_SENT_FROM_CACHE_MSG = "✅ ビデオはキャッシュから正常に送信されました。"
+    PLAYLIST_SENT_FROM_CACHE_MSG = "✅ プレイリストのビデオはキャッシュから送信されました ({cached}/{total} ファイル)。"
+    CACHE_PARTIAL_MSG = "📥 {cached}/{total} のビデオがキャッシュから送信され、不足しているものをダウンロードしています..."
+    CACHE_CONTINUING_DOWNLOAD_MSG = "✅ キャッシュから送信: {cached}\n🔄 ダウンロードを続行しています..."
+    FALLBACK_ANALYZE_MEDIA_MSG = "🔄 メディアを分析できませんでした。最大許容範囲 (1-{fallback_limit}) で続行します..."
+    FALLBACK_DETERMINE_COUNT_MSG = "🔄 メディア数を特定できませんでした。最大許容範囲 (1-{total_limit}) で続行します..."
+    FALLBACK_SPECIFIED_RANGE_MSG = "🔄 合計メディア数を特定できませんでした。指定された範囲 {start}-{end} で続行します..."
 
     # Error Messages
     INVALID_URL_MSG = "❌ <b>Invalid URL</b>\n\nPlease provide a valid URL starting with http:// or https://"
