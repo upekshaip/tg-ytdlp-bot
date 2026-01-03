@@ -326,30 +326,30 @@ Use:
     FALLBACK_SPECIFIED_RANGE_MSG = "🔄 合計メディア数を特定できませんでした。指定された範囲 {start}-{end} で続行します..."
 
     # Error Messages
-    INVALID_URL_MSG = "❌ <b>Invalid URL</b>\n\nPlease provide a valid URL starting with http:// or https://"
+    INVALID_URL_MSG = "❌ <b>無効なURL</b>\n\nhttp://またはhttps://で始まる有効なURLを提供してください"
 
-    ERROR_OCCURRED_MSG = "❌ <b>Error occurred</b>\n\n<code>{url}</code>\n\nError: {error}"
+    ERROR_OCCURRED_MSG = "❌ <b>エラーが発生しました</b>\n\n<code>{url}</code>\n\nエラー: {error}"
 
-    ERROR_SENDING_VIDEO_MSG = "❌ Error sending video: {error}"
-    ERROR_UNKNOWN_MSG = "❌ Unknown error: {error}"
-    ERROR_NO_DISK_SPACE_MSG = "❌ Not enough disk space to download videos."
-    ERROR_FILE_SIZE_LIMIT_MSG = "❌ The file size exceeds the {limit} GB limit. Please select a smaller file within the allowed size."
+    ERROR_SENDING_VIDEO_MSG = "❌ ビデオの送信中にエラーが発生しました: {error}"
+    ERROR_UNKNOWN_MSG = "❌ 不明なエラー: {error}"
+    ERROR_NO_DISK_SPACE_MSG = "❌ ビデオをダウンロードするためのディスク容量が不足しています。"
+    ERROR_FILE_SIZE_LIMIT_MSG = "❌ ファイルサイズが{limit} GBの制限を超えています。許可されたサイズ内の小さいファイルを選択してください。"
 
-    ERROR_GETTING_LINK_MSG = "❌ <b>Error getting link:</b>\n{error}"
+    ERROR_GETTING_LINK_MSG = "❌ <b>リンクの取得中にエラーが発生しました:</b>\n{error}"
 
     # Telegram Rate Limit Messages
-    RATE_LIMIT_WITH_TIME_MSG = "⚠️ Telegram has limited message sending.\n⏳ Please wait: {time}\nTo update timer send URL again 2 times."
-    RATE_LIMIT_NO_TIME_MSG = "⚠️ Telegram has limited message sending.\n⏳ Please wait: \nTo update timer send URL again 2 times."
+    RATE_LIMIT_WITH_TIME_MSG = "⚠️ Telegramはメッセージの送信を制限しています。\n⏳ お待ちください: {time}\nタイマーを更新するには、URLをもう一度2回送信してください。"
+    RATE_LIMIT_NO_TIME_MSG = "⚠️ Telegramはメッセージの送信を制限しています。\n⏳ お待ちください: \nタイマーを更新するには、URLをもう一度2回送信してください。"
     
     # Subtitles Messages
-    SUBTITLES_FAILED_MSG = "⚠️ Failed to download subtitles"
+    SUBTITLES_FAILED_MSG = "⚠️ 字幕のダウンロードに失敗しました"
 
     # Video Processing Messages
 
     # Stream/Link Messages
-    STREAM_LINKS_TITLE_MSG = "🔗 <b>Direct Stream Links</b>\n\n"
-    STREAM_TITLE_MSG = "📹 <b>Title:</b> {title}\n"
-    STREAM_DURATION_MSG = "⏱ <b>Duration:</b> {duration} sec\n"
+    STREAM_LINKS_TITLE_MSG = "🔗 <b>ダイレクトストリームリンク</b>\n\n"
+    STREAM_TITLE_MSG = "📹 <b>タイトル:</b> {title}\n"
+    STREAM_DURATION_MSG = "⏱ <b>期間:</b> {duration} 秒\n"
 
     
     # Download Progress Messages
@@ -359,33 +359,33 @@ Use:
     # NSFW Paid Content Messages
 
     # Callback Error Messages
-    ERROR_ORIGINAL_NOT_FOUND_MSG = "❌ Error: Original message not found."
+    ERROR_ORIGINAL_NOT_FOUND_MSG = "❌ エラー: 元のメッセージが見つかりません。"
 
     # Tags Error Messages
-    TAG_FORBIDDEN_CHARS_MSG = "❌ Tag #{tag} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}"
+    TAG_FORBIDDEN_CHARS_MSG = "❌ タグ #{tag} には禁止文字が含まれています。文字、数字、_ のみ使用できます。\n使用してください: {example}"
     
     # Playlist Messages
-    PLAYLIST_SENT_MSG = "✅ Playlist videos sent: {sent}/{total} files."
-    PLAYLIST_CACHE_SENT_MSG = "✅ Sent from cache: {cached}/{total} files."
+    PLAYLIST_SENT_MSG = "✅ プレイリストの動画を送信しました: {sent}/{total} ファイル。"
+    PLAYLIST_CACHE_SENT_MSG = "✅ キャッシュから送信: {cached}/{total} ファイル。"
     
     # Failed Stream Messages
-    FAILED_STREAM_LINKS_MSG = "❌ Failed to get stream links"
+    FAILED_STREAM_LINKS_MSG = "❌ ストリームリンクの取得に失敗しました"
 
     # new messages
     # Browser Cookie Messages
-    SELECT_BROWSER_MSG = "Select a browser to download cookies from:"
-    SELECT_BROWSER_NO_BROWSERS_MSG = "No browsers found on this system. You can download cookies from remote URL or monitor browser status:"
-    BROWSER_MONITOR_HINT_MSG = "🌐 <b>Open Browser</b> - to monitor browser status in mini-app"
-    BROWSER_OPEN_BUTTON_MSG = "🌐 Open Browser"
-    DOWNLOAD_FROM_URL_BUTTON_MSG = "📥 Download from Remote URL"
-    COOKIE_YT_FALLBACK_SAVED_MSG = "✅ YouTube cookie file downloaded via fallback and saved as cookie.txt"
-    COOKIES_NO_BROWSERS_NO_URL_MSG = "❌ No supported browsers found and no COOKIE_URL configured. Use /cookie or upload cookie.txt."
-    COOKIE_FALLBACK_URL_NOT_TXT_MSG = "❌ Fallback COOKIE_URL must point to a .txt file."
-    COOKIE_FALLBACK_TOO_LARGE_MSG = "❌ Fallback cookie file is too large (>100KB)."
-    COOKIE_FALLBACK_UNAVAILABLE_MSG = "❌ Fallback cookie source unavailable (status {status}). Try /cookie or upload cookie.txt."
-    COOKIE_FALLBACK_ERROR_MSG = "❌ Error downloading fallback cookie. Try /cookie or upload cookie.txt."
-    COOKIE_FALLBACK_UNEXPECTED_MSG = "❌ Unexpected error during fallback cookie download."
-    BTN_CLOSE = "🔚Close"
+    SELECT_BROWSER_MSG = "クッキーをダウンロードするブラウザを選択してください:"
+    SELECT_BROWSER_NO_BROWSERS_MSG = "このシステムにブラウザが見つかりません。リモートURLからクッキーをダウンロードするか、ブラウザのステータスを監視できます:"
+    BROWSER_MONITOR_HINT_MSG = "🌐 <b>ブラウザを開く</b> - ミニアプリでブラウザのステータスを監視します"
+    BROWSER_OPEN_BUTTON_MSG = "🌐 ブラウザを開く"
+    DOWNLOAD_FROM_URL_BUTTON_MSG = "📥 リモートURLからダウンロード"
+    COOKIE_YT_FALLBACK_SAVED_MSG = "✅ YouTubeクッキーファイルがフォールバック経由でダウンロードされ、cookie.txtとして保存されました"
+    COOKIES_NO_BROWSERS_NO_URL_MSG = "❌ 対応しているブラウザが見つからず、COOKIE_URLも設定されていません。/cookieを使用するか、cookie.txtをアップロードしてください。"
+    COOKIE_FALLBACK_URL_NOT_TXT_MSG = "❌ フォールバックCOOKIE_URLは.txtファイルを指している必要があります。"
+    COOKIE_FALLBACK_TOO_LARGE_MSG = "❌ フォールバッククッキーファイルが大きすぎます(>100KB)。"
+    COOKIE_FALLBACK_UNAVAILABLE_MSG = "❌ フォールバッククッキーソースが利用できません(ステータス {status})。/cookieを試すか、cookie.txtをアップロードしてください。"
+    COOKIE_FALLBACK_ERROR_MSG = "❌ フォールバッククッキーのダウンロード中にエラーが発生しました。/cookieを試すか、cookie.txtをアップロードしてください。"
+    COOKIE_FALLBACK_UNEXPECTED_MSG = "❌ フォールバッククッキーのダウンロード中に予期しないエラーが発生しました。"
+    BTN_CLOSE = "🔚閉じる"
     
     # Args command messages
     ARGS_INVALID_BOOL_MSG = "❌ Invalid boolean value"
