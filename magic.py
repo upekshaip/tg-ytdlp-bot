@@ -80,6 +80,60 @@ from CONFIG.config import Config
 from CONFIG.messages import Messages, safe_get_messages
 # from test_config import Config
 
+def _validate_subscription_config_or_exit() -> None:
+    """
+    Fail fast when subscription gating is enabled but branding/config is left at upstream defaults.
+    This prevents users seeing "@tg_ytdlp" or other upstream branding by accident.
+    """
+    subscribe_channel = getattr(Config, "SUBSCRIBE_CHANNEL", None)
+    subscribe_url = (getattr(Config, "SUBSCRIBE_CHANNEL_URL", "") or "").strip()
+    required_channel_mention = (getattr(Config, "REQUIRED_CHANNEL_MENTION", "") or "").strip()
+
+    # If gating is not configured, don't enforce anything here.
+    if not subscribe_channel and not subscribe_url:
+        return
+
+    if not isinstance(subscribe_channel, int) or subscribe_channel == 0:
+        raise SystemExit(
+            "Config error: SUBSCRIBE_CHANNEL must be a Telegram channel ID (int, usually -100...)."
+        )
+    if subscribe_channel > 0:
+        raise SystemExit(
+            "Config error: SUBSCRIBE_CHANNEL must be negative (channels/supergroups are negative IDs)."
+        )
+
+    if not subscribe_url:
+        raise SystemExit(
+            "Config error: SUBSCRIBE_CHANNEL_URL must be set when subscription gating is enabled."
+        )
+    if subscribe_url == "https://t.me/+abcdef":
+        raise SystemExit(
+            "Config error: SUBSCRIBE_CHANNEL_URL is still the template placeholder (https://t.me/+abcdef)."
+        )
+
+    derived_required_channel = ""
+    if required_channel_mention:
+        derived_required_channel = required_channel_mention if required_channel_mention.startswith("@") else f"@{required_channel_mention}"
+    else:
+        if "t.me/" in subscribe_url:
+            tail = subscribe_url.split("t.me/", 1)[1].strip("/").split("?", 1)[0]
+            # Cannot derive a stable @mention from invite links like https://t.me/+<hash>
+            if tail and not tail.startswith("+"):
+                derived_required_channel = "@" + tail.lstrip("@")
+
+    if not derived_required_channel:
+        raise SystemExit(
+            "Config error: cannot derive REQUIRED_CHANNEL_MENTION from SUBSCRIBE_CHANNEL_URL (invite links). "
+            "Set REQUIRED_CHANNEL_MENTION explicitly (e.g. \"@my_channel\") or use a public t.me/<name> URL."
+        )
+
+    if derived_required_channel == "@tg_ytdlp" and "tg_ytdlp" not in subscribe_url and not required_channel_mention:
+        raise SystemExit(
+            "Config error: required channel mention resolved to upstream default @tg_ytdlp. "
+            "Set REQUIRED_CHANNEL_MENTION (or SUBSCRIBE_CHANNEL_URL to your public channel) to match your deployment."
+        )
+
+
 # HELPERS (только те, что не содержат обработчики)
 from HELPERS.app_instance import set_app
 from HELPERS.download_status import *
@@ -95,6 +149,9 @@ from HELPERS.safe_messeger import *
 ###########################################################
 #        APP INITIALIZATION
 ###########################################################
+# Validate deploy config before starting the bot.
+_validate_subscription_config_or_exit()
+
 # Pyrogram App Initialization
 app = Client(
     "magic",
