@@ -8,8 +8,8 @@ class Messages(object):
     #######################################################
     # Messages and errors
     #######################################################
-    CREDITS_MSG = "<blockquote><i>Администрирует</i> @iilililiiillliiliililliilliliiil\n🇮🇹 @tgytdlp_it_bot\n🇦🇪 @tgytdlp_uae_bot\n🇬🇧 @tgytdlp_uk_bot\n🇫🇷 @tgytdlp_fr_bot</blockquote>\n<b>🌍 Сменить язык: /lang</b>"
-    TO_USE_MSG = "<i>Для использования этого бота вам нужно подписаться на Telegram канал @tg_ytdlp.</i>\nПосле того как вы присоединитесь к каналу, <b>отправьте ссылку на видео снова и бот скачает её для вас</b> ❤️\n\n<blockquote>P.S. Скачивание 🔞NSFW контента и файлов из ☁️Cloud Storage является платным! 1⭐️ = $0.02</blockquote>\n<blockquote>P.P.S. ‼️ Не отписывайте от канала - иначе получите бан на использование бота ⛔️</blockquote>"
+    CREDITS_MSG = ""
+    TO_USE_MSG = ""
 
     ERROR1 = "Ссылка не найдена. Пожалуйста, введите URL с <b>https://</b> или <b>http://</b>"
 
@@ -154,7 +154,7 @@ class Messages(object):
 🤝 <i>Contributor:</i> @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl
 </blockquote>
     """
-    
+
     # Version 1.0.0 - Добавлен SAVE_AS_COOKIE_HINT для подсказки по /save_as_cookie
     SAVE_AS_COOKIE_HINT = (
         "Просто сохраните ваш cookie как <b><u>cookie.txt</u></b> и отправьте его боту как документ.\n\n"
@@ -175,7 +175,7 @@ class Messages(object):
         "https://t.me/tg_ytdlp/214 "
         "</blockquote>"
     )
-    
+
     # Search command message (Russian)
     SEARCH_MSG = """
 🔍 <b>Поиск видео</b>
@@ -184,10 +184,10 @@ class Messages(object):
 
 <blockquote>На ПК просто введите <b>"@vid Ваш_Поисковый_Запрос"</b> в любом чате.</blockquote>
     """
-    
+
     # Settings and Hints (Russian)
-    
-    
+
+
     IMG_HELP_MSG = (
         "<b>🖼 Команда загрузки изображений</b>\n\n"
         "Использование: <code>/img URL</code>\n\n"
@@ -202,14 +202,14 @@ class Messages(object):
         "<blockquote>vk, 2ch, 35photo, 4chan, 500px, ArtStation, Boosty, Civitai, Cyberdrop, DeviantArt, Discord, Facebook, Fansly, Instagram, Patreon, Pinterest, Reddit, TikTok, Tumblr, Twitter/X, JoyReactor и др. — <a href=\"https://github.com/mikf/gallery-dl/blob/master/docs/supportedsites.md\">полный список</a></blockquote>"
         "Также см.: "
     )
-    
+
     LINK_HINT_MSG = (
         "Получить прямые ссылки на видео с выбором качества.\n\n"
         "Использование: /link + URL \n\n"
         "(например: /link https://youtu.be/abc123)\n"
         "(например: /link 720 https://youtu.be/abc123)"
     )
-    
+
     # Add bot to group command message
     ADD_BOT_TO_GROUP_MSG = """
 🤖 <b>Добавить бота в группу</b>
@@ -257,16 +257,16 @@ class Messages(object):
 ————————————
 💰 <b>Цены и настройка:</b>
 <blockquote>• Цена: <b>$5/месяц</b> за 1 бота в группе
-• Настройка: Свяжитесь с @iilililiiillliiliililliilliliiil
+• Настройка: Свяжитесь с @andrey_stt
 • Оплата: 💎TON или другие методы💲
 • Поддержка: Полная техническая поддержка включена</blockquote>
 ————————————
 Вы можете добавить моих ботов в вашу группу, чтобы разблокировать бесплатный 🔞<b>NSFW</b> и удвоить (x2️⃣) все лимиты.
-Свяжитесь со мной, если хотите, чтобы я разрешил вашей группе использовать моих ботов @iilililiiillliiliililliilliliiil
+Свяжитесь со мной, если хотите, чтобы я разрешил вашей группе использовать моих ботов @andrey_stt
 ————————————
 💡<b>СОВЕТ:</b> <blockquote>Вы можете скинуться деньгами с любым количеством ваших друзей (например, 100 человек) и сделать 1 покупку для всей группы - ВСЕ УЧАСТНИКИ ГРУППЫ ПОЛУЧАТ ПОЛНЫЙ НЕОГРАНИЧЕННЫЙ ДОСТУП ко всем функциям ботов в этой группе всего за <b>0.05$</b></blockquote>
     """
-    
+
     # NSFW Command Messages
     NSFW_ON_MSG = """
 🔞 <b>NSFW режим: ВКЛ✅</b>
@@ -277,18 +277,18 @@ class Messages(object):
 
 <i>Используйте /nsfw off для включения размытия</i>
     """
-    
+
     NSFW_OFF_MSG = """
 🔞 <b>NSFW режим: ВЫКЛ</b>
 
 ⚠️ <b>Размытие включено</b>
-• NSFW контент будет скрыт под спойлером   
+• NSFW контент будет скрыт под спойлером
 • Для просмотра нужно будет нажать на медиа
 • Спойлеры будут применяться к NSFW медиа.
 
 <i>Используйте /nsfw on для отключения размытия</i>
     """
-    
+
     NSFW_INVALID_MSG = """
 ❌ <b>Неверный параметр</b>
 
@@ -296,7 +296,7 @@ class Messages(object):
 • <code>/nsfw on</code> - отключить размытие
 • <code>/nsfw off</code> - включить размытие
     """
-    
+
     # UI Messages - Status and Progress
     CHECKING_CACHE_MSG = "🔄 <b>Проверка кэша...</b>\n\n<code>{url}</code>"
     PROCESSING_MSG = "🔄 Обработка..."
@@ -305,7 +305,7 @@ class Messages(object):
     DOWNLOADING_IMAGE_MSG = "📥 <b>Загрузка изображения...</b>\n\n"
 
     DOWNLOAD_COMPLETE_MSG = "✅ <b>Загрузка завершена</b>\n\n"
-    
+
     # Download status messages
     DOWNLOADED_STATUS_MSG = "Загружено:"
     SENT_STATUS_MSG = "Отправлено:"
@@ -315,7 +315,7 @@ class Messages(object):
     AUDIO_DOWNLOAD_FINISHED_PROCESSING_MSG = "Загрузка завершена, обработка аудио..."
     VIDEO_PROCESSING_MSG = "📽 Видео обрабатывается..."
     WAITING_HOURGLASS_MSG = "⌛️"
-    
+
     # Cache Messages
     SENT_FROM_CACHE_MSG = "✅ <b>Отправлено из кэша</b>\n\nОтправлено альбомов: <b>{count}</b>"
     VIDEO_SENT_FROM_CACHE_MSG = "✅ Видео успешно отправлено из кэша."
@@ -341,7 +341,7 @@ class Messages(object):
     # Telegram Rate Limit Messages
     RATE_LIMIT_WITH_TIME_MSG = "⚠️ Telegram ограничил отправку сообщений.\n⏳ Пожалуйста, подождите: {time}\nДля обновления таймера отправьте URL еще 2 раза."
     RATE_LIMIT_NO_TIME_MSG = "⚠️ Telegram ограничил отправку сообщений.\n⏳ Пожалуйста, подождите: \nДля обновления таймера отправьте URL еще 2 раза."
-    
+
     # Subtitles Messages
     SUBTITLES_FAILED_MSG = "⚠️ Не удалось загрузить субтитры"
 
@@ -352,7 +352,7 @@ class Messages(object):
     STREAM_TITLE_MSG = "📹 <b>Название:</b> {title}\n"
     STREAM_DURATION_MSG = "⏱ <b>Длительность:</b> {duration} сек\n"
 
-    
+
     # Download Progress Messages
 
     # Quality Selection Messages
@@ -364,11 +364,11 @@ class Messages(object):
 
     # Tags Error Messages
     TAG_FORBIDDEN_CHARS_MSG = "❌ Тег #{tag} содержит запрещённые символы. Разрешены только буквы, цифры и _.\nПожалуйста, используйте: {example}"
-    
+
     # Playlist Messages
     PLAYLIST_SENT_MSG = "✅ Видео плейлиста отправлены: {sent}/{total} файлов."
     PLAYLIST_CACHE_SENT_MSG = "✅ Отправлено из кэша: {cached}/{total} файлов."
-    
+
     # Failed Stream Messages
     FAILED_STREAM_LINKS_MSG = "❌ Не удалось получить ссылки на поток"
 
@@ -387,7 +387,7 @@ class Messages(object):
     COOKIE_FALLBACK_ERROR_MSG = "❌ Ошибка загрузки резервного cookie. Попробуйте /cookie или загрузите cookie.txt."
     COOKIE_FALLBACK_UNEXPECTED_MSG = "❌ Неожиданная ошибка при загрузке резервного cookie."
     BTN_CLOSE = "🔚Закрыть"
-    
+
     # Args command messages
     ARGS_INVALID_BOOL_MSG = "❌ Неверное булево значение"
     ARGS_CLOSED_MSG = "Закрыто"
@@ -413,11 +413,11 @@ class Messages(object):
     ARGS_HTTP_HEADERS_NOTE_MSG = "<b>Примечание:</b> Эти заголовки будут добавлены к существующим Referer и User-Agent заголовкам.\n\n"
     ARGS_CURRENT_ARGS_MSG = "<b>📋 Текущие аргументы yt-dlp:</b>\n\n"
     ARGS_MENU_DESCRIPTION_MSG = "• ✅/❌ <b>Boolean</b> - Переключатели True/False\n• 📋 <b>Select</b> - Выбор из опций\n• 🔢 <b>Numeric</b> - Числовой ввод\n• 📝🔧 <b>Text</b> - Текстовый/JSON ввод</blockquote>\n\nЭти настройки будут применены ко всем вашим загрузкам."
-    
+
     # Локализованные названия параметров для отображения
     ARGS_PARAM_NAMES = {
         "force_ipv6": "Принудительные IPv6 подключения",
-        "force_ipv4": "Принудительные IPv4 подключения", 
+        "force_ipv4": "Принудительные IPv4 подключения",
         "no_live_from_start": "Не загружать прямые трансляции с начала",
         "live_from_start": "Загружать прямые трансляции с начала",
         "no_check_certificates": "Подавить проверку HTTPS сертификата",
@@ -467,7 +467,7 @@ class Messages(object):
         "• 📝🔧 <b>Text</b> - Текстовый/JSON ввод</blockquote>\n\n"
         "Эти настройки будут применены ко всем вашим загрузкам."
     )
-    
+
     # Additional missing messages
     PLEASE_WAIT_MSG = "⏳ Пожалуйста, подождите..."
     ERROR_OCCURRED_SHORT_MSG = "❌ Произошла ошибка"
@@ -494,11 +494,11 @@ class Messages(object):
     ARGS_INVALID_NUMBER_INPUT_MSG = "❌ Пожалуйста, предоставьте действительное число."
     ARGS_BOOL_VALUE_REQUEST_MSG = "Пожалуйста, отправьте <code>True</code> или <code>False</code> для включения/отключения этой опции."
     ARGS_JSON_VALUE_REQUEST_MSG = "Пожалуйста, отправьте действительный JSON."
-    
+
     # Tags command messages
     TAGS_NO_TAGS_MSG = "У вас пока нет тегов."
     TAGS_MESSAGE_CLOSED_MSG = "Сообщение с тегами закрыто."
-    
+
     # Subtitles command messages
     SUBS_DISABLED_MSG = "✅ Субтитры отключены и режим Always Ask выключен."
     SUBS_ALWAYS_ASK_ENABLED_MSG = "✅ Субтитры Always Ask включён."
@@ -532,7 +532,7 @@ class Messages(object):
     SUBS_ERROR_PROCESSING_MSG = "❌ Ошибка обработки файла субтитров."
     SUBS_ERROR_DOWNLOAD_MSG = "❌ Не удалось загрузить субтитры."
     SUBS_ERROR_MSG = "❌ Ошибка загрузки субтитров: {error}"
-    
+
     # Split command messages
     SPLIT_SIZE_SET_MSG = "✅ Размер части для разделения установлен: {size}"
     SPLIT_INVALID_SIZE_MSG = (
@@ -559,7 +559,7 @@ class Messages(object):
         "**Примеры:** `/split 300mb`, `/split 1.2gb`, `/split 1500mb`"
     )
     SPLIT_MENU_CLOSED_MSG = "Меню закрыто."
-    
+
     # Settings command messages
     SETTINGS_TITLE_MSG = "<b>Настройки бота</b>\n\nВыберите категорию:"
     SETTINGS_MENU_CLOSED_MSG = "Меню закрыто."
@@ -576,11 +576,11 @@ class Messages(object):
     SETTINGS_HINT_CLOSED_MSG = "Подсказка закрыта."
     SETTINGS_HELP_SENT_MSG = "Отправить справку пользователю"
     SETTINGS_MENU_OPENED_MSG = "Открыто меню /settings"
-    
+
     # Search command messages
     SEARCH_HELPER_CLOSED_MSG = "🔍 Помощник поиска закрыт"
     SEARCH_CLOSED_MSG = "Закрыто"
-    
+
     # Proxy command messages
     PROXY_ENABLED_MSG = "✅ Прокси {status}."
     PROXY_ERROR_SAVING_MSG = "❌ Ошибка сохранения настроек прокси."
@@ -593,7 +593,7 @@ class Messages(object):
     PROXY_ERROR_SAVING_CALLBACK_MSG = "❌ Ошибка сохранения настроек прокси."
     PROXY_ENABLED_CALLBACK_MSG = "Прокси включён."
     PROXY_DISABLED_CALLBACK_MSG = "Прокси отключён."
-    
+
     # Other handlers messages
     AUDIO_WAIT_MSG = "⏰ ЖДИТЕ ПОКА ВАША ПРЕДЫДУЩАЯ ЗАГРУЗКА НЕ ЗАВЕРШИТСЯ"
     AUDIO_HELP_MSG = (
@@ -610,7 +610,7 @@ class Messages(object):
     PLAYLIST_HELP_CLOSED_MSG = "Справка по плейлистам закрыта."
     USERLOGS_CLOSED_MSG = "Сообщение с логами закрыто."
     HELP_CLOSED_MSG = "Справка закрыта."
-    
+
     # NSFW command messages
     NSFW_BLUR_SETTINGS_TITLE_MSG = "🔞 <b>Настройки размытия NSFW</b>\n\nNSFW контент <b>{status}</b>.\n\nВыберите размывать ли NSFW контент:"
     NSFW_MENU_CLOSED_MSG = "Меню закрыто."
@@ -618,7 +618,7 @@ class Messages(object):
     NSFW_BLUR_ENABLED_MSG = "Размытие NSFW включено."
     NSFW_BLUR_DISABLED_CALLBACK_MSG = "Размытие NSFW отключено."
     NSFW_BLUR_ENABLED_CALLBACK_MSG = "Размытие NSFW включено."
-    
+
     # MediaInfo command messages
     MEDIAINFO_ENABLED_MSG = "✅ MediaInfo {status}."
     MEDIAINFO_MENU_TITLE_MSG = "Включить или отключить отправку MediaInfo для загруженных файлов?"
@@ -627,7 +627,7 @@ class Messages(object):
     MEDIAINFO_DISABLED_MSG = "❌ MediaInfo отключён."
     MEDIAINFO_ENABLED_CALLBACK_MSG = "MediaInfo включён."
     MEDIAINFO_DISABLED_CALLBACK_MSG = "MediaInfo отключён."
-    
+
     # List command messages
     LIST_HELP_MSG = (
         "<b>📃 Список доступных форматов</b>\n\n"
@@ -676,7 +676,7 @@ class Messages(object):
     LIST_AUDIO_FORMATS_NOTE = "Эти форматы будут скачаны как MP3 аудио файлы.\n"
     LIST_VIDEO_ONLY_FORMATS_MSG = "🎬 <b>Только видео форматы:</b> {formats}\n"
     LIST_USE_FORMAT_ID_MSG = "📋 Используйте ID формата из списка выше"
-    
+
     # Link command messages
     LINK_USAGE_MSG = (
         "🔗 <b>Использование:</b>\n"
@@ -696,7 +696,7 @@ class Messages(object):
     LINK_DURATION_MSG = "⏱ <b>Длительность:</b> {duration} сек\n"
     LINK_VIDEO_STREAM_MSG = "🎬 <b>Видео поток:</b>\n<blockquote expandable><a href=\"{url}\">{url}</a></blockquote>\n\n"
     LINK_AUDIO_STREAM_MSG = "🎵 <b>Аудио поток:</b>\n<blockquote expandable><a href=\"{url}\">{url}</a></blockquote>\n\n"
-    
+
     # Keyboard command messages
     KEYBOARD_UPDATED_MSG = "🎹 **Настройка клавиатуры обновлена!**\n\nНовая настройка: **{setting}**"
     KEYBOARD_INVALID_ARG_MSG = (
@@ -716,7 +716,7 @@ class Messages(object):
     KEYBOARD_2X3_ACTIVATED_MSG = "📱 2x3 клавиатура активирована!"
     KEYBOARD_EMOJI_ACTIVATED_MSG = "🔣 Эмодзи клавиатура активирована!"
     KEYBOARD_ERROR_APPLYING_MSG = "Ошибка применения настройки клавиатуры {setting}: {error}"
-    
+
     # Format command messages
     FORMAT_ALWAYS_ASK_SET_MSG = "✅ Формат установлен: Всегда спрашивать. Вам будет предложено выбрать качество каждый раз при отправке URL."
     FORMAT_ALWAYS_ASK_CONFIRM_MSG = "✅ Формат установлен: Всегда спрашивать. Теперь вам будет предложено выбрать качество каждый раз при отправке URL."
@@ -747,12 +747,12 @@ class Messages(object):
     FORMAT_CHOICE_UPDATED_MSG = "✅ Выбор формата обновлен."
     FORMAT_CUSTOM_MENU_CLOSED_MSG = "Меню пользовательского формата закрыто"
     FORMAT_CODEC_SET_MSG = "✅ Кодек установлен в {codec}"
-    
+
     # Cookies command messages
     COOKIES_BROWSER_CHOICE_UPDATED_MSG = "✅ Выбор браузера обновлен."
-    
+
     # Clean command messages
-    
+
     # Admin command messages
     ADMIN_ACCESS_DENIED_MSG = "❌ Доступ запрещен. Только для администраторов."
     ACCESS_DENIED_ADMIN = "❌ Доступ запрещен. Только для администраторов."
@@ -844,7 +844,7 @@ class Messages(object):
         "<b>Объяснение:</b>\n{explanation}"
     )
     ADMIN_ERROR_CHECKING_URL_MSG = "❌ Ошибка проверки URL: {error}"
-    
+
     # Clean command messages
     CLEAN_COOKIES_CLEANED_MSG = "Куки очищены."
     CLEAN_LOGS_CLEANED_MSG = "Логи очищены."
@@ -860,7 +860,7 @@ class Messages(object):
     CLEAN_FLOOD_WAIT_CLEANED_MSG = "Настройки флуд-лимита очищены."
     CLEAN_ALL_CLEANED_MSG = "Все файлы очищены."
     CLEAN_COOKIES_MENU_TITLE_MSG = "<b>🍪 КУКИ</b>\n\nВыберите действие:"
-    
+
     # Cookies command messages
     COOKIES_FILE_SAVED_MSG = "✅ Файл cookie сохранен"
     COOKIES_SKIPPED_VALIDATION_MSG = "✅ Пропущена валидация для не-YouTube cookies"
@@ -871,14 +871,14 @@ class Messages(object):
     COOKIES_YOUTUBE_EXPIRED_MSG = "❌ Ваши существующие YouTube cookies истекли или недействительны.\n\n🔄 Загрузка новых cookies..."
     COOKIES_SOURCE_NOT_CONFIGURED_MSG = "❌ Источник cookie {service} не настроен!"
     COOKIES_SOURCE_MUST_BE_TXT_MSG = "❌ Источник cookie {service} должен быть .txt файлом!"
-    
+
     # Image command messages
     IMG_RANGE_LIMIT_EXCEEDED_MSG = "❗️ Превышен лимит диапазона: запрошено {range_count} файлов (максимум {max_img_files}).\n\nИспользуйте одну из этих команд для загрузки максимально доступных файлов:\n\n<code>/img {start_range}-{end_range} {url}</code>\n\n<code>/img {suggested_command_url_format}</code>"
     COMMAND_IMAGE_HELP_CLOSE_BUTTON_MSG = "🔚Закрыть"
     COMMAND_IMAGE_MEDIA_LIMIT_EXCEEDED_MSG = "❗️ Превышен лимит медиа: запрошено {count} файлов (максимум {max_count}).\n\nИспользуйте одну из этих команд для загрузки максимально доступных файлов:\n\n<code>/img {start_range}-{end_range} {url}</code>\n\n<code>/img {suggested_command_url_format}</code>"
     IMG_FOUND_MEDIA_ITEMS_MSG = "📊 Найдено <b>{count}</b> медиафайлов по ссылке"
     IMG_SELECT_DOWNLOAD_RANGE_MSG = "Выберите диапазон загрузки:"
-    
+
     # Args command parameter descriptions
     ARGS_IMPERSONATE_DESC_MSG = "Имитация браузера"
     ARGS_REFERER_DESC_MSG = "Referer заголовок"
@@ -920,7 +920,7 @@ class Messages(object):
     ARGS_VIDEO_FORMAT_DESC_MSG = "Формат видео контейнера"
     ARGS_MERGE_OUTPUT_FORMAT_DESC_MSG = "Формат выходного контейнера для слияния"
     ARGS_SEND_AS_FILE_DESC_MSG = "Отправлять все медиа как документ вместо медиа"
-    
+
     # Args command short descriptions
     ARGS_IMPERSONATE_SHORT_MSG = "Имитация"
     ARGS_REFERER_SHORT_MSG = "Referer"
@@ -961,7 +961,7 @@ class Messages(object):
     ARGS_VIDEO_FORMAT_SHORT_MSG = "Формат Видео"
     ARGS_MERGE_OUTPUT_FORMAT_SHORT_MSG = "Формат Слияния"
     ARGS_SEND_AS_FILE_SHORT_MSG = "Отправлять как Файл"
-    
+
     # Additional cookies command messages
     COOKIES_FILE_TOO_LARGE_MSG = "❌ Файл слишком большой. Максимальный размер 100 КБ."
     COOKIES_INVALID_FORMAT_MSG = "❌ Разрешены только файлы формата .txt."
@@ -977,23 +977,23 @@ class Messages(object):
     COOKIES_NOT_VALID_MSG = "<b>❌ Недействительный cookie.</b>"
     COOKIES_YOUTUBE_SOURCES_NOT_CONFIGURED_MSG = "❌ Источники YouTube cookie не настроены!"
     COOKIES_DOWNLOADING_YOUTUBE_MSG = "🔄 Загрузка и проверка YouTube cookies...\n\nПопытка {attempt} из {total}"
-    
+
     # Additional admin command messages
     ADMIN_ACCESS_DENIED_AUTO_DELETE_MSG = "❌ Доступ запрещен. Только для администраторов."
     ADMIN_USER_LOGS_TOTAL_MSG = "Всего: <b>{total}</b>\n<b>{user_id}</b> - логи (Последние 10):\n\n{format_str}"
-    
+
     # Additional keyboard command messages
     KEYBOARD_ACTIVATED_MSG = "🎹 клавиатура активирована!"
-    
+
     # Additional subtitles command messages
     SUBS_LANGUAGE_SET_MSG = "✅ Язык субтитров установлен: {flag} {name}"
     SUBS_LANGUAGE_AUTO_SET_MSG = "✅ Язык субтитров установлен: {flag} {name} с включенным AUTO/TRANS."
     SUBS_LANGUAGE_MENU_CLOSED_MSG = "Меню языка субтитров закрыто."
     SUBS_DOWNLOADING_MSG = "💬 Загрузка субтитров..."
-    
+
     # Additional admin command messages
     ADMIN_RELOADING_CACHE_MSG = "🔄 Перезагрузка кэша Firebase в память..."
-    
+
     # Additional cookies command messages
     COOKIES_NO_BROWSERS_NO_URL_MSG = "❌ COOKIE_URL не настроен. Используйте /cookie или загрузите cookie.txt."
     COOKIES_DOWNLOADING_FROM_URL_MSG = "📥 Загрузка cookies с удаленного URL..."
@@ -1008,10 +1008,10 @@ class Messages(object):
     COOKIES_FAILED_TO_SAVE_MSG = "❌ Не удалось сохранить cookies: {error}"
     COOKIES_YOUTUBE_WORKING_PROPERLY_MSG = "✅ YouTube cookies работают правильно"
     COOKIES_YOUTUBE_EXPIRED_INVALID_MSG = "❌ YouTube cookies истекли или недействительны\n\nИспользуйте /cookie для получения новых cookies"
-    
+
     # Additional format command messages
     FORMAT_MENU_ADDITIONAL_MSG = "• <code>/format &lt;format_string&gt;</code> - пользовательский формат\n• <code>/format 720</code> - качество 720p\n• <code>/format 4k</code> - качество 4K"
-    
+
     # Callback answer messages
     FORMAT_HINT_SENT_MSG = "Подсказка отправлена."
     FORMAT_MKV_TOGGLE_MSG = "MKV теперь {status}"
@@ -1038,20 +1038,20 @@ class Messages(object):
     SETTINGS_FLOOD_WAIT_ACTIVE_MSG = "Активен флуд-лимит. Попробуйте позже."
     OTHER_HELP_CLOSED_MSG = "Справка закрыта."
     OTHER_LOGS_MESSAGE_CLOSED_MSG = "Сообщение с логами закрыто."
-    
+
     # Additional split command messages
     SPLIT_MENU_CLOSED_MSG = "Меню закрыто."
     SPLIT_INVALID_SIZE_CALLBACK_MSG = "Неверный размер."
-    
+
     # Additional error messages
     MEDIAINFO_ERROR_SENDING_MSG = "❌ Ошибка отправки MediaInfo: {error}"
     LINK_ERROR_OCCURRED_MSG = "❌ Произошла ошибка: {error}"
-    
+
     # Additional document caption messages
     MEDIAINFO_DOCUMENT_CAPTION_MSG = "<blockquote>📊 MediaInfo</blockquote>"
     ADMIN_USER_LOGS_CAPTION_MSG = "{user_id} - все логи"
     ADMIN_BOT_DATA_CAPTION_MSG = "{bot_name} - все {path}"
-    
+
     # Additional cookies command messages (missing ones)
     DOWNLOAD_FROM_URL_BUTTON_MSG = "📥 Загрузить cookie c URL"
     BROWSER_OPEN_BUTTON_MSG = "🌐 Открыть браузер"
@@ -1062,20 +1062,20 @@ class Messages(object):
     COOKIES_FLOOD_LIMIT_MSG = "⏳ Лимит флуда. Попробуйте позже."
     COOKIES_FAILED_OPEN_BROWSER_MSG = "❌ Не удалось открыть меню cookie браузера"
     COOKIES_SAVE_AS_HINT_CLOSED_MSG = "Подсказка 'Сохранить как cookie' закрыта."
-    
+
     # Link command messages
     LINK_USAGE_MSG = "🔗 <b>Использование:</b>\n<code>/link [качество] URL</code>\n\n<b>Примеры:</b>\n<blockquote>• /link https://youtube.com/watch?v=... - лучшее качество\n• /link 720 https://youtube.com/watch?v=... - 720p или ниже\n• /link 720p https://youtube.com/watch?v=... - то же самое\n• /link 4k https://youtube.com/watch?v=... - 4K или ниже\n• /link 8k https://youtube.com/watch?v=... - 8K или ниже</blockquote>\n\n<b>Качество:</b> от 1 до 10000 (например, 144, 240, 720, 1080)"
-    
+
     # Additional format command messages
     FORMAT_8K_QUALITY_MSG = "• <code>/format 8k</code> - качество 8K"
-    
+
     # Additional link command messages
     LINK_DIRECT_LINK_OBTAINED_MSG = "🔗 <b>Прямая ссылка получена</b>\n\n"
     LINK_FORMAT_INFO_MSG = "🎛 <b>Формат:</b> <code>{format_spec}</code>\n\n"
     LINK_AUDIO_STREAM_MSG = "🎵 <b>Аудио поток:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
     LINK_FAILED_GET_STREAMS_MSG = "❌ Не удалось получить ссылки на потоки"
     LINK_ERROR_GETTING_MSG = "❌ <b>Ошибка получения ссылки:</b>\n{error_msg}"
-    
+
     # Additional cookies command messages (more)
     COOKIES_INVALID_YOUTUBE_INDEX_MSG = "❌ Неверный индекс YouTube cookie: {selected_index}. Доступный диапазон 1-{total_urls}"
     COOKIES_DOWNLOADING_CHECKING_MSG = "🔄 Загрузка и проверка YouTube cookies...\n\nПопытка {attempt} из {total}"
@@ -1083,39 +1083,39 @@ class Messages(object):
     COOKIES_SUCCESS_VALIDATED_MSG = "✅ YouTube cookies успешно загружены и валидированы!\n\nИспользован источник {source} из {total}"
     COOKIES_ALL_EXPIRED_MSG = "❌ Все YouTube cookies истекли или недоступны!\n\nОбратитесь к администратору бота для их замены."
     COOKIES_YOUTUBE_RETRY_LIMIT_EXCEEDED_MSG = "⚠️ Превышен лимит попыток перебора YouTube cookies!\n\n🔢 Максимум: {limit} попыток в час\n⏰ Попробуйте позже"
-    
+
     # Additional other command messages
     OTHER_TAG_ERROR_MSG = "❌ Тег #{wrong} содержит запрещенные символы. Разрешены только буквы, цифры и _.\nПожалуйста, используйте: {example}"
-    
+
     # Additional subtitles command messages
     SUBS_INVALID_ARGUMENT_MSG = "❌ **Неверный аргумент!**\n\n"
     SUBS_LANGUAGE_SET_STATUS_MSG = "✅ Язык субтитров установлен: {flag} {name}"
-    
+
     # Additional subtitles command messages (more)
     SUBS_EXAMPLE_AUTO_MSG = "Пример: `/subs en auto`"
-    
+
     # Additional subtitles command messages (more more)
     SUBS_SELECTED_LANGUAGE_MSG = "{flag} Выбранный язык: {name}{auto_text}"
     SUBS_ALWAYS_ASK_TOGGLE_MSG = "✅ Режим 'Всегда спрашивать' {status}"
-    
+
     # Additional subtitles menu messages
     SUBS_DISABLED_STATUS_MSG = "🚫 Субтитры отключены"
     SUBS_SETTINGS_MENU_MSG = "<b>💬 Настройки субтитров</b>\n\n{status_text}\n\nВыберите язык субтитров:\n\n"
     SUBS_SETTINGS_ADDITIONAL_MSG = "• <code>/subs off</code> - отключить субтитры\n"
     SUBS_AUTO_MENU_MSG = "<b>💬 Настройки субтитров</b>\n\n{status_text}\n\nВыберите язык субтитров:"
-    
+
     # Additional link command messages (more)
     LINK_TITLE_MSG = "📹 <b>Название:</b> {title}\n"
     LINK_DURATION_MSG = "⏱ <b>Длительность:</b> {duration} сек\n"
     LINK_VIDEO_STREAM_MSG = "🎬 <b>Видео поток:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
-    
+
     # Additional subtitles limitation messages
     SUBS_LIMITATIONS_MSG = "- Максимальное качество 720p\n- Максимальная длительность 1.5 часа\n- Максимальный размер видео 500мб</blockquote>\n\n"
-    
+
     # Additional subtitles warning and command messages
     SUBS_WARNING_MSG = "<blockquote>❗️ПРЕДУПРЕЖДЕНИЕ: из-за высокой нагрузки на CPU эта функция очень медленная (почти в реальном времени) и ограничена:\n"
     SUBS_QUICK_COMMANDS_MSG = "<b>Быстрые команды:</b>\n"
-    
+
     # Additional subtitles command description messages
     SUBS_DISABLE_COMMAND_MSG = "• `/subs off` - отключить субтитры\n"
     SUBS_ENABLE_ASK_MODE_MSG = "• `/subs on` - включить режим 'Всегда спрашивать'\n"
@@ -1124,7 +1124,7 @@ class Messages(object):
     SUBS_SET_LANGUAGE_CODE_MSG = "• <code>/subs on</code> - включить режим 'Всегда спрашивать'\n"
     SUBS_AUTO_SUBS_TEXT = " (авто-субтитры)"
     SUBS_AUTO_MODE_TOGGLE_MSG = "✅ Режим авто-субтитров {status}"
-    
+
     # Subtitles log messages
     SUBS_DISABLED_LOG_MSG = "Субтитры отключены через команду: {arg}"
     SUBS_ALWAYS_ASK_ENABLED_LOG_MSG = "Режим 'Всегда спрашивать' субтитров включен через команду: {arg}"
@@ -1134,7 +1134,7 @@ class Messages(object):
     SUBS_LANGUAGE_SET_CALLBACK_LOG_MSG = "Пользователь установил язык субтитров: {lang_code}"
     SUBS_AUTO_MODE_TOGGLED_LOG_MSG = "Пользователь переключил режим AUTO/TRANS: {new_auto}"
     SUBS_ALWAYS_ASK_TOGGLED_LOG_MSG = "Пользователь переключил режим 'Всегда спрашивать': {new_always_ask}"
-    
+
     # Cookies log messages
     COOKIES_BROWSER_REQUESTED_LOG_MSG = "Пользователь запросил cookies из браузера."
     COOKIES_BROWSER_SELECTION_SENT_LOG_MSG = "Клавиатура выбора браузера отправлена только с установленными браузерами."
@@ -1154,7 +1154,7 @@ class Messages(object):
     COOKIES_SERVICE_URL_NOT_TXT_LOG_MSG = "URL cookie {service} не .txt (скрыт)"
     COOKIES_SERVICE_FILE_TOO_LARGE_LOG_MSG = "Файл cookie {service} слишком большой: {size} байт (источник скрыт)"
     COOKIES_SERVICE_FILE_DOWNLOADED_LOG_MSG = "Файл cookie {service} загружен для пользователя {user_id} (источник скрыт)."
-    
+
     # Admin log messages
     ADMIN_SCRIPT_NOT_FOUND_LOG_MSG = "Скрипт не найден: {script_path}"
     ADMIN_FAILED_SEND_STATUS_LOG_MSG = "Не удалось отправить начальное статусное сообщение"
@@ -1174,7 +1174,7 @@ class Messages(object):
     ADMIN_PORN_CACHE_RELOAD_STARTED_LOG_MSG = "Администратор {user_id} запустил перезагрузку кэша порно"
     ADMIN_PORN_CACHE_RELOAD_ERROR_LOG_MSG = "Ошибка перезагрузки кэша порно администратором {user_id}: {error}"
     ADMIN_PORN_CHECK_LOG_MSG = "Администратор {user_id} проверил URL на NSFW: {url} - Результат: {status}"
-    
+
     # Format log messages
     FORMAT_CHANGE_REQUESTED_LOG_MSG = "Пользователь запросил изменение формата."
     FORMAT_ALWAYS_ASK_SET_LOG_MSG = "Формат установлен в ALWAYS_ASK."
@@ -1192,43 +1192,43 @@ class Messages(object):
     FORMAT_ALWAYS_ASK_SET_CALLBACK_LOG_MSG = "Формат установлен в ALWAYS_ASK."
     FORMAT_CODEC_SET_LOG_MSG = "Предпочтение кодека установлено в {codec}"
     FORMAT_CUSTOM_MENU_CLOSED_LOG_MSG = "Меню пользовательского формата закрыто"
-    
+
     # Link log messages
     LINK_EXTRACTED_LOG_MSG = "Прямая ссылка извлечена для пользователя {user_id} из {url}"
     LINK_EXTRACTION_FAILED_LOG_MSG = "Не удалось извлечь прямую ссылку для пользователя {user_id} из {url}: {error}"
     LINK_COMMAND_ERROR_LOG_MSG = "Ошибка в команде link для пользователя {user_id}: {error}"
-    
+
     # Keyboard log messages
     KEYBOARD_SET_LOG_MSG = "Пользователь {user_id} установил клавиатуру в {setting}"
     KEYBOARD_SET_CALLBACK_LOG_MSG = "Пользователь {user_id} установил клавиатуру в {setting}"
-    
+
     # MediaInfo log messages
     MEDIAINFO_SET_COMMAND_LOG_MSG = "MediaInfo установлен через команду: {arg}"
     MEDIAINFO_MENU_OPENED_LOG_MSG = "Пользователь открыл меню /mediainfo."
     MEDIAINFO_MENU_CLOSED_LOG_MSG = "MediaInfo: закрыто."
     MEDIAINFO_ENABLED_LOG_MSG = "MediaInfo включен."
     MEDIAINFO_DISABLED_LOG_MSG = "MediaInfo отключен."
-    
+
     # Split log messages
     SPLIT_SIZE_SET_ARGUMENT_LOG_MSG = "Размер разделения установлен в {size} байт через аргумент."
     SPLIT_MENU_OPENED_LOG_MSG = "Пользователь открыл меню /split."
     SPLIT_SELECTION_CLOSED_LOG_MSG = "Выбор разделения закрыт."
     SPLIT_SIZE_SET_CALLBACK_LOG_MSG = "Размер разделения установлен в {size} байт."
-    
+
     # Proxy log messages
     PROXY_SET_COMMAND_LOG_MSG = "Прокси установлен через команду: {arg}"
     PROXY_MENU_OPENED_LOG_MSG = "Пользователь открыл меню /proxy."
     PROXY_MENU_CLOSED_LOG_MSG = "Прокси: закрыто."
     PROXY_ENABLED_LOG_MSG = "Прокси включен."
     PROXY_DISABLED_LOG_MSG = "Прокси отключен."
-    
+
     # Other handlers log messages
     HELP_MESSAGE_CLOSED_LOG_MSG = "Сообщение справки закрыто."
     AUDIO_HELP_SHOWN_LOG_MSG = "Показана справка /audio"
     PLAYLIST_HELP_REQUESTED_LOG_MSG = "Пользователь запросил справку по плейлистам."
     PLAYLIST_HELP_CLOSED_LOG_MSG = "Справка по плейлистам закрыта."
     AUDIO_HINT_CLOSED_LOG_MSG = "Подсказка по аудио закрыта."
-    
+
     # Down and Up log messages
     DIRECT_LINK_MENU_CREATED_LOG_MSG = "Меню прямой ссылки создано через кнопку LINK для пользователя {user_id} из {url}"
     DIRECT_LINK_EXTRACTION_FAILED_LOG_MSG = "Не удалось извлечь прямую ссылку через кнопку LINK для пользователя {user_id} из {url}: {error}"
@@ -1259,7 +1259,7 @@ class Messages(object):
     DOWN_UP_SPLITTED_PART_UPLOADED_MSG = "📤 Часть {part} разделенного файла загружена"
     DOWN_UP_UPLOAD_COMPLETE_MSG = "✅ Загрузка завершена"
     DOWN_UP_FILES_UPLOADED_MSG = "файлов загружено"
-    
+
     # Always Ask Menu Button Messages
     ALWAYS_ASK_VLC_ANDROID_BUTTON_MSG = "🎬 VLC (Android)"
     ALWAYS_ASK_CLOSE_BUTTON_MSG = "🔚 Закрыть"
@@ -1268,12 +1268,12 @@ class Messages(object):
     ALWAYS_ASK_SUBS_BUTTON_MSG = "💬 СУБТИТРЫ"
     ALWAYS_ASK_BROWSER_BUTTON_MSG = "🌐 Браузер"
     ALWAYS_ASK_VLC_IOS_BUTTON_MSG = "🎬 VLC (iOS)"
-    
+
     # Always Ask Menu Callback Messages
     ALWAYS_ASK_GETTING_DIRECT_LINK_MSG = "🔗 Получение прямой ссылки..."
     ALWAYS_ASK_GETTING_FORMATS_MSG = "📃 Получение доступных форматов..."
     ALWAYS_ASK_STARTING_GALLERY_DL_MSG = "🖼 Запуск gallery-dl…"
-    
+
     # Always Ask Menu F-String Messages
     ALWAYS_ASK_DURATION_MSG = "⏱ <b>Длительность:</b>"
     ALWAYS_ASK_FORMAT_MSG = "🎛 <b>Формат:</b>"
@@ -1377,7 +1377,7 @@ class Messages(object):
     DIRECT_LINK_FAILED_DOWN_UP_LOG_MSG = "Не удалось извлечь прямую ссылку через down_and_up_with_format для пользователя {user_id} из {url}: {error}"
     DIRECT_LINK_EXTRACTED_DOWN_AUDIO_LOG_MSG = "Прямая ссылка извлечена через down_and_audio для пользователя {user_id} из {url}"
     DIRECT_LINK_FAILED_DOWN_AUDIO_LOG_MSG = "Не удалось извлечь прямую ссылку через down_and_audio для пользователя {user_id} из {url}: {error}"
-    
+
     # Audio processing messages
     AUDIO_SENT_FROM_CACHE_MSG = "✅ Аудио отправлено из кэша."
     AUDIO_PROCESSING_MSG = "🎙️ Аудио обрабатывается..."
@@ -1393,20 +1393,20 @@ class Messages(object):
     AUDIO_DOWNLOAD_FAILED_MSG = "❌ Не удалось скачать аудио: {error}"
     DOWNLOAD_TIMEOUT_MSG = "⏰ Скачивание отменено из-за таймаута (2 часа)"
     VIDEO_DOWNLOAD_COMPLETE_MSG = "{process}\n{bar}   100.0%"
-    
+
     # FFmpeg messages
     VIDEO_FILE_NOT_FOUND_MSG = "❌ Видео файл не найден: {filename}"
     VIDEO_PROCESSING_ERROR_MSG = "❌ Ошибка обработки видео: {error}"
-    
+
     # Sender messages
     ERROR_SENDING_DESCRIPTION_FILE_MSG = "❌ Ошибка отправки файла описания: {error}"
     CHANGE_CAPTION_HINT_MSG = "<blockquote>📝 если вы хотите изменить подпись к видео - ответьте на видео новым текстом</blockquote>"
-    
+
     # Always Ask Menu Messages
     NO_SUBTITLES_DETECTED_MSG = "Субтитры не обнаружены"
     VIDEO_PROGRESS_MSG = "<b>Видео:</b> {current} / {total}"
     AUDIO_PROGRESS_MSG = "<b>Аудио:</b> {current} / {total}"
-    
+
     # Error messages
     ERROR_CHECK_SUPPORTED_SITES_MSG = "Проверьте <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>здесь</a>, поддерживается ли ваш сайт"
     ERROR_COOKIE_NEEDED_MSG = "Возможно, вам нужен <code>cookie</code> для скачивания этого видео. Сначала очистите рабочее пространство командой <b>/clean</b>"
@@ -1420,20 +1420,20 @@ class Messages(object):
     SUBTITLE_LANGUAGE_SET_MSG = "Язык субтитров установлен: {value}"
     AUDIO_SET_MSG = "Аудио установлено: {value}"
     FILTERS_UPDATED_MSG = "Фильтры обновлены"
-    
+
     # Always Ask Menu Buttons
     BACK_BUTTON_TEXT = "🔙Назад"
     CLOSE_BUTTON_TEXT = "🔚Закрыть"
     LIST_BUTTON_TEXT = "📃Список"
     IMAGE_BUTTON_TEXT = "🖼Изображение"
-    
+
     # Always Ask Menu Notes
     QUALITIES_NOT_AUTO_DETECTED_NOTE = "<blockquote>⚠️ Качества не определены автоматически\nИспользуйте кнопку 'Другое' чтобы увидеть все доступные форматы.</blockquote>"
-    
+
     # Live Stream Messages
     LIVE_STREAM_DETECTED_MSG = "🚫 **Обнаружена прямая трансляция**\n\nСкачивание текущих или бесконечных прямых трансляций не разрешено.\n\nПожалуйста, дождитесь окончания трансляции и попробуйте скачать снова, когда:\n• Длительность трансляции известна\n• Трансляция завершена\n"
     AV1_NOT_AVAILABLE_FORMAT_SELECT_MSG = "Пожалуйста, выберите другой формат используя команду `/format`."
-    
+
     # Direct Link Messages
     DIRECT_LINK_OBTAINED_MSG = "🔗 <b>Прямая ссылка получена</b>\n\n"
     TITLE_FIELD_MSG = "📹 <b>Название:</b> {title}\n"
@@ -1441,21 +1441,21 @@ class Messages(object):
     FORMAT_FIELD_MSG = "🎛 <b>Формат:</b> <code>{format_spec}</code>\n\n"
     VIDEO_STREAM_FIELD_MSG = "🎬 <b>Видео поток:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
     AUDIO_STREAM_FIELD_MSG = "🎵 <b>Аудио поток:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
-    
+
     # Processing Error Messages
     FILE_PROCESSING_ERROR_INVALID_CHARS_MSG = "❌ **Ошибка обработки файла**\n\nВидео было скачано, но не может быть обработано из-за недопустимых символов в имени файла.\n\n"
     FILE_PROCESSING_ERROR_INVALID_ARG_MSG = "❌ **Ошибка обработки файла**\n\nВидео было скачано, но не может быть обработано из-за ошибки недопустимого аргумента.\n\n"
     FORMAT_NOT_AVAILABLE_MSG = "❌ **Формат недоступен**\n\nЗапрошенный формат видео недоступен для этого видео.\n\n"
     FORMAT_ID_NOT_FOUND_MSG = "❌ ID формата {format_id} не найден для этого видео.\n\nДоступные ID форматов: {available_ids}\n"
     AV1_FORMAT_NOT_AVAILABLE_MSG = "❌ **Формат AV1 недоступен для этого видео.**\n\n**Доступные форматы:**\n{formats_text}\n\n"
-    
-    # Additional Error Messages  
+
+    # Additional Error Messages
     AUDIO_FILE_PROCESSING_ERROR_INVALID_CHARS_MSG = "❌ **Ошибка обработки файла**\n\nАудио было скачано, но не может быть обработано из-за недопустимых символов в имени файла.\n\n"
     AUDIO_FILE_PROCESSING_ERROR_INVALID_ARG_MSG = "❌ **Ошибка обработки файла**\n\nАудио было скачано, но не может быть обработано из-за ошибки недопустимого аргумента.\n\n"
-    
+
     # Keyboard Buttons
     CLEAN_EMOJI = "🧹"
-    COOKIE_EMOJI = "🍪" 
+    COOKIE_EMOJI = "🍪"
     SETTINGS_EMOJI = "⚙️"
     PROXY_EMOJI = "🌐"
     IMAGE_EMOJI = "🖼"
@@ -1475,10 +1475,10 @@ class Messages(object):
     ARGS_EMOJI = "🧰"
     NSFW_EMOJI = "🔞"
     LIST_EMOJI = "📃"
-    
+
     # NSFW Content Messages
     PORN_CONTENT_CANNOT_DOWNLOAD_MSG = "Пользователь ввел порнографический контент. Не может быть скачан."
-    
+
     # Additional Log Messages
     NSFW_BLUR_SET_COMMAND_LOG_MSG = "Размытие NSFW установлено через команду: {arg}"
     NSFW_MENU_OPENED_LOG_MSG = "Пользователь открыл меню /nsfw."
@@ -1507,34 +1507,34 @@ class Messages(object):
     DOWNLOAD_CANCELLED_TIMEOUT_MSG = "⏰ Скачивание отменено из-за таймаута (2 часа)"
     FAILED_DOWNLOAD_VIDEO_MSG = "❌ Не удалось скачать видео: {error}"
     ERROR_SUBTITLES_NOT_FOUND_MSG = "❌ Ошибка: {error}"
-    
+
     # Args command error messages
     ARGS_JSON_MUST_BE_OBJECT_MSG = "❌ JSON должен быть объектом (словарем)."
     ARGS_INVALID_JSON_FORMAT_MSG = "❌ Неверный формат JSON. Пожалуйста, предоставьте действительный JSON."
     ARGS_VALUE_MUST_BE_BETWEEN_MSG = "❌ Значение должно быть между {min_val} и {max_val}."
     ARGS_PARAM_SET_TO_MSG = "✅ {description} установлено в: <code>{value}</code>"
-    
+
     # Args command button texts
     ARGS_TRUE_BUTTON_MSG = "✅ Истина"
     ARGS_FALSE_BUTTON_MSG = "❌ Ложь"
     ARGS_BACK_BUTTON_MSG = "🔙 Назад"
     ARGS_CLOSE_BUTTON_MSG = "🔚 Закрыть"
-    
+
     # Args command status texts
     ARGS_STATUS_TRUE_MSG = "✅"
     ARGS_STATUS_FALSE_MSG = "❌"
     ARGS_STATUS_TRUE_DISPLAY_MSG = "✅ Истина"
     ARGS_STATUS_FALSE_DISPLAY_MSG = "❌ Ложь"
     ARGS_NOT_SET_MSG = "Не установлено"
-    
+
     # Boolean values for import/export (all possible variations)
     ARGS_BOOLEAN_TRUE_VALUES = ["Да", "да", "True", "true", "1", "yes", "on", "✅"]
     ARGS_BOOLEAN_FALSE_VALUES = ["Нет", "нет", "False", "false", "0", "no", "off", "❌"]
-    
+
     # Args command status indicators
     ARGS_STATUS_SELECTED_MSG = "✅"
     ARGS_STATUS_UNSELECTED_MSG = "⚪"
-    
+
     # Down and Up error messages
     DOWN_UP_AV1_NOT_AVAILABLE_MSG = "❌ Формат AV1 недоступен для этого видео.\n\nДоступные форматы:\n{formats_text}"
     DOWN_UP_ERROR_DOWNLOADING_MSG = "❌ Ошибка скачивания: {error_message}"
@@ -1551,7 +1551,7 @@ class Messages(object):
     AA_ERROR_URL_NOT_EMBEDDABLE_MSG = "❌ Этот URL не может быть встроен."
     AA_ERROR_CODEC_NOT_AVAILABLE_MSG = "❌ Кодек {codec} недоступен для этого видео"
     AA_ERROR_FORMAT_NOT_AVAILABLE_MSG = "❌ Формат {format} недоступен для этого видео"
-    
+
     # Always Ask Menu button texts
     AA_AVC_BUTTON_MSG = "✅ AVC"
     AA_AVC_BUTTON_INACTIVE_MSG = "☑️ AVC"
@@ -1571,21 +1571,21 @@ class Messages(object):
 
     # Flood limit messages
     FLOOD_LIMIT_TRY_LATER_MSG = "⏳ Лимит флуда. Попробуйте позже."
-    
+
     # Cookies command button texts
     COOKIES_BROWSER_BUTTON_MSG = "✅ {browser_name}"
     COOKIES_CHECK_COOKIE_BUTTON_MSG = "✅ Проверить Cookie"
-    
+
     # Proxy command button texts
     PROXY_ON_BUTTON_MSG = "✅ ВКЛ"
     PROXY_OFF_BUTTON_MSG = "❌ ВЫКЛ"
     PROXY_CLOSE_BUTTON_MSG = "🔚Закрыть"
-    
+
     # MediaInfo command button texts
     MEDIAINFO_ON_BUTTON_MSG = "✅ ВКЛ"
     MEDIAINFO_OFF_BUTTON_MSG = "❌ ВЫКЛ"
     MEDIAINFO_CLOSE_BUTTON_MSG = "🔚Закрыть"
-    
+
     # Format command button texts
     FORMAT_AVC1_BUTTON_MSG = "✅ avc1 (H.264)"
     FORMAT_AVC1_BUTTON_INACTIVE_MSG = "☑️ avc1 (H.264)"
@@ -1595,26 +1595,26 @@ class Messages(object):
     FORMAT_VP9_BUTTON_INACTIVE_MSG = "☑️ vp09 (VP9)"
     FORMAT_MKV_ON_BUTTON_MSG = "✅ MKV: ВКЛ"
     FORMAT_MKV_OFF_BUTTON_MSG = "☑️ MKV: ВЫКЛ"
-    
+
     # Subtitles command button texts
     SUBS_LANGUAGE_CHECKMARK_MSG = "✅ "
     SUBS_AUTO_EMOJI_MSG = "✅"
     SUBS_AUTO_EMOJI_INACTIVE_MSG = "☑️"
     SUBS_ALWAYS_ASK_EMOJI_MSG = "✅"
     SUBS_ALWAYS_ASK_EMOJI_INACTIVE_MSG = "☑️"
-    
+
     # NSFW command button texts
     NSFW_ON_NO_BLUR_MSG = "✅ ВКЛ (Без размытия)"
     NSFW_ON_NO_BLUR_INACTIVE_MSG = "☑️ ВКЛ (Без размытия)"
     NSFW_OFF_BLUR_MSG = "✅ ВЫКЛ (Размытие)"
     NSFW_OFF_BLUR_INACTIVE_MSG = "☑️ ВЫКЛ (Размытие)"
-    
+
     # Admin command status texts
     ADMIN_STATUS_NSFW_MSG = "🔞"
     ADMIN_STATUS_CLEAN_MSG = "✅"
     ADMIN_STATUS_NSFW_TEXT_MSG = "NSFW"
     ADMIN_STATUS_CLEAN_TEXT_MSG = "Чистый"
-    
+
     # Admin command additional messages
     ADMIN_ERROR_PROCESSING_REPLY_MSG = "Ошибка обработки ответного сообщения для пользователя {user}: {error}"
     ADMIN_ERROR_SENDING_BROADCAST_MSG = "Ошибка отправки трансляции пользователю {user}: {error}"
@@ -1622,35 +1622,35 @@ class Messages(object):
     ADMIN_BOT_DATA_FORMAT_MSG = "{bot_name} {path}\nВсего {path}: {count}\nТекущее время: {now}\n\n{data}"
     ADMIN_TOTAL_USERS_MSG = "<i>Всего пользователей: {count}</i>\nПоследние 20 {path}:\n\n{display_list}"
     ADMIN_PORN_CACHE_RELOADED_MSG = "Кэши порно перезагружены администратором {admin_id}. Домены: {domains}, Ключевые слова: {keywords}, Сайты: {sites}, БЕЛЫЙ СПИСОК: {whitelist}, СЕРЫЙ СПИСОК: {greylist}, ЧЕРНЫЙ СПИСОК: {black_list}, БЕЛЫЕ КЛЮЧЕВЫЕ СЛОВА: {white_keywords}, ПРОКСИ ДОМЕНЫ: {proxy_domains}, ПРОКСИ_2_ДОМЕНЫ: {proxy_2_domains}, ЧИСТЫЙ ЗАПРОС: {clean_query}, БЕЗ_КУКИ_ДОМЕНЫ: {no_cookie_domains}"
-    
+
     # Args command additional messages
     ARGS_ERROR_SENDING_TIMEOUT_MSG = "Ошибка отправки сообщения о таймауте: {error}"
-    
+
     # Language selection messages
     LANG_SELECTION_MSG = "🌍 <b>Выберите язык</b>\n\n🇺🇸 English\n🇷🇺 Русский\n🇸🇦 العربية\n🇮🇳 हिन्दी"
     LANG_CHANGED_MSG = "✅ Язык изменен на {lang_name}"
     LANG_ERROR_MSG = "❌ Ошибка изменения языка"
     LANG_CLOSED_MSG = "Выбор языка закрыт"
     # Clean command additional messages
-    
+
     # Cookies command additional messages
     COOKIES_BROWSER_CALLBACK_MSG = "[БРАУЗЕР] callback: {callback_data}"
     COOKIES_ADDING_BROWSER_MONITORING_MSG = "Добавление кнопки мониторинга браузера с URL: {miniapp_url}"
     COOKIES_BROWSER_MONITORING_URL_NOT_CONFIGURED_MSG = "URL мониторинга браузера не настроен: {miniapp_url}"
-    
+
     # Format command additional messages
-    
+
     # Keyboard command additional messages
     KEYBOARD_SETTING_UPDATED_MSG = "🎹 **Настройка клавиатуры обновлена!**\n\nНовая настройка: **{setting}**"
     KEYBOARD_FAILED_HIDE_MSG = "Не удалось скрыть клавиатуру: {error}"
-    
+
     # Link command additional messages
     LINK_USING_WORKING_YOUTUBE_COOKIES_MSG = "Используются рабочие YouTube cookies для извлечения ссылки для пользователя {user_id}"
     LINK_NO_WORKING_YOUTUBE_COOKIES_MSG = "Нет рабочих YouTube cookies для извлечения ссылки для пользователя {user_id}"
     LINK_USING_EXISTING_YOUTUBE_COOKIES_MSG = "Используются существующие YouTube cookies для извлечения ссылки для пользователя {user_id}"
     LINK_NO_YOUTUBE_COOKIES_FOUND_MSG = "YouTube cookies не найдены для извлечения ссылки для пользователя {user_id}"
     LINK_COPIED_GLOBAL_COOKIE_FILE_MSG = "Глобальный файл cookie скопирован в папку пользователя {user_id} для извлечения ссылки"
-    
+
     # MediaInfo command additional messages
     MEDIAINFO_USER_REQUESTED_MSG = "[MEDIAINFO] Пользователь {user_id} запросил команду mediainfo"
     MEDIAINFO_USER_IS_ADMIN_MSG = "[MEDIAINFO] Пользователь {user_id} администратор: {is_admin}"
@@ -1658,14 +1658,14 @@ class Messages(object):
     MEDIAINFO_ACCESS_DENIED_MSG = "[MEDIAINFO] Пользователю {user_id} доступ запрещен - не администратор и не в канале"
     MEDIAINFO_ACCESS_GRANTED_MSG = "[MEDIAINFO] Пользователю {user_id} доступ разрешен"
     MEDIAINFO_CALLBACK_MSG = "[MEDIAINFO] callback: {callback_data}"
-    
+
     # URL Parser error messages
     URL_PARSER_ADMIN_ONLY_MSG = "❌ Эта команда доступна только администраторам."
-    
+
     # Helper messages
     HELPER_DOWNLOAD_FINISHED_PO_MSG = "✅ Скачивание завершено с поддержкой PO токена"
     HELPER_FLOOD_LIMIT_TRY_LATER_MSG = "⏳ Лимит флуда. Попробуйте позже."
-    
+
     # Database error messages
     DB_REST_TOKEN_REFRESH_ERROR_MSG = "❌ Ошибка обновления REST токена: {error}"
     DB_ERROR_CLOSING_SESSION_MSG = "❌ Ошибка закрытия сессии Firebase: {error}"
@@ -1682,11 +1682,11 @@ class Messages(object):
     DB_STARTING_FIREBASE_DUMP_MSG = "🔄 Начало загрузки дампа Firebase в {datetime}"
     DB_DEPENDENCY_NOT_AVAILABLE_MSG = "⚠️ Зависимость недоступна: requests или Session"
     DB_DATABASE_EMPTY_MSG = "⚠️ База данных пуста"
-    
+
     # Magic.py error messages
     MAGIC_ERROR_CLOSING_LOGGER_MSG = "❌ Ошибка закрытия логгера: {error}"
     MAGIC_ERROR_DURING_CLEANUP_MSG = "❌ Ошибка во время очистки: {error}"
-    
+
     # Update from repo error messages
     UPDATE_CLONE_ERROR_MSG = "❌ Ошибка клонирования: {error}"
     UPDATE_CLONE_TIMEOUT_MSG = "❌ Таймаут клонирования"
@@ -1696,79 +1696,79 @@ class Messages(object):
     # Update from repo success messages
     UPDATE_REPOSITORY_CLONED_SUCCESS_MSG = "✅ Репозиторий успешно клонирован"
     UPDATE_BACKUPS_MOVED_MSG = "✅ Резервные копии перемещены в _backup/"
-    
+
     # Magic.py success messages
     MAGIC_ALL_MODULES_LOADED_MSG = "✅ Все модули загружены"
     MAGIC_CLEANUP_COMPLETED_MSG = "✅ Очистка завершена при выходе"
     MAGIC_SIGNAL_RECEIVED_MSG = "\n🛑 Получен сигнал {signal}, корректное завершение работы..."
-    
+
     # Removed duplicate logger messages - these are user messages, not logger messages
-    
+
     # Download status messages
     DOWNLOAD_STATUS_PLEASE_WAIT_MSG = "Пожалуйста, подождите..."
     DOWNLOAD_STATUS_HOURGLASS_EMOJIS = ["⏳", "⌛"]
     DOWNLOAD_STATUS_DOWNLOADING_HLS_MSG = "📥 Скачивание HLS потока:"
     DOWNLOAD_STATUS_WAITING_FRAGMENTS_MSG = "ожидание фрагментов"
-    
+
     # Restore from backup messages
     RESTORE_BACKUP_NOT_FOUND_MSG = "❌ Резервная копия {ts} не найдена в _backup/"
     RESTORE_FAILED_RESTORE_MSG = "❌ Не удалось восстановить {src} -> {dest_path}: {e}"
     RESTORE_SUCCESS_RESTORED_MSG = "✅ Восстановлено: {dest_path}"
-    
+
     # Image command messages
     IMG_INSTAGRAM_AUTH_ERROR_MSG = "❌ <b>{error_type}</b>\n\n<b>URL:</b> <code>{url}</code>\n\n<b>Детали:</b> {error_details}\n\nСкачивание остановлено из-за критической ошибки.\n\n💡 <b>Совет:</b> Если вы получаете ошибку 401 Unauthorized, попробуйте использовать команду <code>/cookie instagram</code> или отправить свои собственные cookies для аутентификации в Instagram."
-    
+
     # Porn filter messages
     PORN_DOMAIN_BLACKLIST_MSG = "❌ Домен в черном списке порно: {domain_parts}"
     PORN_KEYWORDS_FOUND_MSG = "❌ Найдены порно ключевые слова: {keywords}"
     PORN_DOMAIN_WHITELIST_MSG = "✅ Домен в белом списке: {domain}"
     PORN_WHITELIST_KEYWORDS_MSG = "✅ Найдены ключевые слова белого списка: {keywords}"
     PORN_NO_KEYWORDS_FOUND_MSG = "✅ Порно ключевые слова не найдены"
-    
+
     # Audio download messages
     AUDIO_TIKTOK_API_ERROR_SKIP_MSG = "⚠️ Ошибка TikTok API по индексу {index}, переход к следующему аудио..."
-    
-    # Video download messages  
+
+    # Video download messages
     VIDEO_TIKTOK_API_ERROR_SKIP_MSG = "⚠️ Ошибка TikTok API по индексу {index}, переход к следующему видео..."
-    
+
     # URL Parser messages
     URL_PARSER_USER_ENTERED_URL_LOG_MSG = "Пользователь ввел <b>url</b>\n <b>имя пользователя:</b> {user_name}\nURL: {url}"
     URL_PARSER_USER_ENTERED_INVALID_MSG = "<b>Пользователь ввел так:</b> {input}\n{error_msg}"
-    
+
     # Channel subscription messages
     CHANNEL_JOIN_BUTTON_MSG = "Присоединиться к каналу"
-    
+
     # Handler registry messages
     HANDLER_REGISTERING_MSG = "🔍 Регистрация обработчика: {handler_type} - {func_name}"
-    
+
     # Clean command button messages
     CLEAN_COOKIE_DOWNLOAD_BUTTON_MSG = "📥 /cookie - Загрузить мои 5 cookies"
     CLEAN_COOKIES_FROM_BROWSER_BUTTON_MSG = "🌐 /cookies_from_browser - Получить YT-cookie из браузера"
     CLEAN_CHECK_COOKIE_BUTTON_MSG = "🔎 /check_cookie - Проверить ваш файл cookie"
     CLEAN_SAVE_AS_COOKIE_BUTTON_MSG = "🔖 /save_as_cookie - Загрузить свои cookie"
-    
+
     # List command messages
     LIST_CLOSE_BUTTON_MSG = "🔚 Закрыть"
     LIST_AVAILABLE_FORMATS_HEADER_MSG = "Доступные форматы для: {url}"
     LIST_FORMATS_FILE_NAME_MSG = "formats_{user_id}.txt"
-    
+
     # Other handlers button messages
     OTHER_AUDIO_HINT_CLOSE_BUTTON_MSG = "🔚Закрыть"
     OTHER_PLAYLIST_HELP_CLOSE_BUTTON_MSG = "🔚Закрыть"
-    
+
     # Search command button messages
     SEARCH_CLOSE_BUTTON_MSG = "🔚Закрыть"
-    
+
     # Tag command button messages
     TAG_CLOSE_BUTTON_MSG = "🔚Закрыть"
-    
+
     # Magic.py callback messages
     MAGIC_HELP_CLOSED_MSG = "Справка закрыта."
-    
+
     # URL extractor callback messages
     URL_EXTRACTOR_CLOSED_MSG = "Закрыто"
     URL_EXTRACTOR_ERROR_OCCURRED_MSG = "Произошла ошибка"
-    
+
     # FFmpeg messages
     FFMPEG_NOT_FOUND_MSG = "ffmpeg не найден в PATH или директории проекта. Пожалуйста, установите FFmpeg."
     YTDLP_NOT_FOUND_MSG = "yt-dlp бинарный файл не найден в PATH или директории проекта. Пожалуйста, установите yt-dlp."
@@ -1788,7 +1788,7 @@ class Messages(object):
     FFMPEG_THUMBNAIL_NOT_CREATED_MSG = "Миниатюра не создана в {thumb_dir}, используется по умолчанию"
     FFMPEG_COMMAND_EXECUTION_ERROR_MSG = "Ошибка выполнения команды: {error}"
     FFMPEG_ERROR_CREATING_THUMBNAIL_WITH_FFMPEG_MSG = "Ошибка создания миниатюры с FFmpeg: {error}"
-    
+
     # Gallery-dl messages
     GALLERY_DL_SKIPPING_NON_DICT_CONFIG_MSG = "Пропуск секции конфигурации не-словарь: {section}={opts}"
     GALLERY_DL_SETTING_CONFIG_MSG = "Установка {section}.{key} = {value}"
@@ -1831,7 +1831,7 @@ class Messages(object):
     GALLERY_DL_DOWNLOAD_JOB_NOT_AVAILABLE_MSG = "gallery_dl.job.DownloadJob недоступен в этой сборке"
     GALLERY_DL_SEARCHING_DOWNLOADED_FILES_MSG = "Поиск скачанных файлов в директории gallery-dl"
     GALLERY_DL_TRYING_FIND_FILES_BY_NAMES_MSG = "Попытка найти файлы по именам из экстрактора"
-    
+
     # Sender messages
     SENDER_ERROR_READING_USER_ARGS_MSG = "Ошибка чтения аргументов пользователя для {user_id}: {error}"
     SENDER_FFPROBE_BYPASS_ERROR_MSG = "[FFPROBE BYPASS] Ошибка при обработке видео{video_path}: {error}"
@@ -1842,7 +1842,7 @@ class Messages(object):
     SENDER_ERROR_SENDING_VIDEO_MINIMAL_CAPTION_MSG = "Ошибка отправки видео с минимальной подписью: {error}"
     SENDER_ERROR_SENDING_FULL_DESCRIPTION_FILE_MSG = "Ошибка отправки полного файла описания: {error}"
     SENDER_ERROR_REMOVING_TEMP_DESCRIPTION_FILE_MSG = "Ошибка удаления временного файла описания: {error}"
-    
+
     # YT-DLP hook messages
     YTDLP_SKIPPING_MATCH_FILTER_MSG = "Пропуск match_filter для домена в NO_FILTER_DOMAINS: {url}"
     YTDLP_CHECKING_EXISTING_YOUTUBE_COOKIES_MSG = "Проверка существующих YouTube cookies на URL пользователя для определения формата для пользователя {user_id}"
@@ -1860,16 +1860,16 @@ class Messages(object):
     YTDLP_COPIED_GLOBAL_COOKIE_FILE_MSG = "Глобальный файл cookie скопирован в папку пользователя {user_id} для определения формата"
     YTDLP_FAILED_COPY_GLOBAL_COOKIE_FILE_MSG = "Не удалось скопировать глобальный файл cookie для пользователя {user_id}: {error}"
     YTDLP_USING_NO_COOKIES_FOR_DOMAIN_MSG = "Использование --no-cookies для домена в get_video_formats: {url}"
-    
+
     # App instance messages
     APP_INSTANCE_NOT_INITIALIZED_MSG = "Приложение еще не инициализировано. Нельзя получить доступ к {name}"
-    
+
     # Caption messages
     CAPTION_INFO_OF_VIDEO_MSG = "\n<b>Подпись:</b> <code>{caption}</code>\n<b>ID пользователя:</b> <code>{user_id}</code>\n<b>Имя пользователя:</b> <code>{users_name}</code>\n<b>ID видео файла:</b> <code>{video_file_id}</code>"
     CAPTION_ERROR_IN_CAPTION_EDITOR_MSG = "Ошибка в caption_editor: {error}"
     CAPTION_UNEXPECTED_ERROR_IN_CAPTION_EDITOR_MSG = "Неожиданная ошибка в caption_editor: {error}"
     CAPTION_VIDEO_URL_LINK_MSG = '<a href="{url}">🔗 URL видео</a>{bot_mention}'
-    
+
     # Database messages
     DB_DATABASE_URL_MISSING_MSG = "FIREBASE_CONF.databaseURL отсутствует в конфигурации"
     DB_FIREBASE_ADMIN_INITIALIZED_MSG = "✅ firebase_admin initialized"
@@ -1883,7 +1883,7 @@ class Messages(object):
     DB_GET_CACHED_PLAYLIST_COUNT_FAST_COUNT_MSG = "get_cached_playlist_count: быстрый подсчет для большого диапазона: {cached_count} кэшированных видео"
     DB_GET_CACHED_MESSAGE_IDS_NO_CACHE_MSG = "get_cached_message_ids: кэш не найден для хэша {url_hash}, качество {quality_key}"
     DB_GET_CACHED_MESSAGE_IDS_NO_CACHE_ANY_VARIANT_MSG = "get_cached_message_ids: кэш не найден для любого варианта URL, возвращаем None"
-    
+
     # Database cache auto-reload messages
     DB_AUTO_CACHE_ACCESS_DENIED_MSG = "❌ Доступ запрещен. Только администратор."
     DB_AUTO_CACHE_RELOADING_UPDATED_MSG = "🔄 Автоматическая перезагрузка кэша Firebase обновлена!\n\n📊 Статус: {status}\n⏰ Расписание: каждые {interval} часов с 00:00\n🕒 Следующая перезагрузка: {next_exec} (через {delta_min} минут)"
@@ -1899,7 +1899,7 @@ class Messages(object):
     DB_AUTO_CACHE_INTERVAL_SET_LOG_MSG = "Интервал автоматической перезагрузки установлен на {interval}ч; следующая в {next_exec}"
     DB_AUTO_CACHE_RELOAD_STARTED_LOG_MSG = "Автоматическая перезагрузка запущена; следующая в {next_exec}"
     DB_AUTO_CACHE_RELOAD_STOPPED_LOG_MSG = "Автоматическая перезагрузка остановлена администратором."
-    
+
     # Database cache messages (console output)
     DB_FIREBASE_CACHE_LOADED_MSG = "✅ Кэш Firebase загружен: {count} корневых узлов"
     DB_FIREBASE_CACHE_NOT_FOUND_MSG = "⚠️ Файл кэша Firebase не найден, начинаем с пустого кэша: {cache_file}"
@@ -1907,10 +1907,10 @@ class Messages(object):
     DB_FIREBASE_CACHE_RELOADED_MSG = "✅ Кэш Firebase перезагружен: {count} корневых узлов"
     DB_FIREBASE_CACHE_FILE_NOT_FOUND_MSG = "⚠️ Файл кэша Firebase не найден: {cache_file}"
     DB_FAILED_RELOAD_FIREBASE_CACHE_MSG = "❌ Не удалось перезагрузить кэш Firebase: {error}"
-    
+
     # Database user ban messages
     DB_USER_BANNED_MSG = "🚫 Вы заблокированы в боте!"
-    
+
     # Always Ask Menu messages
     AA_NO_VIDEO_FORMATS_FOUND_MSG = "❔ Видео форматы не найдены. Пробуем загрузчик изображений…"
     AA_FLOOD_WAIT_MSG = "⚠️ Telegram ограничил отправку сообщений.\n⏳ Пожалуйста, подождите: {time_str}\nДля обновления таймера отправьте URL еще 2 раза."
@@ -1922,18 +1922,18 @@ class Messages(object):
     AA_PROCESSING_WAIT_MSG = "🔎 Анализ... (подождите 6 сек)"
     AA_PROCESSING_MSG = "🔎 Анализ..."
     AA_TAG_FORBIDDEN_CHARS_MSG = "❌ Тег #{wrong} содержит запрещенные символы. Разрешены только буквы, цифры и _.\nПожалуйста, используйте: {example}"
-    
+
     # Helper limitter messages
     HELPER_ADMIN_RIGHTS_REQUIRED_MSG = "❗️ Для работы в группе боту нужны права администратора. Пожалуйста, сделайте бота админом этой группы."
-    
+
     # URL extractor messages
     URL_EXTRACTOR_WELCOME_MSG = "Привет {first_name},\n \n<i>Этот бот🤖 может скачивать любые видео непосредственно в telegram.😊 Для большей информации нажмите <b>/help</b></i> 👈\n\n<blockquote>P.S. Скачивание 🔞NSFW контента и файлов из ☁️Cloud Storage является платным! 1⭐️ = $0.02</blockquote>\n<blockquote>P.P.S. ‼️ Не отписывайте от канала - иначе получите бан на использование бота ⛔️</blockquote>\n \n {credits}"
     URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG = "🗑 Нет файлов для удаления."
     URL_EXTRACTOR_ALL_FILES_REMOVED_MSG = "🗑 Все файлы успешно удалены!\n\nУдаленные файлы:\n{files_list}"
-    
+
     # Video extractor messages
     VIDEO_EXTRACTOR_WAIT_DOWNLOAD_MSG = "⏰ ПОДОЖДИТЕ, ПОКА ВАШЕ ПРЕДЫДУЩЕЕ СКАЧИВАНИЕ НЕ ЗАВЕРШИТСЯ"
-    
+
     # Helper messages
     HELPER_APP_INSTANCE_NONE_MSG = "Экземпляр приложения равен None в check_user"
     HELPER_CHECK_FILE_SIZE_LIMIT_INFO_DICT_NONE_MSG = "check_file_size_limit: info_dict равен None, разрешаем скачивание"
@@ -1948,18 +1948,18 @@ class Messages(object):
     HELPER_COMMAND_TYPE_PLAYLIST_MSG = "плейлист"
     HELPER_RANGE_LIMIT_EXCEEDED_MSG = "❗️ Превышен лимит диапазона для {service}: {count} (максимум {max_count}).\n\nИспользуйте одну из этих команд для скачивания максимального количества доступных файлов:\n\n<code>{suggested_command_url_format}</code>\n\n"
     HELPER_RANGE_LIMIT_EXCEEDED_LOG_MSG = "❗️ Превышен лимит диапазона для {service}: {count} (максимум {max_count})\nПользователь ID: {user_id}"
-    
+
     # Handler registry messages
-    
+
     # Download status messages
-    
+
     # POT helper messages
     HELPER_POT_PROVIDER_DISABLED_MSG = "Провайдер PO токена отключен в конфигурации"
     HELPER_POT_URL_NOT_YOUTUBE_MSG = "URL {url} не является доменом YouTube, пропускаем PO токен"
     HELPER_POT_PROVIDER_NOT_AVAILABLE_MSG = "Провайдер PO токена недоступен по {base_url}, переходим к стандартному извлечению YouTube"
     HELPER_POT_PROVIDER_CACHE_CLEARED_MSG = "Кэш провайдера PO токена очищен, проверим доступность при следующем запросе"
     HELPER_POT_GENERIC_ARGS_MSG = "generic:impersonate=chrome,youtubetab:skip=authcheck"
-    
+
     # Safe messenger messages
     HELPER_APP_INSTANCE_NOT_AVAILABLE_MSG = "Экземпляр приложения еще недоступен"
     HELPER_USER_NAME_MSG = "Пользователь"
@@ -1968,11 +1968,11 @@ class Messages(object):
     HELPER_MSG_SEQNO_ERROR_DETECTED_MSG = "Обнаружена ошибка msg_seqno, спим {retry_delay} секунд"
     HELPER_MESSAGE_ID_INVALID_MSG = "MESSAGE_ID_INVALID"
     HELPER_MESSAGE_DELETE_FORBIDDEN_MSG = "MESSAGE_DELETE_FORBIDDEN"
-    
+
     # Proxy helper messages
     HELPER_PROXY_CONFIG_INCOMPLETE_MSG = "Конфигурация прокси неполная, используем прямое соединение"
     HELPER_PROXY_COOKIE_PATH_MSG = "users/{user_id}/cookie.txt"
-    
+
     # URL extractor messages
     URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG = "🔚Закрыть"
     URL_EXTRACTOR_ADD_GROUP_CLOSE_BUTTON_MSG = "🔚Закрыть"
@@ -2004,16 +2004,16 @@ class Messages(object):
     # YouTube messages
     YOUTUBE_FAILED_EXTRACT_ID_MSG = "Не удалось извлечь YouTube ID"
     YOUTUBE_FAILED_DOWNLOAD_THUMBNAIL_MSG = "Не удалось загрузить миниатюру или она слишком большая"
-        
+
     # Thumbnail downloader messages
-    
-    # Commands messages   
-    
+
+    # Commands messages
+
     # Always Ask menu callback messages
     AA_CHOOSE_AUDIO_LANGUAGE_MSG = "Выберите язык аудио"
     AA_NO_SUBTITLES_DETECTED_MSG = "Субтитры не обнаружены"
     AA_CHOOSE_SUBTITLE_LANGUAGE_MSG = "Выберите язык субтитров"
-    
+
     # Gallery-dl error type messages
     GALLERY_DL_AUTH_ERROR_MSG = "Ошибка аутентификации"
     GALLERY_DL_ACCOUNT_NOT_FOUND_MSG = "Аккаунт не найден"
@@ -2026,19 +2026,19 @@ class Messages(object):
     GALLERY_DL_POLICY_VIOLATION_MSG = "Нарушение политики"
     GALLERY_DL_UNKNOWN_ERROR_MSG = "Неизвестная ошибка"
     GALLERY_DL_INSTAGRAM_AUTH_ERROR_MSG = "❌ Instagram требует аутентификации.\n\n🔐 <b>Решение:</b>\n1. Войдите в Instagram через браузер\n2. Скопируйте cookies в файл <code>users/{user_id}/cookie.txt</code>\n3. Попробуйте снова\n\n💡 <b>Альтернатива:</b> Используйте публичные посты или истории"
-    
+
     # Download started message (used in both audio and video downloads)
     DOWNLOAD_STARTED_MSG = "<b>▶️ Скачивание началось</b>"
-    
+
     # Split command constants
     SPLIT_CLOSE_BUTTON_MSG = "🔚Закрыть"
-    
+
     # Always ask menu constants
-    
+
     # Search command constants
-    
+
     # List command constants
-    
+
     # Magic.py messages
     MAGIC_VID_HELP_TITLE_MSG = "<b>🎬 Команда скачивания видео</b>\n\n"
     MAGIC_VID_HELP_USAGE_MSG = "Использование: <code>/vid URL</code>\n\n"
@@ -2047,10 +2047,10 @@ class Messages(object):
     MAGIC_VID_HELP_EXAMPLE_2_MSG = "• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n"
     MAGIC_VID_HELP_EXAMPLE_3_MSG = "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code>\n\n"
     MAGIC_VID_HELP_ALSO_SEE_MSG = "Также смотрите: /audio, /img, /help, /playlist, /settings"
-    
+
     # Flood limit messages
     FLOOD_LIMIT_TRY_LATER_FALLBACK_MSG = "⏳ Лимит флуда. Попробуйте позже."
-    
+
     # Cookie command usage messages
     COOKIE_COMMAND_USAGE_MSG = """<b>🍪 Использование команды Cookie</b>
 
@@ -2063,10 +2063,10 @@ class Messages(object):
 <code>/cookie custom</code> - Показать инструкции по пользовательским cookies
 
 <i>Доступные сервисы зависят от конфигурации бота.</i>"""
-    
+
     # Cookie cache messages
     COOKIE_FILE_REMOVED_CACHE_CLEARED_MSG = "🗑 Файл cookie удален и кэш очищен."
-    
+
     # Subtitles Command Messages
     SUBS_PREV_BUTTON_MSG = "⬅️ Предыд."
     SUBS_BACK_BUTTON_MSG = "🔙Назад"
@@ -2074,7 +2074,7 @@ class Messages(object):
     SUBS_SET_LANGUAGE_MSG = "• <code>/subs ru</code> - установить язык"
     SUBS_SET_LANGUAGE_AUTO_MSG = "• <code>/subs ru auto</code> - установить язык с AUTO/TRANS"
     SUBS_VALID_OPTIONS_MSG = "Допустимые опции:"
-    
+
     # Settings Command Messages
     SETTINGS_LANGUAGE_BUTTON_MSG = "🌍 ЯЗЫК"
     SETTINGS_DEV_GITHUB_BUTTON_MSG = "🛠 GitHub автора"
@@ -2121,20 +2121,20 @@ class Messages(object):
     SETTINGS_NSFW_CMD_BUTTON_MSG = "🔞 /nsfw - Настройки размытия NSFW"
     SETTINGS_CLEAN_OPTIONS_MSG = "<b>🧹 Опции очистки</b>\n\nВыберите, что очистить:"
     SETTINGS_MOBILE_ACTIVATE_SEARCH_MSG = "📱 Мобильный: Активировать @vid поиск"
-    
+
     # Search Command Messages
     SEARCH_MOBILE_ACTIVATE_SEARCH_MSG = "📱 Мобильный: Активировать @vid поиск"
-    
+
     # Keyboard Command Messages
     KEYBOARD_OFF_BUTTON_MSG = "🔴 ВЫКЛ"
     KEYBOARD_FULL_BUTTON_MSG = "🔣 ПОЛНАЯ"
     KEYBOARD_1X3_BUTTON_MSG = "📱 1x3"
     KEYBOARD_2X3_BUTTON_MSG = "📱 2x3"
-    
+
     # Image Command Messages
     IMAGE_URL_CAPTION_MSG = "🔗[URL изображений]({url})"
     IMAGE_ERROR_MSG = "❌ Ошибка: {str(e)}"
-    
+
     # Format Command Messages
     FORMAT_BACK_BUTTON_MSG = "🔙Назад"
     FORMAT_CUSTOM_FORMAT_MSG = "• <code>/format &lt;format_string&gt;</code> - пользовательский формат"
@@ -2150,7 +2150,7 @@ class Messages(object):
     FORMAT_FULLHD_MOBILE_BUTTON_MSG = "📱FullHD (лучшее для мобильного Telegram)"
     FORMAT_BESTVIDEO_BUTTON_MSG = "📈Bestvideo+Bestaudio (МАКС качество)"
     FORMAT_CUSTOM_BUTTON_MSG = "🎚 Пользовательский (введите свой)"
-    
+
     # Cookies Command Messages
     COOKIES_YOUTUBE_BUTTON_MSG = "📺 YouTube (1-{max})"
     COOKIES_FROM_BROWSER_BUTTON_MSG = "🌐 Из браузера"
@@ -2159,7 +2159,7 @@ class Messages(object):
     COOKIES_VK_BUTTON_MSG = "📘 Vkontakte"
     COOKIES_INSTAGRAM_BUTTON_MSG = "📷 Instagram"
     COOKIES_YOUR_OWN_BUTTON_MSG = "📝 Ваши собственные"
-    
+
     # Args Command Messages
     ARGS_INPUT_TIMEOUT_MSG = "⏰ Режим ввода автоматически закрыт из-за неактивности (5 минут)."
     ARGS_RESET_ALL_BUTTON_MSG = "🔄 Сбросить все"

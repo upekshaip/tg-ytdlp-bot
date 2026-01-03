@@ -427,18 +427,18 @@ def cleanup_on_exit():
             print("✅ HTTP sessions closed")
         except Exception as e:
             print(f"⚠️ Error closing HTTP sessions: {e}")
-        
+
         # Close Firebase connections
         from DATABASE.cache_db import close_all_firebase_connections
         close_all_firebase_connections()
-        
+
         # Close logger handlers
         try:
             from HELPERS.logger import close_logger
             close_logger()
         except Exception as e:
             print(messages.MAGIC_ERROR_CLOSING_LOGGER_MSG.format(error=e))
-        
+
         print(messages.MAGIC_CLEANUP_COMPLETED_MSG)
     except Exception as e:
         print(messages.MAGIC_ERROR_DURING_CLEANUP_MSG.format(error=e))

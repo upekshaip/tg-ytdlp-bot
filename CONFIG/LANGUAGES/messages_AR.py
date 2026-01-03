@@ -8,8 +8,8 @@ class Messages(object):
     #######################################################
     # Messages and errors
     #######################################################
-    CREDITS_MSG = "<blockquote><i>يديره</i> @iilililiiillliiliililliilliliiil\n🇮🇹 @tgytdlp_it_bot\n🇦🇪 @tgytdlp_uae_bot\n🇬🇧 @tgytdlp_uk_bot\n🇫🇷 @tgytdlp_fr_bot</blockquote>\n<b>🌍 تغيير اللغة: /lang</b>"
-    TO_USE_MSG = "<i>لاستخدام هذا البوت تحتاج إلى الاشتراك في قناة تليجرام @tg_ytdlp.</i>\nبعد انضمامك إلى القناة، <b>أعد إرسال رابط الفيديو مرة أخرى وسيقوم البوت بتحميله لك</b> ❤️\n\n<blockquote>P.S. تحميل 🔞NSFW المحتوى والملفات من ☁️Cloud Storage هو مدفوع! 1⭐️ = $0.02</blockquote>\n<blockquote>P.P.S. ‼️ لا تغادر القناة - سيتم حظرك من استخدام البوت ⛔️</blockquote>"
+    CREDITS_MSG = ""
+    TO_USE_MSG = ""
 
     ERROR1 = "لم يتم العثور على رابط URL. يرجى إدخال رابط يحتوي على <b>https://</b> أو <b>http://</b>"
 
@@ -154,7 +154,7 @@ class Messages(object):
 🤝 <i>Contributor:</i> @IIlIlIlIIIlllIIlIIlIllIIllIlIIIl
 </blockquote>
     """
-    
+
     # Version 1.0.0 - Добавлен SAVE_AS_COOKIE_HINT для подсказки по /save_as_cookie
     SAVE_AS_COOKIE_HINT = (
         "فقط احفظ ملف تعريف الارتباط كـ <b><u>cookie.txt</u></b> وأرسله للبوت كوثيقة.\n\n"
@@ -175,7 +175,7 @@ class Messages(object):
         "https://t.me/tg_ytdlp/214 "
         "</blockquote>"
     )
-    
+
     # Search command message (Arabic)
     SEARCH_MSG = """
 🔍 <b>البحث عن الفيديو</b>
@@ -184,10 +184,10 @@ class Messages(object):
 
 <blockquote>على الكمبيوتر فقط اكتب <b>"@vid استعلام_البحث_الخاص_بك"</b> في أي محادثة.</blockquote>
     """
-    
+
     # Settings and Hints (English)
-    
-    
+
+
     IMG_HELP_MSG = (
         "<b>🖼 أمر تحميل الصور</b>\n\n"
         "الاستخدام: <code>/img URL</code>\n\n"
@@ -202,14 +202,14 @@ class Messages(object):
         "<blockquote>vk، 2ch، 35photo، 4chan، 500px، ArtStation، Boosty، Civitai، Cyberdrop، DeviantArt، Discord، Facebook، Fansly، Instagram، Patreon، Pinterest، Reddit، TikTok، Tumblr، Twitter/X، JoyReactor، إلخ. — <a href=\"https://github.com/mikf/gallery-dl/blob/master/docs/supportedsites.md\">القائمة الكاملة</a></blockquote>"
         "انظر أيضًا: "
     )
-    
+
     LINK_HINT_MSG = (
         "الحصول على روابط فيديو مباشرة مع اختيار الجودة.\n\n"
         "الاستخدام: /link + URL \n\n"
         "(مثال: /link https://youtu.be/abc123)\n"
         "(مثال: /link 720 https://youtu.be/abc123)"
     )
-    
+
     # Add bot to group command message
     ADD_BOT_TO_GROUP_MSG = """
 🤖 <b>إضافة البوت إلى المجموعة</b>
@@ -257,16 +257,16 @@ class Messages(object):
 ————————————
 💰 <b>التسعير والإعداد:</b>
 <blockquote>• السعر: <b>$5/شهر</b> لكل بوت واحد في المجموعة
-• الإعداد: اتصل بـ @iilililiiillliiliililliilliliiil
+• الإعداد: اتصل بـ @andrey_stt
 • الدفع: 💎TON أو طرق أخرى💲
 • الدعم: دعم فني كامل مشمول</blockquote>
 ————————————
 يمكنك إضافة بوتاتي إلى مجموعتك لإلغاء حظر 🔞<b>المحتوى غير المناسب</b> المجاني ومضاعفة (x2️⃣) جميع الحدود.
-اتصل بي إذا كنت تريد مني السماح لمجموعتك باستخدام بوتاتي @iilililiiillliiliililliilliliiil
+اتصل بي إذا كنت تريد مني السماح لمجموعتك باستخدام بوتاتي @andrey_stt
 ————————————
 💡<b>نصيحة:</b> <blockquote>يمكنك المساهمة بالمال مع أي عدد من أصدقائك (على سبيل المثال 100 شخص) وإجراء عملية شراء واحدة للمجموعة بأكملها - جميع أعضاء المجموعة سيكون لديهم وصول غير محدود كامل لجميع وظائف البوتات في تلك المجموعة مقابل <b>0.05$</b> فقط</blockquote>
     """
-    
+
     # NSFW Command Messages
     NSFW_ON_MSG = """
 🔞 <b>وضع المحتوى غير المناسب: مفعل✅</b>
@@ -277,18 +277,18 @@ class Messages(object):
 
 <i>استخدم /nsfw off لتفعيل الضبابية</i>
     """
-    
+
     NSFW_OFF_MSG = """
 🔞 <b>وضع المحتوى غير المناسب: معطل</b>
 
 ⚠️ <b>الضبابية مفعلة</b>
-• سيتم إخفاء المحتوى غير المناسب تحت العوائق   
+• سيتم إخفاء المحتوى غير المناسب تحت العوائق
 • للعرض، ستحتاج إلى النقر على الوسائط
 • ستطبق العوائق على وسائط المحتوى غير المناسب.
 
 <i>استخدم /nsfw on لإلغاء الضبابية</i>
     """
-    
+
     NSFW_INVALID_MSG = """
 ❌ <b>معامل غير صحيح</b>
 
@@ -296,7 +296,7 @@ class Messages(object):
 • <code>/nsfw on</code> - إلغاء الضبابية
 • <code>/nsfw off</code> - تفعيل الضبابية
     """
-    
+
     # UI Messages - Status and Progress
     CHECKING_CACHE_MSG = "🔄 <b>فحص التخزين المؤقت...</b>\n\n<code>{url}</code>"
     PROCESSING_MSG = "🔄 معالجة..."
@@ -305,7 +305,7 @@ class Messages(object):
     DOWNLOADING_IMAGE_MSG = "📥 <b>تحميل الصورة...</b>\n\n"
 
     DOWNLOAD_COMPLETE_MSG = "✅ <b>اكتمل التحميل</b>\n\n"
-    
+
     # Download status messages
     DOWNLOADED_STATUS_MSG = "تم التحميل:"
     SENT_STATUS_MSG = "تم الإرسال:"
@@ -315,7 +315,7 @@ class Messages(object):
     AUDIO_DOWNLOAD_FINISHED_PROCESSING_MSG = "اكتمل التنزيل، جاري معالجة الصوت..."
     VIDEO_PROCESSING_MSG = "📽 معالجة الفيديو..."
     WAITING_HOURGLASS_MSG = "⌛️"
-    
+
     # Cache Messages
     SENT_FROM_CACHE_MSG = "✅ <b>تم الإرسال من التخزين المؤقت</b>\n\nالألبومات المرسلة: <b>{count}</b>"
     VIDEO_SENT_FROM_CACHE_MSG = "✅ تم إرسال الفيديو بنجاح من التخزين المؤقت."
@@ -341,7 +341,7 @@ class Messages(object):
     # Telegram Rate Limit Messages
     RATE_LIMIT_WITH_TIME_MSG = "⚠️ قام تليجرام بتقييد إرسال الرسائل.\n⏳ يرجى الانتظار: {time}\nلتحديث المؤقت أرسل الرابط مرة أخرى مرتين."
     RATE_LIMIT_NO_TIME_MSG = "⚠️ قام تليجرام بتقييد إرسال الرسائل.\n⏳ يرجى الانتظار: \nلتحديث المؤقت أرسل الرابط مرة أخرى مرتين."
-    
+
     # Subtitles Messages
     SUBTITLES_FAILED_MSG = "⚠️ فشل في تحميل الترجمات"
 
@@ -352,7 +352,7 @@ class Messages(object):
     STREAM_TITLE_MSG = "📹 <b>العنوان:</b> {title}\n"
     STREAM_DURATION_MSG = "⏱ <b>المدة:</b> {duration} ثانية\n"
 
-    
+
     # Download Progress Messages
 
     # Quality Selection Messages
@@ -364,11 +364,11 @@ class Messages(object):
 
     # Tags Error Messages
     TAG_FORBIDDEN_CHARS_MSG = "❌ العلامة #{tag} تحتوي على أحرف محظورة. يُسمح فقط بالأحرف والأرقام و _.\nيرجى استخدام: {example}"
-    
+
     # Playlist Messages
     PLAYLIST_SENT_MSG = "✅ تم إرسال فيديوهات قائمة التشغيل: {sent}/{total} ملف."
     PLAYLIST_CACHE_SENT_MSG = "✅ تم الإرسال من التخزين المؤقت: {cached}/{total} ملف."
-    
+
     # Failed Stream Messages
     FAILED_STREAM_LINKS_MSG = "❌ فشل في الحصول على روابط البث"
 
@@ -387,7 +387,7 @@ class Messages(object):
     COOKIE_FALLBACK_ERROR_MSG = "❌ خطأ في تحميل ملف تعريف الارتباط الاحتياطي. جرب /cookie أو ارفع cookie.txt."
     COOKIE_FALLBACK_UNEXPECTED_MSG = "❌ خطأ غير متوقع أثناء تحميل ملف تعريف الارتباط الاحتياطي."
     BTN_CLOSE = "🔚إغلاق"
-    
+
     # Args command messages
     ARGS_INVALID_BOOL_MSG = "❌ قيمة منطقية غير صحيحة"
     ARGS_CLOSED_MSG = "مغلق"
@@ -413,11 +413,11 @@ class Messages(object):
     ARGS_HTTP_HEADERS_NOTE_MSG = "<b>ملاحظة:</b> ستتم إضافة هذه الرؤوس إلى رؤوس Referer و User-Agent الموجودة.\n\n"
     ARGS_CURRENT_ARGS_MSG = "<b>📋 معاملات yt-dlp الحالية:</b>\n\n"
     ARGS_MENU_DESCRIPTION_MSG = "• ✅/❌ <b>منطقي</b> - مفاتيح صحيح/خطأ\n• 📋 <b>اختيار</b> - اختر من الخيارات\n• 🔢 <b>رقمي</b> - إدخال رقم\n• 📝🔧 <b>نص</b> - إدخال نص/JSON</blockquote>\n\nستتم تطبيق هذه الإعدادات على جميع تحميلاتك."
-    
+
     # أسماء المعاملات المترجمة للعرض
     ARGS_PARAM_NAMES = {
         "force_ipv6": "فرض اتصالات IPv6",
-        "force_ipv4": "فرض اتصالات IPv4", 
+        "force_ipv4": "فرض اتصالات IPv4",
         "no_live_from_start": "عدم تحميل البث المباشر من البداية",
         "live_from_start": "تحميل البث المباشر من البداية",
         "no_check_certificates": "قمع التحقق من شهادة HTTPS",
@@ -467,7 +467,7 @@ class Messages(object):
         "• 📝🔧 <b>نص</b> - إدخال نص/JSON</blockquote>\n\n"
         "ستتم تطبيق هذه الإعدادات على جميع تحميلاتك."
     )
-    
+
     # Additional missing messages
     PLEASE_WAIT_MSG = "⏳ يرجى الانتظار..."
     ERROR_OCCURRED_SHORT_MSG = "❌ حدث خطأ"
@@ -494,11 +494,11 @@ class Messages(object):
     ARGS_INVALID_NUMBER_INPUT_MSG = "❌ يرجى تقديم رقم صحيح."
     ARGS_BOOL_VALUE_REQUEST_MSG = "يرجى إرسال <code>True</code> أو <code>False</code> لتفعيل/إلغاء هذا الخيار."
     ARGS_JSON_VALUE_REQUEST_MSG = "يرجى إرسال JSON صحيح."
-    
+
     # Tags command messages
     TAGS_NO_TAGS_MSG = "ليس لديك علامات بعد."
     TAGS_MESSAGE_CLOSED_MSG = "تم إغلاق رسالة العلامات."
-    
+
     # Subtitles command messages
     SUBS_DISABLED_MSG = "✅ تم إلغاء الترجمات ووضع السؤال دائماً."
     SUBS_ALWAYS_ASK_ENABLED_MSG = "✅ تم تفعيل وضع السؤال دائماً للترجمات."
@@ -532,7 +532,7 @@ class Messages(object):
     SUBS_ERROR_PROCESSING_MSG = "❌ خطأ في معالجة ملف الترجمات."
     SUBS_ERROR_DOWNLOAD_MSG = "❌ فشل في تحميل الترجمات."
     SUBS_ERROR_MSG = "❌ خطأ في تحميل الترجمات: {error}"
-    
+
     # Split command messages
     SPLIT_SIZE_SET_MSG = "✅ تم تعيين حجم جزء التقسيم إلى: {size}"
     SPLIT_INVALID_SIZE_MSG = (
@@ -559,7 +559,7 @@ class Messages(object):
         "**أمثلة:** `/split 300mb`, `/split 1.2gb`, `/split 1500mb`"
     )
     SPLIT_MENU_CLOSED_MSG = "تم إغلاق القائمة."
-    
+
     # Settings command messages
     SETTINGS_TITLE_MSG = "<b>إعدادات البوت</b>\n\nاختر فئة:"
     SETTINGS_MENU_CLOSED_MSG = "تم إغلاق القائمة."
@@ -576,11 +576,11 @@ class Messages(object):
     SETTINGS_HINT_CLOSED_MSG = "تم إغلاق التلميح."
     SETTINGS_HELP_SENT_MSG = "إرسال نص المساعدة للمستخدم"
     SETTINGS_MENU_OPENED_MSG = "تم فتح قائمة /settings"
-    
+
     # Search command messages
     SEARCH_HELPER_CLOSED_MSG = "🔍 تم إغلاق مساعد البحث"
     SEARCH_CLOSED_MSG = "مغلق"
-    
+
     # Proxy command messages
     PROXY_ENABLED_MSG = "✅ البروكسي {status}."
     PROXY_ERROR_SAVING_MSG = "❌ خطأ في حفظ إعدادات البروكسي."
@@ -593,7 +593,7 @@ class Messages(object):
     PROXY_ERROR_SAVING_CALLBACK_MSG = "❌ خطأ في حفظ إعدادات البروكسي."
     PROXY_ENABLED_CALLBACK_MSG = "تم تفعيل البروكسي."
     PROXY_DISABLED_CALLBACK_MSG = "تم إلغاء البروكسي."
-    
+
     # Other handlers messages
     AUDIO_WAIT_MSG = "⏰ انتظر حتى ينتهي التحميل السابق"
     AUDIO_HELP_MSG = (
@@ -610,7 +610,7 @@ class Messages(object):
     PLAYLIST_HELP_CLOSED_MSG = "تم إغلاق مساعدة قائمة التشغيل."
     USERLOGS_CLOSED_MSG = "تم إغلاق رسالة السجلات."
     HELP_CLOSED_MSG = "تم إغلاق المساعدة."
-    
+
     # NSFW command messages
     NSFW_BLUR_SETTINGS_TITLE_MSG = "🔞 <b>إعدادات ضبابية المحتوى غير المناسب</b>\n\nالمحتوى غير المناسب <b>{status}</b>.\n\nاختر ما إذا كنت تريد ضبابية المحتوى غير المناسب:"
     NSFW_MENU_CLOSED_MSG = "تم إغلاق القائمة."
@@ -618,7 +618,7 @@ class Messages(object):
     NSFW_BLUR_ENABLED_MSG = "تم تفعيل ضبابية المحتوى غير المناسب."
     NSFW_BLUR_DISABLED_CALLBACK_MSG = "تم إلغاء ضبابية المحتوى غير المناسب."
     NSFW_BLUR_ENABLED_CALLBACK_MSG = "تم تفعيل ضبابية المحتوى غير المناسب."
-    
+
     # MediaInfo command messages
     MEDIAINFO_ENABLED_MSG = "✅ معلومات الوسائط {status}."
     MEDIAINFO_MENU_TITLE_MSG = "تفعيل أو إلغاء إرسال معلومات الوسائط للملفات المحملة؟"
@@ -627,7 +627,7 @@ class Messages(object):
     MEDIAINFO_DISABLED_MSG = "❌ تم إلغاء معلومات الوسائط."
     MEDIAINFO_ENABLED_CALLBACK_MSG = "تم تفعيل معلومات الوسائط."
     MEDIAINFO_DISABLED_CALLBACK_MSG = "تم إلغاء معلومات الوسائط."
-    
+
     # List command messages
     LIST_HELP_MSG = (
         "<b>📃 قائمة التنسيقات المتاحة</b>\n\n"
@@ -676,7 +676,7 @@ class Messages(object):
     LIST_AUDIO_FORMATS_NOTE = "سيتم تحميل هذه التنسيقات كملفات صوت MP3.\n"
     LIST_VIDEO_ONLY_FORMATS_MSG = "🎬 <b>تنسيقات الفيديو فقط:</b> {formats}\n"
     LIST_USE_FORMAT_ID_MSG = "📋 استخدم معرف التنسيق من القائمة أعلاه"
-    
+
     # Link command messages
     LINK_USAGE_MSG = (
         "🔗 <b>الاستخدام:</b>\n"
@@ -696,7 +696,7 @@ class Messages(object):
     LINK_DURATION_MSG = "⏱ <b>المدة:</b> {duration} ثانية\n"
     LINK_VIDEO_STREAM_MSG = "🎬 <b>بث الفيديو:</b>\n<blockquote expandable><a href=\"{url}\">{url}</a></blockquote>\n\n"
     LINK_AUDIO_STREAM_MSG = "🎵 <b>بث الصوت:</b>\n<blockquote expandable><a href=\"{url}\">{url}</a></blockquote>\n\n"
-    
+
     # Keyboard command messages
     KEYBOARD_UPDATED_MSG = "🎹 **تم تحديث إعداد لوحة المفاتيح!**\n\nالإعداد الجديد: **{setting}**"
     KEYBOARD_INVALID_ARG_MSG = (
@@ -716,7 +716,7 @@ class Messages(object):
     KEYBOARD_2X3_ACTIVATED_MSG = "📱 تم تفعيل لوحة المفاتيح 2x3!"
     KEYBOARD_EMOJI_ACTIVATED_MSG = "🔣 تم تفعيل لوحة المفاتيح الرموز التعبيرية!"
     KEYBOARD_ERROR_APPLYING_MSG = "خطأ في تطبيق إعداد لوحة المفاتيح {setting}: {error}"
-    
+
     # Format command messages
     FORMAT_ALWAYS_ASK_SET_MSG = "✅ تم تعيين التنسيق إلى: السؤال دائماً. سيتم سؤالك عن الجودة في كل مرة ترسل رابط."
     FORMAT_ALWAYS_ASK_CONFIRM_MSG = "✅ تم تعيين التنسيق إلى: السؤال دائماً. الآن سيتم سؤالك عن الجودة في كل مرة ترسل رابط."
@@ -747,12 +747,12 @@ class Messages(object):
     FORMAT_CHOICE_UPDATED_MSG = "✅ تم تحديث اختيار التنسيق."
     FORMAT_CUSTOM_MENU_CLOSED_MSG = "تم إغلاق قائمة التنسيق المخصص"
     FORMAT_CODEC_SET_MSG = "✅ تم تعيين الترميز إلى {codec}"
-    
+
     # Cookies command messages
     COOKIES_BROWSER_CHOICE_UPDATED_MSG = "✅ تم تحديث اختيار المتصفح."
-    
+
     # Clean command messages
-    
+
     # Admin command messages
     ADMIN_ACCESS_DENIED_MSG = "❌ تم رفض الوصول. للمدير فقط."
     ACCESS_DENIED_ADMIN = "❌ تم رفض الوصول. للمدير فقط."
@@ -822,7 +822,7 @@ class Messages(object):
     CHANNEL_GUARD_ACTIVITY_EMPTY_MSG = "ℹ️ لا يوجد نشاط خلال آخر {hours} ساعة (يومان)."
     CHANNEL_GUARD_ACTIVITY_TOTALS_LINE_MSG = "الإجمالي: 🟢 انضم {joined}، 🔴 غادر {left}."
     CHANNEL_GUARD_NO_ACCESS_MSG = "❌ لا يوجد وصول إلى سجل نشاط القناة. لا يمكن للبوتات قراءة سجلات المسؤول. قم بتوفير CHANNEL_GUARD_SESSION_STRING في الإعدادات مع جلسة مستخدم لتمكين هذه الميزة."
-    
+
     # Clean command messages
     CLEAN_COOKIES_CLEANED_MSG = "تم تنظيف ملفات تعريف الارتباط."
     CLEAN_LOGS_CLEANED_MSG = "تم تنظيف السجلات."
@@ -838,7 +838,7 @@ class Messages(object):
     CLEAN_FLOOD_WAIT_CLEANED_MSG = "تم تنظيف إعدادات انتظار الفيضان."
     CLEAN_ALL_CLEANED_MSG = "تم تنظيف جميع الملفات."
     CLEAN_COOKIES_MENU_TITLE_MSG = "<b>🍪 ملفات تعريف الارتباط</b>\n\nاختر إجراء:"
-    
+
     # Cookies command messages
     COOKIES_FILE_SAVED_MSG = "✅ تم حفظ ملف تعريف الارتباط"
     COOKIES_SKIPPED_VALIDATION_MSG = "✅ تم تخطي التحقق من ملفات تعريف الارتباط غير الخاصة بـ YouTube"
@@ -849,14 +849,14 @@ class Messages(object):
     COOKIES_YOUTUBE_EXPIRED_MSG = "❌ ملفات تعريف ارتباط YouTube الموجودة منتهية الصلاحية أو غير صحيحة.\n\n🔄 جاري تحميل ملفات جديدة..."
     COOKIES_SOURCE_NOT_CONFIGURED_MSG = "❌ مصدر ملفات تعريف الارتباط {service} غير مُكوّن!"
     COOKIES_SOURCE_MUST_BE_TXT_MSG = "❌ مصدر ملفات تعريف الارتباط {service} يجب أن يكون ملف .txt!"
-    
+
     # Image command messages
     IMG_RANGE_LIMIT_EXCEEDED_MSG = "❗️ تم تجاوز حد النطاق: تم طلب {range_count} ملف (الحد الأقصى {max_img_files}).\n\nاستخدم أحد هذه الأوامر لتحميل الحد الأقصى من الملفات المتاحة:\n\n<code>/img {start_range}-{end_range} {url}</code>\n\n<code>/img {suggested_command_url_format}</code>"
     COMMAND_IMAGE_HELP_CLOSE_BUTTON_MSG = "🔚إغلاق"
     COMMAND_IMAGE_MEDIA_LIMIT_EXCEEDED_MSG = "❗️ تم تجاوز حد الوسائط: تم طلب {count} ملف (الحد الأقصى {max_count}).\n\nاستخدم أحد هذه الأوامر لتحميل الحد الأقصى من الملفات المتاحة:\n\n<code>/img {start_range}-{end_range} {url}</code>\n\n<code>/img {suggested_command_url_format}</code>"
     IMG_FOUND_MEDIA_ITEMS_MSG = "📊 تم العثور على <b>{count}</b> عنصر وسائط من الرابط"
     IMG_SELECT_DOWNLOAD_RANGE_MSG = "اختر نطاق التحميل:"
-    
+
     # Args command parameter descriptions
     ARGS_IMPERSONATE_DESC_MSG = "انتحال شخصية المتصفح"
     ARGS_REFERER_DESC_MSG = "رأس Referer"
@@ -898,7 +898,7 @@ class Messages(object):
     ARGS_VIDEO_FORMAT_DESC_MSG = "تنسيق حاوية الفيديو"
     ARGS_MERGE_OUTPUT_FORMAT_DESC_MSG = "تنسيق حاوية الإخراج للدمج"
     ARGS_SEND_AS_FILE_DESC_MSG = "إرسال جميع الوسائط كوثيقة بدلاً من وسائط"
-    
+
     # Args command short descriptions
     ARGS_IMPERSONATE_SHORT_MSG = "انتحال"
     ARGS_REFERER_SHORT_MSG = "المُحيل"
@@ -939,7 +939,7 @@ class Messages(object):
     ARGS_VIDEO_FORMAT_SHORT_MSG = "تنسيق الفيديو"
     ARGS_MERGE_OUTPUT_FORMAT_SHORT_MSG = "تنسيق الدمج"
     ARGS_SEND_AS_FILE_SHORT_MSG = "إرسال كملف"
-    
+
     # Additional cookies command messages
     COOKIES_FILE_TOO_LARGE_MSG = "❌ الملف كبير جداً. الحد الأقصى للحجم هو 100 كيلوبايت."
     COOKIES_INVALID_FORMAT_MSG = "❌ يُسمح فقط بملفات التنسيق التالي .txt."
@@ -955,23 +955,23 @@ class Messages(object):
     COOKIES_NOT_VALID_MSG = "<b>❌ ليس ملف تعريف ارتباط صحيح.</b>"
     COOKIES_YOUTUBE_SOURCES_NOT_CONFIGURED_MSG = "❌ مصادر ملفات تعريف ارتباط YouTube غير مُكوّنة!"
     COOKIES_DOWNLOADING_YOUTUBE_MSG = "🔄 جاري تحميل وفحص ملفات تعريف ارتباط YouTube...\n\nالمحاولة {attempt} من {total}"
-    
+
     # Additional admin command messages
     ADMIN_ACCESS_DENIED_AUTO_DELETE_MSG = "❌ تم رفض الوصول. للمدير فقط."
     ADMIN_USER_LOGS_TOTAL_MSG = "المجموع: <b>{total}</b>\n<b>{user_id}</b> - السجلات (آخر 10):\n\n{format_str}"
-    
+
     # Additional keyboard command messages
     KEYBOARD_ACTIVATED_MSG = "🎹 تم تفعيل لوحة المفاتيح!"
-    
+
     # Additional subtitles command messages
     SUBS_LANGUAGE_SET_MSG = "✅ تم تعيين لغة الترجمة إلى: {flag} {name}"
     SUBS_LANGUAGE_AUTO_SET_MSG = "✅ تم تعيين لغة الترجمة إلى: {flag} {name} مع تفعيل AUTO/TRANS."
     SUBS_LANGUAGE_MENU_CLOSED_MSG = "تم إغلاق قائمة لغة الترجمة."
     SUBS_DOWNLOADING_MSG = "💬 جاري تحميل الترجمات..."
-    
+
     # Additional admin command messages
     ADMIN_RELOADING_CACHE_MSG = "🔄 جاري إعادة تحميل تخزين Firebase المؤقت في الذاكرة..."
-    
+
     # Additional cookies command messages
     COOKIES_NO_BROWSERS_NO_URL_MSG = "❌ لم يتم تكوين COOKIE_URL. استخدم /cookie أو ارفع cookie.txt."
     COOKIES_DOWNLOADING_FROM_URL_MSG = "📥 جاري تحميل ملفات تعريف الارتباط من الرابط البعيد..."
@@ -986,10 +986,10 @@ class Messages(object):
     COOKIES_FAILED_TO_SAVE_MSG = "❌ فشل في حفظ ملفات تعريف الارتباط: {error}"
     COOKIES_YOUTUBE_WORKING_PROPERLY_MSG = "✅ ملفات تعريف ارتباط YouTube تعمل بشكل صحيح"
     COOKIES_YOUTUBE_EXPIRED_INVALID_MSG = "❌ ملفات تعريف ارتباط YouTube منتهية الصلاحية أو غير صحيحة\n\nاستخدم /cookie للحصول على ملفات جديدة"
-    
+
     # Additional format command messages
     FORMAT_MENU_ADDITIONAL_MSG = "• <code>/format &lt;format_string&gt;</code> - تنسيق مخصص\n• <code>/format 720</code> - جودة 720p\n• <code>/format 4k</code> - جودة 4K"
-    
+
     # Callback answer messages
     FORMAT_HINT_SENT_MSG = "تم إرسال التلميح."
     FORMAT_MKV_TOGGLE_MSG = "MKV الآن {status}"
@@ -1016,20 +1016,20 @@ class Messages(object):
     SETTINGS_FLOOD_WAIT_ACTIVE_MSG = "انتظار الفيضان نشط. جرب لاحقاً."
     OTHER_HELP_CLOSED_MSG = "تم إغلاق المساعدة."
     OTHER_LOGS_MESSAGE_CLOSED_MSG = "تم إغلاق رسالة السجلات."
-    
+
     # Additional split command messages
     SPLIT_MENU_CLOSED_MSG = "تم إغلاق القائمة."
     SPLIT_INVALID_SIZE_CALLBACK_MSG = "حجم غير صحيح."
-    
+
     # Additional error messages
     MEDIAINFO_ERROR_SENDING_MSG = "❌ خطأ في إرسال معلومات الوسائط: {error}"
     LINK_ERROR_OCCURRED_MSG = "❌ حدث خطأ: {error}"
-    
+
     # Additional document caption messages
     MEDIAINFO_DOCUMENT_CAPTION_MSG = "<blockquote>📊 معلومات الوسائط</blockquote>"
     ADMIN_USER_LOGS_CAPTION_MSG = "{user_id} - جميع السجلات"
     ADMIN_BOT_DATA_CAPTION_MSG = "{bot_name} - جميع {path}"
-    
+
     # Additional cookies command messages (missing ones)
     DOWNLOAD_FROM_URL_BUTTON_MSG = "📥 تحميل من الرابط البعيد"
     BROWSER_OPEN_BUTTON_MSG = "🌐 فتح المتصفح"
@@ -1040,20 +1040,20 @@ class Messages(object):
     COOKIES_FLOOD_LIMIT_MSG = "⏳ حد الفيضان. جرب لاحقاً."
     COOKIES_FAILED_OPEN_BROWSER_MSG = "❌ فشل في فتح قائمة ملفات تعريف ارتباط المتصفح"
     COOKIES_SAVE_AS_HINT_CLOSED_MSG = "تم إغلاق تلميح حفظ كملف تعريف ارتباط."
-    
+
     # Link command messages
     LINK_USAGE_MSG = "🔗 <b>الاستخدام:</b>\n<code>/link [quality] URL</code>\n\n<b>أمثلة:</b>\n<blockquote>• /link https://youtube.com/watch?v=... - أفضل جودة\n• /link 720 https://youtube.com/watch?v=... - 720p أو أقل\n• /link 720p https://youtube.com/watch?v=... - نفس ما سبق\n• /link 4k https://youtube.com/watch?v=... - 4K أو أقل\n• /link 8k https://youtube.com/watch?v=... - 8K أو أقل</blockquote>\n\n<b>الجودة:</b> من 1 إلى 10000 (مثال: 144, 240, 720, 1080)"
-    
+
     # Additional format command messages
     FORMAT_8K_QUALITY_MSG = "• <code>/format 8k</code> - جودة 8K"
-    
+
     # Additional link command messages
     LINK_DIRECT_LINK_OBTAINED_MSG = "🔗 <b>تم الحصول على الرابط المباشر</b>\n\n"
     LINK_FORMAT_INFO_MSG = "🎛 <b>التنسيق:</b> <code>{format_spec}</code>\n\n"
     LINK_AUDIO_STREAM_MSG = "🎵 <b>تيار الصوت:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
     LINK_FAILED_GET_STREAMS_MSG = "❌ فشل في الحصول على روابط التيار"
     LINK_ERROR_GETTING_MSG = "❌ <b>خطأ في الحصول على الرابط:</b>\n{error_msg}"
-    
+
     # Additional cookies command messages (more)
     COOKIES_INVALID_YOUTUBE_INDEX_MSG = "❌ فهرس ملف تعريف ارتباط YouTube غير صحيح: {selected_index}. النطاق المتاح هو 1-{total_urls}"
     COOKIES_DOWNLOADING_CHECKING_MSG = "🔄 جاري تحميل وفحص ملفات تعريف ارتباط YouTube...\n\nالمحاولة {attempt} من {total}"
@@ -1061,39 +1061,39 @@ class Messages(object):
     COOKIES_SUCCESS_VALIDATED_MSG = "✅ تم تحميل ملفات تعريف ارتباط YouTube والتحقق منها بنجاح!\n\nتم استخدام المصدر {source} من {total}"
     COOKIES_ALL_EXPIRED_MSG = "❌ جميع ملفات تعريف ارتباط YouTube منتهية الصلاحية أو غير متاحة!\n\nاتصل بمدير البوت لاستبدالها."
     COOKIES_YOUTUBE_RETRY_LIMIT_EXCEEDED_MSG = "⚠️ تم تجاوز الحد الأقصى لمحاولات إعادة تجربة ملفات تعريف ارتباط YouTube!\n\n🔢 الحد الأقصى: {limit} محاولات في الساعة\n⏰ حاول مرة أخرى لاحقاً"
-    
+
     # Additional other command messages
     OTHER_TAG_ERROR_MSG = "❌ العلامة #{wrong} تحتوي على أحرف محظورة. يُسمح فقط بالأحرف والأرقام و _.\nيرجى استخدام: {example}"
-    
+
     # Additional subtitles command messages
     SUBS_INVALID_ARGUMENT_MSG = "❌ **وسيطة غير صحيحة!**\n\n"
     SUBS_LANGUAGE_SET_STATUS_MSG = "✅ تم تعيين لغة الترجمة: {flag} {name}"
-    
+
     # Additional subtitles command messages (more)
     SUBS_EXAMPLE_AUTO_MSG = "مثال: `/subs en auto`"
-    
+
     # Additional subtitles command messages (more more)
     SUBS_SELECTED_LANGUAGE_MSG = "{flag} اللغة المحددة: {name}{auto_text}"
     SUBS_ALWAYS_ASK_TOGGLE_MSG = "✅ وضع السؤال دائماً {status}"
-    
+
     # Additional subtitles menu messages
     SUBS_DISABLED_STATUS_MSG = "🚫 الترجمات معطلة"
     SUBS_SETTINGS_MENU_MSG = "<b>💬 إعدادات الترجمة</b>\n\n{status_text}\n\nاختر لغة الترجمة:\n\n"
     SUBS_SETTINGS_ADDITIONAL_MSG = "• <code>/subs off</code> - تعطيل الترجمات\n"
     SUBS_AUTO_MENU_MSG = "<b>💬 إعدادات الترجمة</b>\n\n{status_text}\n\nاختر لغة الترجمة:"
-    
+
     # Additional link command messages (more)
     LINK_TITLE_MSG = "📹 <b>العنوان:</b> {title}\n"
     LINK_DURATION_MSG = "⏱ <b>المدة:</b> {duration} ثانية\n"
     LINK_VIDEO_STREAM_MSG = "🎬 <b>تيار الفيديو:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
-    
+
     # Additional subtitles limitation messages
     SUBS_LIMITATIONS_MSG = "- جودة 720p كحد أقصى\n- مدة 1.5 ساعة كحد أقصى\n- حجم فيديو 500 ميجابايت كحد أقصى</blockquote>\n\n"
-    
+
     # Additional subtitles warning and command messages
     SUBS_WARNING_MSG = "<blockquote>❗️تحذير: بسبب التأثير العالي على المعالج، هذه الوظيفة بطيئة جداً (قريب من الوقت الفعلي) ومحدودة إلى:\n"
     SUBS_QUICK_COMMANDS_MSG = "<b>أوامر سريعة:</b>\n"
-    
+
     # Additional subtitles command description messages
     SUBS_DISABLE_COMMAND_MSG = "• `/subs off` - تعطيل الترجمات\n"
     SUBS_ENABLE_ASK_MODE_MSG = "• `/subs on` - تفعيل وضع السؤال دائماً\n"
@@ -1102,7 +1102,7 @@ class Messages(object):
     SUBS_SET_LANGUAGE_CODE_MSG = "• <code>/subs on</code> - تفعيل وضع السؤال دائماً\n"
     SUBS_AUTO_SUBS_TEXT = " (ترجمات تلقائية)"
     SUBS_AUTO_MODE_TOGGLE_MSG = "✅ وضع الترجمات التلقائية {status}"
-    
+
     # Subtitles log messages
     SUBS_DISABLED_LOG_MSG = "تم تعطيل الترجمات عبر الأمر: {arg}"
     SUBS_ALWAYS_ASK_ENABLED_LOG_MSG = "تم تفعيل وضع السؤال دائماً للترجمات عبر الأمر: {arg}"
@@ -1112,7 +1112,7 @@ class Messages(object):
     SUBS_LANGUAGE_SET_CALLBACK_LOG_MSG = "عين المستخدم لغة الترجمة إلى: {lang_code}"
     SUBS_AUTO_MODE_TOGGLED_LOG_MSG = "غير المستخدم وضع AUTO/TRANS إلى: {new_auto}"
     SUBS_ALWAYS_ASK_TOGGLED_LOG_MSG = "غير المستخدم وضع السؤال دائماً إلى: {new_always_ask}"
-    
+
     # Cookies log messages
     COOKIES_BROWSER_REQUESTED_LOG_MSG = "طلب المستخدم ملفات تعريف الارتباط من المتصفح."
     COOKIES_BROWSER_SELECTION_SENT_LOG_MSG = "تم إرسال لوحة مفاتيح اختيار المتصفح مع المتصفحات المثبتة فقط."
@@ -1132,7 +1132,7 @@ class Messages(object):
     COOKIES_SERVICE_URL_NOT_TXT_LOG_MSG = "رابط ملف تعريف ارتباط {service} ليس .txt (مخفي)"
     COOKIES_SERVICE_FILE_TOO_LARGE_LOG_MSG = "ملف تعريف ارتباط {service} كبير جداً: {size} بايت (المصدر مخفي)"
     COOKIES_SERVICE_FILE_DOWNLOADED_LOG_MSG = "تم تحميل ملف تعريف ارتباط {service} للمستخدم {user_id} (المصدر مخفي)."
-    
+
     # Admin log messages
     ADMIN_SCRIPT_NOT_FOUND_LOG_MSG = "لم يتم العثور على السكريبت: {script_path}"
     ADMIN_FAILED_SEND_STATUS_LOG_MSG = "فشل في إرسال رسالة الحالة الأولية"
@@ -1152,7 +1152,7 @@ class Messages(object):
     ADMIN_PORN_CACHE_RELOAD_STARTED_LOG_MSG = "بدأ المدير {user_id} إعادة تحميل تخزين المحتوى غير المناسب المؤقت"
     ADMIN_PORN_CACHE_RELOAD_ERROR_LOG_MSG = "خطأ في إعادة تحميل تخزين المحتوى غير المناسب المؤقت بواسطة المدير {user_id}: {error}"
     ADMIN_PORN_CHECK_LOG_MSG = "فحص المدير {user_id} الرابط للمحتوى غير المناسب: {url} - النتيجة: {status}"
-    
+
     # Format log messages
     FORMAT_CHANGE_REQUESTED_LOG_MSG = "طلب المستخدم تغيير التنسيق."
     FORMAT_ALWAYS_ASK_SET_LOG_MSG = "تم تعيين التنسيق إلى ALWAYS_ASK."
@@ -1170,43 +1170,43 @@ class Messages(object):
     FORMAT_ALWAYS_ASK_SET_CALLBACK_LOG_MSG = "تم تعيين التنسيق إلى ALWAYS_ASK."
     FORMAT_CODEC_SET_LOG_MSG = "تم تعيين تفضيل الترميز إلى {codec}"
     FORMAT_CUSTOM_MENU_CLOSED_LOG_MSG = "تم إغلاق قائمة التنسيق المخصص"
-    
+
     # Link log messages
     LINK_EXTRACTED_LOG_MSG = "تم استخراج الرابط المباشر للمستخدم {user_id} من {url}"
     LINK_EXTRACTION_FAILED_LOG_MSG = "فشل استخراج الرابط المباشر للمستخدم {user_id} من {url}: {error}"
     LINK_COMMAND_ERROR_LOG_MSG = "خطأ في أمر الرابط للمستخدم {user_id}: {error}"
-    
+
     # Keyboard log messages
     KEYBOARD_SET_LOG_MSG = "عين المستخدم {user_id} لوحة المفاتيح إلى {setting}"
     KEYBOARD_SET_CALLBACK_LOG_MSG = "عين المستخدم {user_id} لوحة المفاتيح إلى {setting}"
-    
+
     # MediaInfo log messages
     MEDIAINFO_SET_COMMAND_LOG_MSG = "تم تعيين MediaInfo عبر الأمر: {arg}"
     MEDIAINFO_MENU_OPENED_LOG_MSG = "فتح المستخدم قائمة /mediainfo."
     MEDIAINFO_MENU_CLOSED_LOG_MSG = "MediaInfo: تم الإغلاق."
     MEDIAINFO_ENABLED_LOG_MSG = "تم تفعيل MediaInfo."
     MEDIAINFO_DISABLED_LOG_MSG = "تم إلغاء تفعيل MediaInfo."
-    
+
     # Split log messages
     SPLIT_SIZE_SET_ARGUMENT_LOG_MSG = "تم تعيين حجم التقسيم إلى {size} بايت عبر الوسيطة."
     SPLIT_MENU_OPENED_LOG_MSG = "فتح المستخدم قائمة /split."
     SPLIT_SELECTION_CLOSED_LOG_MSG = "تم إغلاق اختيار التقسيم."
     SPLIT_SIZE_SET_CALLBACK_LOG_MSG = "تم تعيين حجم التقسيم إلى {size} بايت."
-    
+
     # Proxy log messages
     PROXY_SET_COMMAND_LOG_MSG = "تم تعيين البروكسي عبر الأمر: {arg}"
     PROXY_MENU_OPENED_LOG_MSG = "فتح المستخدم قائمة /proxy."
     PROXY_MENU_CLOSED_LOG_MSG = "البروكسي: تم الإغلاق."
     PROXY_ENABLED_LOG_MSG = "تم تفعيل البروكسي."
     PROXY_DISABLED_LOG_MSG = "تم إلغاء تفعيل البروكسي."
-    
+
     # Other handlers log messages
     HELP_MESSAGE_CLOSED_LOG_MSG = "تم إغلاق رسالة المساعدة."
     AUDIO_HELP_SHOWN_LOG_MSG = "تم عرض مساعدة /audio"
     PLAYLIST_HELP_REQUESTED_LOG_MSG = "طلب المستخدم مساعدة قائمة التشغيل."
     PLAYLIST_HELP_CLOSED_LOG_MSG = "تم إغلاق مساعدة قائمة التشغيل."
     AUDIO_HINT_CLOSED_LOG_MSG = "تم إغلاق تلميح الصوت."
-    
+
     # Down and Up log messages
     DIRECT_LINK_MENU_CREATED_LOG_MSG = "تم إنشاء قائمة الرابط المباشر عبر زر LINK للمستخدم {user_id} من {url}"
     DIRECT_LINK_EXTRACTION_FAILED_LOG_MSG = "فشل في استخراج الرابط المباشر عبر زر LINK للمستخدم {user_id} من {url}: {error}"
@@ -1237,7 +1237,7 @@ class Messages(object):
     DOWN_UP_SPLITTED_PART_UPLOADED_MSG = "📤 تم رفع الجزء المقسم {part}"
     DOWN_UP_UPLOAD_COMPLETE_MSG = "✅ اكتمل الرفع"
     DOWN_UP_FILES_UPLOADED_MSG = "تم رفع الملفات"
-    
+
     # Always Ask Menu Button Messages
     ALWAYS_ASK_VLC_ANDROID_BUTTON_MSG = "🎬 VLC (Android)"
     ALWAYS_ASK_CLOSE_BUTTON_MSG = "🔚 إغلاق"
@@ -1246,12 +1246,12 @@ class Messages(object):
     ALWAYS_ASK_SUBS_BUTTON_MSG = "💬 ترجمات"
     ALWAYS_ASK_BROWSER_BUTTON_MSG = "🌐 المتصفح"
     ALWAYS_ASK_VLC_IOS_BUTTON_MSG = "🎬 VLC (iOS)"
-    
+
     # Always Ask Menu Callback Messages
     ALWAYS_ASK_GETTING_DIRECT_LINK_MSG = "🔗 جاري الحصول على الرابط المباشر..."
     ALWAYS_ASK_GETTING_FORMATS_MSG = "📃 جاري الحصول على التنسيقات المتاحة..."
     ALWAYS_ASK_STARTING_GALLERY_DL_MSG = "🖼 بدء gallery-dl…"
-    
+
     # Always Ask Menu F-String Messages
     ALWAYS_ASK_DURATION_MSG = "⏱ <b>المدة:</b>"
     ALWAYS_ASK_FORMAT_MSG = "🎛 <b>التنسيق:</b>"
@@ -1355,7 +1355,7 @@ class Messages(object):
     DIRECT_LINK_FAILED_DOWN_UP_LOG_MSG = "فشل في استخراج الرابط المباشر عبر down_and_up_with_format للمستخدم {user_id} من {url}: {error}"
     DIRECT_LINK_EXTRACTED_DOWN_AUDIO_LOG_MSG = "تم استخراج الرابط المباشر عبر down_and_audio للمستخدم {user_id} من {url}"
     DIRECT_LINK_FAILED_DOWN_AUDIO_LOG_MSG = "فشل في استخراج الرابط المباشر عبر down_and_audio للمستخدم {user_id} من {url}: {error}"
-    
+
     # Audio processing messages
     AUDIO_SENT_FROM_CACHE_MSG = "✅ تم إرسال الصوت من التخزين المؤقت."
     AUDIO_PROCESSING_MSG = "🎙️ جاري معالجة الصوت..."
@@ -1371,20 +1371,20 @@ class Messages(object):
     AUDIO_DOWNLOAD_FAILED_MSG = "❌ فشل في تحميل الصوت: {error}"
     DOWNLOAD_TIMEOUT_MSG = "⏰ تم إلغاء التحميل بسبب انتهاء الوقت (ساعتان)"
     VIDEO_DOWNLOAD_COMPLETE_MSG = "{process}\n{bar}   100.0%"
-    
+
     # FFmpeg messages
     VIDEO_FILE_NOT_FOUND_MSG = "❌ لم يتم العثور على ملف الفيديو: {filename}"
     VIDEO_PROCESSING_ERROR_MSG = "❌ خطأ في معالجة الفيديو: {error}"
-    
+
     # Sender messages
     ERROR_SENDING_DESCRIPTION_FILE_MSG = "❌ خطأ في إرسال ملف الوصف: {error}"
     CHANGE_CAPTION_HINT_MSG = "<blockquote>📝 إذا كنت تريد تغيير تسمية الفيديو - أجب على الفيديو بنص جديد</blockquote>"
-    
+
     # Always Ask Menu Messages
     NO_SUBTITLES_DETECTED_MSG = "لم يتم اكتشاف ترجمات"
     VIDEO_PROGRESS_MSG = "<b>فيديو:</b> {current} / {total}"
     AUDIO_PROGRESS_MSG = "<b>صوت:</b> {current} / {total}"
-    
+
     # Error messages
     ERROR_CHECK_SUPPORTED_SITES_MSG = "تحقق <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>هنا</a> إذا كان موقعك مدعوماً"
     ERROR_COOKIE_NEEDED_MSG = "قد تحتاج <code>cookie</code> لتحميل هذا الفيديو. أولاً، نظف مساحة العمل عبر أمر <b>/clean</b>"
@@ -1398,20 +1398,20 @@ class Messages(object):
     SUBTITLE_LANGUAGE_SET_MSG = "تم تعيين لغة الترجمة: {value}"
     AUDIO_SET_MSG = "تم تعيين الصوت: {value}"
     FILTERS_UPDATED_MSG = "تم تحديث المرشحات"
-    
+
     # Always Ask Menu Buttons
     BACK_BUTTON_TEXT = "🔙عودة"
     CLOSE_BUTTON_TEXT = "🔚إغلاق"
     LIST_BUTTON_TEXT = "📃قائمة"
     IMAGE_BUTTON_TEXT = "🖼صورة"
-    
+
     # Always Ask Menu Notes
     QUALITIES_NOT_AUTO_DETECTED_NOTE = "<blockquote>⚠️ لم يتم الكشف التلقائي عن الجودات\nاستخدم زر 'أخرى' لرؤية جميع التنسيقات المتاحة.</blockquote>"
-    
+
     # Live Stream Messages
     LIVE_STREAM_DETECTED_MSG = "🚫 **تم اكتشاف بث مباشر**\n\nتحميل البث المباشر الجاري أو اللامحدود غير مسموح.\n\nيرجى انتظار انتهاء البث والمحاولة مرة أخرى عندما:\n• تصبح مدة البث معروفة\n• ينتهي البث\n"
     AV1_NOT_AVAILABLE_FORMAT_SELECT_MSG = "يرجى اختيار تنسيق مختلف باستخدام أمر `/format`."
-    
+
     # Direct Link Messages
     DIRECT_LINK_OBTAINED_MSG = "🔗 <b>تم الحصول على الرابط المباشر</b>\n\n"
     TITLE_FIELD_MSG = "📹 <b>العنوان:</b> {title}\n"
@@ -1419,21 +1419,21 @@ class Messages(object):
     FORMAT_FIELD_MSG = "🎛 <b>التنسيق:</b> <code>{format_spec}</code>\n\n"
     VIDEO_STREAM_FIELD_MSG = "🎬 <b>تيار الفيديو:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
     AUDIO_STREAM_FIELD_MSG = "🎵 <b>تيار الصوت:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
-    
+
     # Processing Error Messages
     FILE_PROCESSING_ERROR_INVALID_CHARS_MSG = "❌ **خطأ في معالجة الملف**\n\nتم تحميل الفيديو ولكن لا يمكن معالجته بسبب أحرف غير صحيحة في اسم الملف.\n\n"
     FILE_PROCESSING_ERROR_INVALID_ARG_MSG = "❌ **خطأ في معالجة الملف**\n\nتم تحميل الفيديو ولكن لا يمكن معالجته بسبب خطأ في الوسيطة.\n\n"
     FORMAT_NOT_AVAILABLE_MSG = "❌ **التنسيق غير متاح**\n\nتنسيق الفيديو المطلوب غير متاح لهذا الفيديو.\n\n"
     FORMAT_ID_NOT_FOUND_MSG = "❌ لم يتم العثور على معرف التنسيق {format_id} لهذا الفيديو.\n\nمعرفات التنسيق المتاحة: {available_ids}\n"
     AV1_FORMAT_NOT_AVAILABLE_MSG = "❌ **تنسيق AV1 غير متاح لهذا الفيديو.**\n\n**التنسيقات المتاحة:**\n{formats_text}\n\n"
-    
-    # Additional Error Messages  
+
+    # Additional Error Messages
     AUDIO_FILE_PROCESSING_ERROR_INVALID_CHARS_MSG = "❌ **خطأ في معالجة الملف**\n\nتم تحميل الصوت ولكن لا يمكن معالجته بسبب أحرف غير صحيحة في اسم الملف.\n\n"
     AUDIO_FILE_PROCESSING_ERROR_INVALID_ARG_MSG = "❌ **خطأ في معالجة الملف**\n\nتم تحميل الصوت ولكن لا يمكن معالجته بسبب خطأ في الوسيطة.\n\n"
-    
+
     # Keyboard Buttons
     CLEAN_EMOJI = "🧹"
-    COOKIE_EMOJI = "🍪" 
+    COOKIE_EMOJI = "🍪"
     SETTINGS_EMOJI = "⚙️"
     PROXY_EMOJI = "🌐"
     IMAGE_EMOJI = "🖼"
@@ -1453,10 +1453,10 @@ class Messages(object):
     ARGS_EMOJI = "🧰"
     NSFW_EMOJI = "🔞"
     LIST_EMOJI = "📃"
-    
+
     # NSFW Content Messages
     PORN_CONTENT_CANNOT_DOWNLOAD_MSG = "دخل المستخدم محتوى إباحي. لا يمكن تحميله."
-    
+
     # Additional Log Messages
     NSFW_BLUR_SET_COMMAND_LOG_MSG = "تم تعيين ضبابية المحتوى غير المناسب عبر الأمر: {arg}"
     NSFW_MENU_OPENED_LOG_MSG = "فتح المستخدم قائمة /nsfw."
@@ -1485,34 +1485,34 @@ class Messages(object):
     DOWNLOAD_CANCELLED_TIMEOUT_MSG = "⏰ تم إلغاء التحميل بسبب انتهاء الوقت (ساعتان)"
     FAILED_DOWNLOAD_VIDEO_MSG = "❌ فشل في تحميل الفيديو: {error}"
     ERROR_SUBTITLES_NOT_FOUND_MSG = "❌ خطأ: {error}"
-    
+
     # Args command error messages
     ARGS_JSON_MUST_BE_OBJECT_MSG = "❌ يجب أن يكون JSON كائناً (قاموس)."
     ARGS_INVALID_JSON_FORMAT_MSG = "❌ تنسيق JSON غير صالح. يرجى تقديم JSON صالح."
     ARGS_VALUE_MUST_BE_BETWEEN_MSG = "❌ يجب أن تكون القيمة بين {min_val} و {max_val}."
     ARGS_PARAM_SET_TO_MSG = "✅ تم تعيين {description} إلى: <code>{value}</code>"
-    
+
     # Args command button texts
     ARGS_TRUE_BUTTON_MSG = "✅ صحيح"
     ARGS_FALSE_BUTTON_MSG = "❌ خطأ"
     ARGS_BACK_BUTTON_MSG = "🔙 عودة"
     ARGS_CLOSE_BUTTON_MSG = "🔚 إغلاق"
-    
+
     # Args command status texts
     ARGS_STATUS_TRUE_MSG = "✅"
     ARGS_STATUS_FALSE_MSG = "❌"
     ARGS_STATUS_TRUE_DISPLAY_MSG = "✅ صحيح"
     ARGS_STATUS_FALSE_DISPLAY_MSG = "❌ خطأ"
     ARGS_NOT_SET_MSG = "غير محدد"
-    
+
     # Boolean values for import/export (all possible variations)
     ARGS_BOOLEAN_TRUE_VALUES = ["صحيح", "نعم", "أجل", "True", "true", "1", "yes", "on", "✅"]
     ARGS_BOOLEAN_FALSE_VALUES = ["خطأ", "لا", "ليس", "False", "false", "0", "no", "off", "❌"]
-    
+
     # Args command status indicators
     ARGS_STATUS_SELECTED_MSG = "✅"
     ARGS_STATUS_UNSELECTED_MSG = "⚪"
-    
+
     # Down and Up error messages
     DOWN_UP_AV1_NOT_AVAILABLE_MSG = "❌ تنسيق AV1 غير متاح لهذا الفيديو.\n\nالتنسيقات المتاحة:\n{formats_text}"
     DOWN_UP_ERROR_DOWNLOADING_MSG = "❌ خطأ في التحميل: {error_message}"
@@ -1529,7 +1529,7 @@ class Messages(object):
     AA_ERROR_URL_NOT_EMBEDDABLE_MSG = "❌ لا يمكن تضمين هذا الرابط."
     AA_ERROR_CODEC_NOT_AVAILABLE_MSG = "❌ ترميز {codec} غير متاح لهذا الفيديو"
     AA_ERROR_FORMAT_NOT_AVAILABLE_MSG = "❌ تنسيق {format} غير متاح لهذا الفيديو"
-    
+
     # Always Ask Menu button texts
     AA_AVC_BUTTON_MSG = "✅ AVC"
     AA_AVC_BUTTON_INACTIVE_MSG = "☑️ AVC"
@@ -1549,21 +1549,21 @@ class Messages(object):
 
     # Flood limit messages
     FLOOD_LIMIT_TRY_LATER_MSG = "⏳ حد الفيضان. جرب لاحقاً."
-    
+
     # Cookies command button texts
     COOKIES_BROWSER_BUTTON_MSG = "✅ {browser_name}"
     COOKIES_CHECK_COOKIE_BUTTON_MSG = "✅ فحص ملف تعريف الارتباط"
-    
+
     # Proxy command button texts
     PROXY_ON_BUTTON_MSG = "✅ تشغيل"
     PROXY_OFF_BUTTON_MSG = "❌ إيقاف"
     PROXY_CLOSE_BUTTON_MSG = "🔚إغلاق"
-    
+
     # MediaInfo command button texts
     MEDIAINFO_ON_BUTTON_MSG = "✅ تشغيل"
     MEDIAINFO_OFF_BUTTON_MSG = "❌ إيقاف"
     MEDIAINFO_CLOSE_BUTTON_MSG = "🔚إغلاق"
-    
+
     # Format command button texts
     FORMAT_AVC1_BUTTON_MSG = "✅ avc1 (H.264)"
     FORMAT_AVC1_BUTTON_INACTIVE_MSG = "☑️ avc1 (H.264)"
@@ -1573,26 +1573,26 @@ class Messages(object):
     FORMAT_VP9_BUTTON_INACTIVE_MSG = "☑️ vp09 (VP9)"
     FORMAT_MKV_ON_BUTTON_MSG = "✅ MKV: تشغيل"
     FORMAT_MKV_OFF_BUTTON_MSG = "☑️ MKV: إيقاف"
-    
+
     # Subtitles command button texts
     SUBS_LANGUAGE_CHECKMARK_MSG = "✅ "
     SUBS_AUTO_EMOJI_MSG = "✅"
     SUBS_AUTO_EMOJI_INACTIVE_MSG = "☑️"
     SUBS_ALWAYS_ASK_EMOJI_MSG = "✅"
     SUBS_ALWAYS_ASK_EMOJI_INACTIVE_MSG = "☑️"
-    
+
     # NSFW command button texts
     NSFW_ON_NO_BLUR_MSG = "✅ تشغيل (بدون ضبابية)"
     NSFW_ON_NO_BLUR_INACTIVE_MSG = "☑️ تشغيل (بدون ضبابية)"
     NSFW_OFF_BLUR_MSG = "✅ إيقاف (ضبابية)"
     NSFW_OFF_BLUR_INACTIVE_MSG = "☑️ إيقاف (ضبابية)"
-    
+
     # Admin command status texts
     ADMIN_STATUS_NSFW_MSG = "🔞"
     ADMIN_STATUS_CLEAN_MSG = "✅"
     ADMIN_STATUS_NSFW_TEXT_MSG = "NSFW"
     ADMIN_STATUS_CLEAN_TEXT_MSG = "نظيف"
-    
+
     # Admin command additional messages
     ADMIN_ERROR_PROCESSING_REPLY_MSG = "خطأ في معالجة رسالة الرد للمستخدم {user}: {error}"
     ADMIN_ERROR_SENDING_BROADCAST_MSG = "خطأ في إرسال البث للمستخدم {user}: {error}"
@@ -1600,35 +1600,35 @@ class Messages(object):
     ADMIN_BOT_DATA_FORMAT_MSG = "{bot_name} {path}\nإجمالي {path}: {count}\nالوقت الحالي: {now}\n\n{data}"
     ADMIN_TOTAL_USERS_MSG = "<i>إجمالي المستخدمين: {count}</i>\nآخر 20 {path}:\n\n{display_list}"
     ADMIN_PORN_CACHE_RELOADED_MSG = "تم إعادة تحميل ذاكرة التخزين المؤقت للمحتوى الإباحي بواسطة المسؤول {admin_id}. النطاقات: {domains}، الكلمات المفتاحية: {keywords}، المواقع: {sites}، القائمة البيضاء: {whitelist}، القائمة الرمادية: {greylist}، القائمة السوداء: {black_list}، الكلمات المفتاحية البيضاء: {white_keywords}، نطاقات البروكسي: {proxy_domains}، نطاقات البروكسي 2: {proxy_2_domains}، الاستعلام النظيف: {clean_query}، نطاقات بدون ملفات تعريف الارتباط: {no_cookie_domains}"
-    
+
     # Args command additional messages
     ARGS_ERROR_SENDING_TIMEOUT_MSG = "خطأ في إرسال رسالة انتهاء الوقت: {error}"
-    
+
     # Language selection messages
     LANG_SELECTION_MSG = "🌍 <b>اختر اللغة</b>\n\n🇺🇸 الإنجليزية\n🇷🇺 الروسية\n🇸🇦 العربية\n🇮🇳 الهندية"
     LANG_CHANGED_MSG = "✅ تم تغيير اللغة إلى {lang_name}"
     LANG_ERROR_MSG = "❌ خطأ في تغيير اللغة"
     LANG_CLOSED_MSG = "تم إغلاق اختيار اللغة"
     # Clean command additional messages
-    
+
     # Cookies command additional messages
     COOKIES_BROWSER_CALLBACK_MSG = "[المتصفح] استدعاء: {callback_data}"
     COOKIES_ADDING_BROWSER_MONITORING_MSG = "إضافة زر مراقبة المتصفح مع الرابط: {miniapp_url}"
     COOKIES_BROWSER_MONITORING_URL_NOT_CONFIGURED_MSG = "رابط مراقبة المتصفح غير مُكوَّن: {miniapp_url}"
-    
+
     # Format command additional messages
-    
+
     # Keyboard command additional messages
     KEYBOARD_SETTING_UPDATED_MSG = "🎹 **تم تحديث إعداد لوحة المفاتيح!**\n\nالإعداد الجديد: **{setting}**"
     KEYBOARD_FAILED_HIDE_MSG = "فشل في إخفاء لوحة المفاتيح: {error}"
-    
+
     # Link command additional messages
     LINK_USING_WORKING_YOUTUBE_COOKIES_MSG = "استخدام ملفات تعريف الارتباط العاملة لـ YouTube لاستخراج الرابط للمستخدم {user_id}"
     LINK_NO_WORKING_YOUTUBE_COOKIES_MSG = "لا توجد ملفات تعريف ارتباط عاملة لـ YouTube متاحة لاستخراج الرابط للمستخدم {user_id}"
     LINK_USING_EXISTING_YOUTUBE_COOKIES_MSG = "استخدام ملفات تعريف الارتباط الموجودة لـ YouTube لاستخراج الرابط للمستخدم {user_id}"
     LINK_NO_YOUTUBE_COOKIES_FOUND_MSG = "لم يتم العثور على ملفات تعريف ارتباط لـ YouTube لاستخراج الرابط للمستخدم {user_id}"
     LINK_COPIED_GLOBAL_COOKIE_FILE_MSG = "تم نسخ ملف تعريف الارتباط العام إلى مجلد المستخدم {user_id} لاستخراج الرابط"
-    
+
     # MediaInfo command additional messages
     MEDIAINFO_USER_REQUESTED_MSG = "[معلومات الوسائط] طلب المستخدم {user_id} أمر معلومات الوسائط"
     MEDIAINFO_USER_IS_ADMIN_MSG = "[معلومات الوسائط] المستخدم {user_id} مسؤول: {is_admin}"
@@ -1636,14 +1636,14 @@ class Messages(object):
     MEDIAINFO_ACCESS_DENIED_MSG = "[معلومات الوسائط] تم رفض الوصول للمستخدم {user_id} - ليس مسؤولاً وليس في القناة"
     MEDIAINFO_ACCESS_GRANTED_MSG = "[معلومات الوسائط] تم منح الوصول للمستخدم {user_id}"
     MEDIAINFO_CALLBACK_MSG = "[معلومات الوسائط] استدعاء: {callback_data}"
-    
+
     # URL Parser error messages
     URL_PARSER_ADMIN_ONLY_MSG = "❌ هذا الأمر متاح للمسؤولين فقط."
-    
+
     # Helper messages
     HELPER_DOWNLOAD_FINISHED_PO_MSG = "✅ اكتمل التحميل مع دعم رمز PO"
     HELPER_FLOOD_LIMIT_TRY_LATER_MSG = "⏳ حد الفيضان. جرب لاحقاً."
-    
+
     # Database error messages
     DB_REST_TOKEN_REFRESH_ERROR_MSG = "❌ خطأ في تحديث رمز REST: {error}"
     DB_ERROR_CLOSING_SESSION_MSG = "❌ خطأ في إغلاق جلسة Firebase: {error}"
@@ -1660,11 +1660,11 @@ class Messages(object):
     DB_STARTING_FIREBASE_DUMP_MSG = "🔄 بدء تحميل نسخة Firebase في {datetime}"
     DB_DEPENDENCY_NOT_AVAILABLE_MSG = "⚠️ التبعية غير متاحة: requests أو Session"
     DB_DATABASE_EMPTY_MSG = "⚠️ قاعدة البيانات فارغة"
-    
+
     # Magic.py error messages
     MAGIC_ERROR_CLOSING_LOGGER_MSG = "❌ خطأ في إغلاق المسجل: {error}"
     MAGIC_ERROR_DURING_CLEANUP_MSG = "❌ خطأ أثناء التنظيف: {error}"
-    
+
     # Update from repo error messages
     UPDATE_CLONE_ERROR_MSG = "❌ خطأ في الاستنساخ: {error}"
     UPDATE_CLONE_TIMEOUT_MSG = "❌ انتهت مهلة الاستنساخ"
@@ -1674,79 +1674,79 @@ class Messages(object):
     # Update from repo success messages
     UPDATE_REPOSITORY_CLONED_SUCCESS_MSG = "✅ تم استنساخ المستودع بنجاح"
     UPDATE_BACKUPS_MOVED_MSG = "✅ تم نقل النسخ الاحتياطية إلى _backup/"
-    
+
     # Magic.py success messages
     MAGIC_ALL_MODULES_LOADED_MSG = "✅ تم تحميل جميع الوحدات"
     MAGIC_CLEANUP_COMPLETED_MSG = "✅ اكتمل التنظيف عند الخروج"
     MAGIC_SIGNAL_RECEIVED_MSG = "\n🛑 تم استلام الإشارة {signal}، إغلاق بأمان..."
-    
+
     # Removed duplicate logger messages - these are user messages, not logger messages
-    
+
     # Download status messages
     DOWNLOAD_STATUS_PLEASE_WAIT_MSG = "يرجى الانتظار..."
     DOWNLOAD_STATUS_HOURGLASS_EMOJIS = ["⏳", "⌛"]
     DOWNLOAD_STATUS_DOWNLOADING_HLS_MSG = "📥 جاري تحميل تيار HLS:"
     DOWNLOAD_STATUS_WAITING_FRAGMENTS_MSG = "انتظار الأجزاء"
-    
+
     # Restore from backup messages
     RESTORE_BACKUP_NOT_FOUND_MSG = "❌ لم يتم العثور على النسخة الاحتياطية {ts} في _backup/"
     RESTORE_FAILED_RESTORE_MSG = "❌ فشل في استعادة {src} -> {dest_path}: {e}"
     RESTORE_SUCCESS_RESTORED_MSG = "✅ تم الاستعادة: {dest_path}"
-    
+
     # Image command messages
     IMG_INSTAGRAM_AUTH_ERROR_MSG = "❌ <b>{error_type}</b>\n\n<b>الرابط:</b> <code>{url}</code>\n\n<b>التفاصيل:</b> {error_details}\n\nتم إيقاف التحميل بسبب خطأ حرج.\n\n💡 <b>نصيحة:</b> إذا كنت تحصل على خطأ 401 غير مصرح، جرب استخدام أمر <code>/cookie instagram</code> أو أرسل ملفات تعريف الارتباط الخاصة بك للمصادقة مع Instagram."
-    
+
     # Porn filter messages
     PORN_DOMAIN_BLACKLIST_MSG = "❌ النطاق في القائمة السوداء للمحتوى الإباحي: {domain_parts}"
     PORN_KEYWORDS_FOUND_MSG = "❌ تم العثور على كلمات مفتاحية إباحية: {keywords}"
     PORN_DOMAIN_WHITELIST_MSG = "✅ النطاق في القائمة البيضاء: {domain}"
     PORN_WHITELIST_KEYWORDS_MSG = "✅ تم العثور على كلمات مفتاحية في القائمة البيضاء: {keywords}"
     PORN_NO_KEYWORDS_FOUND_MSG = "✅ لم يتم العثور على كلمات مفتاحية إباحية"
-    
+
     # Audio download messages
     AUDIO_TIKTOK_API_ERROR_SKIP_MSG = "⚠️ خطأ في TikTok API في الفهرس {index}، تخطي إلى الصوت التالي..."
-    
-    # Video download messages  
+
+    # Video download messages
     VIDEO_TIKTOK_API_ERROR_SKIP_MSG = "⚠️ خطأ في TikTok API في الفهرس {index}، تخطي إلى الفيديو التالي..."
-    
+
     # URL Parser messages
     URL_PARSER_USER_ENTERED_URL_LOG_MSG = "دخل المستخدم <b>رابط</b>\n <b>اسم المستخدم:</b> {user_name}\nالرابط: {url}"
     URL_PARSER_USER_ENTERED_INVALID_MSG = "<b>دخل المستخدم هكذا:</b> {input}\n{error_msg}"
-    
+
     # Channel subscription messages
     CHANNEL_JOIN_BUTTON_MSG = "انضم إلى القناة"
-    
+
     # Handler registry messages
     HANDLER_REGISTERING_MSG = "🔍 تسجيل المعالج: {handler_type} - {func_name}"
-    
+
     # Clean command button messages
     CLEAN_COOKIE_DOWNLOAD_BUTTON_MSG = "📥 /cookie - تحميل ملفات تعريف الارتباط الخمسة الخاصة بي"
     CLEAN_COOKIES_FROM_BROWSER_BUTTON_MSG = "🌐 /cookies_from_browser - الحصول على ملف تعريف ارتباط YouTube من المتصفح"
     CLEAN_CHECK_COOKIE_BUTTON_MSG = "🔎 /check_cookie - التحقق من صحة ملف تعريف الارتباط الخاص بك"
     CLEAN_SAVE_AS_COOKIE_BUTTON_MSG = "🔖 /save_as_cookie - رفع ملف تعريف ارتباط مخصص"
-    
+
     # List command messages
     LIST_CLOSE_BUTTON_MSG = "🔚 إغلاق"
     LIST_AVAILABLE_FORMATS_HEADER_MSG = "التنسيقات المتاحة لـ: {url}"
     LIST_FORMATS_FILE_NAME_MSG = "formats_{user_id}.txt"
-    
+
     # Other handlers button messages
     OTHER_AUDIO_HINT_CLOSE_BUTTON_MSG = "🔚إغلاق"
     OTHER_PLAYLIST_HELP_CLOSE_BUTTON_MSG = "🔚إغلاق"
-    
+
     # Search command button messages
     SEARCH_CLOSE_BUTTON_MSG = "🔚إغلاق"
-    
+
     # Tag command button messages
     TAG_CLOSE_BUTTON_MSG = "🔚إغلاق"
-    
+
     # Magic.py callback messages
     MAGIC_HELP_CLOSED_MSG = "تم إغلاق المساعدة."
-    
+
     # URL extractor callback messages
     URL_EXTRACTOR_CLOSED_MSG = "تم الإغلاق"
     URL_EXTRACTOR_ERROR_OCCURRED_MSG = "حدث خطأ"
-    
+
     # FFmpeg messages
     FFMPEG_NOT_FOUND_MSG = "لم يتم العثور على ffmpeg في PATH أو مجلد المشروع. يرجى تثبيت FFmpeg."
     YTDLP_NOT_FOUND_MSG = "لم يتم العثور على yt-dlp binary في PATH أو مجلد المشروع. يرجى تثبيت yt-dlp."
@@ -1766,7 +1766,7 @@ class Messages(object):
     FFMPEG_THUMBNAIL_NOT_CREATED_MSG = "لم يتم إنشاء الصورة المصغرة في {thumb_dir}، استخدام الافتراضي"
     FFMPEG_COMMAND_EXECUTION_ERROR_MSG = "خطأ في تنفيذ الأمر: {error}"
     FFMPEG_ERROR_CREATING_THUMBNAIL_WITH_FFMPEG_MSG = "خطأ في إنشاء الصورة المصغرة مع FFmpeg: {error}"
-    
+
     # Gallery-dl messages
     GALLERY_DL_SKIPPING_NON_DICT_CONFIG_MSG = "تخطي قسم التكوين غير القاموسي: {section}={opts}"
     GALLERY_DL_SETTING_CONFIG_MSG = "تعيين {section}.{key} = {value}"
@@ -1809,7 +1809,7 @@ class Messages(object):
     GALLERY_DL_DOWNLOAD_JOB_NOT_AVAILABLE_MSG = "gallery_dl.job.DownloadJob غير متاح في هذا البناء"
     GALLERY_DL_SEARCHING_DOWNLOADED_FILES_MSG = "البحث عن الملفات المحملة في مجلد gallery-dl"
     GALLERY_DL_TRYING_FIND_FILES_BY_NAMES_MSG = "محاولة العثور على الملفات بالأسماء من المستخرج"
-    
+
     # Sender messages
     SENDER_ERROR_READING_USER_ARGS_MSG = "خطأ في قراءة معاملات المستخدم {user_id}: {error}"
     SENDER_FFPROBE_BYPASS_ERROR_MSG = "[FFPROBE BYPASS] خطأ أثناء معالجة الفيديو {video_path}: {error}"
@@ -1820,7 +1820,7 @@ class Messages(object):
     SENDER_ERROR_SENDING_VIDEO_MINIMAL_CAPTION_MSG = "خطأ في إرسال الفيديو مع تسمية مختصرة: {error}"
     SENDER_ERROR_SENDING_FULL_DESCRIPTION_FILE_MSG = "خطأ في إرسال ملف الوصف الكامل: {error}"
     SENDER_ERROR_REMOVING_TEMP_DESCRIPTION_FILE_MSG = "خطأ في إزالة ملف الوصف المؤقت: {error}"
-    
+
     # YT-DLP hook messages
     YTDLP_SKIPPING_MATCH_FILTER_MSG = "تخطي match_filter للنطاق في NO_FILTER_DOMAINS: {url}"
     YTDLP_CHECKING_EXISTING_YOUTUBE_COOKIES_MSG = "فحص ملفات تعريف الارتباط الموجودة لـ YouTube على رابط المستخدم لكشف التنسيق للمستخدم {user_id}"
@@ -1838,16 +1838,16 @@ class Messages(object):
     YTDLP_COPIED_GLOBAL_COOKIE_FILE_MSG = "تم نسخ ملف تعريف الارتباط العام إلى مجلد المستخدم {user_id} لكشف التنسيق"
     YTDLP_FAILED_COPY_GLOBAL_COOKIE_FILE_MSG = "فشل في نسخ ملف تعريف الارتباط العام للمستخدم {user_id}: {error}"
     YTDLP_USING_NO_COOKIES_FOR_DOMAIN_MSG = "استخدام --no-cookies للنطاق في get_video_formats: {url}"
-    
+
     # App instance messages
     APP_INSTANCE_NOT_INITIALIZED_MSG = "التطبيق لم يتم تهيئته بعد. لا يمكن الوصول إلى {name}"
-    
+
     # Caption messages
     CAPTION_INFO_OF_VIDEO_MSG = "\n<b>التسمية:</b> <code>{caption}</code>\n<b>معرف المستخدم:</b> <code>{user_id}</code>\n<b>الاسم الأول للمستخدم:</b> <code>{users_name}</code>\n<b>معرف ملف الفيديو:</b> <code>{video_file_id}</code>"
     CAPTION_ERROR_IN_CAPTION_EDITOR_MSG = "خطأ في محرر التسمية: {error}"
     CAPTION_UNEXPECTED_ERROR_IN_CAPTION_EDITOR_MSG = "خطأ غير متوقع في محرر التسمية: {error}"
     CAPTION_VIDEO_URL_LINK_MSG = '<a href="{url}">🔗 رابط الفيديو</a>{bot_mention}'
-    
+
     # Database messages
     DB_DATABASE_URL_MISSING_MSG = "FIREBASE_CONF.databaseURL غير موجود في التكوين"
     DB_FIREBASE_ADMIN_INITIALIZED_MSG = "✅ تم تهيئة firebase_admin"
@@ -1861,7 +1861,7 @@ class Messages(object):
     DB_GET_CACHED_PLAYLIST_COUNT_FAST_COUNT_MSG = "get_cached_playlist_count: عدد سريع للمدى الكبير: {cached_count} فيديو مخزن مؤقتاً"
     DB_GET_CACHED_MESSAGE_IDS_NO_CACHE_MSG = "get_cached_message_ids: لم يتم العثور على تخزين مؤقت للهاش {url_hash}، الجودة {quality_key}"
     DB_GET_CACHED_MESSAGE_IDS_NO_CACHE_ANY_VARIANT_MSG = "get_cached_message_ids: لم يتم العثور على تخزين مؤقت لأي متغير URL، إرجاع None"
-    
+
     # Database cache auto-reload messages
     DB_AUTO_CACHE_ACCESS_DENIED_MSG = "❌ تم رفض الوصول. للمدير فقط."
     DB_AUTO_CACHE_RELOADING_UPDATED_MSG = "🔄 تم تحديث إعادة تحميل تخزين Firebase المؤقت التلقائي!\n\n📊 الحالة: {status}\n⏰ الجدولة: كل {interval} ساعة من 00:00\n🕒 إعادة التحميل التالية: {next_exec} (خلال {delta_min} دقيقة)"
@@ -1877,7 +1877,7 @@ class Messages(object):
     DB_AUTO_CACHE_INTERVAL_SET_LOG_MSG = "تم تعيين فاصل إعادة التحميل التلقائي إلى {interval}ساعة؛ التالية في {next_exec}"
     DB_AUTO_CACHE_RELOAD_STARTED_LOG_MSG = "بدأت إعادة التحميل التلقائي؛ التالية في {next_exec}"
     DB_AUTO_CACHE_RELOAD_STOPPED_LOG_MSG = "تم إيقاف إعادة التحميل التلقائي بواسطة المدير."
-    
+
     # Database cache messages (console output)
     DB_FIREBASE_CACHE_LOADED_MSG = "✅ تم تحميل تخزين Firebase المؤقت: {count} عقدة جذر"
     DB_FIREBASE_CACHE_NOT_FOUND_MSG = "⚠️ لم يتم العثور على ملف تخزين Firebase المؤقت، البدء بتخزين مؤقت فارغ: {cache_file}"
@@ -1885,10 +1885,10 @@ class Messages(object):
     DB_FIREBASE_CACHE_RELOADED_MSG = "✅ تم إعادة تحميل تخزين Firebase المؤقت: {count} عقدة جذر"
     DB_FIREBASE_CACHE_FILE_NOT_FOUND_MSG = "⚠️ لم يتم العثور على ملف تخزين Firebase المؤقت: {cache_file}"
     DB_FAILED_RELOAD_FIREBASE_CACHE_MSG = "❌ فشل في إعادة تحميل تخزين Firebase المؤقت: {error}"
-    
+
     # Database user ban messages
     DB_USER_BANNED_MSG = "🚫 أنت محظور من البوت!"
-    
+
     # Always Ask Menu messages
     AA_NO_VIDEO_FORMATS_FOUND_MSG = "❔ لم يتم العثور على تنسيقات فيديو. جاري تجربة محمل الصور…"
     AA_FLOOD_WAIT_MSG = "⚠️ Telegram حد من إرسال الرسائل.\n⏳ يرجى الانتظار: {time_str}\nلتحديث المؤقت أرسل الرابط مرة أخرى مرتين."
@@ -1900,18 +1900,18 @@ class Messages(object):
     AA_PROCESSING_WAIT_MSG = "🔎 جاري التحليل... (انتظر 6 ثوان)"
     AA_PROCESSING_MSG = "🔎 جاري التحليل..."
     AA_TAG_FORBIDDEN_CHARS_MSG = "❌ العلامة #{wrong} تحتوي على أحرف محظورة. فقط الحروف والأرقام و _ مسموحة.\nيرجى استخدام: {example}"
-    
+
     # Helper limitter messages
     HELPER_ADMIN_RIGHTS_REQUIRED_MSG = "❗️ للعمل في المجموعة يحتاج البوت إلى صلاحيات المدير. يرجى جعل البوت مديراً لهذه المجموعة."
-    
+
     # URL extractor messages
     URL_EXTRACTOR_WELCOME_MSG = "مرحباً {first_name}،\n \n<i>هذا البوت🤖 يمكنه تحميل أي فيديوهات إلى Telegram مباشرة.😊 لمزيد من المعلومات اضغط <b>/help</b></i> 👈\n\n<blockquote>P.S. تحميل 🔞المحتوى السميح والملفات من ☁️Cloud Storage هو مدفوع! 1⭐️ = $0.02</blockquote>\n<blockquote>P.P.S. ‼️ لا تغادر القناة - سيتم حظرك من استخدام البوت ⛔️</blockquote>\n \n {credits}"
     URL_EXTRACTOR_NO_FILES_TO_REMOVE_MSG = "🗑 لا توجد ملفات للحذف."
     URL_EXTRACTOR_ALL_FILES_REMOVED_MSG = "🗑 تم حذف جميع الملفات بنجاح!\n\nالملفات المحذوفة:\n{files_list}"
-    
+
     # Video extractor messages
     VIDEO_EXTRACTOR_WAIT_DOWNLOAD_MSG = "⏰ انتظر حتى ينتهي التحميل السابق"
-    
+
     # Helper messages
     HELPER_APP_INSTANCE_NONE_MSG = "مثيل التطبيق هو None في check_user"
     HELPER_CHECK_FILE_SIZE_LIMIT_INFO_DICT_NONE_MSG = "check_file_size_limit: info_dict هو None، السماح بالتحميل"
@@ -1926,18 +1926,18 @@ class Messages(object):
     HELPER_COMMAND_TYPE_PLAYLIST_MSG = "قائمة تشغيل"
     HELPER_RANGE_LIMIT_EXCEEDED_MSG = "❗️ تم تجاوز حد النطاق لـ {service}: {count} (الحد الأقصى {max_count}).\n\nاستخدم أحد هذه الأوامر لتحميل أقصى عدد من الملفات المتاحة:\n\n<code>{suggested_command_url_format}</code>\n\n"
     HELPER_RANGE_LIMIT_EXCEEDED_LOG_MSG = "❗️ تم تجاوز حد النطاق لـ {service}: {count} (الحد الأقصى {max_count})\nمعرف المستخدم: {user_id}"
-    
+
     # Handler registry messages
-    
+
     # Download status messages
-    
+
     # POT helper messages
     HELPER_POT_PROVIDER_DISABLED_MSG = "مزود رمز PO معطل في التكوين"
     HELPER_POT_URL_NOT_YOUTUBE_MSG = "الرابط {url} ليس نطاق YouTube، تخطي رمز PO"
     HELPER_POT_PROVIDER_NOT_AVAILABLE_MSG = "مزود رمز PO غير متاح في {base_url}، العودة إلى استخراج YouTube القياسي"
     HELPER_POT_PROVIDER_CACHE_CLEARED_MSG = "تم مسح تخزين مزود رمز PO المؤقت، سيتم فحص التوفر في الطلب التالي"
     HELPER_POT_GENERIC_ARGS_MSG = "عام:impersonate=chrome,youtubetab:skip=authcheck"
-    
+
     # Safe messenger messages
     HELPER_APP_INSTANCE_NOT_AVAILABLE_MSG = "مثيل التطبيق غير متاح بعد"
     HELPER_USER_NAME_MSG = "المستخدم"
@@ -1946,11 +1946,11 @@ class Messages(object):
     HELPER_MSG_SEQNO_ERROR_DETECTED_MSG = "تم اكتشاف خطأ msg_seqno، النوم لمدة {retry_delay} ثانية"
     HELPER_MESSAGE_ID_INVALID_MSG = "MESSAGE_ID_INVALID"
     HELPER_MESSAGE_DELETE_FORBIDDEN_MSG = "MESSAGE_DELETE_FORBIDDEN"
-    
+
     # Proxy helper messages
     HELPER_PROXY_CONFIG_INCOMPLETE_MSG = "تكوين البروكسي غير مكتمل، استخدام الاتصال المباشر"
     HELPER_PROXY_COOKIE_PATH_MSG = "users/{user_id}/cookie.txt"
-    
+
     # URL extractor messages
     URL_EXTRACTOR_HELP_CLOSE_BUTTON_MSG = "🔚إغلاق"
     URL_EXTRACTOR_ADD_GROUP_CLOSE_BUTTON_MSG = "🔚إغلاق"
@@ -1982,16 +1982,16 @@ class Messages(object):
     # YouTube messages
     YOUTUBE_FAILED_EXTRACT_ID_MSG = "فشل في استخراج معرف YouTube"
     YOUTUBE_FAILED_DOWNLOAD_THUMBNAIL_MSG = "فشل في تحميل الصورة المصغرة أو أنها كبيرة جداً"
-        
+
     # Thumbnail downloader messages
-    
-    # Commands messages   
-    
+
+    # Commands messages
+
     # Always Ask menu callback messages
     AA_CHOOSE_AUDIO_LANGUAGE_MSG = "اختر لغة الصوت"
     AA_NO_SUBTITLES_DETECTED_MSG = "لم يتم اكتشاف ترجمات"
     AA_CHOOSE_SUBTITLE_LANGUAGE_MSG = "اختر لغة الترجمة"
-    
+
     # Gallery-dl error type messages
     GALLERY_DL_AUTH_ERROR_MSG = "خطأ في المصادقة"
     GALLERY_DL_ACCOUNT_NOT_FOUND_MSG = "الحساب غير موجود"
@@ -2003,19 +2003,19 @@ class Messages(object):
     GALLERY_DL_VERIFICATION_REQUIRED_MSG = "مطلوب التحقق"
     GALLERY_DL_POLICY_VIOLATION_MSG = "انتهاك السياسة"
     GALLERY_DL_UNKNOWN_ERROR_MSG = "خطأ غير معروف"
-    
+
     # Download started message (used in both audio and video downloads)
     DOWNLOAD_STARTED_MSG = "<b>▶️ بدأ التحميل</b>"
-    
+
     # Split command constants
     SPLIT_CLOSE_BUTTON_MSG = "🔚إغلاق"
-    
+
     # Always ask menu constants
-    
+
     # Search command constants
-    
+
     # List command constants
-    
+
     # Magic.py messages
     MAGIC_VID_HELP_TITLE_MSG = "<b>🎬 أمر تحميل الفيديو</b>\n\n"
     MAGIC_VID_HELP_USAGE_MSG = "الاستخدام: <code>/vid URL</code>\n\n"
@@ -2024,10 +2024,10 @@ class Messages(object):
     MAGIC_VID_HELP_EXAMPLE_2_MSG = "• <code>/vid https://youtube.com/playlist?list=123abc*1*5</code>\n"
     MAGIC_VID_HELP_EXAMPLE_3_MSG = "• <code>/vid 3-7 https://youtube.com/playlist?list=123abc</code>\n\n"
     MAGIC_VID_HELP_ALSO_SEE_MSG = "انظر أيضاً: /audio, /img, /help, /playlist, /settings"
-    
+
     # Flood limit messages
     FLOOD_LIMIT_TRY_LATER_FALLBACK_MSG = "⏳ حد الفيضان. جرب لاحقاً."
-    
+
     # Cookie command usage messages
     COOKIE_COMMAND_USAGE_MSG = """<b>🍪 استخدام أمر ملفات تعريف الارتباط</b>
 
@@ -2040,10 +2040,10 @@ class Messages(object):
 <code>/cookie custom</code> - إظهار تعليمات ملفات تعريف الارتباط المخصصة
 
 <i>الخدمات المتاحة تعتمد على تكوين البوت.</i>"""
-    
+
     # Cookie cache messages
     COOKIE_FILE_REMOVED_CACHE_CLEARED_MSG = "🗑 تم إزالة ملف تعريف الارتباط ومسح التخزين المؤقت."
-    
+
     # Subtitles Command Messages
     SUBS_PREV_BUTTON_MSG = "⬅️ السابق"
     SUBS_BACK_BUTTON_MSG = "🔙عودة"
@@ -2051,7 +2051,7 @@ class Messages(object):
     SUBS_SET_LANGUAGE_MSG = "• <code>/subs ru</code> - تعيين اللغة"
     SUBS_SET_LANGUAGE_AUTO_MSG = "• <code>/subs ru auto</code> - تعيين اللغة مع تفعيل AUTO/TRANS"
     SUBS_VALID_OPTIONS_MSG = "الخيارات الصحيحة:"
-    
+
     # Settings Command Messages
     SETTINGS_LANGUAGE_BUTTON_MSG = "🌍 اللغة"
     SETTINGS_DEV_GITHUB_BUTTON_MSG = "🛠 GitHub المطور"
@@ -2098,20 +2098,20 @@ class Messages(object):
     SETTINGS_NSFW_CMD_BUTTON_MSG = "🔞 /nsfw - إعدادات ضبابية المحتوى غير المناسب"
     SETTINGS_CLEAN_OPTIONS_MSG = "<b>🧹 خيارات التنظيف</b>\n\nاختر ما تريد تنظيفه:"
     SETTINGS_MOBILE_ACTIVATE_SEARCH_MSG = "📱 الهاتف المحمول: تفعيل بحث @vid"
-    
+
     # Search Command Messages
     SEARCH_MOBILE_ACTIVATE_SEARCH_MSG = "📱 الهاتف المحمول: تفعيل بحث @vid"
-    
+
     # Keyboard Command Messages
     KEYBOARD_OFF_BUTTON_MSG = "🔴 إيقاف"
     KEYBOARD_FULL_BUTTON_MSG = "🔣 كامل"
     KEYBOARD_1X3_BUTTON_MSG = "📱 1x3"
     KEYBOARD_2X3_BUTTON_MSG = "📱 2x3"
-    
+
     # Image Command Messages
     IMAGE_URL_CAPTION_MSG = "🔗[رابط الصور]({url})"
     IMAGE_ERROR_MSG = "❌ خطأ: {str(e)}"
-    
+
     # Format Command Messages
     FORMAT_BACK_BUTTON_MSG = "🔙عودة"
     FORMAT_CUSTOM_FORMAT_MSG = "• <code>/format &lt;format_string&gt;</code> - تنسيق مخصص"
@@ -2127,7 +2127,7 @@ class Messages(object):
     FORMAT_FULLHD_MOBILE_BUTTON_MSG = "📱FullHD (الأفضل للهاتف Telegram)"
     FORMAT_BESTVIDEO_BUTTON_MSG = "📈Bestvideo+Bestaudio (أقصى جودة)"
     FORMAT_CUSTOM_BUTTON_MSG = "🎚 مخصص (أدخل الخاص بك)"
-    
+
     # Cookies Command Messages
     COOKIES_YOUTUBE_BUTTON_MSG = "📺 YouTube (1-{max})"
     COOKIES_FROM_BROWSER_BUTTON_MSG = "🌐 من المتصفح"
@@ -2136,7 +2136,7 @@ class Messages(object):
     COOKIES_VK_BUTTON_MSG = "📘 Vkontakte"
     COOKIES_INSTAGRAM_BUTTON_MSG = "📷 Instagram"
     COOKIES_YOUR_OWN_BUTTON_MSG = "📝 الخاص بك"
-    
+
     # Args Command Messages
     ARGS_INPUT_TIMEOUT_MSG = "⏰ تم إغلاق وضع الإدخال تلقائياً بسبب عدم النشاط (5 دقائق)."
     ARGS_RESET_ALL_BUTTON_MSG = "🔄 إعادة تعيين الكل"
