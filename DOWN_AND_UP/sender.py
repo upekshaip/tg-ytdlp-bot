@@ -99,7 +99,7 @@ def send_videos(
             is_spoiler = bool(re.search(r"(?i)(?:^|\s)#nsfw(?:\s|$)", tags_text or ""))
         except Exception:
             is_spoiler = False
-        # Флаг: было ли отправлено как платное медиа
+        # Flag: whether it was sent as paid media
         was_paid = False
         # Form HTML caption: title outside the quote, timecodes outside the quote, description in the quote, tags and link outside the quote
         cap = ''
@@ -162,7 +162,7 @@ def send_videos(
                 cover_path = os.path.join(base_dir, base_name + '.__tgcover_paid.jpg')
                 if os.path.exists(cover_path) and os.path.getsize(cover_path) > 0:
                     return cover_path
-                # 1) Попробовать скачать внешнюю миниатюру (приоритетно)
+                # 1) Try downloading an external thumbnail (preferred)
                 try:
                     tmp_dl = os.path.join(base_dir, base_name + '.__ext_thumb.jpg')
                     if video_url:
@@ -174,7 +174,7 @@ def send_videos(
                                 except Exception:
                                     pass
                                 return cover_path
-                    # удалить временный, если остался
+                    # Remove temporary file if it still exists
                     try:
                         if os.path.exists(tmp_dl):
                             os.remove(tmp_dl)
@@ -182,7 +182,7 @@ def send_videos(
                         pass
                 except Exception:
                     pass
-                # 2) Фолбэк: кадр из видео, затем привести к нужному размеру без паддинга (с сохранением пропорций)
+                # 2) Fallback: extract a video frame, then resize to the target size without padding (preserving aspect ratio)
                 try:
                     tmp_frame = os.path.join(base_dir, base_name + '.__frame.jpg')
                     middle_sec = max(1, int(duration) // 2 if isinstance(duration, int) else 1)
@@ -222,7 +222,7 @@ def send_videos(
 
         def _gen_free_cover(video_path: str) -> str | None:
             try:
-                # Встраиваем миниатюру только если файл >10MB или длительность >=60 сек
+                # Generate thumbnail only if file >10MB or duration >=60s
                 if not _should_generate_cover(video_path, duration):
                     return None
                 base_dir = os.path.dirname(video_path)
@@ -230,7 +230,7 @@ def send_videos(
                 cover_path = os.path.join(base_dir, base_name + '.__tgthumb_ext.jpg')
                 if os.path.exists(cover_path) and os.path.getsize(cover_path) > 0:
                     return cover_path
-                # 1) Попробовать скачать внешнюю миниатюру (без паддинга, только масштаб до 640 по ширине)
+                # 1) Try downloading an external thumbnail (no padding, scale width to 640)
                 try:
                     tmp_dl = os.path.join(base_dir, base_name + '.__ext_thumb.jpg')
                     if video_url and download_thumbnail(video_url, tmp_dl):
@@ -248,7 +248,7 @@ def send_videos(
                         pass
                 except Exception:
                     pass
-                # 2) Фолбэк: кадр из видео (как и раньше)
+                # 2) Fallback: extract a frame from the video (as before)
                 return _gen_thumb(video_path)
             except Exception:
                 return _gen_thumb(video_path)
@@ -256,7 +256,7 @@ def send_videos(
         def _try_send_video(caption_text: str):
             messages = safe_get_messages(user_id)
             nonlocal was_paid
-            # Для бесплатных сообщений — внешний превью без паддинга; для платных — обложка 320x320
+            # For free messages: external preview without padding; for paid: 320x320 cover
             local_thumb_free = _gen_free_cover(video_abs_path)
             # Paid media only in private chats; in groups/channels send regular video
             try:
@@ -266,17 +266,17 @@ def send_videos(
                 is_private_chat = True
             if is_spoiler and is_private_chat:
                 try:
-                    # Пробиваем метаданные и добавляем корректный cover и параметры
+                    # Probe metadata and provide valid cover/parameters
                     try:
                         v_w, v_h, v_dur = get_video_info_ffprobe(video_abs_path)
                     except Exception:
                         v_w, v_h, v_dur = width, height, duration
-                    # duration для paid должен быть float и >0
+                    # Paid duration must be float and >0
                     try:
                         safe_paid_dur = float(v_dur) if v_dur and float(v_dur) > 0 else float(duration) if duration and float(duration) > 0 else 1.0
                     except Exception:
                         safe_paid_dur = 1.0
-                    # ширина/высота обязаны быть заданы (>0)
+                    # Width/height must be set (>0)
                     try:
                         safe_w = int(v_w) if v_w and int(v_w) > 0 else 640
                     except Exception:
@@ -314,7 +314,7 @@ def send_videos(
                     return video_msg
                 except Exception:
                     return result
-            # Для бесплатных тоже удерживаем правильные метаданные и мини-обложку по правилу
+            # For free media, also keep correct metadata and thumbnail
             try:
                 v_w2, v_h2, v_dur2 = get_video_info_ffprobe(video_abs_path)
             except Exception:
@@ -351,7 +351,7 @@ def send_videos(
         def _fallback_send_document(caption_text: str):
             messages = safe_get_messages(user_id)
             nonlocal was_paid
-            # Для бесплатных документов — внешний превью без паддинга
+            # For free documents: external preview without padding
             local_thumb = _gen_free_cover(video_abs_path) or thumb_file_path
             try:
                 if not local_thumb or not os.path.exists(local_thumb):
@@ -380,12 +380,12 @@ def send_videos(
                         v_w, v_h, v_dur = get_video_info_ffprobe(video_abs_path)
                     except Exception:
                         v_w, v_h, v_dur = width, height, duration
-                    # duration для paid должен быть float и >0
+                    # Paid duration must be float and >0
                     try:
                         safe_paid_dur = float(v_dur) if v_dur and float(v_dur) > 0 else float(duration) if duration and float(duration) > 0 else 1.0
                     except Exception:
                         safe_paid_dur = 1.0
-                    # ширина/высота обязаны быть заданы (>0)
+                    # Width/height must be set (>0)
                     try:
                         safe_w = int(v_w) if v_w and int(v_w) > 0 else 640
                     except Exception:
@@ -453,7 +453,7 @@ def send_videos(
                 logger.info(safe_get_messages(user_id).SENDER_USER_SEND_AS_FILE_ENABLED_MSG.format(user_id=user_id))
                 video_msg = _fallback_send_document(cap)
             else:
-                # Первая попытка с полным описанием, с ограничением на количество ретраев по таймауту
+                # First attempt with full caption, limited number of timeout retries
                 attempts_left = 3
                 while True:
                     try:
@@ -483,7 +483,7 @@ def send_videos(
                         # If send_as_file is enabled, always use document
                         video_msg = _fallback_send_document(minimal_cap)
                     else:
-                        # Попытка с коротким описанием и ограниченными ретраями по таймауту
+                        # Try with a shorter caption, with limited timeout retries
                         attempts_left = 2
                         while True:
                             try:
@@ -501,7 +501,7 @@ def send_videos(
                                 raise
                 except Exception as e:
                     logger.error(safe_get_messages(user_id).SENDER_ERROR_SENDING_VIDEO_MINIMAL_CAPTION_MSG.format(error=e))
-                    # Последний фолбэк — без описания, с документом при таймауте
+                    # Final fallback: no caption; use document on timeout
                     try:
                         if send_as_file:
                             video_msg = _fallback_send_document("")

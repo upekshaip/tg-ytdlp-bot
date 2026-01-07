@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-Запуск глобального патча из папки PATCH
+Run the global patch from the PATCH folder
 """
 
 import sys
 import os
 
-# Добавляем корневую папку проекта в путь
+# Add the project root to sys.path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
-# Применяем глобальный патч
+# Apply the global patch
 from GLOBAL_MESSAGES_PATCH import apply_global_messages_patch
 
 if __name__ == "__main__":
-    print("🔧 Запуск глобального патча...")
+    print("🔧 Running global patch...")
     apply_global_messages_patch()
-    print("✅ Патч применен успешно!")
+    print("✅ Patch applied successfully!")

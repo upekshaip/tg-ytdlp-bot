@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # --------------------------------------------------------------------------------------
-# Утилиты
+# Utilities
 # --------------------------------------------------------------------------------------
 
 NSFW_KEYWORDS = {
@@ -148,7 +148,7 @@ def _guess_age_from_text(text: Optional[str]) -> Optional[int]:
 
 
 # --------------------------------------------------------------------------------------
-# Датаклассы
+# Dataclasses
 # --------------------------------------------------------------------------------------
 
 
@@ -243,7 +243,7 @@ class ChannelActivity:
 
 
 class TelegramProfileFetcher:
-    """Локальный кеш для запросов к Telegram Bot API (getChat)."""
+    """Local cache for Telegram Bot API (getChat) requests."""
 
     def __init__(self, ttl_seconds: int = 6 * 3600):
         self._token = getattr(Config, "BOT_TOKEN", None)
@@ -290,7 +290,7 @@ class TelegramProfileFetcher:
         return profile
 
     def batch_fetch_profiles(self, user_ids: List[int], max_workers: int = 5) -> Dict[int, ProfileInfo]:
-        """Массово получает профили для списка пользователей."""
+        """Bulk-fetch profiles for a list of users."""
         from concurrent.futures import ThreadPoolExecutor, as_completed
         results = {}
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -307,12 +307,12 @@ class TelegramProfileFetcher:
 
 
 # --------------------------------------------------------------------------------------
-# Основной коллектор
+# Main collector
 # --------------------------------------------------------------------------------------
 
 
 class StatsCollector:
-    """Агрегирует статистику на основе локального дампа и событий во время работы."""
+    """Aggregate statistics from a local dump and runtime events."""
 
     def __init__(
         self,
@@ -334,7 +334,7 @@ class StatsCollector:
         self._profiles: Dict[int, ProfileInfo] = {}
         self._blocked_users: Dict[int, BlockRecord] = {}
         self._channel_events: Deque[ChannelActivity] = deque(maxlen=500)
-        # timestamp первой зафиксированной активности пользователя
+        # Timestamp of the first recorded user activity
         self._first_seen: Dict[int, int] = {}
         self._latest_dump_ts: int = 0
         self._last_reload_ts: float = 0
@@ -354,7 +354,7 @@ class StatsCollector:
             self._reload_thread = threading.Thread(target=self._reload_loop, daemon=True)
             self._reload_thread.start()
 
-        # Первичное заполнение
+        # Initial population
         try:
             self.reload_from_dump()
         except Exception as exc:
@@ -362,7 +362,7 @@ class StatsCollector:
         self._load_active_sessions_from_disk()
 
     # ------------------------------------------------------------------
-    # Вспомогательные методы
+    # Helper methods
     # ------------------------------------------------------------------
 
     def _reload_loop(self) -> None:
@@ -443,7 +443,7 @@ class StatsCollector:
                     user_id=_safe_int(user_id_str),
                     name=payload.get("name"),
                     username=payload.get("username"),
-                    description="Покинул(а) канал",
+                    description="Left the channel",
                 )
                 channel_events.append(entry)
 
@@ -456,12 +456,12 @@ class StatsCollector:
             self._latest_dump_ts = latest_ts
             self._channel_events = deque(channel_events[-500:], maxlen=500)
             self._last_reload_ts = time.time()
-            # Сбрасываем live-записи, которые уже попали в дамп
+            # Drop live records that already made it into the dump
             self._live_downloads = deque(
                 [rec for rec in self._live_downloads if rec.timestamp > self._latest_dump_ts],
                 maxlen=10_000,
             )
-            # обновляем карту первой активности
+            # Update first-seen map
             self._first_seen = first_seen
         logger.debug(
             "[stats] dump reloaded: downloads=%s blocked=%s events=%s latest_ts=%s",
@@ -518,7 +518,7 @@ class StatsCollector:
                 self._profiles[user_id] = profile
         if hints:
             profile.update_from_payload(hints)
-        # Если данных мало — попробуем Telegram API (но не чаще TTL)
+        # If we have too little data, try Telegram API (but no more often than TTL)
         now = time.time()
         if (now - profile.last_refresh_ts) > self._profile_fetcher.ttl:
             fetched = self._profile_fetcher.get_profile(user_id)
@@ -554,7 +554,7 @@ class StatsCollector:
         with self._lock:
             existing = self._active_sessions.get(user_id)
             if existing:
-                # Обновляем существующую сессию
+                # Update existing session
                 existing.last_event_ts = timestamp
                 if url:
                     existing.current_url = url
@@ -565,7 +565,7 @@ class StatsCollector:
                 if metadata:
                     existing.metadata.update(metadata)
             else:
-                # Создаем новую сессию
+                # Create new session
                 self._active_sessions[user_id] = ActiveSession(
                     user_id=user_id,
                     last_event_ts=timestamp,
@@ -673,7 +673,7 @@ class StatsCollector:
         self._load_active_sessions_from_disk()
 
     # ------------------------------------------------------------------
-    # Публичный интерфейс
+    # Public interface
     # ------------------------------------------------------------------
 
     def record_download(
@@ -716,12 +716,12 @@ class StatsCollector:
         title: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Обновляет прогресс загрузки для активной сессии пользователя."""
+        """Update download progress for an active user session."""
         timestamp = time.time()
         self._update_active_session(user_id, timestamp, url, title, progress, metadata)
 
     def handle_db_event(self, path: str, operation: str, payload: Any) -> None:
-        """Обновляет кеш на основе структур в БД."""
+        """Update cache based on DB events."""
         parts = [segment for segment in path.strip("/").split("/") if segment]
         if len(parts) < 3:
             return
@@ -767,14 +767,14 @@ class StatsCollector:
                         user_id=_safe_int(rest[1]),
                         name=payload.get("name"),
                         username=payload.get("username"),
-                        description="Покинул(а) канал",
+                        description="Left the channel",
                     )
                 )
 
     def get_active_users(self, limit: int = 10, minutes: Optional[int] = None) -> Dict[str, Any]:
         self._maybe_reload_active_sessions_from_disk()
         self._purge_expired_sessions()
-        # Также учитываем последние загрузки из дампа для активных пользователей
+        # Also consider recent downloads from the dump for active users
         now = time.time()
         window = (minutes or 0) * 60
         threshold = now - (window or self.active_timeout)
@@ -813,7 +813,7 @@ class StatsCollector:
         total = len(sessions)
         items = []
         user_ids = [s["user_id"] for s in sessions[:limit]]
-        # Массовая загрузка профилей
+        # Bulk profile fetch
         fetched_profiles = self._profile_fetcher.batch_fetch_profiles(user_ids)
         for session in sessions[:limit]:
             user_id = session["user_id"]
@@ -838,23 +838,21 @@ class StatsCollector:
 
     def get_suspicious_users(self, period: str, limit: int = 20) -> List[Dict[str, Any]]:
         """
-        Пользователи, которые практически непрерывно что‑то качают в указанный период.
+        Users who are downloading almost continuously within the selected period.
 
-        Логика:
-        - Берём все загрузки в окне [window_start, now] (или весь дамп для "all").
-        - Для каждого пользователя считаем:
-            * internal gaps — интервалы между соседними загрузками (НЕ учитываем
-              паузы от начала окна до первой загрузки и от последней до "сейчас").
-            * active_span = last_ts - first_ts.
-            * coverage = active_span / window_span.
-        - В "подозрительные" попадают только те, у кого:
-            * достаточно много событий (MIN_EVENTS);
-            * coverage >= MIN_COVERAGE — т.е. пользователь был активен большую
-              часть периода, а не сделал 2 запроса и ушёл.
-        - В результате сортируем по максимальной внутренней паузе (чем меньше,
-          тем более "беспрерывный" пользователь).
+        Logic:
+        1) Take all downloads in the window [window_start, now] (or the full dump for "all").
+        2) For each user, compute:
+           - internal gaps: time between adjacent downloads (do NOT count idle time from window
+             start to first download, or from last download to "now")
+           - active_span = last_ts - first_ts
+           - coverage = active_span / window_span
+        3) Mark as suspicious only users who have:
+           - enough events (MIN_EVENTS)
+           - coverage >= MIN_COVERAGE (active for a large portion of the period)
+        4) Sort by max internal gap (smaller => more "continuous").
         """
-        # Определяем окно периода
+        # Determine the time window for the period
         delta_map = {
             "today": timedelta(days=1),
             "week": timedelta(days=7),
@@ -870,7 +868,7 @@ class StatsCollector:
             window_end = now
             window_start = int((datetime.now(tz=timezone.utc) - window_delta).timestamp())
 
-        # Собираем таймстемпы по пользователям в пределах окна
+        # Collect timestamps per user within the window
         with self._lock:
             blocked_user_ids = set(self._blocked_users.keys())
         per_user: Dict[int, List[int]] = defaultdict(list)
@@ -890,7 +888,7 @@ class StatsCollector:
                 continue
             timestamps.sort()
             first_ts, last_ts = timestamps[0], timestamps[-1]
-            # внутренние паузы между соседними загрузками
+            # Internal gaps between adjacent downloads
             internal_gaps = [
                 second - first
                 for first, second in zip(timestamps, timestamps[1:])
@@ -900,18 +898,18 @@ class StatsCollector:
                 continue
             max_internal_gap = max(internal_gaps)
 
-            # Покрытие окна активностью пользователя
+            # Coverage of the window by user activity
             effective_window_end = window_end or last_ts
             window_span = max(effective_window_end - window_start, 1)
             active_span = max(last_ts - first_ts, 0)
             coverage = active_span / window_span
             if coverage < MIN_COVERAGE:
-                # пользователь был активен только в небольшой части окна — не считаем подозрительным
+                # Active only during a small part of the window — not suspicious
                 continue
 
             suspicious.append((user_id, max_internal_gap, len(timestamps), last_ts))
 
-        # Чем меньше максимальная пауза и чем больше загрузок, тем "подозрительнее"
+        # Smaller max gap and more downloads => more "suspicious"
         suspicious.sort(key=lambda item: (item[1], -item[2], -item[3]))
 
         result: List[Dict[str, Any]] = []
@@ -942,7 +940,7 @@ class StatsCollector:
             blocked_user_ids = set(self._blocked_users.keys())
         filtered_top = [(user_id, count) for user_id, count in top if user_id not in blocked_user_ids]
         user_ids = [user_id for user_id, _ in filtered_top[:limit]]
-        # Массовая загрузка профилей
+        # Bulk profile fetch
         fetched_profiles = self._profile_fetcher.batch_fetch_profiles(user_ids)
         result = []
         for user_id, count in filtered_top[:limit]:
@@ -988,7 +986,7 @@ class StatsCollector:
         return [{"gender": gender, "count": count} for gender, count in counter.most_common()]
 
     def get_age_stats(self, period: str) -> List[Dict[str, Any]]:
-        """Статистика по «возрасту» аккаунта: дата первой зафиксированной активности."""
+        """Account "age" stats: first recorded activity date."""
         downloads = self._filter_downloads(period)
         with self._lock:
             blocked_user_ids = set(self._blocked_users.keys())
@@ -1033,7 +1031,7 @@ class StatsCollector:
         return self._filter_downloads_by_flag(lambda rec: rec.is_playlist, limit=limit)
 
     def get_power_users(self, min_urls: int = 10, days: int = 7, limit: int = 10) -> List[Dict[str, Any]]:
-        """Пользователи, которые N дней подряд отправляли >M ссылок."""
+        """Users who sent >M URLs for N consecutive days."""
         downloads = self._get_all_downloads()
         with self._lock:
             blocked_user_ids = set(self._blocked_users.keys())
@@ -1064,10 +1062,10 @@ class StatsCollector:
         return result
 
     def get_user_history(self, user_id: int, period: str = "all", limit: int = 100) -> List[Dict[str, Any]]:
-        """Получить историю загрузок пользователя из dump.json (logs)"""
+        """Get a user's download history from dump.json (logs)."""
         result = []
         
-        # Получаем логи напрямую из dump.json
+        # Read logs directly from dump.json
         if not os.path.exists(self.dump_path):
             return result
         
@@ -1092,14 +1090,14 @@ class StatsCollector:
         if not isinstance(user_logs, dict):
             return result
         
-        # Обрабатываем все логи пользователя
+        # Process all user logs
         for ts_str, payload in user_logs.items():
             try:
                 timestamp = int(ts_str)
             except (ValueError, TypeError):
                 continue
             
-            # Фильтр по периоду
+            # Period filter
             if period != "all":
                 delta_map = {
                     "today": timedelta(days=1),
@@ -1111,7 +1109,7 @@ class StatsCollector:
                     if timestamp < window_start:
                         continue
             
-            # Извлекаем данные из payload
+            # Extract data from payload
             url = payload.get("urls", "") or payload.get("url", "")
             title = payload.get("title", "") or payload.get("name", "")
             domain = ""
@@ -1135,10 +1133,10 @@ class StatsCollector:
                 "is_playlist": bool(is_playlist),
             })
         
-        # Сортировка по времени (новые сначала)
+        # Sort by time (newest first)
         result.sort(key=lambda x: x["timestamp"], reverse=True)
         
-        # Ограничение количества
+        # Apply limit
         return result[:limit]
 
     def get_blocked_users(self, limit: int = 50) -> List[Dict[str, Any]]:
@@ -1195,7 +1193,7 @@ class StatsCollector:
 
 
 # --------------------------------------------------------------------------------------
-# Глобальный экземпляр
+# Global instance
 # --------------------------------------------------------------------------------------
 
 
@@ -1204,4 +1202,3 @@ stats_collector = StatsCollector()
 
 def get_stats_collector() -> StatsCollector:
     return stats_collector
-

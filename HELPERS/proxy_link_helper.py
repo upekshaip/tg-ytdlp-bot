@@ -5,43 +5,43 @@ from HELPERS.logger import logger
 
 def is_proxy_domain(url):
     """
-    Проверяет, нужно ли использовать прокси для данного URL.
+    Check whether a proxy should be used for the given URL.
     
     Args:
-        url (str): URL для проверки
+        url (str): URL to check
         
     Returns:
-        bool: True если домен находится в списке PROXY_DOMAINS или PROXY_2_DOMAINS
+        bool: True if the domain is in PROXY_DOMAINS or PROXY_2_DOMAINS
     """
     try:
         parsed_url = urlparse(url)
         domain = parsed_url.netloc.lower()
         
-        # Убираем www. если есть
+        # Strip "www." if present
         if domain.startswith('www.'):
             domain = domain[4:]
             
-        # Проверяем PROXY_DOMAINS
+        # Check PROXY_DOMAINS
         if hasattr(Config, 'PROXY_DOMAINS') and Config.PROXY_DOMAINS:
-            # Проверяем точное совпадение домена
+            # Exact domain match
             if domain in Config.PROXY_DOMAINS:
                 logger.info(f"Domain {domain} found in PROXY_DOMAINS list")
                 return True
                 
-            # Проверяем поддомены
+            # Subdomain match
             for proxy_domain in Config.PROXY_DOMAINS:
                 if domain.endswith('.' + proxy_domain) or domain == proxy_domain:
                     logger.info(f"Domain {domain} matches proxy domain {proxy_domain}")
                     return True
         
-        # Проверяем PROXY_2_DOMAINS
+        # Check PROXY_2_DOMAINS
         if hasattr(Config, 'PROXY_2_DOMAINS') and Config.PROXY_2_DOMAINS:
-            # Проверяем точное совпадение домена
+            # Exact domain match
             if domain in Config.PROXY_2_DOMAINS:
                 logger.info(f"Domain {domain} found in PROXY_2_DOMAINS list")
                 return True
                 
-            # Проверяем поддомены
+            # Subdomain match
             for proxy_domain in Config.PROXY_2_DOMAINS:
                 if domain.endswith('.' + proxy_domain) or domain == proxy_domain:
                     logger.info(f"Domain {domain} matches proxy_2 domain {proxy_domain}")
@@ -54,13 +54,13 @@ def is_proxy_domain(url):
 
 def get_proxy_config():
     """
-    Возвращает конфигурацию первого прокси из настроек.
+    Return configuration for the first proxy from settings.
     
     Returns:
-        dict: Конфигурация прокси или None если прокси не настроен
+        dict: Proxy configuration or None if not configured
     """
     try:
-        # Проверяем, что все необходимые параметры прокси настроены
+        # Ensure all required proxy settings are present
         if (hasattr(Config, 'PROXY_TYPE') and 
             hasattr(Config, 'PROXY_IP') and 
             hasattr(Config, 'PROXY_PORT') and
@@ -71,7 +71,7 @@ def get_proxy_config():
                 'proxy': f"{Config.PROXY_TYPE}://{Config.PROXY_IP}:{Config.PROXY_PORT}"
             }
             
-            # Добавляем аутентификацию если указана
+            # Add authentication if provided
             if (hasattr(Config, 'PROXY_USER') and 
                 hasattr(Config, 'PROXY_PASSWORD') and
                 Config.PROXY_USER and 
@@ -89,13 +89,13 @@ def get_proxy_config():
 
 def get_proxy_2_config():
     """
-    Возвращает конфигурацию второго прокси из настроек.
+    Return configuration for the second proxy from settings.
     
     Returns:
-        dict: Конфигурация прокси или None если прокси не настроен
+        dict: Proxy configuration or None if not configured
     """
     try:
-        # Проверяем, что все необходимые параметры прокси настроены
+        # Ensure all required proxy settings are present
         if (hasattr(Config, 'PROXY_2_TYPE') and 
             hasattr(Config, 'PROXY_2_IP') and 
             hasattr(Config, 'PROXY_2_PORT') and
@@ -106,7 +106,7 @@ def get_proxy_2_config():
                 'proxy': f"{Config.PROXY_2_TYPE}://{Config.PROXY_2_IP}:{Config.PROXY_2_PORT}"
             }
             
-            # Добавляем аутентификацию если указана
+            # Add authentication if provided
             if (hasattr(Config, 'PROXY_2_USER') and 
                 hasattr(Config, 'PROXY_2_PASSWORD') and
                 Config.PROXY_2_USER and 
@@ -147,14 +147,14 @@ def select_proxy_for_domain(url):
 
 def add_proxy_to_ytdl_opts(ytdl_opts, url):
     """
-    Добавляет настройки прокси к опциям yt-dlp если домен требует прокси.
+    Add proxy settings to yt-dlp options if the domain requires a proxy.
     
     Args:
-        ytdl_opts (dict): Опции yt-dlp
-        url (str): URL для скачивания
+        ytdl_opts (dict): yt-dlp options
+        url (str): Download URL
         
     Returns:
-        dict: Обновленные опции yt-dlp
+        dict: Updated yt-dlp options
     """
     if is_proxy_domain(url):
         proxy_config = select_proxy_for_domain(url)
@@ -228,7 +228,7 @@ def get_direct_link_with_proxy(url: str, format_spec: str = "bv+ba/best", user_i
         # Create player-specific URLs
         from urllib.parse import quote, urlparse
         
-        # Кодируем URL для iOS VLC (однократное кодирование)
+        # Encode URL for iOS VLC (single encoding)
         encoded_url = quote(direct_url, safe='')
         
         # Parse URL to get host and path for Android intent

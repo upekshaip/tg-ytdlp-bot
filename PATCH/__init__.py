@@ -1,9 +1,9 @@
 """
-PATCH Module - Глобальные патчи для проекта
+PATCH Module - Global project patches
 """
 
-# Автоматически применяем глобальный патч при импорте модуля
+# Automatically apply the global patch on module import
 from .GLOBAL_MESSAGES_PATCH import apply_global_messages_patch
 
-# Применяем патч
+# Apply patch
 apply_global_messages_patch()

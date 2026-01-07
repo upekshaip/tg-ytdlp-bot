@@ -937,24 +937,6 @@ def get_localized_to_english_mapping() -> Dict[str, str]:
         
         # Old English mappings (for backward compatibility) - removed duplicates
         
-        # Russian mappings (if any)
-        "Разрешить устаревшие подключения к серверу": "legacy_server_connect",
-        "Имитация браузера": "impersonate",
-        "Проверить SSL сертификат": "check_certificate",
-        "Не загружать прямые трансляции с начала": "no_live_from_start",
-        "Загружать прямые трансляции с начала": "live_from_start",
-        "Загружать только одно видео, не плейлист": "no_playlist",
-        "Встроить метаданные в видеофайл": "embed_metadata",
-        "Встроить миниатюру в видеофайл": "embed_thumbnail",
-        "Принудительные IPv4 подключения": "force_ipv4",
-        "Принудительные IPv6 подключения": "force_ipv6",
-        "Игнорировать ошибки загрузки и продолжать": "ignore_errors",
-        "Количество одновременных фрагментов для загрузки": "concurrent_fragments",
-        "Подавить проверку HTTPS сертификата": "no_check_certificates",
-        "Заголовок User-Agent": "user_agent",
-        "Записать миниатюру в файл": "write_thumbnail",
-        "Стратегия заголовка X-Forwarded-For": "xff",
-        
         # Add more mappings as needed for other languages
     }
 
@@ -1001,7 +983,6 @@ def parse_import_message(text: str, user_id: int = None) -> Dict[str, Any]:
     # Check for args header in any supported language
     args_headers = [
         "📋 Current yt-dlp Arguments:",  # English
-        "📋 Текущие аргументы yt-dlp:",  # Russian
         "📋 वर्तमान yt-dlp तर्क:",  # Hindi
         "📋 وسائط yt-dlp الحالية:",  # Arabic
     ]
@@ -1041,8 +1022,7 @@ def parse_import_message(text: str, user_id: int = None) -> Dict[str, Any]:
         elif in_settings:
             # Stop if we hit a separator or instruction line
             if (line.startswith('---') or 
-                'Forward this message' in line or 
-                'Перешлите это сообщение' in line):
+                'Forward this message' in line):
                 break
             clean_lines.append(line)
     
@@ -1069,8 +1049,7 @@ def parse_import_message(text: str, user_id: int = None) -> Dict[str, Any]:
         line = line.strip()
         # Skip empty lines, headers, separators, and HTML tags
         if (not line or line.startswith('📋') or line.startswith('---') or 
-            line.startswith('<i>') or line.startswith('Forward this message') or
-            line.startswith('Перешлите это сообщение')):
+            line.startswith('<i>') or line.startswith('Forward this message')):
             continue
             
         # Parse format: "Display Name: Value"
@@ -1656,7 +1635,6 @@ def args_import_handler(app, message):
         # Check for headers in all supported languages
         args_headers = [
             "📋 Current yt-dlp Arguments:",  # English
-            "📋 Текущие аргументы yt-dlp:",  # Russian
             "📋 वर्तमान yt-dlp तर्क:",  # Hindi
             "📋 وسائط yt-dlp الحالية:",  # Arabic
         ]

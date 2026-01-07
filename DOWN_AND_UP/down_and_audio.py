@@ -168,7 +168,7 @@ def embed_cover_mp3(mp3_path, cover_path, title=None, artist=None, album=None):
 
 # @reply_with_keyboard
 def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None, video_count=1, video_start_with=1, format_override=None, cookies_already_checked=False, use_proxy=False, cached_video_info=None):
-    # Сбрасываем кеш проверенных источников куки для новой задачи загрузки
+    # Reset the checked cookie-source cache for a new download task
     user_id = message.chat.id
     from COMMANDS.cookies_cmd import reset_checked_cookie_sources
     reset_checked_cookie_sources(user_id)
@@ -186,7 +186,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     user_id = message.chat.id
     logger.info(f"down_and_audio called: url={url}, quality_key={quality_key}, video_count={video_count}, video_start_with={video_start_with}")
     
-    # ЖЕСТКО: Сохраняем оригинальный текст с диапазоном для фоллбэка
+    # STRICT: keep the original text with range tags for fallback parsing
     original_message_text = message.text or message.caption or ""
     logger.info(f"[ORIGINAL TEXT] Saved for fallback: {original_message_text}")
     
@@ -272,42 +272,42 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     original_text = message.text or message.caption or ""
     is_playlist = video_count > 1 or is_playlist_with_range(original_text)
     
-    # Получаем video_end_with из original_text, если он там есть
+    # Extract video_end_with from original_text (if present)
     from URL_PARSERS.tags import extract_url_range_tags
     _, parsed_start, parsed_end, _, _, _, _ = extract_url_range_tags(original_text)
     video_end_with = parsed_end if parsed_end != 1 or parsed_start != 1 else (video_start_with + video_count - 1)
     
-    # Определяем, нужен ли обратный порядок (когда start > end)
-    # Для отрицательных индексов: -1 до -7 означает обратный порядок (7, 6, 5, 4, 3, 2, 1)
+    # Determine whether reverse order is needed (when start > end)
+    # For negative indices: -1..-7 implies reverse order (7, 6, 5, 4, 3, 2, 1)
     is_reverse_order = False
     has_negative_indices = False
     if is_playlist and video_start_with is not None and video_end_with is not None:
-        # Если оба отрицательные, всегда используем обратный порядок
+        # If both are negative, always use reverse order
         if video_start_with < 0 and video_end_with < 0:
             is_reverse_order = True
             has_negative_indices = True
-        # Если start > end, это обратный порядок
+        # If start > end, it's reverse order
         elif video_start_with > video_end_with:
             is_reverse_order = True
     
-    # Формируем список индексов с учетом обратного порядка
-    # Для отрицательных индексов нужно будет преобразовать их в положительные после получения общего количества видео
+    # Build the list of indices, taking reverse order into account
+    # For negative indices, we'll convert them to positive after we know total video count
     if is_playlist:
         if has_negative_indices:
-            # Для отрицательных индексов сначала создаем список с отрицательными значениями
-            # Позже преобразуем их в положительные после получения общего количества видео
-            # -1 до -7 означает: качать в порядке 7, 6, 5, 4, 3, 2, 1 (от последнего к первому)
+            # For negative indices we first build a list with negative values,
+            # then convert them to positive after we know total video count.
+            # -1..-7 means: download in order 7, 6, 5, 4, 3, 2, 1 (last to first).
             if abs(video_start_with) < abs(video_end_with):
-                # -1 до -7: создаем список [-1, -2, -3, -4, -5, -6, -7]
+                # -1..-7: build [-1, -2, -3, -4, -5, -6, -7]
                 requested_indices = list(range(video_start_with, video_end_with - 1, -1))
             else:
-                # -7 до -1: создаем список [-7, -6, -5, -4, -3, -2, -1]
+                # -7..-1: build [-7, -6, -5, -4, -3, -2, -1]
                 requested_indices = list(range(video_start_with, video_end_with + 1, 1))
         elif is_reverse_order:
-            # Для обратного порядка: от start до end включительно в обратном порядке
+            # Reverse order: from start to end inclusive, reversed
             requested_indices = list(range(video_start_with, video_end_with - 1, -1))
         else:
-            # Для прямого порядка: от start до end включительно
+            # Forward order: from start to end inclusive
             requested_indices = list(range(video_start_with, video_start_with + video_count))
     else:
         requested_indices = []
@@ -642,7 +642,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     logger.info(f"Existing YouTube cookies failed on user's URL, trying to get new ones for user {user_id}")
                     cookie_urls = get_youtube_cookie_urls()
                     if cookie_urls:
-                        # Получаем только непроверенные источники для этого пользователя
+                        # Use only unchecked sources for this user
                         from COMMANDS.cookies_cmd import get_unchecked_cookie_sources, mark_cookie_source_checked
                         unchecked_indices = get_unchecked_cookie_sources(user_id, cookie_urls)
                         if not unchecked_indices:
@@ -654,7 +654,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                                 cookie_url = cookie_urls[idx]
                                 logger.info(f"Trying YouTube cookie source {idx + 1}/{len(cookie_urls)} for user {user_id}")
                                 
-                                # Отмечаем источник как проверенный
+                                # Mark this source as checked
                                 mark_cookie_source_checked(user_id, idx)
                                 
                                 try:
@@ -683,7 +683,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 logger.info(f"No YouTube cookies found for user {user_id}, attempting to get new ones")
                 cookie_urls = get_youtube_cookie_urls()
                 if cookie_urls:
-                    # Получаем только непроверенные источники для этого пользователя
+                    # Use only unchecked sources for this user
                     from COMMANDS.cookies_cmd import get_unchecked_cookie_sources, mark_cookie_source_checked
                     unchecked_indices = get_unchecked_cookie_sources(user_id, cookie_urls)
                     if not unchecked_indices:
@@ -695,7 +695,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                             cookie_url = cookie_urls[idx]
                             logger.info(f"Trying YouTube cookie source {idx + 1}/{len(cookie_urls)} for user {user_id}")
                             
-                            # Отмечаем источник как проверенный
+                            # Mark this source as checked
                             mark_cookie_source_checked(user_id, idx)
                             
                             try:
@@ -800,7 +800,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 blocks = int(percent // 10)
                 bar = "🟩" * blocks + "⬜️" * (10 - blocks)
                 
-                # Обновляем прогресс в статистике
+                # Update progress in stats
                 try:
                     update_download_progress(
                         user_id=user_id,
@@ -823,7 +823,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "finished":
-                # Обновляем прогресс до 100% при завершении
+                # Update progress to 100% on completion
                 total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
                 try:
                     update_download_progress(
@@ -843,7 +843,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     logger.error(f"Error updating progress: {e}")
                 last_update = current_time
             elif d.get("status") == "error":
-                # Сбрасываем прогресс при ошибке
+                # Reset progress on error
                 downloaded = d.get("downloaded_bytes", 0)
                 total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
                 try:
@@ -903,7 +903,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 ],
                'prefer_ffmpeg': True,
                'extractaudio': True,
-               # Для обратного порядка используем формат START:STOP:-1, иначе просто номер
+               # For reverse order use START:STOP:-1, otherwise just the index
                'playlist_items': playlist_items_value,
                # outtmpl will be set later with sanitized title
                # Allow Unicode characters in filenames
@@ -1143,10 +1143,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     return "POSTPROCESSING_ERROR"
                 
                 # Auto-fallback to gallery-dl (/img) for all supported errors
-                # Но НЕ для аудио, так как gallery-dl не умеет скачивать аудио
-                # В down_and_audio.py мы НЕ делаем fallback на gallery-dl, так как это аудио функция
-                # gallery-dl предназначен только для изображений и видео, не для аудио
-                if False:  # Отключаем fallback на gallery-dl для аудио
+                # But NOT for audio, because gallery-dl can't download audio.
+                # In down_and_audio.py we do NOT fallback to gallery-dl (audio-only function).
+                # gallery-dl is intended for images and video, not audio.
+                if False:  # Disable gallery-dl fallback for audio
                     try:
                         from COMMANDS.image_cmd import image_command
                         from HELPERS.safe_messeger import fake_message
@@ -1164,10 +1164,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                             is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
                             logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
                             
-                            # ЖЕСТКО: Используем сохраненный оригинальный текст с диапазоном
+                            # STRICT: use the saved original text with the range
                             logger.info(f"[FALLBACK DEBUG] Using saved original_message_text: {original_message_text}")
                             
-                            # Ищем URL с диапазоном *start*end
+                            # Look for a URL with *start*end range
                             import re
                             range_url_match = re.search(r'(https?://[^\s\*#]+)\*(\d+)\*(\d+)', original_message_text)
                             if range_url_match:
@@ -1176,7 +1176,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                                 end_range = int(range_url_match.group(3))
                                 logger.info(f"[FALLBACK DEBUG] FOUND RANGE: {parsed_url} with range {start_range}-{end_range}")
                             else:
-                                # Fallback к обычному URL
+                                # Fallback to a regular URL
                                 m = re.search(r'https?://[^\s\*#]+', original_message_text)
                                 parsed_url = m.group(0) if m else original_message_text
                                 start_range = 1
@@ -1207,12 +1207,12 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         except Exception as call_e:
                             logger.error(f"Failed to trigger gallery-dl fallback from audio downloader: {call_e}")
                 
-                # Проверяем, связана ли ошибка с региональными ограничениями YouTube
+                # Check whether the error is related to YouTube geo restrictions
                 if is_youtube_url(url):
                     if is_youtube_geo_error(error_text) and not did_proxy_retry:
                         logger.info(f"YouTube geo-blocked error detected for user {user_id}, attempting retry with proxy")
                         
-                        # Пробуем скачать через прокси
+                        # Try downloading via proxy
                         retry_result = retry_download_with_proxy(
                             user_id, url, try_download_audio, url, current_index
                         )
@@ -1225,15 +1225,15 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                             logger.warning(f"Audio download retry with proxy failed for user {user_id}")
                             did_proxy_retry = True
                 else:
-                    # Для не-YouTube сайтов пробуем перебор куки
+                    # For non-YouTube sites, try cookie rotation
                     logger.info(f"Non-YouTube audio download error detected for user {user_id}, attempting cookie fallback")
                     
-                    # Проверяем, связана ли ошибка с куки
+                    # Check whether the error is cookie-related
                     error_str = error_text.lower()
                     if any(keyword in error_str for keyword in ['cookie', 'auth', 'login', 'sign in', '403', '401', 'forbidden', 'unauthorized']):
                         logger.info(f"Error appears to be cookie-related for {url}, trying cookie fallback")
                         
-                        # Пробуем перебор куки с новой системой
+                        # Try cookie rotation with the new system
                         from COMMANDS.cookies_cmd import try_non_youtube_cookie_fallback
                         retry_result = try_non_youtube_cookie_fallback(
                             user_id, url, try_download_audio, url, current_index
@@ -1269,7 +1269,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     elif "Sign in to confirm" in error_text:
                         error_code = "SIGN_IN_REQUIRED"
                         error_description = "Sign in required - cookies needed"
-                        # Автоматический rotate IP при SIGN_IN_REQUIRED
+                        # Auto rotate IP on SIGN_IN_REQUIRED
                         try:
                             from services.system_service import rotate_ip
                             logger.warning(f"Auto-rotating IP due to SIGN_IN_REQUIRED error for user {user_id}")
@@ -1389,13 +1389,13 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         except Exception as e:
             logger.warning(f"Thumbnail download failed: {e}")
 
-        # Для отрицательных индексов используем весь диапазон сразу, а не цикл
-        total_playlist_count = None  # Общее количество видео в плейлисте (для преобразования отрицательных индексов)
-        has_negative_indices_for_download = False  # Флаг для отрицательных индексов (не используем range_entries_metadata)
+        # For negative indices, use the whole range at once (not a loop)
+        total_playlist_count = None  # Total videos in playlist (for converting negative indices)
+        has_negative_indices_for_download = False  # Flag for negative indices (do not use range_entries_metadata)
         if use_range_download:
-            has_negative_indices_for_download = True  # Для отрицательных индексов скачиваем каждый отдельно
-            # Для отрицательных индексов нужно получить общее количество видео из плейлиста
-            # Делаем предварительный запрос, чтобы получить общее количество видео
+            has_negative_indices_for_download = True  # For negative indices, download each one separately
+            # For negative indices we need the total number of videos in the playlist
+            # Do a preliminary request to get the total video count
             try:
                 from DOWN_AND_UP.yt_dlp_hook import get_video_formats
                 logger.info(f"Getting total playlist count for negative indices conversion (audio)...")
@@ -1407,9 +1407,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         total_playlist_count = len(temp_info["_playlist_entries"])
                 if total_playlist_count:
                     logger.info(f"Total playlist count (audio): {total_playlist_count}")
-                    # Преобразуем отрицательные индексы в положительные
-                    # -1 = последнее видео (total_playlist_count), -2 = предпоследнее (total_playlist_count - 1), и т.д.
-                    # Формула: positive_index = total_playlist_count + negative_index + 1
+                    # Convert negative indices to positive:
+                    # -1 = last video (total_playlist_count), -2 = second-to-last (total_playlist_count - 1), etc.
+                    # Formula: positive_index = total_playlist_count + negative_index + 1
                     converted_indices = []
                     for neg_idx in playlist_indices_all:
                         if neg_idx < 0:
@@ -1417,7 +1417,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                             converted_indices.append(pos_idx)
                         else:
                             converted_indices.append(neg_idx)
-                    # Сортируем в обратном порядке для скачивания от последнего к первому
+                    # Sort in reverse order to download from last to first
                     converted_indices.sort(reverse=True)
                     playlist_indices_all = converted_indices
                     logger.info(f"Converted negative indices to positive (audio): {converted_indices}")
@@ -1425,10 +1425,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 logger.warning(f"Failed to get total playlist count for negative indices (audio): {e}, using original indices")
         
         if use_range_download:
-            # Для отрицательных индексов используем весь диапазон сразу
-            # Теперь indices_to_download содержит уже преобразованные положительные индексы
-            # Для отрицательных индексов всегда используем обратный порядок (от последнего к первому)
-            indices_to_download = playlist_indices_all  # Уже отсортированы в обратном порядке
+            # For negative indices, use the whole range at once.
+            # indices_to_download already contains converted positive indices.
+            # For negative indices, always use reverse order (last to first).
+            indices_to_download = playlist_indices_all  # Already sorted in reverse order
         elif is_playlist and quality_key:
             indices_to_download = uncached_indices
         elif is_playlist:
@@ -1459,7 +1459,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             did_cookie_retry = False
             did_proxy_retry = False
 
-            # Для отрицательных индексов не используем reuse_range_download, скачиваем каждый индекс отдельно
+            # For negative indices, don't use reuse_range_download; download each index separately
             reuse_range_download = use_range_download and range_entries_metadata is not None and not has_negative_indices_for_download
             if reuse_range_download:
                 if idx < len(range_entries_metadata):
@@ -1477,7 +1477,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     current_playlist_items_override = None
                 result = try_download_audio(url, playlist_item_index)
                 current_playlist_items_override = None
-                # Для отрицательных индексов не используем range_entries_metadata, скачиваем каждый индекс отдельно
+                # For negative indices, don't use range_entries_metadata; download each index separately
                 if use_range_download and isinstance(result, dict) and not has_negative_indices_for_download:
                     if "entries" in result:
                         range_entries_metadata = result.get("entries") or []
@@ -1546,7 +1546,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                            }],
                            'prefer_ffmpeg': True,
                            'extractaudio': True,
-                           # Для обратного порядка используем формат START:STOP:-1, иначе просто номер
+                           # For reverse order use START:STOP:-1, otherwise just the index
                           'playlist_items': f"{playlist_item_index}:{playlist_item_index}:-1" if is_reverse_order and is_playlist else str(playlist_item_index),
                            'outtmpl': safe_outtmpl,  # Use safe filename
                            'restrictfilenames': False,

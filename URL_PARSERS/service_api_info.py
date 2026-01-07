@@ -26,8 +26,8 @@ DEFAULT_HEADERS = {
 
 def _load_cookies_for_user(user_id: int) -> Optional[str]:
     """
-    Загружает куки для пользователя.
-    Возвращает путь к файлу куки или None.
+    Load cookies for a user.
+    Returns the cookie file path or None.
     """
     if not user_id:
         return None
@@ -35,16 +35,16 @@ def _load_cookies_for_user(user_id: int) -> Optional[str]:
     user_dir = os.path.join("users", str(user_id))
     user_cookie_path = os.path.join(user_dir, "cookie.txt")
     
-    # Проверяем пользовательские куки
+    # Check user cookies
     if os.path.exists(user_cookie_path):
         return user_cookie_path
     
-    # Пробуем глобальные куки
+    # Try global cookies
     try:
         from CONFIG._config import Config
         global_cookie_path = Config.COOKIE_FILE_PATH
         if os.path.exists(global_cookie_path):
-            # Создаем директорию пользователя и копируем глобальные куки
+            # Create user directory and copy global cookies
             os.makedirs(user_dir, exist_ok=True)
             shutil.copy2(global_cookie_path, user_cookie_path)
             return user_cookie_path
@@ -56,7 +56,7 @@ def _load_cookies_for_user(user_id: int) -> Optional[str]:
 
 def _create_session_with_cookies(user_id: int = None) -> requests.Session:
     """
-    Создает сессию requests с куки пользователя.
+    Create a requests session with user cookies.
     Uses managed session for automatic cleanup.
     """
     from HELPERS.http_manager import get_managed_session
@@ -65,15 +65,15 @@ def _create_session_with_cookies(user_id: int = None) -> requests.Session:
     manager = get_managed_session(session_name)
     session = manager.get_session()
     
-    # Устанавливаем заголовки
+    # Set headers
     session.headers.update(DEFAULT_HEADERS)
     
-    # Загружаем куки если указан user_id
+    # Load cookies if user_id is provided
     if user_id:
         cookie_path = _load_cookies_for_user(user_id)
         if cookie_path:
             try:
-                # Загружаем куки из файла
+                # Load cookies from file
                 session.cookies = _load_cookies_from_file(cookie_path)
                 print(f"[COOKIES] Loaded cookies for user {user_id} from {cookie_path}")
             except Exception as e:
@@ -84,7 +84,7 @@ def _create_session_with_cookies(user_id: int = None) -> requests.Session:
 
 def _load_cookies_from_file(cookie_path: str) -> requests.cookies.RequestsCookieJar:
     """
-    Загружает куки из файла в формате Netscape.
+    Load cookies from a Netscape-format cookie file.
     """
     jar = requests.cookies.RequestsCookieJar()
     
@@ -105,7 +105,7 @@ def _load_cookies_from_file(cookie_path: str) -> requests.cookies.RequestsCookie
                     name = parts[5]
                     value = parts[6]
                     
-                    # Пропускаем куки с истекшим сроком (если expiration > 0)
+                    # Skip expired cookies (when expiration > 0)
                     if expiration != '0':
                         try:
                             exp_time = int(expiration)
@@ -140,7 +140,7 @@ def _http_get_json(url: str, timeout: int = DEFAULT_TIMEOUT_SECONDS, user_id: in
         if resp.ok:
             return resp.json()
         else:
-            # Логируем HTTP ошибки для отладки, но не прерываем процесс
+            # Log HTTP errors for debugging, but do not interrupt the flow
             if resp.status_code == 401:
                 print(f"[HTTP_GET_JSON] Authentication required for {url} (401 Unauthorized)")
             elif resp.status_code == 403:
@@ -172,7 +172,7 @@ def _extract_meta(html: str) -> Dict[str, str]:
 
 def _extract_via_oembed(url: str, endpoints: Tuple[str, ...], user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
     """
-    Пробует стандартные oEmbed endpoints, возвращает (author_name/provider_name, site_label)
+    Try standard oEmbed endpoints and return (author_name/provider_name, site_label).
     """
     for ep in endpoints:
         try:
@@ -182,9 +182,9 @@ def _extract_via_oembed(url: str, endpoints: Tuple[str, ...], user_id: int = Non
                 continue
             author = data.get("author_name") or data.get("author_url") or data.get("title")
             provider = data.get("provider_name") or data.get("provider_url")
-            # Очистим author если это URL
+            # If author is a URL, normalize it
             if isinstance(author, str) and author.startswith("http"):
-                # вытащим хвост пути
+                # Take the last path segment
                 try:
                     from urllib.parse import urlparse
                     p = urlparse(author)
@@ -207,13 +207,14 @@ def _normalize_slug(text: str) -> str:
     text = re.sub(r"[\u2600-\u27BF\U0001F300-\U0001FAD6]+", "", text)
     text = re.sub(r"\s+", " ", text).strip()
     text = text.lower()
-    text = re.sub(r"[^a-z0-9а-яё\s_-]", "", text)
+    # Keep Latin + Cyrillic letters (lowercased above) while stripping everything else.
+    text = re.sub(r"[^a-z0-9\u0430-\u044f\u0451\s_-]", "", text)
     text = text.replace(" ", "_")
     return text
 
 
 def _is_valid_username(token: str) -> bool:
-    """Проверяет, что токен похож на ник: >=3 символов, содержит буквы, не только цифры."""
+    """Check that a token looks like a username: >=3 chars, contains letters, not digits-only."""
     if not token:
         return False
     token = token.strip()
@@ -221,20 +222,20 @@ def _is_valid_username(token: str) -> bool:
         return False
     if token.isdigit():
         return False
-    if not re.search(r"[A-Za-zА-Яа-яЁё]", token):
+    if not re.search(r"[A-Za-z\u0410-\u042f\u0430-\u044f\u0401\u0451]", token):
         return False
     return True
 
 
 def _parse_date_string(date_str: str) -> Optional[str]:
     """
-    Универсальная функция парсинга даты из строки.
-    Возвращает дату в формате DD.MM.YYYY или None.
+    Parse a date from a string.
+    Returns a date in DD.MM.YYYY format or None.
     """
     if not date_str:
         return None
     
-    # Список форматов дат для парсинга
+    # Supported date formats
     date_formats = [
         "%Y-%m-%d",                    # 2024-10-04
         "%Y-%m-%dT%H:%M:%S",          # 2024-10-04T15:30:00
@@ -250,7 +251,7 @@ def _parse_date_string(date_str: str) -> Optional[str]:
         "%d %B %Y",                   # 4 October 2024
     ]
     
-    # Сначала пробуем стандартные форматы
+    # Try standard formats first
     for fmt in date_formats:
         try:
             dt = datetime.strptime(date_str, fmt)
@@ -258,7 +259,7 @@ def _parse_date_string(date_str: str) -> Optional[str]:
         except ValueError:
             continue
     
-    # Если не удалось распарсить, попробуем извлечь год-месяц-день регулярным выражением
+    # If parsing failed, try extracting YYYY-MM-DD via regex
     date_match = re.search(r'(\d{4})-(\d{2})-(\d{2})', date_str)
     if date_match:
         year, month, day = date_match.groups()
@@ -268,9 +269,9 @@ def _parse_date_string(date_str: str) -> Optional[str]:
         except ValueError:
             pass
     
-    # Попробуем ISO формат с временной зоной
+    # Try ISO format with timezone
     try:
-        # Убираем временную зону если есть
+        # Strip timezone suffix if present
         date_clean = re.sub(r'[+-]\d{2}:\d{2}$', '', date_str)
         dt = datetime.fromisoformat(date_clean)
         return dt.strftime("%d.%m.%Y")
@@ -416,27 +417,27 @@ def _extract_instagram_info(url: str, user_id: int = None) -> Tuple[Optional[str
 
 def _extract_instagram_date(url: str, user_id: int = None) -> Optional[str]:
     """
-    Извлекает дату загрузки из Instagram API (oEmbed).
-    Возвращает дату в формате DD.MM.YYYY или None.
+    Extract upload date from the Instagram oEmbed API.
+    Returns a date in DD.MM.YYYY format or None.
     """
     try:
         data = _http_get_json(f"https://www.instagram.com/oembed/?url={url}", user_id=user_id)
         if data and isinstance(data, dict):
-            # oEmbed может содержать дату в разных полях
+            # oEmbed may include the date in different fields
             date_str = data.get("upload_date") or data.get("created_at") or data.get("date")
             if date_str:
                 return _parse_date_string(date_str)
     except Exception as e:
-        # Логируем ошибку, но не прерываем процесс
+        # Log the error but do not interrupt the flow
         print(f"[INSTAGRAM_DATE] API error: {e}")
         pass
     
-    # Fallback: попробуем извлечь из OpenGraph мета-тегов
+    # Fallback: try extracting from OpenGraph meta tags
     try:
         html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
         
-        # Ищем дату в различных мета-тегах
+        # Look for the date in various meta tags
         date_fields = [
             "article:published_time",
             "article:modified_time", 
@@ -506,7 +507,7 @@ def _extract_tiktok_info(url: str, user_id: int = None) -> Tuple[Optional[str], 
 
 
 def _extract_tiktok_date(url: str, user_id: int = None) -> Optional[str]:
-    """Извлекает дату загрузки из TikTok API."""
+    """Extract upload date from TikTok API."""
     # Try with cookies first
     try:
         data = _http_get_json(f"https://www.tiktok.com/oembed?url={url}", user_id=user_id)
@@ -595,7 +596,7 @@ def _extract_x_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optio
 
 
 def _extract_x_date(url: str, user_id: int = None) -> Optional[str]:
-    """Извлекает дату публикации из X (Twitter) API."""
+    """Extract publish date from X (Twitter) API."""
     # Try with cookies first
     try:
         data = _http_get_json(f"https://publish.twitter.com/oembed?url={url}", user_id=user_id)
@@ -662,9 +663,9 @@ def _extract_vk_info(url: str, user_id: int = None) -> Tuple[Optional[str], Opti
                     if t:
                         mm = re.search(r"^(.+?)\s*\|\s*VK$", t, re.IGNORECASE)
                         name = (mm.group(1).strip() if mm and mm.group(1) else t.strip())
-                        name = re.sub(r"^Сообщество\s+«?", "", name).strip()
+                        name = re.sub(r"^\u0421\u043e\u043e\u0431\u0449\u0435\u0441\u0442\u0432\u043e\s+«?", "", name).strip()
                         name = re.sub(r"»$", "", name).strip()
-                        name = re.sub(r"^Запись сообщества\s+", "", name).strip()
+                        name = re.sub(r"^\u0417\u0430\u043f\u0438\u0441\u044c\s+\u0441\u043e\u043e\u0431\u0449\u0435\u0441\u0442\u0432\u0430\s+", "", name).strip()
                         if name:
                             return (name, s)
                 except Exception as e:
@@ -683,9 +684,9 @@ def _extract_vk_info(url: str, user_id: int = None) -> Tuple[Optional[str], Opti
         if title:
             mm = re.search(r"^(.+?)\s*\|\s*VK$", title, re.IGNORECASE)
             if mm and mm.group(1):
-                cleaned = re.sub(r"^Сообщество\s+«?", "", mm.group(1)).strip()
+                cleaned = re.sub(r"^\u0421\u043e\u043e\u0431\u0449\u0435\u0441\u0442\u0432\u043e\s+«?", "", mm.group(1)).strip()
                 cleaned = re.sub(r"»$", "", cleaned).strip()
-                cleaned = re.sub(r"^Запись сообщества\s+", "", cleaned).strip()
+                cleaned = re.sub(r"^\u0417\u0430\u043f\u0438\u0441\u044c\s+\u0441\u043e\u043e\u0431\u0449\u0435\u0441\u0442\u0432\u0430\s+", "", cleaned).strip()
                 if cleaned:
                     return (cleaned, site)
     except Exception as e:
@@ -733,7 +734,7 @@ def _extract_youtube_info(url: str, user_id: int = None) -> Tuple[Optional[str],
 
 
 def _extract_youtube_date(url: str, user_id: int = None) -> Optional[str]:
-    """Извлекает дату загрузки из YouTube API."""
+    """Extract upload date from YouTube API."""
     # Try with cookies first
     try:
         data = _http_get_json(f"https://www.youtube.com/oembed?url={url}", user_id=user_id)
@@ -811,7 +812,7 @@ def _extract_reddit_info(url: str, user_id: int = None) -> Tuple[Optional[str], 
 
 
 def _extract_pinterest_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
-    # Нет официального публичного oEmbed, используем только OpenGraph
+    # No official public oEmbed; use OpenGraph only
     try:
         html = _http_get(url, user_id=user_id)
         metas = _extract_meta(html or "")
@@ -1175,18 +1176,18 @@ SERVICE_DATE_HANDLERS = {
     "tiktok": _extract_tiktok_date,
     "x": _extract_x_date,
     "youtube": _extract_youtube_date,
-    # Добавьте другие сервисы по мере необходимости
+    # Add more services as needed
 }
 
 
 @lru_cache(maxsize=512)
 def get_service_account_info(url: str, user_id: int = None) -> Dict[str, Optional[str]]:
     """
-    Возвращает словарь с ключами:
-      - service: детектированное имя сервиса
-      - account_display: читаемое имя/ник или @handle если получилось
-      - site_label: человекочитаемое название площадки (OG)
-    Никогда не бросает исключений.
+    Return a dict with keys:
+      - service: detected service name
+      - account_display: readable name/handle (if detected)
+      - site_label: human-readable site label (OG)
+    Never raises exceptions.
     """
     try:
         service = _detect_service(url)
@@ -1196,7 +1197,7 @@ def get_service_account_info(url: str, user_id: int = None) -> Dict[str, Optiona
         if not handler:
             return {"service": service, "account_display": None, "site_label": None}
         
-        # Передаем user_id во все handlers для поддержки куки
+        # Pass user_id to all handlers to support cookies
         if user_id:
             name, site_label = handler(url, user_id)
         else:
@@ -1216,8 +1217,8 @@ def get_service_account_info(url: str, user_id: int = None) -> Dict[str, Optiona
 
 def build_tags(info: Dict[str, Optional[str]]) -> Tuple[str, Optional[str]]:
     """
-    Формирует пару (service_tag, account_tag) вида ("#instagram", "#some_account").
-    Второй элемент может быть None, если аккаунт не распознан.
+    Build (service_tag, account_tag) like ("#instagram", "#some_account").
+    The second element can be None if the account was not detected.
     """
     service = info.get("service") or ""
     account = info.get("account_display") or ""
@@ -1234,8 +1235,8 @@ def build_tags(info: Dict[str, Optional[str]]) -> Tuple[str, Optional[str]]:
 
 def get_account_tag(url: str, user_id: int = None) -> str:
     """
-    Удобный интерфейс: возвращает строку хэштегов для сообщения.
-    Пример: "#instagram #some_account" или просто "#instagram".
+    Convenience helper: return a hashtag string for a message.
+    Example: "#instagram #some_account" or just "#instagram".
     """
     info = get_service_account_info(url, user_id)
     service_tag, account_tag = build_tags(info)
@@ -1247,30 +1248,30 @@ def get_account_tag(url: str, user_id: int = None) -> str:
 @lru_cache(maxsize=512)
 def get_service_date(url: str, user_id: int = None) -> Optional[str]:
     """
-    Извлекает дату загрузки/публикации из API различных сервисов.
-    Возвращает дату в формате DD.MM.YYYY или None.
+    Extract upload/publish date from various service APIs.
+    Returns a date in DD.MM.YYYY format or None.
     
-    Поддерживаемые сервисы:
-    - Instagram (oEmbed API) - с поддержкой куки
+    Supported services:
+    - Instagram (oEmbed API) - supports cookies
     - TikTok (oEmbed API)
     - X/Twitter (oEmbed API)
     - YouTube (oEmbed API)
-    - И другие через OpenGraph мета-теги
+    - Others via OpenGraph meta tags
     
-    ВАЖНО: Эта функция НЕ критична для работы бота. 
-    Если API недоступен (например, Instagram требует аутентификации),
-    функция просто вернет None и процесс продолжится.
+    IMPORTANT: This function is not critical for bot operation.
+    If an API is unavailable (e.g., Instagram requires authentication),
+    it returns None and the flow continues.
     """
     try:
         service = _detect_service(url)
         if not service:
             return None
             
-        # Пробуем специализированный обработчик для сервиса
+        # Try a service-specific handler
         date_handler = SERVICE_DATE_HANDLERS.get(service)
         if date_handler:
             try:
-                # Передаем user_id во все date handlers для поддержки куки
+                # Pass user_id to all date handlers to support cookies
                 if user_id:
                     result = date_handler(url, user_id)
                 else:
@@ -1279,16 +1280,16 @@ def get_service_date(url: str, user_id: int = None) -> Optional[str]:
                 if result:
                     return result
             except Exception as e:
-                # Логируем ошибку, но не прерываем процесс
+                # Log error but do not interrupt the flow
                 print(f"[SERVICE_DATE] {service} API error: {e}")
                 pass
         
-        # Fallback: попробуем извлечь из OpenGraph мета-тегов
+        # Fallback: try extracting from OpenGraph meta tags
         try:
             html = _http_get(url, user_id=user_id)
             metas = _extract_meta(html or "")
             
-            # Ищем дату в различных мета-тегах
+            # Look for the date in various meta tags
             date_fields = [
                 "article:published_time",
                 "article:modified_time", 
@@ -1322,5 +1323,3 @@ __all__ = [
     "get_service_date",
     "_parse_date_string",
 ]
-
-

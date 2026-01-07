@@ -37,7 +37,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Копируем и делаем исполняемым entrypoint скрипт
+# Copy and make the entrypoint executable
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 

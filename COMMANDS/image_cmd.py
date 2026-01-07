@@ -118,7 +118,7 @@ def generate_video_thumbnail(video_path):
         return None
 
 def ensure_paid_cover_embedded(video_path, existing_thumb=None):
-    """Ensure a small JPEG cover (~<=320x320) with сохранением пропорций (паддинг), для платных медиа."""
+    """Ensure a small JPEG cover (~<=320x320) preserving aspect ratio (padding) for paid media."""
     try:
         if not _should_generate_cover(video_path):
             return None
@@ -130,7 +130,7 @@ def ensure_paid_cover_embedded(video_path, existing_thumb=None):
         cover_path = os.path.join(base_dir, base_name + '.__tgcover_paid.jpg')
         if os.path.exists(cover_path) and os.path.getsize(cover_path) > 0:
             return cover_path
-        # 320x320 максимум: уменьшаем c сохранением пропорций, затем pad до 320x320; стараемся держать файл маленьким
+        # Max 320x320: downscale while preserving aspect ratio, then pad to 320x320; keep the file small
         subprocess.run([
             'ffmpeg', '-y', '-i', video_path,
             '-vf', 'scale=320:320:force_original_aspect_ratio=decrease,pad=320:320:(ow-iw)/2:(oh-ih)/2:black',
@@ -145,7 +145,7 @@ def ensure_paid_cover_embedded(video_path, existing_thumb=None):
         return None
 
 def ensure_paid_cover_embedded(video_path, existing_thumb=None):
-    """Ensure a small JPEG cover (~<=320x320) with сохранением пропорций (паддинг), для платных медиа.
+    """Ensure a small JPEG cover (~<=320x320) preserving aspect ratio (padding) for paid media.
     For videos >60s or >10MB, also embed the cover into the video file itself."""
     try:
         if not _should_generate_cover(video_path):
@@ -202,7 +202,7 @@ def _generate_paid_cover_image(video_path, existing_thumb=None):
         cover_path = os.path.join(base_dir, base_name + '.__tgcover_paid.jpg')
         if os.path.exists(cover_path) and os.path.getsize(cover_path) > 0:
             return cover_path
-        # 320x320 максимум: уменьшаем c сохранением пропорций, затем pad до 320x320; стараемся держать файл маленьким
+        # Max 320x320: downscale while preserving aspect ratio, then pad to 320x320; keep the file small
         subprocess.run([
             'ffmpeg', '-y', '-i', video_path,
             '-vf', 'scale=320:320:force_original_aspect_ratio=decrease,pad=320:320:(ow-iw)/2:(oh-ih)/2:black',
@@ -272,7 +272,7 @@ def _save_album_now(url: str, album_index: int, message_ids: list):
         logger.error(LoggerMsg.IMG_CACHE_SAVE_FAILED_LOG_MSG.format(album_index=album_index, e=e))
 
 def extract_profile_name(url):
-    """Получить имя аккаунта по API/OG для генерации хэштега (без #)."""
+    """Get account name via API/OG for hashtag generation (without '#')."""
     try:
         info = get_service_account_info(url)
         _service_tag, account_tag = build_tags(info)
@@ -283,7 +283,7 @@ def extract_profile_name(url):
     return None
 
 def extract_site_name(url):
-    """Получить имя площадки (service) по API/OG для генерации хэштега (без #)."""
+    """Get platform name (service) via API/OG for hashtag generation (without '#')."""
     try:
         info = get_service_account_info(url)
         service = info.get('service')
@@ -308,21 +308,21 @@ def get_file_date(file_path, original_url=None, user_id=None):
         from datetime import datetime
         import re
         
-        # Получаем текущую дату для проверки
+        # Get current date for validation
         now = datetime.now()
         today_str = now.strftime("%d.%m.%Y")
         invalid_date_str = "01.01.1970"
         
         def is_valid_date(date_str, source_context=""):
-            """Проверяет, что дата валидна (не сегодняшняя и не 01.01.1970)"""
+            """Validate a date (not today and not 01.01.1970)."""
             if not date_str:
                 return False
             if date_str == invalid_date_str:
                 logger.info(LoggerMsg.IMG_FILE_DATE_UNIX_EPOCH_INVALID_LOG_MSG.format(date_str=date_str))
                 return False
             if date_str == today_str:
-                # Сегодняшняя дата валидна только если она извлечена из надежных источников
-                # (EXIF, метаданные видео, API) и НЕ из времени модификации файла
+                # Today's date is valid only if it comes from a reliable source
+                # (EXIF, video metadata, API) and NOT from file mtime
                 if source_context in ["exif", "video_metadata", "api"]:
                     logger.info(LoggerMsg.IMG_FILE_DATE_TODAY_VALID_LOG_MSG.format(date_str=date_str, source_context=source_context))
                     return True
@@ -818,13 +818,13 @@ def image_command(app, message):
         rng_candidate = parts[0]
         if re.fullmatch(r"-?\d+-\d*", rng_candidate):
             start_str, end_str = rng_candidate.split('-', 1)
-            # Если первое число отрицательное, добавляем минус ко второму числу: /img -1-7 URL -> (-1, -7)
+            # If the first number is negative, add a minus to the second: /img -1-7 URL -> (-1, -7)
             if start_str.startswith("-") and end_str != "":
                 end_str = f"-{end_str}"
             try:
                 start_val = int(start_str)
                 end_val = int(end_str) if end_str != '' else None
-                # Убираем проверку >= 1, так как отрицательные числа тоже валидны
+                # Do not enforce >= 1: negative indices are valid too
                 manual_range = (start_val, end_val)
                 url = ' '.join(parts[1:]).strip()
             except Exception:
@@ -972,25 +972,25 @@ def image_command(app, message):
             if manual_range is not None:
                 start_i, end_i = manual_range
                 if end_i is not None:
-                    # Обработка отрицательных индексов и обратного порядка
+                    # Handle negative indices and reverse order
                     if start_i < 0 or end_i < 0:
-                        # Для отрицательных индексов нужно получить общее количество постов
-                        # Пока используем прямую логику, преобразование будет в функции скачивания
+                        # For negative indices we need total count; for now keep direct logic
+                        # (conversion happens in the download function)
                         if start_i < end_i:
                             requested_indices = list(range(int(start_i), int(end_i) + 1))
                         else:
-                            # Обратный порядок: от start_i до end_i включительно в обратном порядке
+                            # Reverse order: from start_i to end_i inclusive, descending
                             requested_indices = list(range(int(start_i), int(end_i) - 1, -1))
                     elif start_i > end_i:
-                        # Обратный порядок для положительных индексов
+                        # Reverse order for positive indices
                         requested_indices = list(range(int(start_i), int(end_i) - 1, -1))
                     else:
-                        # Прямой порядок
+                        # Forward order
                         requested_indices = list(range(int(start_i), int(end_i) + 1))
                 else:
                     cached_all = sorted(list(get_cached_image_post_indices(url)))
                     if start_i < 0:
-                        # Для отрицательных индексов берем последние |start_i| постов
+                        # For negative indices, take the last |start_i| posts
                         requested_indices = cached_all[start_i:] if abs(start_i) <= len(cached_all) else []
                     else:
                         requested_indices = [i for i in cached_all if i >= int(start_i)]
@@ -1033,7 +1033,7 @@ def image_command(app, message):
             if manual_range is not None:
                 start_i, end_i = manual_range
                 if end_i is not None:
-                    # Правильный расчет количества для отрицательных индексов и обратного порядка
+                    # Correct count calculation for negative indices and reverse order
                     if start_i < 0 and end_i < 0:
                         requested_count = abs(end_i) - abs(start_i) + 1
                     elif start_i > end_i:
@@ -1042,10 +1042,10 @@ def image_command(app, message):
                         requested_count = end_i - start_i + 1
                     # Check if we have all requested indices in cache
                     cached_indices = set(cached_map.keys())
-                    # Формируем правильный список запрошенных индексов
+                    # Build the exact set of requested indices
                     if start_i < 0 or end_i < 0:
-                        # Для отрицательных индексов пока используем прямую логику
-                        # Преобразование будет в функции скачивания
+                        # For negative indices keep direct logic for now
+                        # (conversion happens in the download function)
                         if start_i < end_i:
                             requested_indices = set(range(int(start_i), int(end_i) + 1))
                         else:
@@ -1543,7 +1543,7 @@ def image_command(app, message):
         # Seed current_start and upper bound from manual range if provided
         current_start = 1
         manual_end_cap = None
-        is_reverse_order_img = False  # Флаг для обратного порядка скачивания изображений
+        is_reverse_order_img = False  # Flag for reverse-order image downloading
         # Removed failed_attempts logic - using only timeout-based stopping
         if manual_range is not None:
             original_current_start = manual_range[0]
@@ -1554,32 +1554,32 @@ def image_command(app, message):
             if original_manual_end_cap is not None:
                 manual_end_cap = original_manual_end_cap if is_admin else min(original_manual_end_cap, total_limit)
                 
-                # Для отрицательных индексов нужно получить общее количество постов и преобразовать их
+                # For negative indices, fetch total count and convert them
                 if current_start < 0 or manual_end_cap < 0:
                     is_reverse_order_img = True
-                    # Получаем общее количество постов для преобразования отрицательных индексов
+                    # Get total number of posts to convert negative indices
                     total_media_count = detected_total
                     if not total_media_count:
-                        # Пытаемся получить через get_total_media_count
+                        # Try to get it via get_total_media_count
                         try:
                             total_media_count = get_total_media_count(url, user_id, use_proxy)
                         except Exception:
                             total_media_count = None
                     
                     if total_media_count and total_media_count > 0:
-                        # Преобразуем отрицательные индексы в положительные
-                        # -1 = последний пост (total_media_count), -2 = предпоследний (total_media_count - 1), и т.д.
-                        # Формула: positive_index = total_media_count + negative_index + 1
+                        # Convert negative indices to positive:
+                        # -1 = last post (total_media_count), -2 = previous (total_media_count - 1), etc.
+                        # Formula: positive_index = total_media_count + negative_index + 1
                         if current_start < 0:
                             current_start = total_media_count + current_start + 1
                         if manual_end_cap < 0:
                             manual_end_cap = total_media_count + manual_end_cap + 1
                         logger.info(f"[IMG] Converted negative indices: {original_current_start}->{current_start}, {original_manual_end_cap}->{manual_end_cap} (total={total_media_count})")
-                        # После преобразования отрицательных индексов current_start > manual_end_cap - это нормально для обратного порядка
-                        # Например: -1 до -7 -> 7 до 1, скачиваем в порядке 7, 6, 5, 4, 3, 2, 1
+                        # After conversion, current_start > manual_end_cap is OK for reverse order.
+                        # Example: -1 to -7 -> 7 to 1, download order: 7, 6, 5, 4, 3, 2, 1
                         total_expected = abs(current_start - manual_end_cap) + 1
                     else:
-                        # Если не удалось получить общее количество, используем абсолютные значения
+                        # If total count is unavailable, fall back to absolute values
                         logger.warning(f"[IMG] Could not get total media count for negative indices conversion, using absolute values")
                         total_expected = abs(manual_end_cap) - abs(current_start) + 1
                 elif current_start > manual_end_cap:
@@ -1591,7 +1591,7 @@ def image_command(app, message):
             else:
                 # Open-ended range
                 if current_start < 0:
-                    # Для отрицательных индексов без конца используем разумное значение
+                    # For negative indices without an end, use a reasonable default
                     total_expected = abs(current_start) if is_admin else min(abs(current_start), total_limit)
                 else:
                     total_expected = total_limit
@@ -1605,7 +1605,7 @@ def image_command(app, message):
         # Fallback: if no total detected but manual range specified, use the range
         if manual_range is not None and total_expected is None:
             if manual_range[1] is not None:
-                # Правильный расчет для отрицательных индексов и обратного порядка
+                # Correct calculation for negative indices and reverse order
                 if manual_range[0] < 0 and manual_range[1] < 0:
                     total_expected = abs(manual_range[1]) - abs(manual_range[0]) + 1
                 elif manual_range[0] > manual_range[1]:
@@ -1657,9 +1657,9 @@ def image_command(app, message):
                         return result
                     return result
             else:
-                # Формируем правильный range_expr с учетом порядка
+                # Build a correct range_expr taking order into account
                 if current_start > next_end:
-                    # Обратный порядок: gallery-dl обычно не поддерживает, скачиваем по одному
+                    # Reverse order: gallery-dl typically doesn't support this, download items one by one
                     range_expr = f"{next_end}-{current_start}"
                 else:
                     range_expr = f"{current_start}-{next_end}"
@@ -1678,13 +1678,13 @@ def image_command(app, message):
         
         # helper to run ranges in reverse order (for negative indices)
         def run_and_collect_reverse(start: int, end: int, batch_size: int):
-            """Скачивает диапазон в обратном порядке, по одному элементу
-            ВАЖНО: start и end должны быть уже преобразованы в положительные индексы"""
+            """Download a range in reverse order, one item at a time.
+            IMPORTANT: start and end must already be converted to positive indices."""
             messages = safe_get_messages(user_id)
-            # Для обратного порядка скачиваем по одному элементу от start до end (в обратном порядке)
-            # start > end после преобразования отрицательных индексов
+            # For reverse order, download items one-by-one from start down to end.
+            # start > end after converting negative indices
             if start > end:
-                # Скачиваем от большего к меньшему: start, start-1, ..., end+1, end
+                # Download descending: start, start-1, ..., end+1, end
                 for idx in range(start, end - 1, -1):
                     range_expr = f"{idx}-{idx}"
                     logger.info(f"[IMG REVERSE] Downloading single item: {range_expr}")
@@ -1696,10 +1696,10 @@ def image_command(app, message):
                         result = download_image_range(url, range_expr, user_id, use_proxy, run_dir)
                         if isinstance(result, str):  # 401 Unauthorized error message
                             return result
-                    # Небольшая задержка между запросами
+                    # Small delay between requests
                     time.sleep(0.5)
             else:
-                # Если start <= end, это не обратный порядок (не должно происходить)
+                # If start <= end, this is not reverse order (should not happen)
                 logger.warning(f"[IMG REVERSE] start ({start}) <= end ({end}), this should not happen for reverse order")
             return True
 
@@ -1722,29 +1722,29 @@ def image_command(app, message):
             # Only download next range if buffer is empty (strict batching)
             if len(photos_videos_buffer) == 0:
                 upper_cap = manual_end_cap or total_expected
-                # Проверка для обратного порядка (отрицательные индексы или start > end)
+                # Reverse-order stopping condition (negative indices or start > end)
                 if is_reverse_order_img:
-                    # Для обратного порядка проверяем, не дошли ли мы до конца
+                    # Reverse order: stop when we reach the end
                     if upper_cap and current_start < upper_cap:
                         break
                 else:
-                    # Для прямого порядка
+                    # Forward order
                     if upper_cap and current_start > upper_cap:
                         break
                 
                 if is_reverse_order_img:
-                    # Для обратного порядка: скачиваем от большего к меньшему
+                    # Reverse order: download from higher to lower
                     next_end = current_start - batch_size + 1
                     if upper_cap:
                         next_end = max(next_end, upper_cap)
                 else:
-                    # Для прямого порядка
+                    # Forward order
                     next_end = current_start + batch_size - 1
                     if upper_cap:
                         next_end = min(next_end, upper_cap)
                 logger.info(LoggerMsg.IMG_BATCH_STARTING_DOWNLOAD_RANGE_LOG_MSG.format(current_start=current_start, next_end=next_end))
                 
-                # Для обратного порядка формируем range_expr правильно
+                # Build range_expr correctly for reverse order
                 if is_reverse_order_img and current_start > next_end:
                     range_expr = f"{next_end}-{current_start}"
                 else:
@@ -1755,18 +1755,18 @@ def image_command(app, message):
                 
                 # Count files before download
                 files_before = len(seen_files)
-                # Сохраняем исходное значение current_start для расчета expected_files
+                # Save original current_start for expected_files calculation
                 original_current_start = current_start
-                # Используем правильный range_expr для скачивания
+                # Use the correct range_expr for downloading
                 if is_reverse_order_img:
-                    # Для обратного порядка gallery-dl может не поддерживать напрямую
-                    # Скачиваем по одному элементу в обратном порядке
+                    # Reverse order: gallery-dl may not support this directly
+                    # Download items one by one in reverse order
                     result = run_and_collect_reverse(current_start, next_end, batch_size)
-                    # Обновляем current_start для обратного порядка
+                    # Update current_start for reverse order
                     current_start = next_end - 1
                 else:
                     result = run_and_collect(next_end)
-                    # Обновляем current_start для прямого порядка
+                    # Update current_start for forward order
                     current_start = next_end + 1
                     
                     # Debug: Log the result type and content
@@ -1815,8 +1815,8 @@ def image_command(app, message):
                     # Count files after download
                     files_after = len(seen_files)
                     files_downloaded_in_range = files_after - files_before
-                    # Правильный расчет expected_files для обратного порядка
-                    # Используем исходное значение original_current_start, сохраненное выше
+                    # Correct expected_files calculation for reverse order
+                    # Use original_current_start saved above
                     if is_reverse_order_img:
                         expected_files = abs(original_current_start - next_end) + 1
                     else:
@@ -1827,7 +1827,7 @@ def image_command(app, message):
                     
                     # Check if we got no files at all (gallery-dl found nothing)
                     # Always proceed to file search - don't break early
-                    # current_start уже обновлен выше (строки 1729 или 1733), не обновляем повторно
+                    # current_start was updated above; do not update it again
                     if files_downloaded_in_range == 0:
                         logger.info(LoggerMsg.IMG_BATCH_NO_FILES_DOWNLOADED_LOG_MSG.format(current_start=original_current_start, next_end=next_end))
                     else:
@@ -1835,7 +1835,7 @@ def image_command(app, message):
                     
                     # Check if we got significantly fewer files than expected (less than 50% of expected)
                     # This indicates the media has ended
-                    # current_start уже обновлен выше, не обновляем повторно
+                    # current_start was updated above; do not update it again
                     if files_downloaded_in_range and files_downloaded_in_range < expected_files * 0.5 and files_downloaded_in_range > 0:
                         logger.info(LoggerMsg.IMG_BATCH_MEDIA_ENDED_LOG_MSG.format(files_downloaded_in_range=files_downloaded_in_range, expected_files=expected_files))
             
@@ -1929,7 +1929,7 @@ def image_command(app, message):
                                 if t == 'photo':
                                     # No spoiler in groups, only in private chats for paid media
                                     is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                                    # Изначально не ставим caption, чтобы избежать дублирования тегов; добавим их только первому элементу ниже
+                                    # Start without caption to avoid duplicating tags; add them only to the first item below
                                     media_group.append(InputMediaPhoto(p, caption=None, has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
                                 else:
                                     # probe metadata
@@ -1961,10 +1961,10 @@ def image_command(app, message):
                             sent = []
                             # For paid media, only send in private chats (not groups/channels)
                             is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                            #  При фоллбэке через fake_message определяем is_private_chat по оригинальному chat_id
+                            # When using fake_message fallback, derive is_private_chat from the original chat_id
                             if hasattr(message, '_is_fake_message') and message._is_fake_message:
                                 original_chat_id = getattr(message, '_original_chat_id', user_id)
-                                # Если chat_id начинается с -100, это группа/канал (не приватный чат)
+                                # If chat_id starts with -100, it's a group/channel (not a private chat)
                                 is_private_chat = not (str(original_chat_id).startswith('-100') or str(original_chat_id).startswith('-'))
                                 logger.info(LoggerMsg.IMG_MAIN_FAKE_MESSAGE_LOG_MSG.format(original_chat_id=original_chat_id, is_private_chat=is_private_chat))
                             logger.info(LoggerMsg.IMG_MAIN_NSFW_FLAG_LOG_MSG.format(nsfw_flag=nsfw_flag, is_private_chat=is_private_chat, media_group_len=len(media_group)))
@@ -2228,7 +2228,7 @@ def image_command(app, message):
                                                     user_caption = create_album_caption_with_dates(media_group, url, tags_text_norm, profile_name, site_name, user_id)
                                                     
                                                     _sep = (' ' if _exist and not _exist.endswith('\n') else '')
-                                                    # Если у первого уже стоит эта подпись, не дублируем
+                                                    # If the first item already has this caption, do not duplicate it
                                                     if _exist.strip() == user_caption.strip():
                                                         _first.caption = _exist.strip()
                                                     else:
@@ -2272,15 +2272,15 @@ def image_command(app, message):
                                     
                                     # Determine correct log channel based on media type and chat type
                                     is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                                    #  При фоллбэке через fake_message определяем is_private_chat по оригинальному chat_id
+                                    # When using fake_message fallback, derive is_private_chat from the original chat_id
                                     if hasattr(message, '_is_fake_message') and message._is_fake_message:
                                         original_chat_id = getattr(message, '_original_chat_id', user_id)
-                                        # Если chat_id начинается с -100, это группа/канал (не приватный чат)
+                                        # If chat_id starts with -100, it's a group/channel (not a private chat)
                                         is_private_chat = not (str(original_chat_id).startswith('-100') or str(original_chat_id).startswith('-'))
                                         logger.info(LoggerMsg.IMG_LOG_FAKE_MESSAGE_DETECTED_LOG_MSG.format(original_chat_id=original_chat_id, is_private_chat=is_private_chat))
                                     is_paid_media = nsfw_flag and is_private_chat
                                     
-                                    #  Отправка в лог-каналы должна быть ВНЕ цикла, только один раз для всего альбома
+                                    # Sending to log channels must be OUTSIDE the loop, only once per whole album
                                     if is_paid_media:
                                         # For NSFW content in private chat, send to both channels but don't cache
                                         # Add delay to allow Telegram to process paid media before sending to log channels
@@ -2467,10 +2467,10 @@ def image_command(app, message):
                                 
                                 # Check if we should send as paid media album
                                 is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                                #  При фоллбэке через fake_message определяем is_private_chat по оригинальному chat_id
+                                # When using fake_message fallback, derive is_private_chat from the original chat_id
                                 if hasattr(message, '_is_fake_message') and message._is_fake_message:
                                     original_chat_id = getattr(message, '_original_chat_id', user_id)
-                                    # Если chat_id начинается с -100, это группа/канал (не приватный чат)
+                                    # If chat_id starts with -100, it's a group/channel (not a private chat)
                                     is_private_chat = not (str(original_chat_id).startswith('-100') or str(original_chat_id).startswith('-'))
                                     logger.info(f"[IMG FALLBACK] FAKE MESSAGE DETECTED - original_chat_id={original_chat_id}, is_private_chat={is_private_chat}")
                                 logger.info(f"[IMG FALLBACK] nsfw_flag={nsfw_flag}, is_private_chat={is_private_chat}, len(fallback)={len(fallback)}")
@@ -2595,10 +2595,10 @@ def image_command(app, message):
                                         # Continue with individual sending
                                 
                                 # Individual sending (fallback or single items) - group with reply_parameters
-                                #  При фоллбэке через fake_message определяем is_private_chat по оригинальному chat_id
+                                # When using fake_message fallback, derive is_private_chat from the original chat_id
                                 if hasattr(message, '_is_fake_message') and message._is_fake_message:
                                     original_chat_id = getattr(message, '_original_chat_id', user_id)
-                                    # Если chat_id начинается с -100, это группа/канал (не приватный чат)
+                                    # If chat_id starts with -100, it's a group/channel (not a private chat)
                                     is_private_chat = not (str(original_chat_id).startswith('-100') or str(original_chat_id).startswith('-'))
                                     logger.info(f"[IMG INDIVIDUAL] FAKE MESSAGE DETECTED - original_chat_id={original_chat_id}, is_private_chat={is_private_chat}")
                                 if nsfw_flag and is_private_chat and len(fallback) > 1:
@@ -3047,7 +3047,7 @@ def image_command(app, message):
                         if t == 'photo':
                             # No spoiler in groups, only in private chats for paid media
                             is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                            # Не ставим подпись тут, добавим теги только первому ниже
+                            # Do not set caption here; add tags only to the first item below
                             media_group.append(InputMediaPhoto(p, caption=None, has_spoiler=should_apply_spoiler(user_id, nsfw_flag, is_private_chat)))
                         else:
                             # probe metadata
@@ -3078,10 +3078,10 @@ def image_command(app, message):
                     try:
                         # For paid media, only send in private chats (not groups/channels)
                         is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                        #  При фоллбэке через fake_message определяем is_private_chat по оригинальному chat_id
+                        # When using fake_message fallback, derive is_private_chat from the original chat_id
                         if hasattr(message, '_is_fake_message') and message._is_fake_message:
                             original_chat_id = getattr(message, '_original_chat_id', user_id)
-                            # Если chat_id начинается с -100, это группа/канал (не приватный чат)
+                            # If chat_id starts with -100, it's a group/channel (not a private chat)
                             is_private_chat = not (str(original_chat_id).startswith('-100') or str(original_chat_id).startswith('-'))
                             logger.info(f"[IMG TAIL] FAKE MESSAGE DETECTED - original_chat_id={original_chat_id}, is_private_chat={is_private_chat}")
                         if nsfw_flag and is_private_chat:
@@ -3913,8 +3913,8 @@ def image_command(app, message):
 
         # Messages are already forwarded to log channels during caching process above
 
-        # Cleanup files: удаляем только нулевые плейсхолдеры (уже отправленные),
-        # чтобы не потерять неотправленные файлы при FLOOD_WAIT
+        # Cleanup: remove only zero-size placeholders (already sent),
+        # to avoid losing unsent files during FLOOD_WAIT
         try:
             for file_path in files_to_cleanup:
                 try:

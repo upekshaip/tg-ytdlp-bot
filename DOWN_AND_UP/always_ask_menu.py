@@ -930,7 +930,7 @@ def filter_qualities_by_codec_format(user_id, url, qualities, download_dir=None)
 
 def get_link_mode(user_id):
     """
-    Получает состояние режима LINK для пользователя
+    Get the user's LINK mode state.
     """
     try:
         user_dir = os.path.join("users", str(user_id))
@@ -944,7 +944,7 @@ def get_link_mode(user_id):
 
 def set_link_mode(user_id, enabled):
     """
-    Устанавливает состояние режима LINK для пользователя
+    Set the user's LINK mode state.
     """
     try:
         user_dir = os.path.join("users", str(user_id))
@@ -1279,7 +1279,7 @@ def askq_callback(app, callback_query):
             
             log_error_to_channel(original_message, safe_get_messages(user_id).DIRECT_LINK_EXTRACTION_FAILED_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
         
-        # Удаляем Always Ask меню после обработки
+        # Delete the Always Ask menu after handling
         try:
             safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
         except Exception as e:
@@ -1403,7 +1403,7 @@ def askq_callback(app, callback_query):
                 reply_parameters=ReplyParameters(message_id=original_message.id)
             )
         
-        # Удаляем Always Ask меню после обработки
+        # Delete the Always Ask menu after handling
         try:
             safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
         except Exception as e:
@@ -1416,15 +1416,15 @@ def askq_callback(app, callback_query):
         if not original_message:
             callback_query.answer(safe_get_messages(user_id).AA_ERROR_ORIGINAL_NOT_FOUND_MSG, show_alert=True)
             return
-        # ЖЕСТКО: Получаем полный текст сообщения
+        # STRICT: use the full original message text
         url_text = original_message.text or (original_message.caption or "")
         logger.info(f"{LoggerMsg.ALWAYS_ASK_FALLBACK_DEBUG_ORIGINAL_MESSAGE_TEXT_LOG_MSG}: {original_message.text}")
         logger.info(f"{LoggerMsg.ALWAYS_ASK_FALLBACK_DEBUG_ORIGINAL_MESSAGE_CAPTION_LOG_MSG}: {original_message.caption}")
         logger.info(f"{LoggerMsg.ALWAYS_ASK_FALLBACK_DEBUG_URL_TEXT_LOG_MSG}: {url_text}")
         
-        # ЖЕСТКО: Ищем URL с диапазоном в полном тексте
+        # STRICT: search for a range URL in the full text
         import re as _re
-        # Сначала ищем URL с диапазоном *start*end
+        # First try a URL with *start*end range
         range_url_match = _re.search(r'(https?://[^\s\*#]+)\*(\d+)\*(\d+)', url_text)
         if range_url_match:
             url = range_url_match.group(1)
@@ -1432,7 +1432,7 @@ def askq_callback(app, callback_query):
             end_range = int(range_url_match.group(3))
             logger.info(f"{LoggerMsg.ALWAYS_ASK_FALLBACK_DEBUG_FOUND_RANGE_URL_LOG_MSG}: {url} with range {start_range}-{end_range}")
         else:
-            # Fallback к обычному URL
+            # Fallback to a regular URL
             m = _re.search(r'https?://[^\s\*#]+', url_text)
             url = m.group(0) if m else url_text
             start_range = 1
@@ -1454,7 +1454,7 @@ def askq_callback(app, callback_query):
                 is_nsfw = True
                 logger.info(f"{LoggerMsg.ALWAYS_ASK_FALLBACK_USER_FORCED_NSFW_TAG_DETECTED_LOG_MSG} {url}")
             
-            # Range already extracted above - ЖЕСТКО!
+            # Range already extracted above (STRICT)
             parsed_url = url
             
             # Create fallback command converting *1*10 to 1-10 format
@@ -1470,9 +1470,9 @@ def askq_callback(app, callback_query):
                 fallback_text += " #nsfw"
                 logger.info(f"{LoggerMsg.ALWAYS_ASK_FALLBACK_ADDED_NSFW_TAG_LOG_MSG}: {url}")
             
-            # Запускаем /img с «фейковым» сообщением, чтобы работать через gallery-dl
+            # Run /img with a "fake" message to go through gallery-dl
             fake_msg = fake_message(fallback_text, original_message.chat.id, original_chat_id=original_message.chat.id)
-            # Сохраняем message_thread_id из оригинального сообщения
+            # Preserve message_thread_id from the original message
             fake_msg.message_thread_id = getattr(original_message, 'message_thread_id', None)
             logger.info(f"{LoggerMsg.ALWAYS_ASK_FALLBACK_FAKE_MSG_DETAILS_LOG_MSG}={fake_msg.chat.id}, fake_msg.message_thread_id={fake_msg.message_thread_id}, original_message.chat.id={original_message.chat.id}, original_message.message_thread_id={getattr(original_message, 'message_thread_id', None)}")
             logger.info(f"{LoggerMsg.ALWAYS_ASK_FALLBACK_ORIGINAL_MESSAGE_TYPE_LOG_MSG}: {type(original_message)}, original_message.chat type: {type(original_message.chat)}")
@@ -1481,7 +1481,7 @@ def askq_callback(app, callback_query):
         except Exception as e:
             logger.error(f"{LoggerMsg.ALWAYS_ASK_IMAGE_FALLBACK_FAILED_LOG_MSG}: {e}")
         
-        # Удаляем Always Ask меню после обработки
+        # Delete the Always Ask menu after handling
         try:
             safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
         except Exception as e:
@@ -1908,7 +1908,7 @@ def askq_callback(app, callback_query):
         if is_playlist_with_range(original_text):
             logger.info("Detected playlist, using down_and_up")
             _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(original_text)
-            # Правильное вычисление video_count для отрицательных индексов
+            # Correct video_count calculation for negative indices
             if video_start_with < 0 and video_end_with < 0:
                 video_count = abs(video_end_with) - abs(video_start_with) + 1
             elif video_start_with > video_end_with:
@@ -1998,7 +1998,7 @@ def askq_callback(app, callback_query):
         original_text = original_message.text or original_message.caption or ""
         if is_playlist_with_range(original_text):
             _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(original_text)
-            # Правильное вычисление video_count для отрицательных индексов
+            # Correct video_count calculation for negative indices
             if video_start_with < 0 and video_end_with < 0:
                 video_count = abs(video_end_with) - abs(video_start_with) + 1
             elif video_start_with > video_end_with:
@@ -2045,7 +2045,7 @@ def askq_callback(app, callback_query):
     if is_playlist_with_range(original_text):
         logger.info(f"{LoggerMsg.ALWAYS_ASK_PLAYLIST_WITH_RANGE_DETECTED_LOG_MSG}: {url}")
         _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(original_text)
-        # Правильное вычисление video_count для отрицательных индексов
+        # Correct video_count calculation for negative indices
         if video_start_with < 0 and video_end_with < 0:
             video_count = abs(video_end_with) - abs(video_start_with) + 1
         elif video_start_with > video_end_with:
@@ -2053,25 +2053,25 @@ def askq_callback(app, callback_query):
         else:
             video_count = video_end_with - video_start_with + 1
         
-        # Формируем список индексов с учетом отрицательных индексов
-        # Для отрицательных индексов нужно будет преобразовать их в положительные после получения общего количества видео
+        # Build the list of indices, taking negative indices into account
+        # For negative indices, convert them to positive after we know total video count
         has_negative_indices = video_start_with < 0 or video_end_with < 0
         if has_negative_indices:
-            # Для отрицательных индексов сначала создаем список с отрицательными значениями
+            # For negative indices, build a list with negative values first
             if abs(video_start_with) < abs(video_end_with):
-                # -1 до -7: создаем список [-1, -2, -3, -4, -5, -6, -7]
+                # -1..-7: build [-1, -2, -3, -4, -5, -6, -7]
                 requested_indices = list(range(video_start_with, video_end_with - 1, -1))
             else:
-                # -7 до -1: создаем список [-7, -6, -5, -4, -3, -2, -1]
+                # -7..-1: build [-7, -6, -5, -4, -3, -2, -1]
                 requested_indices = list(range(video_start_with, video_end_with + 1, 1))
         elif video_start_with > video_end_with:
-            # Для обратного порядка: от start до end включительно в обратном порядке
+            # Reverse order: from start to end inclusive, reversed
             requested_indices = list(range(video_start_with, video_end_with - 1, -1))
         else:
-            # Для прямого порядка: от start до end включительно
+            # Forward order: from start to end inclusive
             requested_indices = list(range(video_start_with, video_start_with + video_count))
         
-        # Если есть отрицательные индексы, нужно получить общее количество видео и преобразовать их
+        # If there are negative indices, we must get total video count and convert them
         if has_negative_indices:
             try:
                 from DOWN_AND_UP.yt_dlp_hook import get_video_formats
@@ -2087,7 +2087,7 @@ def askq_callback(app, callback_query):
                     
                     if total_playlist_count:
                         logger.info(f"Total playlist count (always_ask): {total_playlist_count}")
-                        # Преобразуем отрицательные индексы в положительные
+                        # Convert negative indices to positive
                         converted_indices = []
                         for neg_idx in requested_indices:
                             if neg_idx < 0:
@@ -2095,7 +2095,7 @@ def askq_callback(app, callback_query):
                                 converted_indices.append(pos_idx)
                             else:
                                 converted_indices.append(neg_idx)
-                        # Сортируем в обратном порядке для скачивания от последнего к первому
+                        # Sort in reverse order to download from last to first
                         converted_indices.sort(reverse=True)
                         requested_indices = converted_indices
                         logger.info(f"Converted negative indices to positive (always_ask): {converted_indices}")
@@ -2338,10 +2338,10 @@ def askq_callback(app, callback_query):
     if not need_subs and not is_subs_always_ask(user_id) and not send_as_file:
 
         message_ids = get_cached_message_ids(url, data)
-        # Если кэш по основному URL не найден, проверяем кэш по уникальной ссылке видео (для одиночных видео из плейлиста)
+        # If cache by the primary URL is not found, try cache by the video's unique URL (single video from a playlist)
         if not message_ids:
             try:
-                # Пытаемся загрузить info из кэша, чтобы получить уникальную ссылку видео
+                # Try to load cached info to obtain the video's unique URL
                 cached_info = load_ask_info(user_id, url)
                 if cached_info:
                     video_page_url = (
@@ -2350,15 +2350,15 @@ def askq_callback(app, callback_query):
                         or cached_info.get("url")
                         or cached_info.get("canonical_url")
                     )
-                    # Если это не URL плейлиста, проверяем кэш по уникальной ссылке
+                    # If this is not the playlist URL, check cache by the unique URL
                     if video_page_url and video_page_url != url:
                         message_ids = get_cached_message_ids(video_page_url, data)
                         if message_ids:
-                            logger.info(f"🔍 [CACHE] Найдено одиночное видео в кэше по уникальной ссылке: {video_page_url}, quality: {data}")
-                            # Обновляем url для дальнейшей обработки
+                            logger.info(f"🔍 [CACHE] Found single video in cache by unique URL: {video_page_url}, quality: {data}")
+                            # Update url for further processing
                             url = video_page_url
             except Exception as e:
-                logger.warning(f"⚠️ [CACHE] Ошибка при проверке кэша для одиночного видео: {e}")
+                logger.warning(f"⚠️ [CACHE] Error while checking cache for a single video: {e}")
         
         if message_ids:
             callback_query.answer("🚀 Found in cache! Forwarding instantly...", show_alert=False)
@@ -2462,7 +2462,7 @@ def askq_callback(app, callback_query):
                 # The video was already sent successfully in the try block
                 askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs, proc_msg)
             
-            # Удаляем Always Ask меню после обработки
+            # Delete the Always Ask menu after handling
             try:
                 safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
             except Exception as e:
@@ -2475,7 +2475,7 @@ def askq_callback(app, callback_query):
             logger.info(f"[VIDEO CACHE] Skipping cache check because need_subs=True: url={url}, quality={data}")
     askq_callback_logic(app, callback_query, data, original_message, url, tags_text, available_langs, proc_msg)
     
-    # Удаляем Always Ask меню после обработки
+    # Delete the Always Ask menu after handling
     try:
         safe_delete_messages(chat_id=callback_query.message.chat.id, message_ids=[callback_query.message.id])
     except Exception as e:
@@ -2538,7 +2538,7 @@ def fallback_gallery_dl_callback(app, callback_query):
             fallback_text = f"/img {url}"
             logger.info(f"[FALLBACK DEBUG] Creating fallback command without range")
         
-        # Сохраняем message_thread_id из оригинального сообщения
+        # Preserve message_thread_id from the original message
         message_thread_id = getattr(callback_query.message, 'message_thread_id', None)
         fake_msg = fake_message(fallback_text, user_id, original_chat_id=original_chat_id, message_thread_id=message_thread_id, original_message=callback_query.message)
         logger.info(f"[FALLBACK] fake_msg.chat.id={fake_msg.chat.id}, fake_msg.message_thread_id={fake_msg.message_thread_id}, callback_query.message.chat.id={callback_query.message.chat.id}, callback_query.message.message_thread_id={getattr(callback_query.message, 'message_thread_id', None)}")
@@ -2626,19 +2626,19 @@ def show_manual_quality_menu(app, callback_query):
     
     for quality in manual_qualities:
         if is_playlist and playlist_range:
-            # Правильное формирование indices для отрицательных индексов
+            # Correct indices construction for negative indices
             start, end = playlist_range
             if start < 0 and end < 0:
-                # Для отрицательных индексов в обратном порядке
+                # Negative indices in reverse order
                 if abs(start) < abs(end):
                     indices = list(range(start, end - 1, -1))
                 else:
                     indices = list(range(start, end + 1, 1))
             elif start > end:
-                # Для обратного порядка
+                # Reverse order
                 indices = list(range(start, end - 1, -1))
             else:
-                # Для прямого порядка
+                # Forward order
                 indices = list(range(start, end + 1))
             n_cached = get_cached_playlist_count(get_clean_playlist_url(url), quality, indices)
             total = len(indices)
@@ -2652,7 +2652,7 @@ def show_manual_quality_menu(app, callback_query):
 
     # {safe_get_messages(user_id).ALWAYS_ASK_BEST_BUTTON_MSG} Quality
     if is_playlist and playlist_range:
-        # Правильное формирование indices для отрицательных индексов
+        # Correct indices construction for negative indices
         start, end = playlist_range
         if start < 0 and end < 0:
             if abs(start) < abs(end):
@@ -2681,7 +2681,7 @@ def show_manual_quality_menu(app, callback_query):
     # Add mp3 button
     quality_key = "mp3"
     if is_playlist and playlist_range:
-        # Правильное формирование indices для отрицательных индексов
+        # Correct indices construction for negative indices
         start, end = playlist_range
         if start < 0 and end < 0:
             if abs(start) < abs(end):
@@ -2757,24 +2757,24 @@ def show_manual_quality_menu(app, callback_query):
                 callback_query.edit_message_caption(caption=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
             else:
                 callback_query.edit_message_text(text=cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard)
-            callback_query.answer("Меню выбора качества открыто.")
+            callback_query.answer("Quality selection menu opened.")
             return
         except Exception as ee:
-            # Если не получилось отредактировать (например, MESSAGE_ID_INVALID) — шлём новое сообщение
+            # If editing fails (e.g., MESSAGE_ID_INVALID), send a new message instead
             if 'MESSAGE_ID_INVALID' not in str(ee):
                 logger.warning(f"Manual menu edit failed, fallback to new message: {ee}")
-    # Fallback: отправляем новое сообщение, привязанное к исходному
+    # Fallback: send a new message, replying to the original
     try:
         chat_id = callback_query.message.chat.id if callback_query and getattr(callback_query, 'message', None) else user_id
         ref_id = original_message.id if original_message else None
         app.send_message(chat_id, cap, parse_mode=enums.ParseMode.HTML, reply_markup=keyboard,
                          reply_parameters=ReplyParameters(message_id=ref_id))
         if callback_query:
-            callback_query.answer("Меню выбора качества открыто.")
+            callback_query.answer("Quality selection menu opened.")
     except Exception as e2:
         logger.error(f"Error showing manual quality menu (fallback): {e2}")
         if callback_query:
-            callback_query.answer("❌ Не удалось открыть меню выбора качества.", show_alert=True)
+            callback_query.answer("❌ Failed to open the quality selection menu.", show_alert=True)
 
 def show_other_qualities_menu(app, callback_query, page=0):
     messages = safe_get_messages(callback_query.from_user.id)
@@ -3344,21 +3344,21 @@ def sort_quality_key(quality_key):
 def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, original_text, is_playlist, playlist_range):
     messages = safe_get_messages(user_id)
     """
-    Создает меню качества из кэшированных данных когда не удается получить новые.
+    Build a quality menu from cached data when fresh data cannot be fetched.
     
     Args:
-        app: Экземпляр приложения
-        message: Сообщение пользователя
-        url: URL видео
-        tags: Теги
-        proc_msg: Сообщение о процессе
-        user_id: ID пользователя
-        original_text: Оригинальный текст сообщения
-        is_playlist: Является ли плейлистом
-        playlist_range: Диапазон плейлиста
+        app: Application instance
+        message: User message
+        url: Video URL
+        tags: Tags
+        proc_msg: Processing message
+        user_id: User ID
+        original_text: Original message text
+        is_playlist: Whether this is a playlist
+        playlist_range: Playlist range
         
     Returns:
-        bool: True если меню создано успешно, False если нет кэшированных данных
+        bool: True if the menu was created, False if no cached data exists
     """
     from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     try:
@@ -3384,7 +3384,7 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         user_args = get_user_args(user_id)
         send_as_file = user_args.get("send_as_file", False)
         
-        # Получаем кэшированные качества (skip if send_as_file is enabled)
+        # Fetch cached qualities (skip if send_as_file is enabled)
         if send_as_file:
             cached_qualities = set()
         elif is_playlist and playlist_range:
@@ -3398,11 +3398,11 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         
         logger.info(f"Found cached qualities for user {user_id}: {list(cached_qualities)}")
         
-        # Получаем базовую информацию о видео из кэша
+        # Load basic video info from cache
         try:
             info = load_ask_info(user_id, url)
             if not info:
-                # Пробуем получить минимальную информацию
+                # Fall back to minimal info
                 info = {'title': 'Video (cached)', 'id': 'cached'}
         except Exception:
             info = {'title': 'Video (cached)', 'id': 'cached'}
@@ -3410,7 +3410,7 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         title = info.get('title', 'Video (cached)')
         tags_text = generate_final_tags(url, tags, info)
         
-        # Определяем NSFW
+        # Determine NSFW
         try:
             is_nsfw = isinstance(tags_text, str) and ('#nsfw' in tags_text.lower())
         except Exception:
@@ -3419,7 +3419,7 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         # Check if we're in a private chat (paid media only works in private chats)
         is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
         
-        # Создаем заголовок
+        # Build caption header
         cap = f"<b>{title}</b>\n"
         if tags_text:
             cap += f"{tags_text}"
@@ -3430,16 +3430,16 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         cap += f"\n<b>{safe_get_messages(user_id).ALWAYS_ASK_AVAILABLE_QUALITIES_FROM_CACHE_MSG}</b>\n"
         cap += f"\n<i>{safe_get_messages(user_id).ALWAYS_ASK_USING_CACHED_QUALITIES_MSG}</i>\n"
         
-        # Создаем кнопки качества из кэша
+        # Build quality buttons from cache
         buttons = []
         
-        # Добавляем кнопки для каждого кэшированного качества
+        # Add a button per cached quality
         quality_order = ["144p", "240p", "360p", "480p", "720p", "1080p", "1440p", "2160p", "4320p", "mp3"]
         
         for quality_key in quality_order:
             if quality_key in cached_qualities:
                 if is_playlist and playlist_range:
-                    # Правильное формирование indices для отрицательных индексов
+                    # Correct indices construction for negative indices
                     start, end = playlist_range
                     if start < 0 and end < 0:
                         if abs(start) < abs(end):
@@ -3456,9 +3456,9 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
                     postfix = f" ({n_cached}/{total})" if total and total > 1 else ""
                     button_text = f"{icon}{quality_key}{postfix}"
                 else:
-                    # Проверяем кэш для одиночного видео
+                    # Check cache for a single video
                     is_cached = quality_key in cached_qualities
-                    # Дополнительно проверяем кэш по уникальной ссылке видео, если это видео из плейлиста
+                    # Additionally check cache by the video's unique URL (single video from a playlist)
                     if not is_cached:
                         try:
                             cached_info = load_ask_info(user_id, url)
@@ -3469,23 +3469,23 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
                                     or cached_info.get("url")
                                     or cached_info.get("canonical_url")
                                 )
-                                # Если это не URL плейлиста, проверяем кэш по уникальной ссылке
+                                # If this is not the playlist URL, check cache by the unique URL
                                 if video_page_url and video_page_url != url:
                                     single_video_cached = get_cached_message_ids(video_page_url, quality_key)
                                     if single_video_cached:
                                         is_cached = True
-                                        logger.info(f"🔍 [CACHE] Найдено одиночное видео в кэше по уникальной ссылке: {video_page_url}, quality: {quality_key}")
+                                        logger.info(f"🔍 [CACHE] Found single video in cache by unique URL: {video_page_url}, quality: {quality_key}")
                         except Exception as e:
-                            logger.warning(f"⚠️ [CACHE] Ошибка при проверке кэша для одиночного видео: {e}")
+                            logger.warning(f"⚠️ [CACHE] Error while checking cache for a single video: {e}")
                     
                     icon = "🚀" if (is_cached and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     button_text = f"{icon}{quality_key}"
                 buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         
-        # Всегда добавляем {safe_get_messages(user_id).ALWAYS_ASK_BEST_BUTTON_MSG} Quality
+        # Always include {safe_get_messages(user_id).ALWAYS_ASK_BEST_BUTTON_MSG} quality
         quality_key = "best"
         if is_playlist and playlist_range:
-            # Правильное формирование indices для отрицательных индексов
+            # Correct indices construction for negative indices
             start, end = playlist_range
             if start < 0 and end < 0:
                 if abs(start) < abs(end):
@@ -3506,17 +3506,17 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
             button_text = f"{icon}{safe_get_messages(user_id).ALWAYS_ASK_BEST_BUTTON_MSG}"
         buttons.append(InlineKeyboardButton(button_text, callback_data=f"askq|{quality_key}"))
         
-        # Всегда добавляем Other Qualities
+        # Always include "Other qualities"
         buttons.append(InlineKeyboardButton(safe_get_messages(user_id).ALWAYS_ASK_OTHER_LABEL_MSG, callback_data=f"askq|other_qualities"))
 
-        # Создаем клавиатуру
+        # Build keyboard
         keyboard_rows = []
         
-        # Добавляем фильтры
+        # Add filters
         filter_rows, filter_action_buttons = build_filter_rows(user_id, url, is_private_chat)
         keyboard_rows.extend(filter_rows)
         
-        # Группируем кнопки качества по 3 в ряд
+        # Group quality buttons in rows of 3
         if buttons:
             total_quality_buttons = len(buttons)
             if total_quality_buttons % 3 == 0:
@@ -3531,14 +3531,14 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
                 for i in range(0, total_quality_buttons, 3):
                     keyboard_rows.append(buttons[i:i+3])
         
-        # Собираем action buttons
+        # Collect action buttons
         action_buttons = []
         action_buttons.extend(filter_action_buttons)
-        # IMAGE fallback из кэш-меню
+        # IMAGE fallback from the cached menu
         action_buttons.append(InlineKeyboardButton(safe_get_messages(user_id).IMAGE_BUTTON_TEXT, callback_data="askq|image"))        
-        # Добавляем WATCH кнопку для YouTube
-        # - в личке: WebApp (удобный просмотр)
-        # - в группах: обычная URL-кнопка (WebApp может давать BUTTON_TYPE_INVALID в некоторых контекстах)
+        # Add a WATCH button for YouTube
+        # - private chat: WebApp (convenient viewing)
+        # - groups: regular URL button (WebApp can cause BUTTON_TYPE_INVALID in some contexts)
         try:
             if is_youtube_url(url):
                 piped_url = youtube_to_piped_url(url)
@@ -3554,17 +3554,17 @@ def create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, ori
         except Exception as e:
             logger.error(f"Error adding WATCH button: {e}")
         
-        # Группируем action buttons
+        # Group action buttons
         if action_buttons:
             for i in range(0, len(action_buttons), 3):
                 keyboard_rows.append(action_buttons[i:i+3])
         
-        # Добавляем кнопку закрытия
+        # Add a close button
         keyboard_rows.append([InlineKeyboardButton(safe_get_messages(user_id).CLOSE_BUTTON_TEXT, callback_data="askq|close")])
         
         keyboard = InlineKeyboardMarkup(keyboard_rows)
         
-        # Отправляем меню
+        # Send the menu
         try:
             if proc_msg:
                 try:
@@ -3620,21 +3620,20 @@ def delete_processing_message(app, user_id, proc_msg):
 
 def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, download_dir=None):
     """Show quality selection menu for video"""
-    # ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ДЛЯ ОТЛАДКИ
-    logger.info(f"🔍 [DEBUG] ask_quality_menu вызвана с параметрами:")
+    # Detailed debug logging
+    logger.info("🔍 [DEBUG] ask_quality_menu called with parameters:")
     logger.info(f"   url: {url}")
     logger.info(f"   tags: {tags}")
     logger.info(f"   playlist_start_index: {playlist_start_index}")
     logger.info(f"   download_dir: {download_dir}")
     
-    # ГЛОБАЛЬНАЯ ЗАЩИТА: messages НИКОГДА не будет undefined
+    # Global guard: messages must never be undefined
     try:
         messages = safe_get_messages(message.chat.id)
-        logger.info(f"✅ [DEBUG] messages инициализированы успешно")
+        logger.info("✅ [DEBUG] messages initialized successfully")
     except Exception as e:
-        logger.error(f"❌ [DEBUG] Ошибка инициализации messages: {e}")
-        # Если все не удается, создаем минимальную защиту
-        # Используем правильную систему переводов
+        logger.error(f"❌ [DEBUG] Failed to initialize messages: {e}")
+        # As a last resort, initialize via the standard translation system
         messages = safe_get_messages(message.chat.id)
     from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     user_id = message.chat.id
@@ -3744,13 +3743,13 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         _, video_start_with, video_end_with, _, _, _, _ = extract_url_range_tags(original_text)
         if not check_playlist_range_limits(url, video_start_with, video_end_with, app, message):
             return
-        # Обновляем playlist_start_index из original_text, если там есть диапазон
-        # Это гарантирует, что отрицательные индексы будут правильно обработаны
-        # Проверяем, что есть диапазон (не 1-1) или отрицательные индексы
+        # Update playlist_start_index from original_text if a range is present.
+        # This guarantees negative indices are handled correctly.
+        # Check that a range exists (not 1-1) or that indices are negative.
         has_range = (video_start_with != 1 or video_end_with != 1) or (video_start_with < 0 or video_end_with < 0)
         if video_start_with is not None and has_range:
             playlist_start_index = video_start_with
-            logger.info(f"🔍 [DEBUG] Обновлен playlist_start_index из original_text: {playlist_start_index}, video_end_with: {video_end_with}")
+            logger.info(f"🔍 [DEBUG] Updated playlist_start_index from original_text: {playlist_start_index}, video_end_with: {video_end_with}")
     try:
         # Check if subtitles are included
         subs_enabled = is_subs_enabled(user_id)
@@ -3777,7 +3776,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         
         if is_playlist:
             _, video_start_with, video_end_with, _, _, _, _ = extract_url_range_tags(original_text)
-            logger.info(f"🔍 [DEBUG] ask_quality_menu: после extract_url_range_tags: video_start_with={video_start_with}, video_end_with={video_end_with}")
+            logger.info(f"🔍 [DEBUG] ask_quality_menu: after extract_url_range_tags: video_start_with={video_start_with}, video_end_with={video_end_with}")
             playlist_range = (video_start_with, video_end_with)
             cached_qualities = get_cached_playlist_qualities(get_clean_playlist_url(url)) if not send_as_file else set()
         else:
@@ -3785,34 +3784,34 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         # Try load cached info first to make UI instant
         info = load_ask_info(user_id, url)
         if not info:
-            logger.info(f"🔍 [DEBUG] Загружаем информацию о видео через get_video_formats")
+            logger.info("🔍 [DEBUG] Loading video info via get_video_formats")
             logger.info(f"   url: {url}")
             logger.info(f"   user_id: {user_id}")
             logger.info(f"   playlist_start_index: {playlist_start_index}")
             logger.info(f"   cookies_already_checked: True")
             
-            # Для плейлиста передаем диапазон, иначе только start_index
+            # For playlists pass the range, otherwise only start_index
             playlist_end_index = None
             if is_playlist and playlist_range:
                 playlist_end_index = playlist_range[1]
             
-            # Импортируем get_video_formats локально, так как есть локальные импорты в других местах функции
+            # Import get_video_formats locally (there are local imports elsewhere in the function)
             from DOWN_AND_UP.yt_dlp_hook import get_video_formats
             
             try:
                 info = get_video_formats(url, user_id, playlist_start_index, cookies_already_checked=True, playlist_end_index=playlist_end_index)
-                logger.info(f"✅ [DEBUG] get_video_formats выполнен успешно")
+                logger.info("✅ [DEBUG] get_video_formats completed successfully")
                 logger.info(f"   info type: {type(info)}")
                 if isinstance(info, dict):
                     logger.info(f"   info keys: {list(info.keys())}")
                     if 'duration' in info:
-                        logger.info(f"   duration: {info['duration']} (тип: {type(info['duration'])})")
+                        logger.info(f"   duration: {info['duration']} (type: {type(info['duration'])})")
                     if 'formats' in info:
                         logger.info(f"   formats count: {len(info.get('formats', []))}")
             except Exception as e:
-                logger.error(f"❌ [DEBUG] Ошибка в get_video_formats: {e}")
-                logger.error(f"   Тип ошибки: {type(e)}")
-                logger.error(f"   Строка ошибки: {str(e)}")
+                logger.error(f"❌ [DEBUG] Error in get_video_formats: {e}")
+                logger.error(f"   Error type: {type(e)}")
+                logger.error(f"   Error string: {str(e)}")
                 raise e
             
             # Check for live stream detection (only if detection is enabled)
@@ -3853,12 +3852,12 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 logger.info(f"Fallback to gallery-dl recommended in ask_quality_menu for user {user_id}: {url}")
                 original_error = info.get('original_error', 'Unknown error')
                 
-                # ГЛОБАЛЬНАЯ ЗАЩИТА: Убедимся, что messages инициализирована
+                # Global guard: ensure messages is initialized
                 if 'messages' not in locals() or messages is None:
                     try:
                         messages = safe_get_messages(user_id)
                     except Exception:
-                        # Используем правильную систему переводов
+                        # Use the standard translation system
                         messages = safe_get_messages(user_id)
                 
                 # Extract range info for better messaging
@@ -3894,14 +3893,14 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 # Include range info and chat_id in callback data - use safe callback data for long URLs
                 chat_id = message.chat.id
                 
-                # ИСПРАВЛЕНИЕ: Извлекаем диапазон из оригинального сообщения, если он не был передан явно
+                # FIX: Extract range from the original message if it wasn't passed explicitly
                 original_start = video_start_with
                 original_end = video_end_with
                 
-                # Если диапазон не был передан явно, пытаемся извлечь его из оригинального сообщения
+                # If the range wasn't passed explicitly, try extracting it from the original message
                 if (video_start_with == 1 and video_end_with == 1) and hasattr(message, 'text'):
                     import re
-                    # Ищем диапазон в формате *start*end в оригинальном тексте
+                    # Look for a range in *start*end format in the original text
                     range_match = re.search(r'(https?://[^\s\*#]+)\*(\d+)\*(\d+)', message.text)
                     if range_match:
                         original_start = int(range_match.group(2))
@@ -3960,10 +3959,10 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
             thumb_dir = os.path.join("users", str(user_id))
             create_directory(thumb_dir)
         
-        # Для плейлистов скачиваем обложки для всех видео
+        # For playlists, download thumbnails for all videos
         playlist_entries = info.get('_playlist_entries')
         if is_playlist and playlist_entries and isinstance(playlist_entries, list):
-            logger.info(f"🔍 [DEBUG] Плейлист обнаружен, скачиваем обложки для {len(playlist_entries)} видео")
+            logger.info(f"🔍 [DEBUG] Playlist detected, downloading thumbnails for {len(playlist_entries)} videos")
             for entry in playlist_entries:
                 if not entry:
                     continue
@@ -3972,18 +3971,18 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 if not entry_id:
                     continue
                 
-                # Для YouTube используем специальную функцию
+                # For YouTube, use the dedicated downloader
                 if ("youtube.com" in url or "youtu.be" in url) and entry_id:
                     entry_thumb_path = os.path.join(thumb_dir, f"yt_thumb_{entry_id}.jpg")
                     try:
-                        # Используем URL конкретного видео, если доступен
+                        # Use the specific video's URL if available
                         entry_video_url = entry_url or f"https://www.youtube.com/watch?v={entry_id}"
                         download_thumbnail(entry_id, entry_thumb_path, entry_video_url)
-                        logger.info(f"✅ Скачана обложка для видео {entry_id}: {entry_thumb_path}")
+                        logger.info(f"✅ Downloaded thumbnail for video {entry_id}: {entry_thumb_path}")
                     except Exception as e:
-                        logger.warning(f"⚠️ Не удалось скачать обложку для видео {entry_id}: {e}")
+                        logger.warning(f"⚠️ Failed to download thumbnail for video {entry_id}: {e}")
                 elif entry_url:
-                    # Для других сервисов используем универсальный загрузчик
+                    # For other services, use the universal downloader
                     try:
                         service_name = "unknown"
                         if 'vk.com' in entry_url:
@@ -3992,16 +3991,16 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                             service_name = "tiktok"
                         elif any(x in entry_url for x in ['twitter.com', 'x.com']):
                             service_name = "twitter"
-                        # Добавьте другие сервисы по необходимости
+                        # Add other services as needed
                         
                         if service_name != "unknown":
                             entry_thumb_path = os.path.join(thumb_dir, f"{service_name}_thumb_{entry_id}.jpg")
                             if download_universal_thumbnail(entry_url, entry_thumb_path):
-                                logger.info(f"✅ Скачана обложка для видео {entry_id}: {entry_thumb_path}")
+                                logger.info(f"✅ Downloaded thumbnail for video {entry_id}: {entry_thumb_path}")
                     except Exception as e:
-                        logger.warning(f"⚠️ Не удалось скачать обложку для видео {entry_id}: {e}")
+                        logger.warning(f"⚠️ Failed to download thumbnail for video {entry_id}: {e}")
         
-        # Скачиваем обложку для первого видео (для отображения в меню)
+        # Download the thumbnail for the first video (to display in the menu)
         if ("youtube.com" in url or "youtu.be" in url) and video_id:
             thumb_path = os.path.join(thumb_dir, f"yt_thumb_{video_id}.jpg")
             try:
@@ -4219,7 +4218,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                 # Audio language marker for rows (keep UI light; summary shows selection)
                 if subs_enabled:
                     if sel_ext == 'mkv':
-                        # Для MKV при включённых субтитрах показываем без ограничений
+                        # For MKV with subtitles enabled, show without restrictions
                         subs_available = "💬"
                     elif is_youtube_url(url) and w is not None and h is not None and min(int(w), int(h)) <= Config.MAX_SUB_QUALITY:
                         found_type = check_subs_availability(url, user_id, q, return_type=True)
@@ -4236,19 +4235,19 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                     is_cached = False
                     postfix = ""
                 elif is_playlist and playlist_range:
-                    # Правильное формирование indices для отрицательных индексов
+                    # Correct indices construction for negative indices
                     start, end = playlist_range
                     has_negative = start < 0 or end < 0
                     
                     if has_negative:
-                        # Для отрицательных индексов сначала создаем список с отрицательными значениями
+                        # For negative indices, build a list with negative values first
                         if abs(start) < abs(end):
                             indices = list(range(start, end - 1, -1))
                         else:
                             indices = list(range(start, end + 1, 1))
                         
-                        # Преобразуем отрицательные индексы в положительные для проверки кэша
-                        # (в кэше они хранятся как положительные индексы)
+                        # Convert negative indices to positive for cache checks
+                        # (cache stores them as positive indices)
                         try:
                             from DOWN_AND_UP.yt_dlp_hook import get_video_formats
                             temp_info = get_video_formats(url, user_id, 1, True, False, 1)
@@ -4261,7 +4260,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                                     total_playlist_count = None
                                 
                                 if total_playlist_count:
-                                    # Преобразуем отрицательные индексы в положительные
+                                    # Convert negative indices to positive
                                     converted_indices = []
                                     for neg_idx in indices:
                                         if neg_idx < 0:
@@ -4282,11 +4281,11 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                     postfix = f" ({n_cached}/{total})"
                     is_cached = n_cached > 0
                 else:
-                    # Проверяем кэш для одиночного видео
+                    # Check cache for a single video
                     is_cached = q in cached_qualities
-                    # Дополнительно проверяем кэш по уникальной ссылке видео, если это видео из плейлиста
+                    # Additionally check cache by the video's unique URL (single video from a playlist)
                     if not is_cached:
-                        # Извлекаем уникальную ссылку текущего видео
+                        # Extract the current video's unique URL
                         video_page_url = (
                             info.get("webpage_url")
                             or info.get("original_url")
@@ -4294,15 +4293,15 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                             or info.get("canonical_url")
                             or url
                         )
-                        # Если это не URL плейлиста, проверяем кэш по уникальной ссылке
+                        # If this is not the playlist URL, check cache by the unique URL
                         if video_page_url != url and video_page_url:
                             try:
                                 single_video_cached = get_cached_message_ids(video_page_url, q)
                                 if single_video_cached:
                                     is_cached = True
-                                    logger.info(f"🔍 [CACHE] Найдено одиночное видео в кэше по уникальной ссылке: {video_page_url}, quality: {q}")
+                                    logger.info(f"🔍 [CACHE] Found single video in cache by unique URL: {video_page_url}, quality: {q}")
                             except Exception as e:
-                                logger.warning(f"⚠️ [CACHE] Ошибка при проверке кэша для одиночного видео: {e}")
+                                logger.warning(f"⚠️ [CACHE] Error while checking cache for a single video: {e}")
                     postfix = ""
                 need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
                 emoji = "🚀" if (is_cached and not need_subs and not is_nsfw) else "📹"
@@ -5009,7 +5008,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                     postfix = ""
                     button_text = f"{icon}{quality_key}{subs_available}"
                 elif is_playlist and playlist_range:
-                    # Правильное формирование indices для отрицательных индексов
+                    # Correct indices construction for negative indices
                     start, end = playlist_range
                     if start < 0 and end < 0:
                         if abs(start) < abs(end):
@@ -5036,11 +5035,11 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                         # In manual mode, respect user's auto_mode setting
                         need_subs = (subs_enabled and ((auto_mode and found_type == "auto") or (not auto_mode and found_type == "normal")))
                     
-                    # Проверяем кэш для одиночного видео
+                    # Check cache for a single video
                     is_cached = quality_key in cached_qualities
-                    # Дополнительно проверяем кэш по уникальной ссылке видео, если это видео из плейлиста
+                    # Additionally check cache by the video's unique URL (single video from a playlist)
                     if not is_cached:
-                        # Извлекаем уникальную ссылку текущего видео
+                        # Extract the current video's unique URL
                         video_page_url = (
                             info.get("webpage_url")
                             or info.get("original_url")
@@ -5048,15 +5047,15 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                             or info.get("canonical_url")
                             or url
                         )
-                        # Если это не URL плейлиста, проверяем кэш по уникальной ссылке
+                        # If this is not the playlist URL, check cache by the unique URL
                         if video_page_url != url and video_page_url:
                             try:
                                 single_video_cached = get_cached_message_ids(video_page_url, quality_key)
                                 if single_video_cached:
                                     is_cached = True
-                                    logger.info(f"🔍 [CACHE] Найдено одиночное видео в кэше по уникальной ссылке: {video_page_url}, quality: {quality_key}")
+                                    logger.info(f"🔍 [CACHE] Found single video in cache by unique URL: {video_page_url}, quality: {quality_key}")
                             except Exception as e:
-                                logger.warning(f"⚠️ [CACHE] Ошибка при проверке кэша для одиночного видео: {e}")
+                                logger.warning(f"⚠️ [CACHE] Error while checking cache for a single video: {e}")
                     
                     icon = "🚀" if (is_cached and not need_subs and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     button_text = f"{icon}{quality_key}{subs_available}"
@@ -5077,7 +5076,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                         scissors = f" ✂️{n_parts}"
 
                 if is_playlist and playlist_range:
-                    # Правильное формирование indices для отрицательных индексов
+                    # Correct indices construction for negative indices
                     start, end = playlist_range
                     if start < 0 and end < 0:
                         if abs(start) < abs(end):
@@ -5094,9 +5093,9 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                     postfix = f" ({n_cached}/{total})" if total and total > 1 else ""
                     button_text = f"{icon}{quality_key}{postfix}"
                 else:
-                    # Проверяем кэш для одиночного видео
+                    # Check cache for a single video
                     is_cached = quality_key in cached_qualities
-                    # Дополнительно проверяем кэш по уникальной ссылке видео, если это видео из плейлиста
+                    # Additionally check cache by the video's unique URL (single video from a playlist)
                     if not is_cached:
                         try:
                             cached_info = load_ask_info(user_id, url)
@@ -5107,14 +5106,14 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                                     or cached_info.get("url")
                                     or cached_info.get("canonical_url")
                                 )
-                                # Если это не URL плейлиста, проверяем кэш по уникальной ссылке
+                                # If this is not the playlist URL, check cache by the unique URL
                                 if video_page_url and video_page_url != url:
                                     single_video_cached = get_cached_message_ids(video_page_url, quality_key)
                                     if single_video_cached:
                                         is_cached = True
-                                        logger.info(f"🔍 [CACHE] Найдено одиночное видео в кэше по уникальной ссылке: {video_page_url}, quality: {quality_key}")
+                                        logger.info(f"🔍 [CACHE] Found single video in cache by unique URL: {video_page_url}, quality: {quality_key}")
                         except Exception as e:
-                            logger.warning(f"⚠️ [CACHE] Ошибка при проверке кэша для одиночного видео: {e}")
+                            logger.warning(f"⚠️ [CACHE] Error while checking cache for a single video: {e}")
                     
                     icon = "🚀" if (is_cached and not is_nsfw) else ("1⭐️" if (is_nsfw and is_private_chat) else "📹")
                     button_text = f"{icon}{quality_key}"
@@ -5123,7 +5122,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         # Always add {safe_get_messages(user_id).ALWAYS_ASK_BEST_BUTTON_MSG} Quality button
         quality_key = "best"
         if is_playlist and playlist_range:
-            # Правильное формирование indices для отрицательных индексов
+            # Correct indices construction for negative indices
             start, end = playlist_range
             if start < 0 and end < 0:
                 if abs(start) < abs(end):
@@ -5476,7 +5475,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
             try:
                 app.send_message(user_id, flood_msg, reply_parameters=ReplyParameters(message_id=message.id))
             except FloodWait:
-                # Невозможно отправить даже уведомление о FloodWait — просто выходим, время уже сохранено
+                # Can't send even a FloodWait notice — exit, the time is already saved
                 pass
             except Exception as e:
                 logger.warning(f"Failed to send flood notice: {e}")
@@ -5485,22 +5484,20 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         import traceback
         logger.error(f"Error retrieving video information for user {user_id}: {str(e)}")
         logger.error(f"Full traceback:\n{traceback.format_exc()}")
-        # ГЛОБАЛЬНАЯ ЗАЩИТА: messages уже инициализирована в начале функции
-        # Если по какой-то причине она не инициализирована, используем safe_get_messages
+        # Global guard: messages is initialized at the start of the function.
+        # If for some reason it's not initialized, fall back to safe_get_messages.
         if 'messages' not in locals():
             try:
                 messages = safe_get_messages(user_id)
             except Exception:
-                # Если все не удается, создаем минимальную защиту
-                # Используем правильную систему переводов
+                # Last resort: initialize via the standard translation system
                 messages = safe_get_messages(user_id)
         
-        # ДОПОЛНИТЕЛЬНАЯ ЗАЩИТА: Убедимся, что messages инициализирована
+        # Additional guard: ensure messages is initialized
         try:
             _ = safe_get_messages(user_id).ALWAYS_ASK_NO_VIDEOS_FOUND_IN_PLAYLIST_MSG
         except (NameError, AttributeError):
-            # Если messages все еще не инициализирована, создаем экстренную версию
-            # Используем правильную систему переводов
+            # If messages is still not initialized, create an emergency version via safe_get_messages
             messages = safe_get_messages(user_id)
         # If this looks like a non-video URL, try gallery-dl fallback first
         try:
@@ -5536,11 +5533,11 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                             is_nsfw = True
                             logger.info(f"{LoggerMsg.ALWAYS_ASK_FALLBACK_USER_FORCED_NSFW_TAG_DETECTED_LOG_MSG} {url}")
                         
-                        # ЖЕСТКО: Используем оригинальный текст сообщения
+                        # STRICT: use the original message text
                         original_text = message.text or message.caption or ""
                         logger.info(f"[ASKQ FALLBACK DEBUG] original_text: {original_text}")
                         
-                        # Ищем URL с диапазоном *start*end
+                        # Look for a URL with *start*end range
                         import re
                         range_url_match = re.search(r'(https?://[^\s\*#]+)\*(\d+)\*(\d+)', original_text)
                         if range_url_match:
@@ -5549,7 +5546,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
                             end_range = int(range_url_match.group(3))
                             logger.info(f"[ASKQ FALLBACK DEBUG] FOUND RANGE: {parsed_url} with range {start_range}-{end_range}")
                         else:
-                            # Fallback к обычному URL
+                            # Fallback to a regular URL
                             m = re.search(r'https?://[^\s\*#]+', original_text)
                             parsed_url = m.group(0) if m else original_text
                             start_range = 1
@@ -5585,7 +5582,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         except Exception:
             pass
         
-        # Сначала пробуем создать меню из кэшированных качеств
+        # First, try to build a menu from cached qualities
         try:
             logger.info(f"Attempting to create menu from cached qualities for user {user_id}")
             if create_cached_qualities_menu(app, message, url, tags, proc_msg, user_id, original_text, is_playlist, playlist_range):
@@ -5597,7 +5594,7 @@ def ask_quality_menu(app, message, url, tags, playlist_start_index=1, cb=None, d
         except Exception as cache_error:
             logger.error(f"Error creating cached qualities menu: {cache_error}")
         
-        # Если кэшированных качеств нет, показываем ошибку
+        # If no cached qualities exist, show an error
         error_text = f"{safe_get_messages(user_id).ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_MSG}\n<blockquote>{safe_get_messages(user_id).ALWAYS_ASK_ERROR_RETRIEVING_VIDEO_INFO_SHORT_MSG}</blockquote>\n\n{safe_get_messages(user_id).ALWAYS_ASK_TRY_CLEAN_COMMAND_MSG}"
         
         # Try to edit the processing message to show error first
@@ -5717,7 +5714,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
         # Extract playlist parameters from the original message
         full_string = original_message.text or original_message.caption or ""
         _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
-        # Правильное вычисление video_count для отрицательных индексов
+        # Correct video_count calculation for negative indices
         if video_start_with < 0 and video_end_with < 0:
             video_count = abs(video_end_with) - abs(video_start_with) + 1
         elif video_start_with > video_end_with:
@@ -5737,7 +5734,7 @@ def askq_callback_logic(app, callback_query, data, original_message, url, tags_t
         # Extract playlist parameters from the original message
         full_string = original_message.text or original_message.caption or ""
         _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
-        # Правильное вычисление video_count для отрицательных индексов
+        # Correct video_count calculation for negative indices
         if video_start_with < 0 and video_end_with < 0:
             video_count = abs(video_end_with) - abs(video_start_with) + 1
         elif video_start_with > video_end_with:
@@ -5944,7 +5941,7 @@ def down_and_up_with_format(app, message, url, fmt, tags_text, quality_key=None,
         log_error_to_channel(message, error_msg, url)
         return
 
-    # Правильное вычисление video_count для отрицательных индексов
+    # Correct video_count calculation for negative indices
     if video_start_with < 0 and video_end_with < 0:
         video_count = abs(video_end_with) - abs(video_start_with) + 1
     elif video_start_with > video_end_with:

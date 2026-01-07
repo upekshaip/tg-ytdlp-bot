@@ -34,7 +34,7 @@ def lang_command_handler(update, context):
         # Supported language codes
         supported_langs = {
             'en': 'English',
-            'ru': 'Русский', 
+            'ru': 'Russian',
             'ar': 'العربية',
             'in': 'हिन्दी'
         }
@@ -111,9 +111,9 @@ def lang_command_handler(update, context):
     
     # Send language selection message
     lang_selection_msg = getattr(messages, 'LANG_SELECTION_MSG', 
-        "🌍 <b>Выберите язык / Select Language</b>\n\n"
+        "🌍 <b>Select language</b>\n\n"
         "🇺🇸 English\n"
-        "🇷🇺 Русский\n" 
+        "🇷🇺 Russian\n"
         "🇸🇦 العربية\n"
         "🇮🇳 हिन्दी"
     )
@@ -145,7 +145,7 @@ def lang_command(app, message):
         # Supported language codes
         supported_langs = {
             'en': 'English',
-            'ru': 'Русский', 
+            'ru': 'Russian',
             'ar': 'العربية',
             'in': 'हिन्दी'
         }
@@ -222,9 +222,9 @@ def lang_command(app, message):
     
     # Send language selection message
     lang_selection_msg = getattr(messages, 'LANG_SELECTION_MSG', 
-        "🌍 <b>Выберите язык / Select Language</b>\n\n"
+        "🌍 <b>Select language</b>\n\n"
         "🇺🇸 English\n"
-        "🇷🇺 Русский\n" 
+        "🇷🇺 Russian\n"
         "🇸🇦 العربية\n"
         "🇮🇳 हिन्दी"
     )

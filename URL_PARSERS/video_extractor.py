@@ -48,7 +48,7 @@ def video_url_extractor(app, message):
         full_string = message.text
         logger.info(f"🔍 [DEBUG] video_extractor: full_string='{full_string}'")
         url, video_start_with, video_end_with, _, tags, _, tag_error = extract_url_range_tags(full_string)
-        logger.info(f"🔍 [DEBUG] video_extractor: после extract_url_range_tags: url='{url}', video_start_with={video_start_with}, video_end_with={video_end_with}")
+        logger.info(f"🔍 [DEBUG] video_extractor: after extract_url_range_tags: url='{url}', video_start_with={video_start_with}, video_end_with={video_end_with}")
         # Add tag error check
         if tag_error:
             wrong, example = tag_error
@@ -57,9 +57,9 @@ def video_url_extractor(app, message):
             from HELPERS.logger import log_error_to_channel
             log_error_to_channel(message, error_msg)
             return
-        # Если есть диапазон, используем video_start_with из парсинга, иначе 1
-        # ask_quality_menu сам определит диапазон из original_text и обновит playlist_start_index
-        # Для отрицательных индексов проверяем, что хотя бы одно число не равно 1
+        # If a range is present, use video_start_with from parsing; otherwise 1
+        # ask_quality_menu will determine the range from original_text and update playlist_start_index
+        # For negative indices, ensure at least one number is not equal to 1
         has_range = (video_start_with != 1 or video_end_with != 1) or (video_start_with < 0 or video_end_with < 0)
         playlist_start_index = video_start_with if has_range else 1
         logger.info(f"🔍 [DEBUG] video_extractor: video_start_with={video_start_with}, video_end_with={video_end_with}, has_range={has_range}, playlist_start_index={playlist_start_index}")
@@ -103,15 +103,15 @@ def video_url_extractor(app, message):
         auto_tags = get_auto_tags(url, tags)
         all_tags = tags + auto_tags
         tags_text_full = ' '.join(all_tags)
-        # Правильное вычисление video_count для отрицательных индексов
+        # Correct video_count calculation for negative indices
         if video_start_with < 0 and video_end_with < 0:
-            # Для отрицательных индексов: -1 до -7 = 7 элементов (от последнего к 7-му с конца)
+            # For negative indices: -1 to -7 = 7 items (from last to 7th from the end)
             video_count = abs(video_end_with) - abs(video_start_with) + 1
         elif video_start_with > video_end_with:
-            # Для обратного порядка: считаем абсолютную разницу
+            # Reverse order: use absolute difference
             video_count = abs(video_start_with - video_end_with) + 1
         else:
-            # Для прямого порядка: обычная формула
+            # Forward order: standard formula
             video_count = video_end_with - video_start_with + 1
         if playlist_name:
             with playlist_errors_lock:

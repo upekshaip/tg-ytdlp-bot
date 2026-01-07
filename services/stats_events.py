@@ -21,7 +21,7 @@ class DBWriteEvent:
 
 
 def emit_db_event(path: str, operation: str, payload: Any) -> None:
-    """Передаёт событие записи в агрегатор статистики."""
+    """Send a DB write event to the stats collector."""
     try:
         collector = get_stats_collector()
         collector.handle_db_event(path, operation, payload)
@@ -37,7 +37,7 @@ def emit_download_event(
     timestamp: Optional[int] = None,
     metadata: Optional[Dict[str, Any]] = None,
 ) -> None:
-    """Регистрирует скачивание с дополнительными метаданными."""
+    """Record a download with optional metadata."""
     try:
         collector = get_stats_collector()
         collector.record_download(
@@ -52,7 +52,7 @@ def emit_download_event(
 
 
 def capture_message_context(message) -> None:
-    """Сохраняет базовые сведения о пользователе из объекта сообщения Pyrogram."""
+    """Capture basic user info from a Pyrogram message object."""
     try:
         user = getattr(message, "from_user", None) or getattr(message, "chat", None)
         if not user:
@@ -81,7 +81,7 @@ def update_download_progress(
     title: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
 ) -> None:
-    """Обновляет прогресс загрузки для активной сессии пользователя."""
+    """Update download progress for the user's active session."""
     try:
         collector = get_stats_collector()
         collector.update_download_progress(
@@ -96,7 +96,7 @@ def update_download_progress(
 
 
 class StatsAwareDBAdapter:
-    """Обёртка над Firebase/локальным адаптером, которая перехватывает записи."""
+    """Wrapper for Firebase/local DB adapter that intercepts writes."""
 
     __slots__ = ("_adapter", "_path", "_lock")
 
@@ -106,7 +106,7 @@ class StatsAwareDBAdapter:
         self._lock = threading.RLock()
 
     # ------------------------------------------------------------------
-    # Вспомогательные методы
+    # Helper methods
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -126,7 +126,7 @@ class StatsAwareDBAdapter:
         emit_db_event(path or self._path, operation, payload)
 
     # ------------------------------------------------------------------
-    # Совместимость с Firebase API
+    # Firebase API compatibility
     # ------------------------------------------------------------------
 
     def child(self, *path_parts: Any) -> "StatsAwareDBAdapter":
@@ -175,7 +175,7 @@ class StatsAwareDBAdapter:
             close_fn()
 
     # ------------------------------------------------------------------
-    # Проброс прочих атрибутов
+    # Proxy other attributes
     # ------------------------------------------------------------------
 
     def __getattr__(self, item: str) -> Any:
@@ -183,8 +183,7 @@ class StatsAwareDBAdapter:
 
 
 def wrap_db_adapter(db_adapter: Any) -> StatsAwareDBAdapter:
-    """Упаковывает текущий адаптер базы, чтобы перехватывать записи."""
+    """Wrap a DB adapter to intercept write operations."""
     if isinstance(db_adapter, StatsAwareDBAdapter):
         return db_adapter
     return StatsAwareDBAdapter(db_adapter, "/")
-

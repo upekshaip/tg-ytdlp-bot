@@ -272,7 +272,7 @@ class ChannelGuard:
             events = await self._fetch_leave_events()
             if not events:
                 return 0, 0
-            # events это список кортежей (event, user_info), сортируем по event.id
+            # events is a list of tuples (event, user_info); sort by event.id
             events.sort(key=lambda e: e[0].id)
             new_count = 0
             auto_banned = 0
@@ -281,14 +281,14 @@ class ChannelGuard:
                     continue
                 self._last_event_id = max(self._last_event_id, event.id)
                 uid = str(user_info.get("id"))
-                # Обрабатываем event.date - может быть datetime или int (timestamp)
+                # event.date may be datetime or int (timestamp)
                 event_date = getattr(event, "date", None)
                 if isinstance(event_date, datetime):
                     event_timestamp = event_date.timestamp()
                 elif isinstance(event_date, (int, float)):
                     event_timestamp = float(event_date)
                 else:
-                    # Fallback: используем текущее время
+                    # Fallback: use current time
                     event_timestamp = datetime.now(tz=timezone.utc).timestamp()
                 
                 leaver = self._leavers.get(uid, {})
@@ -365,7 +365,7 @@ class ChannelGuard:
         if not client:
             logger.error("[ChannelGuard] No client available for admin logs")
             return []
-        # Используем тот же client для resolve_peer, чтобы user client мог получить доступ к каналу
+        # Use the same client for resolve_peer so the user client can access the channel
         peer = await client.resolve_peer(self._channel_id)
         events_filter = self._build_events_filter(leave=True)
         try:
@@ -422,7 +422,7 @@ class ChannelGuard:
         if not self.can_read_admin_log():
             logger.error("[ChannelGuard] Cannot read admin logs: bot method invalid and no user session provided")
             return []
-        # Используем тот же client для resolve_peer, чтобы user client мог получить доступ к каналу
+        # Use the same client for resolve_peer so the user client can access the channel
         peer = await client.resolve_peer(self._channel_id)
         events_filter = self._build_events_filter(join=True, leave=True)
         try:
@@ -485,21 +485,21 @@ class ChannelGuard:
             description = ""
             if isinstance(action, ChannelAdminLogEventActionParticipantLeave):
                 entry_type = "leave"
-                description = "покинул(а) канал"
+                description = "left the channel"
             else:
-                # Проверяем типы join, но ChannelAdminLogEventActionParticipantAdd может быть None
+                # Check join types; ChannelAdminLogEventActionParticipantAdd may be None
                 join_types = [ChannelAdminLogEventActionParticipantJoin, ChannelAdminLogEventActionParticipantInvite]
                 if ChannelAdminLogEventActionParticipantAdd is not None:
                     join_types.append(ChannelAdminLogEventActionParticipantAdd)
                 
                 if any(isinstance(action, t) for t in join_types):
                     entry_type = "join"
-                    description = "вступил(а) в канал"
+                    description = "joined the channel"
                     invite = getattr(action, "invite", None)
                     if invite is not None:
                         via = getattr(invite, "title", None) or ("permanent" if getattr(invite, "permanent", False) else None)
                         if via:
-                            description += f" через {via}"
+                            description += f" via {via}"
                 else:
                     continue
 
@@ -617,4 +617,3 @@ async def stop_channel_guard() -> None:
 
 def register_block_user_executor(callback: Callable[[int, Optional[str]], None]) -> None:
     _channel_guard.register_block_executor(callback)
-

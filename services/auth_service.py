@@ -17,17 +17,17 @@ logger = logging.getLogger(__name__)
 
 
 class AuthService:
-    """Сервис авторизации с защитой от перебора."""
+    """Authentication service with brute-force protection."""
     
     def __init__(self):
         self._sessions: Dict[str, float] = {}  # token -> expiry_time
         self._failed_attempts: Dict[str, int] = {}  # ip -> count
         self._lockdown_until: Dict[str, float] = {}  # ip -> unlock_time
         self._lock = Lock()
-        self._session_ttl = 15 * 60  # 15 минут неактивности
+        self._session_ttl = 15 * 60  # 15 minutes of inactivity
         self._sessions_file = Path(__file__).resolve().parent.parent / "CONFIG" / ".dashboard_sessions.json"
         
-        # Получаем логин/пароль из конфига (убираем пробелы)
+        # Load username/password from config (strip whitespace)
         username = getattr(Config, "DASHBOARD_USERNAME", "admin")
         password = getattr(Config, "DASHBOARD_PASSWORD", "admin123")
         self._username = str(username).strip() if username else "admin"
@@ -37,45 +37,45 @@ class AuthService:
         self._load_sessions()
     
     def _hash_password(self, password: str) -> str:
-        """Хеширует пароль."""
+        """Hash a password."""
         return hashlib.sha256(password.encode()).hexdigest()
     
     def _check_password(self, password: str) -> bool:
-        """Проверяет пароль."""
+        """Verify a password."""
         return self._hash_password(password) == self._password_hash
     
     def _get_lockdown_time(self, failed_count: int) -> float:
-        """Вычисляет время блокировки на основе количества неудачных попыток."""
+        """Compute lockout time based on number of failed attempts."""
         if failed_count <= 5:
-            return 5 * 60  # 5 минут
-        # Каждая следующая попытка удваивает время
+            return 5 * 60  # 5 minutes
+        # Each subsequent attempt doubles the duration
         base_time = 5 * 60
         multiplier = 2 ** (failed_count - 5)
         return base_time * multiplier
     
     def login(self, username: str, password: str, ip: str) -> Optional[str]:
-        """Пытается авторизовать пользователя. Возвращает токен или None."""
+        """Attempt to authenticate a user. Returns a token or None."""
         with self._lock:
-            # Проверяем блокировку
+            # Check lockout
             unlock_time = self._lockdown_until.get(ip, 0)
             if unlock_time > time.time():
                 remaining = int(unlock_time - time.time())
                 raise ValueError(f"Too many failed attempts. Try again in {remaining // 60} minutes.")
             
-            # Убираем пробелы из входящих данных
+            # Strip whitespace from inputs
             username = str(username).strip() if username else ""
             password = str(password).strip() if password else ""
             
-            # Проверяем логин/пароль
+            # Check username/password
             username_match = username == self._username
             password_match = self._check_password(password)
             
-            # Отладочная информация для первой неудачной попытки
+            # Debug info only for the first failed attempt
             failed_count = self._failed_attempts.get(ip, 0)
             if not username_match or not password_match:
                 failed_count = failed_count + 1
                 if failed_count == 1:
-                    # Детальная отладочная информация только для первой попытки
+                    # Detailed debug only for the first attempt
                     logger.warning(
                         f"[auth] Login failed for IP {ip}: "
                         f"username_match={username_match} "
@@ -84,27 +84,27 @@ class AuthService:
                         f"(password_len={len(password)})"
                     )
                 
-                # Увеличиваем счетчик неудачных попыток
+                # Increment failed-attempt counter
                 self._failed_attempts[ip] = failed_count
                 
-                # Устанавливаем блокировку
+                # Set lockout
                 lockdown_time = self._get_lockdown_time(failed_count)
                 self._lockdown_until[ip] = time.time() + lockdown_time
                 
                 raise ValueError("Invalid username or password")
             
-            # Успешная авторизация - сбрасываем счетчики
+            # Successful login: reset counters
             self._failed_attempts.pop(ip, None)
             self._lockdown_until.pop(ip, None)
             
-            # Создаем сессию
+            # Create session
             token = secrets.token_urlsafe(32)
             self._sessions[token] = time.time() + self._session_ttl
             self._save_sessions()
             return token
     
     def verify_token(self, token: str) -> bool:
-        """Проверяет валидность токена."""
+        """Check whether a token is valid."""
         with self._lock:
             expiry = self._sessions.get(token, 0)
             now = time.time()
@@ -112,20 +112,20 @@ class AuthService:
                 self._sessions.pop(token, None)
                 self._save_sessions()
                 return False
-            # Продлеваем сессию при активности
+            # Extend session on activity
             self._sessions[token] = now + self._session_ttl
             self._save_sessions()
             return True
     
     def logout(self, token: str) -> None:
-        """Удаляет сессию."""
+        """Remove a session."""
         with self._lock:
             removed = self._sessions.pop(token, None)
             if removed is not None:
                 self._save_sessions()
     
     def cleanup_expired_sessions(self) -> None:
-        """Удаляет истекшие сессии."""
+        """Remove expired sessions."""
         now = time.time()
         with self._lock:
             expired = [token for token, expiry in self._sessions.items() if expiry < now]
@@ -135,7 +135,7 @@ class AuthService:
                 self._save_sessions()
     
     def reload_config(self) -> None:
-        """Перезагружает настройки из конфига."""
+        """Reload settings from config."""
         username = getattr(Config, "DASHBOARD_USERNAME", "admin")
         password = getattr(Config, "DASHBOARD_PASSWORD", "admin123")
         username_clean = str(username).strip() if username else "admin"
@@ -148,7 +148,7 @@ class AuthService:
                 logger.info(f"[auth] Config reloaded: username changed from '{old_username}' to '{username_clean}'")
     
     def reset_lockdown(self, ip: str) -> None:
-        """Сбрасывает блокировку для указанного IP (для отладки)."""
+        """Reset lockout for a given IP (debug helper)."""
         with self._lock:
             self._failed_attempts.pop(ip, None)
             self._lockdown_until.pop(ip, None)
@@ -180,14 +180,13 @@ class AuthService:
         return self._session_ttl
 
 
-# Глобальный экземпляр
+# Global instance
 _auth_service = None
 
 
 def get_auth_service() -> AuthService:
-    """Возвращает глобальный экземпляр AuthService."""
+    """Return the global AuthService instance."""
     global _auth_service
     if _auth_service is None:
         _auth_service = AuthService()
     return _auth_service
-

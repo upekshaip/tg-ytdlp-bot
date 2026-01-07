@@ -447,7 +447,7 @@ def download_image(url: str, user_id=None, use_proxy: bool = False, output_dir: 
     """
     Download using gallery-dl DownloadJob, return list of paths to downloaded files or None.
     """
-    # Простая конфигурация - пусть gallery-dl работает по умолчанию
+    # Simple configuration: let gallery-dl use defaults
     config = {
         "extractor": {
             "timeout": 30,
@@ -486,12 +486,12 @@ def download_image(url: str, user_id=None, use_proxy: bool = False, output_dir: 
         
         # Convention: 0 = success
         if status == 0:
-            # Ищем файлы в указанной папке или в стандартной папке gallery-dl
+            # Search for files in the provided directory or the default gallery-dl directory
             downloaded_files = []
             current_time = time.time()
             logger.info(safe_get_messages(user_id).GALLERY_DL_SEARCHING_DOWNLOADED_FILES_MSG)
 
-            # Сначала пытаемся найти файлы по именам из extractor
+            # First try to find files by names from extractor metadata
             try:
                 extractor = getattr(job, "extractor", None)
                 if extractor is not None:
@@ -503,24 +503,24 @@ def download_image(url: str, user_id=None, use_proxy: bool = False, output_dir: 
                                 url_part = item[1]
                                 metadata = item[2] if len(item) > 2 and isinstance(item[2], dict) else {}
                                 
-                                # Пытаемся построить имя файла из метаданных
+                                # Try to build a filename from metadata
                                 filename = metadata.get('filename', '')
                                 extension = metadata.get('extension', '')
                                 if filename and extension:
                                     full_filename = f"{filename}.{extension}"
                                     
-                                    # Ищем файл в возможных местах
+                                    # Look for the file in possible locations
                                     possible_paths = []
                                     if output_dir:
-                                        # Сначала ищем в указанной папке пользователя
+                                        # First search in the user-provided output directory
                                         possible_paths.append(os.path.join(output_dir, full_filename))
-                                    # Затем в стандартной папке gallery-dl (fallback)
+                                    # Then search in the default gallery-dl folders (fallback)
                                     possible_paths.extend([
                                         os.path.join("gallery-dl", full_filename),
                                         os.path.join(".", full_filename)
                                     ])
                                     
-                                    # Также пробуем с gallery-dl структурой каталогов
+                                    # Also try gallery-dl's directory structure
                                     if 'twitter' in url.lower() or 'x.com' in url.lower():
                                         possible_paths.extend([
                                             f"gallery-dl/twitter/{full_filename}",
@@ -545,7 +545,7 @@ def download_image(url: str, user_id=None, use_proxy: bool = False, output_dir: 
             except Exception as e:
                 logger.warning(f"Failed to find files by names: {e}")
 
-            # Если не нашли по именам, ищем по времени (fallback)
+            # If we didn't find any by name, search by creation time (fallback)
             if not downloaded_files:
                 logger.info("Fallback: searching by creation time")
                 search_dirs = []
@@ -557,7 +557,7 @@ def download_image(url: str, user_id=None, use_proxy: bool = False, output_dir: 
                 for search_dir in search_dirs:
                     for root, _, files in os.walk(search_dir):
                         for file in files:
-                            # Поддерживаем все типы файлов, которые может скачать gallery-dl
+                            # Support all file types that gallery-dl may download
                             if file.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv', '.mp3', '.wav', '.ogg', '.m4a', '.pdf', '.doc', '.docx', '.txt', '.zip', '.rar', '.7z')):
                                 file_path = os.path.join(root, file)
                                 file_time = os.path.getctime(file_path)
@@ -679,7 +679,7 @@ def _get_total_media_count_fallback(url: str, user_id, use_proxy: bool, cfg_path
         cmd = [sys.executable, "-m", "gallery_dl", "--config", cfg_path, "--get-urls", url]
         cmd = _add_cookies_to_cmd(cmd, url, user_id)
         logger.info(f"Fallback counting via --get-urls: {' '.join(cmd)}")
-        # VK альбомы могут быть большими – увеличим таймаут для VK
+        # VK albums can be large; increase timeout for VK
         timeout_sec = 30 if 'vk.com' in url.lower() else 15
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)

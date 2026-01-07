@@ -3,22 +3,22 @@
 #        GLOBAL IMPORTS
 ###########################################################
 
-# ГЛОБАЛЬНЫЙ ПАТЧ ДЛЯ ПРЕДОТВРАЩЕНИЯ ОШИБКИ 'name messages is not defined'
+# GLOBAL PATCH TO PREVENT: 'name messages is not defined'
 try:
     from PATCH.GLOBAL_MESSAGES_PATCH import apply_global_messages_patch
     apply_global_messages_patch()
 except Exception as e:
     print(f"⚠️  Global messages patch failed: {e}")
-    # Минимальная защита уже встроена в safe_get_messages функции
+    # Minimal protection is already built into safe_get_messages
 
-# ПАТЧ NONE ОТКЛЮЧЕН - ОШИБКА УЖЕ ИСПРАВЛЕНА В КОДЕ
+# NONE PATCH DISABLED - THE BUG IS ALREADY FIXED IN CODE
 # try:
 #     from PATCH.FIX_NONE_COMPARISONS_PATCH import apply_patch
 #     apply_patch()
 # except Exception as e:
 #     print(f"⚠️  None comparisons patch failed: {e}")
 
-# DEBUG ПАТЧИ ОТКЛЮЧЕНЫ - ОШИБКА NONE ИСПРАВЛЕНА
+# DEBUG PATCHES DISABLED - THE NONE BUG IS FIXED
 # try:
 #     from PATCH.DEBUG_NONE_COMPARISON import apply_debug_none_comparison
 #     apply_debug_none_comparison()
@@ -80,7 +80,7 @@ from CONFIG.config import Config
 from CONFIG.messages import Messages, safe_get_messages
 # from test_config import Config
 
-# HELPERS (только те, что не содержат обработчики)
+# HELPERS (only those without handlers)
 from HELPERS.app_instance import set_app
 from HELPERS.download_status import *
 from HELPERS.channel_guard import start_channel_guard, stop_channel_guard
@@ -106,12 +106,12 @@ app = Client(
 # Set global app instance BEFORE importing handlers
 set_app(app)
 
-# DATABASE (без обработчиков)
+# DATABASE (without handlers)
 from DATABASE.cache_db import *
 from DATABASE.download_firebase import *
 from DATABASE.firebase_init import *
 
-# URL_PARSERS (без обработчиков)
+# URL_PARSERS (without handlers)
 from URL_PARSERS.embedder import *
 from URL_PARSERS.nocookie import *
 from URL_PARSERS.normalizer import *
@@ -121,17 +121,17 @@ from URL_PARSERS.url_extractor import *
 from URL_PARSERS.video_extractor import *
 from URL_PARSERS.youtube import *
 
-# DOWN_AND_UP (без обработчиков)
+# DOWN_AND_UP (without handlers)
 from DOWN_AND_UP.down_and_audio import *
 from DOWN_AND_UP.down_and_up import *
 from DOWN_AND_UP.ffmpeg import *
 from DOWN_AND_UP.sender import *
 from DOWN_AND_UP.yt_dlp_hook import *
 
-# HELPERS (с обработчиками - импортируем после установки app)
+# HELPERS (with handlers - import after app setup)
 from HELPERS.caption import *
 
-# COMMANDS (импортируем после установки app)
+# COMMANDS (import after app setup)
 from COMMANDS.admin_cmd import *
 from COMMANDS.clean_cmd import *
 from COMMANDS.cookies_cmd import *
@@ -148,10 +148,10 @@ from COMMANDS.tag_cmd import *
 from COMMANDS.proxy_cmd import proxy_command
 from COMMANDS.cookies_cmd import download_cookie
 
-# DOWN_AND_UP (с обработчиками - импортируем после установки app)
+# DOWN_AND_UP (with handlers - import after app setup)
 from DOWN_AND_UP.always_ask_menu import *
 
-# Инициализируем глобальную переменную messages
+# Initialize global messages instance
 messages = safe_get_messages(None)
 
 print(messages.MAGIC_ALL_MODULES_LOADED_MSG)
@@ -245,15 +245,15 @@ def _vid_handler(app, message):
         txt = (message.text or "").strip()
         parts = txt.split()
         url = ""
-        # Support syntax: /vid 1-10 https://...  -> append *1*10 to URL (поддерживаем отрицательные числа)
-        # Если первое число с минусом, то добавляем минус и ко второму числу: /vid -1-7 URL -> URL*-1*-7
+        # Support syntax: /vid 1-10 https://...  -> append *1*10 to URL (supports negative indices)
+        # If the first number is negative, add a minus to the second too: /vid -1-7 URL -> URL*-1*-7
         if len(parts) >= 3 and re.match(r"^-?\d+-\d*$", parts[1]):
             rng = parts[1]
             url = " ".join(parts[2:])
-            # Парсим диапазон: если начинается с минуса, оба числа отрицательные
+            # Parse range: if it starts with '-', treat both numbers as negative
             if rng.startswith("-"):
-                # Формат: -1-7 -> *-1*-7
-                # Находим второе число после первого минуса
+                # Format: -1-7 -> *-1*-7
+                # Find the second number after the first minus
                 match = re.match(r"^-(\d+)-(\d*)$", rng)
                 if match:
                     first_num = f"-{match.group(1)}"
@@ -264,20 +264,20 @@ def _vid_handler(app, message):
                         else:
                             url = f"{url}*{first_num}*"
                 else:
-                    # Fallback: обычный парсинг
+                    # Fallback: generic parsing
                     a, b = rng.split("-", 1)
                     if b != "":
                         b = f"-{b}"
                     if url:
                         url = f"{url}*{a}*{b}" if b else f"{url}*{a}*"
             else:
-                # Обычный формат: 1-7 -> *1*7
+                # Regular format: 1-7 -> *1*7
                 a, b = rng.split("-", 1)
                 b = b if b != "" else None
                 if url:
                     url = f"{url}*{a}*{b}" if b is not None else f"{url}*{a}*"
             if url:
-                logger.info(f"🔍 [DEBUG] Преобразовано /vid команда: '{message.text}' -> '{url}'")
+                logger.info(f"🔍 [DEBUG] Converted /vid command: '{message.text}' -> '{url}'")
         else:
             # Fallback: /vid URL
             url = parts[1] if len(parts) > 1 else ""
@@ -357,7 +357,7 @@ use_firebase = getattr(Config, 'USE_FIREBASE', True)
 if use_firebase:
     start_auto_cache_reloader()
 else:
-    print("ℹ️ Автоматическая перезагрузка кэша отключена (локальный режим)")
+    print("ℹ️ Automatic cache reload is disabled (local mode)")
 
 def cleanup_on_exit():
     messages = safe_get_messages(None)
