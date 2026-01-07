@@ -78,8 +78,8 @@ def get_or_compute_subs_langs(user_id: int, url: str):
 # Dictionary of languages with their emoji flags and native names
 LANGUAGES = {
     "ar": {"flag": "🇸🇦", "name": "العربية"},
-    "be": {"flag": "🇧🇾", "name": "Беларуская"},
-    "bg": {"flag": "🇧🇬", "name": "Български"},
+    "be": {"flag": "🇧🇾", "name": "Belarusian"},
+    "bg": {"flag": "🇧🇬", "name": "Bulgarian"},
     "bn": {"flag": "🇧🇩", "name": "বাংলা"},
     "cs": {"flag": "🇨🇿", "name": "Čeština"},
     "da": {"flag": "🇩🇰", "name": "Dansk"},
@@ -102,7 +102,7 @@ LANGUAGES = {
     "id": {"flag": "🇮🇩", "name": "Bahasa Indonesia"},
     "it": {"flag": "🇮🇹", "name": "Italiano"},
     "ja": {"flag": "🇯🇵", "name": "日本語"},
-    "kk": {"flag": "🇰🇿", "name": "Қазақ тілі"},
+    "kk": {"flag": "🇰🇿", "name": "Kazakh"},
     "ko": {"flag": "🇰🇷", "name": "한국어"},
     "lt": {"flag": "🇱🇹", "name": "Lietuvių"},
     "lv": {"flag": "🇱🇻", "name": "Latviešu"},
@@ -112,14 +112,14 @@ LANGUAGES = {
     "pt": {"flag": "🇵🇹", "name": "Português"},
     "pt-BR": {"flag": "🇧🇷", "name": "Português (Brasil)"},
     "ro": {"flag": "🇷🇴", "name": "Română"},
-    "ru": {"flag": "🇷🇺", "name": "Русский"},
+    "ru": {"flag": "🇷🇺", "name": "Russian"},
     "sk": {"flag": "🇸🇰", "name": "Slovenčina"},
     "sl": {"flag": "🇸🇮", "name": "Slovenščina"},
-    "sr": {"flag": "🇷🇸", "name": "Српски"},
+    "sr": {"flag": "🇷🇸", "name": "Serbian"},
     "sv": {"flag": "🇸🇪", "name": "Svenska"},
     "th": {"flag": "🇹🇭", "name": "ไทย"},
     "tr": {"flag": "🇹🇷", "name": "Türkçe"},
-    "uk": {"flag": "🇺🇦", "name": "Українська"},
+    "uk": {"flag": "🇺🇦", "name": "Ukrainian"},
     "vi": {"flag": "🇻🇳", "name": "Tiếng Việt"},
     "zh": {"flag": "🇨🇳", "name": "中文"},
     "zh-Hans": {"flag": "🇨🇳", "name": "中文(简体)"},
@@ -143,11 +143,11 @@ LANGUAGES = {
     "am": {"flag": "🇪🇹", "name": "አማርኛ"},
     "az": {"flag": "🇦🇿", "name": "Azərbaycan"},
     "ka": {"flag": "🇬🇪", "name": "ქართული"},
-    "ky": {"flag": "🇰🇬", "name": "Кыргызча"},
+    "ky": {"flag": "🇰🇬", "name": "Kyrgyz"},
     "uz": {"flag": "🇺🇿", "name": "Oʻzbekcha"},
-    "tg": {"flag": "🇹🇯", "name": "Тоҷикӣ"},
+    "tg": {"flag": "🇹🇯", "name": "Tajik"},
     "tk": {"flag": "🇹🇲", "name": "Türkmen"},
-    "mn": {"flag": "🇲🇳", "name": "Монгол"},
+    "mn": {"flag": "🇲🇳", "name": "Mongolian"},
     "ps": {"flag": "🇦🇫", "name": "پښتو"},
     "or": {"flag": "🇮🇳", "name": "ଓଡ଼ିଆ"},
     "as": {"flag": "🇮🇳", "name": "অসমীয়া"},
@@ -156,7 +156,7 @@ LANGUAGES = {
     "eu": {"flag": "🇪🇸", "name": "Euskara"},
     "af": {"flag": "🇿🇦", "name": "Afrikaans"},
     "sq": {"flag": "🇦🇱", "name": "Shqip"},
-    "mk": {"flag": "🇲🇰", "name": "Македонски"},
+    "mk": {"flag": "🇲🇰", "name": "Macedonian"},
     "bs": {"flag": "🇧🇦", "name": "Bosanski"},
     "is": {"flag": "🇮🇸", "name": "Íslenska"},
     "ga": {"flag": "🇮🇪", "name": "Gaeilge"},
@@ -682,7 +682,7 @@ def ensure_utf8_srt(srt_path):
     # List of coding for forced testing (in priority)
     encodings_to_try = [
         'utf-8',
-        'utf-8-sig',  # UTF-8 с BOM
+        'utf-8-sig',  # UTF-8 with BOM
         'cp1256',     # Arabic Windows
         'iso-8859-6', # Arabic ISO
         'cp1252',     # Western European
@@ -1170,7 +1170,7 @@ def download_subtitles_ytdlp(url, user_id, video_dir, available_langs):
         'ko': r'[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]',
     }
     ALPHABETS = {
-        'ru': 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя',
+        'ru': '\u0430\u0431\u0432\u0433\u0434\u0435\u0451\u0436\u0437\u0438\u0439\u043a\u043b\u043c\u043d\u043e\u043f\u0440\u0441\u0442\u0443\u0444\u0445\u0446\u0447\u0448\u0449\u044a\u044b\u044c\u044d\u044e\u044f',
         'en': 'abcdefghijklmnopqrstuvwxyz',
         'es': 'abcdefghijklmnopqrstuvwxyzñáéíóúü',
         'fr': 'abcdefghijklmnopqrstuvwxyzàâäéèêëïîôöùûüÿç',
@@ -1646,4 +1646,3 @@ def get_language_keyboard_always_ask(page=0, user_id=None, langs_override=None, 
     return InlineKeyboardMarkup(keyboard)
 
 ######################################################
-

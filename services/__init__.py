@@ -1,7 +1,7 @@
 """
-Служебный пакет для вспомогательных сервисов бота.
+Service package for bot helper services.
 
-Сейчас используется для реализации статистики и веб-интерфейса мониторинга.
+Currently used for statistics and the monitoring web UI.
 """
 
 from __future__ import annotations
@@ -11,4 +11,3 @@ __all__ = [
     "stats_events",
     "stats_service",
 ]
-

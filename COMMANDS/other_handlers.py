@@ -59,8 +59,8 @@ def audio_command_handler(app, message):
     user_dir = os.path.join("users", str(user_id))
     create_directory(user_dir)
     text = message.text
-    # Нормализация синтаксиса диапазона: 
-    # поддержка «/audio 1-10 URL» → преобразуем во «/audio URL*1*10» для единого пайплайна
+    # Range syntax normalization:
+    # support "/audio 1-10 URL" -> convert to "/audio URL*1*10" for a single pipeline
     try:
         parts = (text or '').split()
         if len(parts) >= 3 and parts[0].lower().startswith('/audio'):
@@ -104,7 +104,7 @@ def audio_command_handler(app, message):
     # Extract playlist parameters from the message
     full_string = text or message.caption or ""
     _, video_start_with, video_end_with, playlist_name, _, _, tag_error = extract_url_range_tags(full_string)
-    # Правильное вычисление video_count для отрицательных индексов
+    # Correct video_count calculation for negative indices
     if video_start_with < 0 and video_end_with < 0:
         video_count = abs(video_end_with) - abs(video_start_with) + 1
     elif video_start_with > video_end_with:
@@ -194,7 +194,6 @@ def audio_hint_callback(app, callback_query):
         callback_query.answer(safe_get_messages(user_id).AUDIO_HELP_CLOSED_MSG)
         send_to_logger(callback_query.message, safe_get_messages(user_id).AUDIO_HINT_CLOSED_LOG_MSG)
         return
-
 
 
 

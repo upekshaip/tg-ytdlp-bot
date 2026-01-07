@@ -261,8 +261,8 @@ def check_subs_limits(info_dict, quality_key=None):
         max_quality = Config.MAX_SUB_QUALITY
         max_duration = Config.MAX_SUB_DURATION
         max_size = Config.MAX_SUB_SIZE
-        # Note: в этом контексте нет безопасного доступа к message/chat,
-        # поэтому групповые множители не применяются.
+        # Note: in this context we don't have safe access to message/chat,
+        # so group multipliers are not applied.
         
         logger.info(safe_get_messages(None).HELPER_CHECK_SUBS_LIMITS_CHECKING_LIMITS_MSG.format(max_quality=max_quality, max_duration=max_duration, max_size=max_size))
         logger.info(safe_get_messages(None).HELPER_CHECK_SUBS_LIMITS_INFO_DICT_KEYS_MSG.format(keys=list(info_dict.keys()) if info_dict else 'None'))
@@ -342,15 +342,15 @@ def check_playlist_range_limits(url, video_start_with, video_end_with, app, mess
     except Exception:
         pass
 
-    # Для отрицательных индексов используем абсолютное значение разницы
+    # For negative indices, use absolute difference
     if video_start_with < 0 and video_end_with < 0:
-        # Для отрицательных индексов: -1 до -100 = 100 элементов
+        # For negative indices: -1 to -100 = 100 items
         count = abs(video_start_with) - abs(video_end_with) + 1
     elif video_start_with > video_end_with:
-        # Для обратного порядка: считаем абсолютную разницу
+        # Reverse order: use absolute difference
         count = abs(video_start_with - video_end_with) + 1
     else:
-        # Для прямого порядка: обычная формула
+        # Forward order: standard formula
         count = video_end_with - video_start_with + 1
     
     if count is not None and count > max_count:

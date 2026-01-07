@@ -13,7 +13,7 @@ app = get_app()
 # Called from url_distractor - no decorator needed
 def caption_editor(app, message):
     messages = safe_get_messages(message.chat.id)
-    # Проверяем, что сообщение является ответом на видео
+    # Ensure the message is a reply to a video
     if not message.reply_to_message or not message.reply_to_message.video:
         return
     
@@ -29,12 +29,12 @@ def caption_editor(app, message):
         from HELPERS.logger import get_log_channel
         app.send_video(get_log_channel("video"), video_file_id, caption=caption)
     except AttributeError as e:
-        # Логируем ошибку, но не прерываем работу бота
+        # Log the error without stopping the bot
         from HELPERS.logger import logger
         logger.error(safe_get_messages(user_id).CAPTION_ERROR_IN_CAPTION_EDITOR_MSG.format(error=e))
         return
     except Exception as e:
-        # Логируем любые другие ошибки
+        # Log any other unexpected errors
         from HELPERS.logger import logger
         logger.error(safe_get_messages(user_id).CAPTION_UNEXPECTED_ERROR_IN_CAPTION_EDITOR_MSG.format(error=e))
         return

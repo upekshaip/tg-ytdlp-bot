@@ -77,7 +77,7 @@ def extract_service_info(url: str) -> Tuple[str, str]:
             if match:
                 return 'boosty', match.group(1)
     
-    # Odnoklassniki (Одноклассники)
+    # Odnoklassniki
     elif 'ok.ru' in netloc:
         if '/video/' in path:
             match = re.search(r'/video/(\d+)', path)
@@ -106,7 +106,7 @@ def extract_service_info(url: str) -> Tuple[str, str]:
             if match:
                 return 'pikabu', match.group(1)
     
-    # Yandex.Dzen (Яндекс.Дзен)
+    # Yandex.Dzen
     elif 'zen.yandex.ru' in netloc:
         if '/media/' in path:
             match = re.search(r'/media/([^/?]+)', path)

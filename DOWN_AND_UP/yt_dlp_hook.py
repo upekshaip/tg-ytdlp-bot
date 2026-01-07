@@ -14,8 +14,8 @@ from CONFIG.limits import LimitsConfig
 from HELPERS.fallback_helper import should_fallback_to_gallery_dl
 
 def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already_checked=False, use_proxy=False, playlist_end_index=None):
-    # ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ДЛЯ ОТЛАДКИ
-    logger.info(f"🔍 [DEBUG] get_video_formats вызвана с параметрами:")
+    # Detailed debug logging
+    logger.info("🔍 [DEBUG] get_video_formats called with parameters:")
     logger.info(f"   url: {url}")
     logger.info(f"   user_id: {user_id}")
     logger.info(f"   playlist_start_index: {playlist_start_index}")
@@ -23,7 +23,7 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
     logger.info(f"   cookies_already_checked: {cookies_already_checked}")
     logger.info(f"   use_proxy: {use_proxy}")
     
-    # Сбрасываем кеш проверенных источников куки для новой задачи
+    # Reset the "checked cookie sources" cache for a new task
     if user_id is not None:
         from COMMANDS.cookies_cmd import reset_checked_cookie_sources
         reset_checked_cookie_sources(user_id)
@@ -31,24 +31,24 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
     
     messages = safe_get_messages(user_id)
     
-    # Формируем playlist_items с учетом диапазона
+    # Build playlist_items taking the range into account
     if playlist_end_index is not None and playlist_end_index != playlist_start_index:
-        # Для диапазона используем формат START:END или START:END:-1 для обратного порядка
+        # For ranges, use START:END or START:END:-1 for reverse order
         if playlist_start_index < 0 or playlist_end_index < 0:
-            # Для отрицательных индексов определяем обратный порядок
+            # For negative indices determine reverse order
             is_reverse = (playlist_start_index < 0 and playlist_end_index < 0 and abs(playlist_start_index) < abs(playlist_end_index)) or (playlist_start_index > playlist_end_index)
             if is_reverse:
                 playlist_items_str = f"{playlist_start_index}:{playlist_end_index}:-1"
             else:
                 playlist_items_str = f"{playlist_start_index}:{playlist_end_index}"
         elif playlist_start_index > playlist_end_index:
-            # Для обратного порядка с положительными индексами
+            # Reverse order with positive indices
             playlist_items_str = f"{playlist_start_index}:{playlist_end_index}:-1"
         else:
-            # Для прямого порядка
+            # Forward order
             playlist_items_str = f"{playlist_start_index}:{playlist_end_index}"
     else:
-        # Для одного элемента
+        # Single item
         playlist_items_str = str(playlist_start_index)
     
     ytdl_opts = {
@@ -112,7 +112,7 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                     logger.info(safe_get_messages(user_id).YTDLP_EXISTING_YOUTUBE_COOKIES_FAILED_MSG.format(user_id=user_id))
                     cookie_urls = get_youtube_cookie_urls()
                     if cookie_urls:
-                        # Получаем только непроверенные источники для этого пользователя
+                        # Use only unchecked sources for this user
                         from COMMANDS.cookies_cmd import get_unchecked_cookie_sources, mark_cookie_source_checked
                         unchecked_indices = get_unchecked_cookie_sources(user_id, cookie_urls)
                         if not unchecked_indices:
@@ -124,7 +124,7 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                                 cookie_url = cookie_urls[idx]
                                 logger.info(safe_get_messages(user_id).YTDLP_TRYING_YOUTUBE_COOKIE_SOURCE_MSG.format(i=idx + 1, user_id=user_id))
                                 
-                                # Отмечаем источник как проверенный
+                                # Mark the source as checked
                                 mark_cookie_source_checked(user_id, idx)
                                 
                                 try:
@@ -157,7 +157,7 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                 logger.info(safe_get_messages(user_id).YTDLP_NO_YOUTUBE_COOKIES_FOUND_MSG.format(user_id=user_id))
                 cookie_urls = get_youtube_cookie_urls()
                 if cookie_urls:
-                    # Получаем только непроверенные источники для этого пользователя
+                    # Use only unchecked sources for this user
                     from COMMANDS.cookies_cmd import get_unchecked_cookie_sources, mark_cookie_source_checked
                     unchecked_indices = get_unchecked_cookie_sources(user_id, cookie_urls)
                     if not unchecked_indices:
@@ -169,7 +169,7 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                             cookie_url = cookie_urls[idx]
                             logger.info(f"Trying YouTube cookie source {idx + 1} for format detection for user {user_id}")
                             
-                            # Отмечаем источник как проверенный
+                            # Mark the source as checked
                             mark_cookie_source_checked(user_id, idx)
                             
                             try:
@@ -311,36 +311,36 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
     # Try with proxy fallback if user proxy is enabled
     def extract_info_operation(opts):
         try:
-            logger.info(f"🔍 [DEBUG] extract_info_operation: начинаем извлечение информации")
+            logger.info("🔍 [DEBUG] extract_info_operation: starting extraction")
             logger.info(f"   url: {url}")
             logger.info(f"   opts keys: {list(opts.keys())}")
             
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
             
-            logger.info(f"✅ [DEBUG] extract_info_operation: извлечение завершено")
+            logger.info("✅ [DEBUG] extract_info_operation: extraction finished")
             logger.info(f"   info type: {type(info)}")
             if isinstance(info, dict):
                 logger.info(f"   info keys: {list(info.keys())}")
                 if 'duration' in info:
-                    logger.info(f"   duration: {info['duration']} (тип: {type(info['duration'])})")
+                    logger.info(f"   duration: {info['duration']} (type: {type(info['duration'])})")
                 if 'is_live' in info:
-                    logger.info(f"   is_live: {info['is_live']} (тип: {type(info['is_live'])})")
+                    logger.info(f"   is_live: {info['is_live']} (type: {type(info['is_live'])})")
             
             # Normalize info to a dict
-            # Для плейлистов сохраняем все entries для скачивания обложек
+            # For playlists, keep all entries to download thumbnails/covers
             playlist_entries = None
             if isinstance(info, list):
                 info = (info[0] if len(info) > 0 else {})
-                logger.info(f"🔍 [DEBUG] info был списком, взяли первый элемент")
+                logger.info("🔍 [DEBUG] info was a list; using the first element")
             elif isinstance(info, dict) and 'entries' in info:
                 entries = info.get('entries')
                 if isinstance(entries, list) and len(entries) > 0:
-                    # Сохраняем все entries для скачивания обложек
+                    # Keep all entries for thumbnail/cover downloads
                     playlist_entries = entries
                     info = entries[0]
-                    logger.info(f"🔍 [DEBUG] info содержал entries, взяли первый элемент. Всего entries: {len(entries)}")
-                    # Добавляем entries в info для использования в ask_quality_menu
+                    logger.info(f"🔍 [DEBUG] info contained entries; using the first element. Total entries: {len(entries)}")
+                    # Attach entries for ask_quality_menu
                     info['_playlist_entries'] = playlist_entries
             
             # Check for live stream after extraction (only if detection is enabled)
@@ -356,7 +356,7 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                     set_cookie_cache_result(user_id, url, True, cookie_file_path)
                     logger.info(f"Cached successful cookie result for format detection {url}")
             
-            logger.info(f"✅ [DEBUG] extract_info_operation: возвращаем info")
+            logger.info("✅ [DEBUG] extract_info_operation: returning info")
             return info
         except yt_dlp.utils.DownloadError as e:
             error_text = str(e)

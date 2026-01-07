@@ -47,13 +47,13 @@ def fake_message(text, user_id, command=None, original_chat_id=None, message_thr
     m.from_user = SimpleNamespace()
     m.from_user.id = user_id
     m.from_user.first_name = m.chat.first_name
-    # ЖЕСТКО: Помечаем как fake message для правильной обработки платных медиа
+    # STRICT: mark as fake message for correct paid-media handling
     m._is_fake_message = True
-    # ЖЕСТКО: Сохраняем оригинальный chat_id для правильного определения is_private_chat
+    # STRICT: preserve original chat_id to determine is_private_chat correctly
     m._original_chat_id = original_chat_id if original_chat_id is not None else user_id
-    # ЖЕСТКО: Сохраняем message_thread_id для правильной работы с топиками в группах
+    # STRICT: preserve message_thread_id for correct topic/thread routing in groups
     m.message_thread_id = message_thread_id
-    # ЖЕСТКО: Сохраняем оригинальное сообщение для реплаев
+    # STRICT: preserve original message for replies
     m._original_message = original_message
     if command is not None:
         m.command = command
@@ -72,16 +72,16 @@ def fake_message(text, user_id, command=None, original_chat_id=None, message_thr
 
 def fake_message_with_context(text, user_id, context_message=None, command=None):
     """
-    Создает fake_message с автоматическим извлечением message_thread_id из контекста.
+    Create a fake_message and automatically extract message_thread_id from context.
     
     Args:
-        text: Текст сообщения
-        user_id: ID пользователя
-        context_message: Сообщение для извлечения контекста (message_thread_id, chat_id)
-        command: Команда (опционально)
+        text: Message text
+        user_id: User ID
+        context_message: Message to extract context from (message_thread_id, chat_id)
+        command: Command (optional)
     
     Returns:
-        fake_message с правильным message_thread_id
+        fake_message with correct message_thread_id
     """
     if context_message:
         original_chat_id = getattr(context_message, 'chat', {}).id if hasattr(context_message, 'chat') else user_id
@@ -421,7 +421,7 @@ def safe_delete_messages(chat_id, message_ids, **kwargs):
             app = get_app_safe()
             return app.delete_messages(chat_id=chat_id, message_ids=message_ids, **kwargs)
         except Exception as e:
-            # Если сообщение уже удалено/невалидно — не считаем это ошибкой
+            # If the message is already deleted/invalid, don't treat it as an error
             try:
                 msg = str(e)
             except Exception:
@@ -444,7 +444,7 @@ def safe_delete_messages(chat_id, message_ids, **kwargs):
                 if attempt and attempt < max_retries - 1:
                     continue
 
-            # Избегаем внутренних атрибутов исключения (например, pts_count)
+            # Avoid exception internal attributes (e.g., pts_count)
             logger.error(f"Failed to delete messages after {max_retries} attempts: {type(e).__name__}")
             return None
 

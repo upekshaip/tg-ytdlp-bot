@@ -11,7 +11,7 @@ from CONFIG.config import Config
 
 
 def get_file_line_count(file_path: str) -> int:
-    """Подсчитывает количество строк в файле."""
+    """Count the number of non-empty lines in a file."""
     try:
         if not os.path.exists(file_path):
             return 0
@@ -22,7 +22,7 @@ def get_file_line_count(file_path: str) -> int:
 
 
 def get_lists_stats() -> Dict[str, Any]:
-    """Возвращает статистику по файлам списков."""
+    """Return stats for list files."""
     base_dir = Path(__file__).parent.parent
     return {
         "porn_domains": get_file_line_count(base_dir / Config.PORN_DOMAINS_FILE),
@@ -32,7 +32,7 @@ def get_lists_stats() -> Dict[str, Any]:
 
 
 def get_domain_lists() -> Dict[str, List[str]]:
-    """Возвращает все списки доменов из CONFIG/domains.py."""
+    """Return all domain lists from CONFIG/domains.py."""
     return {
         "WHITE_KEYWORDS": list(getattr(DomainsConfig, "WHITE_KEYWORDS", [])),
         "GALLERYDL_ONLY_DOMAINS": list(getattr(DomainsConfig, "GALLERYDL_ONLY_DOMAINS", [])),
@@ -52,20 +52,20 @@ def get_domain_lists() -> Dict[str, List[str]]:
 
 
 def update_domain_list(list_name: str, items: List[str]) -> bool:
-    """Обновляет список доменов в CONFIG/domains.py."""
+    """Update a domain list in CONFIG/domains.py."""
     domains_path = Path(__file__).parent.parent / "CONFIG" / "domains.py"
     try:
         with open(domains_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
         
-        # Ищем начало списка
+        # Find list start
         start_idx = None
         end_idx = None
         indent = "    "
         for i, line in enumerate(lines):
             if re.match(rf'^\s*{list_name}\s*=\s*\[', line):
                 start_idx = i
-                # Определяем отступ
+                # Detect indentation
                 indent_match = re.match(r'^(\s*)', line)
                 if indent_match:
                     indent = indent_match.group(1)
@@ -74,7 +74,7 @@ def update_domain_list(list_name: str, items: List[str]) -> bool:
         if start_idx is None:
             return False
         
-        # Ищем конец списка
+        # Find list end
         bracket_count = 0
         found_open = False
         for i in range(start_idx, len(lines)):
@@ -94,13 +94,13 @@ def update_domain_list(list_name: str, items: List[str]) -> bool:
         if end_idx is None:
             return False
         
-        # Формируем новый список
+        # Build new list
         new_lines = [f"{indent}{list_name} = [\n"]
         for item in items:
             new_lines.append(f'{indent}    "{item}",\n')
         new_lines.append(f"{indent}]\n")
         
-        # Заменяем старый список новым
+        # Replace old list with the new one
         lines[start_idx:end_idx + 1] = new_lines
         
         with open(domains_path, "w", encoding="utf-8") as f:
@@ -112,14 +112,14 @@ def update_domain_list(list_name: str, items: List[str]) -> bool:
 
 
 def update_lists() -> Dict[str, Any]:
-    """Обновляет списки через script.sh."""
+    """Update lists via script.sh."""
     try:
         script_path = "/root/Telegram/tg-ytdlp-bot/script.sh"
         result = subprocess.run(
             ["bash", script_path],
             capture_output=True,
             text=True,
-            timeout=300,  # 5 минут
+            timeout=300,  # 5 minutes
             check=False,
         )
         if result.returncode == 0:
@@ -128,4 +128,3 @@ def update_lists() -> Dict[str, Any]:
             return {"status": "error", "message": result.stderr or "Failed to update lists"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
-

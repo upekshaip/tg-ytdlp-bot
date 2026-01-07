@@ -49,10 +49,10 @@ EXCLUDED_DIRS = [
     "_cursor",           # Cursor temp workspace
 ]
 
-# Дополнительные каталоги / файлы, которые нужно обязательно забирать
+# Additional directories/files that must always be synced
 INCLUDE_DIRS = [
-    "web",  # Включает шаблоны, статику и сам FastAPI-приложение
-    "CONFIG/templates",  # Если появятся шаблоны/локализации
+    "web",  # Includes templates, static assets, and the FastAPI app itself
+    "CONFIG/templates",  # In case templates/localizations are added
 ]
 
 ALWAYS_INCLUDE_FILES = [
@@ -195,7 +195,7 @@ def find_python_files(source_dir, exclude_include_dirs=False):
 
 
 def sync_include_directories(source_root: str) -> None:
-    """Полностью синхронизирует каталоги из INCLUDE_DIRS (жёсткое копирование)."""
+    """Fully sync directories from INCLUDE_DIRS (hard copy)."""
     for include_dir in INCLUDE_DIRS:
         source_path = os.path.join(source_root, include_dir)
         if not os.path.exists(source_path):
@@ -339,7 +339,7 @@ def main():
         log(f"❌ Errors: {failed_count}")
         log(f"📁 Total files: {len(files_to_update)}")
 
-        # Жёстко подтягиваем обязательные каталоги (например, web/)
+        # Force-sync required directories (e.g., web/)
         log("=" * 50)
         log("📦 Syncing include directories (web/, etc.)...")
         sync_include_directories(temp_dir)

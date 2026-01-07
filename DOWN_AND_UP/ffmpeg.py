@@ -99,7 +99,7 @@ def create_safe_filename(original_path, prefix="safe", extension=None):
 def test_path_handling():
     """Test function to verify path handling with special characters"""
     # Use universal path format
-    test_path = os.path.join("users", "7360853", "Ценам приказано не расти _ Послушаются ли они (Eng.en.srt")
+    test_path = os.path.join("users", "7360853", "sample_subtitles_(Eng.en).srt")
     
     logger.info(f"Testing path: {test_path}")
     logger.info(f"Path exists: {os.path.exists(test_path)}")
@@ -597,7 +597,7 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
         
         video_dir = os.path.dirname(video_path)
         
-        # Если контейнер MKV — выполняем «софт»-встраивание дорожки субтитров без прожига
+        # If container is MKV, do a soft subtitle mux (no burn-in)
         try:
             mkv_selected = bool(get_user_mkv_preference(user_id))
         except Exception:
@@ -605,7 +605,7 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
         is_mkv_file = video_path.lower().endswith('.mkv')
 
         if is_mkv_file or mkv_selected:
-            # Убедимся, что есть SRT (в UTF-8)
+            # Ensure we have an SRT (in UTF-8)
             srt_files = [f for f in os.listdir(video_dir) if f.lower().endswith('.srt')]
             if not srt_files:
                 logger.info(f"No .srt files found in {video_dir} for soft-mux MKV")
@@ -616,11 +616,11 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
                 logger.error(f"Subtitle file invalid for MKV soft-mux: {subs_path}")
                 return False
 
-            # Подготавливаем путь вывода
+            # Prepare output path
             video_base = os.path.splitext(os.path.basename(video_path))[0]
             output_path = os.path.join(video_dir, f"{video_base}_with_subs_temp.mkv")
 
-            # Собираем MKV: видео/аудио копируем, субтитры как srt
+            # Build MKV: copy video/audio, add subtitles as SRT
             ffmpeg_path = get_ffmpeg_path()
             if not ffmpeg_path:
                 logger.error("ffmpeg not found for MKV soft-mux")
@@ -634,7 +634,7 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
                 '-map', '0',
                 '-map', '1:0'
             ]
-            # Язык субтитров, если указан
+            # Subtitle language metadata, if provided
             if subs_lang and subs_lang != 'OFF':
                 cmd += ['-metadata:s:s:0', f'language={subs_lang}']
             cmd += [output_path]
@@ -650,7 +650,7 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
                 logger.error("Soft-mux output missing or empty")
                 return False
 
-            # Безопасно заменяем исходный файл на результат (оставляем .mkv путь)
+            # Safely replace the original file with the result (keep the .mkv path)
             backup_path = video_path + ".backup"
             try:
                 os.rename(video_path, backup_path)
@@ -659,7 +659,7 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
                     os.remove(backup_path)
             except Exception as e:
                 logger.error(f"Error replacing MKV after soft-mux: {e}")
-                # Откат
+                # Rollback
                 try:
                     if os.path.exists(video_path):
                         os.remove(video_path)
@@ -674,7 +674,7 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
             logger.info("Soft subtitle mux into MKV completed successfully")
             return True
 
-        # We get video parameters via FFPRobe (жёсткое прожигание для MP4 и прочих контейнеров)
+        # Get video parameters via ffprobe (hard burn-in for MP4 and other containers)
         width, height, total_time = get_video_info_ffprobe(video_path)
         if width == 0 or height == 0:
             logger.error(f"Unable to determine video resolution via ffprobe: width={width}, height={height}")

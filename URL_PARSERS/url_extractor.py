@@ -47,9 +47,9 @@ app = get_app()
 def url_distractor(app, message):
     user_id = message.chat.id
     is_admin = int(user_id) in Config.ADMIN
-    logger.info(f"🔍 [DEBUG] url_distractor: message.text в начале функции='{message.text}'")
+    logger.info(f"🔍 [DEBUG] url_distractor: message.text at function start='{message.text}'")
     text = message.text.strip()
-    logger.info(f"🔍 [DEBUG] url_distractor: text после strip='{text}'")
+    logger.info(f"🔍 [DEBUG] url_distractor: text after strip='{text}'")
     
     # Check command rate limit (for all commands, not just URLs)
     from HELPERS.command_limiter import check_command_limit
@@ -102,7 +102,6 @@ def url_distractor(app, message):
     # Check for args header in any supported language
     args_headers = [
         "📋 Current yt-dlp Arguments:",  # English
-        "📋 Текущие аргументы yt-dlp:",  # Russian
         "📋 वर्तमान yt-dlp तर्क:",  # Hindi
         "📋 وسائط yt-dlp الحالية:",  # Arabic
     ]
@@ -970,16 +969,16 @@ def url_distractor(app, message):
     # /vid help & range transformation when handled by the text pipeline
     range_processed = False
     if text.strip().lower().startswith("/vid"):
-        # Try to transform "/vid A-B URL" -> "URL*A*B" (B may be empty, поддерживаем отрицательные числа)
-        # Если первое число с минусом, то добавляем минус и ко второму числу: /vid -1-7 URL -> URL*-1*-7
+        # Try to transform "/vid A-B URL" -> "URL*A*B" (B may be empty; supports negative numbers)
+        # If the first number is negative, prefix the second with "-" too: /vid -1-7 URL -> URL*-1*-7
         parts_full = text.strip().split(maxsplit=2)
         if len(parts_full) >= 3 and re.match(r"^-?\d+-\d*$", parts_full[1]):
             rng = parts_full[1]
             url_only = parts_full[2]
-            # Парсим диапазон: если начинается с минуса, оба числа отрицательные
+            # Parse range: if it starts with "-", both numbers are negative
             if rng.startswith("-"):
-                # Формат: -1-7 -> *-1*-7
-                # Находим второе число после первого минуса
+                # Format: -1-7 -> *-1*-7
+                # Find the second number after the first "-"
                 match = re.match(r"^-(\d+)-(\d*)$", rng)
                 if match:
                     first_num = f"-{match.group(1)}"
@@ -989,13 +988,13 @@ def url_distractor(app, message):
                     else:
                         new_text = f"{url_only}*{first_num}*"
                 else:
-                    # Fallback: обычный парсинг
+                    # Fallback: regular parsing
                     a, b = rng.split('-', 1)
                     if b != "":
                         b = f"-{b}"
                     new_text = f"{url_only}*{a}*{b}" if b else f"{url_only}*{a}*"
             else:
-                # Обычный формат: 1-7 -> *1*7
+                # Regular format: 1-7 -> *1*7
                 a, b = rng.split('-', 1)
                 if b == "":
                     new_text = f"{url_only}*{a}*"
@@ -1004,16 +1003,16 @@ def url_distractor(app, message):
             try:
                 message.text = new_text
                 range_processed = True
-                logger.info(f"🔍 [DEBUG] Преобразовано /vid команда в url_extractor: '{text}' -> '{new_text}'")
-                logger.info(f"🔍 [DEBUG] message.text после преобразования: '{message.text}'")
-                # После преобразования не нужно дальше обрабатывать /vid команду
-                # Просто переходим к обработке URL
+                logger.info(f"🔍 [DEBUG] /vid command transformed in url_extractor: '{text}' -> '{new_text}'")
+                logger.info(f"🔍 [DEBUG] message.text after transformation: '{message.text}'")
+                # After transformation, don't handle /vid further here.
+                # Just continue with URL processing.
             except Exception as e:
-                logger.error(f"🔍 [DEBUG] Ошибка при обновлении message.text: {e}")
+                logger.error(f"🔍 [DEBUG] Error while updating message.text: {e}")
                 pass
             # fallthrough to standard URL flow below
         else:
-            # Если диапазон не был обработан, проверяем, нужна ли помощь
+            # If no range was parsed, check whether help is needed
             parts = text.strip().split(maxsplit=1)
             if len(parts) == 1:
                 try:
@@ -1033,7 +1032,7 @@ def url_distractor(app, message):
                 return
             else:
                 # Strip command and reuse the URL handler path when no range was provided
-                # НЕ перезаписываем message.text, если диапазон уже был обработан
+                # Do NOT overwrite message.text if the range was already processed
                 if not range_processed:
                     try:
                         if len(parts_full) < 3 or not re.match(r"^-?\d+-\d*$", parts_full[1]):
@@ -1044,7 +1043,7 @@ def url_distractor(app, message):
     # If the message contains a URL, process without explicit commands:
     # 1) Try yt-dlp flow (video_url_extractor)
     # 2) On failure, fallback to gallery-dl (/img handler)
-    # Используем обновленный message.text, если он был изменен
+    # Use updated message.text if it was changed
     final_text = message.text if hasattr(message, 'text') and message.text else text
     if ("https://" in final_text) or ("http://" in final_text):
         if not is_user_blocked(message):
@@ -1062,7 +1061,7 @@ def url_distractor(app, message):
             
             from COMMANDS.subtitles_cmd import clear_subs_check_cache
             clear_subs_check_cache()
-            # Централизованный роутер на gallery-dl для некоторых ссылок
+            # Centralized router to gallery-dl for certain links
             try:
                 try:
                     from .engine_router import route_if_gallerydl_only  # type: ignore
@@ -1073,7 +1072,7 @@ def url_distractor(app, message):
             except Exception as route_e:
                 logger.error(LoggerMsg.URL_EXTRACTOR_ENGINE_ROUTER_ERROR_LOG_MSG.format(error=route_e))
             try:
-                logger.info(f"🔍 [DEBUG] url_extractor: перед вызовом video_url_extractor, message.text='{message.text}'")
+                logger.info(f"🔍 [DEBUG] url_extractor: before calling video_url_extractor, message.text='{message.text}'")
                 video_url_extractor(app, message)
             except Exception as e:
                 logger.error(LoggerMsg.URL_EXTRACTOR_VIDEO_EXTRACTOR_FAILED_LOG_MSG.format(e=e))
@@ -1190,7 +1189,6 @@ def url_distractor(app, message):
     # Check for args header in any supported language
     args_headers = [
         "📋 Current yt-dlp Arguments:",  # English
-        "📋 Текущие аргументы yt-dlp:",  # Russian
         "📋 वर्तमान yt-dlp तर्क:",  # Hindi
         "📋 وسائط yt-dlp الحالية:",  # Arabic
     ]

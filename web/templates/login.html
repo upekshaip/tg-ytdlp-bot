@@ -124,7 +124,7 @@
                 } else {
                     const data = await response.json();
                     let errorText = data.detail || "Login failed";
-                    // Если есть информация о блокировке, показываем её
+                    // If we have lockout info, show it
                     if (errorText.includes("Too many failed attempts")) {
                         errorText += "..";
                     }
@@ -142,4 +142,3 @@
     </script>
 </body>
 </html>
-

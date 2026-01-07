@@ -16,25 +16,25 @@ from DATABASE.cache_db import get_next_reload_time
 
 logger = logging.getLogger(__name__)
 
-# Кеш для скорости сети
+# Cache for network speed
 _network_speed_cache = {"last_check": 0, "last_sent": 0, "last_recv": 0, "speed_sent": 0, "speed_recv": 0}
 
 
 def get_network_speed() -> Dict[str, Any]:
-    """Вычисляет текущую скорость сети на основе активных потоков."""
+    """Compute current network speed based on active transfers."""
     global _network_speed_cache
     try:
         now = time.time()
         net_io = psutil.net_io_counters()
         
-        # Если прошло меньше секунды с последней проверки, возвращаем кеш
+        # If less than a second passed since last check, return cached value
         if now - _network_speed_cache["last_check"] < 1:
             return {
                 "speed_sent_mbps": round(_network_speed_cache["speed_sent"] / (1024**2) * 8, 2),
                 "speed_recv_mbps": round(_network_speed_cache["speed_recv"] / (1024**2) * 8, 2),
             }
         
-        # Вычисляем скорость
+        # Compute speed
         if _network_speed_cache["last_check"] > 0:
             time_diff = now - _network_speed_cache["last_check"]
             sent_diff = net_io.bytes_sent - _network_speed_cache["last_sent"]
@@ -59,12 +59,12 @@ def get_network_speed() -> Dict[str, Any]:
 
 
 def get_external_ip() -> Dict[str, str]:
-    """Получает внешний IPv4 и IPv6 адреса."""
+    """Get external IPv4 and IPv6 addresses."""
     ipv4 = "unknown"
     ipv6 = "unknown"
     
     try:
-        # Получаем IPv4
+        # Get IPv4
         ipv4_services = [
             "https://api.ipify.org",
             "https://ifconfig.me/ip",
@@ -79,7 +79,7 @@ def get_external_ip() -> Dict[str, str]:
             except Exception:
                 continue
         
-        # Получаем IPv6 через curl -6 ifconfig.io
+        # Get IPv6 via curl -6 ifconfig.io
         try:
             result = subprocess.run(
                 ["curl", "-6", "ifconfig.io"],
@@ -93,16 +93,16 @@ def get_external_ip() -> Dict[str, str]:
         except Exception:
             pass
         
-        # Если IPv6 не получен через curl, пробуем через requests с IPv6
+        # If IPv6 wasn't obtained via curl, try via requests over IPv6
         if ipv6 == "unknown":
             try:
-                # Попытка получить IPv6 через специальный сервис
+                # Try to get IPv6 via a dedicated service
                 response = requests.get("https://api64.ipify.org?format=json", timeout=3)
                 if response.status_code == 200:
                     data = response.json()
                     if "ip" in data:
                         ipv6_candidate = data["ip"]
-                        # Проверяем, что это IPv6 (содержит :)
+                        # Ensure it's IPv6 (contains ':')
                         if ":" in ipv6_candidate:
                             ipv6 = ipv6_candidate
             except Exception:
@@ -115,7 +115,7 @@ def get_external_ip() -> Dict[str, str]:
 
 
 def get_system_metrics() -> Dict[str, Any]:
-    """Возвращает метрики системы."""
+    """Return system metrics."""
     try:
         cpu_percent = psutil.cpu_percent(interval=0.1)
         memory = psutil.virtual_memory()
@@ -127,17 +127,17 @@ def get_system_metrics() -> Dict[str, Any]:
         uptime_hours = int((uptime_seconds % 86400) // 3600)
         uptime_minutes = int((uptime_seconds % 3600) // 60)
         
-        # Время до следующего reload_cache
+        # Time until next reload_cache
         interval_hours = getattr(Config, "RELOAD_CACHE_EVERY", 4)
         next_reload = get_next_reload_time(interval_hours)
         now = datetime.now()
         delta = next_reload - now
         reload_seconds = int(delta.total_seconds())
         
-        # Скорость сети
+        # Network speed
         network_speed = get_network_speed()
         
-        # Внешний IP
+        # External IP
         external_ip = get_external_ip()
         
         return {
@@ -180,7 +180,7 @@ def _read_package_version(
     module_name: str | None = None,
     cli_command: list[str] | None = None,
 ) -> str:
-    """Пытается определить версию пакета несколькими способами."""
+    """Try to determine a package version using multiple methods."""
     try:
         return metadata.version(package_name)
     except metadata.PackageNotFoundError:
@@ -215,7 +215,7 @@ def _read_package_version(
 
 
 def _get_bgutil_provider_info() -> str:
-    """Возвращает информацию о docker-контейнере bgutil-provider."""
+    """Return info about the bgutil-provider Docker container."""
     try:
         result = subprocess.run(
             [
@@ -249,7 +249,7 @@ def _get_bgutil_provider_info() -> str:
 
 
 def get_package_versions() -> Dict[str, str]:
-    """Возвращает версии установленных пакетов."""
+    """Return installed package versions."""
     return {
         "yt-dlp": _read_package_version("yt-dlp", module_name="yt_dlp", cli_command=["yt-dlp", "--version"]),
         "gallery-dl": _read_package_version("gallery-dl", module_name="gallery_dl", cli_command=["gallery-dl", "--version"]),
@@ -259,7 +259,7 @@ def get_package_versions() -> Dict[str, str]:
 
 
 def rotate_ip() -> Dict[str, Any]:
-    """Ротирует IP адрес через перезапуск WireGuard и возвращает новые IP."""
+    """Rotate IP by restarting WireGuard and return new IPs."""
     try:
         result = subprocess.run(
             ["sudo", "systemctl", "restart", "wg-quick@wgcf"],
@@ -269,10 +269,10 @@ def rotate_ip() -> Dict[str, Any]:
             check=False,
         )
         if result.returncode == 0:
-            # Ждем немного для применения нового IP
+            # Wait a bit for the new IP to apply
             import time
             time.sleep(2)
-            # Получаем новые IP адреса
+            # Get new IP addresses
             new_ips = get_external_ip()
             return {
                 "status": "ok",
@@ -287,7 +287,7 @@ def rotate_ip() -> Dict[str, Any]:
 
 
 def restart_service() -> Dict[str, Any]:
-    """Перезапускает сервис tg-ytdlp-bot."""
+    """Restart tg-ytdlp-bot service."""
     try:
         result = subprocess.run(
             ["sudo", "systemctl", "restart", "tg-ytdlp-bot"],
@@ -305,7 +305,7 @@ def restart_service() -> Dict[str, Any]:
 
 
 def update_engines() -> Dict[str, Any]:
-    """Обновляет движки через engines_updater.sh."""
+    """Update engines via engines_updater.sh."""
     try:
         commands = [
             ("yt-dlp/gdl", ["bash", "/root/Telegram/tg-ytdlp-bot/engines_updater.sh"]),
@@ -332,7 +332,7 @@ def update_engines() -> Dict[str, Any]:
 
 
 def cleanup_user_files() -> Dict[str, Any]:
-    """Удаляет файлы из папок пользователей (кроме системных)."""
+    """Delete files from user folders (except system ones)."""
     try:
         users_dir = "/root/Telegram/tg-ytdlp-bot/users"
         result = subprocess.run(
@@ -367,14 +367,14 @@ def cleanup_user_files() -> Dict[str, Any]:
 
 
 def update_lists() -> Dict[str, Any]:
-    """Обновляет списки через script.sh."""
+    """Update lists via script.sh."""
     try:
         script_path = "/root/Telegram/tg-ytdlp-bot/script.sh"
         result = subprocess.run(
             ["bash", script_path],
             capture_output=True,
             text=True,
-            timeout=300,  # 5 минут
+            timeout=300,  # 5 minutes
             check=False,
         )
         if result.returncode == 0:
@@ -386,18 +386,18 @@ def update_lists() -> Dict[str, Any]:
 
 
 def get_config_settings() -> Dict[str, Any]:
-    """Возвращает редактируемые настройки из конфига."""
-    # Собираем все YouTube cookie URLs, включая пустые значения
-    # Используем getattr с дефолтом "" для безопасной обработки отсутствующих атрибутов
+    """Return editable settings from config."""
+    # Collect all YouTube cookie URLs, including empty values
+    # Use getattr with default "" to safely handle missing attributes
     youtube_cookie_urls = []
     try:
-        # Основной URL
+        # Main URL
         main_url = getattr(Config, "YOUTUBE_COOKIE_URL", "")
         youtube_cookie_urls.append(str(main_url) if main_url else "")
     except (AttributeError, TypeError):
         youtube_cookie_urls.append("")
     
-    # Дополнительные URL (1-10)
+    # Additional URLs (1-10)
     for idx in range(1, 11):
         try:
             url = getattr(Config, f"YOUTUBE_COOKIE_URL_{idx}", "")
@@ -449,19 +449,19 @@ def get_config_settings() -> Dict[str, Any]:
         "subscribe_channel_url": getattr(Config, "SUBSCRIBE_CHANNEL_URL", ""),
         "dashboard": {
             "username": getattr(Config, "DASHBOARD_USERNAME", "admin"),
-            "password": getattr(Config, "DASHBOARD_PASSWORD", ""),  # Не показываем пароль в API
+            "password": getattr(Config, "DASHBOARD_PASSWORD", ""),  # Don't expose the password in the API
         },
     }
 
 
 def update_config_setting(key: str, value: Any) -> bool:
-    """Обновляет настройку в CONFIG/config.py."""
+    """Update a setting in CONFIG/config.py."""
     config_path = Path(__file__).parent.parent / "CONFIG" / "config.py"
     try:
         with open(config_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
         
-        # Простое обновление через поиск строки
+        # Simple update via line search
         patterns = {
             "PROXY_TYPE": r'^\s*PROXY_TYPE\s*=',
             "PROXY_IP": r'^\s*PROXY_IP\s*=',
@@ -515,14 +515,14 @@ def update_config_setting(key: str, value: Any) -> bool:
                         coerced = int(value)
                         lines[i] = f"    {key} = {coerced}\n"
                     except (ValueError, TypeError):
-                        # Если не удалось преобразовать в int, сохраняем как строку
+                        # If int conversion fails, keep as string
                         lines[i] = f"    {key} = \"{value}\"\n"
                 elif isinstance(value, (int, float)) and key not in integer_keys:
                     lines[i] = f"    {key} = {value}\n"
                 elif isinstance(value, bool):
                     lines[i] = f"    {key} = {str(value)}\n"
                 else:
-                    # Экранируем кавычки в строке
+                    # Escape quotes in a string
                     escaped_value = str(value).replace('"', '\\"')
                     lines[i] = f"    {key} = \"{escaped_value}\"\n"
                 updated = True
@@ -540,25 +540,25 @@ def update_config_setting(key: str, value: Any) -> bool:
                     updated = True
                     break
             elif key.startswith("YOUTUBE_COOKIE_URL"):
-                # Проверяем активную строку (приоритет)
+                # Check active line first (preferred)
                 active_match = re.match(rf'^\s*{re.escape(key)}\s*=', line)
                 if active_match:
-                    # Обрабатываем пустые значения корректно
+                    # Handle empty values correctly
                     escaped_value = str(value).replace('"', '\\"') if value else ""
                     lines[i] = f"    {key} = \"{escaped_value}\"\n"
                     updated = True
                     break
-                # Проверяем закомментированную строку (если активной не нашли)
+                # Check commented line (if no active one was found)
                 commented_match = re.match(rf'^\s*#\s*{re.escape(key)}\s*=', line)
                 if commented_match and not updated:
-                    # Обрабатываем пустые значения корректно
+                    # Handle empty values correctly
                     escaped_value = str(value).replace('"', '\\"') if value else ""
-                    # Раскомментируем строку и обновляем значение
+                    # Uncomment the line and update the value
                     lines[i] = f"    {key} = \"{escaped_value}\"\n"
                     updated = True
                     break
             elif key == "DASHBOARD_PASSWORD" and re.match(r'^\s*DASHBOARD_PASSWORD\s*=', line):
-                # Для пароля обновляем только если передано непустое значение
+                # For password, update only if a non-empty value was provided
                 if value and str(value).strip():
                     escaped_value = str(value).replace('"', '\\"')
                     lines[i] = f"    DASHBOARD_PASSWORD = \"{escaped_value}\"\n"
@@ -566,26 +566,26 @@ def update_config_setting(key: str, value: Any) -> bool:
                 break
         
         if not updated and key.startswith("YOUTUBE_COOKIE_URL"):
-            # Ищем место после последнего YOUTUBE_COOKIE_URL (активного или закомментированного) или перед INSTAGRAM_COOKIE_URL
+            # Insert after the last YOUTUBE_COOKIE_URL (active or commented) or before INSTAGRAM_COOKIE_URL
             insert_at = len(lines)
-            # Сначала ищем последний YOUTUBE_COOKIE_URL (активный или закомментированный)
+            # First, locate the last YOUTUBE_COOKIE_URL (active or commented)
             for idx in range(len(lines) - 1, -1, -1):
-                # Проверяем как активную, так и закомментированную строку
+                # Check both active and commented lines
                 if re.match(r'^\s*#?\s*YOUTUBE_COOKIE_URL', lines[idx]):
                     insert_at = idx + 1
                     break
-            # Если не нашли, ищем перед INSTAGRAM_COOKIE_URL
+            # If not found, insert before INSTAGRAM_COOKIE_URL
             if insert_at == len(lines):
                 insert_at = next(
                     (idx for idx, line in enumerate(lines) if "INSTAGRAM_COOKIE_URL" in line),
                     len(lines),
                 )
-            # Обрабатываем пустые значения корректно
+            # Handle empty values correctly
             escaped_value = str(value).replace('"', '\\"') if value else ""
             lines.insert(insert_at, f"    {key} = \"{escaped_value}\"\n")
             updated = True
         elif not updated and key == "DASHBOARD_PASSWORD":
-            # Ищем место после DASHBOARD_USERNAME
+            # Insert after DASHBOARD_USERNAME
             insert_at = next(
                 (idx for idx, line in enumerate(lines) if "DASHBOARD_USERNAME" in line),
                 len(lines),
@@ -610,7 +610,7 @@ def update_config_setting(key: str, value: Any) -> bool:
             with open(config_path, "w", encoding="utf-8") as f:
                 f.writelines(lines)
             
-            # Если обновили логин или пароль дашборда, перезагружаем конфиг в auth_service
+            # If dashboard username/password changed, reload config in auth_service
             if key in ("DASHBOARD_USERNAME", "DASHBOARD_PASSWORD"):
                 try:
                     from services.auth_service import get_auth_service
@@ -626,4 +626,3 @@ def update_config_setting(key: str, value: Any) -> bool:
         import traceback
         logger.error(traceback.format_exc())
         return False
-
