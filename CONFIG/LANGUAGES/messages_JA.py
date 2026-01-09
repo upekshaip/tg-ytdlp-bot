@@ -1147,7 +1147,7 @@ class Messages(object):
     COOKIES_FILE_WORKING_LOG_MSG = "クッキーファイルが存在し、正しい形式であり、YouTubeクッキーが機能しています。"
     COOKIES_FILE_EXPIRED_LOG_MSG = "クッキーファイルが存在し、正しい形式ですが、YouTubeクッキーは期限切れです。"
     COOKIES_FILE_CORRECT_FORMAT_LOG_MSG = "クッキーファイルが存在し、正しい形式です。"
-    COOKCookies_FILE_INCORRECT_FORMAT_LOG_MSG = "クッキーファイルが存在しますが、形式が正しくありません。"
+    COOKIES_FILE_INCORRECT_FORMAT_LOG_MSG = "クッキーファイルが存在しますが、形式が正しくありません。"
     COOKIES_FILE_NOT_FOUND_LOG_MSG = "クッキーファイルが見つかりません。"
     COOKIES_SERVICE_URL_EMPTY_LOG_MSG = "{service}クッキーURLがユーザー{user_id}に対して空です。"
     COOKIES_SERVICE_URL_NOT_TXT_LOG_MSG = "{service}クッキーURLは.txtではありません (非表示)"
