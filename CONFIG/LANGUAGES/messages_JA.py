@@ -154,7 +154,7 @@ class Messages(object):
 </blockquote>
     "
     
-    # Version 1.0.0 - Добавлен SAVE_AS_COOKIE_HINT для подсказки по /save_as_cookie
+    # Version 1.0.0 - Added SAVE_AS_COOKIE_HINT for hint on /save_as_cookie
     SAVE_AS_COOKIE_HINT = (
         "<b><u>cookie.txt</u></b>としてCookieを保存し、ドキュメントとしてボットに送信するだけです。\n\n"
         "<b><u>/save_as_cookie</u></b>コマンドでプレーンテキストとしてCookieを送信することもできます。\n"
