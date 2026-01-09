@@ -184,7 +184,7 @@ class Messages(object):
 <blockquote>PCでは、任意のチャットで<b>「@vid 検索クエリ」</b>と入力するだけです。</blockquote>
     """
     
-    # Settings and Hints (English)
+    # 設定とヒント
     
     
     IMG_HELP_MSG = (
