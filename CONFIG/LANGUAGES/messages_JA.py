@@ -80,7 +80,7 @@ class Messages(object):
 <i>サポートされているプラットフォームには、vk、2ch、35photo、4chan、500px、ArtStation、Boosty、Civitai、Cyberdrop、DeviantArt、Discord、Facebook、Fansly、Instagram、Pinterest、Reddit、TikTok、Tumblr、Twitter/X、JoyReactorなどが含まれます。完全なリスト:</i>
 <a href=\"https://raw.githubusercontent.com/mikf/gallery-dl/refs/heads/master/docs/supportedsites.md\">gallery-dlがサポートするサイト</a>
 </blockquote>
-"
+"""
     HELP_MSG = """
 <blockquote>🎬 <b>ビデオダウンロードボット - ヘルプ</b>
 
